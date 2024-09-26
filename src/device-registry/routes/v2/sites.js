@@ -113,6 +113,81 @@ router.get(
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("online_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the online_status should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["online", "offline"])
+        .withMessage(
+          "the online_status value is not among the expected ones which include: online, offline"
+        ),
+      query("last_active_before")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_before date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active_after")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_after date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+    ],
+  ]),
   siteController.list
 );
 router.get(
@@ -127,6 +202,81 @@ router.get(
       .toLowerCase()
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("online_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the online_status should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["online", "offline"])
+        .withMessage(
+          "the online_status value is not among the expected ones which include: online, offline"
+        ),
+      query("last_active_before")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_before date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active_after")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_after date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+    ],
   ]),
   siteController.listSummary
 );

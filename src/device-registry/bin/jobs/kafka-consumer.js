@@ -55,6 +55,11 @@ const eventSchema = Joi.object({
     .optional(),
   pm2_5_calibrated_value: Joi.number().optional(),
   pm10_calibrated_value: Joi.number().optional(),
+  tvoc: Joi.number().optional(),
+  hcho: Joi.number().optional(),
+  co2: Joi.number().optional(),
+  intaketemperature: Joi.number().optional(),
+  intakehumidity: Joi.number().optional(),
 }).unknown(true);
 
 const eventsSchema = Joi.array().items(eventSchema);

@@ -67,25 +67,25 @@ This is a comprehensive microservice designed to create, manage, and share conte
 
 2.  Install dependencies
 
-    Copy
-
-    `cd src/blog-content-manager npm install`
+    ```bash
+    cd src/blog-content-manager npm install
+    ```
 
 3.  Set up environment variables
 
-    Copy
-
-    `cp .env.example .env # Edit .env with your configuration`
+    ```bash
+    cp .env.example .env # Edit .env with your configuration
+    ```
 
 4.  Start the server
 
-    Copy
-
-    `npm start`
+    ```
+    npm run dev
+    ```
 
 ## API Documentation
 
-API documentation is available at `/api-docs` when running the server locally.
+API documentation is available at `/api/blogs/api-docs` when running the server locally.
 
 ## Contributing
 

@@ -14,14 +14,11 @@ require("@config/firebase-admin");
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
-const passport = require("passport");
+// const passport = require("passport");
 const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
-require("@bin/active-status-job");
-require("@bin/token-expiration-job");
-require("@bin/incomplete-profile-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
@@ -31,6 +28,9 @@ const logger = log4js.getLogger(
 const { logText, logObject } = require("@utils/log");
 const fileUpload = require("express-fileupload");
 const stringify = require("@utils/stringify");
+
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("@config/swagger");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -57,7 +57,7 @@ if (isDev) {
   app.use(morgan("dev"));
 }
 
-app.use(passport.initialize());
+// app.use(passport.initialize());
 
 app.use(cookieParser());
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
@@ -73,8 +73,11 @@ app.use(
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
 
-// app.use("/api/v1/users", require("@routes/v1"));
-app.use("/api/v2/users", require("@routes/v2"));
+// Swagger UI middleware
+app.use("/api/blogs/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// app.use("/api/v1/blogs", require("@routes/v1"));
+app.use("/api/v2/blogs", require("@routes/v2"));
 
 // default error handling
 app.use((req, res, next) => {

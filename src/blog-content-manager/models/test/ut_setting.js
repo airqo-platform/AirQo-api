@@ -2,353 +2,410 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
+const sinonChai = require("sinon-chai");
 const mongoose = require("mongoose");
-const FavoriteModel = require("@models/Favorite");
+const SettingModel = require("@models/Setting");
 
-describe("FavoriteSchema statics", () => {
-  describe("register method", () => {
-    it("should create a new Favorite and return success message with status 200", async () => {
-      // Mock input data for the Favorite to be created
-      const args = {
-        place_id: "some_place_id",
-        name: "Favorite Name",
-        location: "Favorite Location",
-        latitude: 12.345,
-        longitude: 67.89,
-        firebase_user_id: "some_firebase_user_id",
-      };
+describe("Setting Model", () => {
+  let sandbox;
 
-      // Mock the Favorite.create method to return a successful result
-      const createStub = sinon.stub(FavoriteModel, "create").resolves(args);
-
-      // Call the register method
-      const result = await FavoriteModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("Favorite created");
-      expect(result.status).to.equal(200);
-      expect(result.data).to.deep.equal(args);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    it("should return success message with status 202 if the Favorite is not created", async () => {
-      // Mock input data for the Favorite (this time we'll return an empty data array)
-      const args = {
-        place_id: "some_place_id",
-        name: "Favorite Name",
-        location: "Favorite Location",
-        latitude: 12.345,
-        longitude: 67.89,
-        firebase_user_id: "some_firebase_user_id",
-      };
-
-      // Mock the Favorite.create method to return an empty data array
-      const createStub = sinon.stub(FavoriteModel, "create").resolves([]);
-
-      // Call the register method
-      const result = await FavoriteModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        "operation successful but Favorite NOT successfully created"
-      );
-      expect(result.status).to.equal(202);
-      expect(result.data).to.be.an("array").that.is.empty;
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    it("should return validation errors if the Favorite creation encounters duplicate values", async () => {
-      // Mock input data for the Favorite with duplicate values
-      const args = {
-        place_id: "duplicate_place_id",
-        name: "Duplicate Name",
-        location: "Duplicate Location",
-        latitude: 12.345,
-        longitude: 67.89,
-        firebase_user_id: "some_firebase_user_id",
-      };
-
-      // Mock the Favorite.create method to throw a duplicate key error
-      const createStub = sinon.stub(FavoriteModel, "create").throws({
-        keyValue: { place_id: "duplicate_place_id" },
-      });
-
-      // Call the register method
-      const result = await FavoriteModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.false;
-      expect(result.errors).to.deep.equal({
-        place_id: "the place_id must be unique",
-      });
-      expect(result.message).to.equal(
-        "validation errors for some of the provided fields"
-      );
-      expect(result.status).to.equal(409);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    // Add more test cases to cover additional scenarios
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
   });
 
-  describe("list method", () => {
-    it("should list favorites with the provided filter, skip, and limit", async () => {
-      // Sample favorites data
-      const favoritesData = [
-        {
-          _id: "fav_id_1",
-          title: "Favorite 1",
-          category: "books",
-          createdAt: new Date("2023-01-01"),
-        },
-        {
-          _id: "fav_id_2",
-          title: "Favorite 2",
-          category: "movies",
-          createdAt: new Date("2023-01-02"),
-        },
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe("SettingSchema", () => {
+    it("should define the schema correctly", () => {
+      const schema = SettingSchema;
+      expect(schema.paths).to.exist;
+      expect(schema.paths.name).to.exist;
+      expect(schema.paths.value).to.exist;
+      expect(schema.paths.description).to.exist;
+      expect(schema.paths.type).to.exist;
+      expect(schema.paths.category).to.exist;
+      expect(schema.paths.status).to.exist;
+      expect(schema.options.timestamps).to.exist;
+    });
+
+    it("should validate required fields", () => {
+      const validSetting = {
+        name: "Some setting name",
+        value: { key: "value" },
+        category: "some-category",
+      };
+
+      const invalidSetting = {};
+
+      expect(SettingSchema.validate(validSetting)).to.not.throw();
+      expect(() => SettingSchema.validate(invalidSetting)).to.throw(
+        /Setting name is required/
+      );
+      expect(() => SettingSchema.validate(invalidSetting)).to.throw(
+        /Setting value is required/
+      );
+      expect(() => SettingSchema.validate(invalidSetting)).to.throw(
+        /Setting category is required/
+      );
+    });
+
+    it("should validate unique names", async () => {
+      const validSetting = {
+        name: "Unique Setting",
+        value: { key: "value" },
+      };
+
+      const duplicateSetting = {
+        name: "Unique Setting",
+        value: { key: "different-value" },
+      };
+
+      const db = await mongoose.connect("mongodb://localhost/test-db");
+      const Setting = mongoose.model("settings", SettingSchema);
+
+      await Setting.create(validSetting);
+
+      await expect(SettingSchema.validate(duplicateSetting)).to.be.rejectedWith(
+        "Name should be unique!"
+      );
+    });
+
+    it("should validate setting value based on type", async () => {
+      // This test assumes we're using a custom validator function
+      // You may need to adjust this based on how you've implemented the validation
+      const validStringSetting = {
+        name: "string-setting",
+        value: "some-string",
+      };
+      const validBooleanSetting = { name: "boolean-setting", value: true };
+      const validIntegerSetting = { name: "integer-setting", value: 42 };
+      const validArraySetting = {
+        name: "array-setting",
+        value: ["item1", "item2"],
+      };
+
+      const invalidSettings = [
+        { name: "invalid-type-setting", value: 123 }, // Should fail for string type
+        { name: "invalid-type-setting", value: {} }, // Should fail for boolean type
+        { name: "invalid-type-setting", value: [] }, // Should fail for integer type
+        { name: "invalid-type-setting", value: "not-an-array" }, // Should fail for array type
       ];
 
-      // Stub the aggregate method of the model to return the sample favorites data
-      const aggregateStub = sinon
-        .stub(FavoritesModel, "aggregate")
-        .returnsThis();
-      const matchStub = sinon.stub().resolvesThis();
-      const sortStub = sinon.stub().resolvesThis();
-      const projectStub = sinon.stub().resolvesThis();
-      const allowDiskUseStub = sinon.stub().resolves(favoritesData);
-      aggregateStub.match = matchStub;
-      aggregateStub.sort = sortStub;
-      aggregateStub.project = projectStub;
-      aggregateStub.allowDiskUse = allowDiskUseStub;
+      const db = await mongoose.connect("mongodb://localhost/test-db");
+      const Setting = mongoose.model("settings", SettingSchema);
 
-      // Call the list method with sample filter, skip, and limit
-      const filter = { category: "movies" };
-      const skip = 0;
-      const limit = 2;
-      const result = await FavoritesModel.list({ skip, limit, filter });
+      await Promise.all([
+        Setting.create(validStringSetting),
+        Setting.create(validBooleanSetting),
+        Setting.create(validIntegerSetting),
+        Setting.create(validArraySetting),
+      ]);
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("data").that.deep.equals(favoritesData);
-      expect(result).to.have.property(
-        "message",
-        "successfully listed the favorites"
+      await Promise.all(
+        invalidSettings.map((setting) =>
+          expect(SettingSchema.validate(setting)).to.throw(
+            "Invalid setting value"
+          )
+        )
       );
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      // Restore the aggregate method to its original implementation
-      aggregateStub.restore();
     });
-
-    it("should return 'no favorites exist' message if no favorites found", async () => {
-      // Stub the aggregate method of the model to return an empty array (no favorites found)
-      const aggregateStub = sinon
-        .stub(FavoritesModel, "aggregate")
-        .returnsThis();
-      const matchStub = sinon.stub().resolvesThis();
-      const sortStub = sinon.stub().resolvesThis();
-      const projectStub = sinon.stub().resolvesThis();
-      const allowDiskUseStub = sinon.stub().resolves([]);
-      aggregateStub.match = matchStub;
-      aggregateStub.sort = sortStub;
-      aggregateStub.project = projectStub;
-      aggregateStub.allowDiskUse = allowDiskUseStub;
-
-      // Call the list method with sample filter, skip, and limit
-      const filter = { category: "non_existent_category" };
-      const skip = 0;
-      const limit = 10;
-      const result = await FavoritesModel.list({ skip, limit, filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("message", "no favorites exist");
-      expect(result).to.have.property("data").that.is.an("array").that.is.empty;
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      // Restore the aggregate method to its original implementation
-      aggregateStub.restore();
-    });
-
-    // Add more test cases to cover other scenarios
   });
 
-  describe("modify method", () => {
-    it("should modify the favorite with the provided filter and update", async () => {
-      // Sample favorite data
-      const favoriteData = {
-        _id: "fav_id_1",
-        title: "Favorite 1",
-        category: "books",
-        createdAt: new Date("2023-01-01"),
-      };
+  describe("SettingSchema methods", () => {
+    it("should export toJSON method", () => {
+      const setting = new SettingModel()
+        .schema({
+          _id: "123",
+          name: "Test Name",
+          value: { key: "value" },
+          description: "Test Description",
+          type: "string",
+          category: "test-category",
+          status: "active",
+        })
+        .toObject();
 
-      // Stub the findOneAndUpdate method of the model to return the modified favorite data
-      const findOneAndUpdateStub = sinon
-        .stub(FavoritesModel, "findOneAndUpdate")
-        .resolves(favoriteData);
-
-      // Call the modify method with sample filter and update
-      const filter = { _id: "fav_id_1" };
-      const update = { category: "movies" };
-      const result = await FavoritesModel.modify({ filter, update });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully modified the Favorite"
-      );
-      expect(result).to.have.property("data").that.deep.equals(favoriteData);
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      // Restore the findOneAndUpdate method to its original implementation
-      findOneAndUpdateStub.restore();
-    });
-
-    it("should return 'Favorite does not exist' message if no favorite found", async () => {
-      // Stub the findOneAndUpdate method of the model to return null (no favorite found)
-      const findOneAndUpdateStub = sinon
-        .stub(FavoritesModel, "findOneAndUpdate")
-        .resolves(null);
-
-      // Call the modify method with sample filter and update
-      const filter = { _id: "non_existent_id" };
-      const update = { category: "movies" };
-      const result = await FavoritesModel.modify({ filter, update });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property(
-        "message",
-        "Favorite does not exist, please crosscheck"
-      );
-      expect(result).to.have.property("errors").that.deep.equals({
-        message: "Favorite does not exist, please crosscheck",
+      const jsonResult = setting.toJSON();
+      expect(jsonResult).to.deep.equal({
+        _id: "123",
+        name: "Test Name",
+        value: { key: "value" },
+        description: "Test Description",
+        type: "string",
+        category: "test-category",
+        status: "active",
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
       });
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-
-      // Restore the findOneAndUpdate method to its original implementation
-      findOneAndUpdateStub.restore();
     });
-
-    // Add more test cases to cover other scenarios
   });
 
-  describe("remove method", () => {
-    it("should remove the favorite with the provided filter", async () => {
-      // Sample favorite data
-      const favoriteData = {
-        _id: "fav_id_1",
-        name: "Favorite 1",
-        location: "New York",
-        firebase_user_id: "user_id_1",
-      };
+  describe("static methods", () => {
+    let mockMongooseModel;
 
-      // Stub the findOneAndRemove method of the model to return the removed favorite data
-      const findOneAndRemoveStub = sinon
-        .stub(FavoritesModel, "findOneAndRemove")
-        .resolves(favoriteData);
-
-      // Call the remove method with sample filter
-      const filter = { _id: "fav_id_1" };
-      const result = await FavoritesModel.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully removed the Favorite"
-      );
-      expect(result).to.have.property("data").that.deep.equals(favoriteData);
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      // Restore the findOneAndRemove method to its original implementation
-      findOneAndRemoveStub.restore();
+    beforeEach(() => {
+      mockMongooseModel = sinon.mock(mongoose.Model);
     });
 
-    it("should return 'Favorite does not exist' message if no favorite found", async () => {
-      // Stub the findOneAndRemove method of the model to return null (no favorite found)
-      const findOneAndRemoveStub = sinon
-        .stub(FavoritesModel, "findOneAndRemove")
-        .resolves(null);
-
-      // Call the remove method with sample filter
-      const filter = { _id: "non_existent_id" };
-      const result = await FavoritesModel.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property(
-        "message",
-        "Favorite does not exist, please crosscheck"
-      );
-      expect(result).to.have.property("errors").that.deep.equals({
-        message: "Favorite does not exist, please crosscheck",
-      });
-      expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
-
-      // Restore the findOneAndRemove method to its original implementation
-      findOneAndRemoveStub.restore();
+    afterEach(() => {
+      mockMongooseModel.restore();
     });
 
-    // Add more test cases to cover other scenarios
-  });
+    describe("create method", () => {
+      it("should create a new setting item", async () => {
+        const mockCreate = sandbox
+          .stub(mongoose.Model.prototype.create, "exec")
+          .resolves({ _id: "123", name: "Test Name", value: { key: "value" } });
 
-  // Add more tests for other static methods if applicable
-});
+        const result = await SettingModel.create(
+          { name: "Test Name", value: { key: "value" } },
+          {}
+        );
 
-describe("FavoriteSchema methods", () => {
-  describe("toJSON method", () => {
-    it("should return a JSON object with specific properties", () => {
-      // Create a new instance of FavoriteSchema with mock data
-      const favorite = new FavoriteModel({
-        _id: "some_id",
-        name: "Favorite Name",
-        location: "Favorite Location",
-        latitude: 12.345,
-        longitude: 67.89,
-        place_id: "some_place_id",
-        reference_site: "some_reference_site",
-        firebase_user_id: "some_firebase_user_id",
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Setting created successfully");
+        expect(result.status).to.equal(httpStatus.CREATED);
+        expect(mockCreate).to.have.been.calledOnceWith({
+          name: "Test Name",
+          value: { key: "value" },
+        });
       });
 
-      // Call the toJSON method on the favorite instance
-      const result = favorite.toJSON();
+      it("should fail to create when required fields are missing", async () => {
+        const mockCreate = sandbox
+          .stub(mongoose.Model.prototype.create, "exec")
+          .resolves(null);
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("_id", "some_id");
-      expect(result).to.have.property("name", "Favorite Name");
-      expect(result).to.have.property("location", "Favorite Location");
-      expect(result).to.have.property("latitude", 12.345);
-      expect(result).to.have.property("longitude", 67.89);
-      expect(result).to.have.property("place_id", "some_place_id");
-      expect(result).to.have.property("reference_site", "some_reference_site");
-      expect(result).to.have.property(
-        "firebase_user_id",
-        "some_firebase_user_id"
-      );
-      // Add more assertions to verify the result
+        const result = await SettingModel.create({}, {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Failed to create setting");
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(mockCreate).to.have.been.calledOnceWith({});
+      });
     });
 
-    // Add more test cases to cover additional scenarios
-  });
+    describe("list method", () => {
+      it("should list settings", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([
+            {
+              _id: "1",
+              name: "Setting 1",
+              value: { key: "value1" },
+              category: "category1",
+            },
+            {
+              _id: "2",
+              name: "Setting 2",
+              value: { key: "value2" },
+              category: "category2",
+            },
+          ]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(2);
 
-  // Add more tests for other methods if applicable
+        const result = await SettingModel.list({}, {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.have.lengthOf(2);
+        expect(result.total).to.equal(2);
+        expect(result.message).to.equal("Successfully retrieved settings");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({});
+        expect(mockCountDocuments).to.have.been.calledOnceWith({});
+      });
+
+      it("should handle empty results", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(0);
+
+        const result = await SettingModel.list({}, {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.deep.equal([]);
+        expect(result.total).to.equal(0);
+        expect(result.message).to.equal("No settings found");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({});
+        expect(mockCountDocuments).to.have.been.calledOnceWith({});
+      });
+    });
+
+    describe("findById method", () => {
+      it("should find a setting by ID", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves({ _id: "123", name: "Test Name", value: { key: "value" } });
+
+        const result = await SettingModel.findById("123", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully retrieved setting");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFindOne).to.have.been.calledOnceWith({ _id: "123" });
+      });
+
+      it("should return not found when setting does not exist", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .rejects(new Error("Setting not found"));
+
+        const result = await SettingModel.findById("nonexistent-id", {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Setting not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFindOne).to.have.been.calledOnceWith({
+          _id: "nonexistent-id",
+        });
+      });
+    });
+
+    describe("update method", () => {
+      it("should update a setting", async () => {
+        const mockUpdateOne = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+          .resolves({
+            _id: "123",
+            name: "Updated Name",
+            value: { key: "updated-value" },
+            category: "test-category",
+          });
+
+        const result = await SettingModel.update(
+          {
+            id: "123",
+            update: { name: "Updated Name", value: { key: "updated-value" } },
+          },
+          {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully updated the setting");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockUpdateOne).to.have.been.calledOnceWith(
+          "123",
+          { name: "Updated Name", value: { key: "updated-value" } },
+          { new: true, runValidators: true }
+        );
+      });
+
+      it("should return not found when setting does not exist", async () => {
+        const mockUpdateOne = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+          .rejects(new Error("Setting not found"));
+
+        const result = await SettingModel.update(
+          { id: "nonexistent-id", update: {} },
+          {}
+        );
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Setting not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockUpdateOne).to.have.been.calledOnceWith(
+          "nonexistent-id",
+          {},
+          { new: true, runValidators: true }
+        );
+      });
+    });
+
+    describe("remove method", () => {
+      it("should remove a setting", async () => {
+        const mockRemove = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+          .resolves({
+            _id: "123",
+            name: "Test Name",
+            value: { key: "value" },
+            category: "test-category",
+          });
+
+        const result = await SettingModel.remove("123", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully removed the setting");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockRemove).to.have.been.calledOnceWith("123");
+      });
+
+      it("should return not found when setting does not exist", async () => {
+        const mockRemove = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+          .rejects(new Error("Setting not found"));
+
+        const result = await SettingModel.remove("nonexistent-id", {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Setting not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockRemove).to.have.been.calledOnceWith("nonexistent-id");
+      });
+    });
+
+    describe("findByCategory method", () => {
+      it("should find settings by category", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([
+            {
+              _id: "1",
+              name: "Setting 1",
+              value: { key: "value1" },
+              category: "category1",
+            },
+            {
+              _id: "2",
+              name: "Setting 2",
+              value: { key: "value2" },
+              category: "category1",
+            },
+          ]);
+
+        const result = await SettingModel.findByCategory("category1", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.have.lengthOf(2);
+        expect(result.message).to.equal(
+          "Successfully retrieved settings for category"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind)
+          .to.have.been.calledOnceWith({ category: "category1" })
+          .sort({ name: 1 });
+      });
+
+      it("should return not found when no settings are found for the category", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([]);
+
+        const result = await SettingModel.findByCategory(
+          "nonexistent-category",
+          {}
+        );
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("No settings found for this category");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFind)
+          .to.have.been.calledOnceWith({ category: "nonexistent-category" })
+          .sort({ name: 1 });
+      });
+    });
+  });
 });

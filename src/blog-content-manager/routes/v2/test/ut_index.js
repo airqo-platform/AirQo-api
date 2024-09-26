@@ -1,135 +1,223 @@
 require("module-alias/register");
-const { expect } = require("chai");
-const sinon = require("sinon");
+// Import necessary modules
 const express = require("express");
-const request = require("supertest");
-const apiRoutes = require("../index");
+const router = express.Router();
+const path = require("path");
 
-// Import mock router files for each route (you need to provide mock implementations for these)
-const networksRouter = require("./mockRoutes/networks");
-const permissionsRouter = require("./mockRoutes/permissions");
-const favoritesRouter = require("./mockRoutes/favorites");
-const rolesRouter = require("./mockRoutes/roles");
-const inquiriesRouter = require("./mockRoutes/inquiries");
-const candidatesRouter = require("./mockRoutes/candidates");
-const defaultsRouter = require("./mockRoutes/defaults");
-const tokensRouter = require("./mockRoutes/tokens");
-const clientsRouter = require("./mockRoutes/clients");
-const scopesRouter = require("./mockRoutes/scopes");
-const departmentsRouter = require("./mockRoutes/departments");
-const groupsRouter = require("./mockRoutes/groups");
-const locationHistoryRouter = require("./mockRoutes/locationHistory");
-const usersRouter = require("./mockRoutes/users");
+// Mock sub-routes
+const analyticsRouter = require("@routes/v2/analytics");
+const articlesRouter = require("@routes/v2/articles");
+const categoriesRouter = require("@routes/v2/categories");
+const commentsRouter = require("@routes/v2/comments");
+const feedsRouter = require("@routes/v2/feeds");
+const interactionsRouter = require("@routes/v2/interactions");
+const moderationRouter = require("@routes/v2/moderation");
+const postsRouter = require("@routes/v2/posts");
+const searchRouter = require("@routes/v2/search");
 
-describe("API Routes", () => {
-  let app;
+// Mock route handlers
+const mockAnalyticsHandler = sinon.stub(analyticsRouter, "get").returns({
+  status: 200,
+  body: { message: "Analytics data retrieved successfully" },
+});
 
+const mockArticlesHandler = sinon.stub(articlesRouter, "get").returns({
+  status: 200,
+  body: [{ id: 1, title: "Article 1", content: "Content 1" }],
+});
+
+const mockCategoriesHandler = sinon.stub(categoriesRouter, "get").returns({
+  status: 200,
+  body: [{ id: 1, name: "Category 1" }],
+});
+
+const mockCommentsHandler = sinon
+  .stub(commentsRouter, "post")
+  .callsFake((req, res) => ({
+    status: 201,
+    body: { message: "Comment added successfully" },
+  }));
+
+const mockFeedsHandler = sinon.stub(feedsRouter, "get").returns({
+  status: 200,
+  body: [{ id: 1, title: "Feed 1", link: "https://example.com/feed1" }],
+});
+
+const mockInteractionsHandler = sinon
+  .stub(interactionsRouter, "post")
+  .callsFake((req, res) => ({
+    status: 201,
+    body: { message: "Interaction recorded successfully" },
+  }));
+
+const mockModerationHandler = sinon
+  .stub(moderationRouter, "patch")
+  .callsFake((req, res) => ({
+    status: 200,
+    body: { message: "Moderation action completed successfully" },
+  }));
+
+const mockPostsHandler = sinon
+  .stub(postsRouter, "get")
+  .callsFake((req, res) => ({
+    status: 200,
+    body: [{ id: 1, title: "Post 1", content: "Content 1" }],
+  }));
+
+const mockSearchHandler = sinon
+  .stub(searchRouter, "get")
+  .callsFake((req, res) => ({
+    status: 200,
+    body: [{ id: 1, title: "Search result 1", content: "Content 1" }],
+  }));
+
+describe("V2 Router", () => {
   beforeEach(() => {
-    app = express();
-    app.use(express.json());
-
-    // Mock the usage of each router file in the main router file
-    app.use("/networks", networksRouter);
-    app.use("/permissions", permissionsRouter);
-    app.use("/favorites", favoritesRouter);
-    app.use("/roles", rolesRouter);
-    app.use("/inquiries", inquiriesRouter);
-    app.use("/candidates", candidatesRouter);
-    app.use("/defaults", defaultsRouter);
-    app.use("/tokens", tokensRouter);
-    app.use("/clients", clientsRouter);
-    app.use("/scopes", scopesRouter);
-    app.use("/departments", departmentsRouter);
-    app.use("/groups", groupsRouter);
-    app.use("/locationHistory", locationHistoryRouter);
-    app.use("/", usersRouter);
+    // Reset mocks before each test
+    mockAnalyticsHandler.reset();
+    mockArticlesHandler.reset();
+    mockCategoriesHandler.reset();
+    mockCommentsHandler.reset();
+    mockFeedsHandler.reset();
+    mockInteractionsHandler.reset();
+    mockModerationHandler.reset();
+    mockPostsHandler.reset();
+    mockSearchHandler.reset();
   });
 
-  afterEach(() => {
-    sinon.restore(); // Restore Sinon stubs after each test
-  });
+  describe("GET /analytics", () => {
+    it("should return analytics data", async () => {
+      const req = {};
+      const res = {};
 
-  // Test cases for the "/networks" route
-  describe("Networks API", () => {
-    it("should return a list of networks with status code 200", async () => {
-      // Mock the behavior of the networksRouter, assuming it has a get route for "/networks"
-      sinon.stub(networksRouter, "get").resolves([
-        /* Mocked data here */
-      ]);
+      await router.get("/analytics")(req, res);
 
-      // Perform the HTTP GET request
-      const response = await request(app).get("/networks").expect(200);
-
-      // Assert the response
-      expect(response.body).to.be.an("array");
-      // Add more assertions based on the expected response data
+      expect(mockAnalyticsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({
+        message: "Analytics data retrieved successfully",
+      });
     });
-
-    // Add more test cases for different scenarios related to the networks route
   });
 
-  // Test cases for the "/permissions" route
-  describe("Permissions API", () => {
-    // Add test cases for the permissions route
+  describe("GET /articles", () => {
+    it("should return article data", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/articles")(req, res);
+
+      expect(mockArticlesHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, title: "Article 1", content: "Content 1" },
+      ]);
+    });
   });
 
-  // Test cases for the "/favorites" route
-  describe("Favorites API", () => {
-    // Add test cases for the favorites route
+  describe("GET /categories", () => {
+    it("should return category data", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/categories")(req, res);
+
+      expect(mockCategoriesHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([{ id: 1, name: "Category 1" }]);
+    });
   });
 
-  // Test cases for the "/roles" route
-  describe("Roles API", () => {
-    // Add test cases for the roles route
+  describe("POST /comments", () => {
+    it("should add a comment", async () => {
+      const req = { body: { postId: 1, content: "New comment" } };
+      const res = {};
+
+      await router.post("/comments")(req, res);
+
+      expect(mockCommentsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(201);
+      expect(res.body).to.deep.equal({ message: "Comment added successfully" });
+    });
   });
 
-  // Test cases for the "/inquiries" route
-  describe("Inquiries API", () => {
-    // Add test cases for the inquiries route
+  describe("GET /feeds", () => {
+    it("should return feed data", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/feeds")(req, res);
+
+      expect(mockFeedsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, title: "Feed 1", link: "https://example.com/feed1" },
+      ]);
+    });
   });
 
-  // Test cases for the "/candidates" route
-  describe("Candidates API", () => {
-    // Add test cases for the candidates route
+  describe("POST /interactions", () => {
+    it("should record an interaction", async () => {
+      const req = { body: { postId: 1, type: "like" } };
+      const res = {};
+
+      await router.post("/interactions")(req, res);
+
+      expect(mockInteractionsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(201);
+      expect(res.body).to.deep.equal({
+        message: "Interaction recorded successfully",
+      });
+    });
   });
 
-  // Test cases for the "/defaults" route
-  describe("Defaults API", () => {
-    // Add test cases for the defaults route
+  describe("PATCH /moderation", () => {
+    it("should perform moderation action", async () => {
+      const req = { params: { postId: 1 }, body: { action: "flag" } };
+      const res = {};
+
+      await router.patch("/moderation")(req, res);
+
+      expect(mockModerationHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({
+        message: "Moderation action completed successfully",
+      });
+    });
   });
 
-  // Test cases for the "/tokens" route
-  describe("Tokens API", () => {
-    // Add test cases for the tokens route
+  describe("GET /posts", () => {
+    it("should return post data", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/posts")(req, res);
+
+      expect(mockPostsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, title: "Post 1", content: "Content 1" },
+      ]);
+    });
   });
 
-  // Test cases for the "/clients" route
-  describe("Clients API", () => {
-    // Add test cases for the clients route
-  });
+  describe("GET /search", () => {
+    it("should perform search", async () => {
+      const req = { query: { q: "test" } };
+      const res = {};
 
-  // Test cases for the "/scopes" route
-  describe("Scopes API", () => {
-    // Add test cases for the scopes route
-  });
+      await router.get("/search")(req, res);
 
-  // Test cases for the "/departments" route
-  describe("Departments API", () => {
-    // Add test cases for the departments route
+      expect(mockSearchHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        { id: 1, title: "Search result 1", content: "Content 1" },
+      ]);
+    });
   });
+});
 
-  // Test cases for the "/groups" route
-  describe("Groups API", () => {
-    // Add test cases for the groups route
-  });
-
-  // Test cases for the "/locationHistory" route
-  describe("Location History API", () => {
-    // Add test cases for the locationHistory route
-  });
-
-  // Test cases for the "/" route (users route)
-  describe("Users API", () => {
-    // Add test cases for the users route
-  });
+// Cleanup
+afterEach(() => {
+  sinon.restore();
 });

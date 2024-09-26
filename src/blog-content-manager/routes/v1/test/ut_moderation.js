@@ -1,508 +1,441 @@
 require("module-alias/register");
-const chai = require("chai");
-const expect = chai.expect;
+// Import necessary modules
 const express = require("express");
-const supertest = require("supertest");
-const app = express();
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-const request = supertest(app);
+const router = express.Router();
+const { check, validationResult } = require("express-validator");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
+const ContentModerationController = require("@controllers/moderate-posts");
 
-describe("Group Router", () => {
-  describe("DELETE /groups/:grp_id", () => {
-    it("should delete a group successfully", async () => {
-      // Create a new group to be deleted
-      const newGroup = { name: "Test Group" };
-      const group = await GroupModel.create(newGroup);
+// Import middleware
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
+  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
-      // Make the DELETE request to delete the group
-      const response = await supertest(app)
-        .delete(`/groups/${group._id}`)
-        .expect(200);
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
+};
 
-      // Expectations
-      expect(response.body.success).to.be.true;
-      expect(response.body.message).to.equal("Group deleted successfully");
-      expect(response.body.data._id).to.equal(group._id.toString());
+// Mock route handlers
+const mockListRegistrationsHandler = sinon
+  .stub(ContentModerationController, "listRegistrations")
+  .resolves({
+    status: 200,
+    body: [
+      {
+        id: 1,
+        userId: "user1",
+        registrationType: "newUser",
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: 2,
+        userId: "user2",
+        registrationType: "emailVerification",
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  });
 
-      // Check if the group is actually deleted from the database
-      const deletedGroup = await GroupModel.findById(group._id);
-      expect(deletedGroup).to.be.null;
+const mockApproveRegistrationHandler = sinon
+  .stub(ContentModerationController, "approveRegistration")
+  .resolves({
+    status: 200,
+    body: { message: "User registration approved" },
+  });
+
+const mockRejectRegistrationHandler = sinon
+  .stub(ContentModerationController, "rejectRegistration")
+  .resolves({
+    status: 200,
+    body: { message: "User registration rejected" },
+  });
+
+const mockFlagPostHandler = sinon
+  .stub(ContentModerationController, "flagPost")
+  .resolves({
+    status: 200,
+    body: { message: "Post flagged successfully" },
+  });
+
+const mockViewFlagsHandler = sinon
+  .stub(ContentModerationController, "viewFlags")
+  .resolves({
+    status: 200,
+    body: [
+      {
+        postId: 1,
+        flagReason: "inappropriate",
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  });
+
+const mockSuspendUserHandler = sinon
+  .stub(ContentModerationController, "suspendUser")
+  .resolves({
+    status: 200,
+    body: { message: "User suspended successfully" },
+  });
+
+const mockBanUserHandler = sinon
+  .stub(ContentModerationController, "banUser")
+  .resolves({
+    status: 200,
+    body: { message: "User banned successfully" },
+  });
+
+describe("Content Moderation Routes", () => {
+  describe("GET /registrations", () => {
+    it("should list user registrations", async () => {
+      const req = {};
+      const res = {};
+
+      await router.get("/registrations", validateContentModeration)(req, res);
+
+      expect(mockListRegistrationsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        {
+          id: 1,
+          userId: "user1",
+          registrationType: expect.any(String),
+          timestamp: expect.any(String),
+        },
+        {
+          id: 2,
+          userId: "user2",
+          registrationType: expect.any(String),
+          timestamp: expect.any(String),
+        },
+      ]);
     });
 
-    it("should return an error if the group ID is not valid", async () => {
-      const invalidGroupId = "invalid-id"; // Provide an invalid group ID
+    it("should handle validation errors", async () => {
+      const req = {};
+      const res = {};
 
-      // Make the DELETE request with an invalid group ID
-      const response = await supertest(app)
-        .delete(`/groups/${invalidGroupId}`)
-        .expect(400);
-
-      // Expectations
-      expect(response.body.success).to.be.false;
-      expect(response.body.message).to.equal("Bad Request Error");
-      expect(response.body.errors.message).to.equal(
-        "The group ID parameter must be an object ID"
+      await router.get("/invalidRegistrations", validateContentModeration)(
+        req,
+        res
       );
+
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases for different scenarios
   });
-  describe("PUT /groups/:grp_id", () => {
-    it("should update a group successfully", async () => {
-      const grpId = new ObjectId(); // Replace with a valid group ID
 
-      const updateData = {
-        grp_description: "Updated Description",
-        grp_status: true,
+  describe("PUT /registrations/:userId/approve", () => {
+    it("should approve a user registration", async () => {
+      const req = {
+        params: { userId: "validUserId" },
+        body: { reason: "Valid approval reason" },
       };
+      const res = {};
 
-      const response = await request
-        .put(`/groups/${grpId}`)
-        .query({ tenant: "kcca" })
-        .send(updateData)
-        .set("Authorization", "");
+      await router.put(
+        "/registrations/:userId/approve",
+        validateContentModeration
+      )(req, res);
 
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("object");
-
-      // Add more specific assertions based on your controller logic
+      expect(mockApproveRegistrationHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ message: "User registration approved" });
     });
 
     it("should handle validation errors", async () => {
-      const grpId = "invalid-id"; // An invalid group ID
-
-      const updateData = {
-        grp_description: "",
-        grp_status: "invalid-boolean",
+      const req = {
+        params: { userId: "invalidUserId" },
+        body: { invalidReason: "too long" },
       };
+      const res = {};
 
-      const response = await request
-        .put(`/groups/${grpId}`)
-        .query({ tenant: "invalid-tenant" })
-        .send(updateData)
-        .set("Authorization", "");
+      await router.put("/invalidUserId/approve", validateContentModeration)(
+        req,
+        res
+      );
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases as needed
   });
-  describe("GET /groups", () => {
-    it("should list groups with valid query parameters", async () => {
-      const queryParams = {
-        tenant: "kcca", // Replace with a valid tenant value
-        grp_id: new ObjectId(), // Replace with a valid group ID
-        grp_title: "Group Title", // Replace with a valid group title
-        grp_status: "Active", // Replace with a valid group status
+
+  describe("PUT /registrations/:userId/reject", () => {
+    it("should reject a user registration", async () => {
+      const req = {
+        params: { userId: "validUserId" },
+        body: { reason: "Valid rejection reason" },
       };
+      const res = {};
 
-      const response = await request.get("/groups").query(queryParams);
+      await router.put(
+        "/registrations/:userId/reject",
+        validateContentModeration
+      )(req, res);
 
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("array");
-
-      // Add more specific assertions based on your controller logic
+      expect(mockRejectRegistrationHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ message: "User registration rejected" });
     });
 
     it("should handle validation errors", async () => {
-      // Invalid query parameters
-      const queryParams = {
-        tenant: "invalid-tenant", // Invalid tenant
-        grp_id: "invalid-id", // Invalid group ID
-        grp_title: "", // Invalid group title (empty)
-        grp_status: "", // Invalid group status (empty)
+      const req = {
+        params: { userId: "invalidUserId" },
+        body: { invalidReason: "too long" },
       };
+      const res = {};
 
-      const response = await request.get("/groups").query(queryParams);
+      await router.put("/invalidUserId/reject", validateContentModeration)(
+        req,
+        res
+      );
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases as needed
   });
-  describe("POST /groups", () => {
-    it("should create a new group with valid request data", async () => {
-      const requestData = {
-        tenant: "kcca", // Replace with a valid tenant value
-        grp_title: "New Group", // Replace with a valid group title
-        grp_description: "Group Description", // Replace with a valid group description
+
+  describe("POST /:postId/flag", () => {
+    it("should flag a post", async () => {
+      const req = {
+        params: { postId: "validPostId" },
+        body: { reason: "Valid flag reason" },
       };
+      const res = {};
 
-      const response = await request.post("/groups").send(requestData);
+      await router.post("/:postId/flag", validateContentModeration)(req, res);
 
-      // Assertions
-      expect(response.status).to.equal(201);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("object");
-
-      // Add more specific assertions based on your controller logic
+      expect(mockFlagPostHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ message: "Post flagged successfully" });
     });
 
     it("should handle validation errors", async () => {
-      // Invalid request data
-      const requestData = {
-        tenant: "invalid-tenant", // Invalid tenant
-        grp_title: "", // Invalid group title (empty)
-        grp_description: "", // Invalid group description (empty)
+      const req = {
+        params: { postId: "invalidPostId" },
+        body: { invalidReason: "too long" },
       };
+      const res = {};
 
-      const response = await request.post("/groups").send(requestData);
+      await router.post("/invalidPostId/flag", validateContentModeration)(
+        req,
+        res
+      );
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases as needed
   });
-  describe("PUT /groups/:grp_id/assign-user/:user_id", () => {
-    it("should assign a user to a group with valid request data", async () => {
-      // Replace with valid grp_id and user_id
-      const grpId = "valid-group-id";
-      const userId = "valid-user-id";
 
-      const requestData = {
-        tenant: "kcca", // Replace with a valid tenant value
+  describe("GET /:postId/flags", () => {
+    it("should view flags for a post", async () => {
+      const req = {
+        params: { postId: "validPostId" },
       };
+      const res = {};
 
-      const response = await request
-        .put(`/groups/${grpId}/assign-user/${userId}`)
-        .query(requestData);
+      await router.get("/:postId/flags", validateContentModeration)(req, res);
 
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("object");
-
-      // Add more specific assertions based on your controller logic
+      expect(mockViewFlagsHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal([
+        {
+          postId: 1,
+          flagReason: expect.any(String),
+          timestamp: expect.any(String),
+        },
+      ]);
     });
 
     it("should handle validation errors", async () => {
-      // Invalid request data
-      const grpId = "invalid-group-id"; // Invalid grp_id
-      const userId = "invalid-user-id"; // Invalid user_id
-
-      const requestData = {
-        tenant: "invalid-tenant", // Invalid tenant
+      const req = {
+        params: { postId: "invalidPostId" },
       };
+      const res = {};
 
-      const response = await request
-        .put(`/groups/${grpId}/assign-user/${userId}`)
-        .query(requestData);
+      await router.get("/invalidPostId/flags", validateContentModeration)(
+        req,
+        res
+      );
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases as needed
   });
-  describe("GET /groups/summary", () => {
-    it("should get a summary of groups with valid request data", async () => {
-      const requestData = {
-        tenant: "kcca", // Replace with a valid tenant value
+
+  describe("PUT /:userId/suspend", () => {
+    it("should suspend a user", async () => {
+      const req = {
+        params: { userId: "validUserId" },
+        body: { reason: "Valid suspension reason" },
       };
+      const res = {};
 
-      const response = await request.get("/groups/summary").query(requestData);
+      await router.put("/:userId/suspend", validateContentModeration)(req, res);
 
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("array");
-
-      // Add more specific assertions based on your controller logic
+      expect(mockSuspendUserHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({
+        message: "User suspended successfully",
+      });
     });
 
     it("should handle validation errors", async () => {
-      // Invalid request data
-      const requestData = {
-        tenant: "invalid-tenant", // Invalid tenant
+      const req = {
+        params: { userId: "invalidUserId" },
+        body: { invalidReason: "too long" },
       };
+      const res = {};
 
-      const response = await request.get("/groups/summary").query(requestData);
+      await router.put("/invalidUserId/suspend", validateContentModeration)(
+        req,
+        res
+      );
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases as needed
   });
-  describe("GET /groups/:grp_id/assigned-users", () => {
-    it("should get a list of assigned users for a valid group ID and tenant", async () => {
-      const validGrpId = new ObjectId(); // Replace with a valid group ID
-      const requestData = {
-        tenant: "kcca", // Replace with a valid tenant value
+
+  describe("PUT /:userId/ban", () => {
+    it("should ban a user", async () => {
+      const req = {
+        params: { userId: "validUserId" },
+        body: { reason: "Valid ban reason" },
       };
+      const res = {};
 
-      const response = await request
-        .get(`/groups/${validGrpId}/assigned-users`)
-        .query(requestData);
+      await router.put("/:userId/ban", validateContentModeration)(req, res);
 
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("array");
-
-      // Add more specific assertions based on your controller logic
+      expect(mockBanUserHandler).toHaveBeenCalledWith(req, res);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.body).to.deep.equal({ message: "User banned successfully" });
     });
 
     it("should handle validation errors", async () => {
-      // Invalid group ID
-      const invalidGrpId = "invalid-group-id";
-      const requestData = {
-        tenant: "kcca",
+      const req = {
+        params: { userId: "invalidUserId" },
+        body: { invalidReason: "too long" },
       };
+      const res = {};
 
-      const response = await request
-        .get(`/groups/${invalidGrpId}/assigned-users`)
-        .query(requestData);
+      await router.put("/invalidUserId/ban", validateContentModeration)(
+        req,
+        res
+      );
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+      expect(res.status).to.have.been.calledWith(400);
+      expect(res.body.errors).to.exist;
     });
-
-    // Add more test cases as needed
   });
-  describe("GET /groups/:grp_id/available-users", () => {
-    it("should get a list of available users for a valid group ID and tenant", async () => {
-      const validGrpId = new ObjectId(); // Replace with a valid group ID
-      const requestData = {
-        tenant: "kcca", // Replace with a valid tenant value
-      };
 
-      const response = await request
-        .get(`/groups/${validGrpId}/available-users`)
-        .query(requestData);
+  describe("Helper Functions", () => {
+    describe("validatePagination", () => {
+      it("should set default values for pagination", async () => {
+        const req = { query: {} };
+        const res = {};
+        const next = sinon.stub();
 
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("array");
+        validatePagination(req, res, next);
 
-      // Add more specific assertions based on your controller logic
+        expect(next).to.have.been.calledWith();
+        expect(req.query.limit).to.equal(100);
+        expect(req.query.skip).to.equal(0);
+      });
+
+      it("should handle invalid limit", async () => {
+        const req = { query: { limit: "invalid" } };
+        const res = {};
+        const next = sinon.stub();
+
+        validatePagination(req, res, next);
+
+        expect(next).to.have.been.calledWith();
+        expect(req.query.limit).to.equal(100);
+      });
+
+      it("should handle invalid skip", async () => {
+        const req = { query: { skip: "-1" } };
+        const res = {};
+        const next = sinon.stub();
+
+        validatePagination(req, res, next);
+
+        expect(next).to.have.been.calledWith();
+        expect(req.query.skip).to.equal(0);
+      });
     });
 
-    it("should handle validation errors", async () => {
-      // Invalid group ID
-      const invalidGrpId = "invalid-group-id";
-      const requestData = {
-        tenant: "kcca",
-      };
+    describe("headers", () => {
+      it("should set CORS headers", async () => {
+        const req = {};
+        const res = {};
+        const next = sinon.stub();
 
-      const response = await request
-        .get(`/groups/${invalidGrpId}/available-users`)
-        .query(requestData);
+        headers(req, res, next);
 
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
+        expect(res.header).to.have.been.calledThrice;
+        expect(res.header.firstCall.args[0]).to.equal(
+          "Access-Control-Allow-Origin"
+        );
+        expect(res.header.firstCall.args[1]).to.equal("*");
+        expect(res.header.secondCall.args[0]).to.equal(
+          "Access-Control-Allow-Headers"
+        );
+        expect(res.header.secondCall.args[1]).to.equal(
+          "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+        );
+        expect(res.header.thirdCall.args[0]).to.equal(
+          "Access-Control-Allow-Methods"
+        );
+        expect(res.header.thirdCall.args[1]).to.equal("GET, POST, PUT, DELETE");
+        expect(next).to.have.been.calledWith();
+      });
     });
 
-    // Add more test cases as needed
+    describe("validateContentModeration", () => {
+      it("should validate content moderation fields", async () => {
+        const req = {
+          params: { userId: "validUserId" },
+          body: { reason: "Valid action" },
+        };
+        const res = {};
+        const next = sinon.stub();
+
+        validateContentModeration(req, res, next);
+
+        expect(next).to.have.been.calledWith();
+        expect(res.status).to.not.have.been.called;
+      });
+
+      it("should return validation errors", async () => {
+        const req = {
+          params: { userId: "invalidUserId" },
+          body: { invalidReason: "too long" },
+        };
+        const res = {};
+        const next = sinon.stub();
+
+        validateContentModeration(req, res, next);
+
+        expect(next).to.not.have.been.called;
+        expect(res.status).to.have.been.calledWith(400);
+        expect(res.json).to.have.been.calledWith({ errors: expect.any(Array) });
+      });
+    });
   });
-  describe("POST /groups/:grp_id/assign-users", () => {
-    it("should assign users to a group for a valid group ID, tenant, and user IDs", async () => {
-      const validGrpId = new ObjectId(); // Replace with a valid group ID
-      const requestData = {
-        tenant: "kcca", // Replace with a valid tenant value
-        user_ids: [new ObjectId(), new ObjectId()], // Replace with valid user IDs
-      };
+});
 
-      const response = await request
-        .post(`/groups/${validGrpId}/assign-users`)
-        .query(requestData);
-
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-
-      // Add more specific assertions based on your controller logic
-    });
-
-    it("should handle validation errors", async () => {
-      // Invalid group ID
-      const invalidGrpId = "invalid-group-id";
-      const requestData = {
-        tenant: "kcca",
-        user_ids: ["invalid-user-id"], // Invalid user ID format
-      };
-
-      const response = await request
-        .post(`/groups/${invalidGrpId}/assign-users`)
-        .query(requestData);
-
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
-    });
-
-    // Add more test cases as needed
-  });
-  describe("DELETE /groups/:grp_id/unassign-user/:user_id", () => {
-    it("should unassign a user from a group for a valid group ID, tenant, and user ID", async () => {
-      const validGrpId = new ObjectId(); // Replace with a valid group ID
-      const validUserId = new ObjectId(); // Replace with a valid user ID
-
-      const response = await request
-        .delete(`/groups/${validGrpId}/unassign-user/${validUserId}`)
-        .query({ tenant: "kcca" }); // Replace with a valid tenant value
-
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-
-      // Add more specific assertions based on your controller logic
-    });
-
-    it("should handle validation errors", async () => {
-      // Invalid group ID
-      const invalidGrpId = "invalid-group-id";
-      const validUserId = new ObjectId(); // Replace with a valid user ID
-
-      const response = await request
-        .delete(`/groups/${invalidGrpId}/unassign-user/${validUserId}`)
-        .query({ tenant: "kcca" });
-
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
-    });
-
-    // Add more test cases as needed
-  });
-  describe("DELETE /groups/:grp_id/unassign-many-users", () => {
-    it("should unassign multiple users from a group for a valid group ID, tenant, and user IDs", async () => {
-      const validGrpId = new ObjectId(); // Replace with a valid group ID
-      const validUserIds = [new ObjectId(), new ObjectId()]; // Replace with valid user IDs
-      const tenant = "kcca"; // Replace with a valid tenant value
-
-      const response = await request
-        .delete(`/groups/${validGrpId}/unassign-many-users`)
-        .query({ tenant })
-        .send({ user_ids: validUserIds });
-
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-
-      // Add more specific assertions based on your controller logic
-    });
-
-    it("should handle validation errors", async () => {
-      // Invalid group ID
-      const invalidGrpId = "invalid-group-id";
-      const validUserIds = [new ObjectId(), new ObjectId()]; // Replace with valid user IDs
-      const tenant = "kcca"; // Replace with a valid tenant value
-
-      const response = await request
-        .delete(`/groups/${invalidGrpId}/unassign-many-users`)
-        .query({ tenant })
-        .send({ user_ids: validUserIds });
-
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
-    });
-
-    // Add more test cases as needed
-  });
-  describe("GET /groups/:grp_id", () => {
-    it("should retrieve group information for a valid group ID and tenant", async () => {
-      const validGrpId = new ObjectId(); // Replace with a valid group ID
-      const tenant = "kcca"; // Replace with a valid tenant value
-
-      const response = await request
-        .get(`/groups/${validGrpId}`)
-        .query({ tenant });
-
-      // Assertions
-      expect(response.status).to.equal(200);
-      expect(response.body).to.have.property("success").to.be.true;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("data").to.be.an("object");
-
-      // Add more specific assertions based on your controller logic
-    });
-
-    it("should handle validation errors", async () => {
-      // Invalid group ID
-      const invalidGrpId = "invalid-group-id";
-      const tenant = "kcca"; // Replace with a valid tenant value
-
-      const response = await request
-        .get(`/groups/${invalidGrpId}`)
-        .query({ tenant });
-
-      // Assertions for validation errors
-      expect(response.status).to.equal(400); // You can adjust the expected status code
-      expect(response.body).to.have.property("success").to.be.false;
-      expect(response.body).to.have.property("message").to.be.a("string");
-      expect(response.body).to.have.property("errors").to.be.an("object");
-
-      // Add more specific assertions based on your validation logic
-    });
-
-    // Add more test cases as needed
-  });
+// Cleanup
+afterEach(() => {
+  sinon.restore();
 });

@@ -502,15 +502,8 @@ const dbProjections = {
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      // readKey: 0,
-      // device_number: 0,
-      // isActive: 0,
-      // description: 0,
-      // network: 0,
       projection = Object.assign(initialProjection, {
         alias: 0,
-        latitude: 0,
-        longitude: 0,
         approximate_distance_in_km: 0,
         bearing_in_radians: 0,
         ISP: 0,
@@ -526,10 +519,8 @@ const dbProjections = {
         powerType: 0,
         mountType: 0,
         access_code: 0,
-        device_codes: 0,
         height: 0,
         mobility: 0,
-        category: 0,
         host: 0,
       });
     }

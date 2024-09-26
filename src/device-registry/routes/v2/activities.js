@@ -8,6 +8,22 @@ const activityController = require("@controllers/create-activity");
 const { check, oneOf, query, body, param } = require("express-validator");
 const NetworkModel = require("@models/Network");
 
+const validateUniqueDeviceNames = (req, res, next) => {
+  const deviceNames = req.body.map((item) => item.deviceName);
+  const duplicates = deviceNames.filter(
+    (name, index) => deviceNames.indexOf(name) !== index
+  );
+
+  if (duplicates.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Duplicate device names found: " + [...new Set(duplicates)].join(", "),
+    });
+  }
+  next();
+};
+
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
   return networks.map((network) => network.toLowerCase());
@@ -228,6 +244,91 @@ router.post(
     ],
   ]),
   activityController.deploy
+);
+router.post(
+  "/deploy/batch",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  body()
+    .isArray()
+    .withMessage("the request body should be an array")
+    .bail(),
+  validateUniqueDeviceNames,
+  oneOf([
+    body("*.deviceName")
+      .exists()
+      .withMessage("deviceName is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the provided deviceName cannot be empty")
+      .trim(),
+    body("*.powerType")
+      .exists()
+      .withMessage("powerType is missing in your request")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["solar", "mains", "alternator"])
+      .withMessage(
+        "the powerType value is not among the expected ones which include: solar, mains and alternator"
+      ),
+    body("*.mountType")
+      .exists()
+      .withMessage("mountType is missing in your request")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+      .withMessage(
+        "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop"
+      ),
+    body("*.height")
+      .exists()
+      .withMessage("height is missing in your request")
+      .bail()
+      .isFloat({ gt: 0, lt: 100 })
+      .withMessage("height must be a number between 0 and 100"),
+    body("*.isPrimaryInLocation")
+      .exists()
+      .withMessage("isPrimaryInLocation is missing in your request")
+      .bail()
+      .isBoolean()
+      .withMessage("isPrimaryInLocation must be Boolean"),
+    body("*.latitude")
+      .exists()
+      .withMessage("latitude is missing in your request")
+      .bail()
+      .isFloat()
+      .withMessage("latitude must be a valid float number"),
+    body("*.longitude")
+      .exists()
+      .withMessage("longitude is missing in your request")
+      .bail()
+      .isFloat()
+      .withMessage("longitude must be a valid float number"),
+    body("*.site_name")
+      .exists()
+      .withMessage("site_name is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("site_name cannot be empty"),
+    body("*.network")
+      .optional()
+      .notEmpty()
+      .toLowerCase()
+      .custom(validateNetwork)
+      .withMessage("the network value is not among the expected ones"),
+  ]),
+  activityController.batchDeployWithCoordinates
 );
 router.post(
   "/maintain",

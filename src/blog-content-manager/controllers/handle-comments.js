@@ -1,15 +1,15 @@
-const controlAccessUtil = require("@utils/control-access");
-const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
-const constants = require("@config/constants");
-const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const commentUtil = require("@utils/handle-comments");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const isEmpty = require("is-empty");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-client-controller`
+  `${constants.ENVIRONMENT} -- comment-controller`
 );
+const { logText, logObject } = require("@utils/log");
 
-const createClient = {
+const CommentController = {
   create: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -19,33 +19,37 @@ const createClient = {
         );
         return;
       }
-      const request = req;
+
+      const postId = req.params.postId;
+      const requestBody = Object.assign({}, req.body);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      requestBody.tenant = isEmpty(requestBody.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : requestBody.tenant;
 
-      const result = await controlAccessUtil.createClient(request, next);
-
+      const result = await commentUtil.create(postId, requestBody, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
 
       if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
+        const status = result.status ? result.status : httpStatus.CREATED;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          created_client: result.data ? result.data : [],
+          message: result.message,
+          commentId: result.data.id,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -54,12 +58,15 @@ const createClient = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
+
   list: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -69,14 +76,15 @@ const createClient = {
         );
         return;
       }
-      const request = req;
+
+      const postId = req.params.postId;
+      const request = Object.assign({}, req);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      request.query.tenant = isEmpty(request.query.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : request.query.tenant;
 
-      const result = await controlAccessUtil.listClient(request, next);
-
+      const result = await commentUtil.list(postId, request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -85,19 +93,20 @@ const createClient = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          clients: result.data ? result.data : [],
+          message: result.message,
+          commentsData: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -106,12 +115,141 @@ const createClient = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
+
+  replies: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const postId = req.params.postId;
+      const commentId = req.params.commentId;
+      const request = Object.assign({}, req);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(request.query.tenant)
+        ? defaultTenant
+        : request.query.tenant;
+
+      const result = await commentUtil.replies(
+        postId,
+        commentId,
+        request,
+        next
+      );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          repliesData: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+
+  edit: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const postId = req.params.postId;
+      const commentId = req.params.commentId;
+      const requestBody = Object.assign({}, req.body);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      requestBody.tenant = isEmpty(requestBody.tenant)
+        ? defaultTenant
+        : requestBody.tenant;
+
+      const result = await commentUtil.edit(
+        postId,
+        commentId,
+        requestBody,
+        next
+      );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          editedComment: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+
   delete: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -121,200 +259,39 @@ const createClient = {
         );
         return;
       }
-      const request = req;
+
+      const postId = req.params.postId;
+      const commentId = req.params.commentId;
+      const requestBody = Object.assign({}, req.body);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      requestBody.tenant = isEmpty(requestBody.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : requestBody.tenant;
 
-      const result = await controlAccessUtil.deleteClient(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          deleted_client: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  update: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await controlAccessUtil.updateClient(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          updated_client: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  activateClient: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await controlAccessUtil.activateClient(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        let responseField;
-        if (result.data.action === "activate") {
-          responseField = "activated_client";
-        } else if (result.data.action === "deactivate") {
-          responseField = "deactivated_client";
-        } else {
-          responseField = "unknown_action";
-        }
-
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          [responseField]: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  activateClientRequest: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await controlAccessUtil.activateClientRequest(
-        request,
+      const result = await commentUtil.delete(
+        postId,
+        commentId,
+        requestBody,
         next
       );
-
       if (isEmpty(result) || res.headersSent) {
         return;
       }
 
       if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-        });
+        const status = result.status ? result.status : httpStatus.NO_CONTENT;
+        return res.status(status).json({});
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -323,16 +300,17 @@ const createClient = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
-  updateClientSecret: async (req, res, next) => {
-    try {
-      logText("update client secret....");
 
+  approve: async (req, res, next) => {
+    try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
@@ -340,14 +318,21 @@ const createClient = {
         );
         return;
       }
-      const request = req;
+
+      const postId = req.params.postId;
+      const commentId = req.params.commentId;
+      const requestBody = Object.assign({}, req.body);
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      requestBody.tenant = isEmpty(requestBody.tenant)
         ? defaultTenant
-        : req.query.tenant;
+        : requestBody.tenant;
 
-      const result = await controlAccessUtil.updateClientSecret(request, next);
-
+      const result = await commentUtil.approve(
+        postId,
+        commentId,
+        requestBody,
+        next
+      );
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -356,19 +341,20 @@ const createClient = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message ? result.message : "",
-          updated_client_secret: result.data ? result.data : [],
+          message: result.message,
+          approvedComment: result.data,
         });
       } else if (result.success === false) {
         const status = result.status
           ? result.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
+          message: result.message,
+          errors,
         });
       }
     } catch (error) {
@@ -377,7 +363,72 @@ const createClient = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+
+  reject: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const postId = req.params.postId;
+      const commentId = req.params.commentId;
+      const requestBody = Object.assign({}, req.body);
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      requestBody.tenant = isEmpty(requestBody.tenant)
+        ? defaultTenant
+        : requestBody.tenant;
+
+      const result = await commentUtil.reject(
+        postId,
+        commentId,
+        requestBody,
+        next
+      );
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          rejectedComment: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
       return;
@@ -385,4 +436,4 @@ const createClient = {
   },
 };
 
-module.exports = createClient;
+module.exports = CommentController;

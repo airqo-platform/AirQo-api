@@ -1,204 +1,126 @@
-const LocationHistoryModel = require("@models/LocationHistory");
+const mongoose = require("mongoose");
+const AuthorModel = require("@models/Author");
+const CommentModel = require("@models/Comment");
+const { logObject } = require("@utils/log");
 const httpStatus = require("http-status");
-const generateFilter = require("@utils/generate-filter");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const { log } = require("firebase-functions/logger");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-location-history-util`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- moderate-content`);
+
 const { HttpError } = require("@utils/errors");
 
-const locationHistories = {
-  sample: async (request, next) => {
+const moderateContent = {
+  reviewAuthor: async (request, next) => {
     try {
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  /******* location Histories *******************************************/
-  list: async (request, next) => {
-    try {
-      const { query } = request;
-      const { tenant } = query;
-      const filter = generateFilter.location_histories(request, next);
-      const responseFromListLocationHistories = await LocationHistoryModel(
-        tenant.toLowerCase()
-      ).list({ filter }, next);
-      return responseFromListLocationHistories;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  delete: async (request, next) => {
-    try {
-      const { query } = request;
-      const { tenant } = query;
-      const filter = generateFilter.location_histories(request, next);
-      const responseFromDeleteLocationHistories = await LocationHistoryModel(
-        tenant.toLowerCase()
-      ).remove(
-        {
-          filter,
-        },
-        next
-      );
-      return responseFromDeleteLocationHistories;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  update: async (request, next) => {
-    try {
-      const { query, body } = request;
-      const { tenant } = query;
-      const update = body;
-      const filter = generateFilter.location_histories(request, next);
-      const responseFromUpdateLocationHistories = await LocationHistoryModel(
-        tenant.toLowerCase()
-      ).modify({ filter, update }, next);
-      return responseFromUpdateLocationHistories;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  create: async (request, next) => {
-    try {
-      const { query, body } = request;
-      const { tenant } = query;
-      const responseFromCreateLocationHistory = await LocationHistoryModel(
-        tenant.toLowerCase()
-      ).register(body, next);
-      return responseFromCreateLocationHistory;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  syncLocationHistories: async (request, next) => {
-    try {
-      const { query, body, params } = request;
-      const { tenant } = query;
-      const { location_histories } = body;
-      const { firebase_user_id } = params;
+      const { tenant } = request.query;
+      const authorId = request.params.authorId;
 
-      let responseFromCreateLocationHistories, responseFromLocationHistories;
-      let filter = {
-        firebase_user_id: firebase_user_id,
-      };
-
-      let unsynced_location_histories = (
-        await LocationHistoryModel(tenant.toLowerCase()).list({ filter }, next)
-      ).data;
-
-      unsynced_location_histories = unsynced_location_histories.map((item) => {
-        delete item._id;
-        return item;
-      });
-
-      const missing_location_histories = location_histories.filter((item) => {
-        const found = unsynced_location_histories.some((location_history) => {
-          return (
-            location_history.place_id === item.place_id &&
-            location_history.firebase_user_id === item.firebase_user_id
-          );
-        });
-        return !found;
-      });
-
-      if (missing_location_histories.length === 0) {
-        responseFromCreateLocationHistories = {
-          success: true,
-          message: "No missing Location History ",
-          data: [],
-        };
+      // Check if the author exists
+      const authorExists = await AuthorModel(tenant).findById(authorId);
+      if (!authorExists) {
+        throw new HttpError("Author not found", httpStatus.NOT_FOUND);
       }
 
-      for (let location_history in missing_location_histories) {
-        const updateFilter = {
-          firebase_user_id: firebase_user_id,
-          place_id: missing_location_histories[location_history].place_id,
-        };
-        const update = {
-          ...missing_location_histories[location_history],
-        };
-        responseFromCreateLocationHistories = await LocationHistoryModel(
-          tenant.toLowerCase()
-        )
-          .findOneAndUpdate(updateFilter, update, {
-            new: true,
-            upsert: true,
-          })
-          .exec();
-      }
+      // Assuming we have a function to review and manage user registrations
+      const result = await AuthorModel(tenant).reviewRegistration(next);
 
-      let synchronizedLocationHistories = (
-        await LocationHistoryModel(tenant.toLowerCase()).list({ filter }, next)
-      ).data;
-
-      if (responseFromCreateLocationHistories.success === false) {
-        next(
-          new HttpError(
-            "Error Synchronizing Location Histories",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: `Response from Create Location History: ${responseFromCreateLocationHistories.errors.message}`,
-            }
-          )
-        );
-      }
+      logObject("result", result);
 
       return {
         success: true,
-        message: "Location Histories Synchronized",
-        data: synchronizedLocationHistories,
+        message: "Successfully reviewed author",
+        data: result,
         status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
+    }
+  },
+
+  flagComment: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const commentId = request.params.commentId;
+
+      // Check if the comment exists
+      const commentExists = await CommentModel(tenant).findById(commentId);
+      if (!commentExists) {
+        throw new HttpError("Comment not found", httpStatus.NOT_FOUND);
+      }
+
+      // Assuming we have a function to flag inappropriate content
+      const result = await contentModerationUtil.flagComment(
+        commentId,
+        request.body,
+        next
       );
+
+      logObject("result", result);
+
+      return {
+        success: true,
+        message: "Successfully flagged comment",
+        data: result,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
+    }
+  },
+
+  viewFlags: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const commentId = request.params.commentId;
+
+      // Fetch flags for the comment
+      const flags = await CommentModel(tenant).find({
+        _id: mongoose.Types.ObjectId(commentId),
+        flags: { $exists: true, $type: "array" },
+      });
+
+      logObject("flags", flags);
+
+      return {
+        success: true,
+        message: "Successfully retrieved flags",
+        data: flags,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
+    }
+  },
+
+  manageAuthors: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const authorId = request.params.authorId;
+      const requestBody = Object.assign({}, request.body);
+
+      // Assuming we have a function to manage author accounts
+      const result = await AuthorModel(tenant)[request.method.toLowerCase()](
+        authorId,
+        requestBody,
+        next
+      );
+
+      logObject("result", result);
+
+      return {
+        success: true,
+        message: "Successfully managed author",
+        data: result,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
     }
   },
 };
 
-module.exports = locationHistories;
+module.exports = moderateContent;

@@ -1,11 +1,10 @@
-//Analytics and Reporting
 const express = require("express");
 const router = express.Router();
-const createInquiryController = require("@controllers/create-inquiry");
-const { check, oneOf, query, body, param } = require("express-validator");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const { check, validationResult } = require("express-validator");
+// const { setJWTAuth, authJWT } = require("@middleware/passport");
+const AnalyticsReportingController = require("@controllers/generate-reports");
+
+// Middleware
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -20,170 +19,70 @@ const headers = (req, res, next) => {
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
   );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  res.header("Access-Control-Allow-Methods", "GET, POST");
   next();
 };
+
 router.use(headers);
 router.use(validatePagination);
 
-router.post(
-  "/register",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      body("email")
-        .exists()
-        .withMessage("the email should be provided")
-        .bail()
-        .trim()
-        .isEmail()
-        .withMessage("this is not a valid email address"),
-      body("category")
-        .exists()
-        .withMessage("the category should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn([
-          "general",
-          "data",
-          "feedback",
-          "monitors",
-          "partners",
-          "researchers",
-          "policy",
-          "champions",
-          "developers",
-          "assistance",
-        ])
-        .withMessage(
-          "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers,assistance"
-        ),
-      body("message")
-        .exists()
-        .withMessage("the message should be provided")
-        .bail()
-        .trim(),
-      body("fullName")
-        .exists()
-        .withMessage("the fullName should be provided")
-        .bail()
-        .trim(),
-    ],
-  ]),
-  createInquiryController.create
+// Authentication middleware
+// router.use(setJWTAuth);
+// router.use(authJWT);
+
+// Validation middleware
+const validateAnalyticsReport = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+// Post Analytics Routes
+router.get(
+  "/posts/:postId/views",
+  validateAnalyticsReport,
+  AnalyticsReportingController.views
 );
 router.get(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createInquiryController.list
+  "/posts/:postId/comments",
+  validateAnalyticsReport,
+  AnalyticsReportingController.comments
 );
-router.delete(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the candidate identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  setJWTAuth,
-  authJWT,
-  createInquiryController.delete
+router.get(
+  "/posts/popular",
+  validateAnalyticsReport,
+  AnalyticsReportingController.popularPosts
 );
-router.put(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the candidate identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    [
-      body("status")
-        .if(body("status").exists())
-        .notEmpty()
-        .trim()
-        .toLowerCase()
-        .isIn(["pending", "rejected"])
-        .withMessage(
-          "the status value is not among the expected ones which include: rejected and pending"
-        ),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createInquiryController.update
+
+// User Analytics Routes
+router.get(
+  "/users/:userId/views",
+  validateAnalyticsReport,
+  AnalyticsReportingController.userViews
+);
+router.get(
+  "/users/:userId/comments",
+  validateAnalyticsReport,
+  AnalyticsReportingController.userComments
+);
+router.get(
+  "/users/:userId/activity",
+  validateAnalyticsReport,
+  AnalyticsReportingController.userActivity
+);
+
+// Admin Reporting Routes
+router.post(
+  "/reports/user-growth",
+  validateAnalyticsReport,
+  AnalyticsReportingController.userGrowthReport
+);
+router.post(
+  "/reports/post-performance",
+  validateAnalyticsReport,
+  AnalyticsReportingController.postPerformanceReport
 );
 
 module.exports = router;
