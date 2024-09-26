@@ -1,5 +1,10 @@
 const fs = require("fs");
 const moment = require("moment");
+const UPTIME_THRESHOLD = 48;
+
+if (!UPTIME_THRESHOLD) {
+  return;
+}
 
 // Read the logs
 let logs = fs.readFileSync("logs.txt", "utf8").split("\n");
@@ -11,7 +16,7 @@ let filteredLogs = [];
 logs.forEach((log, index) => {
   console.log(`\u{1F9E0} Processing log ${index + 1} of ${logs.length}...`); // Progress indicator
   let parts = log.split(
-    " -- event-model - :low_battery::low_battery: Last refreshed time difference exceeds 14 hours for device: "
+    ` -- event-model - :low_battery::low_battery: Last refreshed time difference exceeds ${UPTIME_THRESHOLD} hours for device: `
   );
   if (parts.length === 2) {
     let details = parts[1].split(",");
@@ -21,7 +26,7 @@ logs.forEach((log, index) => {
       let timeStr = details[2].replace("Time: ", "").trim();
       let siteName = details[3].replace("Site Name: ", "").trim();
       let time = moment(timeStr, "ddd MMM DD YYYY HH:mm:ss ZZ");
-      if (moment().diff(time, "hours") > 14) {
+      if (moment().diff(time, "hours") > UPTIME_THRESHOLD) {
         filteredLogs.push({ deviceName, frequency, time, siteName });
       }
     }
@@ -54,13 +59,15 @@ dateStr = dateStr.toLowerCase();
 
 // Create a writable stream to the CSV file with the date in the filename
 let csvStream = fs.createWriteStream(
-  `report_${dateStr}devices_last_sent_measurements_over_14_hours_ago.csv`
+  `report_${dateStr}devices_last_sent_measurements_over_${UPTIME_THRESHOLD}_hours_ago.csv`
 );
 
 console.log("\u{1F4AA} Writing report to CSV file..."); // Progress indicator
 
 // Write the title to the CSV file
-csvStream.write("Title: Devices Last Sent Measurements Over 14 Hours Ago\n");
+csvStream.write(
+  `Title: Devices Last Sent Measurements Over ${UPTIME_THRESHOLD} Hours Ago\n`
+);
 
 // Write the headers to the CSV file
 csvStream.write("Device Name,Frequency,Time,Site Name\n");
@@ -80,7 +87,7 @@ filteredLogs.forEach((log) => {
   count++;
 });
 
-console.log("\u{1F514} Report written to CSV file successfully!"); // Progress indicator
+console.log("\u{1F548} Report written to CSV file successfully!"); // Progress indicator
 
 // Close the CSV file and print the first three lines of the CSV output to the console
 csvStream.end(() => {
@@ -89,7 +96,7 @@ csvStream.end(() => {
   ); // Progress indicator
   let csvOutput = fs
     .readFileSync(
-      `report_${dateStr}devices_last_sent_measurements_over_14_hours_ago.csv`,
+      `report_${dateStr}devices_last_sent_measurements_over_${UPTIME_THRESHOLD}_hours_ago.csv`,
       "utf8"
     )
     .split("\n")
