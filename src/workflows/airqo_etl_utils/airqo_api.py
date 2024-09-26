@@ -176,7 +176,7 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"tenant": str(Tenant.AIRQO)}
+        params = {"tenant": str(Tenant.AIRQO), "category": str(device_category)}
         if configuration.ENVIRONMENT == "production":
             # Query for active devices only when in production
             params["active"] = "yes"
@@ -184,41 +184,31 @@ class AirQoApi:
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
 
-        response = self.__request("devices", params)
+        # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
+        response = self.__request("devices/summary", params)
         devices = [
             {
                 **device,
-                "device_number": device.get("device_number"),
-                "latitude": device.get("latitude")
-                or device.get("approximate_latitude"),
-                "longitude": device.get("longitude")
-                or device.get("approximate_longitude"),
-                "device_id": device.get("name"),
-                "device_codes": [str(code) for code in device.get("device_codes", [])],
-                "mongo_id": device.get("_id"),
+                "device_id": device.pop("name"),
+                "device_codes": device.pop("device_codes", []),
+                "mongo_id": device.pop("_id"),
                 "site_id": device.get("site", {}).get("_id"),
-                "site_location": device.get("site", {}).get("location_name"),
+                "site_location": device.pop("site", {}).get("location_name", ""),
                 "device_category": str(
-                    DeviceCategory.from_str(device.get("category", ""))
+                    DeviceCategory.from_str(device.pop("category", ""))
                 ),
                 "tenant": device.get("network"),
-                "device_manufacturer": device.get("device_manufacturer")
-                or Tenant.from_str(device.get("network")).device_manufacturer(),
+                "device_manufacturer": Tenant.from_str(
+                    device.pop("network")
+                ).device_manufacturer(),
             }
             for device in response.get("devices", [])
         ]
-
-        if device_category != DeviceCategory.NONE:
-            devices = [
-                device
-                for device in devices
-                if device["device_category"] == str(device_category)
-            ]
         return devices
 
     def get_thingspeak_read_keys(self, devices: List) -> Dict[int, str]:
         """
-        Retrieve read keys from thingspeak given a list of devices.
+        Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
             - tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
