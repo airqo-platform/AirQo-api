@@ -74,7 +74,7 @@ app.use(
 app.use(express.static(path.join(__dirname, "public")));
 
 // Swagger UI middleware
-app.use("/blogs/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api/blogs/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // app.use("/api/v1/blogs", require("@routes/v1"));
 app.use("/api/v2/blogs", require("@routes/v2"));

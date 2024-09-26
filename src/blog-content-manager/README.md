@@ -80,12 +80,12 @@ This is a comprehensive microservice designed to create, manage, and share conte
 4.  Start the server
 
     ```
-    npm start
+    npm run dev
     ```
 
 ## API Documentation
 
-API documentation is available at `/blogs/api-docs` when running the server locally.
+API documentation is available at `/api/blogs/api-docs` when running the server locally.
 
 ## Contributing
 
