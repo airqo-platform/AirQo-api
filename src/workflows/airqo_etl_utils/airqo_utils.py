@@ -161,7 +161,7 @@ class AirQoDataUtils:
             case DeviceCategory.LOW_COST:
                 mappings = configuration.AIRQO_LOW_COST_CONFIG
             case _:
-                raise ValueError("A valid device category must be provided")
+                logger.exception("A valid device category must be provided")
 
         for key, value in mappings.items():
             try:
