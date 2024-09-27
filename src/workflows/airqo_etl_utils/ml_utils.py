@@ -9,7 +9,6 @@ import pandas as pd
 import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from .config import configuration, db
@@ -827,54 +826,37 @@ class SatelliteUtils(BaseMlUtils):
 
     @staticmethod
     def train_satellite_model(data):
-        data['year'] = data['timestamp'].dt.year
-        min_year = data['year'].min()
-
-        train_data = pd.DataFrame()
-        test_data = pd.DataFrame()
-
-        for site in data["site_id"].unique():
-            site_df = data[data["site_id"] == site]
-
-            train_df = site_df[site_df['year'].isin([min_year, min_year + 1, min_year + 2, min_year + 3])]
-            test_df = site_df[site_df['year'].isin([min_year + 4, min_year + 5])]
-
-            train_data = pd.concat([train_data, train_df])
-            test_data = pd.concat([test_data, test_df])
-
-        # Drop unnecessary columns
-        columns_to_drop = ["timestamp", "device_id", "year"]
-        train_data.drop(columns=columns_to_drop, axis=1, inplace=True)
-        test_data.drop(columns=columns_to_drop, axis=1, inplace=True)
-
+        data['pm2_5'] = data[data['pm2_5'] < 200]
         model = LGBMRegressor(random_state=42, n_estimators=200, max_depth=10, objective='mse')
-        n_splits = 4
-        cv = GroupKFold(n_splits=n_splits)
-        groups = train_data['city']
-        def validate(trainset, testset, t, origin):
-            with mlflow.start_run():
-                model.fit(trainset.drop(columns=t), trainset[t])
-                pred = model.predict(np.array(testset.drop(columns=t)))
-                print('std: ', testset[t].std())
 
-                # to validate the post processing
-                origin['pm_5'] = pred
-                origin['date'] = pd.to_datetime(origin['date'])
-                origin['date_day'] = origin['date'].dt.dayofyear
-                pred = origin['date_day'].map(origin[['date_day', 'pm_5']].groupby('date_day')['pm_5'].mean())
-                # --------------------------------------------------------------------------------------------
-                stds.append(testset[t].std())
-                score = mean_squared_error(pred, testset[t], squared=False)
-                print('score:', score)
-                mlflow.log_metric("rmse", score)
-                mlflow.sklearn.log_model(model, "model")
+        model.fit(data.drop(columns='pm2_5'), data['pm2_5'])
 
-                return score
+        #TODO: add mlflow stuff after cluster issues handled
 
-        stds = []
-        rmse = []
+        # n_splits = 4
+        # cv = GroupKFold(n_splits=n_splits)
+        # groups = data['city']
+        # stds = []
+        # rmse = []
+        #
+        # def validate(trainset, testset, t, origin):
+        #     with mlflow.start_run():
+        #         model.fit(data.drop(columns=t), trainset[t])
+        #         pred = model.predict(np.array(testset.drop(columns=t)))
+        #         origin['pm2_5'] = pred
+        #         origin['date'] = pd.to_datetime(origin['date'])
+        #         origin['date_day'] = origin['date'].dt.dayofyear
+        #         pred = origin['date_day'].map(origin[['date_day', 'pm_5']].groupby('date_day')['pm_5'].mean())
+        #         stds.append(testset[t].std())
+        #         score = mean_squared_error(pred, testset[t], squared=False)
+        #         mlflow.log_metric("rmse", score)
+        #         mlflow.sklearn.log_model(model, "model")
+        #
+        # for v_train, v_test in cv.split(data, groups=groups):
+        #     train_v, test_v = data.iloc[v_train], data.iloc[v_test]
+        #     origin = data.iloc[v_test]
+        #     rmse.append(validate(train_v, test_v, 'pm2_5', origin))
 
-        for v_train, v_test in cv.split(train.drop(columns='pm2_5'), train['pm2_5'], groups=groups):
-            train_v, test_v = train.iloc[v_train], train.iloc[v_test]
-            origin = train_set.iloc[v_test]
-            rmse.append(validate(train_v, test_v, 'pm2_5', origin))
+        GCSUtils.upload_trained_model_to_gcs(
+            model, project_id, bucket, f"satellite_prediction_model.pkl"
+        )
