@@ -25,7 +25,7 @@ const { logText, logObject } = require("@utils/log");
 const jsonify = require("@utils/jsonify");
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/new-store-readings-job");
-require("@bin/jobs/check-network-status-job");
+require("@bin/jobs/new-check-network-status-job");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
