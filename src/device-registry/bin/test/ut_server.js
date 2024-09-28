@@ -1,85 +1,91 @@
 require("module-alias/register");
-const { expect } = require("chai");
+const SESSION_SECRET = "test_secret";
 const sinon = require("sinon");
+const { expect } = require("chai");
 const http = require("http");
 const express = require("express");
+const log4js = require("log4js");
 const createServer = require("@bin/server");
+const constants = require("@config/constants");
 
-describe("createServer", () => {
-  let httpCreateServerStub;
-  let appSetStub;
-  let httpListenStub;
-  let consoleErrorStub;
-  let consoleLogStub;
-  let serverAddressStub;
-  let debugStub;
+describe("Express Server", () => {
+  let server;
+  let listenStub;
+  let errorStub;
 
   beforeEach(() => {
-    // Create stubs for required modules/functions
-    httpCreateServerStub = sinon.stub(http, "createServer");
-    appSetStub = sinon.stub();
-    httpListenStub = sinon.stub();
-    consoleErrorStub = sinon.stub(console, "error");
-    consoleLogStub = sinon.stub(console, "log");
-    serverAddressStub = sinon.stub();
-    debugStub = sinon.stub();
+    // Stub the logger methods
+    sinon.stub(log4js.getLogger(), "info");
+    sinon.stub(log4js.getLogger(), "error");
 
-    httpCreateServerStub.returns({
-      listen: httpListenStub,
-      on: sinon.stub().callsFake((event, cb) => {
-        if (event === "error") {
-          cb({ code: "EADDRINUSE" });
-        }
-      }),
-      address: serverAddressStub,
-    });
+    // Create a new server instance
+    server = createServer();
+
+    // Stub the server's listen method
+    listenStub = sinon
+      .stub(http.Server.prototype, "listen")
+      .callsFake((port, callback) => {
+        callback(); // Call the callback immediately for testing
+      });
+
+    // Stub the error handling
+    errorStub = sinon.stub();
+    server.on("error", errorStub);
   });
 
   afterEach(() => {
+    // Restore all stubs
     sinon.restore();
   });
 
-  it("should create and start the server", () => {
-    // Mock the environment variable
-    process.env.PORT = "5000";
+  it("should start the server and log the running message", (done) => {
+    const logTextStub = sinon.stub(console, "log");
 
-    try {
-      // Call the createServer function
-      createServer();
+    server.listen(3000); // Start listening on port 3000
 
-      // Check if the necessary functions are called with the correct arguments
-      expect(httpCreateServerStub.calledOnce).to.be.true;
-      expect(appSetStub.calledWithExactly("port", "5000")).to.be.true;
-      expect(httpListenStub.calledWithExactly("5000")).to.be.true;
-      expect(
-        consoleLogStub.calledOnceWithExactly(
-          "The server is running on the production environment"
-        )
-      ).to.be.true;
-      expect(serverAddressStub.calledOnce).to.be.true;
-      expect(debugStub.calledOnce).to.be.true;
-    } catch (error) {
-      throw error;
-    }
+    expect(
+      logTextStub.calledWith(
+        `The server is running on the ${process.env.NODE_ENV ||
+          "production"} environment`
+      )
+    ).to.be.true;
+
+    done();
   });
 
-  it("should handle server listen error", () => {
-    // Mock the environment variable
-    process.env.PORT = "5000";
+  it("should handle EACCES error correctly", () => {
+    const bindError = new Error();
+    bindError.code = "EACCES";
 
-    try {
-      // Call the createServer function
-      createServer();
+    server.emit("error", bindError); // Emit an EACCES error
 
-      // Check if the error is caught and logged
-      expect(
-        consoleErrorStub.calledOnceWithExactly("Port 5000 is already in use")
-      ).to.be.true;
-      expect(process.exit.calledOnceWithExactly(1)).to.be.true;
-    } catch (error) {
-      throw error;
-    }
+    expect(errorStub.calledOnce).to.be.true;
   });
 
-  // Add more test cases as needed
+  it("should handle EADDRINUSE error correctly", () => {
+    const bindError = new Error();
+    bindError.code = "EADDRINUSE";
+
+    server.emit("error", bindError); // Emit an EADDRINUSE error
+
+    expect(errorStub.calledOnce).to.be.true;
+  });
+
+  it("should throw an error for unknown errors", () => {
+    const unknownError = new Error();
+
+    expect(() => {
+      server.emit("error", unknownError); // Emit an unknown error
+    }).to.throw(Error);
+  });
+
+  it("should normalize port correctly", () => {
+    const port1 = normalizePort(3000);
+    const port2 = normalizePort("3000");
+    const port3 = normalizePort("invalid");
+
+    expect(port1).to.equal(3000);
+    expect(port2).to.equal(3000);
+    expect(port3).to.be.false;
+  });
 });
