@@ -902,6 +902,11 @@ const generateFilter = {
       group,
       visibility,
       deviceName,
+      status,
+      online_status,
+      last_active,
+      last_active_before,
+      last_active_after,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -922,6 +927,32 @@ const generateFilter = {
 
     if (channel) {
       filter.device_number = parseInt(channel);
+    }
+
+    if (last_active) {
+      filter.lastActive = {};
+      const start = new Date(last_active);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_after) {
+      filter.lastActive = {};
+      const start = new Date(last_active_after);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_before) {
+      filter.lastActive = {};
+      const start = new Date(last_active_before);
+      filter["lastActive"]["$lte"] = start;
+    }
+
+    if (online_status) {
+      if (online_status.toLowerCase() === "online") {
+        filter["isOnline"] = true;
+      } else if (online_status.toLowerCase() === "offline") {
+        filter["isOnline"] = false;
+      }
     }
 
     if (category) {
@@ -988,6 +1019,30 @@ const generateFilter = {
       filter.visibility = visibility.toLowerCase() === "yes";
     }
 
+    const validStatuses = constants.VALID_DEVICE_STATUSES;
+
+    if (status) {
+      // Split the status string by commas, but not within quotes
+      const statusArray = status.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+
+      const validStatusArray = statusArray
+        .map((s) => {
+          // Remove quotes and trim whitespace
+          s = s
+            .replace(/^"|"$/g, "")
+            .trim()
+            .toLowerCase();
+          // Replace underscores or dashes with spaces
+          s = s.replace(/[_-]/g, " ");
+          return s;
+        })
+        .filter((s) => validStatuses.includes(s));
+
+      if (validStatusArray.length > 0) {
+        filter.status = { $in: validStatusArray };
+      }
+    }
+
     return filter;
   },
   sites: (req, next) => {
@@ -1010,6 +1065,10 @@ const generateFilter = {
       network,
       group,
       google_place_id,
+      online_status,
+      last_active,
+      last_active_before,
+      last_active_after,
     } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
     logText("we are generating the filter man!");
@@ -1051,6 +1110,32 @@ const generateFilter = {
 
     if (!isEmpty(category) && category === "public" && isEmpty(site_id)) {
       filter["visibility"] = true;
+    }
+
+    if (last_active) {
+      filter.lastActive = {};
+      const start = new Date(last_active);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_after) {
+      filter.lastActive = {};
+      const start = new Date(last_active_after);
+      filter["lastActive"]["$gte"] = start;
+    }
+
+    if (last_active_before) {
+      filter.lastActive = {};
+      const start = new Date(last_active_before);
+      filter["lastActive"]["$lte"] = start;
+    }
+
+    if (online_status) {
+      if (online_status.toLowerCase() === "online") {
+        filter["isOnline"] = true;
+      } else if (online_status.toLowerCase() === "offline") {
+        filter["isOnline"] = false;
+      }
     }
 
     if (site_codes) {

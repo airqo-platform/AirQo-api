@@ -546,6 +546,39 @@ router.post(
   authJWT,
   createTokenController.whiteListIp
 );
+
+router.post(
+  "/bulk-whitelist-ip",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("ips")
+      .exists()
+      .withMessage("the ips array is missing in your request body")
+      .bail()
+      .custom((value) => Array.isArray(value))
+      .withMessage("the ipds should be an array")
+      .bail()
+      .notEmpty()
+      .withMessage("the ips should not be empty"),
+    body("ips.*").isIP().withMessage("Invalid IP address provided"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createTokenController.bulkWhiteListIps
+);
+
 router.delete(
   "/whitelist-ip/:ip",
   oneOf([

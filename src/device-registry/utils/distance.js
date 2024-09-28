@@ -72,7 +72,7 @@ const distance = {
     });
     return filteredSites;
   },
-  getDistanceSquared: ({ lat1, lon1, lat2, lon2 } = {}, next) => {
+  getDistanceSquared: ({ lat1, lon1, lat2, lon2 } = {}) => {
     const latDiff = lat2 - lat1;
     const lonDiff = lon2 - lon1;
     return latDiff * latDiff + lonDiff * lonDiff;

@@ -72,8 +72,14 @@ WhitelistedIPSchema.statics = {
       }
 
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
-      return;
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
+      // next(new HttpError(message, status, response));
+      // return;
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {

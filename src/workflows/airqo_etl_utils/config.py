@@ -165,8 +165,22 @@ class Config:
     AIRQO_BAM_MAPPING = {
         "hourly_conc": "pm2_5",
     }
-
+    # 1st 6 values are from the gps
     AIRQO_LOW_COST_CONFIG = {
+        0: "latitude",
+        1: "longitude",
+        2: "altitude",
+        3: "wind_speed",  # For mobile devices (Velocity)
+        4: "satellites",  # Number of satelites tracked
+        5: "hdop",  # For mobile devices
+        6: "device_temperature",  # Internal
+        7: "device_humidity",  # Internal
+        8: "temperature",  # Internal
+        9: "humidity",
+        10: "vapor_pressure",
+    }
+
+    AIRQO_LOW_COST_GAS_CONFIG = {
         0: "latitude",
         1: "longitude",
         2: "altitude",
@@ -178,6 +192,57 @@ class Config:
         8: "temperature",
         9: "humidity",
         10: "vapor_pressure",
+    }
+    AIRQO_DATA_COLUMN_NAME_MAPPING = {
+        "pm2_5": "pm2_5",
+        "s1_pm2_5": "pm2_5",
+        "s2_pm2_5": "pm2_5",
+        "pm2_5_pi": "pm2_5",
+        "pm2_5_raw_value": "pm2_5",
+        "pm2_5_calibrated_value": "pm2_5",
+        "pm10": "pm10",
+        "s1_pm10": "pm10",
+        "s2_pm10": "pm10",
+        "pm10_pi": "pm10",
+        "pm10_raw_value": "pm10",
+        "pm10_calibrated_value": "pm10",
+        "device_humidity": "humidity",
+        "humidity": "humidity",
+        "device_temperature": "temperature",
+        "temperature": "temperature",
+        "no2": "no2",
+        "no2_raw_value": "no2",
+        "no2_calibrated_value": "no2",
+        "pm1": "pm1",
+        "pm1_raw_value": "pm1",
+        "pm1_pi": "pm1",
+    }
+
+    # Schema files mapping
+    SCHEMA_FILE_MAPPING = {
+        BIGQUERY_HOURLY_EVENTS_TABLE: "measurements.json",
+        BIGQUERY_DAILY_EVENTS_TABLE: "measurements.json",
+        BIGQUERY_RAW_EVENTS_TABLE: "raw_measurements.json",
+        BIGQUERY_HOURLY_WEATHER_TABLE: "weather_data.json",
+        BIGQUERY_RAW_WEATHER_TABLE: "weather_data.json",
+        BIGQUERY_LATEST_EVENTS_TABLE: "latest_measurements.json",
+        BIGQUERY_ANALYTICS_TABLE: "data_warehouse.json",
+        BIGQUERY_AIRQLOUDS_TABLE: "airqlouds.json",
+        BIGQUERY_AIRQLOUDS_SITES_TABLE: "airqlouds_sites.json",
+        BIGQUERY_GRIDS_TABLE: "grids.json",
+        BIGQUERY_COHORTS_TABLE: "cohorts.json",
+        BIGQUERY_GRIDS_SITES_TABLE: "grids_sites.json",
+        BIGQUERY_COHORTS_DEVICES_TABLE: "cohorts_devices.json",
+        BIGQUERY_SITES_TABLE: "sites.json",
+        BIGQUERY_SITES_META_DATA_TABLE: "sites_meta_data.json",
+        SENSOR_POSITIONS_TABLE: "sensor_positions.json",
+        BIGQUERY_DEVICES_TABLE: "devices.json",
+        BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
+        BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
+        BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE: "airqo_mobile_measurements.json",
+        BIGQUERY_BAM_EVENTS_TABLE: "bam_measurements.json",
+        BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
+        "all": None,
     }
 
     # Data unit tests

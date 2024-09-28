@@ -22,7 +22,7 @@
 
   - `pip install -r requirements.txt`
 
-- Create a `.env` file with the following keys
+- Create a `.env` file with the following keys.
 
   - **ENV** e.g `staging`
   - **REGISTRY_MONGO_GCE_URI**

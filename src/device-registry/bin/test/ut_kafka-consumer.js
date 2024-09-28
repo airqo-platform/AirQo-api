@@ -1,7 +1,7 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const kafkaConsumer = require("@bin/kafka-consumer"); // Replace with the actual path to your kafkaConsumer.js file
+const kafkaConsumer = require("@bin/jobs/kafka-consumer"); // Replace with the actual path to your kafkaConsumer.js file
 
 describe("kafkaConsumer", () => {
   let consumerMock;

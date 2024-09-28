@@ -106,6 +106,7 @@ class MessageBrokerUtils:
         )
 
         del data["device_number"]
+
         data = pd.merge(
             left=data,
             right=devices,

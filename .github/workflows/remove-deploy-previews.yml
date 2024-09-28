@@ -82,7 +82,7 @@ jobs:
               echo "remove_preview__device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/data-mgt/node/* ]]; then
+            if [[ $file == src/data-mgt/* ]]; then
               echo "remove_preview__data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
@@ -408,4 +408,4 @@ jobs:
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-spatial-preview \
             --region=${{ secrets.REGION }} \
-            --quiet            
+            --quiet

@@ -217,25 +217,18 @@ const getSitesFromLatitudeAndLongitude = async ({
 
       // Sort sites by distance from provided coordinates
       sites.sort((a, b) => {
-        lat1, lon1, lat2, lon2;
-        const distanceSquaredA = distanceUtil.getDistanceSquared(
-          {
-            lat1: latitude,
-            lon1: longitude,
-            lat2: a.latitude,
-            lon2: a.longitude,
-          },
-          next
-        );
-        const distanceSquaredB = distanceUtil.getDistanceSquared(
-          {
-            lat1: latitude,
-            lon1: longitude,
-            lat2: b.latitude,
-            lon2: b.longitude,
-          },
-          next
-        );
+        const distanceSquaredA = distanceUtil.getDistanceSquared({
+          lat1: latitude,
+          lon1: longitude,
+          lat2: a.latitude,
+          lon2: a.longitude,
+        });
+        const distanceSquaredB = distanceUtil.getDistanceSquared({
+          lat1: latitude,
+          lon1: longitude,
+          lat2: b.latitude,
+          lon2: b.longitude,
+        });
         return distanceSquaredA - distanceSquaredB;
       });
 
@@ -2535,27 +2528,29 @@ const createEvent = {
         } else {
           request.query.site_id = result.data;
 
-          const result = await createEventUtil.list(request, next);
+          const eventResult = await createEventUtil.list(request, next);
 
-          logObject("the result for listing events", result);
+          logObject("the eventResult for listing events", eventResult);
 
-          if (result.success === true) {
-            const status = result.status ? result.status : httpStatus.OK;
+          if (eventResult.success === true) {
+            const status = eventResult.status
+              ? eventResult.status
+              : httpStatus.OK;
             res.status(status).json({
               success: true,
-              isCache: result.isCache,
-              message: result.message,
-              meta: result.data[0].meta,
-              measurements: result.data[0].data,
+              isCache: eventResult.isCache,
+              message: eventResult.message,
+              meta: eventResult.data[0].meta,
+              measurements: eventResult.data[0].data,
             });
-          } else if (result.success === false) {
-            const status = result.status
-              ? result.status
+          } else if (eventResult.success === false) {
+            const status = eventResult.status
+              ? eventResult.status
               : httpStatus.INTERNAL_SERVER_ERROR;
             res.status(status).json({
               success: false,
-              errors: result.errors ? result.errors : { message: "" },
-              message: result.message,
+              errors: eventResult.errors ? eventResult.errors : { message: "" },
+              message: eventResult.message,
             });
           }
         }

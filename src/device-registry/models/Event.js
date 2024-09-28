@@ -21,6 +21,8 @@ const logger = require("log4js").getLogger(
 const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
+const UPTIME_CHECK_THRESHOLD = 48;
+
 const valueSchema = new Schema({
   time: {
     type: Date,
@@ -206,6 +208,42 @@ const valueSchema = new Schema({
       default: null,
     },
   },
+
+  tvoc: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+
+  co2: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+
+  hcho: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+
+  intaketemperature: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+
+  intakehumidity: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+
   internalTemperature: {
     value: {
       type: Number,
@@ -547,6 +585,13 @@ async function fetchData(model, filter) {
     projection["externalTemperature"] = 0;
     projection["internalTemperature"] = 0;
     projection["hdop"] = 0;
+
+    projection["tvoc"] = 0;
+    projection["hcho"] = 0;
+    projection["co2"] = 0;
+    projection["intaketemperature"] = 0;
+    projection["intakehumidity"] = 0;
+
     projection["satellites"] = 0;
     projection["speed"] = 0;
     projection["altitude"] = 0;
@@ -635,6 +680,11 @@ async function fetchData(model, filter) {
       speed: 0,
       satellites: 0,
       hdop: 0,
+      intaketemperature: 0,
+      tvoc: 0,
+      hcho: 0,
+      co2: 0,
+      intakehumidity: 0,
       internalTemperature: 0,
       externalTemperature: 0,
       internalHumidity: 0,
@@ -755,6 +805,13 @@ async function fetchData(model, filter) {
         speed: { $first: "$speed" },
         satellites: { $first: "$satellites" },
         hdop: { $first: "$hdop" },
+
+        intaketemperature: { $first: "$intaketemperature" },
+        tvoc: { $first: "$tvoc" },
+        hcho: { $first: "$hcho" },
+        co2: { $first: "$co2" },
+        intakehumidity: { $first: "$intakehumidity" },
+
         internalTemperature: { $first: "$internalTemperature" },
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
@@ -1039,6 +1096,13 @@ async function fetchData(model, filter) {
         _network: "$network",
         _satellites: "$satellites",
         _hdop: "$hdop",
+
+        _tvoc: "$tvoc",
+        _hcho: "$hcho",
+        _co2: "$co2",
+        _intaketemperature: "$intaketemperature",
+        _intakehumidity: "$intakehumidity",
+
         _site_id: "$site_id",
         _device_id: "$device_id",
         _site: "$site",
@@ -1081,6 +1145,13 @@ async function fetchData(model, filter) {
         network: "$_network",
         satellites: "$_satellites",
         hdop: "$_hdop",
+
+        intaketemperature: "$_intaketemperature",
+        tvoc: "$_tvoc",
+        hcho: "$_hcho",
+        co2: "$_co2",
+        intakehumidity: "$_intakehumidity",
+
         internalTemperature: "$_internalTemperature",
         externalTemperature: "$_externalTemperature",
         internalHumidity: "$_internalHumidity",
@@ -1206,6 +1277,13 @@ async function signalData(model, filter) {
   projection["externalTemperature"] = 0;
   projection["internalTemperature"] = 0;
   projection["hdop"] = 0;
+
+  projection["tvoc"] = 0;
+  projection["hcho"] = 0;
+  projection["co2"] = 0;
+  projection["intaketemperature"] = 0;
+  projection["intakehumidity"] = 0;
+
   projection["satellites"] = 0;
   projection["speed"] = 0;
   projection["altitude"] = 0;
@@ -1337,6 +1415,13 @@ async function signalData(model, filter) {
       speed: { $first: "$speed" },
       satellites: { $first: "$satellites" },
       hdop: { $first: "$hdop" },
+
+      intaketemperature: { $first: "$intaketemperature" },
+      tvoc: { $first: "$tvoc" },
+      hcho: { $first: "$hcho" },
+      co2: { $first: "$co2" },
+      intakehumidity: { $first: "$intakehumidity" },
+
       internalTemperature: { $first: "$internalTemperature" },
       externalTemperature: { $first: "$externalTemperature" },
       internalHumidity: { $first: "$internalHumidity" },
@@ -1582,9 +1667,9 @@ async function signalData(model, filter) {
 }
 function filterNullAndReportOffDevices(data) {
   data.forEach((record) => {
-    if (record.timeDifferenceHours > 14) {
+    if (record.timeDifferenceHours > UPTIME_CHECK_THRESHOLD) {
       logObject(
-        `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+        `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours for device: ${
           record.device ? record.device : ""
         }, frequency ${record.frequency ? record.frequency : ""}, time ${
           record.time ? record.time : ""
@@ -1592,7 +1677,7 @@ function filterNullAndReportOffDevices(data) {
       );
       if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
         logger.info(
-          `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+          `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours for device: ${
             record.device ? record.device : ""
           }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
             record.time ? record.time : ""
@@ -1752,6 +1837,13 @@ eventSchema.statics.list = async function(
       projection["externalTemperature"] = 0;
       projection["internalTemperature"] = 0;
       projection["hdop"] = 0;
+
+      projection["tvoc"] = 0;
+      projection["hcho"] = 0;
+      projection["co2"] = 0;
+      projection["intaketemperature"] = 0;
+      projection["intakehumidity"] = 0;
+
       projection["satellites"] = 0;
       projection["speed"] = 0;
       projection["altitude"] = 0;
@@ -1840,6 +1932,13 @@ eventSchema.statics.list = async function(
         speed: 0,
         satellites: 0,
         hdop: 0,
+
+        intaketemperature: 0,
+        tvoc: 0,
+        hcho: 0,
+        co2: 0,
+        intakehumidity: 0,
+
         internalTemperature: 0,
         externalTemperature: 0,
         internalHumidity: 0,
@@ -1958,6 +2057,11 @@ eventSchema.statics.list = async function(
           speed: { $first: "$speed" },
           satellites: { $first: "$satellites" },
           hdop: { $first: "$hdop" },
+          intaketemperature: { $first: "$intaketemperature" },
+          tvoc: { $first: "$tvoc" },
+          hcho: { $first: "$hcho" },
+          co2: { $first: "$co2" },
+          intakehumidity: { $first: "$intakehumidity" },
           internalTemperature: { $first: "$internalTemperature" },
           externalTemperature: { $first: "$externalTemperature" },
           internalHumidity: { $first: "$internalHumidity" },
@@ -2248,6 +2352,13 @@ eventSchema.statics.list = async function(
           _network: "$network",
           _satellites: "$satellites",
           _hdop: "$hdop",
+
+          _tvoc: "$tvoc",
+          _hcho: "$hcho",
+          _co2: "$co2",
+          _intaketemperature: "$intaketemperature",
+          _intakehumidity: "$intakehumidity",
+
           _site_id: "$site_id",
           _device_id: "$device_id",
           _site: "$site",
@@ -2290,6 +2401,11 @@ eventSchema.statics.list = async function(
           network: "$_network",
           satellites: "$_satellites",
           hdop: "$_hdop",
+          intaketemperature: "$_intaketemperature",
+          tvoc: "$_tvoc",
+          hcho: "$_hcho",
+          co2: "$_co2",
+          intakehumidity: "$_intakehumidity",
           internalTemperature: "$_internalTemperature",
           externalTemperature: "$_externalTemperature",
           internalHumidity: "$_internalHumidity",

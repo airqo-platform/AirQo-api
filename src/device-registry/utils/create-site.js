@@ -868,7 +868,6 @@ const createSite = {
       );
     }
   },
-
   listAirQoActive: async (request, next) => {
     try {
       const { skip, limit, tenant } = request.query;
@@ -903,7 +902,6 @@ const createSite = {
       );
     }
   },
-
   formatSiteName: (name, next) => {
     try {
       let nameWithoutWhiteSpace = name.replace(/\s/g, "");

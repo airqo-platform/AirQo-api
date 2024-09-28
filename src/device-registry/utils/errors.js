@@ -13,14 +13,11 @@ class HttpError extends Error {
 }
 
 const convertErrorArrayToObject = (arrays) => {
+  const initialValue = {};
   return arrays.reduce((obj, item) => {
-    let param = item.param || "message";
-    let msg = item.msg ? item.msg : "";
-    return {
-      ...obj,
-      [param]: msg,
-    };
-  }, {});
+    obj[item.param] = item.msg;
+    return obj;
+  }, initialValue);
 };
 
 const extractErrorsFromRequest = (req) => {

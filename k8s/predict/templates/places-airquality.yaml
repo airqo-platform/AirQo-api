@@ -4,15 +4,18 @@ metadata:
   name: {{ .Values.jobs.predictPlaces.name }}
   namespace: {{ .Values.namespace }}
 spec:
-  concurrencyPolicy: Allow
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
+  suspend: True
+  concurrencyPolicy: Replace
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 1200
   schedule: '{{ .Values.jobs.predictPlaces.schedule }}'
   suspend: false
   jobTemplate:
     metadata:
       name: {{ .Values.jobs.predictPlaces.name }}
     spec:
+      ttlSecondsAfterFinished: 100
       template:
         spec:
           dnsPolicy: ClusterFirst
@@ -28,6 +31,11 @@ spec:
                     operator: In
                     values:
                       - compute
+          tolerations:
+            - key: "dedicated"
+              operator: "Equal"
+              value: "cronjobs"
+              effect: "NoExecute"
           containers:
             - name: {{ .Values.jobs.predictPlaces.name }}
               image: "{{ .Values.images.repositories.predictPlaces }}:{{ .Values.images.tag }}"

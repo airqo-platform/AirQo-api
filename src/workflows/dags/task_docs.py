@@ -6,6 +6,13 @@ Extract low cost data from ThingSpeak
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
 
+extract_raw_airqo_gaseous_data_doc = """
+###Purpose
+Extract gaseous low cost data from ThingSpeak
+####Notes
+
+"""
+
 clean_data_raw_data_doc = """
 ###Purpose
 Clean The raw data 
