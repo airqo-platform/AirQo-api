@@ -377,7 +377,7 @@ class AirQoDataUtils:
             data_source=DataSource.THINGSPEAK,
         )
 
-        for device in devices[:100]:
+        for device in devices:
             device_number = device.get("device_number", None)
             read_key = read_keys.get(device_number, None)
 
