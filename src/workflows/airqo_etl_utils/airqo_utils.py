@@ -638,18 +638,29 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
+
+        # Create a device lookup dictionary for faster access
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
+
+        device_lookup = {
+            device["device_number"]: device
+            for device in devices
+            if device.get("device_number")
+        }
 
         for _, row in data.iterrows():
             try:
                 device_number = row["device_number"]
-                device_details = list(
-                    filter(
-                        lambda device: (device["device_number"] == device_number),
-                        devices,
+
+                # Get device details from the lookup dictionary
+                device_details = device_lookup.get(device_number)
+                if not device_details:
+                    logger.exception(
+                        f"Device number {device_number} not found in device list."
                     )
-                )[0]
+                    continue
+
                 row_data = {
                     "device": device_details["name"],
                     "device_id": device_details["_id"],
