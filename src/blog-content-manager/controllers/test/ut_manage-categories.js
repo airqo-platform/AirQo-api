@@ -1,645 +1,371 @@
-require("module-alias/register");
-const { expect } = require("chai");
 const sinon = require("sinon");
-const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const createFavorite = require("@controllers/create-favorite");
-const createFavoriteUtil = require("@utils/create-favorite");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const constants = require("@config/constants");
-const isEmpty = require("is-empty");
-const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-favorite-controller`
-);
+const chai = require("chai");
+const chaiHttp = require("chai-http");
+const expect = chai.expect;
+const CategoryTagController = require("./categoryTag.controller");
 
-describe("createFavorite module", () => {
+describe("CategoryTagController", () => {
+  let mockRequest;
+  let mockResponse;
+  let mockNext;
+  let mockCategoryTagUtil;
+
+  beforeEach(() => {
+    mockRequest = {
+      params: {},
+      body: {},
+      query: {},
+    };
+    mockResponse = {
+      status: sinon.spy(),
+      json: sinon.spy(),
+    };
+    mockNext = sinon.spy();
+    mockCategoryTagUtil = {
+      create: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 201,
+          message: "Created",
+          data: { id: "123" },
+        }),
+      list: sinon
+        .stub()
+        .resolves({ success: true, status: 200, message: "OK", data: [] }),
+      update: sinon
+        .stub()
+        .resolves({ success: true, status: 200, message: "Updated", data: {} }),
+      delete: sinon
+        .stub()
+        .resolves({ success: true, status: 204, message: "" }),
+      assign: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Assigned",
+          data: {},
+        }),
+      posts: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Posts fetched",
+          data: [],
+        }),
+      browseCategories: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Categories browsed",
+          data: [],
+        }),
+      browseTags: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Tags browsed",
+          data: [],
+        }),
+    };
+  });
+
   afterEach(() => {
     sinon.restore();
   });
 
-  describe("syncFavorites()", () => {
-    it("should return a bad request response if there are validation errors", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for validation errors
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub(createFavorite, "badRequest");
+  describe("create", () => {
+    it("should create a new category tag", async () => {
+      mockRequest.body = { name: "Test Category Tag" };
 
-      // Call the function to be tested
-      await createFavorite.syncFavorites(req, res);
+      await CategoryTagController.create(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      // Add more assertions to check the bad request response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      badRequestStub.restore();
+      expect(mockCategoryTagUtil.create).toHaveBeenCalledWith(
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(201);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Created",
+        categoryId: "123",
+      });
     });
 
-    it("should return an internal server error response if an error occurs in createFavoriteUtil.syncFavorites", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const syncFavoritesStub = sinon
-        .stub(createFavoriteUtil, "syncFavorites")
-        .throws(new Error("Mocked error"));
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "name", message: "Name is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      // Call the function to be tested
-      await createFavorite.syncFavorites(req, res);
+      await CategoryTagController.create(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(syncFavoritesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the internal server error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      syncFavoritesStub.restore();
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should return a success response with data if createFavoriteUtil.syncFavorites is successful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const syncFavoritesStub = sinon
-        .stub(createFavoriteUtil, "syncFavorites")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Mocked success message",
-          data: [{ favorite: "data" }],
-        });
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.create.resolves({});
 
-      // Call the function to be tested
-      await createFavorite.syncFavorites(req, res);
+      await CategoryTagController.create(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(syncFavoritesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the success response with data
-
-      // Restore the stubs
-      validationResultStub.restore();
-      syncFavoritesStub.restore();
-    });
-
-    it("should return an error response if createFavoriteUtil.syncFavorites is unsuccessful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const syncFavoritesStub = sinon
-        .stub(createFavoriteUtil, "syncFavorites")
-        .returns({
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Mocked error message",
-          errors: { field: "error message" },
-        });
-
-      // Call the function to be tested
-      await createFavorite.syncFavorites(req, res);
-
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(syncFavoritesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      syncFavoritesStub.restore();
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("create()", () => {
-    it("should return a bad request response if there are validation errors", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for validation errors
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub(createFavorite, "badRequest");
+  describe("list", () => {
+    it("should list all category tags", async () => {
+      mockRequest.query = { limit: 10, offset: 0 };
 
-      // Call the function to be tested
-      await createFavorite.create(req, res);
+      await CategoryTagController.list(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      // Add more assertions to check the bad request response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      badRequestStub.restore();
+      expect(mockCategoryTagUtil.list).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "OK",
+        categoriesTagsData: [],
+      });
     });
 
-    it("should return an internal server error response if an error occurs in createFavoriteUtil.create", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteStub = sinon
-        .stub(createFavoriteUtil, "create")
-        .throws(new Error("Mocked error"));
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "limit", message: "Limit is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      // Call the function to be tested
-      await createFavorite.create(req, res);
+      await CategoryTagController.list(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the internal server error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteStub.restore();
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should return a success response with data if createFavoriteUtil.create is successful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteStub = sinon
-        .stub(createFavoriteUtil, "create")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Mocked success message",
-          data: { favorite: "data" },
-        });
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.list.resolves({});
 
-      // Call the function to be tested
-      await createFavorite.create(req, res);
+      await CategoryTagController.list(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the success response with data
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteStub.restore();
-    });
-
-    it("should return an error response if createFavoriteUtil.create is unsuccessful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteStub = sinon
-        .stub(createFavoriteUtil, "create")
-        .returns({
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Mocked error message",
-          errors: { field: "error message" },
-        });
-
-      // Call the function to be tested
-      await createFavorite.create(req, res);
-
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteStub.restore();
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("list()", () => {
-    it("should return a bad request response if there are validation errors", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for validation errors
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub(createFavorite, "badRequest");
+  describe("update", () => {
+    it("should update an existing category tag", async () => {
+      mockRequest.params.id = "123";
+      mockRequest.body = { name: "Updated Name" };
 
-      // Call the function to be tested
-      await createFavorite.list(req, res);
+      await CategoryTagController.update(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      // Add more assertions to check the bad request response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      badRequestStub.restore();
+      expect(mockCategoryTagUtil.update).toHaveBeenCalledWith(
+        "123",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Updated",
+        updatedCategoryTag: {},
+      });
     });
 
-    it("should return an internal server error response if an error occurs in createFavoriteUtil.list", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "list")
-        .throws(new Error("Mocked error"));
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "name", message: "Name is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      // Call the function to be tested
-      await createFavorite.list(req, res);
+      await CategoryTagController.update(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the internal server error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should return a success response with data if createFavoriteUtil.list is successful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "list")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Mocked success message",
-          data: { favorites: ["data1", "data2"] },
-        });
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.update.resolves({});
 
-      // Call the function to be tested
-      await createFavorite.list(req, res);
+      await CategoryTagController.update(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the success response with data
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
-    });
-
-    it("should return an error response if createFavoriteUtil.list is unsuccessful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "list")
-        .returns({
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Mocked error message",
-          errors: { field: "error message" },
-        });
-
-      // Call the function to be tested
-      await createFavorite.list(req, res);
-
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("delete()", () => {
-    it("should return a bad request response if there are validation errors", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for validation errors
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub(createFavorite, "badRequest");
+  describe("delete", () => {
+    it("should delete a category tag", async () => {
+      mockRequest.params.id = "123";
 
-      // Call the function to be tested
-      await createFavorite.delete(req, res);
+      await CategoryTagController.delete(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      // Add more assertions to check the bad request response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      badRequestStub.restore();
+      expect(mockCategoryTagUtil.delete).toHaveBeenCalledWith(
+        "123",
+        {},
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(204);
+      expect(mockResponse.json).to.have.been.calledWith({});
     });
 
-    it("should return an internal server error response if an error occurs in createFavoriteUtil.delete", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "delete")
-        .throws(new Error("Mocked error"));
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "id", message: "ID is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      // Call the function to be tested
-      await createFavorite.delete(req, res);
+      await CategoryTagController.delete(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the internal server error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should return a success response with data if createFavoriteUtil.delete is successful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "delete")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Mocked success message",
-          data: { deleted_Favorite: "data1" },
-        });
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.delete.resolves({});
 
-      // Call the function to be tested
-      await createFavorite.delete(req, res);
+      await CategoryTagController.delete(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the success response with data
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
-    });
-
-    it("should return an error response if createFavoriteUtil.delete is unsuccessful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "delete")
-        .returns({
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Mocked error message",
-          errors: { field: "error message" },
-        });
-
-      // Call the function to be tested
-      await createFavorite.delete(req, res);
-
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("update()", () => {
-    it("should return a bad request response if there are validation errors", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for validation errors
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(false);
-      const badRequestStub = sinon.stub(createFavorite, "badRequest");
+  describe("assign", () => {
+    it("should fetch posts associated with a category tag", async () => {
+      mockRequest.params.id = "123";
+      mockRequest.query = { limit: 10, offset: 0 };
 
-      // Call the function to be tested
-      await createFavorite.update(req, res);
+      await CategoryTagController.posts(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      // Add more assertions to check the bad request response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      badRequestStub.restore();
+      expect(mockCategoryTagUtil.posts).toHaveBeenCalledWith(
+        "123",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Posts fetched",
+        postsData: [],
+      });
     });
 
-    it("should return an internal server error response if an error occurs in createFavoriteUtil.update", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "update")
-        .throws(new Error("Mocked error"));
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "id", message: "ID is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      // Call the function to be tested
-      await createFavorite.update(req, res);
+      await CategoryTagController.posts(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the internal server error response
-
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should return a success response with data if createFavoriteUtil.update is successful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "update")
-        .returns({
-          success: true,
-          status: httpStatus.OK,
-          message: "Mocked success message",
-          data: { updated_Favorite: "data1" },
-        });
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.posts.resolves({});
 
-      // Call the function to be tested
-      await createFavorite.update(req, res);
+      await CategoryTagController.posts(mockRequest, mockResponse, mockNext);
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the success response with data
+      expect(mockResponse.json).not.to.have.been.called;
+    });
+  });
 
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+  describe("browseCategories", () => {
+    it("should browse categories", async () => {
+      mockRequest.query = { limit: 10, offset: 0 };
+
+      await CategoryTagController.browseCategories(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockCategoryTagUtil.browseCategories).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Categories browsed",
+        categoriesData: [],
+      });
     });
 
-    it("should return an error response if createFavoriteUtil.update is unsuccessful", async () => {
-      // Mock the required objects and functions
-      const req = {}; // Provide the necessary data for a successful request
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.spy(),
-      };
-      const validationResultStub = sinon
-        .stub(validationResult(req), "isEmpty")
-        .returns(true);
-      const createFavoriteUtilStub = sinon
-        .stub(createFavoriteUtil, "update")
-        .returns({
-          success: false,
-          status: httpStatus.BAD_REQUEST,
-          message: "Mocked error message",
-          errors: { field: "error message" },
-        });
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "limit", message: "Limit is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      // Call the function to be tested
-      await createFavorite.update(req, res);
+      await CategoryTagController.browseCategories(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      // Assertions
-      expect(validationResultStub.calledOnce).to.be.true;
-      expect(createFavoriteUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.BAD_REQUEST)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions to check the error response
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
+    });
 
-      // Restore the stubs
-      validationResultStub.restore();
-      createFavoriteUtilStub.restore();
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.browseCategories.resolves({});
+
+      await CategoryTagController.browseCategories(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockResponse.json).not.to.have.been.called;
+    });
+  });
+
+  describe("browseTags", () => {
+    it("should browse tags", async () => {
+      mockRequest.query = { limit: 10, offset: 0 };
+
+      await CategoryTagController.browseTags(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockCategoryTagUtil.browseTags).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Tags browsed",
+        tagsData: [],
+      });
+    });
+
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "limit", message: "Limit is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
+
+      await CategoryTagController.browseTags(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
+    });
+
+    it("should handle empty result", async () => {
+      mockCategoryTagUtil.browseTags.resolves({});
+
+      await CategoryTagController.browseTags(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 });

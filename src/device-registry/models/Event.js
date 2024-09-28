@@ -21,6 +21,8 @@ const logger = require("log4js").getLogger(
 const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
+const UPTIME_CHECK_THRESHOLD = 48;
+
 const valueSchema = new Schema({
   time: {
     type: Date,
@@ -1665,9 +1667,9 @@ async function signalData(model, filter) {
 }
 function filterNullAndReportOffDevices(data) {
   data.forEach((record) => {
-    if (record.timeDifferenceHours > 14) {
+    if (record.timeDifferenceHours > UPTIME_CHECK_THRESHOLD) {
       logObject(
-        `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+        `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours for device: ${
           record.device ? record.device : ""
         }, frequency ${record.frequency ? record.frequency : ""}, time ${
           record.time ? record.time : ""
@@ -1675,7 +1677,7 @@ function filterNullAndReportOffDevices(data) {
       );
       if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
         logger.info(
-          `🪫🪫 Last refreshed time difference exceeds 14 hours for device: ${
+          `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours for device: ${
             record.device ? record.device : ""
           }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
             record.time ? record.time : ""

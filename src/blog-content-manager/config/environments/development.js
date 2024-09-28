@@ -26,5 +26,6 @@ const devConfig = {
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
   REDIS_SERVER: process.env.DEV_REDIS_SERVER,
   REDIS_PORT: process.env.DEV_REDIS_PORT,
+  API_URL: process.env.API_URL_DEVELOPMENT,
 };
 module.exports = devConfig;
