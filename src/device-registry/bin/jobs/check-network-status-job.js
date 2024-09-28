@@ -56,16 +56,16 @@ const checkNetworkStatus = async () => {
         )}%`
       );
     } else {
-      logText(
-        `✅ Network status is acceptable: ${offlinePercentage.toFixed(
-          2
-        )}% offline`
-      );
-      logger.info(
-        `✅ Network status is acceptable: ${offlinePercentage.toFixed(
-          2
-        )}% offline`
-      );
+      // logText(
+      //   `✅ Network status is acceptable: ${offlinePercentage.toFixed(
+      //     2
+      //   )}% offline`
+      // );
+      // logger.info(
+      //   `✅ Network status is acceptable: ${offlinePercentage.toFixed(
+      //     2
+      //   )}% offline`
+      // );
     }
   } catch (error) {
     logText(`Error checking network status: ${error.message}`);
