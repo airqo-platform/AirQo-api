@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/store-readings-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`
 );
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
