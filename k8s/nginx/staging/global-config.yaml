@@ -50,13 +50,7 @@ data:
       proxy_method            $method;
       proxy_pass              http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v2/users/$verification_path;
       proxy_pass_request_body on;
-      proxy_buffer_size 128k;
-      proxy_buffers 4 32k;
-      proxy_busy_buffers_size 64k;
-      proxy_temp_file_write_size 64k;
-      proxy_http_version 1.1;
-      proxy_set_header Connection '';
-      proxy_set_header Content-Type application/json;
+      proxy_set_header Content-Length '';
       proxy_set_header        X-Original-URI $request_uri;
       proxy_set_header        X-Original-Method $request_method;
       proxy_set_header        X-Client-IP $client_ip;
