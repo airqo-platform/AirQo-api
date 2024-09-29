@@ -3,7 +3,7 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/incomplete-profile-job`
+  `${constants.ENVIRONMENT} -- bin/jobs/incomplete-profile-job`
 );
 const stringify = require("@utils/stringify");
 const mailer = require("@utils/mailer");
