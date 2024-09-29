@@ -49,7 +49,7 @@ const setLocalOptions = (req, res, next) => {
 
     return {
       success: true,
-      message: "the auth fields have been set",
+      message: "all the auth fields have been set",
       authenticationFields,
     };
   } catch (e) {
