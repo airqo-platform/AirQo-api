@@ -375,7 +375,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
       const clientOriginalIp = req.headers["x-client-original-ip"];
       const requestBody = req.body;
       logObject("Request Body", requestBody);
-      logObject("logging the entire req", req);
 
       let service = req.headers["service"] || "unknown";
       let userAction = "unknown";
