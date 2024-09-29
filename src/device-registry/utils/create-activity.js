@@ -236,7 +236,38 @@ const createActivity = {
 
               if (responseFromUpdateDevice.success === true) {
                 const updatedDevice = responseFromUpdateDevice.data;
-
+                const data = {
+                  createdActivity: {
+                    activity_codes: createdActivity.activity_codes,
+                    tags: createdActivity.tags,
+                    _id: createdActivity._id,
+                    device: createdActivity.device,
+                    date: createdActivity.date,
+                    description: createdActivity.description,
+                    activityType: createdActivity.activityType,
+                    site_id: createdActivity.site_id,
+                    host_id: createdActivity.host_id,
+                    network: createdActivity.network,
+                    nextMaintenance: createdActivity.nextMaintenance,
+                    createdAt: createdActivity.createdAt,
+                  },
+                  updatedDevice: {
+                    status: updatedDevice.status,
+                    category: updatedDevice.category,
+                    isActive: updatedDevice.isActive,
+                    _id: updatedDevice._id,
+                    long_name: updatedDevice.long_name,
+                    network: updatedDevice.network,
+                    device_number: updatedDevice.device_number,
+                    name: updatedDevice.name,
+                    deployment_date: updatedDevice.deployment_date,
+                    latitude: updatedDevice.latitude,
+                    longitude: updatedDevice.longitude,
+                    mountType: updatedDevice.mountType,
+                    powerType: updatedDevice.powerType,
+                    site_id: updatedDevice.site_id,
+                  },
+                };
                 try {
                   const kafkaProducer = kafka.producer({
                     groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -253,45 +284,16 @@ const createActivity = {
                   });
                   await kafkaProducer.disconnect();
                 } catch (error) {
-                  logger.error(`internal server error -- ${error.message}`);
+                  logger.error(
+                    `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`
+                  );
                 }
 
                 // Construct a simplified response structure
                 return {
                   success: true,
                   message: "successfully deployed the device",
-                  data: {
-                    createdActivity: {
-                      activity_codes: createdActivity.activity_codes,
-                      tags: createdActivity.tags,
-                      _id: createdActivity._id,
-                      device: createdActivity.device,
-                      date: createdActivity.date,
-                      description: createdActivity.description,
-                      activityType: createdActivity.activityType,
-                      site_id: createdActivity.site_id,
-                      host_id: createdActivity.host_id,
-                      network: createdActivity.network,
-                      nextMaintenance: createdActivity.nextMaintenance,
-                      createdAt: createdActivity.createdAt,
-                    },
-                    updatedDevice: {
-                      status: updatedDevice.status,
-                      category: updatedDevice.category,
-                      isActive: updatedDevice.isActive,
-                      _id: updatedDevice._id,
-                      long_name: updatedDevice.long_name,
-                      network: updatedDevice.network,
-                      device_number: updatedDevice.device_number,
-                      name: updatedDevice.name,
-                      deployment_date: updatedDevice.deployment_date,
-                      latitude: updatedDevice.latitude,
-                      longitude: updatedDevice.longitude,
-                      mountType: updatedDevice.mountType,
-                      powerType: updatedDevice.powerType,
-                      site_id: updatedDevice.site_id,
-                    },
-                  },
+                  data,
                 };
               } else if (responseFromUpdateDevice.success === false) {
                 return responseFromUpdateDevice;

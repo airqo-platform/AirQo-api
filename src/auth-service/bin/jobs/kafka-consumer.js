@@ -2,7 +2,7 @@ const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/kafka-consumer script`
+  `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer script`
 );
 const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
