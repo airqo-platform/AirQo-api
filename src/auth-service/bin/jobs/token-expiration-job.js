@@ -5,7 +5,7 @@ const mailer = require("@utils/mailer");
 const stringify = require("@utils/stringify");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/token-expiration-job`
+  `${constants.ENVIRONMENT} -- bin/jobs/token-expiration-job`
 );
 const moment = require("moment-timezone");
 
