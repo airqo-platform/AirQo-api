@@ -530,6 +530,7 @@ const createActivity = {
         site_id,
         maintenanceType,
         network,
+        user_id,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -552,6 +553,7 @@ const createActivity = {
 
       const siteActivityBody = {
         device: deviceName,
+        user_id: user_id ? user_id : null,
         date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
@@ -591,7 +593,32 @@ const createActivity = {
         );
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
-          const data = { createdActivity, updatedDevice };
+          const data = {
+            createdActivity: {
+              activity_codes: createdActivity.activity_codes,
+              tags: createdActivity.tags,
+              _id: createdActivity._id,
+              device: createdActivity.device,
+              date: createdActivity.date,
+              description: createdActivity.description,
+              activityType: createdActivity.activityType,
+              site_id: createdActivity.site_id,
+              host_id: createdActivity.host_id,
+              network: createdActivity.network,
+              nextMaintenance: createdActivity.nextMaintenance,
+              createdAt: createdActivity.createdAt,
+            },
+            updatedDevice: {
+              _id: updatedDevice._id,
+              long_name: updatedDevice.long_name,
+              status: updatedDevice.status,
+              device_number: updatedDevice.device_number,
+              name: updatedDevice.name,
+              maintenance_date: updatedDevice.maintenance_date,
+              nextMaintenance: updatedDevice.nextMaintenance,
+            },
+            user_id: user_id ? user_id : null,
+          };
           try {
             const kafkaProducer = kafka.producer({
               groupId: constants.UNIQUE_PRODUCER_GROUP,

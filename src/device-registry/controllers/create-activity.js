@@ -232,6 +232,7 @@ const activity = {
           message: result.message,
           createdActivity: result.data.createdActivity,
           updatedDevice: result.data.updatedDevice,
+          user_id: result.data.user_id,
         });
       } else if (result.success === false) {
         const status = result.status

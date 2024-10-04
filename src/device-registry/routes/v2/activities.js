@@ -441,6 +441,18 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
+      body("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("date")
         .exists()
         .withMessage("date is missing")
