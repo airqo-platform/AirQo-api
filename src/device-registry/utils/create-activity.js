@@ -116,6 +116,7 @@ const createActivity = {
         site_id,
         host_id,
         network,
+        user_id,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -168,6 +169,7 @@ const createActivity = {
               activityType: "deployment",
               site_id,
               host_id: host_id ? host_id : null,
+              user_id: user_id ? user_id : null,
               network,
               nextMaintenance: addMonthsToProvideDateTime(
                 date && new Date(date),
@@ -267,6 +269,7 @@ const createActivity = {
                     powerType: updatedDevice.powerType,
                     site_id: updatedDevice.site_id,
                   },
+                  user_id: user_id ? user_id : null,
                 };
                 try {
                   const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
@@ -330,7 +333,7 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { recallType } = body;
+      const { recallType, user_id } = body;
       const { tenant, deviceName } = query;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -395,6 +398,7 @@ const createActivity = {
 
         const siteActivityBody = {
           device: deviceName,
+          user_id: user_id ? user_id : null,
           date: new Date(),
           description: "device recalled",
           activityType: "recallment",
@@ -468,6 +472,7 @@ const createActivity = {
                 previous_sites: updatedDevice.previous_sites,
                 recall_date: updatedDevice.recall_date,
               },
+              user_id: user_id ? user_id : null,
             };
             try {
               const recallTopic = constants.RECALL_TOPIC || "recall-topic";
@@ -654,6 +659,8 @@ const createActivity = {
           site_name,
           network,
           deviceName,
+          user_id,
+          host_id,
         } = deployment;
 
         const coordsKey = `${latitude},${longitude}`; // Unique key for coordinates
@@ -698,6 +705,7 @@ const createActivity = {
             failed_deployments.push({
               deviceName,
               error: responseFromCreateSite.errors,
+              user_id: user_id ? user_id : null,
             });
             return; // Skip to the next deployment if site creation fails
           }
@@ -719,6 +727,8 @@ const createActivity = {
           isPrimaryInLocation,
           site_id, // Use the newly created or reused site_id
           network,
+          user_id,
+          host_id,
         };
 
         const deviceRequest = {
@@ -739,11 +749,13 @@ const createActivity = {
             deviceName,
             createdActivity,
             updatedDevice,
+            user_id: user_id ? user_id : null,
           });
         } else {
           failed_deployments.push({
             deviceName,
             error: responseFromDeploy.errors,
+            user_id: user_id ? user_id : null,
           });
         }
       });
