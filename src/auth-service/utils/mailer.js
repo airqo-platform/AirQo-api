@@ -55,13 +55,23 @@ const getSubscribedBccEmails = async () => {
     : [];
   let subscribedEmails = [];
 
-  for (const bccEmail of bccEmails.map((email) => email.trim())) {
-    const checkResult = await SubscriptionModel(
-      "airqo"
-    ).checkNotificationStatus({ email: bccEmail, type: "email" });
-    if (checkResult.success) subscribedEmails.push(bccEmail);
-  }
-
+  const checkPromises = bccEmails.map(async (bccEmail) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        "airqo"
+      ).checkNotificationStatus({ email: bccEmail.trim(), type: "email" });
+      return checkResult.success ? bccEmail.trim() : null;
+    } catch (error) {
+      logger.error(
+        `Error checking notification status for ${bccEmail}: ${error.message}`
+      );
+      return null;
+    }
+  });
+  const successfulEmails = (await Promise.all(checkPromises)).filter(
+    (email) => email !== null
+  );
+  subscribedEmails = successfulEmails;
   return subscribedEmails.join(",");
 };
 
