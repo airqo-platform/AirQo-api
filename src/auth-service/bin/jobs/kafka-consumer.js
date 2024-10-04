@@ -227,11 +227,16 @@ const emailsForDeployedDevices = async (messageData) => {
     logger.error("Invalid JSON format in messageData.");
     return;
   }
+
   const { createdActivity, updatedDevice, user_id } = parsedData;
 
   // Validate input data
   if (!createdActivity || !updatedDevice || !user_id) {
-    logger.error("Invalid input data: Missing required fields.");
+    logger.error(
+      `Invalid input data: Missing required fields -- parsedData: ${stringify(
+        parsedData
+      )}`
+    );
     return;
   }
 
