@@ -220,11 +220,23 @@ const operationForBlacklistedIPs = async (messageData) => {
 };
 
 const emailsForDeployedDevices = async (messageData) => {
-  const { createdActivity, updatedDevice, user_id } = JSON.parse(messageData);
+  let parsedData;
+  try {
+    parsedData = JSON.parse(messageData);
+  } catch (error) {
+    logger.error("Invalid JSON format in messageData.");
+    return;
+  }
+  const { createdActivity, updatedDevice, user_id } = parsedData;
 
   // Validate input data
   if (!createdActivity || !updatedDevice || !user_id) {
     logger.error("Invalid input data: Missing required fields.");
+    return;
+  }
+
+  if (!ObjectId.isValid(user_id)) {
+    logger.error(`Invalid user_id format: ${user_id}`);
     return;
   }
 
@@ -271,6 +283,11 @@ const emailsForRecalledDevices = async (messageData) => {
 
   if (!createdActivity || !updatedDevice || !user_id) {
     logger.error("Invalid input data: Missing required fields.");
+    return;
+  }
+
+  if (!ObjectId.isValid(user_id)) {
+    logger.error(`Invalid user_id format: ${user_id}`);
     return;
   }
 
