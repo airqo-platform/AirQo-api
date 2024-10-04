@@ -269,12 +269,13 @@ const createActivity = {
                   },
                 };
                 try {
+                  const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
                   const kafkaProducer = kafka.producer({
                     groupId: constants.UNIQUE_PRODUCER_GROUP,
                   });
                   await kafkaProducer.connect();
                   await kafkaProducer.send({
-                    topic: constants.ACTIVITIES_TOPIC,
+                    topic: deployTopic,
                     messages: [
                       {
                         action: "create",
@@ -437,13 +438,45 @@ const createActivity = {
           if (responseFromUpdateDevice.success === true) {
             // Extract only necessary fields for response
             const updatedDevice = responseFromUpdateDevice.data;
+            const data = {
+              createdActivity: {
+                _id: createdActivity._id,
+                device: createdActivity.device,
+                date: createdActivity.date,
+                description: createdActivity.description,
+                activityType: createdActivity.activityType,
+                recallType,
+              },
+              updatedDevice: {
+                height: updatedDevice.height,
+                category: updatedDevice.category,
+                _id: updatedDevice._id,
+                long_name: updatedDevice.long_name,
+                network: updatedDevice.network,
+                device_number: updatedDevice.device_number,
+                name: updatedDevice.name,
+                mountType: updatedDevice.mountType,
+                powerType: updatedDevice.powerType,
+                isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
+                nextMaintenance: updatedDevice.nextMaintenance,
+                latitude: updatedDevice.latitude,
+                longitude: updatedDevice.longitude,
+                isActive: updatedDevice.isActive,
+                status: updatedDevice.status,
+                site_id: updatedDevice.site_id,
+                host_id: updatedDevice.host_id,
+                previous_sites: updatedDevice.previous_sites,
+                recall_date: updatedDevice.recall_date,
+              },
+            };
             try {
+              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
               const kafkaProducer = kafka.producer({
                 groupId: constants.UNIQUE_PRODUCER_GROUP,
               });
               await kafkaProducer.connect();
               await kafkaProducer.send({
-                topic: "activities-topic",
+                topic: recallTopic,
                 messages: [
                   {
                     action: "create",
@@ -461,37 +494,7 @@ const createActivity = {
             return {
               success: true,
               message: "successfully recalled the device",
-              data: {
-                createdActivity: {
-                  _id: createdActivity._id,
-                  device: createdActivity.device,
-                  date: createdActivity.date,
-                  description: createdActivity.description,
-                  activityType: createdActivity.activityType,
-                  recallType,
-                },
-                updatedDevice: {
-                  height: updatedDevice.height,
-                  category: updatedDevice.category,
-                  _id: updatedDevice._id,
-                  long_name: updatedDevice.long_name,
-                  network: updatedDevice.network,
-                  device_number: updatedDevice.device_number,
-                  name: updatedDevice.name,
-                  mountType: updatedDevice.mountType,
-                  powerType: updatedDevice.powerType,
-                  isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
-                  nextMaintenance: updatedDevice.nextMaintenance,
-                  latitude: updatedDevice.latitude,
-                  longitude: updatedDevice.longitude,
-                  isActive: updatedDevice.isActive,
-                  status: updatedDevice.status,
-                  site_id: updatedDevice.site_id,
-                  host_id: updatedDevice.host_id,
-                  previous_sites: updatedDevice.previous_sites,
-                  recall_date: updatedDevice.recall_date,
-                },
-              },
+              data,
             };
           } else if (responseFromUpdateDevice.success === false) {
             return responseFromUpdateDevice;
