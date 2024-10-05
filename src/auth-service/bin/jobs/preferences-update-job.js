@@ -34,7 +34,6 @@ const updatePreferences = async () => {
           const preference = await PreferenceModel("airqo")
             .findOne({
               user_id: user._id,
-              selected_sites: { $exists: true, $eq: [] },
             })
             .lean();
 
@@ -52,10 +51,11 @@ const updatePreferences = async () => {
             logger.info(`Created new preference for user ${user._id}`);
           } else {
             // If preference exists but selected_sites is empty, update it
-            const updateResult = await PreferenceModel(
-              "airqo"
-            ).findOneAndUpdate(
-              { _id: preference._id },
+            await PreferenceModel("airqo").findOneAndUpdate(
+              {
+                _id: preference._id,
+                selected_sites: { $exists: true, $eq: [] },
+              },
               {
                 $set: {
                   selected_sites: defaultSiteIds.map((siteId) => ({
