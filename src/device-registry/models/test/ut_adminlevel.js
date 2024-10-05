@@ -90,7 +90,7 @@ describe("AdminLevel Model", () => {
   describe("list", () => {
     it("should list admin levels with filters", async () => {
       // Set up the test data
-      const filter = { category: "some-category" };
+      const filter = { path: "some-path" };
       const limit = 10;
       const skip = 0;
 

@@ -898,6 +898,8 @@ const generateFilter = {
       device_codes,
       device_number,
       category,
+      device_category,
+      path,
       network,
       group,
       visibility,
@@ -955,11 +957,12 @@ const generateFilter = {
       }
     }
 
-    if (category) {
-      filter.category = category;
+    if (category || device_category) {
+      const categoryValue = category || device_category;
+      filter["category"] = categoryValue;
     }
 
-    if (!isEmpty(category) && category === "public" && isEmpty(device_id)) {
+    if (!isEmpty(path) && path === "public" && isEmpty(device_id)) {
       filter["visibility"] = true;
     }
 
@@ -1059,6 +1062,8 @@ const generateFilter = {
       parish,
       site_id,
       category,
+      site_category,
+      path,
       name,
       site_codes,
       _id,
@@ -1108,7 +1113,11 @@ const generateFilter = {
       filter["category"] = category;
     }
 
-    if (!isEmpty(category) && category === "public" && isEmpty(site_id)) {
+    if (site_category) {
+      filter["site_category"] = site_category;
+    }
+
+    if (!isEmpty(path) && path === "public" && isEmpty(site_id)) {
       filter["visibility"] = true;
     }
 
@@ -1186,6 +1195,7 @@ const generateFilter = {
       dashboard,
       airqloud_codes,
       category,
+      path,
       network,
       group,
     } = { ...req.query, ...req.params };
@@ -1227,14 +1237,23 @@ const generateFilter = {
       filter["category"] = category;
     }
 
-    if (!isEmpty(category) && category === "public" && isEmpty(airqloud_id)) {
+    if (!isEmpty(path) && path === "public" && isEmpty(airqloud_id)) {
       filter["visibility"] = true;
     }
 
     return filter;
   },
   grids: (req, next) => {
-    const { id, admin_level, grid_codes, grid_id, category, network, group } = {
+    const {
+      id,
+      admin_level,
+      grid_codes,
+      grid_id,
+      category,
+      path,
+      network,
+      group,
+    } = {
       ...req.query,
       ...req.params,
     };
@@ -1270,14 +1289,23 @@ const generateFilter = {
       filter["category"] = category;
     }
 
-    if (!isEmpty(category) && category === "public" && isEmpty(grid_id)) {
+    if (!isEmpty(path) && path === "public" && isEmpty(grid_id)) {
       filter["visibility"] = true;
     }
 
     return filter;
   },
   cohorts: (req, next) => {
-    const { id, cohort_codes, name, cohort_id, category, network, group } = {
+    const {
+      id,
+      cohort_codes,
+      name,
+      cohort_id,
+      category,
+      path,
+      network,
+      group,
+    } = {
       ...req.query,
       ...req.params,
     };
@@ -1312,7 +1340,7 @@ const generateFilter = {
       filter["category"] = category;
     }
 
-    if (!isEmpty(category) && category === "public" && isEmpty(cohort_id)) {
+    if (!isEmpty(path) && path === "public" && isEmpty(cohort_id)) {
       filter["visibility"] = true;
     }
 
