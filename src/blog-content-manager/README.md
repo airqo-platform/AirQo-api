@@ -61,9 +61,9 @@ This is a comprehensive microservice designed to create, manage, and share conte
 
 1.  Clone the repository
 
-    Copy
-
-    `git clone https://github.com/airqo-platform/AirQo-api.git`
+    ```bash
+    git clone https://github.com/airqo-platform/AirQo-api.git
+    ```
 
 2.  Install dependencies
 
