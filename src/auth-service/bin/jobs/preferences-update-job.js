@@ -36,12 +36,19 @@ const updatePreferences = async () => {
       const userIds = users.map((user) => user._id);
       const preferences = await PreferenceModel("airqo")
         .find({ user_id: { $in: userIds } })
+        .select("_id user_id selected_sites")
         .lean();
 
       const preferencesMap = new Map();
       preferences.forEach((pref) => {
         preferencesMap.set(pref.user_id.toString(), pref);
       });
+
+      // Initialize selected_sites data
+      const selectedSitesData = defaultSiteIds.map((siteId) => ({
+        _id: siteId,
+        createdAt: new Date(),
+      }));
 
       users.forEach((user) => {
         const userIdStr = user._id.toString();
@@ -53,10 +60,7 @@ const updatePreferences = async () => {
             insertOne: {
               document: {
                 user_id: user._id,
-                selected_sites: defaultSiteIds.map((siteId) => ({
-                  _id: siteId,
-                  createdAt: new Date(),
-                })),
+                selected_sites: selectedSitesData,
               },
             },
           });
@@ -67,10 +71,7 @@ const updatePreferences = async () => {
               filter: { _id: preference._id },
               update: {
                 $set: {
-                  selected_sites: defaultSiteIds.map((siteId) => ({
-                    _id: siteId,
-                    createdAt: new Date(),
-                  })),
+                  selected_sites: selectedSitesData,
                 },
               },
             },
