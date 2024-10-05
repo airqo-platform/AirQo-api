@@ -12,6 +12,27 @@ const isEmpty = require("is-empty");
 // Predefined array of 4 site IDs
 const defaultSiteIds = constants.SELECTED_SITES;
 
+// Default preference object
+const defaultPreference = {
+  pollutant: "pm2_5",
+  frequency: "hourly",
+  startDate: new Date(new Date().setDate(new Date().getDate() - 14)), // 2 weeks ago
+  endDate: new Date(),
+  chartType: "line",
+  chartTitle: "Default Chart Title",
+  chartSubTitle: "Default Chart Subtitle",
+  period: {
+    value: "Last 14 days",
+    label: "Last 14 days",
+    unitValue: 14,
+    unit: "day",
+  },
+  airqloud_id: constants.DEFAULT_AIRQLOUD,
+  grid_id: constants.DEFAULT_GRID,
+  network_id: constants.DEFAULT_NETWORK,
+  group_id: constants.DEFAULT_GROUP,
+};
+
 const updatePreferences = async () => {
   try {
     const batchSize = 100;
@@ -59,6 +80,7 @@ const updatePreferences = async () => {
           bulkOperations.push({
             insertOne: {
               document: {
+                ...defaultPreference,
                 user_id: user._id,
                 selected_sites: selectedSitesData,
               },
@@ -71,6 +93,7 @@ const updatePreferences = async () => {
               filter: { _id: preference._id },
               update: {
                 $set: {
+                  ...defaultPreference,
                   selected_sites: selectedSitesData,
                 },
               },
@@ -82,7 +105,9 @@ const updatePreferences = async () => {
       if (bulkOperations.length > 0) {
         // Execute bulk operations
         try {
-          await PreferenceModel("airqo").bulkWrite(bulkOperations);
+          await PreferenceModel("airqo").bulkWrite(bulkOperations, {
+            ordered: false,
+          });
           logger.info(
             `Executed bulk operations for ${bulkOperations.length} users without selected_sites`
           );
