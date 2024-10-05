@@ -282,7 +282,7 @@ const emailsForRecalledDevices = async (messageData) => {
   try {
     parsedData = JSON.parse(messageData);
   } catch (error) {
-    logger.error("🤦🤦 Invalid JSON format in messageData.");
+    logger.error("🐛🐛 Invalid JSON format in messageData.");
     return;
   }
 
