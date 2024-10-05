@@ -428,10 +428,10 @@ const createDevice = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, category, limit, skip } = request.query;
+      const { tenant, path, limit, skip } = request.query;
       const filter = generateFilter.devices(request, next);
-      if (!isEmpty(category)) {
-        filter.category = category;
+      if (!isEmpty(path)) {
+        filter.path = path;
       }
       const responseFromListDevice = await DeviceModel(tenant).list(
         {
