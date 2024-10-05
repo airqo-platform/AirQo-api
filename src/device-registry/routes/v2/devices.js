@@ -423,6 +423,17 @@ router.get(
         .withMessage(
           "the category value is not among the expected ones which include: lowcost, gas and bam"
         ),
+      query("device_category")
+        .optional()
+        .notEmpty()
+        .withMessage("the device_category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the device_category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
       query("last_active_before")
         .optional()
         .notEmpty()
@@ -534,6 +545,17 @@ router.get(
         .isIn(["bam", "lowcost", "gas"])
         .withMessage(
           "the category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("device_category")
+        .optional()
+        .notEmpty()
+        .withMessage("the device_category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the device_category value is not among the expected ones which include: lowcost, gas and bam"
         ),
       query("last_active_before")
         .optional()

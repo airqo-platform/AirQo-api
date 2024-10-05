@@ -1109,9 +1109,12 @@ const generateFilter = {
       filter["_id"] = ObjectId(site_id);
     }
 
-    if (category || site_category) {
-      const categoryValue = category || site_category;
-      filter["category"] = categoryValue;
+    if (category) {
+      filter["category"] = category;
+    }
+
+    if (site_category) {
+      filter["site_category"] = site_category;
     }
 
     if (!isEmpty(path) && path === "public" && isEmpty(site_id)) {
