@@ -13,6 +13,8 @@ const logUserPreferences = async () => {
   try {
     const batchSize = 100;
     let skip = 0;
+    let totalCountWithoutSelectedSites = 0; // To keep track of total count
+    const allUsersWithoutSelectedSites = []; // To aggregate user IDs
 
     while (true) {
       const users = await UserModel("airqo")
@@ -46,19 +48,24 @@ const logUserPreferences = async () => {
         })
         .map((user) => user._id.toString());
 
-      // Log the array of user IDs and the total count
-      const countWithoutSelectedSites = usersWithoutSelectedSites.length;
-      logger.info(
-        `💀💀 Users without selected_sites: ${stringify(
-          usersWithoutSelectedSites
-        )}`
-      );
-      logger.info(
-        `💔💔 Total count of users without selected_sites: ${countWithoutSelectedSites}`
-      );
+      // Aggregate results
+      totalCountWithoutSelectedSites += usersWithoutSelectedSites.length;
+      allUsersWithoutSelectedSites.push(...usersWithoutSelectedSites);
 
       skip += batchSize;
     }
+
+    // Log the aggregated results once after processing all users
+    if (allUsersWithoutSelectedSites.length > 0) {
+      logger.info(
+        `💀💀 Users without selected_sites: ${stringify(
+          allUsersWithoutSelectedSites
+        )}`
+      );
+    }
+    logger.info(
+      `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}`
+    );
   } catch (error) {
     logger.error(`🐛🐛 Error in logUserPreferences: ${stringify(error)}`);
   }
