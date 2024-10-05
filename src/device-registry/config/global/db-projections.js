@@ -173,7 +173,7 @@ const dbProjections = {
     lastActive: 1,
     isOnline: 1,
   },
-  SITES_EXCLUSION_PROJECTION: (category) => {
+  SITES_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = {
       "airqlouds.location": 0,
       "airqlouds.airqloud_tags": 0,
@@ -226,7 +226,7 @@ const dbProjections = {
 
     let projection = Object.assign({}, initialProjection);
 
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign(projection, {
         nearest_tahmo_station: 0,
         images: 0,
@@ -294,7 +294,7 @@ const dbProjections = {
       });
     }
 
-    if (category === "public") {
+    if (path === "public") {
       projection = Object.assign(
         {},
         {
@@ -380,7 +380,7 @@ const dbProjections = {
     site: { $arrayElemAt: ["$site", 0] },
     host: { $arrayElemAt: ["$host", 0] },
   },
-  DEVICES_EXCLUSION_PROJECTION: (category) => {
+  DEVICES_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = {
       "site.lat_long": 0,
       "site.country": 0,
@@ -501,7 +501,7 @@ const dbProjections = {
       "grids.network": 0,
     };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign(initialProjection, {
         alias: 0,
         approximate_distance_in_km: 0,
@@ -524,7 +524,7 @@ const dbProjections = {
         host: 0,
       });
     }
-    if (category === "public") {
+    if (path === "public") {
       projection = Object.assign(
         {},
         {
@@ -589,7 +589,7 @@ const dbProjections = {
       },
     },
   },
-  GRIDS_EXCLUSION_PROJECTION: (category) => {
+  GRIDS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = {
       "sites.altitude": 0,
       "sites.greenness": 0,
@@ -626,7 +626,7 @@ const dbProjections = {
       "sites.grids": 0,
     };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign(initialProjection, {
         shape: 0,
         grid_tags: 0,
@@ -639,7 +639,7 @@ const dbProjections = {
         "sites.approximate_distance_in_km": 0,
       });
     }
-    if (category === "public") {
+    if (path === "public") {
       projection = Object.assign(
         {},
         {
@@ -675,7 +675,7 @@ const dbProjections = {
       },
     },
   },
-  COHORTS_EXCLUSION_PROJECTION: (category) => {
+  COHORTS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = {
       nothing: 0,
       "devices.ISP": 0,
@@ -768,10 +768,10 @@ const dbProjections = {
       "devices.site.__v": 0,
     };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
-    if (category === "public") {
+    if (path === "public") {
       projection = Object.assign(
         {},
         {
@@ -809,7 +809,7 @@ const dbProjections = {
     center_point: 1,
     sites: "$sites",
   },
-  AIRQLOUDS_EXCLUSION_PROJECTION: (category) => {
+  AIRQLOUDS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = {
       "sites.altitude": 0,
       "sites.greenness": 0,
@@ -847,7 +847,7 @@ const dbProjections = {
       "sites.grids": 0,
     };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign(initialProjection, {
         location: 0,
         isCustom: 0,
@@ -874,10 +874,10 @@ const dbProjections = {
         "sites.longitude": 0,
       });
     }
-    if (category === "dashboard") {
+    if (path === "dashboard") {
       projection = Object.assign(initialProjection, { location: 0 });
     }
-    if (category === "public") {
+    if (path === "public") {
       projection = Object.assign(
         {},
         {
@@ -904,10 +904,10 @@ const dbProjections = {
       $arrayElemAt: ["$kyalessons", 0],
     },
   },
-  KYA_TASKS_EXCLUSION_PROJECTION: (category) => {
+  KYA_TASKS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -924,10 +924,10 @@ const dbProjections = {
     },
     status: { $arrayElemAt: ["$kya_user_quiz_progress.status", 0] },
   },
-  KYA_QUIZ_EXCLUSION_PROJECTION: (category) => {
+  KYA_QUIZ_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -945,10 +945,10 @@ const dbProjections = {
       $arrayElemAt: ["$kyaquiz.title", 0],
     },
   },
-  KYA_QUESTIONS_EXCLUSION_PROJECTION: (category) => {
+  KYA_QUESTIONS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -964,10 +964,10 @@ const dbProjections = {
       $arrayElemAt: ["$kyaquestion.title", 0],
     },
   },
-  KYA_ANSWERS_EXCLUSION_PROJECTION: (category) => {
+  KYA_ANSWERS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -981,10 +981,10 @@ const dbProjections = {
     active_task: { $arrayElemAt: ["$kya_user_progress.active_task", 0] },
     status: { $arrayElemAt: ["$kya_user_progress.status", 0] },
   },
-  KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
+  KYA_LESSONS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -996,10 +996,10 @@ const dbProjections = {
     status: 1,
     _id: 1,
   },
-  KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+  KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -1012,10 +1012,10 @@ const dbProjections = {
     completed: 1,
     _id: 1,
   },
-  KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+  KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -1025,10 +1025,10 @@ const dbProjections = {
     name: 1,
     _id: 1,
   },
-  ADMIN_LEVEL_EXCLUSION_PROJECTION: (category) => {
+  ADMIN_LEVEL_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -1038,10 +1038,10 @@ const dbProjections = {
     name: 1,
     _id: 1,
   },
-  NETWORK_EXCLUSION_PROJECTION: (category) => {
+  NETWORK_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;
@@ -1069,10 +1069,10 @@ const dbProjections = {
     userName: 1,
     email: 1,
   },
-  SITE_ACTIVITIES_EXCLUSION_PROJECTION: (category) => {
+  SITE_ACTIVITIES_EXCLUSION_PROJECTION: (path) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
+    if (path === "summary") {
       projection = Object.assign({}, {});
     }
     return projection;

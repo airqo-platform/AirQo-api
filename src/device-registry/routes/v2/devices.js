@@ -412,6 +412,17 @@ router.get(
         .withMessage(
           "the online_status value is not among the expected ones which include: online, offline"
         ),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
       query("last_active_before")
         .optional()
         .notEmpty()
@@ -512,6 +523,17 @@ router.get(
         .isIn(["online", "offline"])
         .withMessage(
           "the online_status value is not among the expected ones which include: online, offline"
+        ),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
         ),
       query("last_active_before")
         .optional()
@@ -644,7 +666,7 @@ router.post(
         .toLowerCase()
         .isIn(["bam", "lowcost", "gas"])
         .withMessage(
-          "the category value is not among the expected ones which include: LOWCOST, GAS and BAM"
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
         ),
       body("powerType")
         .optional()
@@ -1347,7 +1369,7 @@ router.post(
         .toLowerCase()
         .isIn(["bam", "lowcost", "gas"])
         .withMessage(
-          "the category value is not among the expected ones which include: LOWCOST, BAM and GAS"
+          "the category value is not among the expected ones which include: lowcost, bam and gas"
         ),
       body("powerType")
         .optional()
