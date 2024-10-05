@@ -475,7 +475,6 @@ deviceSchema.statics = {
       if (!isEmpty(filter.summary)) {
         delete filter.summary;
       }
-      logObject("filter", filter);
       const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
