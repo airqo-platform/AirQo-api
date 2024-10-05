@@ -3,6 +3,7 @@ const UserModel = require("@models/User");
 const PreferenceModel = require("@models/Preference");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const { logText, logObject } = require("@utils/log");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preference-update-job`
 );
@@ -16,7 +17,7 @@ const defaultSiteIds = constants.SELECTED_SITES;
 const defaultPreference = {
   pollutant: "pm2_5",
   frequency: "hourly",
-  startDate: new Date(new Date().setDate(new Date().getDate() - 14)), // 2 weeks ago
+  startDate: new Date(new Date().setDate(new Date().getDate() - 14)),
   endDate: new Date(),
   chartType: "line",
   chartTitle: "Default Chart Title",
@@ -50,9 +51,6 @@ const updatePreferences = async () => {
         break;
       }
 
-      // Prepare bulk operations
-      const bulkOperations = [];
-
       // Fetch existing preferences for users in batch
       const userIds = users.map((user) => user._id);
       const preferences = await PreferenceModel("airqo")
@@ -71,58 +69,52 @@ const updatePreferences = async () => {
         createdAt: new Date(),
       }));
 
-      users.forEach((user) => {
+      for (const user of users) {
         const userIdStr = user._id.toString();
         const preference = preferencesMap.get(userIdStr);
 
         if (!preference) {
           // No preference exists, create a new one
-          bulkOperations.push({
-            insertOne: {
-              document: {
-                ...defaultPreference,
-                user_id: user._id,
-                selected_sites: selectedSitesData,
-              },
-            },
-          });
+          await PreferenceModel("airqo")
+            .create({
+              ...defaultPreference,
+              user_id: user._id,
+              selected_sites: selectedSitesData,
+            })
+            .catch((error) => {
+              logger.error(
+                `Failed to create preference for user ${userIdStr}: ${stringify(
+                  error
+                )}`
+              );
+            });
         } else if (isEmpty(preference.selected_sites)) {
           // Preference exists but selected_sites is empty, update it
-          bulkOperations.push({
-            updateOne: {
-              filter: { _id: preference._id },
-              update: {
+          await PreferenceModel("airqo")
+            .findOneAndUpdate(
+              { _id: preference._id },
+              {
                 $set: {
                   ...defaultPreference,
                   selected_sites: selectedSitesData,
                 },
               },
-            },
-          });
+              { new: true }
+            )
+            .catch((error) => {
+              logger.error(
+                `Failed to update preference for user ${userIdStr}: ${stringify(
+                  error
+                )}`
+              );
+            });
         }
-      });
-
-      if (bulkOperations.length > 0) {
-        // Execute bulk operations
-        try {
-          await PreferenceModel("airqo").bulkWrite(bulkOperations, {
-            ordered: false,
-          });
-          logger.info(
-            `Executed bulk operations for ${bulkOperations.length} users without selected_sites`
-          );
-        } catch (bulkWriteError) {
-          logger.error(
-            `🐛🐛 Error in bulk write operation: ${stringify(bulkWriteError)}`
-          );
-        }
-      } else {
-        // logger.info("No operations to perform in this batch");
       }
 
       skip += batchSize;
     }
   } catch (error) {
+    logObject("error", error);
     logger.error(`🐛🐛 Error in updatePreferences: ${stringify(error)}`);
   }
 };
