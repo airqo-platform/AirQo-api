@@ -81,10 +81,16 @@ const updatePreferences = async () => {
 
       if (bulkOperations.length > 0) {
         // Execute bulk operations
-        await PreferenceModel("airqo").bulkWrite(bulkOperations);
-        logger.info(
-          `Executed bulk operations for ${bulkOperations.length} users without selected_sites`
-        );
+        try {
+          await PreferenceModel("airqo").bulkWrite(bulkOperations);
+          logger.info(
+            `Executed bulk operations for ${bulkOperations.length} users without selected_sites`
+          );
+        } catch (bulkWriteError) {
+          logger.error(
+            `🐛🐛 Error in bulk write operation: ${stringify(bulkWriteError)}`
+          );
+        }
       } else {
         // logger.info("No operations to perform in this batch");
       }
@@ -92,7 +98,7 @@ const updatePreferences = async () => {
       skip += batchSize;
     }
   } catch (error) {
-    logger.error(`Error in updatePreferences: ${stringify(error)}`);
+    logger.error(`🐛🐛 Error in updatePreferences: ${stringify(error)}`);
   }
 };
 
