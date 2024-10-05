@@ -88,7 +88,9 @@ const operationForNewMobileAppUser = async (messageData) => {
       logObject("error.details[0]", error.details[0]);
       logObject("error.details", error.details);
       logger.error(
-        `KAFKA: ALL the input validation errors --- ${stringify(error.details)}`
+        `🤦🤦 KAFKA: ALL the input validation errors --- ${stringify(
+          error.details
+        )}`
       );
     } else {
       const responseFromSendEmail = await mailer.newMobileAppUser(
@@ -103,7 +105,7 @@ const operationForNewMobileAppUser = async (messageData) => {
         );
       } else if (responseFromSendEmail.success === false) {
         logger.error(
-          `KAFKA: unable to send email for new Mobile App User --- ${stringify(
+          `🐛🐛 KAFKA: unable to send email for new Mobile App User --- ${stringify(
             responseFromSendEmail
           )}`
         );
@@ -224,7 +226,7 @@ const emailsForDeployedDevices = async (messageData) => {
   try {
     parsedData = JSON.parse(messageData);
   } catch (error) {
-    logger.error("Invalid JSON format in messageData.");
+    logger.error("🐛🐛 Invalid JSON format in messageData.");
     return;
   }
 
@@ -233,7 +235,7 @@ const emailsForDeployedDevices = async (messageData) => {
   // Validate input data
   if (!createdActivity || !updatedDevice || !user_id) {
     logger.error(
-      `Invalid input data: Missing required fields -- parsedData: ${stringify(
+      `🤦🤦 Invalid input data: Missing required fields -- parsedData: ${stringify(
         parsedData
       )}`
     );
@@ -241,7 +243,7 @@ const emailsForDeployedDevices = async (messageData) => {
   }
 
   if (!ObjectId.isValid(user_id)) {
-    logger.error(`Invalid user_id format: ${user_id}`);
+    logger.error(`🤦🤦 Invalid user_id format: ${user_id}`);
     return;
   }
 
@@ -252,7 +254,7 @@ const emailsForDeployedDevices = async (messageData) => {
 
     // Check if user exists
     if (!user) {
-      logger.error(`User not found for user_id: ${user_id}`);
+      logger.error(`🤦🤦 User not found for user_id: ${user_id}`);
       return;
     }
 
@@ -267,10 +269,10 @@ const emailsForDeployedDevices = async (messageData) => {
 
     // Handle email response
     if (emailResponse && emailResponse.success === false) {
-      logger.error(`🐛 Internal Server Error -- ${stringify(emailResponse)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`);
     }
   } catch (error) {
-    logger.error(`🐛 Internal Server Error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
   }
 };
 
@@ -280,19 +282,19 @@ const emailsForRecalledDevices = async (messageData) => {
   try {
     parsedData = JSON.parse(messageData);
   } catch (error) {
-    logger.error("Invalid JSON format in messageData.");
+    logger.error("🐛🐛 Invalid JSON format in messageData.");
     return;
   }
 
   const { createdActivity, updatedDevice, user_id } = parsedData;
 
   if (!createdActivity || !updatedDevice || !user_id) {
-    logger.error("Invalid input data: Missing required fields.");
+    logger.error("🤦🤦 Invalid input data: Missing required fields.");
     return;
   }
 
   if (!ObjectId.isValid(user_id)) {
-    logger.error(`Invalid user_id format: ${user_id}`);
+    logger.error(`🤦🤦 Invalid user_id format: ${user_id}`);
     return;
   }
 
@@ -303,7 +305,7 @@ const emailsForRecalledDevices = async (messageData) => {
 
     // Check if user exists
     if (!user) {
-      logger.error(`User not found for user_id: ${user_id}`);
+      logger.error(`🤦🤦 User not found for user_id: ${user_id}`);
       return;
     }
 
@@ -318,10 +320,10 @@ const emailsForRecalledDevices = async (messageData) => {
 
     // Handle email response
     if (emailResponse && emailResponse.success === false) {
-      logger.error(`🐛 Internal Server Error -- ${stringify(emailResponse)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`);
     }
   } catch (error) {
-    logger.error(`🐛 Internal Server Error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
   }
 };
 
@@ -358,7 +360,7 @@ const kafkaConsumer = async () => {
                 const messageData = message.value.toString();
                 await operation(messageData);
               } else {
-                logger.error(`No operation defined for topic: ${topic}`);
+                logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
               }
             } catch (error) {
               logger.error(
