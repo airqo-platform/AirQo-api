@@ -21,7 +21,7 @@ const logUserPreferences = async () => {
         .find()
         .limit(batchSize)
         .skip(skip)
-        .select("_id")
+        .select("_id email")
         .lean();
 
       if (users.length === 0) {
@@ -46,7 +46,7 @@ const logUserPreferences = async () => {
           const preference = preferencesMap.get(user._id.toString());
           return !preference || isEmpty(preference.selected_sites);
         })
-        .map((user) => user._id.toString());
+        .map((user) => user.email);
 
       // Aggregate results
       totalCountWithoutSelectedSites += usersWithoutSelectedSites.length;
@@ -62,10 +62,10 @@ const logUserPreferences = async () => {
           allUsersWithoutSelectedSites
         )}`
       );
+      logger.info(
+        `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}`
+      );
     }
-    logger.info(
-      `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}`
-    );
   } catch (error) {
     logger.error(`🐛🐛 Error in logUserPreferences: ${stringify(error)}`);
   }
