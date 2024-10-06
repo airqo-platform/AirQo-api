@@ -14,7 +14,7 @@ const logUserPreferences = async () => {
     const batchSize = 100;
     let skip = 0;
     let totalCountWithoutSelectedSites = 0; // To keep track of total count
-    const allUsersWithoutSelectedSites = []; // To aggregate user IDs
+    let totalUsersProcessed = 0; // To keep track of total users processed
 
     while (true) {
       const users = await UserModel("airqo")
@@ -41,29 +41,27 @@ const logUserPreferences = async () => {
       });
 
       // Collect IDs of users without selected_sites
-      const usersWithoutSelectedSites = users
-        .filter((user) => {
-          const preference = preferencesMap.get(user._id.toString());
-          return !preference || isEmpty(preference.selected_sites);
-        })
-        .map((user) => user.email);
+      const usersWithoutSelectedSites = users.filter((user) => {
+        const preference = preferencesMap.get(user._id.toString());
+        return !preference || isEmpty(preference.selected_sites);
+      });
 
       // Aggregate results
       totalCountWithoutSelectedSites += usersWithoutSelectedSites.length;
-      allUsersWithoutSelectedSites.push(...usersWithoutSelectedSites);
+      totalUsersProcessed += users.length; // Increment total processed users
 
       skip += batchSize;
     }
 
     // Log the aggregated results once after processing all users
-    if (allUsersWithoutSelectedSites.length > 0) {
-      // logger.info(
-      //   `💀💀 Users without selected_sites: ${stringify(
-      //     allUsersWithoutSelectedSites
-      //   )}`
-      // );
+    if (totalUsersProcessed > 0) {
+      const percentageWithoutSelectedSites = (
+        (totalCountWithoutSelectedSites / totalUsersProcessed) *
+        100
+      ).toFixed(2);
+
       logger.info(
-        `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}`
+        `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of all Analytics users.`
       );
     }
   } catch (error) {
