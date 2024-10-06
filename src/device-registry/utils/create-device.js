@@ -961,6 +961,46 @@ const createDevice = {
       );
     }
   },
+  getUptimeStatistics: async (request, next) => {
+    try {
+      const {
+        devices,
+        startDate,
+        endDate,
+        timeFrame,
+        networkFilter,
+      } = request.query;
+
+      const deviceIds = devices
+        ? devices.split(",").map((device) => device.trim().replace(/"/g, ""))
+        : [];
+
+      logObject("deviceIds", deviceIds);
+      const result = await DeviceModel(request.tenant).getUptimeStatistics({
+        devices: deviceIds,
+        startDate,
+        endDate,
+        timeFrame,
+        networkFilter,
+      });
+
+      return {
+        success: true,
+        message: "Successfully retrieved uptime statistics",
+        data: result,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createDevice;

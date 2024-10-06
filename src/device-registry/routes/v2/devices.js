@@ -1763,4 +1763,56 @@ router.get(
   ]),
   deviceController.generateQRCode
 );
+
+/***
+ * get network and device statistics
+ */
+router.get(
+  "/uptime-stats",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+    query("devices")
+      .optional()
+      .isString()
+      .withMessage("devices should be a comma-separated list of device IDs")
+      .custom((value) => {
+        if (value) {
+          return value
+            .split(",")
+            .every((device) => /^[a-zA-Z0-9-_]+$/.test(device.trim()));
+        }
+        return true;
+      })
+      .withMessage("each device id should be a valid alphanumeric string"),
+    query("startDate")
+      .optional()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage(
+        "startDate must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)"
+      ),
+    query("endDate")
+      .optional()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage(
+        "endDate must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)"
+      ),
+    query("timeFrame")
+      .optional()
+      .isIn(["daily", "weekly", "monthly"])
+      .withMessage("timeFrame must be either 'daily', 'weekly', or 'monthly'"),
+    query("networkFilter")
+      .optional()
+      .isIn(constants.NETWORKS)
+      .withMessage("networkFilter must be one of the valid networks"),
+  ]),
+  deviceController.getUptimeStatistics
+);
+
 module.exports = router;

@@ -722,14 +722,14 @@ deviceSchema.statics = {
   startDate: '2023-01-01',
   endDate: '2023-12-31',
   timeFrame: 'monthly',
-  networkFilter: 'IoT'
+  networkFilter: 'airqo'
 });
  */
 
 deviceSchema.statics.getUptimeStatistics = async function({
   devices = [],
-  startDate,
-  endDate,
+  startDate = new Date(new Date().setDate(new Date().getDate() - 14)),
+  endDate = new Date(),
   timeFrame,
   networkFilter,
 } = {}) {
@@ -752,22 +752,8 @@ deviceSchema.statics.getUptimeStatistics = async function({
     };
   }
 
+  logObject("matchStage", matchStage);
   pipeline.push({ $match: matchStage });
-
-  // Unwind the device status history
-  pipeline.push({ $unwind: "$statusHistory" });
-
-  // Match status history within the date range
-  if (startDate && endDate) {
-    pipeline.push({
-      $match: {
-        "statusHistory.timestamp": {
-          $gte: new Date(startDate),
-          $lte: new Date(endDate),
-        },
-      },
-    });
-  }
 
   // Group by device and calculate uptime
   pipeline.push({
@@ -775,34 +761,23 @@ deviceSchema.statics.getUptimeStatistics = async function({
       _id: "$_id",
       name: { $first: "$name" },
       network: { $first: "$network" },
+      isOnline: { $first: "$isOnline" },
+      createdAt: { $first: "$createdAt" },
       totalTime: {
         $sum: {
-          $subtract: [
-            {
-              $min: [
-                { $ifNull: ["$statusHistory.endTimestamp", new Date()] },
-                new Date(endDate),
-              ],
-            },
-            { $max: ["$statusHistory.timestamp", new Date(startDate)] },
-          ],
+          $cond: [{ $eq: [true, "$isOnline"] }, 1, 0],
         },
       },
       uptime: {
         $sum: {
           $cond: [
-            { $eq: ["$statusHistory.status", "online"] },
             {
-              $subtract: [
-                {
-                  $min: [
-                    { $ifNull: ["$statusHistory.endTimestamp", new Date()] },
-                    new Date(endDate),
-                  ],
-                },
-                { $max: ["$statusHistory.timestamp", new Date(startDate)] },
+              $and: [
+                { $eq: [true, "$isOnline"] },
+                { $gt: ["$createdAt", startDate] },
               ],
             },
+            1,
             0,
           ],
         },
@@ -815,6 +790,8 @@ deviceSchema.statics.getUptimeStatistics = async function({
     $project: {
       name: 1,
       network: 1,
+      isOnline: 1,
+      createdAt: 1,
       uptimePercentage: {
         $multiply: [{ $divide: ["$uptime", "$totalTime"] }, 100],
       },
@@ -843,7 +820,7 @@ deviceSchema.statics.getUptimeStatistics = async function({
           $filter: {
             input: "$devices",
             as: "device",
-            cond: { $gte: ["$$device.uptimePercentage", 50] },
+            cond: { $eq: ["$$device.isOnline", true] },
           },
         },
       },
@@ -852,7 +829,7 @@ deviceSchema.statics.getUptimeStatistics = async function({
           $filter: {
             input: "$devices",
             as: "device",
-            cond: { $lt: ["$$device.uptimePercentage", 50] },
+            cond: { $ne: ["$$device.isOnline", true] },
           },
         },
       },
@@ -879,7 +856,7 @@ deviceSchema.statics.getUptimeStatistics = async function({
             $filter: {
               input: "$devices",
               as: "device",
-              cond: { $gte: ["$$device.uptimePercentage", 50] },
+              cond: { $eq: ["$$device.isOnline", true] },
             },
           },
           as: "device",
@@ -892,7 +869,7 @@ deviceSchema.statics.getUptimeStatistics = async function({
             $filter: {
               input: "$devices",
               as: "device",
-              cond: { $lt: ["$$device.uptimePercentage", 50] },
+              cond: { $ne: ["$$device.isOnline", true] },
             },
           },
           as: "device",
@@ -941,8 +918,6 @@ deviceSchema.statics.getUptimeStatistics = async function({
         offlineDeviceNames: { $addToSet: "$offlineDeviceNames" },
       },
     });
-
-    // Flatten device names arrays
     pipeline.push({
       $project: {
         network: 1,
