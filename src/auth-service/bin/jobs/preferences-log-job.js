@@ -61,7 +61,7 @@ const logUserPreferences = async () => {
       ).toFixed(2);
 
       logger.info(
-        `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of all Analytics users.`
+        `💔💔 Total count of users without any Customised Locations: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of all Analytics users.`
       );
     }
   } catch (error) {
