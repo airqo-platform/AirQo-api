@@ -238,6 +238,8 @@ gridSchema.statics.list = async function(
     if (!isEmpty(filter.summary)) {
       delete filter.summary;
     }
+    logObject("filter", filter);
+    logObject("exclusionProjection", exclusionProjection);
     const pipeline = this.aggregate()
       .match(filter)
       .lookup({
