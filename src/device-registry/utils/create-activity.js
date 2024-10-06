@@ -9,6 +9,7 @@ const generateFilter = require("./generate-filter");
 const constants = require("@config/constants");
 const distance = require("./distance");
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-util`
 );
@@ -27,8 +28,11 @@ const createActivity = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
       const filter = generateFilter.activities(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListActivity = await ActivityModel(tenant).list(
         {
