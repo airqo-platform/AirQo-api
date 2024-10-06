@@ -6,6 +6,7 @@ const axiosInstance = () => {
   return axios.create();
 };
 const constants = require("@config/constants");
+const isEmpty = require("is-empty");
 const generateFilter = require("./generate-filter");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-location-util`
@@ -139,8 +140,11 @@ const createLocation = {
   list: async (request, next) => {
     try {
       let { query } = request;
-      let { tenant, limit, skip } = query;
+      let { tenant, limit, skip, path } = query;
       let filter = generateFilter.locations(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListLocation = await LocationModel(tenant).list(
         {
