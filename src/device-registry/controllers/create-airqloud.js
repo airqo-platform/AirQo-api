@@ -483,7 +483,7 @@ const createAirqloud = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.category = "summary";
+      request.query.path = "summary";
 
       const result = await createAirQloudUtil.list(request, next);
 
@@ -543,7 +543,7 @@ const createAirqloud = {
         ? defaultTenant
         : req.query.tenant;
 
-      request.query.category = "dashboard";
+      request.query.path = "dashboard";
 
       const result = await createAirQloudUtil.list(request, next);
 
@@ -668,7 +668,7 @@ const createAirqloud = {
         : req.query.tenant;
 
       request.query.dashboard = "yes";
-      request.query.category = "summary";
+      request.query.path = "summary";
 
       const result = await createAirQloudUtil.listCohortsAndGrids(
         request,
