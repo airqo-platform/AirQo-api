@@ -474,8 +474,11 @@ const createGrid = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
+      const { tenant, limit, path, skip } = request.query;
       const filter = generateFilter.grids(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
       const responseFromListGrid = await GridModel(tenant).list(
         {
           filter,
