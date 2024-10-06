@@ -57,11 +57,11 @@ const logUserPreferences = async () => {
 
     // Log the aggregated results once after processing all users
     if (allUsersWithoutSelectedSites.length > 0) {
-      logger.info(
-        `💀💀 Users without selected_sites: ${stringify(
-          allUsersWithoutSelectedSites
-        )}`
-      );
+      // logger.info(
+      //   `💀💀 Users without selected_sites: ${stringify(
+      //     allUsersWithoutSelectedSites
+      //   )}`
+      // );
       logger.info(
         `💔💔 Total count of users without selected_sites: ${totalCountWithoutSelectedSites}`
       );
