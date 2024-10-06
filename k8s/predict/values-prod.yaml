@@ -7,7 +7,7 @@ images:
     predictJob: eu.gcr.io/airqo-250220/airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/airqo-train-job
     predictPlaces: eu.gcr.io/airqo-250220/airqo-predict-places-air-quality
-  tag: prod-b1a3dcd9-1728175054
+  tag: prod-cf2462f3-1728195441
 api:
   name: airqo-prediction-api
   label: prediction-api
