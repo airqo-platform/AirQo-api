@@ -401,6 +401,75 @@ router.get(
         .optional()
         .notEmpty()
         .trim(),
+      query("online_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the online_status should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["online", "offline"])
+        .withMessage(
+          "the online_status value is not among the expected ones which include: online, offline"
+        ),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("device_category")
+        .optional()
+        .notEmpty()
+        .withMessage("the device_category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the device_category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("last_active_before")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_before date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ).."
+        )
+        .bail()
+        .toDate(),
+      query("last_active_after")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_after date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
     ],
   ]),
   deviceController.list
@@ -455,6 +524,75 @@ router.get(
         .optional()
         .notEmpty()
         .trim(),
+      query("online_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the online_status should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["online", "offline"])
+        .withMessage(
+          "the online_status value is not among the expected ones which include: online, offline"
+        ),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("device_category")
+        .optional()
+        .notEmpty()
+        .withMessage("the device_category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the device_category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("last_active_before")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_before date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active_after")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active_after date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
+      query("last_active")
+        .optional()
+        .notEmpty()
+        .withMessage("last_active date cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage(
+          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+        )
+        .bail()
+        .toDate(),
     ],
   ]),
   deviceController.listSummary
@@ -550,7 +688,7 @@ router.post(
         .toLowerCase()
         .isIn(["bam", "lowcost", "gas"])
         .withMessage(
-          "the category value is not among the expected ones which include: LOWCOST, GAS and BAM"
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
         ),
       body("powerType")
         .optional()
@@ -1253,7 +1391,7 @@ router.post(
         .toLowerCase()
         .isIn(["bam", "lowcost", "gas"])
         .withMessage(
-          "the category value is not among the expected ones which include: LOWCOST, BAM and GAS"
+          "the category value is not among the expected ones which include: lowcost, bam and gas"
         ),
       body("powerType")
         .optional()

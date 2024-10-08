@@ -27,6 +27,7 @@ const stageConfig = {
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
   REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
   REDIS_PORT: process.env.STAGE_REDIS_PORT,
+  API_URL: process.env.API_URL_STAGING,
 };
 
 module.exports = stageConfig;

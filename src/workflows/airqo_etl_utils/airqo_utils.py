@@ -117,40 +117,26 @@ class AirQoDataUtils:
         return not_duplicated_data
 
     @staticmethod
-    def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
+    def extract_aggregated_raw_data(
+        start_date_time: str, end_date_time: str, dynamic_query: bool = False
+    ) -> pd.DataFrame:
         """
         Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
         """
         bigquery_api = BigQueryApi()
+
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
             tenant=Tenant.AIRQO,
+            dynamic_query=dynamic_query,
         )
 
         if measurements.empty:
             return pd.DataFrame([])
 
-        measurements = measurements.dropna(subset=["timestamp"])
-        measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
-        averaged_measurements_list: List[pd.DataFrame] = []
-
-        for (device_number, device_id, site_id), device_site in measurements.groupby(
-            ["device_number", "device_id", "site_id"]
-        ):
-            data = device_site.sort_index(axis=0)
-            numeric_columns = data.select_dtypes(include="number").columns
-            averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
-            averages["timestamp"] = averages.index
-            averages["device_number"] = device_number
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averaged_measurements_list.append(averages)
-
-        averaged_measurements = pd.concat(averaged_measurements_list, ignore_index=True)
-
-        return averaged_measurements
+        return measurements
 
     @staticmethod
     def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
@@ -175,7 +161,7 @@ class AirQoDataUtils:
             case DeviceCategory.LOW_COST:
                 mappings = configuration.AIRQO_LOW_COST_CONFIG
             case _:
-                raise ValueError("A valid device category must be provided")
+                logger.exception("A valid device category must be provided")
 
         for key, value in mappings.items():
             try:
@@ -652,18 +638,29 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
+
+        # Create a device lookup dictionary for faster access
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
+
+        device_lookup = {
+            device["device_number"]: device
+            for device in devices
+            if device.get("device_number")
+        }
 
         for _, row in data.iterrows():
             try:
                 device_number = row["device_number"]
-                device_details = list(
-                    filter(
-                        lambda device: (device["device_number"] == device_number),
-                        devices,
+
+                # Get device details from the lookup dictionary
+                device_details = device_lookup.get(device_number)
+                if not device_details:
+                    logger.exception(
+                        f"Device number {device_number} not found in device list."
                     )
-                )[0]
+                    continue
+
                 row_data = {
                     "device": device_details["name"],
                     "device_id": device_details["_id"],

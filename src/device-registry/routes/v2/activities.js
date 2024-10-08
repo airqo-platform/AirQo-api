@@ -8,6 +8,22 @@ const activityController = require("@controllers/create-activity");
 const { check, oneOf, query, body, param } = require("express-validator");
 const NetworkModel = require("@models/Network");
 
+const validateUniqueDeviceNames = (req, res, next) => {
+  const deviceNames = req.body.map((item) => item.deviceName);
+  const duplicates = deviceNames.filter(
+    (name, index) => deviceNames.indexOf(name) !== index
+  );
+
+  if (duplicates.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "Duplicate device names found: " + [...new Set(duplicates)].join(", "),
+    });
+  }
+  next();
+};
+
 const validNetworks = async () => {
   const networks = await NetworkModel("airqo").distinct("name");
   return networks.map((network) => network.toLowerCase());
@@ -106,6 +122,18 @@ router.post(
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address"),
+      body("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   activityController.recall
@@ -195,6 +223,18 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("date")
         .exists()
         .withMessage("date is missing")
@@ -228,6 +268,127 @@ router.post(
     ],
   ]),
   activityController.deploy
+);
+router.post(
+  "/deploy/batch",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  body()
+    .isArray()
+    .withMessage("the request body should be an array")
+    .bail(),
+  validateUniqueDeviceNames,
+  oneOf([
+    [
+      body("*.deviceName")
+        .exists()
+        .withMessage("deviceName is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the provided deviceName cannot be empty")
+        .trim(),
+      body("*.powerType")
+        .exists()
+        .withMessage("powerType is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+
+      body("*.mountType")
+        .exists()
+        .withMessage("mountType is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop"
+        ),
+      body("*.height")
+        .exists()
+        .withMessage("height is missing in your request")
+        .bail()
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100"),
+      body("*.isPrimaryInLocation")
+        .exists()
+        .withMessage("isPrimaryInLocation is missing in your request")
+        .bail()
+        .isBoolean()
+        .withMessage("isPrimaryInLocation must be Boolean"),
+      body("*.latitude")
+        .exists()
+        .withMessage("latitude is missing in your request")
+        .bail()
+        .isFloat()
+        .withMessage("latitude must be a valid float number"),
+      body("*.longitude")
+        .exists()
+        .withMessage("longitude is missing in your request")
+        .bail()
+        .isFloat()
+        .withMessage("longitude must be a valid float number"),
+      body("*.site_name")
+        .exists()
+        .withMessage("site_name is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("site_name cannot be empty"),
+      body("*.network")
+        .optional()
+        .notEmpty()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
+      body("*.user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("*.host_id")
+        .optional()
+        .notEmpty()
+        .withMessage("host_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("host_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("date")
+        .optional()
+        .notEmpty()
+        .withMessage("date should not be empty IF provided")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("date must be a valid datetime."),
+    ],
+  ]),
+  activityController.batchDeployWithCoordinates
 );
 router.post(
   "/maintain",
@@ -280,6 +441,18 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
+      body("user_id")
+        .optional()
+        .notEmpty()
+        .withMessage("user_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("date")
         .exists()
         .withMessage("date is missing")

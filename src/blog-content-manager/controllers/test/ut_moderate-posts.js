@@ -1,831 +1,464 @@
-require("module-alias/register");
-const { expect } = require("chai");
 const sinon = require("sinon");
-const httpStatus = require("http-status");
-const { validationResult } = require("express-validator");
-const createLocationHistoryUtil = require("@utils/create-location-history");
-const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logText, logObject } = require("@utils/log");
-const constants = require("@config/constants");
-const controller = require("@controllers/create-location-history");
+const chai = require("chai");
+const chaiHttp = require("chai-http");
+const expect = chai.expect;
+const ContentModerationController = require("./content-moderation.controller");
 
-describe("createLocationHistory", () => {
+describe("ContentModerationController", () => {
+  let mockRequest;
+  let mockResponse;
+  let mockNext;
+  let mockContentModerationUtil;
+
+  beforeEach(() => {
+    mockRequest = {
+      params: {},
+      body: {},
+      query: {},
+    };
+    mockResponse = {
+      status: sinon.spy(),
+      json: sinon.spy(),
+    };
+    mockNext = sinon.spy();
+    mockContentModerationUtil = {
+      listRegistrations: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Listed successfully",
+          data: [],
+        }),
+      approveRegistration: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Approved successfully",
+          data: {},
+        }),
+      rejectRegistration: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Rejected successfully",
+          data: {},
+        }),
+      flagPost: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Flagged successfully",
+          data: {},
+        }),
+      viewFlags: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Viewed flags successfully",
+          data: [],
+        }),
+      suspendUser: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Suspended user successfully",
+          data: {},
+        }),
+      banUser: sinon
+        .stub()
+        .resolves({
+          success: true,
+          status: 200,
+          message: "Banned user successfully",
+          data: {},
+        }),
+    };
+  });
+
   afterEach(() => {
     sinon.restore();
   });
 
-  describe("syncLocationHistory", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+  describe("listRegistrations", () => {
+    it("should list registrations", async () => {
+      mockRequest.query.tenant = "testtenant";
 
-    it("should return bad request when validation has errors", async () => {
-      const req = {
-        // Create a mock req object with validation errors
-      };
+      await ContentModerationController.listRegistrations(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      validationResultStub.withArgs(req).returns(true);
-
-      const badRequestStub = sinon.stub(controller, "badRequest");
-
-      await controller.syncLocationHistory(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      expect(badRequestStub.args[0][1]).to.equal("bad request errors");
-      expect(badRequestStub.args[0][2]).to.be.an("object");
-      // Add more assertions for the bad request response
-    });
-
-    it("should handle internal server error when createLocationHistoryUtil.syncLocationHistories throws an error", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const syncLocationHistoriesStub = sinon
-        .stub(createLocationHistoryUtil, "syncLocationHistories")
-        .throws(new Error("Mocked Error"));
-
-      await controller.syncLocationHistory(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(syncLocationHistoriesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the internal server error response
-    });
-
-    it("should sync location histories successfully", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromSyncLocationHistories = {
+      expect(mockContentModerationUtil.listRegistrations).toHaveBeenCalledWith(
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
         success: true,
-        status: httpStatus.OK,
-        message: "Sync successful",
-        data: [{ locationHistory: "data1" }, { locationHistory: "data2" }],
-      };
-
-      const syncLocationHistoriesStub = sinon
-        .stub(createLocationHistoryUtil, "syncLocationHistories")
-        .returns(responseFromSyncLocationHistories);
-
-      await controller.syncLocationHistory(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(syncLocationHistoriesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the successful response
+        message: "Listed successfully",
+        registrationsData: [],
+      });
     });
 
-    it("should handle sync failure with error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle bad request errors", async () => {
+      const errors = [
+        { field: "requiredField", message: "Required field is missing" },
+      ];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.listRegistrations(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromSyncLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Sync failed",
-        errors: { message: "Error occurred during sync" },
-      };
-
-      const syncLocationHistoriesStub = sinon
-        .stub(createLocationHistoryUtil, "syncLocationHistories")
-        .returns(responseFromSyncLocationHistories);
-
-      await controller.syncLocationHistory(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(syncLocationHistoriesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the sync failure response with error
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle sync failure without error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.listRegistrations.resolves({});
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.listRegistrations(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromSyncLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Sync failed",
-      };
-
-      const syncLocationHistoriesStub = sinon
-        .stub(createLocationHistoryUtil, "syncLocationHistories")
-        .returns(responseFromSyncLocationHistories);
-
-      await controller.syncLocationHistory(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(syncLocationHistoriesStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the sync failure response without error
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("create", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+  describe("approveRegistration", () => {
+    it("should approve registration", async () => {
+      mockRequest.params.userId = "123";
+      mockRequest.body = { reason: "Reason for approval" };
 
-    it("should return bad request when validation has errors", async () => {
-      const req = {
-        // Create a mock req object with validation errors
-      };
+      await ContentModerationController.approveRegistration(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      validationResultStub.withArgs(req).returns(true);
-
-      const badRequestStub = sinon.stub(controller, "badRequest");
-
-      await controller.create(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      expect(badRequestStub.args[0][1]).to.equal("bad request errors");
-      expect(badRequestStub.args[0][2]).to.be.an("object");
-      // Add more assertions for the bad request response
-    });
-
-    it("should handle internal server error when createLocationHistoryUtil.create throws an error", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "create")
-        .throws(new Error("Mocked Error"));
-
-      await controller.create(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the internal server error response
-    });
-
-    it("should create location history successfully", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromCreateLocationHistory = {
+      expect(
+        mockContentModerationUtil.approveRegistration
+      ).toHaveBeenCalledWith("123", mockRequest.body, mockNext);
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
         success: true,
-        status: httpStatus.OK,
-        message: "Location history created successfully",
-        data: { locationHistory: "data1" },
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "create")
-        .returns(responseFromCreateLocationHistory);
-
-      await controller.create(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the successful response
+        message: "Approved successfully",
+        approvedRegistration: {},
+      });
     });
 
-    it("should handle creation failure with error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "reason", message: "Reason is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.approveRegistration(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromCreateLocationHistory = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location history creation failed",
-        errors: { message: "Error occurred during creation" },
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "create")
-        .returns(responseFromCreateLocationHistory);
-
-      await controller.create(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the creation failure response with error
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle creation failure without error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.approveRegistration.resolves({});
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.approveRegistration(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromCreateLocationHistory = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location history creation failed",
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "create")
-        .returns(responseFromCreateLocationHistory);
-
-      await controller.create(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the creation failure response without error
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("list", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+  describe("rejectRegistration", () => {
+    it("should reject registration", async () => {
+      mockRequest.params.userId = "456";
+      mockRequest.body = { reason: "Reason for rejection" };
 
-    it("should return bad request when validation has errors", async () => {
-      const req = {
-        // Create a mock req object with validation errors
-      };
+      await ContentModerationController.rejectRegistration(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      validationResultStub.withArgs(req).returns(true);
-
-      const badRequestStub = sinon.stub(controller, "badRequest");
-
-      await controller.list(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      expect(badRequestStub.args[0][1]).to.equal("bad request errors");
-      expect(badRequestStub.args[0][2]).to.be.an("object");
-      // Add more assertions for the bad request response
-    });
-
-    it("should handle internal server error when createLocationHistoryUtil.list throws an error", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "list")
-        .throws(new Error("Mocked Error"));
-
-      await controller.list(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the internal server error response
-    });
-
-    it("should list location histories successfully", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromListLocationHistories = {
+      expect(mockContentModerationUtil.rejectRegistration).toHaveBeenCalledWith(
+        "456",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
         success: true,
-        status: httpStatus.OK,
-        message: "Location histories retrieved successfully",
-        data: [{ locationHistory: "data1" }, { locationHistory: "data2" }],
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "list")
-        .returns(responseFromListLocationHistories);
-
-      await controller.list(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the successful response
+        message: "Rejected successfully",
+        rejectedRegistration: {},
+      });
     });
 
-    it("should handle listing failure with error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "reason", message: "Reason is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.rejectRegistration(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromListLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location histories retrieval failed",
-        errors: { message: "Error occurred during retrieval" },
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "list")
-        .returns(responseFromListLocationHistories);
-
-      await controller.list(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the listing failure response with error
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle listing failure without error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.rejectRegistration.resolves({});
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.rejectRegistration(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromListLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location histories retrieval failed",
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "list")
-        .returns(responseFromListLocationHistories);
-
-      await controller.list(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the listing failure response without error
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("delete", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+  describe("flagPost", () => {
+    it("should flag a post", async () => {
+      mockRequest.params.postId = "789";
+      mockRequest.body = { reason: "Reason for flagging" };
 
-    it("should return bad request when validation has errors", async () => {
-      const req = {
-        // Create a mock req object with validation errors
-      };
+      await ContentModerationController.flagPost(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      validationResultStub.withArgs(req).returns(true);
-
-      const badRequestStub = sinon.stub(controller, "badRequest");
-
-      await controller.delete(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      expect(badRequestStub.args[0][1]).to.equal("bad request errors");
-      expect(badRequestStub.args[0][2]).to.be.an("object");
-      // Add more assertions for the bad request response
-    });
-
-    it("should handle internal server error when createLocationHistoryUtil.delete throws an error", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "delete")
-        .throws(new Error("Mocked Error"));
-
-      await controller.delete(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the internal server error response
-    });
-
-    it("should delete location histories successfully", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromDeleteLocationHistories = {
+      expect(mockContentModerationUtil.flagPost).toHaveBeenCalledWith(
+        "789",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
         success: true,
-        status: httpStatus.OK,
-        message: "Location histories deleted successfully",
-        data: [{ locationHistory: "data1" }, { locationHistory: "data2" }],
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "delete")
-        .returns(responseFromDeleteLocationHistories);
-
-      await controller.delete(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the successful response
+        message: "Flagged successfully",
+        flaggedPost: {},
+      });
     });
 
-    it("should handle deletion failure with error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "reason", message: "Reason is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.flagPost(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromDeleteLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location histories deletion failed",
-        errors: { message: "Error occurred during deletion" },
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "delete")
-        .returns(responseFromDeleteLocationHistories);
-
-      await controller.delete(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the deletion failure response with error
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle deletion failure without error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.flagPost.resolves({});
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.flagPost(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromDeleteLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location histories deletion failed",
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "delete")
-        .returns(responseFromDeleteLocationHistories);
-
-      await controller.delete(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the deletion failure response without error
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
 
-  describe("update", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
+  describe("viewFlags", () => {
+    it("should view flags", async () => {
+      mockRequest.params.postId = "1010";
+      mockRequest.query.tenant = "testtenant";
 
-    it("should return bad request when validation has errors", async () => {
-      const req = {
-        // Create a mock req object with validation errors
-      };
+      await ContentModerationController.viewFlags(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(false);
-      validationResultStub.withArgs(req).returns(true);
-
-      const badRequestStub = sinon.stub(controller, "badRequest");
-
-      await controller.update(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(badRequestStub.calledOnce).to.be.true;
-      expect(badRequestStub.args[0][1]).to.equal("bad request errors");
-      expect(badRequestStub.args[0][2]).to.be.an("object");
-      // Add more assertions for the bad request response
-    });
-
-    it("should handle internal server error when createLocationHistoryUtil.update throws an error", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "update")
-        .throws(new Error("Mocked Error"));
-
-      await controller.update(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the internal server error response
-    });
-
-    it("should update location histories successfully", async () => {
-      const req = {
-        // Create a mock req object
-      };
-
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromUpdateLocationHistories = {
+      expect(mockContentModerationUtil.viewFlags).toHaveBeenCalledWith(
+        "1010",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
         success: true,
-        status: httpStatus.OK,
-        message: "Location histories updated successfully",
-        data: [{ updatedLocation: "data1" }, { updatedLocation: "data2" }],
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "update")
-        .returns(responseFromUpdateLocationHistories);
-
-      await controller.update(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the successful response
+        message: "Viewed flags successfully",
+        flagsData: [],
+      });
     });
 
-    it("should handle update failure with error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "postId", message: "Post ID is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.viewFlags(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromUpdateLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location histories update failed",
-        errors: { message: "Error occurred during update" },
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "update")
-        .returns(responseFromUpdateLocationHistories);
-
-      await controller.update(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the update failure response with error
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    it("should handle update failure without error", async () => {
-      const req = {
-        // Create a mock req object
-      };
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.viewFlags.resolves({});
 
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+      await ContentModerationController.viewFlags(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
 
-      const validationResultStub = sinon
-        .stub(validationResult, "isEmpty")
-        .returns(true);
-
-      const responseFromUpdateLocationHistories = {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        message: "Location histories update failed",
-      };
-
-      const createLocationHistoryStub = sinon
-        .stub(createLocationHistoryUtil, "update")
-        .returns(responseFromUpdateLocationHistories);
-
-      await controller.update(req, res);
-
-      expect(validationResultStub.calledWith(req)).to.be.true;
-      expect(createLocationHistoryStub.calledOnce).to.be.true;
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(res.json.calledOnce).to.be.true;
-      // Add more assertions for the update failure response without error
+      expect(mockResponse.json).not.to.have.been.called;
     });
   });
+
+  describe("suspendUser", () => {
+    it("should suspend a user", async () => {
+      mockRequest.params.userId = "1111";
+      mockRequest.body = { reason: "Reason for suspension" };
+
+      await ContentModerationController.suspendUser(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockContentModerationUtil.suspendUser).toHaveBeenCalledWith(
+        "1111",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Suspended user successfully",
+        suspendedUser: {},
+      });
+    });
+
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "reason", message: "Reason is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
+
+      await ContentModerationController.suspendUser(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
+    });
+
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.suspendUser.resolves({});
+
+      await ContentModerationController.suspendUser(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockResponse.json).not.to.have.been.called;
+    });
+  });
+
+  describe("banUser", () => {
+    it("should ban a user", async () => {
+      mockRequest.params.userId = "2222";
+      mockRequest.body = { reason: "Reason for banning" };
+
+      await ContentModerationController.banUser(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockContentModerationUtil.banUser).toHaveBeenCalledWith(
+        "2222",
+        mockRequest.body,
+        mockNext
+      );
+      expect(mockResponse.status).to.have.been.calledWith(200);
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: "Banned user successfully",
+        bannedUser: {},
+      });
+    });
+
+    it("should handle bad request errors", async () => {
+      const errors = [{ field: "reason", message: "Reason is required" }];
+      sinon.stub(extractErrorsFromRequest, "default").returns(errors);
+
+      await ContentModerationController.banUser(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
+    });
+
+    it("should handle empty result", async () => {
+      mockContentModerationUtil.banUser.resolves({});
+
+      await ContentModerationController.banUser(
+        mockRequest,
+        mockResponse,
+        mockNext
+      );
+
+      expect(mockResponse.json).not.to.have.been.called;
+    });
+  });
+
+  // Helper functions
+
+  function extractErrorsFromRequest() {
+    return [];
+  }
+
+  class HttpError extends Error {
+    constructor(message, statusCode, errors) {
+      super(message);
+      this.name = "HttpError";
+      this.statusCode = statusCode;
+      this.errors = errors;
+    }
+  }
 });

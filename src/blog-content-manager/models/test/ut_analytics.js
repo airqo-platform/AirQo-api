@@ -2,366 +2,313 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
-const mongoose = require("mongoose");
-const InquiryModel = require("@models/Inquiry");
+const sinonChai = require("sinon-chai");
+const AnalyticsModel = require("@models/Analytics");
 
-describe("InquirySchema statics", () => {
-  describe("register method", () => {
-    it("should create a new Inquiry and return success message with status 200", async () => {
-      // Mock input data for the Inquiry to be created
-      const args = {
-        email: "test@example.com",
-        fullName: "John Doe",
-        message: "Test inquiry",
-        category: "General",
-      };
+describe("Analytics Model", () => {
+  let sandbox;
 
-      // Mock the Inquiry.create method to return a successful result
-      const createStub = sinon.stub(InquiryModel, "create").resolves(args);
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+  });
 
-      // Call the register method
-      const result = await InquiryModel.register(args);
+  afterEach(() => {
+    sandbox.restore();
+  });
 
-      // Assertions
+  describe("create method", () => {
+    it("should create a new analytics entry", async () => {
+      const mockGetModelByTenant = sandbox
+        .stub(getModelByTenant, "get")
+        .resolves(mongoose.Model);
+
+      const result = await AnalyticsModel.create({
+        metricName: "test_metric",
+        value: 100,
+        type: "pageviews",
+        category: "website",
+        status: "active",
+      });
+
       expect(result.success).to.be.true;
-      expect(result.message).to.equal("inquiry created");
-      expect(result.status).to.equal(200);
-      expect(result.data).to.deep.equal(args);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    it("should return success message with status 400 if the Inquiry is not created", async () => {
-      // Mock input data for the Inquiry (this time we'll return an empty data array)
-      const args = {
-        email: "test@example.com",
-        fullName: "John Doe",
-        message: "Test inquiry",
-        category: "General",
-      };
-
-      // Mock the Inquiry.create method to return an empty data array
-      const createStub = sinon.stub(InquiryModel, "create").resolves([]);
-
-      // Call the register method
-      const result = await InquiryModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        "operation successful but user NOT successfully created"
+      expect(result.data).to.exist;
+      expect(result.message).to.equal("Analytics entry created successfully");
+      expect(result.status).to.equal(httpStatus.CREATED);
+      expect(mockGetModelByTenant).to.have.been.calledOnceWith(
+        "analytics",
+        AnalyticsSchema
       );
-      expect(result.status).to.equal(400);
-      expect(result.data).to.be.an("array").that.is.empty;
-
-      // Restore the stubbed method
-      createStub.restore();
     });
 
-    it("should return validation errors if the Inquiry creation encounters duplicate email", async () => {
-      // Mock input data for the Inquiry with duplicate email
-      const args = {
-        email: "test@example.com",
-        fullName: "John Doe",
-        message: "Test inquiry",
-        category: "General",
-      };
+    it("should fail to create when required fields are missing", async () => {
+      const mockGetModelByTenant = sandbox
+        .stub(getModelByTenant, "get")
+        .resolves(mongoose.Model);
 
-      // Mock the Inquiry.create method to throw a duplicate key error
-      const createStub = sinon.stub(InquiryModel, "create").throws({
-        code: 11000,
-        keyValue: { email: "test@example.com" },
+      const result = await AnalyticsModel.create({
+        metricName: "test_metric",
+        value: 100,
+        type: "pageviews",
       });
 
-      // Call the register method
-      const result = await InquiryModel.register(args);
-
-      // Assertions
       expect(result.success).to.be.false;
-      expect(result.errors).to.deep.equal({
-        email: "the email must be unique",
-      });
-      expect(result.message).to.equal(
-        "validation errors for some of the provided fields"
+      expect(result.message).to.equal("Failed to create analytics entry");
+      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(mockGetModelByTenant).to.have.been.calledOnceWith(
+        "analytics",
+        AnalyticsSchema
       );
-      expect(result.status).to.equal(409);
-
-      // Restore the stubbed method
-      createStub.restore();
     });
-
-    it("should return validation errors if the Inquiry creation encounters other validation errors", async () => {
-      // Mock input data for the Inquiry with invalid values
-      const args = {
-        email: "", // Empty email (invalid)
-        fullName: "John Doe",
-        message: "Test inquiry",
-        category: "General",
-      };
-
-      // Mock the Inquiry.create method to throw a validation error
-      const createStub = sinon.stub(InquiryModel, "create").throws({
-        errors: {
-          email: {
-            message: "Email is required",
-          },
-        },
-      });
-
-      // Call the register method
-      const result = await InquiryModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.false;
-      expect(result.errors).to.deep.equal({ email: "Email is required" });
-      expect(result.message).to.equal(
-        "validation errors for some of the provided fields"
-      );
-      expect(result.status).to.equal(409);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    // Add more test cases to cover additional scenarios
   });
 
   describe("list method", () => {
-    it("should return a list of inquiries", async () => {
-      // Sample inquiries data
-      const inquiriesData = [
-        {
-          _id: "inquiry_id_1",
-          createdAt: new Date("2023-07-25T12:00:00Z"),
-          message: "Inquiry Message 1",
-        },
-        {
-          _id: "inquiry_id_2",
-          createdAt: new Date("2023-07-24T12:00:00Z"),
-          message: "Inquiry Message 2",
-        },
-      ];
+    it("should list analytics entries", async () => {
+      const mockFind = sandbox
+        .stub(mongoose.Model.prototype.find, "exec")
+        .resolves([
+          { _id: "123", metricName: "test_metric" },
+          { _id: "456", metricName: "another_metric" },
+        ]);
 
-      // Stub the find method of the model to return the sample inquiries data
-      const findStub = sinon.stub(InquiryModel, "find").resolves(inquiriesData);
+      const result = await AnalyticsModel.list({});
 
-      // Call the list method with sample filter
-      const filter = { status: "open" };
-      const result = await InquiryModel.list({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property("data").that.deep.equals(inquiriesData);
-      expect(result).to.have.property(
-        "message",
-        "successfully listed the inquiries"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      // Restore the find method to its original implementation
-      findStub.restore();
+      expect(result.success).to.be.true;
+      expect(result.data).to.have.lengthOf(2);
+      expect(result.total).to.equal(2);
+      expect(mockFind).to.have.been.calledOnceWith({});
     });
 
-    it("should return an empty array if no inquiries found for the search", async () => {
-      // Stub the find method of the model to return an empty array
-      const findStub = sinon.stub(InquiryModel, "find").resolves([]);
+    it("should sort analytics entries by timestamp", async () => {
+      const mockFind = sandbox
+        .stub(mongoose.Model.prototype.find, "exec")
+        .resolves([
+          {
+            _id: "123",
+            metricName: "test_metric",
+            timestamp: new Date("2023-01-01"),
+          },
+          {
+            _id: "456",
+            metricName: "another_metric",
+            timestamp: new Date("2023-01-02"),
+          },
+        ]);
 
-      // Call the list method with sample filter
-      const filter = { status: "closed" };
-      const result = await InquiryModel.list({ filter });
+      const result = await AnalyticsModel.list({}, {}, { skip: 0, limit: 2 });
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "no inquiries exist for this search"
-      );
-      expect(result).to.have.property("data").that.deep.equals([]);
-      expect(result).to.have.property("status", httpStatus.OK);
-
-      // Restore the find method to its original implementation
-      findStub.restore();
+      expect(result.data[0].timestamp).to.be.after(result.data[1].timestamp);
     });
 
-    // Add more test cases to cover other scenarios
+    it("should apply filters correctly", async () => {
+      const mockFind = sandbox
+        .stub(mongoose.Model.prototype.find, "exec")
+        .resolves([
+          { _id: "123", metricName: "test_metric", category: "website" },
+          { _id: "456", metricName: "test_metric", category: "mobile" },
+        ]);
+
+      const result = await AnalyticsModel.list({ category: "website" });
+
+      expect(result.data).to.have.lengthOf(1);
+      expect(result.data[0].metricName).to.equal("test_metric");
+      expect(result.data[0].category).to.equal("website");
+      expect(mockFind).to.have.been.calledWith({ category: "website" });
+    });
   });
 
-  describe("modify method", () => {
-    it("should modify and return the updated inquiry", async () => {
-      // Sample inquiry data
-      const inquiryData = {
-        _id: "inquiry_id_1",
-        createdAt: new Date("2023-07-25T12:00:00Z"),
-        message: "Inquiry Message",
-        status: "open",
-      };
+  describe("findById method", () => {
+    it("should find an analytics entry by ID", async () => {
+      const mockFindOne = sandbox
+        .stub(mongoose.Model.prototype.findOne, "exec")
+        .resolves({ _id: "123", metricName: "test_metric" });
 
-      // Sample update data
-      const updateData = {
-        status: "closed",
-        resolvedAt: new Date("2023-07-26T12:00:00Z"),
-      };
+      const result = await AnalyticsModel.findById("123");
 
-      // Stub the findOneAndUpdate method of the model to return the updated inquiry
-      const findOneAndUpdateStub = sinon
-        .stub(InquiryModel, "findOneAndUpdate")
-        .resolves(inquiryData);
-
-      // Call the modify method with sample filter and update
-      const filter = { _id: "inquiry_id_1" };
-      const result = await InquiryModel.modify({ filter, update: updateData });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully modified the inquiry"
-      );
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals({
-          _id: "inquiry_id_1",
-          createdAt: new Date("2023-07-25T12:00:00Z"),
-          message: "Inquiry Message",
-          status: "closed",
-          resolvedAt: new Date("2023-07-26T12:00:00Z"),
-        });
-
-      // Restore the findOneAndUpdate method to its original implementation
-      findOneAndUpdateStub.restore();
+      expect(result.success).to.be.true;
+      expect(result.data._id).to.equal("123");
+      expect(result.data.metricName).to.equal("test_metric");
+      expect(mockFindOne).to.have.been.calledWith({ _id: "123" });
     });
 
-    it("should return 'inquiry does not exist' message if inquiry not found", async () => {
-      // Stub the findOneAndUpdate method of the model to return null (inquiry not found)
-      const findOneAndUpdateStub = sinon
-        .stub(InquiryModel, "findOneAndUpdate")
-        .resolves(null);
+    it("should return not found when no entry exists", async () => {
+      const mockFindOne = sandbox
+        .stub(mongoose.Model.prototype.findOne, "exec")
+        .rejects(new Error("Not Found"));
 
-      // Call the modify method with sample filter and update
-      const filter = { _id: "non_existent_id" };
-      const result = await InquiryModel.modify({ filter });
+      const result = await AnalyticsModel.findById("nonexistent_id");
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property(
-        "message",
-        "inquiry does not exist, please crosscheck"
-      );
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Analytics entry not found");
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(mockFindOne).to.have.been.calledWith({ _id: "nonexistent_id" });
+    });
+  });
 
-      // Restore the findOneAndUpdate method to its original implementation
-      findOneAndUpdateStub.restore();
+  describe("update method", () => {
+    it("should update an existing analytics entry", async () => {
+      const mockUpdateByIdAndUpdate = sandbox
+        .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+        .resolves({ _id: "123", metricName: "updated_metric" });
+
+      const result = await AnalyticsModel.update({
+        id: "123",
+        update: { metricName: "updated_metric" },
+      });
+
+      expect(result.success).to.be.true;
+      expect(result.data._id).to.equal("123");
+      expect(result.data.metricName).to.equal("updated_metric");
+      expect(mockUpdateByIdAndUpdate).to.have.been.calledWith("123", {
+        metricName: "updated_metric",
+      });
     });
 
-    // Add more test cases to cover other scenarios
+    it("should return not found when no entry exists", async () => {
+      const mockUpdateByIdAndUpdate = sandbox
+        .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+        .rejects(new Error("Not Found"));
+
+      const result = await AnalyticsModel.update({
+        id: "nonexistent_id",
+        update: { metricName: "new_metric" },
+      });
+
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Analytics entry not found");
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(mockUpdateByIdAndUpdate).to.have.been.calledWith(
+        "nonexistent_id",
+        { metricName: "new_metric" }
+      );
+    });
   });
 
   describe("remove method", () => {
-    it("should remove and return the deleted inquiry", async () => {
-      // Sample inquiry data
-      const inquiryData = {
-        _id: "inquiry_id_1",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john.doe@example.com",
-        message: "Inquiry Message",
-        status: "open",
-      };
+    it("should remove an analytics entry", async () => {
+      const mockRemoveByIdAndRemove = sandbox
+        .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+        .resolves({ _id: "123", metricName: "test_metric" });
 
-      // Stub the findOneAndRemove method of the model to return the removed inquiry
-      const findOneAndRemoveStub = sinon
-        .stub(InquiryModel, "findOneAndRemove")
-        .resolves(inquiryData);
+      const result = await AnalyticsModel.remove("123");
 
-      // Call the remove method with sample filter
-      const filter = { _id: "inquiry_id_1" };
-      const result = await InquiryModel.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully removed the inquiry"
-      );
-      expect(result).to.have.property("data").that.deep.equals({
-        _id: "inquiry_id_1",
-        firstName: "John",
-        lastName: "Doe",
-        email: "john.doe@example.com",
-        message: "Inquiry Message",
-        status: "open",
-      });
-
-      // Restore the findOneAndRemove method to its original implementation
-      findOneAndRemoveStub.restore();
+      expect(result.success).to.be.true;
+      expect(result.data._id).to.equal("123");
+      expect(result.data.metricName).to.equal("test_metric");
+      expect(mockRemoveByIdAndRemove).to.have.been.calledWith("123");
     });
 
-    it("should return 'inquiry does not exist' message if inquiry not found", async () => {
-      // Stub the findOneAndRemove method of the model to return null (inquiry not found)
-      const findOneAndRemoveStub = sinon
-        .stub(InquiryModel, "findOneAndRemove")
-        .resolves(null);
+    it("should return not found when no entry exists", async () => {
+      const mockRemoveByIdAndRemove = sandbox
+        .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+        .rejects(new Error("Not Found"));
 
-      // Call the remove method with sample filter
-      const filter = { _id: "non_existent_id" };
-      const result = await InquiryModel.remove({ filter });
+      const result = await AnalyticsModel.remove("nonexistent_id");
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", false);
-      expect(result).to.have.property(
-        "message",
-        "inquiry does not exist, please crosscheck"
-      );
-
-      // Restore the findOneAndRemove method to its original implementation
-      findOneAndRemoveStub.restore();
+      expect(result.success).to.be.false;
+      expect(result.message).to.equal("Analytics entry not found");
+      expect(result.status).to.equal(httpStatus.NOT_FOUND);
+      expect(mockRemoveByIdAndRemove).to.have.been.calledWith("nonexistent_id");
     });
-
-    // Add more test cases to cover other scenarios
   });
 
-  // Add more tests for other static methods if applicable
-});
+  describe("getMetricStats method", () => {
+    it("should calculate metric statistics", async () => {
+      const mockFind = sandbox
+        .stub(mongoose.Model.prototype.find, "exec")
+        .resolves([
+          {
+            _id: "1",
+            metricName: "test_metric",
+            value: 10,
+            type: "pageviews",
+            category: "website",
+          },
+          {
+            _id: "2",
+            metricName: "test_metric",
+            value: 15,
+            type: "pageviews",
+            category: "website",
+          },
+          {
+            _id: "3",
+            metricName: "test_metric",
+            value: 12,
+            type: "uniquevisitors",
+            category: "website",
+          },
+        ]);
 
-describe("InquirySchema methods", () => {
-  describe("toJSON method", () => {
-    it("should return a JSON object with specific properties", () => {
-      // Create a new instance of InquirySchema with mock data
-      const inquiry = new InquiryModel({
-        _id: "some_id",
-        email: "test@example.com",
-        fullName: "John Doe",
-        message: "Test inquiry",
-        category: "General",
-        status: "pending",
-        createdAt: "2023-07-25T12:34:56.789Z",
-        updatedAt: "2023-07-25T12:34:56.789Z",
+      const result = await AnalyticsModel.getMetricStats(
+        "test_metric",
+        "website"
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal({
+        pageviews: 25,
+        uniquevisitors: 12,
       });
-
-      // Call the toJSON method on the inquiry instance
-      const result = inquiry.toJSON();
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("_id", "some_id");
-      expect(result).to.have.property("email", "test@example.com");
-      expect(result).to.have.property("fullName", "John Doe");
-      expect(result).to.have.property("message", "Test inquiry");
-      expect(result).to.have.property("category", "General");
-      expect(result).to.have.property("status", "pending");
-      expect(result).to.have.property("createdAt", "2023-07-25T12:34:56.789Z");
-      expect(result).to.have.property("updatedAt", "2023-07-25T12:34:56.789Z");
-      // Add more assertions to verify the result
+      expect(result.message).to.equal(
+        "Successfully retrieved metric statistics"
+      );
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(mockFind).to.have.been.calledWith({
+        metricName: "test_metric",
+        category: "website",
+      });
     });
 
-    // Add more test cases to cover additional scenarios
+    it("should handle empty results", async () => {
+      const mockFind = sandbox
+        .stub(mongoose.Model.prototype.find, "exec")
+        .resolves([]);
+
+      const result = await AnalyticsModel.getMetricStats(
+        "nonexistent_metric",
+        "invalid_category"
+      );
+
+      expect(result.success).to.be.true;
+      expect(result.data).to.deep.equal({});
+      expect(result.message).to.equal(
+        "Successfully retrieved metric statistics"
+      );
+      expect(result.status).to.equal(httpStatus.OK);
+      expect(mockFind).to.have.been.calledWith({
+        metricName: "nonexistent_metric",
+        category: "invalid_category",
+      });
+    });
   });
 
-  // Add more tests for other methods if applicable
+  describe("model initialization", () => {
+    it("should initialize the model correctly", () => {
+      const mockGetModelByTenant = sandbox
+        .stub(getModelByTenant, "get")
+        .resolves(mongoose.Model);
+
+      const analyticsModel = AnalyticsModel("tenant1");
+
+      expect(analyticsModel).to.exist;
+      expect(mockGetModelByTenant).to.have.been.calledOnceWith(
+        "analytics",
+        AnalyticsSchema
+      );
+    });
+
+    it("should fall back to default model if tenant fails", () => {
+      const mockGetModelByTenant = sandbox
+        .stub(getModelByTenant, "get")
+        .rejects(new Error("Tenant not found"));
+
+      const analyticsModel = AnalyticsModel("nonexistent_tenant");
+
+      expect(analyticsModel).to.exist;
+      expect(mockGetModelByTenant).to.have.been.calledOnceWith(
+        "analytics",
+        AnalyticsSchema
+      );
+    });
+  });
 });

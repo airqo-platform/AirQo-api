@@ -32,6 +32,7 @@ const activitySchema = new Schema(
     device: { type: String, trim: true },
     site_id: { type: ObjectId },
     host_id: { type: ObjectId },
+    user_id: { type: ObjectId },
     date: { type: Date },
     description: { type: String, trim: true },
     network: {
@@ -81,6 +82,7 @@ activitySchema.methods = {
       tags: this.tags,
       site_id: this.site_id,
       host_id: this.host_id,
+      user_id: this.user_id,
       firstName: this.firstName,
       lastName: this.lastName,
       userName: this.userName,
@@ -135,10 +137,10 @@ activitySchema.statics = {
       const inclusionProjection =
         constants.SITE_ACTIVITIES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITE_ACTIVITIES_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.path ? filter.path : "none"
       );
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
+      if (!isEmpty(filter.path)) {
+        delete filter.path;
       }
       if (!isEmpty(filter.dashboard)) {
         delete filter.dashboard;
@@ -241,6 +243,7 @@ activitySchema.statics = {
           device: 1,
           site_id: 1,
           host_id: 1,
+          user_id: 1,
           network: 1,
           date: 1,
           description: 1,

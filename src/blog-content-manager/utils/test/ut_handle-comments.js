@@ -1,359 +1,372 @@
-require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
 const sinon = require("sinon");
-const httpStatus = require("http-status");
-const defaults = require("@utils/create-default");
-const { getModelByTenant } = require("@config/database");
-const DefaultsSchema = require("@models/Defaults");
+const chaiHttp = require("chai-http");
+const mongoose = require("mongoose");
+const { HttpError } = require("@utils/errors");
+const log4js = require("log4js");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- comment-util`);
+const CommentModel = require("@models/Comment");
+const PostModel = require("@models/Post");
 
-describe("defaults", () => {
-  describe("list method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
+const commentUtil = require("./comment-util"); // Adjust the path as needed
 
-    it("should list defaults and send success response", async () => {
-      const tenant = "sample_tenant";
-      const filter = {}; // Add any required filter for the list method
-      const limit = 10;
-      const skip = 0;
+// Configure chai plugins
+chai.use(chaiHttp);
+chai.should();
 
-      // Mock the response from the DefaultsSchema list method (success)
-      const mockListResponse = {
-        success: true,
-        data: [
-          // Sample default objects returned by the DefaultsSchema.list method
-        ],
+describe("Comment Util", () => {
+  let sandbox;
+  let mockRequest;
+  let mockNext;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    mockRequest = {
+      query: {},
+      body: {},
+    };
+    mockNext = sinon.spy();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe("create", () => {
+    it("should return success when creating a new comment", async () => {
+      const postId = "test-post-id";
+      const requestBody = {
+        author: "Test User",
+        content: "This is a test comment",
       };
-      sinon.stub(DefaultsSchema, "list").resolves(mockListResponse);
 
-      // Mock the getModelByTenant function to return the DefaultsSchema
-      sinon
-        .stub(getModelByTenant, "call")
-        .withArgs(tenant.toLowerCase(), "default", DefaultsSchema)
-        .returns(DefaultsSchema);
+      const PostModelMock = {
+        findById: sandbox.stub().resolves({}),
+      };
 
-      // Call the list method
-      const result = await defaults.list(tenant, filter, limit, skip);
+      const CommentModelMock = {
+        save: sandbox.stub().resolves({
+          toJSON: () => ({
+            id: "test-comment-id",
+            author: "Test User",
+            content: "This is a test comment",
+          }),
+        }),
+      };
 
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockListResponse.data);
-    });
-
-    it("should handle DefaultsSchema list failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = {}; // Add any required filter for the list method
-      const limit = 10;
-      const skip = 0;
-
-      // Mock the response from the DefaultsSchema list method (failure)
-      sinon.stub(DefaultsSchema, "list").resolves({
-        success: false,
-        message: "Failed to list defaults",
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        PostModel: PostModelMock,
+        CommentModel: CommentModelMock,
       });
 
-      // Mock the getModelByTenant function to return the DefaultsSchema
-      sinon
-        .stub(getModelByTenant, "call")
-        .withArgs(tenant.toLowerCase(), "default", DefaultsSchema)
-        .returns(DefaultsSchema);
+      const result = await commentUtil.create(postId, requestBody, mockNext);
 
-      // Call the list method
-      const result = await defaults.list(tenant, filter, limit, skip);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to list defaults");
+      result.should.have.property("success");
+      result.success.should.be.true;
+      result.status.should.equal(httpStatus.CREATED);
+      result.data.should.deep.equal({
+        id: "test-comment-id",
+        author: "Test User",
+        content: "This is a test comment",
+      });
     });
 
-    it("should handle exceptions and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = {}; // Add any required filter for the list method
-      const limit = 10;
-      const skip = 0;
+    it("should handle errors when creating a new comment", async () => {
+      const postId = "test-post-id";
+      const requestBody = {
+        author: "Test User",
+        content: "This is a test comment",
+      };
 
-      // Mock the getModelByTenant function to throw an exception
-      sinon
-        .stub(getModelByTenant, "call")
-        .throws(new Error("Mocked database error"));
+      const PostModelMock = {
+        findById: sandbox.stub().rejects(new Error("Post not found")),
+      };
 
-      // Call the list method
-      const result = await defaults.list(tenant, filter, limit, skip);
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        PostModel: PostModelMock,
+      });
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("utils server errors");
-      expect(result.errors).to.equal("Mocked database error");
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      await commentUtil
+        .create(postId, requestBody, mockNext)
+        .should.be.rejectedWith(HttpError);
     });
   });
-  describe("create method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should create a new default and send success response", async () => {
-      const tenant = "sample_tenant";
-      const body = {
-        // Add the necessary properties for creating a new default
+  describe("list", () => {
+    it("should return comments for a post", async () => {
+      const postId = "test-post-id";
+      const query = { limit: 10, skip: 0 };
+      const mockComments = [
+        { id: "comment1", author: "User1", content: "Comment 1" },
+        { id: "comment2", author: "User2", content: "Comment 2" },
+      ];
+
+      const CommentModelMock = {
+        getCommentsByPost: sandbox
+          .stub()
+          .resolves({ success: true, comments: mockComments }),
       };
 
-      // Mock the response from the DefaultsSchema register method (success)
-      const mockRegisterResponse = {
-        success: true,
-        data: {
-          // Sample created default object returned by the DefaultsSchema.register method
-        },
-      };
-      sinon.stub(DefaultsSchema, "register").resolves(mockRegisterResponse);
-
-      // Mock the getModelByTenant function to return the DefaultsSchema
-      sinon
-        .stub(getModelByTenant, "call")
-        .withArgs(tenant.toLowerCase(), "default", DefaultsSchema)
-        .returns(DefaultsSchema);
-
-      // Call the create method
-      const result = await defaults.create({ body, query: { tenant } });
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockRegisterResponse.data);
-    });
-
-    it("should handle DefaultsSchema register failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const body = {
-        // Add the necessary properties for creating a new default
-      };
-
-      // Mock the response from the DefaultsSchema register method (failure)
-      sinon.stub(DefaultsSchema, "register").resolves({
-        success: false,
-        message: "Failed to create default",
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
       });
 
-      // Mock the getModelByTenant function to return the DefaultsSchema
-      sinon
-        .stub(getModelByTenant, "call")
-        .withArgs(tenant.toLowerCase(), "default", DefaultsSchema)
-        .returns(DefaultsSchema);
+      const result = await commentUtil.list(postId, mockRequest, mockNext);
 
-      // Call the create method
-      const result = await defaults.create({ body, query: { tenant } });
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to create default");
+      result.should.deep.equal(mockComments);
     });
 
-    it("should handle exceptions and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const body = {
-        // Add the necessary properties for creating a new default
+    it("should handle errors when listing comments", async () => {
+      const postId = "test-post-id";
+
+      const CommentModelMock = {
+        getCommentsByPost: sandbox.stub().rejects(new Error("Database error")),
       };
 
-      // Mock the getModelByTenant function to throw an exception
-      sinon
-        .stub(getModelByTenant, "call")
-        .throws(new Error("Mocked database error"));
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
 
-      // Call the create method
-      const result = await defaults.create({ body, query: { tenant } });
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("defaults util server errors");
-      expect(result.errors).to.equal("Mocked database error");
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      await commentUtil
+        .list(postId, mockRequest, mockNext)
+        .should.be.rejectedWith(HttpError);
     });
   });
-  describe("update method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should update the default and send success response", async () => {
-      const tenant = "sample_tenant";
-      const filter = {
-        // Add the filter properties for identifying the default to update
-      };
-      const update = {
-        // Add the properties to update in the default
-      };
+  describe("replies", () => {
+    it("should return replies for a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+      const query = { limit: 10, skip: 0 };
+      const mockReplies = [
+        { id: "reply1", author: "User1", content: "Reply 1" },
+        { id: "reply2", author: "User2", content: "Reply 2" },
+      ];
 
-      // Mock the response from the DefaultsSchema modify method (success)
-      const mockModifyResponse = {
-        success: true,
-        data: {
-          // Sample updated default object returned by the DefaultsSchema.modify method
-        },
-      };
-      sinon.stub(DefaultsSchema, "modify").resolves(mockModifyResponse);
-
-      // Mock the getModelByTenant function to return the DefaultsSchema
-      sinon
-        .stub(getModelByTenant, "call")
-        .withArgs(tenant.toLowerCase(), "default", DefaultsSchema)
-        .returns(DefaultsSchema);
-
-      // Call the update method
-      const result = await defaults.update(tenant, filter, update);
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockModifyResponse.data);
-    });
-
-    it("should handle DefaultsSchema modify failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = {
-        // Add the filter properties for identifying the default to update
-      };
-      const update = {
-        // Add the properties to update in the default
+      const CommentModelMock = {
+        list: sandbox.stub().resolves({ success: true, comments: mockReplies }),
       };
 
-      // Mock the response from the DefaultsSchema modify method (failure)
-      sinon.stub(DefaultsSchema, "modify").resolves({
-        success: false,
-        message: "Failed to update default",
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
       });
 
-      // Mock the getModelByTenant function to return the DefaultsSchema
-      sinon
-        .stub(getModelByTenant, "call")
-        .withArgs(tenant.toLowerCase(), "default", DefaultsSchema)
-        .returns(DefaultsSchema);
+      const result = await commentUtil.replies(
+        postId,
+        commentId,
+        mockRequest,
+        mockNext
+      );
 
-      // Call the update method
-      const result = await defaults.update(tenant, filter, update);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to update default");
+      result.should.deep.equal(mockReplies);
     });
 
-    it("should handle exceptions and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const filter = {
-        // Add the filter properties for identifying the default to update
+    it("should handle errors when retrieving replies", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const CommentModelMock = {
+        list: sandbox.stub().rejects(new Error("Database error")),
       };
-      const update = {
-        // Add the properties to update in the default
-      };
 
-      // Mock the getModelByTenant function to throw an exception
-      sinon
-        .stub(getModelByTenant, "call")
-        .throws(new Error("Mocked database error"));
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
 
-      // Call the update method
-      const result = await defaults.update(tenant, filter, update);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("defaults util server errors");
-      expect(result.errors).to.equal("Mocked database error");
-      expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+      await commentUtil
+        .replies(postId, commentId, mockRequest, mockNext)
+        .should.be.rejectedWith(HttpError);
     });
   });
-  describe("delete method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should delete the default and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
+  describe("edit", () => {
+    it("should successfully edit a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+      const requestBody = { content: "Edited comment" };
+
+      const CommentModelMock = {
+        findByIdAndUpdate: sandbox.stub().resolves({ nModified: 1 }),
       };
 
-      // Mock the response from the generateFilter.defaults function (success)
-      const mockGenerateFilterResponse = {
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.defaults function
-        },
-      };
-      sinon
-        .stub(generateFilter, "defaults")
-        .returns(mockGenerateFilterResponse);
-
-      // Mock the response from the DefaultsSchema remove method (success)
-      const mockRemoveResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the DefaultsSchema remove method
-        },
-      };
-      sinon.stub(DefaultsSchema, "remove").resolves(mockRemoveResponse);
-
-      // Call the delete method
-      const result = await defaults.delete(request);
-
-      // Verify the response
-      expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockRemoveResponse.data);
-    });
-
-    it("should handle DefaultsSchema remove failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
-
-      // Mock the response from the generateFilter.defaults function (success)
-      sinon.stub(generateFilter, "defaults").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.defaults function
-        },
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
       });
 
-      // Mock the response from the DefaultsSchema remove method (failure)
-      sinon.stub(DefaultsSchema, "remove").resolves({
-        success: false,
-        message: "Failed to delete default",
+      const result = await commentUtil.edit(
+        postId,
+        commentId,
+        requestBody,
+        mockNext
+      );
+
+      result.should.have.property("success");
+      result.success.should.be.true;
+      result.status.should.equal(httpStatus.OK);
+      result.data.should.deep.equal({
+        id: "test-comment-id",
+        content: "Edited comment",
       });
-
-      // Call the delete method
-      const result = await defaults.delete(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to delete default");
     });
 
-    it("should handle generateFilter.defaults failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
+    it("should handle errors when editing a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+      const requestBody = { content: "Edited comment" };
+
+      const CommentModelMock = {
+        findByIdAndUpdate: sandbox.stub().resolves({ nModified: 0 }),
       };
 
-      // Mock the response from the generateFilter.defaults function (failure)
-      sinon.stub(generateFilter, "defaults").returns({
-        success: false,
-        message: "Invalid filter",
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
       });
 
-      // Call the delete method
-      const result = await defaults.delete(request);
+      await commentUtil
+        .edit(postId, commentId, requestBody, mockNext)
+        .should.be.rejectedWith(HttpError);
+    });
+  });
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
+  describe("delete", () => {
+    it("should delete a comment and its replies", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const CommentModelMock = {
+        findByIdAndRemove: sandbox.stub().resolves({}),
+        deleteMany: sandbox.stub().resolves({}),
+      };
+
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
+
+      const result = await commentUtil.delete(postId, commentId, {}, mockNext);
+
+      result.should.have.property("success");
+      result.success.should.be.true;
+      result.status.should.equal(httpStatus.NO_CONTENT);
+    });
+
+    it("should handle errors when deleting a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const CommentModelMock = {
+        findByIdAndRemove: sandbox.stub().rejects(new Error("Database error")),
+      };
+
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
+
+      await commentUtil
+        .delete(postId, commentId, {}, mockNext)
+        .should.be.rejectedWith(HttpError);
+    });
+  });
+
+  describe("approve", () => {
+    it("should approve a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const requestBody = { status: "approved" };
+
+      const CommentModelMock = {
+        findByIdAndUpdate: sandbox.stub().resolves({}),
+      };
+
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
+
+      const result = await commentUtil.approve(
+        postId,
+        commentId,
+        requestBody,
+        mockNext
+      );
+
+      result.should.have.property("success");
+      result.success.should.be.true;
+      result.status.should.equal(httpStatus.OK);
+      result.data.should.deep.equal({
+        id: "test-comment-id",
+        status: "approved",
+      });
+    });
+
+    it("should handle errors when approving a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const requestBody = { status: "approved" };
+
+      const CommentModelMock = {
+        findByIdAndUpdate: sandbox.stub().rejects(new Error("Database error")),
+      };
+
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
+
+      await commentUtil
+        .approve(postId, commentId, requestBody, mockNext)
+        .should.be.rejectedWith(HttpError);
+    });
+  });
+
+  describe("reject", () => {
+    it("should reject a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const requestBody = { status: "rejected" };
+
+      const CommentModelMock = {
+        findByIdAndUpdate: sandbox.stub().resolves({}),
+      };
+
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
+
+      const result = await commentUtil.reject(
+        postId,
+        commentId,
+        requestBody,
+        mockNext
+      );
+
+      result.should.have.property("success");
+      result.success.should.be.true;
+      result.status.should.equal(httpStatus.OK);
+      result.data.should.deep.equal({
+        id: "test-comment-id",
+        status: "rejected",
+      });
+    });
+
+    it("should handle errors when rejecting a comment", async () => {
+      const postId = "test-post-id";
+      const commentId = "test-comment-id";
+
+      const requestBody = { status: "rejected" };
+
+      const CommentModelMock = {
+        findByIdAndUpdate: sandbox.stub().rejects(new Error("Database error")),
+      };
+
+      sandbox.stub(mongoose.model.bind(mongoose), "call").returns({
+        CommentModel: CommentModelMock,
+      });
+
+      await commentUtil
+        .reject(postId, commentId, requestBody, mockNext)
+        .should.be.rejectedWith(HttpError);
     });
   });
 });

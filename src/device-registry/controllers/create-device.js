@@ -646,7 +646,7 @@ const device = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
-      request.query.category = "summary";
+      request.query.path = "summary";
       const result = await createDeviceUtil.list(request, next);
 
       if (isEmpty(result) || res.headersSent) {

@@ -1,256 +1,85 @@
-require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
+const expect = chai.expect;
 const sinon = require("sinon");
+const sinonChai = require("sinon-chai");
 
-// Mocking dependencies
-const validationResult = sinon.stub();
-const controlAccessUtil = require("@utils/control-access");
-const constants = require("@config/constants");
 const httpStatus = require("http-status");
+const RSSFeedController = require("../path/to/RSSFeedController");
+const rssFeedUtil = require("@utils/rss-feed");
+const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- rssFeed-controller`
+);
+const { logText, logObject } = require("@utils/log");
 
-// Require the module to test
-const createClient = require("@controllers/create-client");
-
-// Sample request and response objects
-const req = {
-  query: { tenant: "airqo" },
+// Mock dependencies
+const mockRequest = {
+  params: { blogId: "test-blog-id" },
+  query: {},
+  body: {},
 };
-const res = {
-  status: sinon.stub().returnsThis(),
-  json: sinon.stub(),
+const mockResponse = {
+  json: sinon.spy(),
+  status: sinon.spy(),
 };
+const mockNext = sinon.spy();
 
-describe("createClient", () => {
+describe("RSSFeedController", () => {
+  beforeEach(() => {
+    sinon.replace(log4js, "getLogger", sinon.stub().returns(logger));
+  });
+
   afterEach(() => {
     sinon.restore();
   });
 
-  describe("create()", () => {
-    it("should create a client successfully", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "createClient")
-        .resolves({
-          success: true,
-          status: httpStatus.CREATED,
-          message: "Client created successfully",
-          data: { clientId: "client123" },
-        });
+  describe("generateFeed", () => {
+    it("should call rssFeedUtil.generateFeed with correct arguments", async () => {
+      const mockResult = { success: true, data: "https://example.com/feed" };
+      sinon.stub(rssFeedUtil, "generateFeed").resolves(mockResult);
 
-      validationResult.returns({ isEmpty: () => true });
+      await RSSFeedController.generateFeed(mockRequest, mockResponse, mockNext);
 
-      await createClient.create(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.CREATED)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Client created successfully",
-          created_client: { clientId: "client123" },
-        })
-      ).to.be.true;
+      expect(rssFeedUtil.generateFeed).toHaveBeenCalledWith(
+        "test-blog-id",
+        mockRequest,
+        mockNext
+      );
+      expect(mockResponse.json).to.have.been.calledWith({
+        success: true,
+        message: mockResult.message,
+        feedUrl: mockResult.data,
+      });
     });
 
-    it("should handle client creation failure", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "createClient")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to create client",
-          errors: { message: "Client creation error" },
-        });
+    it("should handle errors from rssFeedUtil.generateFeed", async () => {
+      const mockError = new Error("Test error");
+      sinon.stub(rssFeedUtil, "generateFeed").rejects(mockError);
 
-      validationResult.returns({ isEmpty: () => true });
+      await RSSFeedController.generateFeed(mockRequest, mockResponse, mockNext);
 
-      await createClient.create(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to create client",
-          errors: { message: "Client creation error" },
-        })
-      ).to.be.true;
+      expect(mockNext).to.have.been.calledWith(
+        sinon.match.instanceOf(HttpError)
+      );
     });
 
-    // Add more test cases for different scenarios and validations
-  });
+    it("should handle bad request errors", async () => {
+      const mockError = new Error("Bad request error");
+      sinon.stub(extractErrorsFromRequest, "default").throws(mockError);
 
-  // Add separate `describe` blocks for other functions (list, delete, update)
-  describe("list()", () => {
-    it("should list clients successfully", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listClient")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Clients listed successfully",
-          data: [{ clientId: "client123" }, { clientId: "client456" }],
-        });
+      await RSSFeedController.generateFeed(mockRequest, mockResponse, mockNext);
 
-      validationResult.returns({ isEmpty: () => true });
-
-      await createClient.list(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Clients listed successfully",
-          clients: [{ clientId: "client123" }, { clientId: "client456" }],
-        })
-      ).to.be.true;
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(HttpError));
     });
 
-    it("should handle client listing failure", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "listClient")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to list clients",
-          errors: { message: "Client listing error" },
-        });
+    it("should handle empty result", async () => {
+      sinon.stub(rssFeedUtil, "generateFeed").resolves({});
 
-      validationResult.returns({ isEmpty: () => true });
+      await RSSFeedController.generateFeed(mockRequest, mockResponse, mockNext);
 
-      await createClient.list(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to list clients",
-          errors: { message: "Client listing error" },
-        })
-      ).to.be.true;
+      expect(mockResponse.json).not.to.have.been.called;
     });
-
-    // Add more test cases for different scenarios and validations
-  });
-
-  describe("delete()", () => {
-    it("should delete client successfully", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "deleteClient")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Client deleted successfully",
-          data: { clientId: "client123" },
-        });
-
-      validationResult.returns({ isEmpty: () => true });
-
-      await createClient.delete(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Client deleted successfully",
-          deleted_client: { clientId: "client123" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle client deletion failure", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "deleteClient")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to delete client",
-          errors: { message: "Client deletion error" },
-        });
-
-      validationResult.returns({ isEmpty: () => true });
-
-      await createClient.delete(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to delete client",
-          errors: { message: "Client deletion error" },
-        })
-      ).to.be.true;
-    });
-
-    // Add more test cases for different scenarios and validations
-  });
-
-  describe("update()", () => {
-    it("should update client successfully", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "updateClient")
-        .resolves({
-          success: true,
-          status: httpStatus.OK,
-          message: "Client updated successfully",
-          data: { clientId: "client123" },
-        });
-
-      validationResult.returns({ isEmpty: () => true });
-
-      await createClient.update(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Client updated successfully",
-          updated_client: { clientId: "client123" },
-        })
-      ).to.be.true;
-    });
-
-    it("should handle client update failure", async () => {
-      const controlAccessUtilStub = sinon
-        .stub(controlAccessUtil, "updateClient")
-        .resolves({
-          success: false,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          message: "Failed to update client",
-          errors: { message: "Client update error" },
-        });
-
-      validationResult.returns({ isEmpty: () => true });
-
-      await createClient.update(req, res);
-
-      expect(validationResult.calledOnce).to.be.true;
-      expect(controlAccessUtilStub.calledOnce).to.be.true;
-      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledOnceWith({
-          success: false,
-          message: "Failed to update client",
-          errors: { message: "Client update error" },
-        })
-      ).to.be.true;
-    });
-
-    // Add more test cases for different scenarios and validations
   });
 });

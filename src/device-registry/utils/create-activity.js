@@ -9,6 +9,7 @@ const generateFilter = require("./generate-filter");
 const constants = require("@config/constants");
 const distance = require("./distance");
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-util`
 );
@@ -27,8 +28,11 @@ const createActivity = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
       const filter = generateFilter.activities(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListActivity = await ActivityModel(tenant).list(
         {
@@ -116,6 +120,7 @@ const createActivity = {
         site_id,
         host_id,
         network,
+        user_id,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -154,6 +159,7 @@ const createActivity = {
           success: false,
           message: `Device ${deviceName} already deployed`,
           status: httpStatus.CONFLICT,
+          errors: { message: `Device ${deviceName} already deployed` },
         };
       } else if (responseFromDeviceSearchCheck.success === false) {
         const responseFromListSite = await createSiteUtil.list(request, next);
@@ -167,6 +173,7 @@ const createActivity = {
               activityType: "deployment",
               site_id,
               host_id: host_id ? host_id : null,
+              user_id: user_id ? user_id : null,
               network,
               nextMaintenance: addMonthsToProvideDateTime(
                 date && new Date(date),
@@ -220,26 +227,62 @@ const createActivity = {
             deviceBody.query.name = deviceName;
             deviceBody.query.tenant = tenant;
 
+            // Register activity and update the device
             const responseFromRegisterActivity = await ActivityModel(
               tenant
             ).register(siteActivityBody, next);
 
             if (responseFromRegisterActivity.success === true) {
               const createdActivity = responseFromRegisterActivity.data;
+
               const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
                 deviceBody,
                 next
               );
+
               if (responseFromUpdateDevice.success === true) {
                 const updatedDevice = responseFromUpdateDevice.data;
-                const data = { createdActivity, updatedDevice };
+                const data = {
+                  createdActivity: {
+                    activity_codes: createdActivity.activity_codes,
+                    tags: createdActivity.tags,
+                    _id: createdActivity._id,
+                    device: createdActivity.device,
+                    date: createdActivity.date,
+                    description: createdActivity.description,
+                    activityType: createdActivity.activityType,
+                    site_id: createdActivity.site_id,
+                    host_id: createdActivity.host_id,
+                    network: createdActivity.network,
+                    nextMaintenance: createdActivity.nextMaintenance,
+                    createdAt: createdActivity.createdAt,
+                  },
+                  updatedDevice: {
+                    status: updatedDevice.status,
+                    category: updatedDevice.category,
+                    isActive: updatedDevice.isActive,
+                    _id: updatedDevice._id,
+                    long_name: updatedDevice.long_name,
+                    network: updatedDevice.network,
+                    device_number: updatedDevice.device_number,
+                    name: updatedDevice.name,
+                    deployment_date: updatedDevice.deployment_date,
+                    latitude: updatedDevice.latitude,
+                    longitude: updatedDevice.longitude,
+                    mountType: updatedDevice.mountType,
+                    powerType: updatedDevice.powerType,
+                    site_id: updatedDevice.site_id,
+                  },
+                  user_id: user_id ? user_id : null,
+                };
                 try {
+                  const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
                   const kafkaProducer = kafka.producer({
                     groupId: constants.UNIQUE_PRODUCER_GROUP,
                   });
                   await kafkaProducer.connect();
                   await kafkaProducer.send({
-                    topic: constants.ACTIVITIES_TOPIC,
+                    topic: deployTopic,
                     messages: [
                       {
                         action: "create",
@@ -249,9 +292,12 @@ const createActivity = {
                   });
                   await kafkaProducer.disconnect();
                 } catch (error) {
-                  logger.error(`internal server error -- ${error.message}`);
+                  logger.error(
+                    `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`
+                  );
                 }
 
+                // Construct a simplified response structure
                 return {
                   success: true,
                   message: "successfully deployed the device",
@@ -291,7 +337,7 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { recallType } = body;
+      const { recallType, user_id } = body;
       const { tenant, deviceName } = query;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -320,8 +366,6 @@ const createActivity = {
         next
       );
 
-      logObject("isDeviceRecalled", isDeviceRecalled);
-
       if (isDeviceRecalled.success === true) {
         return {
           success: false,
@@ -330,7 +374,7 @@ const createActivity = {
           errors: { message: `Device ${deviceName} already recalled` },
         };
       } else if (isDeviceRecalled.success === false) {
-        let previousSiteId = {};
+        let previousSiteId = null;
         const filter = generateFilter.devices(request, next);
         const responseFromListDevice = await DeviceModel(tenant).list(
           {
@@ -338,6 +382,7 @@ const createActivity = {
           },
           next
         );
+
         if (
           responseFromListDevice.success === true &&
           responseFromListDevice.data.length === 1
@@ -354,32 +399,37 @@ const createActivity = {
             },
           };
         }
-        logObject("previousSiteId", previousSiteId);
+
         const siteActivityBody = {
           device: deviceName,
+          user_id: user_id ? user_id : null,
           date: new Date(),
           description: "device recalled",
           activityType: "recallment",
           recallType,
         };
-        let deviceBody = {};
-        deviceBody.body = {};
-        deviceBody.query = {};
-        deviceBody.body.height = 0;
-        deviceBody.body.mountType = "";
-        deviceBody.body.powerType = "";
-        deviceBody.body.isPrimaryInLocation = false;
-        deviceBody.body.nextMaintenance = "";
-        deviceBody.body.latitude = "";
-        deviceBody.body.longitude = "";
-        deviceBody.body.isActive = false;
-        deviceBody.body.status = "recalled";
-        deviceBody.body.site_id = null;
-        deviceBody.body.host_id = null;
-        deviceBody.body.previous_sites = [previousSiteId];
-        deviceBody.body.recall_date = new Date();
-        deviceBody.query.name = deviceName;
-        deviceBody.query.tenant = tenant;
+
+        let deviceBody = {
+          body: {
+            height: 0,
+            mountType: "",
+            powerType: "",
+            isPrimaryInLocation: false,
+            nextMaintenance: "",
+            latitude: "",
+            longitude: "",
+            isActive: false,
+            status: "recalled",
+            site_id: null,
+            host_id: null,
+            previous_sites: [previousSiteId],
+            recall_date: new Date(),
+          },
+          query: {
+            name: deviceName,
+            tenant,
+          },
+        };
 
         const responseFromRegisterActivity = await ActivityModel(
           tenant
@@ -387,20 +437,55 @@ const createActivity = {
 
         if (responseFromRegisterActivity.success === true) {
           const createdActivity = responseFromRegisterActivity.data;
+
           const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
             deviceBody,
             next
           );
+
           if (responseFromUpdateDevice.success === true) {
+            // Extract only necessary fields for response
             const updatedDevice = responseFromUpdateDevice.data;
-            const data = { createdActivity, updatedDevice };
+            const data = {
+              createdActivity: {
+                _id: createdActivity._id,
+                device: createdActivity.device,
+                date: createdActivity.date,
+                description: createdActivity.description,
+                activityType: createdActivity.activityType,
+                recallType,
+              },
+              updatedDevice: {
+                height: updatedDevice.height,
+                category: updatedDevice.category,
+                _id: updatedDevice._id,
+                long_name: updatedDevice.long_name,
+                network: updatedDevice.network,
+                device_number: updatedDevice.device_number,
+                name: updatedDevice.name,
+                mountType: updatedDevice.mountType,
+                powerType: updatedDevice.powerType,
+                isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
+                nextMaintenance: updatedDevice.nextMaintenance,
+                latitude: updatedDevice.latitude,
+                longitude: updatedDevice.longitude,
+                isActive: updatedDevice.isActive,
+                status: updatedDevice.status,
+                site_id: updatedDevice.site_id,
+                host_id: updatedDevice.host_id,
+                previous_sites: updatedDevice.previous_sites,
+                recall_date: updatedDevice.recall_date,
+              },
+              user_id: user_id ? user_id : null,
+            };
             try {
+              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
               const kafkaProducer = kafka.producer({
                 groupId: constants.UNIQUE_PRODUCER_GROUP,
               });
               await kafkaProducer.connect();
               await kafkaProducer.send({
-                topic: "activities-topic",
+                topic: recallTopic,
                 messages: [
                   {
                     action: "create",
@@ -414,6 +499,7 @@ const createActivity = {
               logger.error(`internal server error -- ${error.message}`);
             }
 
+            // Construct a simplified response structure
             return {
               success: true,
               message: "successfully recalled the device",
@@ -448,6 +534,7 @@ const createActivity = {
         site_id,
         maintenanceType,
         network,
+        user_id,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -470,6 +557,7 @@ const createActivity = {
 
       const siteActivityBody = {
         device: deviceName,
+        user_id: user_id ? user_id : null,
         date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
@@ -509,7 +597,32 @@ const createActivity = {
         );
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
-          const data = { createdActivity, updatedDevice };
+          const data = {
+            createdActivity: {
+              activity_codes: createdActivity.activity_codes,
+              tags: createdActivity.tags,
+              _id: createdActivity._id,
+              device: createdActivity.device,
+              date: createdActivity.date,
+              description: createdActivity.description,
+              activityType: createdActivity.activityType,
+              site_id: createdActivity.site_id,
+              host_id: createdActivity.host_id,
+              network: createdActivity.network,
+              nextMaintenance: createdActivity.nextMaintenance,
+              createdAt: createdActivity.createdAt,
+            },
+            updatedDevice: {
+              _id: updatedDevice._id,
+              long_name: updatedDevice.long_name,
+              status: updatedDevice.status,
+              device_number: updatedDevice.device_number,
+              name: updatedDevice.name,
+              maintenance_date: updatedDevice.maintenance_date,
+              nextMaintenance: updatedDevice.nextMaintenance,
+            },
+            user_id: user_id ? user_id : null,
+          };
           try {
             const kafkaProducer = kafka.producer({
               groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -541,6 +654,153 @@ const createActivity = {
       } else if (responseFromRegisterActivity.success === false) {
         return responseFromRegisterActivity;
       }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  batchDeployWithCoordinates: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+
+      const successful_deployments = [];
+      const failed_deployments = [];
+      const existing_sites = [];
+
+      // Create a map to store site IDs based on unique latitude and longitude
+      const siteMap = new Map();
+
+      // Create an array of promises for each deployment
+      const deploymentPromises = body.map(async (deployment) => {
+        const {
+          date,
+          height,
+          mountType,
+          powerType,
+          isPrimaryInLocation,
+          latitude,
+          longitude,
+          site_name,
+          network,
+          deviceName,
+          user_id,
+          host_id,
+        } = deployment;
+
+        const coordsKey = `${latitude},${longitude}`; // Unique key for coordinates
+
+        let site_id;
+
+        // Check if site already exists in the database using unique fields
+        const existingSite = await SiteModel(tenant).findOne({
+          $or: [
+            { name: site_name },
+            { latitude: latitude, longitude: longitude },
+          ],
+        });
+
+        if (existingSite) {
+          // If an existing site is found, use its ID
+          site_id = existingSite._id;
+          existing_sites.push({
+            deviceName,
+            site_id,
+            message: `Using existing site with name "${existingSite.name}" and coordinates (${latitude}, ${longitude})`,
+          });
+        } else {
+          // Step 1: Create a new site using the coordinates
+          const siteRequestBody = {
+            name: site_name,
+            latitude: latitude,
+            longitude: longitude,
+          };
+
+          const siteRequest = {
+            body: siteRequestBody,
+            query: { tenant },
+          };
+
+          const responseFromCreateSite = await createSiteUtil.create(
+            siteRequest,
+            next
+          );
+
+          if (responseFromCreateSite.success === false) {
+            failed_deployments.push({
+              deviceName,
+              error: responseFromCreateSite.errors,
+              user_id: user_id ? user_id : null,
+            });
+            return; // Skip to the next deployment if site creation fails
+          }
+
+          // Retrieve the newly created site_id
+          const createdSite = responseFromCreateSite.data;
+          site_id = createdSite._id; // Store new site_id
+
+          // Store in map for future use
+          siteMap.set(coordsKey, site_id);
+        }
+
+        // Step 3: Proceed with device deployment using the generated or reused site_id
+        let deviceRequestBody = {
+          date,
+          height,
+          mountType,
+          powerType,
+          isPrimaryInLocation,
+          site_id, // Use the newly created or reused site_id
+          network,
+          user_id,
+          host_id,
+        };
+
+        const deviceRequest = {
+          body: deviceRequestBody,
+          query: { tenant, deviceName }, // Use deviceName from the current deployment object
+        };
+
+        // Call the existing deploy function
+        const responseFromDeploy = await createActivity.deploy(
+          deviceRequest,
+          next
+        );
+
+        if (responseFromDeploy.success) {
+          const createdActivity = responseFromDeploy.data.createdActivity;
+          const updatedDevice = responseFromDeploy.data.updatedDevice;
+          successful_deployments.push({
+            deviceName,
+            createdActivity,
+            updatedDevice,
+            user_id: user_id ? user_id : null,
+          });
+        } else {
+          failed_deployments.push({
+            deviceName,
+            error: responseFromDeploy.errors,
+            user_id: user_id ? user_id : null,
+          });
+        }
+      });
+
+      // Wait for all deployments to complete
+      await Promise.all(deploymentPromises);
+
+      return {
+        success: true,
+        message: "Batch deployment processed",
+        successful_deployments,
+        failed_deployments, // Include both successful and failed responses
+        existing_sites, // Include information about existing sites used
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

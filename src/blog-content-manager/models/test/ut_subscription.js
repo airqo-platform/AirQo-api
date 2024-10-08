@@ -2,401 +2,525 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
+const sinonChai = require("sinon-chai");
 const mongoose = require("mongoose");
-const GroupModel = require("@models/Group");
+const SubscriptionModel = require("@models/Subscription");
+const { HttpError } = require("@utils/errors");
 
-describe("GroupSchema statics", () => {
-  describe("register method", () => {
-    it("should create a new Group and return success message with status 200", async () => {
-      // Mock input data for the Group to be created
-      const args = {
-        grp_title: "Group Title",
-        grp_status: "ACTIVE",
-        grp_network_id: "some_network_id",
-        grp_users: ["user_id_1", "user_id_2"],
-        grp_tasks: 5,
-        grp_description: "Group Description",
-      };
+describe("Subscription Model", () => {
+  let sandbox;
 
-      // Mock the Group.create method to return a successful result
-      const createStub = sinon.stub(GroupModel, "create").resolves(args);
-
-      // Call the register method
-      const result = await GroupModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal("group created");
-      expect(result.status).to.equal(200);
-      expect(result.data).to.deep.equal(args);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    it("should return success message with status 202 if the Group is not created", async () => {
-      // Mock input data for the Group (this time we'll return an empty data array)
-      const args = {
-        grp_title: "Group Title",
-        grp_status: "ACTIVE",
-        grp_network_id: "some_network_id",
-        grp_users: ["user_id_1", "user_id_2"],
-        grp_tasks: 5,
-        grp_description: "Group Description",
-      };
-
-      // Mock the Group.create method to return an empty data array
-      const createStub = sinon.stub(GroupModel, "create").resolves([]);
-
-      // Call the register method
-      const result = await GroupModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.true;
-      expect(result.message).to.equal(
-        "group NOT successfully created but operation successful"
-      );
-      expect(result.status).to.equal(202);
-      expect(result.data).to.be.an("array").that.is.empty;
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    it("should return validation errors if the Group creation encounters duplicate values", async () => {
-      // Mock input data for the Group with duplicate values
-      const args = {
-        grp_title: "Duplicate Title",
-        grp_status: "ACTIVE",
-        grp_network_id: "some_network_id",
-        grp_users: ["user_id_1", "user_id_2"],
-        grp_tasks: 5,
-        grp_description: "Group Description",
-      };
-
-      // Mock the Group.create method to throw a duplicate key error
-      const createStub = sinon.stub(GroupModel, "create").throws({
-        code: 11000,
-        keyValue: { grp_title: "Duplicate Title" },
-      });
-
-      // Call the register method
-      const result = await GroupModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.false;
-      expect(result.errors).to.deep.equal({
-        grp_title: "Duplicate Title should be unique!",
-      });
-      expect(result.message).to.equal(
-        "validation errors for some of the provided fields"
-      );
-      expect(result.status).to.equal(409);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    it("should return validation errors if the Group creation encounters other validation errors", async () => {
-      // Mock input data for the Group with invalid values
-      const args = {
-        grp_title: "", // Empty title (invalid)
-        grp_status: "ACTIVE",
-        grp_network_id: "some_network_id",
-        grp_users: ["user_id_1", "user_id_2"],
-        grp_tasks: 5,
-        grp_description: "Group Description",
-      };
-
-      // Mock the Group.create method to throw a validation error
-      const createStub = sinon.stub(GroupModel, "create").throws({
-        errors: {
-          grp_title: {
-            message: "grp_title is required",
-          },
-        },
-      });
-
-      // Call the register method
-      const result = await GroupModel.register(args);
-
-      // Assertions
-      expect(result.success).to.be.false;
-      expect(result.errors).to.deep.equal({
-        grp_title: "grp_title is required",
-      });
-      expect(result.message).to.equal(
-        "validation errors for some of the provided fields"
-      );
-      expect(result.status).to.equal(409);
-
-      // Restore the stubbed method
-      createStub.restore();
-    });
-
-    // Add more test cases to cover additional scenarios
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
   });
 
-  describe("list method", () => {
-    it("should list groups based on the provided filter", async () => {
-      // Sample groups data
-      const groupsData = [
-        {
-          _id: "group_id_1",
-          grp_title: "Group 1",
-          grp_status: "active",
-          grp_tasks: ["task1", "task2"],
-          grp_description: "Description for Group 1",
-          createdAt: new Date("2023-01-01"),
-          grp_users: [
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe("SubscriptionSchema", () => {
+    it("should define the schema correctly", () => {
+      const schema = SubscriptionSchema;
+      expect(schema.paths).to.exist;
+      expect(schema.paths.email).to.exist;
+      expect(schema.paths.name).to.exist;
+      expect(schema.paths.status).to.exist;
+      expect(schema.paths.subscriptionType).to.exist;
+      expect(schema.paths.topics).to.exist;
+      expect(schema.paths.lastEmailSent).to.exist;
+      expect(schema.paths.source).to.exist;
+      expect(schema.paths.ipAddress).to.exist;
+      expect(schema.paths.userAgent).to.exist;
+      expect(schema.options.timestamps).to.exist;
+    });
+
+    it("should validate required fields", () => {
+      const validSubscription = {
+        email: "test@example.com",
+        name: "Test Name",
+        status: "active",
+        subscriptionType: "weekly",
+        topics: ["topic1", "topic2"],
+        source: "sourceValue",
+      };
+
+      const invalidSubscription = {};
+
+      expect(SubscriptionSchema.validate(validSubscription)).to.not.throw();
+      expect(() => SubscriptionSchema.validate(invalidSubscription)).to.throw(
+        /Email is required/
+      );
+      expect(() => SubscriptionSchema.validate(invalidSubscription)).to.throw(
+        /Name is required/
+      );
+      expect(() => SubscriptionSchema.validate(invalidSubscription)).to.throw(
+        /Status is required/
+      );
+      expect(() => SubscriptionSchema.validate(invalidSubscription)).to.throw(
+        /Subscription Type is required/
+      );
+      expect(() => SubscriptionSchema.validate(invalidSubscription)).to.throw(
+        /Topics is required/
+      );
+      expect(() => SubscriptionSchema.validate(invalidSubscription)).to.throw(
+        /Source is required/
+      );
+    });
+
+    it("should validate unique emails", async () => {
+      const validSubscription = {
+        email: "unique@email.com",
+        name: "Test Name",
+      };
+
+      const duplicateSubscription = {
+        email: "unique@email.com",
+        name: "Duplicate Name",
+      };
+
+      const db = await mongoose.connect("mongodb://localhost/test-db");
+      const Subscription = mongoose.model("subscriptions", SubscriptionSchema);
+
+      await Subscription.create(validSubscription);
+
+      await expect(
+        SubscriptionSchema.validate(duplicateSubscription)
+      ).to.be.rejectedWith("Email should be unique!");
+    });
+
+    it("should validate email format", async () => {
+      const validEmail = "test@example.com";
+      const invalidEmails = ["invalid-email", "email@", "@example.com"];
+
+      const db = await mongoose.connect("mongodb://localhost/test-db");
+      const Subscription = mongoose.model("subscriptions", SubscriptionSchema);
+
+      await Subscription.create({ email: validEmail });
+
+      await Promise.all(
+        invalidEmails.map((email) =>
+          expect(SubscriptionSchema.validate({ email })).to.be.rejectedWith(
+            "Invalid email address"
+          )
+        )
+      );
+    });
+
+    it("should validate name length", async () => {
+      const validName = "Valid Name";
+      const longName = "a".repeat(101); // 101 characters
+      const shortName = "a".repeat(99); // 99 characters
+
+      const db = await mongoose.connect("mongodb://localhost/test-db");
+      const Subscription = mongoose.model("subscriptions", SubscriptionSchema);
+
+      await Subscription.create({ email: "test@example.com", name: validName });
+
+      await expect(
+        SubscriptionSchema.validate({ name: longName })
+      ).to.be.rejectedWith("Name cannot be more than 100 characters");
+
+      await expect(
+        SubscriptionSchema.validate({ name: shortName })
+      ).to.not.throw();
+    });
+  });
+
+  describe("SubscriptionSchema methods", () => {
+    it("should export toJSON method", () => {
+      const subscription = new SubscriptionModel()
+        .schema({
+          _id: "123",
+          email: "test@example.com",
+          name: "Test Name",
+          status: "active",
+          subscriptionType: "weekly",
+          topics: ["topic1", "topic2"],
+          lastEmailSent: new Date(),
+          source: "sourceValue",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .toObject();
+
+      const jsonResult = subscription.toJSON();
+      expect(jsonResult).to.deep.equal({
+        _id: "123",
+        email: "test@example.com",
+        name: "Test Name",
+        status: "active",
+        subscriptionType: "weekly",
+        topics: ["topic1", "topic2"],
+        lastEmailSent: expect.any(Date),
+        source: "sourceValue",
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+    });
+  });
+
+  describe("static methods", () => {
+    let mockMongooseModel;
+
+    beforeEach(() => {
+      mockMongooseModel = sinon.mock(mongoose.Model);
+    });
+
+    afterEach(() => {
+      mockMongooseModel.restore();
+    });
+
+    describe("create method", () => {
+      it("should create a new subscription", async () => {
+        const mockCreate = sandbox
+          .stub(mongoose.Model.prototype.create, "exec")
+          .resolves({ _id: "123", email: "test@example.com" });
+
+        const result = await SubscriptionModel.create(
+          { email: "test@example.com", name: "Test Name" },
+          {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Subscription created successfully");
+        expect(result.status).to.equal(httpStatus.CREATED);
+        expect(mockCreate).to.have.been.calledOnceWith({
+          email: "test@example.com",
+          name: "Test Name",
+        });
+      });
+
+      it("should fail to create when required fields are missing", async () => {
+        const mockCreate = sandbox
+          .stub(mongoose.Model.prototype.create, "exec")
+          .resolves(null);
+
+        const result = await SubscriptionModel.create({}, {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Failed to create subscription");
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(mockCreate).to.have.been.calledOnceWith({});
+      });
+    });
+
+    describe("list method", () => {
+      it("should list subscriptions", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([
             {
-              _id: "user_id_1",
-              firstName: "John",
-              lastName: "Doe",
-              email: "john.doe@example.com",
+              _id: "1",
+              email: "test1@example.com",
+              name: "Test 1",
+              status: "active",
             },
             {
-              _id: "user_id_2",
-              firstName: "Jane",
-              lastName: "Smith",
-              email: "jane.smith@example.com",
+              _id: "2",
+              email: "test2@example.com",
+              name: "Test 2",
+              status: "unsubscribed",
             },
+          ]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(2);
+
+        const result = await SubscriptionModel.list({}, {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.have.lengthOf(2);
+        expect(result.total).to.equal(2);
+        expect(result.message).to.equal("Successfully retrieved subscriptions");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({});
+        expect(mockCountDocuments).to.have.been.calledOnceWith({});
+      });
+
+      it("should handle empty results", async () => {
+        const mockFind = sandbox
+          .stub(mongoose.Model.prototype.find, "exec")
+          .resolves([]);
+        const mockCountDocuments = sandbox
+          .stub(mongoose.Model.prototype.countDocuments, "exec")
+          .resolves(0);
+
+        const result = await SubscriptionModel.list({}, {});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.deep.equal([]);
+        expect(result.total).to.equal(0);
+        expect(result.message).to.equal("No subscriptions found");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFind).to.have.been.calledOnceWith({});
+        expect(mockCountDocuments).to.have.been.calledOnceWith({});
+      });
+    });
+
+    describe("findById method", () => {
+      it("should find a subscription by ID", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves({
+            _id: "123",
+            email: "test@example.com",
+            name: "Test Name",
+            status: "active",
+          });
+
+        const result = await SubscriptionModel.findById("123", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully retrieved subscription");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFindOne).to.have.been.calledOnceWith({ _id: "123" });
+      });
+
+      it("should return not found when subscription does not exist", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves(null);
+
+        const result = await SubscriptionModel.findById("nonexistent-id", {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Subscription not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFindOne).to.have.been.calledOnceWith({
+          _id: "nonexistent-id",
+        });
+      });
+    });
+
+    describe("update method", () => {
+      it("should update a subscription", async () => {
+        const mockUpdateOne = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+          .resolves({
+            _id: "123",
+            email: "updated@example.com",
+            name: "Updated Name",
+            status: "active",
+          });
+
+        const result = await SubscriptionModel.update(
+          {
+            id: "123",
+            update: { email: "updated@example.com", name: "Updated Name" },
+          },
+          {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal(
+          "Successfully updated the subscription"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockUpdateOne).to.have.been.calledOnceWith(
+          "123",
+          { email: "updated@example.com", name: "Updated Name" },
+          { new: true, runValidators: true }
+        );
+      });
+
+      it("should return not found when subscription does not exist", async () => {
+        const mockUpdateOne = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndUpdate, "exec")
+          .resolves(null);
+
+        const result = await SubscriptionModel.update(
+          { id: "nonexistent-id", update: {} },
+          {}
+        );
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Subscription not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockUpdateOne).to.have.been.calledOnceWith(
+          "nonexistent-id",
+          {},
+          { new: true, runValidators: true }
+        );
+      });
+    });
+
+    describe("remove method", () => {
+      it("should remove a subscription", async () => {
+        const mockRemove = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+          .resolves({
+            _id: "123",
+            email: "test@example.com",
+            name: "Test Name",
+            status: "active",
+          });
+
+        const result = await SubscriptionModel.remove("123", {});
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal(
+          "Successfully removed the subscription"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockRemove).to.have.been.calledOnceWith("123");
+      });
+
+      it("should return not found when subscription does not exist", async () => {
+        const mockRemove = sandbox
+          .stub(mongoose.Model.prototype.findByIdAndRemove, "exec")
+          .resolves(null);
+
+        const result = await SubscriptionModel.remove("nonexistent-id", {});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Subscription not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockRemove).to.have.been.calledOnceWith("nonexistent-id");
+      });
+    });
+
+    describe("findByEmail method", () => {
+      it("should find a subscription by email", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves({
+            _id: "123",
+            email: "test@example.com",
+            name: "Test Name",
+            status: "active",
+          });
+
+        const result = await SubscriptionModel.findByEmail(
+          "test@example.com",
+          {}
+        );
+
+        expect(result.success).to.be.true;
+        expect(result.data._id).to.equal("123");
+        expect(result.message).to.equal("Successfully retrieved subscription");
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockFindOne).to.have.been.calledOnceWith({
+          email: "test@example.com",
+        });
+      });
+
+      it("should return not found when subscription does not exist", async () => {
+        const mockFindOne = sandbox
+          .stub(mongoose.Model.prototype.findOne, "exec")
+          .resolves(null);
+
+        const result = await SubscriptionModel.findByEmail(
+          "nonexistent@example.com",
+          {}
+        );
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Subscription not found");
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        expect(mockFindOne).to.have.been.calledOnceWith({
+          email: "nonexistent@example.com",
+        });
+      });
+    });
+
+    describe("getSubscriptionStats method", () => {
+      it("should calculate subscription statistics", async () => {
+        const mockAggregate = sandbox
+          .stub(mongoose.Model.prototype.aggregate, "exec")
+          .resolves([
+            {
+              _id: "active",
+              count: 10,
+            },
+            {
+              _id: "unsubscribed",
+              count: 5,
+            },
+            {
+              _id: null,
+              total: 15,
+              statuses: [
+                { status: "active", count: 10 },
+                { status: "unsubscribed", count: 5 },
+              ],
+            },
+          ]);
+
+        const result = await SubscriptionModel.getSubscriptionStats({});
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.deep.equal({
+          total: 15,
+          statuses: [
+            { status: "active", count: 10 },
+            { status: "unsubscribed", count: 5 },
           ],
-          network: {
-            _id: "network_id_1",
-            networkName: "Network 1",
-            networkStatus: "active",
+        });
+        expect(result.message).to.equal(
+          "Successfully retrieved subscription stats"
+        );
+        expect(result.status).to.equal(httpStatus.OK);
+        expect(mockAggregate).to.have.been.calledOnceWith([
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 },
+            },
           },
-        },
-        // Add more sample data if needed
-      ];
-
-      // Stub the aggregate method of the model to return the groups data
-      const aggregateStub = sinon
-        .stub(GroupModel, "aggregate")
-        .resolves(groupsData);
-
-      // Call the list method with sample filter
-      const filter = { grp_status: "active" };
-      const result = await GroupModel.list({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully retrieved the groups"
-      );
-      expect(result).to.have.property("data").that.deep.equals(groupsData);
-
-      // Restore the aggregate method to its original implementation
-      aggregateStub.restore();
-    });
-
-    it("should return 'groups do not exist' message if no groups found", async () => {
-      // Stub the aggregate method of the model to return an empty array (no groups found)
-      const aggregateStub = sinon.stub(GroupModel, "aggregate").resolves([]);
-
-      // Call the list method with sample filter
-      const filter = { grp_status: "inactive" };
-      const result = await GroupModel.list({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "groups do not exist, please crosscheck"
-      );
-      expect(result).to.have.property("status", httpStatus.NOT_FOUND);
-      expect(result).to.have.property("data").that.is.an("array").that.is.empty;
-
-      // Restore the aggregate method to its original implementation
-      aggregateStub.restore();
-    });
-
-    // Add more test cases to cover other scenarios
-  });
-
-  describe("modify method", () => {
-    it("should modify the group and return the updated group", async () => {
-      // Sample group data before update
-      const initialGroupData = {
-        _id: "group_id_1",
-        grp_title: "Group 1",
-        grp_status: "active",
-        grp_users: ["user_id_1", "user_id_2"],
-        createdAt: new Date("2023-01-01"),
-      };
-
-      // Sample update data
-      const updateData = {
-        grp_status: "inactive",
-        grp_users: ["user_id_2", "user_id_3"],
-      };
-
-      // Stub the findOneAndUpdate method of the model to return the updated group
-      const findOneAndUpdateStub = sinon
-        .stub(GroupModel, "findOneAndUpdate")
-        .resolves({
-          _doc: {
-            ...initialGroupData,
-            ...updateData,
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$count" },
+              statuses: { $push: { status: "$_id", count: "$count" } },
+            },
           },
-        });
-
-      // Call the modify method with sample filter and update data
-      const filter = { _id: "group_id_1" };
-      const result = await GroupModel.modify({ filter, update: updateData });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully modified the group"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result)
-        .to.have.property("data")
-        .that.deep.equals({
-          ...initialGroupData,
-          ...updateData,
-        });
-
-      // Restore the findOneAndUpdate method to its original implementation
-      findOneAndUpdateStub.restore();
-    });
-
-    it("should return 'group does not exist' message if no group found for modification", async () => {
-      // Stub the findOneAndUpdate method of the model to return null (no group found for modification)
-      const findOneAndUpdateStub = sinon
-        .stub(GroupModel, "findOneAndUpdate")
-        .resolves(null);
-
-      // Call the modify method with sample filter and update data
-      const filter = { _id: "non_existent_group_id" };
-      const updateData = { grp_status: "inactive" };
-      const result = await GroupModel.modify({ filter, update: updateData });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "group does not exist, please crosscheck"
-      );
-      expect(result).to.have.property("status", httpStatus.NOT_FOUND);
-      expect(result).to.have.property("data").that.is.an("array").that.is.empty;
-
-      // Restore the findOneAndUpdate method to its original implementation
-      findOneAndUpdateStub.restore();
-    });
-
-    // Add more test cases to cover other scenarios
-  });
-
-  describe("remove method", () => {
-    it("should remove the group and return the removed group data", async () => {
-      // Sample group data
-      const groupData = {
-        _id: "group_id_1",
-        grp_title: "Group 1",
-        grp_status: "active",
-        grp_description: "Group description",
-        createdAt: new Date("2023-01-01"),
-      };
-
-      // Stub the findOneAndRemove method of the model to return the removed group
-      const findOneAndRemoveStub = sinon
-        .stub(GroupModel, "findOneAndRemove")
-        .resolves({
-          _doc: groupData,
-        });
-
-      // Call the remove method with sample filter
-      const filter = { _id: "group_id_1" };
-      const result = await GroupModel.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "successfully removed the group"
-      );
-      expect(result).to.have.property("status", httpStatus.OK);
-      expect(result).to.have.property("data").that.deep.equals(groupData);
-
-      // Restore the findOneAndRemove method to its original implementation
-      findOneAndRemoveStub.restore();
-    });
-
-    it("should return 'group does not exist' message if no group found for removal", async () => {
-      // Stub the findOneAndRemove method of the model to return null (no group found for removal)
-      const findOneAndRemoveStub = sinon
-        .stub(GroupModel, "findOneAndRemove")
-        .resolves(null);
-
-      // Call the remove method with sample filter
-      const filter = { _id: "non_existent_group_id" };
-      const result = await GroupModel.remove({ filter });
-
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("success", true);
-      expect(result).to.have.property(
-        "message",
-        "group does not exist, please crosscheck"
-      );
-      expect(result).to.have.property("status", httpStatus.NOT_FOUND);
-      expect(result).to.have.property("data").that.is.an("array").that.is.empty;
-
-      // Restore the findOneAndRemove method to its original implementation
-      findOneAndRemoveStub.restore();
-    });
-
-    // Add more test cases to cover other scenarios
-  });
-
-  // Add more tests for other static methods if applicable
-});
-
-describe("GroupSchema methods", () => {
-  describe("toJSON method", () => {
-    it("should return a JSON object with specific properties", () => {
-      // Create a new instance of GroupSchema with mock data
-      const group = new GroupModel({
-        _id: "some_id",
-        grp_title: "Group Title",
-        grp_status: "ACTIVE",
-        grp_users: ["user_id_1", "user_id_2"],
-        grp_tasks: 5,
-        grp_description: "Group Description",
-        grp_network_id: "some_network_id",
-        createdAt: "2023-07-25T12:34:56.789Z",
+          {
+            $project: {
+              _id: 0,
+              total: 1,
+              statuses: 1,
+            },
+          },
+        ]);
       });
 
-      // Call the toJSON method on the group instance
-      const result = group.toJSON();
+      it("should handle errors during aggregation", async () => {
+        const mockAggregate = sandbox
+          .stub(mongoose.Model.prototype.aggregate, "exec")
+          .rejects(new Error("Aggregation failed"));
 
-      // Assertions
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("_id", "some_id");
-      expect(result).to.have.property("grp_title", "Group Title");
-      expect(result).to.have.property("grp_status", "ACTIVE");
-      expect(result)
-        .to.have.property("grp_users")
-        .that.deep.equals(["user_id_1", "user_id_2"]);
-      expect(result).to.have.property("grp_tasks", 5);
-      expect(result).to.have.property("grp_description", "Group Description");
-      expect(result).to.have.property("grp_network_id", "some_network_id");
-      expect(result).to.have.property("createdAt", "2023-07-25T12:34:56.789Z");
-      // Add more assertions to verify the result
+        const result = await SubscriptionModel.getSubscriptionStats({});
+
+        expect(result.success).to.be.false;
+        expect(result.message).to.equal("Internal Server Error");
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(mockAggregate).to.have.been.calledOnceWith([
+          {
+            $group: {
+              _id: "$status",
+              count: { $sum: 1 },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: "$count" },
+              statuses: { $push: { status: "$_id", count: "$count" } },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              total: 1,
+              statuses: 1,
+            },
+          },
+        ]);
+      });
     });
-
-    // Add more test cases to cover additional scenarios
   });
-
-  // Add more tests for other methods if applicable
 });

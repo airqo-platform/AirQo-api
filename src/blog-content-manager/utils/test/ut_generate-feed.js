@@ -1,648 +1,154 @@
+// test-rss-feed-util.js
 require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
-const createCandidate = require("@utils/create-candidate");
-const UserModel = require("@models/User");
-const CandidateModel = require("@models/Candidate");
-const NetworkModel = require("@models/Network");
+const sinonChai = require("sinon-chai");
+chai.use(sinonChai);
+const { describe, it, beforeEach, afterEach } = require("mocha");
+
+const PostModel = require("@models/post");
+const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
+const httpStatus = require("http-status");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- rssFeed-util`);
+const { HttpError } = require("@utils/errors");
 
-describe("createCandidate", () => {
-  describe("create()", () => {
-    let req,
-      validationResultStub,
-      UserModelStub,
-      CandidateModelStub,
-      NetworkModelStub,
-      mailerStub;
+const generateFilter = require("@utils/generate-filter");
 
-    beforeEach(() => {
-      req = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "john.doe@example.com",
-        tenant: "sample-tenant",
-        network_id: "sample-network-id",
-      };
+const rssFeedUtil = require("./path/to/rssFeedUtil"); // Adjust the path as needed
 
-      validationResultStub = sinon.stub();
-      UserModelStub = sinon.stub(UserModel(sampleTenant), "exists");
-      CandidateModelStub = sinon.stub(CandidateModel(sampleTenant), "exists");
-      NetworkModelStub = sinon.stub(NetworkModel(sampleTenant), "exists");
-      mailerStub = sinon.stub(mailer, "candidate");
-    });
+describe("rssFeedUtil", () => {
+  let sandbox;
 
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return success when everything is fine and candidate does not exist", async () => {
-      validationResultStub.returns(true);
-      UserModelStub.resolves(false);
-      CandidateModelStub.resolves(false);
-      NetworkModelStub.resolves(true);
-      CandidateModelStub.resolves({
-        success: true,
-        data: {
-          // Sample candidate data
-        },
-      });
-      mailerStub.resolves({
-        success: true,
-        status: 200,
-      });
-
-      const result = await createCandidate.create(req);
-
-      expect(result).to.deep.equal({
-        success: true,
-        message: "candidate successfully created",
-        data: {},
-        status: 200,
-      });
-    });
-
-    it("should return success when everything is fine and candidate exists", async () => {
-      validationResultStub.returns(true);
-      UserModelStub.resolves(false);
-      CandidateModelStub.resolves(true);
-
-      const result = await createCandidate.create(req);
-
-      expect(result).to.deep.equal({
-        success: true,
-        message: "candidate already exists",
-        status: 200,
-      });
-    });
-
-    it("should return bad request when network does not exist", async () => {
-      validationResultStub.returns(true);
-      UserModelStub.resolves(false);
-      CandidateModelStub.resolves(false);
-      NetworkModelStub.resolves(false);
-
-      const result = await createCandidate.create(req);
-
-      expect(result).to.deep.equal({
-        success: false,
-        message: "the provided network does not exist",
-        status: 400,
-        errors: { message: "Network sample-network-id not found" },
-      });
-    });
-
-    // Add more test cases for other scenarios (e.g., user exists, mailer fails, exceptions)
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
   });
-  describe("list", () => {
-    let fakeCandidateModel;
-    let fakeGenerateFilter;
 
-    beforeEach(() => {
-      // Create a fake candidate model
-      fakeCandidateModel = {
-        list: () => {},
-      };
-
-      // Create a fake generateFilter object for mocking the candidates function
-      fakeGenerateFilter = {
-        candidates: () => {},
-      };
-    });
-
-    it("should return a list of candidates", async () => {
-      // Arrange
-      const request = {
-        query: {
-          tenant: "airqo",
-          limit: "10",
-          skip: "0",
-          // Other query parameters...
-        },
-      };
-
-      const generatedFilter = {
-        // Mock generated filter data returned from generateFilter.candidates
-        // Replace with relevant data for your specific use case
-        field1: "value1",
-        field2: "value2",
-        // Other filter fields...
-      };
-
-      const candidateList = [
-        {
-          // Mock candidate data returned from the list function
-          // Replace with relevant data for your specific use case
-          _id: "candidate_id_1",
-          firstName: "John",
-          lastName: "Doe",
-          email: "johndoe@example.com",
-          // Other candidate data...
-        },
-        {
-          _id: "candidate_id_2",
-          firstName: "Jane",
-          lastName: "Smith",
-          email: "janesmith@example.com",
-          // Other candidate data...
-        },
-        // Other candidates...
-      ];
-
-      // Set up the fake generateFilter to simulate successful generation of the filter
-      fakeGenerateFilter.candidates.returns({
-        success: true,
-        data: generatedFilter,
-      });
-
-      // Set up the fake candidate model to simulate successful list operation
-      fakeCandidateModel.list.resolves(candidateList);
-
-      // Act
-      const result = await createCandidate.list(request);
-
-      // Assert
-      expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
-      expect(fakeGenerateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(fakeCandidateModel.list.calledOnce).to.be.true;
-      expect(fakeCandidateModel.list.firstCall.args[0]).to.deep.equal({
-        filter: generatedFilter,
-        limit: 10,
-        skip: 0,
-      });
-
-      expect(result).to.deep.equal(candidateList);
-    });
-
-    it("should return the error response from generateFilter.candidates", async () => {
-      // Arrange
-      const request = {
-        query: {
-          tenant: "airqo",
-          limit: "10",
-          skip: "0",
-          // Other query parameters...
-        },
-      };
-
-      const filterErrorResponse = {
-        success: false,
-        message: "Invalid query parameters",
-        status: httpStatus.BAD_REQUEST,
-        errors: {
-          message: "Invalid query parameters",
-        },
-      };
-
-      // Set up the fake generateFilter to simulate a filter error
-      fakeGenerateFilter.candidates.returns(filterErrorResponse);
-
-      // Act
-      const result = await createCandidate.list(request);
-
-      // Assert
-      expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
-      expect(fakeGenerateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(result).to.deep.equal(filterErrorResponse);
-    });
-
-    it("should return an error response when candidate listing fails", async () => {
-      // Arrange
-      const request = {
-        query: {
-          tenant: "airqo",
-          limit: "10",
-          skip: "0",
-          // Other query parameters...
-        },
-      };
-
-      const generatedFilter = {
-        // Mock generated filter data returned from generateFilter.candidates
-        // Replace with relevant data for your specific use case
-        field1: "value1",
-        field2: "value2",
-        // Other filter fields...
-      };
-
-      // Set up the fake generateFilter to simulate successful generation of the filter
-      fakeGenerateFilter.candidates.returns({
-        success: true,
-        data: generatedFilter,
-      });
-
-      // Set up the fake candidate model to simulate candidate listing failure
-      fakeCandidateModel.list.rejects(new Error("Database error"));
-
-      // Act
-      const result = await createCandidate.list(request);
-
-      // Assert
-      expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
-      expect(fakeGenerateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(fakeCandidateModel.list.calledOnce).to.be.true;
-      expect(fakeCandidateModel.list.firstCall.args[0]).to.deep.equal({
-        filter: generatedFilter,
-        limit: 10,
-        skip: 0,
-      });
-
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        error: "Database error",
-        errors: { message: "Database error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
-
-    // Add more tests for other scenarios...
+  afterEach(() => {
+    sandbox.restore();
   });
-  describe("update", () => {
-    let fakeCandidateModel;
-    let fakeGenerateFilter;
 
-    beforeEach(() => {
-      // Create a fake candidate model
-      fakeCandidateModel = {
-        modify: () => {},
-      };
-
-      // Create a fake generateFilter object for mocking the candidates function
-      fakeGenerateFilter = {
-        candidates: () => {},
-      };
-    });
-
-    it("should update a candidate and return the updated candidate", async () => {
-      // Arrange
+  describe("generateFeed", () => {
+    it("should return RSS feed URL and items", async () => {
+      const blogId = "test-blog-id";
       const request = {
-        query: {
-          tenant: "airqo",
-          // Other query parameters...
-        },
-        body: {
-          // Mock update data
-          firstName: "UpdatedFirstName",
-          lastName: "UpdatedLastName",
-          // Other update data...
-        },
+        query: { tenant: "test-tenant" },
+        body: {},
       };
+      const next = sinon.spy();
 
-      const generatedFilter = {
-        // Mock generated filter data returned from generateFilter.candidates
-        // Replace with relevant data for your specific use case
-        field1: "value1",
-        field2: "value2",
-        // Other filter fields...
-      };
-
-      const updatedCandidate = {
-        // Mock updated candidate data returned from the modify function
-        // Replace with relevant data for your specific use case
-        _id: "candidate_id_1",
-        firstName: "UpdatedFirstName",
-        lastName: "UpdatedLastName",
-        email: "johndoe@example.com",
-        // Other candidate data...
-      };
-
-      // Set up the fake generateFilter to simulate successful generation of the filter
-      fakeGenerateFilter.candidates.returns({
-        success: true,
-        data: generatedFilter,
-      });
-
-      // Set up the fake candidate model to simulate successful candidate modification
-      fakeCandidateModel.modify.resolves(updatedCandidate);
-
-      // Act
-      const result = await createCandidate.update(request);
-
-      // Assert
-      expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
-      expect(fakeGenerateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(fakeCandidateModel.modify.calledOnce).to.be.true;
-      expect(fakeCandidateModel.modify.firstCall.args[0]).to.deep.equal({
-        filter: generatedFilter,
-        update: request.body,
-      });
-
-      expect(result).to.deep.equal(updatedCandidate);
-    });
-
-    it("should return the error response from generateFilter.candidates", async () => {
-      // Arrange
-      const request = {
-        query: {
-          tenant: "airqo",
-          // Other query parameters...
-        },
-        body: {
-          // Mock update data
-          firstName: "UpdatedFirstName",
-          lastName: "UpdatedLastName",
-          // Other update data...
-        },
-      };
-
-      const filterErrorResponse = {
-        success: false,
-        message: "Invalid query parameters",
-        status: httpStatus.BAD_REQUEST,
-        errors: {
-          message: "Invalid query parameters",
-        },
-      };
-
-      // Set up the fake generateFilter to simulate a filter error
-      fakeGenerateFilter.candidates.returns(filterErrorResponse);
-
-      // Act
-      const result = await createCandidate.update(request);
-
-      // Assert
-      expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
-      expect(fakeGenerateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(result).to.deep.equal(filterErrorResponse);
-    });
-
-    it("should return an error response when candidate modification fails", async () => {
-      // Arrange
-      const request = {
-        query: {
-          tenant: "airqo",
-          // Other query parameters...
-        },
-        body: {
-          // Mock update data
-          firstName: "UpdatedFirstName",
-          lastName: "UpdatedLastName",
-          // Other update data...
-        },
-      };
-
-      const generatedFilter = {
-        // Mock generated filter data returned from generateFilter.candidates
-        // Replace with relevant data for your specific use case
-        field1: "value1",
-        field2: "value2",
-        // Other filter fields...
-      };
-
-      // Set up the fake generateFilter to simulate successful generation of the filter
-      fakeGenerateFilter.candidates.returns({
-        success: true,
-        data: generatedFilter,
-      });
-
-      // Set up the fake candidate model to simulate candidate modification failure
-      fakeCandidateModel.modify.rejects(new Error("Database error"));
-
-      // Act
-      const result = await createCandidate.update(request);
-
-      // Assert
-      expect(fakeGenerateFilter.candidates.calledOnce).to.be.true;
-      expect(fakeGenerateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(fakeCandidateModel.modify.calledOnce).to.be.true;
-      expect(fakeCandidateModel.modify.firstCall.args[0]).to.deep.equal({
-        filter: generatedFilter,
-        update: request.body,
-      });
-
-      expect(result).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        error: "Database error",
-        errors: { message: "Database error" },
-      });
-    });
-
-    // Add more tests for other scenarios...
-  });
-  describe("confirm", () => {
-    let fakeCandidateModel;
-    let fakeUserModel;
-    let fakeMailer;
-
-    beforeEach(() => {
-      // Create a fake candidate model
-      fakeCandidateModel = {
-        exists: () => {},
-        find: () => {},
-        remove: () => {},
-      };
-
-      // Create a fake user model
-      fakeUserModel = {
-        exists: () => {},
-        register: () => {},
-      };
-
-      // Create a fake mailer
-      fakeMailer = {
-        user: () => {},
-      };
-    });
-
-    it("should confirm a candidate, create a user, send email, and remove the candidate", async () => {
-      // Arrange
-      const req = {
-        tenant: "airqo",
-        firstName: "John",
-        lastName: "Doe",
-        email: "johndoe@example.com",
-        // Other request data...
-      };
-
-      const candidateExists = true;
-      const userExists = false;
-
-      const candidateDetails = [
+      sandbox.stub(PostModel.prototype.list).resolves([
         {
-          _id: "candidate_id_1",
-          firstName: "John",
-          lastName: "Doe",
-          email: "johndoe@example.com",
-          // Other candidate data...
+          /* mock post object */
         },
-      ];
-
-      const password = "generatedPassword";
-
-      const requestBodyForUserCreation = {
-        ...req,
-        privilege: "user",
-        userName: "johndoe@example.com",
-        password: password,
-      };
-
-      const createUserResponse = {
-        success: true,
-        data: {
-          _id: "user_id_1",
-          firstName: "John",
-          lastName: "Doe",
-          email: "johndoe@example.com",
-          userName: "johndoe@example.com",
-          // Other user data...
-        },
-      };
-
-      const sendEmailResponse = {
-        success: true,
-        status: httpStatus.OK,
-        // Other email response data...
-      };
-
-      const removeCandidateResponse = {
-        success: true,
-        // Other remove candidate response data...
-      };
-
-      // Set up the fake candidate model to simulate the candidate exists
-      fakeCandidateModel.exists.resolves(candidateExists);
-      fakeCandidateModel.find.resolves(candidateDetails);
-      fakeCandidateModel.remove.resolves(removeCandidateResponse);
-
-      // Set up the fake user model to simulate the user does not exist and user creation
-      fakeUserModel.exists.resolves(userExists);
-      fakeUserModel.register.resolves(createUserResponse);
-
-      // Set up the fake mailer to simulate successful email sending
-      fakeMailer.user.resolves(sendEmailResponse);
-
-      // Act
-      const result = await createCandidate.confirm(req);
-
-      // Assert
-      expect(fakeCandidateModel.exists.calledOnce).to.be.true;
-      expect(fakeCandidateModel.exists.firstCall.args[0]).to.deep.equal({
-        email: req.email,
-      });
-
-      expect(fakeUserModel.exists.calledOnce).to.be.true;
-      expect(fakeUserModel.exists.firstCall.args[0]).to.deep.equal({
-        email: req.email,
-      });
-
-      expect(fakeCandidateModel.find.calledOnce).to.be.true;
-      expect(fakeCandidateModel.find.firstCall.args[0]).to.deep.equal({
-        email: req.email,
-      });
-
-      expect(fakeUserModel.register.calledOnce).to.be.true;
-      expect(fakeUserModel.register.firstCall.args[0]).to.deep.equal(
-        requestBodyForUserCreation
-      );
-
-      expect(fakeMailer.user.calledOnce).to.be.true;
-      expect(fakeMailer.user.firstCall.args).to.deep.equal([
-        req.firstName,
-        req.lastName,
-        req.email,
-        password,
-        req.tenant,
-        "confirm",
       ]);
+      sandbox.stub(generateFilter.post).returns({});
+      sandbox.stub(mailer.rssFeedNotification).resolves({});
 
-      expect(fakeCandidateModel.remove.calledOnce).to.be.true;
-      expect(fakeCandidateModel.remove.firstCall.args[0]).to.deep.equal({
-        _id: candidateDetails[0]._id,
-      });
+      const result = await rssFeedUtil.generateFeed(blogId, request, next);
+
+      expect(result).to.have.property("success").that.is.true;
+      expect(result)
+        .to.have.property("message")
+        .that.equals("RSS feed generated successfully");
+      expect(result).to.have.property("data");
+      expect(result.data)
+        .to.have.property("url")
+        .that.equals(`http://${constants.HOST}/rss/feed`);
+      expect(result.data).to.have.property("items");
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("should call next with HttpError for bad request errors", async () => {
+      const blogId = "test-blog-id";
+      const request = {
+        query: { tenant: "test-tenant" },
+        body: {},
+      };
+      const next = sinon.spy();
+
+      sandbox.stub(PostModel.prototype.list).resolves([
+        {
+          /* mock post object */
+        },
+      ]);
+      sandbox.stub(generateFilter.post).returns({});
+      sandbox.stub(mailer.rssFeedNotification).resolves({});
+
+      const result = await rssFeedUtil.generateFeed(blogId, request, next);
+
+      expect(result.success).to.be.false;
+      expect(next).toHaveBeenCalled();
+      expect(next.args[0][0]).to.be.an.instanceOf(HttpError);
+      expect(next.args[0][1]).to.equal(httpStatus.BAD_REQUEST);
+    });
+
+    it("should call next with HttpError for internal server errors", async () => {
+      const blogId = "test-blog-id";
+      const request = {
+        query: { tenant: "test-tenant" },
+        body: {},
+      };
+      const next = sinon.spy();
+
+      sandbox
+        .stub(PostModel.prototype.list)
+        .rejects(new Error("Database error"));
+      sandbox.stub(generateFilter.post).returns({});
+      sandbox.stub(mailer.rssFeedNotification).resolves({});
+
+      await expect(
+        rssFeedUtil.generateFeed(blogId, request, next)
+      ).to.be.rejectedWith(HttpError);
+    });
+  });
+
+  describe("prepareFeedData", () => {
+    it("should prepare RSS feed items correctly", () => {
+      const posts = [
+        {
+          /* mock post object */
+        },
+      ];
+      const result = rssFeedUtil.prepareFeedData(posts);
+
+      expect(result).to.have.property("url");
+      expect(result.url).to.equal(`http://${constants.HOST}/rss/feed`);
+      expect(result.items).to.be.an("array");
+      expect(result.items.length).to.equal(1);
+      expect(result.items[0]).to.have.property("title");
+      expect(result.items[0]).to.have.property("link");
+      expect(result.items[0]).to.have.property("pubDate");
+      expect(result.items[0]).to.have.property("author");
+      expect(result.items[0]).to.have.property("content");
+    });
+  });
+
+  describe("extractErrorsFromRequest", () => {
+    it("should extract errors from request body", () => {
+      const request = {
+        body: { field1: "", field2: "" },
+      };
+
+      const result = rssFeedUtil.extractErrorsFromRequest(request);
 
       expect(result).to.deep.equal({
-        success: true,
-        message: "candidate successfully confirmed",
-        data: {
-          firstName: req.firstName,
-          lastName: req.lastName,
-          email: req.email,
-          userName: req.email,
-        },
-        status: httpStatus.OK,
+        field1: "Field is required",
+        field2: "Field is required",
       });
     });
 
-    // Add more tests for other scenarios...
-  });
-  describe("delete", () => {
-    let fakeCandidateModel;
-
-    beforeEach(() => {
-      // Create a fake candidate model
-      fakeCandidateModel = {
-        remove: () => {},
-      };
-    });
-
-    it("should remove a candidate", async () => {
-      // Arrange
+    it("should not extract errors for existing fields", () => {
       const request = {
-        query: {
-          tenant: "airqo",
-        },
-        // Other request data...
+        body: { field1: "value", field2: "" },
       };
 
-      const candidateId = "candidate_id_1";
+      const result = rssFeedUtil.extractErrorsFromRequest(request);
 
-      const responseFromFilter = {
-        success: true,
-        data: {
-          _id: candidateId,
-          // Other candidate filter data...
-        },
-      };
-
-      const removeCandidateResponse = {
-        success: true,
-        // Other remove candidate response data...
-      };
-
-      // Set up the fake candidate model to simulate successful removal
-      fakeCandidateModel.remove.resolves(removeCandidateResponse);
-
-      // Stub the `generateFilter.candidates` function to return the response with candidate filter
-      sinon.stub(generateFilter, "candidates").returns(responseFromFilter);
-
-      // Act
-      const result = await createCandidate.delete(request);
-
-      // Assert
-      expect(generateFilter.candidates.calledOnce).to.be.true;
-      expect(generateFilter.candidates.firstCall.args[0]).to.deep.equal(
-        request
-      );
-
-      expect(fakeCandidateModel.remove.calledOnce).to.be.true;
-      expect(fakeCandidateModel.remove.firstCall.args[0]).to.deep.equal({
-        filter: responseFromFilter.data,
-      });
-
-      expect(result).to.deep.equal(removeCandidateResponse);
+      expect(result).to.deep.equal({});
     });
-
-    // Add more tests for other scenarios...
   });
 });

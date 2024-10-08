@@ -278,6 +278,12 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    lastActive: { type: Date },
+    isOnline: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     count: { type: Number },
     country: {
       type: String,
@@ -454,6 +460,8 @@ siteSchema.methods = {
       images: this.images,
       share_links: this.share_links,
       city: this.city,
+      lastActive: this.lastActive,
+      isOnline: this.isOnline,
       street: this.street,
       county: this.county,
       altitude: this.altitude,
@@ -548,12 +556,13 @@ siteSchema.statics = {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.path ? filter.path : "none"
       );
 
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
+      if (!isEmpty(filter.path)) {
+        delete filter.path;
       }
+
       if (!isEmpty(filter.dashboard)) {
         delete filter.dashboard;
       }
@@ -625,12 +634,13 @@ siteSchema.statics = {
     try {
       const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.path ? filter.path : "none"
       );
 
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
+      if (!isEmpty(filter.path)) {
+        delete filter.path;
       }
+
       if (!isEmpty(filter.dashboard)) {
         delete filter.dashboard;
       }

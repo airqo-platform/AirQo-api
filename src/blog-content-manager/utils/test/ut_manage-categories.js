@@ -1,497 +1,370 @@
+// test-category-tag-util.js
 require("module-alias/register");
-const { expect } = require("chai");
+const chai = require("chai");
 const sinon = require("sinon");
+const expect = chai.expect;
+const mongoose = require("mongoose");
+const CategoryModel = require("@models/category");
+const TagModel = require("@models/tag");
+const PostModel = require("@models/post");
+const { logObject } = require("@utils/log");
 const httpStatus = require("http-status");
-const favorites = require("@utils/create-favorite");
-const { getModelByTenant } = require("@config/database");
-const FavoriteSchema = require("@models/Favorite");
-const UserSchema = require("@models/User");
-const generateFilter = require("@utils/generate-filter");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- manage-categories`
+);
 
-describe("favorites", () => {
-  describe("sample method", () => {
-    it("should return a success response", async () => {
-      const request = {
-        // Add any required request data here
-      };
+const categoryTagUtil = require("../path/to/categoryTagUtil"); // Adjust the path as needed
 
-      // Call the sample method
-      const result = await favorites.sample(request);
+describe("categoryTagUtil", () => {
+  let sandbox;
 
-      // Verify the response
-      expect(result.success).to.be.true;
-      // Add more assertions if needed
-    });
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
   });
-  describe("list method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should list favorites and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  describe("create", () => {
+    it("should create a new category successfully", async () => {
+      const mockBody = {
+        tenant: "testTenant",
+        name: "TestCategory",
       };
 
-      // Mock the response from the generateFilter.favorites function (success)
-      const mockGenerateFilterResponse = {
+      const mockResult = {
         success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
+        message: "Category created successfully",
+        data: { id: "newCategoryId" },
+        status: httpStatus.CREATED,
       };
-      sinon
-        .stub(generateFilter, "favorites")
-        .returns(mockGenerateFilterResponse);
 
-      // Mock the response from the FavoriteModel list method (success)
-      const mockListResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel list method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().resolves(mockListResponse),
-      });
+      sandbox.stub(CategoryModel.prototype.create).resolves(mockResult);
 
-      // Call the list method
-      const result = await favorites.list(request);
-
-      // Verify the response
+      const result = await categoryTagUtil.create(mockBody);
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockListResponse.data);
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data.id).to.equal(mockResult.data.id);
+      expect(result.status).to.equal(mockResult.status);
     });
 
-    it("should handle FavoriteModel list failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
+    it("should handle errors during creation", async () => {
+      const mockBody = {
+        tenant: "testTenant",
+        name: "",
       };
 
-      // Mock the response from the generateFilter.favorites function (success)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      });
-
-      // Mock the response from the FavoriteModel list method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().resolves({
-          success: false,
-          message: "Failed to list favorites",
-        }),
-      });
-
-      // Call the list method
-      const result = await favorites.list(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to list favorites");
-    });
-
-    it("should handle generateFilter.favorites failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
-
-      // Mock the response from the generateFilter.favorites function (failure)
-      sinon.stub(generateFilter, "favorites").returns({
+      const mockResult = {
         success: false,
-        message: "Invalid filter",
-      });
+        message: "Invalid name",
+      };
 
-      // Call the list method
-      const result = await favorites.list(request);
+      sandbox
+        .stub(CategoryModel.prototype.create)
+        .rejects(new Error(mockResult.message));
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
+      await expect(categoryTagUtil.create(mockBody)).to.be.rejectedWith(Error);
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
     });
   });
-  describe("delete method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should delete a favorite and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
+  describe("list", () => {
+    it("should return a list of categories", async () => {
+      const mockQuery = {
+        tenant: "testTenant",
+        limit: 10,
+        offset: 0,
       };
 
-      // Mock the response from the generateFilter.favorites function (success)
-      const mockGenerateFilterResponse = {
+      const mockResult = {
         success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
+        message: "Categories listed successfully",
+        data: [{ id: "categoryId1", name: "Category1" }],
+        total: 100,
+        status: httpStatus.OK,
       };
-      sinon
-        .stub(generateFilter, "favorites")
-        .returns(mockGenerateFilterResponse);
 
-      // Mock the response from the FavoriteModel remove method (success)
-      const mockRemoveResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel remove method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        remove: sinon.stub().resolves(mockRemoveResponse),
-      });
+      sandbox.stub(CategoryModel.prototype.list).resolves(mockResult);
 
-      // Call the delete method
-      const result = await favorites.delete(request);
-
-      // Verify the response
+      const result = await categoryTagUtil.list(mockQuery);
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockRemoveResponse.data);
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data[0].id).to.equal(mockResult.data[0].id);
+      expect(result.total).to.equal(mockResult.total);
+      expect(result.status).to.equal(mockResult.status);
     });
 
-    it("should handle FavoriteModel remove failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
+    it("should handle errors during listing", async () => {
+      const mockQuery = {
+        tenant: "testTenant",
+        limit: 10,
+        offset: 0,
       };
 
-      // Mock the response from the generateFilter.favorites function (success)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      });
-
-      // Mock the response from the FavoriteModel remove method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        remove: sinon.stub().resolves({
-          success: false,
-          message: "Failed to remove favorite",
-        }),
-      });
-
-      // Call the delete method
-      const result = await favorites.delete(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to remove favorite");
-    });
-
-    it("should handle generateFilter.favorites failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-      };
-
-      // Mock the response from the generateFilter.favorites function (failure)
-      sinon.stub(generateFilter, "favorites").returns({
+      const mockResult = {
         success: false,
-        message: "Invalid filter",
-      });
+        message: "Internal Server Error",
+      };
 
-      // Call the delete method
-      const result = await favorites.delete(request);
+      sandbox
+        .stub(CategoryModel.prototype.list)
+        .rejects(new Error(mockResult.message));
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
+      await expect(categoryTagUtil.list(mockQuery)).to.be.rejectedWith(Error);
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
     });
   });
-  describe("update method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should update a favorite and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample update data for the favorite
-        },
-      };
-
-      // Mock the response from the generateFilter.favorites function (success)
-      const mockGenerateFilterResponse = {
+  describe("update", () => {
+    it("should update a category successfully", async () => {
+      const mockId = "categoryId";
+      const mockBody = { name: "Updated Category" };
+      const mockResult = {
         success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
+        message: "Category updated successfully",
+        data: { id: mockId },
+        status: httpStatus.OK,
       };
-      sinon
-        .stub(generateFilter, "favorites")
-        .returns(mockGenerateFilterResponse);
 
-      // Mock the response from the FavoriteModel modify method (success)
-      const mockModifyResponse = {
-        success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel modify method
-        },
-      };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        modify: sinon.stub().resolves(mockModifyResponse),
-      });
+      sandbox.stub(CategoryModel.prototype.update).resolves(mockResult);
 
-      // Call the update method
-      const result = await favorites.update(request);
-
-      // Verify the response
+      const result = await categoryTagUtil.update(mockId, mockBody);
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockModifyResponse.data);
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data.id).to.equal(mockResult.data.id);
+      expect(result.status).to.equal(mockResult.status);
     });
 
-    it("should handle FavoriteModel modify failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample update data for the favorite
-        },
-      };
+    it("should handle errors during updating", async () => {
+      const mockId = "categoryId";
+      const mockBody = { invalidField: "" };
 
-      // Mock the response from the generateFilter.favorites function (success)
-      sinon.stub(generateFilter, "favorites").returns({
-        success: true,
-        data: {
-          // Sample filter object returned by the generateFilter.favorites function
-        },
-      });
-
-      // Mock the response from the FavoriteModel modify method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        modify: sinon.stub().resolves({
-          success: false,
-          message: "Failed to update favorite",
-        }),
-      });
-
-      // Call the update method
-      const result = await favorites.update(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to update favorite");
-    });
-
-    it("should handle generateFilter.favorites failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample update data for the favorite
-        },
-      };
-
-      // Mock the response from the generateFilter.favorites function (failure)
-      sinon.stub(generateFilter, "favorites").returns({
+      const mockResult = {
         success: false,
-        message: "Invalid filter",
-      });
+        message: "Invalid field",
+      };
 
-      // Call the update method
-      const result = await favorites.update(request);
+      sandbox
+        .stub(CategoryModel.prototype.update)
+        .rejects(new Error(mockResult.message));
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Invalid filter");
+      await expect(categoryTagUtil.update(mockId, mockBody)).to.be.rejectedWith(
+        Error
+      );
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
     });
   });
-  describe("create method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should create a favorite and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample data for creating a new favorite
-        },
-      };
+  describe("delete", () => {
+    it("should delete a category successfully", async () => {
+      const mockId = "categoryId";
 
-      // Mock the response from the FavoriteModel register method (success)
-      const mockRegisterResponse = {
+      const mockResult = {
         success: true,
-        data: {
-          // Sample data object returned by the FavoriteModel register method
-        },
+        message: "Category deleted successfully",
+        status: httpStatus.NO_CONTENT,
       };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        register: sinon.stub().resolves(mockRegisterResponse),
-      });
 
-      // Call the create method
-      const result = await favorites.create(request);
+      sandbox.stub(CategoryModel.prototype.remove).resolves(mockResult);
 
-      // Verify the response
+      const result = await categoryTagUtil.delete(mockId);
       expect(result.success).to.be.true;
-      expect(result.data).to.deep.equal(mockRegisterResponse.data);
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.status).to.equal(mockResult.status);
     });
 
-    it("should handle FavoriteModel register failure and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample data for creating a new favorite
-        },
+    it("should handle errors during deletion", async () => {
+      const mockId = "categoryId";
+
+      const mockResult = {
+        success: false,
+        message: "Category not found",
       };
 
-      // Mock the response from the FavoriteModel register method (failure)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        register: sinon.stub().resolves({
-          success: false,
-          message: "Failed to create favorite",
-        }),
-      });
+      sandbox
+        .stub(CategoryModel.prototype.remove)
+        .rejects(new Error(mockResult.message));
 
-      // Call the create method
-      const result = await favorites.create(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Failed to create favorite");
-    });
-
-    it("should handle errors during create and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          // Sample data for creating a new favorite
-        },
-      };
-
-      // Mock the response from the FavoriteModel register method (throws error)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        register: sinon.stub().throws(new Error("Database connection error")),
-      });
-
-      // Call the create method
-      const result = await favorites.create(request);
-
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
-      expect(result.errors.message).to.equal("Database connection error");
+      await expect(categoryTagUtil.delete(mockId)).to.be.rejectedWith(Error);
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
     });
   });
-  describe("syncFavorites method", () => {
-    beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
-      sinon.restore();
-    });
 
-    it("should sync favorites and send success response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          favorite_places: [
-            // Sample data for favorite_places array
-          ],
-        },
-        params: {
-          firebase_user_id: "sample_user_id",
-        },
-      };
-
-      // Mock the response from FavoriteModel list method (success)
-      const mockListResponse = {
+  describe("assign", () => {
+    it("should assign views to a post", async () => {
+      const mockPostId = "postId";
+      const mockBody = { tenant: "testTenant" };
+      const mockResult = {
         success: true,
-        data: [
-          // Sample data for unsynced_favorite_places array
-        ],
+        message: "Views assigned successfully",
+        data: { id: mockPostId },
+        status: httpStatus.OK,
       };
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().resolves(mockListResponse),
-        remove: sinon.stub().resolves({
-          success: true,
-          message: "Favorite removed successfully",
-        }),
-        register: sinon.stub().resolves({
-          success: true,
-          message: "Favorite created successfully",
-        }),
-      });
 
-      // Call the syncFavorites method
-      const result = await favorites.syncFavorites(request);
+      sandbox.stub(PostModel.prototype.incrementViews).resolves(mockResult);
 
-      // Verify the response
+      const result = await categoryTagUtil.assign(mockPostId, mockBody);
       expect(result.success).to.be.true;
-      expect(result.message).to.equal("Favorites Synchronized");
-      // Add more assertions as needed for the data and status
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data.id).to.equal(mockResult.data.id);
+      expect(result.status).to.equal(mockResult.status);
     });
 
-    it("should handle errors during sync and return failure response", async () => {
-      const tenant = "sample_tenant";
-      const request = {
-        query: {
-          tenant,
-        },
-        body: {
-          favorite_places: [
-            // Sample data for favorite_places array
-          ],
-        },
-        params: {
-          firebase_user_id: "sample_user_id",
-        },
+    it("should handle errors during assignment", async () => {
+      const mockPostId = "postId";
+      const mockBody = { invalidField: "" };
+
+      const mockResult = {
+        success: false,
+        message: "Invalid field",
       };
 
-      // Mock the response from FavoriteModel list method (throws error)
-      sinon.stub(favorites, "FavoriteModel").returns({
-        list: sinon.stub().throws(new Error("Database connection error")),
-      });
+      sandbox
+        .stub(PostModel.prototype.incrementViews)
+        .rejects(new Error(mockResult.message));
 
-      // Call the syncFavorites method
-      const result = await favorites.syncFavorites(request);
+      await expect(
+        categoryTagUtil.assign(mockPostId, mockBody)
+      ).to.be.rejectedWith(Error);
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
+    });
+  });
 
-      // Verify the response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Internal Server Error");
-      expect(result.errors.message).to.equal("Database connection error");
+  // test-category-tag-util.js (continued)
+
+  describe("posts", () => {
+    it("should list posts for a category", async () => {
+      const mockCategoryId = "categoryId";
+      const mockQuery = { limit: 10, offset: 0 };
+      const mockResult = {
+        success: true,
+        message: "Posts listed successfully",
+        data: [{ id: "postId1", title: "Post1" }],
+        total: 100,
+        status: httpStatus.OK,
+      };
+
+      sandbox.stub(PostModel.prototype.list).resolves(mockResult);
+
+      const result = await categoryTagUtil.posts(mockCategoryId, mockQuery);
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data[0].id).to.equal(mockResult.data[0].id);
+      expect(result.total).to.equal(mockResult.total);
+      expect(result.status).to.equal(mockResult.status);
+    });
+
+    it("should handle errors during post listing", async () => {
+      const mockCategoryId = "categoryId";
+      const mockQuery = { invalidField: "" };
+
+      const mockResult = {
+        success: false,
+        message: "Invalid query",
+      };
+
+      sandbox
+        .stub(PostModel.prototype.list)
+        .rejects(new Error(mockResult.message));
+
+      await expect(
+        categoryTagUtil.posts(mockCategoryId, mockQuery)
+      ).to.be.rejectedWith(Error);
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
+    });
+  });
+
+  describe("browseCategories", () => {
+    it("should browse categories successfully", async () => {
+      const mockResult = {
+        success: true,
+        message: "Categories browsed successfully",
+        data: [{ id: "categoryId1", name: "Category1" }],
+        status: httpStatus.OK,
+      };
+
+      sandbox.stub(CategoryModel.prototype.getHierarchy).resolves(mockResult);
+
+      const result = await categoryTagUtil.browseCategories({});
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data[0].id).to.equal(mockResult.data[0].id);
+      expect(result.status).to.equal(mockResult.status);
+    });
+
+    it("should handle errors during browsing categories", async () => {
+      const mockResult = {
+        success: false,
+        message: "Internal Server Error",
+      };
+
+      sandbox
+        .stub(CategoryModel.prototype.getHierarchy)
+        .rejects(new Error(mockResult.message));
+
+      await expect(categoryTagUtil.browseCategories({})).to.be.rejectedWith(
+        Error
+      );
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
+    });
+  });
+
+  describe("browseTags", () => {
+    it("should browse tags successfully", async () => {
+      const mockQuery = { limit: 10, offset: 0 };
+      const mockResult = {
+        success: true,
+        message: "Tags browsed successfully",
+        data: [{ id: "tagId1", name: "Tag1" }],
+        total: 100,
+        status: httpStatus.OK,
+      };
+
+      sandbox.stub(TagModel.prototype.list).resolves(mockResult);
+
+      const result = await categoryTagUtil.browseTags(mockQuery);
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal(mockResult.message);
+      expect(result.data[0].id).to.equal(mockResult.data[0].id);
+      expect(result.total).to.equal(mockResult.total);
+      expect(result.status).to.equal(mockResult.status);
+    });
+
+    it("should handle errors during browsing tags", async () => {
+      const mockQuery = { invalidField: "" };
+
+      const mockResult = {
+        success: false,
+        message: "Invalid query",
+      };
+
+      sandbox
+        .stub(TagModel.prototype.list)
+        .rejects(new Error(mockResult.message));
+
+      await expect(categoryTagUtil.browseTags(mockQuery)).to.be.rejectedWith(
+        Error
+      );
+      expect(logger.error).to.have.been.calledWith(
+        `🐛🐛 Internal Server Error ${mockResult.message}`
+      );
     });
   });
 });
