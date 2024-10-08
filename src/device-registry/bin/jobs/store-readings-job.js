@@ -6,7 +6,7 @@ const logger = log4js.getLogger(
 const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const { logText, logObject } = require("@utils/log");
-const jsonify = require("@utils/jsonify");
+const stringify = require("@utils/stringify");
 const asyncRetry = require("async-retry");
 const generateFilter = require("@utils/generate-filter");
 const cron = require("node-cron");
@@ -67,7 +67,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
               } catch (error) {
                 if (error.name === "MongoError" && error.code !== 11000) {
                   logger.error(
-                    `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                    `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
                       error
                     )}`
                   );
@@ -75,7 +75,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                 } else if (error.code === 11000) {
                   // Ignore duplicate key errors
                   console.warn(
-                    `Duplicate key error for document: ${jsonify(doc)}`
+                    `Duplicate key error for document: ${stringify(doc)}`
                   );
                 }
               }
@@ -97,7 +97,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       );
 
       logger.error(
-        `🐛🐛 Unable to retrieve Events to insert into Readings -- ${jsonify(
+        `🐛🐛 Unable to retrieve Events to insert into Readings -- ${stringify(
           viewEventsResponse
         )}`
       );
