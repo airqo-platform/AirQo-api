@@ -52,7 +52,9 @@ def train_forecasting_models():
 
     @task()
     def train_and_save_hourly_forecast_model(train_data):
-        return ForecastUtils.train_and_save_forecast_models(train_data, frequency="hourly")
+        return ForecastUtils.train_and_save_forecast_models(
+            train_data, frequency="hourly"
+        )
 
     # Daily forecast tasks
     @task()
@@ -113,5 +115,3 @@ def train_forecasting_models():
 
 
 train_forecasting_models()
-
-

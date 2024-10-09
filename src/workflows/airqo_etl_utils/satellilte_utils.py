@@ -5,41 +5,80 @@ class SatelliteMLUtils:
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
         required_columns = {
-            'site_latitude', 'site_longitude', 'city', 'country', 'hour',
-            'sulphurdioxide_so2_column_number_density', 'sulphurdioxide_so2_column_number_density_amf',
-            'sulphurdioxide_so2_slant_column_number_density', 'sulphurdioxide_cloud_fraction',
-            'sulphurdioxide_sensor_azimuth_angle', 'sulphurdioxide_sensor_zenith_angle',
-            'sulphurdioxide_solar_azimuth_angle', 'sulphurdioxide_solar_zenith_angle',
-            'sulphurdioxide_so2_column_number_density_15km', 'month', 'carbonmonoxide_co_column_number_density',
-            'carbonmonoxide_h2o_column_number_density', 'carbonmonoxide_cloud_height', 'carbonmonoxide_sensor_altitude',
-            'carbonmonoxide_sensor_azimuth_angle', 'carbonmonoxide_sensor_zenith_angle',
-            'carbonmonoxide_solar_azimuth_angle',
-            'carbonmonoxide_solar_zenith_angle', 'nitrogendioxide_no2_column_number_density',
-            'nitrogendioxide_tropospheric_no2_column_number_density',
-            'nitrogendioxide_stratospheric_no2_column_number_density',
-            'nitrogendioxide_no2_slant_column_number_density', 'nitrogendioxide_tropopause_pressure',
-            'nitrogendioxide_absorbing_aerosol_index', 'nitrogendioxide_cloud_fraction',
-            'nitrogendioxide_sensor_altitude',
-            'nitrogendioxide_sensor_azimuth_angle', 'nitrogendioxide_sensor_zenith_angle',
-            'nitrogendioxide_solar_azimuth_angle'
-            , 'nitrogendioxide_solar_zenith_angle', 'formaldehyde_tropospheric_hcho_column_number_density',
-            'formaldehyde_tropospheric_hcho_column_number_density_amf', 'formaldehyde_hcho_slant_column_number_density',
-            'formaldehyde_cloud_fraction', 'formaldehyde_solar_zenith_angle', 'formaldehyde_solar_azimuth_angle',
-            'formaldehyde_sensor_zenith_angle', 'formaldehyde_sensor_azimuth_angle',
-            'uvaerosolindex_absorbing_aerosol_index',
-            'uvaerosolindex_sensor_altitude', 'uvaerosolindex_sensor_azimuth_angle',
-            'uvaerosolindex_sensor_zenith_angle'
-            , 'uvaerosolindex_solar_azimuth_angle', 'uvaerosolindex_solar_zenith_angle',
-            'ozone_o3_column_number_density',
-            'ozone_o3_column_number_density_amf', 'ozone_o3_slant_column_number_density',
-            'ozone_o3_effective_temperature',
-            'ozone_cloud_fraction', 'ozone_sensor_azimuth_angle', 'ozone_sensor_zenith_angle',
-            'ozone_solar_azimuth_angle',
-            'ozone_solar_zenith_angle,cloud_cloud_fraction', 'cloud_cloud_top_pressure', 'cloud_cloud_top_height',
-            'cloud_cloud_base_pressure', 'cloud_cloud_base_height', 'cloud_cloud_optical_depth', 'cloud_surface_albedo'
-            , 'cloud_sensor_azimuth_angle', 'cloud_sensor_zenith_angle', 'cloud_solar_azimuth_angle',
-            'cloud_solar_zenith_angle',
-            'DayOfYear', 'DayOfWeek', 'Day', 'pm2_5', 'ID', "date"
+            "site_latitude",
+            "site_longitude",
+            "city",
+            "country",
+            "hour",
+            "sulphurdioxide_so2_column_number_density",
+            "sulphurdioxide_so2_column_number_density_amf",
+            "sulphurdioxide_so2_slant_column_number_density",
+            "sulphurdioxide_cloud_fraction",
+            "sulphurdioxide_sensor_azimuth_angle",
+            "sulphurdioxide_sensor_zenith_angle",
+            "sulphurdioxide_solar_azimuth_angle",
+            "sulphurdioxide_solar_zenith_angle",
+            "sulphurdioxide_so2_column_number_density_15km",
+            "month",
+            "carbonmonoxide_co_column_number_density",
+            "carbonmonoxide_h2o_column_number_density",
+            "carbonmonoxide_cloud_height",
+            "carbonmonoxide_sensor_altitude",
+            "carbonmonoxide_sensor_azimuth_angle",
+            "carbonmonoxide_sensor_zenith_angle",
+            "carbonmonoxide_solar_azimuth_angle",
+            "carbonmonoxide_solar_zenith_angle",
+            "nitrogendioxide_no2_column_number_density",
+            "nitrogendioxide_tropospheric_no2_column_number_density",
+            "nitrogendioxide_stratospheric_no2_column_number_density",
+            "nitrogendioxide_no2_slant_column_number_density",
+            "nitrogendioxide_tropopause_pressure",
+            "nitrogendioxide_absorbing_aerosol_index",
+            "nitrogendioxide_cloud_fraction",
+            "nitrogendioxide_sensor_altitude",
+            "nitrogendioxide_sensor_azimuth_angle",
+            "nitrogendioxide_sensor_zenith_angle",
+            "nitrogendioxide_solar_azimuth_angle",
+            "nitrogendioxide_solar_zenith_angle",
+            "formaldehyde_tropospheric_hcho_column_number_density",
+            "formaldehyde_tropospheric_hcho_column_number_density_amf",
+            "formaldehyde_hcho_slant_column_number_density",
+            "formaldehyde_cloud_fraction",
+            "formaldehyde_solar_zenith_angle",
+            "formaldehyde_solar_azimuth_angle",
+            "formaldehyde_sensor_zenith_angle",
+            "formaldehyde_sensor_azimuth_angle",
+            "uvaerosolindex_absorbing_aerosol_index",
+            "uvaerosolindex_sensor_altitude",
+            "uvaerosolindex_sensor_azimuth_angle",
+            "uvaerosolindex_sensor_zenith_angle",
+            "uvaerosolindex_solar_azimuth_angle",
+            "uvaerosolindex_solar_zenith_angle",
+            "ozone_o3_column_number_density",
+            "ozone_o3_column_number_density_amf",
+            "ozone_o3_slant_column_number_density",
+            "ozone_o3_effective_temperature",
+            "ozone_cloud_fraction",
+            "ozone_sensor_azimuth_angle",
+            "ozone_sensor_zenith_angle",
+            "ozone_solar_azimuth_angle",
+            "ozone_solar_zenith_angle,cloud_cloud_fraction",
+            "cloud_cloud_top_pressure",
+            "cloud_cloud_top_height",
+            "cloud_cloud_base_pressure",
+            "cloud_cloud_base_height",
+            "cloud_cloud_optical_depth",
+            "cloud_surface_albedo",
+            "cloud_sensor_azimuth_angle",
+            "cloud_sensor_zenith_angle",
+            "cloud_solar_azimuth_angle",
+            "cloud_solar_zenith_angle",
+            "DayOfYear",
+            "DayOfWeek",
+            "Day",
+            "pm2_5",
+            "ID",
+            "date",
         }
         if not required_columns.issubset(data.columns):
             missing_columns = required_columns.difference(data.columns)
@@ -53,9 +92,7 @@ class SatelliteMLUtils:
                 "datetime conversion error, please provide timestamp in valid format"
             )
         group_columns = (
-            ["ID"] + additional_columns
-            if job_type == "prediction"
-            else ["ID"]
+            ["ID"] + additional_columns if job_type == "prediction" else ["ID"]
         )
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
@@ -72,7 +109,6 @@ class SatelliteMLUtils:
         )
         data = data.dropna(subset=["pm2_5"])
         return data
-
 
     @staticmethod
     def train_and_save_forecast_models(training_data, frequency):

@@ -60,8 +60,8 @@ class BigQueryApi:
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
-            self,
-            day: datetime,
+        self,
+        day: datetime,
     ) -> pd.DataFrame:
         query = (
             f" SELECT `{self.hourly_measurements_table}`.pm2_5_calibrated_value , "
@@ -87,8 +87,8 @@ class BigQueryApi:
         return dataframe
 
     def save_devices_summary_data(
-            self,
-            data: pd.DataFrame,
+        self,
+        data: pd.DataFrame,
     ):
         schema = [
             bigquery.SchemaField("device", "STRING"),
@@ -110,13 +110,13 @@ class BigQueryApi:
         job.result()
 
     def validate_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            raise_exception=True,
-            date_time_columns=None,
-            float_columns=None,
-            integer_columns=None,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        raise_exception=True,
+        date_time_columns=None,
+        float_columns=None,
+        integer_columns=None,
     ) -> pd.DataFrame:
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
@@ -162,9 +162,9 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def get_columns(
-            self,
-            table: str = "all",
-            column_type: List[ColumnDataType] = [ColumnDataType.NONE],
+        self,
+        table: str = "all",
+        column_type: List[ColumnDataType] = [ColumnDataType.NONE],
     ) -> List[str]:
         """
         Retrieves a list of columns that match a schema of a given table and or match data type as well. The schemas should match the tables in bigquery.
@@ -212,7 +212,7 @@ class BigQueryApi:
                     column["name"]
                     for column in schema
                     if ColumnDataType.NONE in column_type
-                       or column["type"] in column_type_strings
+                    or column["type"] in column_type_strings
                 ]
             )
         )
@@ -220,10 +220,10 @@ class BigQueryApi:
         return columns
 
     def load_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            job_action: JobAction = JobAction.APPEND,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        job_action: JobAction = JobAction.APPEND,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -387,10 +387,10 @@ class BigQueryApi:
         )
 
     def update_sites_and_devices(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            component: str,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        component: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -465,9 +465,9 @@ class BigQueryApi:
         )
 
     def update_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -504,15 +504,15 @@ class BigQueryApi:
         )
 
     def compose_query(
-            self,
-            query_type: QueryType,
-            table: str,
-            start_date_time: str,
-            end_date_time: str,
-            tenant: Tenant,
-            where_fields: dict = None,
-            null_cols: list = None,
-            columns: list = None,
+        self,
+        query_type: QueryType,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: Tenant,
+        where_fields: dict = None,
+        null_cols: list = None,
+        columns: list = None,
     ) -> str:
         """
         Composes a SQL query for BigQuery based on the query type (GET or DELETE),
@@ -578,14 +578,14 @@ class BigQueryApi:
         return query
 
     def reload_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            tenant: Tenant = Tenant.ALL,
-            start_date_time: str = None,
-            end_date_time: str = None,
-            where_fields: dict = None,
-            null_cols: list = None,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        tenant: Tenant = Tenant.ALL,
+        start_date_time: str = None,
+        end_date_time: str = None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> None:
         if start_date_time is None or end_date_time is None:
             data = dataframe.copy()
@@ -608,16 +608,16 @@ class BigQueryApi:
         self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
-            self,
-            start_date_time: str,
-            end_date_time: str,
-            table: str,
-            tenant: Tenant,
-            dynamic_query: bool = False,
-            columns: list = None,
-            where_fields: dict = None,
-            null_cols: list = None,
-            time_granularity: str = "HOUR",
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        table: str,
+        tenant: Tenant,
+        dynamic_query: bool = False,
+        columns: list = None,
+        where_fields: dict = None,
+        null_cols: list = None,
+        time_granularity: str = "HOUR",
     ) -> pd.DataFrame:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
@@ -662,13 +662,13 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def dynamic_averaging_query(
-            self,
-            table: str,
-            start_date_time: str,
-            end_date_time: str,
-            exclude_columns: list = None,
-            group_by: list = None,
-            time_granularity: str = "HOUR",
+        self,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        exclude_columns: list = None,
+        group_by: list = None,
+        time_granularity: str = "HOUR",
     ) -> str:
         """
         Constructs a dynamic SQL query to select and average numeric columns, allowing exclusions,
@@ -807,9 +807,9 @@ class BigQueryApi:
 
     #
     def fetch_device_data_for_forecast_job(
-            self,
-            start_date_time: str,
-            job_type: str,
+        self,
+        start_date_time: str,
+        job_type: str,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
@@ -846,9 +846,9 @@ class BigQueryApi:
             print("Error fetching data from bigquery", {e})
 
     def fetch_device_data_for_satellite_job(
-            self,
-            start_date_time: str,
-            job_type: str,
+        self,
+        start_date_time: str,
+        job_type: str,
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
@@ -889,8 +889,11 @@ ORDER BY
         except Exception as e:
             print("Error fetching data from bigquery", {e})
 
-    def fetch_satellite_readings(self, job_type: str, start_date_time: str = " ", ) -> pd.DataFrame:
-
+    def fetch_satellite_readings(
+        self,
+        job_type: str,
+        start_date_time: str = " ",
+    ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
         except ValueError:
@@ -905,7 +908,7 @@ ORDER BY
             WHERE date(timestamp) >= '{start_date_time}' 
             """
 
-        query += "ORDER BY timestamp"""
+        query += "ORDER BY timestamp" ""
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
@@ -917,7 +920,6 @@ ORDER BY
 
     @staticmethod
     def save_data_to_bigquery(data: pd.DataFrame, table: str):
-
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             configuration.GOOGLE_APPLICATION_CREDENTIALS

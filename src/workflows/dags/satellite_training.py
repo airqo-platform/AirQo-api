@@ -40,21 +40,25 @@ def train_satelllite_model():
         return BigQueryApi().fetch_device_data_for_satellite_job(start_date, "train")
 
     @task()
-    def merge_datasets(ground_data: pd.DataFrame, satellite_data: pd.DataFrame) -> pd.DataFrame:
-        ground_data['timestamp'] = pd.to_datetime(ground_data['timestamp'])
-        satellite_data['timestamp'] = pd.to_datetime(satellite_data['timestamp'])
+    def merge_datasets(
+        ground_data: pd.DataFrame, satellite_data: pd.DataFrame
+    ) -> pd.DataFrame:
+        ground_data["timestamp"] = pd.to_datetime(ground_data["timestamp"])
+        satellite_data["timestamp"] = pd.to_datetime(satellite_data["timestamp"])
 
-        ground_data['city'] = ground_data['city'].str.lower()
-        satellite_data['city'] = satellite_data['city'].str.lower()
-        return ground_data.merge(satellite_data, on=['timestamp', 'city'], how='left')
+        ground_data["city"] = ground_data["city"].str.lower()
+        satellite_data["city"] = satellite_data["city"].str.lower()
+        return ground_data.merge(satellite_data, on=["timestamp", "city"], how="left")
 
     @task()
     def time_related_features(data):
-        return SatelliteUtils.get_time_features(data, 'daily')
+        return SatelliteUtils.get_time_features(data, "daily")
 
     @task()
     def lag_features_extraction(data, frequency):
-        return SatelliteUtils.lag_features(data, frequency=frequency, target_col='pm2_5')
+        return SatelliteUtils.lag_features(
+            data, frequency=frequency, target_col="pm2_5"
+        )
 
     @task()
     def train_and_save_model(train_data):
@@ -64,7 +68,7 @@ def train_satelllite_model():
     gm_data = fetch_historical_ground_monitor_data()
     merged_data = merge_datasets(gm_data, st_data)
     time_data = time_related_features(merged_data)
-    lag_data = lag_features_extraction(time_data, 'daily')
+    lag_data = lag_features_extraction(time_data, "daily")
     train_and_save_model(lag_data)
 
 

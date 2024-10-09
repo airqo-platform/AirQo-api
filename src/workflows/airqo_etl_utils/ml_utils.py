@@ -23,6 +23,7 @@ pd.options.mode.chained_assignment = None
 
 ### This module contains utility functions for ML jobs.
 
+
 class GCSUtils:
     """Utility class for saving and retrieving models from GCS"""
 
@@ -37,7 +38,7 @@ class GCSUtils:
 
     @staticmethod
     def upload_trained_model_to_gcs(
-            trained_model, project_name, bucket_name, source_blob_name
+        trained_model, project_name, bucket_name, source_blob_name
     ):
         fs = gcsfs.GCSFileSystem(project=project_name)
         try:
@@ -103,9 +104,9 @@ class BaseMlUtils:
             raise ValueError("Empty dataframe provided")
 
         if (
-                target_col not in df.columns
-                or "timestamp" not in df.columns
-                or "device_id" not in df.columns
+            target_col not in df.columns
+            or "timestamp" not in df.columns
+            or "device_id" not in df.columns
         ):
             raise ValueError("Required columns missing")
 
@@ -162,7 +163,7 @@ class BaseMlUtils:
             raise ValueError("Invalid frequency")
 
         df1 = df.copy()
-        df1['timestamp'] = pd.to_datetime(df1['timestamp'])
+        df1["timestamp"] = pd.to_datetime(df1["timestamp"])
         attributes = ["year", "month", "day", "dayofweek"]
         if freq == "hourly":
             attributes.append("hour")
@@ -444,10 +445,10 @@ class ForecastUtils(BaseMlUtils):
         # data["margin_of_error"] = data["adjusted_forecast"] = 0
 
         def get_forecasts(
-                df_tmp,
-                forecast_model,
-                frequency,
-                horizon,
+            df_tmp,
+            forecast_model,
+            frequency,
+            horizon,
         ):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
             for i in range(int(horizon)):
@@ -472,8 +473,8 @@ class ForecastUtils(BaseMlUtils):
 
                 elif frequency == "hourly":
                     df_tmp.iloc[-1, df_tmp.columns.get_loc("timestamp")] = df_tmp.iloc[
-                                                                               -2, df_tmp.columns.get_loc("timestamp")
-                                                                           ] + pd.Timedelta(hours=1)
+                        -2, df_tmp.columns.get_loc("timestamp")
+                    ] + pd.Timedelta(hours=1)
 
                     # lag features
                     shifts1 = [1, 2, 6, 12]
@@ -544,7 +545,7 @@ class ForecastUtils(BaseMlUtils):
                 #     + df_tmp.loc[df_tmp.index[-1], "margin_of_error"]
                 # )
 
-            return df_tmp.iloc[-int(horizon):, :]
+            return df_tmp.iloc[-int(horizon) :, :]
 
         forecasts = pd.DataFrame()
         forecast_model = GCSUtils.get_trained_model_from_gcs(
@@ -678,7 +679,7 @@ class FaultDetectionUtils(BaseMlUtils):
             result = pd.concat([result, temp], ignore_index=True)
         result = result[
             (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
-            ]
+        ]
         return result
 
     @staticmethod
@@ -709,8 +710,8 @@ class FaultDetectionUtils(BaseMlUtils):
 
         anomaly_percentage = pd.DataFrame(
             (
-                    df[df["anomaly_value"] == -1].groupby("device_id").size()
-                    / df.groupby("device_id").size()
+                df[df["anomaly_value"] == -1].groupby("device_id").size()
+                / df.groupby("device_id").size()
             )
             * 100,
             columns=["anomaly_percentage"],
@@ -718,13 +719,13 @@ class FaultDetectionUtils(BaseMlUtils):
 
         return anomaly_percentage[
             anomaly_percentage["anomaly_percentage"] > 45
-            ].reset_index(level=0)
+        ].reset_index(level=0)
 
     @staticmethod
     def process_faulty_devices_fault_sequence(df: pd.DataFrame):
         df["group"] = (df["anomaly_value"] != df["anomaly_value"].shift(1)).cumsum()
         df["anomaly_sequence_length"] = (
-                df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
+            df[df["anomaly_value"] == -1].groupby(["device_id", "group"]).cumcount() + 1
         )
         df["anomaly_sequence_length"].fillna(0, inplace=True)
         device_max_anomaly_sequence = (
@@ -732,7 +733,7 @@ class FaultDetectionUtils(BaseMlUtils):
         )
         faulty_devices_df = device_max_anomaly_sequence[
             device_max_anomaly_sequence["anomaly_sequence_length"] >= 80
-            ]
+        ]
         faulty_devices_df.columns = ["device_id", "fault_count"]
 
         return faulty_devices_df
@@ -768,7 +769,7 @@ class FaultDetectionUtils(BaseMlUtils):
 
 class SatelliteUtils(BaseMlUtils):
     @staticmethod
-    def encode(data: pd.DataFrame, encoder: str = 'LabelEncoder') -> pd.DataFrame:
+    def encode(data: pd.DataFrame, encoder: str = "LabelEncoder") -> pd.DataFrame:
         """
         applies encoding for the city and country features
 
@@ -778,28 +779,34 @@ class SatelliteUtils(BaseMlUtils):
         Return: returns a dataframe after applying the encoding
         """
 
-        if not 'city' in data.columns:
-            raise ValueError('data frame does not contain city or country column')
+        if not "city" in data.columns:
+            raise ValueError("data frame does not contain city or country column")
 
-        if encoder == 'LabelEncoder':
+        if encoder == "LabelEncoder":
             le = LabelEncoder()
-            for column in ['city']:
+            for column in ["city"]:
                 data[column] = le.fit_transform(data[column])
-        elif encoder == 'OneHotEncoder':
+        elif encoder == "OneHotEncoder":
             ohe = OneHotEncoder(sparse=False)
-            for column in ['city']:
+            for column in ["city"]:
                 encoded_data = ohe.fit_transform(data[[column]])
-                encoded_columns = [f"{column}_{i}" for i in range(encoded_data.shape[1])]
+                encoded_columns = [
+                    f"{column}_{i}" for i in range(encoded_data.shape[1])
+                ]
                 encoded_df = pd.DataFrame(encoded_data, columns=encoded_columns)
                 data = pd.concat([data, encoded_df], axis=1)
                 data = data.drop(column, axis=1)
         else:
-            raise ValueError("Invalid encoder. Please choose 'LabelEncoder' or 'OneHotEncoder'.")
+            raise ValueError(
+                "Invalid encoder. Please choose 'LabelEncoder' or 'OneHotEncoder'."
+            )
 
         return data
 
     @staticmethod
-    def lag_features(data: pd.DataFrame, frequency: str, target_col: str) -> pd.DataFrame:
+    def lag_features(
+        data: pd.DataFrame, frequency: str, target_col: str
+    ) -> pd.DataFrame:
         """appends lags to specific feature in the data frame.
 
         Keyword arguments:
@@ -812,7 +819,7 @@ class SatelliteUtils(BaseMlUtils):
 
         Return: returns a dataframe after applying the transformation
         """
-        data['timestamp'] = pd.to_datetime(data['timestamp'])
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
         if frequency == "hourly":
             shifts = [1, 2, 6, 12]
             time_unit = "hour"
@@ -820,18 +827,22 @@ class SatelliteUtils(BaseMlUtils):
             shifts = [1, 2, 3, 7]
             time_unit = "day"
         else:
-            raise ValueError('freq must be daily or hourly')
+            raise ValueError("freq must be daily or hourly")
         for s in shifts:
-            data[f"pm2_5_last_{s}_{time_unit}"] = data.groupby(["city"])[target_col].shift(s)
+            data[f"pm2_5_last_{s}_{time_unit}"] = data.groupby(["city"])[
+                target_col
+            ].shift(s)
         return data
 
     @staticmethod
     def train_satellite_model(data):
-        data = data[data['pm2_5'] < 200]
-        data.drop(columns = ["timestamp", "city", "device_id"], inplace = True)
-        model = LGBMRegressor(random_state=42, n_estimators=200, max_depth=10, objective='mse')
+        data = data[data["pm2_5"] < 200]
+        data.drop(columns=["timestamp", "city", "device_id"], inplace=True)
+        model = LGBMRegressor(
+            random_state=42, n_estimators=200, max_depth=10, objective="mse"
+        )
 
-        model.fit(data.drop(columns='pm2_5'), data['pm2_5'])
+        model.fit(data.drop(columns="pm2_5"), data["pm2_5"])
 
         # TODO: add mlflow stuff after cluster issues handled
 
