@@ -102,8 +102,8 @@ async function processDocument(doc) {
 
     // Update Reading
     const filter = { site_id: doc.site_id, time: docTime.toDate() };
-    const updateDoc = { ...doc, time: docTime.toDate() };
-    delete updateDoc._id;
+    const { _id, ...docWithoutId } = doc;
+    const updateDoc = { ...docWithoutId, time: docTime.toDate() };
     await ReadingModel("airqo").updateOne(filter, updateDoc, {
       upsert: true,
     });
@@ -190,16 +190,27 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
         async (bail) => {
           try {
             // Process each document in the current batch
-            for (const doc of batch) {
-              if (doc.device_id) activeDeviceIds.add(doc.device_id);
-              if (doc.site_id) activeSiteIds.add(doc.site_id);
-              await processDocument(doc); // Call processDocument directly
-            }
+            await Promise.all(
+              batch.map(async (doc) => {
+                if (doc.device_id) activeDeviceIds.add(doc.device_id);
+                if (doc.site_id) activeSiteIds.add(doc.site_id);
+                await processDocument(doc);
+              })
+            );
           } catch (error) {
-            logger.error(`🐛🐛 Error processing batch: ${error.message}`);
-            // Use bail() if the error is not recoverable
-            if (error.isFatal) {
-              bail(error);
+            logObject("the error inside processing of batches", error);
+            if (error.name === "MongoError" && error.code !== 11000) {
+              logger.error(
+                `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
+                  error
+                )}`
+              );
+              throw error; // Retry the operation
+            } else if (error.code === 11000) {
+              // Ignore duplicate key errors
+              console.warn(
+                `🙀🙀 Duplicate key error for document: ${stringify(doc)}`
+              );
             }
           }
         },
