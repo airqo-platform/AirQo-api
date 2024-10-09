@@ -36,7 +36,7 @@ This Code of Conduct applies both within project spaces and in public spaces whe
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at [your-email@example.com]. All complaints will be reviewed and investigated promptly and fairly. All project members are obligated to respect the privacy and security of the reporter of any incident.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at support@airqo.net. All complaints will be reviewed and investigated promptly and fairly. All project members are obligated to respect the privacy and security of the reporter of any incident.
 
 ## Attribution
 
