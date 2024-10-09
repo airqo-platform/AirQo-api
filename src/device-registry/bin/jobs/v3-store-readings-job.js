@@ -27,33 +27,28 @@ function logDocumentDetails(doc) {
     `🙀🙀 Measurement missing some key details: { time: ${time}, device_id: ${deviceId}, device: ${device}, site_id: ${siteId}, site: ${site}}`
   );
 }
-function isEntityActive(entity, time) {
-  const inactiveThreshold = INACTIVE_THRESHOLD;
 
-  if (!entity || !entity.lastActive) {
-    return false;
-  }
-  const currentTime = moment()
-    .tz(TIMEZONE)
-    .toDate();
-  const measurementTime = moment(time)
-    .tz(TIMEZONE)
-    .toDate();
-  return currentTime - measurementTime < inactiveThreshold;
-}
 async function updateEntityStatus(Model, filter, time, entityType) {
   try {
-    const entity = await Model.findOne(filter);
-    if (entity) {
-      const isActive = isEntityActive(entity, time);
-      const updateData = {
-        lastActive: moment(time)
-          .tz(TIMEZONE)
-          .toDate(),
-        isOnline: isActive,
-      };
-      const updateResult = await Model.updateOne(filter, updateData);
-    } else {
+    const currentTime = moment()
+      .tz(TIMEZONE)
+      .toDate();
+    const updateData = {
+      lastActive: currentTime,
+      isOnline:
+        currentTime -
+          moment(time)
+            .tz(TIMEZONE)
+            .toDate() <
+        INACTIVE_THRESHOLD,
+    };
+
+    const result = await Model.findOneAndUpdate(filter, updateData, {
+      new: true,
+      upsert: false,
+    });
+
+    if (!result) {
       logger.warn(
         `🙀🙀 ${entityType} not found with filter: ${stringify(filter)}`
       );
@@ -97,16 +92,19 @@ async function processDocument(doc) {
       logDocumentDetails(doc);
     }
 
-    // Wait for both updates to complete
-    await Promise.all(updatePromises);
-
     // Update Reading
     const filter = { site_id: doc.site_id, time: docTime.toDate() };
     const { _id, ...docWithoutId } = doc;
     const updateDoc = { ...docWithoutId, time: docTime.toDate() };
-    await ReadingModel("airqo").updateOne(filter, updateDoc, {
-      upsert: true,
-    });
+
+    updatePromises.push(
+      ReadingModel("airqo").updateOne(filter, updateDoc, { upsert: true })
+    );
+    try {
+      await Promise.all(updatePromises);
+    } catch (error) {
+      logger.error(`🐛🐛 Error processing document: ${error.message}`);
+    }
   } catch (error) {
     logger.error(`🐛🐛 Error processing document: ${error.message}`);
   }
@@ -120,39 +118,46 @@ const fetchAllData = async (
 ) => {
   const allData = [];
   let page = 0;
+  let hasMoreData = true;
 
-  while (true) {
-    let response;
+  while (hasMoreData) {
+    try {
+      let response;
 
-    if (isEventModel) {
-      response = await Model("airqo").fetch({
-        ...filter,
-        limit: pageSize,
-        skip: page * pageSize,
-      });
+      if (isEventModel) {
+        response = await Model("airqo").fetch({
+          ...filter,
+          limit: pageSize,
+          skip: page * pageSize,
+        });
 
-      // Check if the response is successful and contains data
-      if (
-        !response.success ||
-        !response.data ||
-        response.data.length === 0 ||
-        response.data[0].data.length === 0
-      ) {
-        break; // Exit loop if no more data
+        if (
+          !response.success ||
+          !response.data ||
+          response.data.length === 0 ||
+          response.data[0].data.length === 0
+        ) {
+          hasMoreData = false;
+        } else {
+          allData.push(...response.data[0].data);
+        }
+      } else {
+        const entities = await Model("airqo")
+          .find(filter, projection)
+          .limit(pageSize)
+          .skip(page * pageSize);
+
+        if (entities.length === 0) {
+          hasMoreData = false;
+        } else {
+          allData.push(...entities);
+        }
       }
 
-      allData.push(...response.data[0].data);
-    } else {
-      const entities = await Model("airqo")
-        .find(filter, projection)
-        .limit(pageSize)
-        .skip(page * pageSize);
-
-      if (entities.length === 0) break; // Exit if no more data
-      allData.push(...entities);
+      page++;
+    } catch (error) {
+      logger.error(`Error fetching data: ${error.message}`);
     }
-
-    page++;
   }
 
   return allData;
