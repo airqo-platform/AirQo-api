@@ -103,7 +103,3 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-This version maintains a professional tone while providing clear instructions for setting up and running the Device Registry microservice. Let me know if you need any further adjustments!
