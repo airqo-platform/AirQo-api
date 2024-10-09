@@ -8,7 +8,7 @@ Thank you for considering contributing to the Device Registry microservice! We a
 
 Start by forking the repository on GitHub:
 
-1. Navigate to the [Device Registry repository](https://github.com/airqo-platform/AirQo-api).
+1. Navigate to the [AirQo API repository](https://github.com/airqo-platform/AirQo-api).
 2. Click on the **Fork** button at the top right corner of the page.
 
 ### 2. Clone Your Fork
@@ -21,7 +21,15 @@ git clone https://github.com/your-username/AirQo-api.git
 
 Replace `your-username` with your GitHub username.
 
-### 3. Create a New Branch
+### 3. Navigate to the Microservice Directory
+
+Before proceeding with any contributions, navigate to the Device Registry microservice directory:
+
+```bash
+cd AirQo-api/src/device-registry
+```
+
+### 4. Create a New Branch
 
 Before making any changes, create a new branch:
 
@@ -29,11 +37,11 @@ Before making any changes, create a new branch:
 git checkout -b feature/your-feature-name
 ```
 
-### 4. Make Your Changes
+### 5. Make Your Changes
 
 Make your changes in the codebase. Ensure that you follow the project's coding style and conventions.
 
-### 5. Run Tests
+### 6. Run Tests
 
 Make sure to run tests to verify that your changes do not break any existing functionality:
 
@@ -41,7 +49,7 @@ Make sure to run tests to verify that your changes do not break any existing fun
 npm test
 ```
 
-### 6. Commit Your Changes
+### 7. Commit Your Changes
 
 Commit your changes with a clear and descriptive commit message:
 
@@ -49,7 +57,7 @@ Commit your changes with a clear and descriptive commit message:
 git commit -m "Add feature: description of your feature"
 ```
 
-### 7. Push Your Changes
+### 8. Push Your Changes
 
 Push your changes back to your forked repository:
 
@@ -57,7 +65,7 @@ Push your changes back to your forked repository:
 git push origin feature/your-feature-name
 ```
 
-### 8. Create a Pull Request
+### 9. Create a Pull Request
 
 Navigate to the original repository where you want to submit your changes. Click on **Pull Requests**, then click on **New Pull Request**. Select your branch and submit the pull request.
 
