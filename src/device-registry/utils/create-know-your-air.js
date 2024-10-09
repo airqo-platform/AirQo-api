@@ -38,9 +38,12 @@ const createKnowYourAir = {
   listLesson: async (request, next) => {
     try {
       const { query, params } = request;
-      const { tenant, limit, skip, language } = query;
+      const { tenant, limit, skip, language, path } = query;
       const { user_id } = params;
       const filter = generateFilter.kyalessons(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       logObject("filter", filter);
       const responseFromListLessons = await KnowYourAirLessonModel(tenant).list(
@@ -275,9 +278,12 @@ const createKnowYourAir = {
   listUserLessonProgress: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
 
       const filter = generateFilter.kyaprogress(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
       logObject("filter", filter);
 
       const responseFromListUserLessonProgress = await KnowYourAirUserLessonProgressModel(
@@ -497,9 +503,12 @@ const createKnowYourAir = {
   listTask: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
 
       const filter = generateFilter.kyatasks(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListKyaTask = await KnowYourAirTaskModel(tenant).list(
         {
@@ -927,9 +936,12 @@ const createKnowYourAir = {
   listQuiz: async (request, next) => {
     try {
       const { query, params } = request;
-      const { tenant, limit, skip, language } = query;
+      const { tenant, limit, skip, language, path } = query;
       const { user_id } = params;
       const filter = generateFilter.kyaquizzes(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
       logObject("filter", filter);
       const responseFromListQuizzes = await KnowYourAirQuizModel(tenant).list(
         {
@@ -1061,9 +1073,12 @@ const createKnowYourAir = {
   listUserQuizProgress: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
 
       const filter = generateFilter.kyaprogress(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListUserQuizProgress = await KnowYourAirUserQuizProgressModel(
         tenant
@@ -1278,9 +1293,12 @@ const createKnowYourAir = {
   listQuestions: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
 
       const filter = generateFilter.kyaquestions(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListKyaQuestion = await KnowYourAirQuestionModel(
         tenant
@@ -1403,9 +1421,12 @@ const createKnowYourAir = {
   listAnswers: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
 
       const filter = generateFilter.kyaquestions(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListKyaAnswer = await KnowYourAirAnswerModel(
         tenant

@@ -2,7 +2,7 @@ const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/kafka-consumer script`
+  `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer script`
 );
 const { logObject } = require("@utils/log");
 const mailer = require("@utils/mailer");
@@ -11,13 +11,55 @@ const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
+const UserModel = require("@models/User");
 const stringify = require("@utils/stringify");
 const rangeCheck = require("ip-range-check");
 const asyncRetry = require("async-retry");
+const mongoose = require("mongoose");
+const isEmpty = require("is-empty");
+const ObjectId = mongoose.Types.ObjectId;
 
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
 }).unknown(true);
+
+const extractDeviceDetails = (updatedDevice) => {
+  const {
+    _id,
+    status,
+    category,
+    isActive,
+    long_name,
+    device_number,
+    name,
+    deployment_date,
+    latitude,
+    longitude,
+    mountType,
+    powerType,
+  } = updatedDevice;
+
+  return {
+    status,
+    category,
+    _id,
+    isActive,
+    long_name,
+    device_number,
+    name,
+    deployment_date,
+    latitude,
+    longitude,
+    mountType,
+    powerType,
+  };
+};
+
+const extractActivityDetails = (createdActivity) => {
+  return {
+    ...createdActivity, // Spread operator to include all properties directly
+  };
+};
 
 const operationForNewMobileAppUser = async (messageData) => {
   try {
@@ -46,7 +88,9 @@ const operationForNewMobileAppUser = async (messageData) => {
       logObject("error.details[0]", error.details[0]);
       logObject("error.details", error.details);
       logger.error(
-        `KAFKA: ALL the input validation errors --- ${stringify(error.details)}`
+        `🤦🤦 KAFKA: ALL the input validation errors --- ${stringify(
+          error.details
+        )}`
       );
     } else {
       const responseFromSendEmail = await mailer.newMobileAppUser(
@@ -61,7 +105,7 @@ const operationForNewMobileAppUser = async (messageData) => {
         );
       } else if (responseFromSendEmail.success === false) {
         logger.error(
-          `KAFKA: unable to send email for new Mobile App User --- ${stringify(
+          `🐛🐛 KAFKA: unable to send email for new Mobile App User --- ${stringify(
             responseFromSendEmail
           )}`
         );
@@ -177,7 +221,111 @@ const operationForBlacklistedIPs = async (messageData) => {
   }
 };
 
-const operationFunction2 = async (messageData) => {};
+const emailsForDeployedDevices = async (messageData) => {
+  let parsedData;
+  try {
+    parsedData = JSON.parse(messageData);
+  } catch (error) {
+    logger.error("🐛🐛 Invalid JSON format in messageData.");
+    return;
+  }
+
+  const { createdActivity, updatedDevice, user_id } = parsedData;
+
+  // Validate input data
+  if (!createdActivity || !updatedDevice || !user_id) {
+    logger.error(
+      `🤦🤦 Invalid input data: Missing required fields -- parsedData: ${stringify(
+        parsedData
+      )}`
+    );
+    return;
+  }
+
+  if (!ObjectId.isValid(user_id)) {
+    logger.error(`🤦🤦 Invalid user_id format: ${user_id}`);
+    return;
+  }
+
+  try {
+    const user = await UserModel("airqo")
+      .findOne({ _id: ObjectId(user_id) }, "email _id firstName lastName")
+      .lean();
+
+    // Check if user exists
+    if (!user) {
+      logger.error(`🤦🤦 User not found for user_id: ${user_id}`);
+      return;
+    }
+
+    const emailResponse = await mailer.fieldActivity({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      deviceDetails: extractDeviceDetails(updatedDevice),
+      activityDetails: extractActivityDetails(createdActivity),
+      activityType: "deploy",
+    });
+
+    // Handle email response
+    if (emailResponse && emailResponse.success === false) {
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`);
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+  }
+};
+
+const emailsForRecalledDevices = async (messageData) => {
+  // Parse the message and validate input data
+  let parsedData;
+  try {
+    parsedData = JSON.parse(messageData);
+  } catch (error) {
+    logger.error("🐛🐛 Invalid JSON format in messageData.");
+    return;
+  }
+
+  const { createdActivity, updatedDevice, user_id } = parsedData;
+
+  if (!createdActivity || !updatedDevice || !user_id) {
+    logger.error("🤦🤦 Invalid input data: Missing required fields.");
+    return;
+  }
+
+  if (!ObjectId.isValid(user_id)) {
+    logger.error(`🤦🤦 Invalid user_id format: ${user_id}`);
+    return;
+  }
+
+  try {
+    const user = await UserModel("airqo")
+      .findOne({ _id: ObjectId(user_id) }, "email _id firstName lastName")
+      .lean();
+
+    // Check if user exists
+    if (!user) {
+      logger.error(`🤦🤦 User not found for user_id: ${user_id}`);
+      return;
+    }
+
+    const emailResponse = await mailer.fieldActivity({
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      deviceDetails: extractDeviceDetails(updatedDevice),
+      activityDetails: extractActivityDetails(createdActivity),
+      activityType: "recall",
+    });
+
+    // Handle email response
+    if (emailResponse && emailResponse.success === false) {
+      logger.error(`🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`);
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+  }
+};
 
 const kafkaConsumer = async () => {
   try {
@@ -196,7 +344,8 @@ const kafkaConsumer = async () => {
     const topicOperations = {
       // ["new-mobile-app-user-topic"]: operationForNewMobileAppUser,
       ["ip-address"]: operationForBlacklistedIPs,
-      // topic2: operationFunction2,
+      ["deploy-topic"]: emailsForDeployedDevices,
+      ["recall-topic"]: emailsForRecalledDevices,
     };
     await consumer.connect();
     // Subscribe to all topics in the mapping
@@ -211,7 +360,7 @@ const kafkaConsumer = async () => {
                 const messageData = message.value.toString();
                 await operation(messageData);
               } else {
-                logger.error(`No operation defined for topic: ${topic}`);
+                logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
               }
             } catch (error) {
               logger.error(

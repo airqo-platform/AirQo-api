@@ -21,8 +21,11 @@ const createHealthTips = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
       const filter = generateFilter.tips(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
       const language = request.query.language;
       let translatedHealthTips;
 

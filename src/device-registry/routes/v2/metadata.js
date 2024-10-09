@@ -42,7 +42,7 @@ const validatePagination = (req, res, next) => {
 };
 
 const addCategoryQueryParam = (req, res, next) => {
-  req.query.category = "public";
+  req.query.path = "public";
   next();
 };
 

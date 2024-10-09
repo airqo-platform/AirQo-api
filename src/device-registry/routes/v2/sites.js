@@ -150,6 +150,28 @@ router.get(
         .withMessage(
           "the online_status value is not among the expected ones which include: online, offline"
         ),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("site_category")
+        .optional()
+        .notEmpty()
+        .withMessage("the site_category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["category", "search_radius", "tags"])
+        .withMessage(
+          "the site_category value is not among the expected ones which include: category, search_radius, tags"
+        ),
       query("last_active_before")
         .optional()
         .notEmpty()
@@ -239,6 +261,28 @@ router.get(
         .isIn(["online", "offline"])
         .withMessage(
           "the online_status value is not among the expected ones which include: online, offline"
+        ),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, gas and bam"
+        ),
+      query("site_category")
+        .optional()
+        .notEmpty()
+        .withMessage("the site_category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["category", "search_radius", "tags"])
+        .withMessage(
+          "the site_category value is not among the expected ones which include: category, search_radius, tags"
         ),
       query("last_active_before")
         .optional()

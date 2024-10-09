@@ -1,14 +1,14 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/new-store-readings-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/new-store-readings-job`
 );
 const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
 const { logText, logObject } = require("@utils/log");
-const jsonify = require("@utils/jsonify");
+const stringify = require("@utils/stringify");
 const asyncRetry = require("async-retry");
 const generateFilter = require("@utils/generate-filter");
 const cron = require("node-cron");
@@ -55,7 +55,7 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       };
       const updateResult = await Model.updateOne(filter, updateData);
     } else {
-      logger.warn(`${entityType} not found with filter: ${jsonify(filter)}`);
+      logger.warn(`${entityType} not found with filter: ${stringify(filter)}`);
     }
   } catch (error) {
     logger.error(`Error updating ${entityType}'s status: ${error.message}`);
@@ -129,13 +129,13 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       viewEventsResponse = await EventModel("airqo").fetch(filter);
       logText("Running the data insertion script");
     } catch (fetchError) {
-      logger.error(`Error fetching events: ${jsonify(fetchError)}`);
+      logger.error(`Error fetching events: ${stringify(fetchError)}`);
       return;
     }
 
     if (!viewEventsResponse || typeof viewEventsResponse !== "object") {
       logger.error(
-        `Unexpected response from EventModel.fetch(): ${jsonify(
+        `Unexpected response from EventModel.fetch(): ${stringify(
           viewEventsResponse
         )}`
       );
@@ -175,7 +175,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                   logObject("the error inside processing of batches", error);
                   if (error.name === "MongoError" && error.code !== 11000) {
                     logger.error(
-                      `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${jsonify(
+                      `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
                         error
                       )}`
                     );
@@ -183,7 +183,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                   } else if (error.code === 11000) {
                     // Ignore duplicate key errors
                     console.warn(
-                      `Duplicate key error for document: ${jsonify(doc)}`
+                      `Duplicate key error for document: ${stringify(doc)}`
                     );
                   }
                 }
@@ -204,7 +204,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
         viewEventsResponse
       );
       logger.error(
-        `🐛🐛 Unable to retrieve Events to insert into Readings -- ${jsonify(
+        `🐛🐛 Unable to retrieve Events to insert into Readings -- ${stringify(
           viewEventsResponse
         )}`
       );
@@ -212,7 +212,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
     }
   } catch (error) {
     logObject("error", error);
-    logger.error(`🐛🐛 Internal Server Error ${jsonify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error ${stringify(error)}`);
   }
 };
 

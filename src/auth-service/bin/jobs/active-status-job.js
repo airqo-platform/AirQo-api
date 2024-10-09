@@ -4,7 +4,7 @@ const constants = require("@config/constants");
 const inactiveThreshold = constants.INACTIVE_THRESHOLD || 2592000000; // 30 days
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/active-status-job script`
+  `${constants.ENVIRONMENT} -- bin/jobs/active-status-job script`
 );
 const stringify = require("@utils/stringify");
 

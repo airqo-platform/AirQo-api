@@ -1,85 +1,82 @@
 require("module-alias/register");
-const { expect } = require("chai");
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
+const { expect } = require("chai");
+const log4js = require("log4js");
+const kafkaConsumer = require("@bin/jobs/kafka-consumer");
+const createServer = require("@bin/server");
+const constants = require("@config/constants");
+const log4jsConfiguration = require("@config/log4js");
 
-// Import the functions to be tested
-// const kafkaConsumer = require("@bin/kafka-consumer");
-// const createServer = require("@bin/server");
-const main = require("@bin/index");
-
-const kafkaConsumer = proxyquire("@bin/kafka-consumer", {
-  // Replace the original module with a mock version
-  myModule: {
-    fetchData: () => {
-      // Mock implementation without relying on environmental variables
-      return "Mocked Data";
-    },
-  },
-});
-
-const createServer = proxyquire("@bin/server", {
-  // Replace the original module with a mock version
-  myModule: {
-    fetchData: () => {
-      // Mock implementation without relying on environmental variables
-      return "Mocked Data";
-    },
-  },
-});
-
-describe("Main Function", () => {
+describe("Application Initialization", () => {
+  let loggerStub;
   let kafkaConsumerStub;
   let createServerStub;
 
   beforeEach(() => {
-    kafkaConsumerStub = sinon.stub(kafkaConsumer);
+    // Stub the logger methods
+    loggerStub = sinon.stub(log4js.getLogger(), "error");
+
+    // Stub kafkaConsumer and createServer
+    kafkaConsumerStub = sinon.stub(kafkaConsumer, "default").resolves();
     createServerStub = sinon.stub(createServer);
+
+    // Configure log4js for testing
+    log4js.configure(log4jsConfiguration);
   });
 
   afterEach(() => {
+    // Restore all stubs
     sinon.restore();
   });
 
-  it("should call kafkaConsumer and createServer functions", async () => {
-    try {
-      // Call the main function
-      await main();
+  it("should start the Kafka consumer and create the server", async () => {
+    await main(); // Call the main function
 
-      // Check if the kafkaConsumer and createServer functions are called
-      expect(kafkaConsumerStub.calledOnce).to.be.true;
-      expect(createServerStub.calledOnce).to.be.true;
-    } catch (error) {
-      throw error;
-    }
+    expect(kafkaConsumerStub.calledOnce).to.be.true; // Check if kafkaConsumer was called
+    expect(createServerStub.calledOnce).to.be.true; // Check if createServer was called
   });
 
-  it("should catch and log errors if main function throws an error", async () => {
-    const errorToThrow = new Error("Test error");
-    const consoleErrorSpy = sinon.spy(console, "error");
+  it("should log an error if starting Kafka fails", async () => {
+    const errorMessage = "Kafka connection error";
+    kafkaConsumerStub.rejects(new Error(errorMessage)); // Simulate an error from kafkaConsumer
 
-    // Stub the main function to throw an error
-    sinon.stub(main, "kafkaConsumer").throws(errorToThrow);
+    await main(); // Call the main function
 
-    try {
-      // Call the main function
-      await main();
-
-      // Check if the error is caught and logged
-      expect(
-        consoleErrorSpy.calledOnceWithExactly(
-          "Error starting the application: ",
-          errorToThrow
-        )
-      ).to.be.true;
-    } catch (error) {
-      throw error;
-    } finally {
-      // Restore the stubs and spies
-      sinon.restore();
-      consoleErrorSpy.restore();
-    }
+    expect(
+      loggerStub.calledWithMatch(
+        sinon.match.string,
+        sinon.match({ message: errorMessage })
+      )
+    ).to.be.true;
   });
 
-  // Add more test cases as needed
+  it("should log an error if creating the server fails", async () => {
+    const errorMessage = "Server creation error";
+    kafkaConsumerStub.resolves(); // Ensure kafkaConsumer resolves
+    createServerStub.throws(new Error(errorMessage)); // Simulate an error from createServer
+
+    await main(); // Call the main function
+
+    expect(
+      loggerStub.calledWithMatch(
+        sinon.match.string,
+        sinon.match({ message: errorMessage })
+      )
+    ).to.be.true;
+  });
+
+  it("should handle errors thrown during application startup", async () => {
+    const startupError = new Error("Startup error");
+
+    // Simulate an error during startup
+    sinon.stub(console, "error"); // Stub console.error to suppress output during tests
+    await main().catch(() => {});
+
+    expect(
+      loggerStub.calledWithMatch(
+        sinon.match.string,
+        sinon.match({ message: startupError.message })
+      )
+    ).to.be.true;
+  });
 });

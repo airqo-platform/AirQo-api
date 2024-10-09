@@ -323,6 +323,51 @@ module.exports = {
 
     return constants.EMAIL_BODY({ email, content, name });
   },
+  field_activity: ({
+    firstName = "",
+    lastName = "",
+    activityDetails = {},
+    deviceDetails = {},
+    email = "",
+    activityType = "recall", // New parameter to determine activity type
+  }) => {
+    // Create a list of activity details
+    let activityDetailsList = Object.entries(activityDetails)
+      .map(([key, value]) => `<li>${key}: "${value}"</li>`)
+      .join("\n");
+
+    // Create a list of device details
+    let deviceDetailsList = Object.entries(deviceDetails)
+      .map(([key, value]) => `<li>${key}: "${value}"</li>`)
+      .join("\n");
+
+    const actionMessage =
+      activityType === "recall"
+        ? "A device has been recalled in your AirQo system."
+        : "A device has been deployed in your AirQo system.";
+
+    const content = `
+        <tr>
+            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                ${actionMessage}
+                <br />
+                <strong>Here are the details:</strong>
+                <br />
+                <strong>Activity Details:</strong>
+                <ol>${activityDetailsList}</ol>
+                <strong>Device Details:</strong>
+                <ol>${deviceDetailsList}</ol>
+                <br />
+                If you have any questions or concerns regarding this action, please contact your organization's administrator.
+                <br />
+                Access AirQo Analytics here: ${constants.LOGIN_PAGE}
+                <br /><br />
+            </td>
+        </tr>`;
+
+    const name = `${firstName} ${lastName}`;
+    return constants.EMAIL_BODY({ email, content, name });
+  },
   token_compromised: ({
     firstName = "",
     lastName = "",

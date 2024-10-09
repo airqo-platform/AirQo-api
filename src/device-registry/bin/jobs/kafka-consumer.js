@@ -2,7 +2,7 @@ const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/kafka-consumer`
+  `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer`
 );
 const { logObject } = require("@utils/log");
 const createEvent = require("@utils/create-event");
@@ -10,7 +10,7 @@ const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
-const jsonify = require("@utils/jsonify");
+const stringify = require("@utils/stringify");
 
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
@@ -68,7 +68,7 @@ const consumeHourlyMeasurements = async (messageData) => {
   try {
     if (isEmpty(messageData)) {
       logger.error(
-        `KAFKA: the sent message in undefined --- ${jsonify(messageData)}`
+        `KAFKA: the sent message in undefined --- ${stringify(messageData)}`
       );
     }
     const repairedJSONString = jsonrepair(messageData);
@@ -78,7 +78,7 @@ const consumeHourlyMeasurements = async (messageData) => {
     // const measurements = JSON.parse(repairedJSONString);
     if (!Array.isArray(measurements) || isEmpty(measurements)) {
       // logger.error(
-      //   `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${jsonify(
+      //   `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${stringify(
       //     measurements
       //   )}`
       // );
@@ -122,17 +122,17 @@ const consumeHourlyMeasurements = async (messageData) => {
           // };
         });
         // logger.error(
-        //   `KAFKA: Input validation formatted errors -- ${jsonify(
+        //   `KAFKA: Input validation formatted errors -- ${stringify(
         //     errorDetails
         //   )}`
         // );
 
         // logger.error(
-        //     `KAFKA: ALL the input validation errors --- ${jsonify(error.details)}`
+        //     `KAFKA: ALL the input validation errors --- ${stringify(error.details)}`
         // );
 
         // logger.info(
-        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${jsonify(value)}`
+        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${stringify(value)}`
         // );
       }
       // logObject("value", value);
@@ -150,14 +150,14 @@ const consumeHourlyMeasurements = async (messageData) => {
       if (responseFromInsertMeasurements.success === false) {
         console.log("KAFKA: failed to store the measurements");
         // logger.error(
-        //   `KAFKA: responseFromInsertMeasurements --- ${jsonify(
+        //   `KAFKA: responseFromInsertMeasurements --- ${stringify(
         //     responseFromInsertMeasurements
         //   )}`
         // );
       } else if (responseFromInsertMeasurements.success === true) {
         console.log("KAFKA: successfully stored the measurements");
         // logger.info(
-        //     `KAFKA: successfully inserted the measurements --- ${jsonify(responseFromInsertMeasurements.message ?
+        //     `KAFKA: successfully inserted the measurements --- ${stringify(responseFromInsertMeasurements.message ?
         //     responseFromInsertMeasurements.message :
         //     "")}`
         // );
@@ -172,7 +172,7 @@ const consumeHourlyMeasurements = async (messageData) => {
       `ℹ️ℹ️ incoming KAFKA value's TYPE which is causing errors --- ${typeof message.value}`
     );
     logger.error(`🐛🐛 KAFKA: error message --- ${error.message}`);
-    logger.error(`🐛🐛 KAFKA: full error object --- ${jsonify(error)}`);
+    logger.error(`🐛🐛 KAFKA: full error object --- ${stringify(error)}`);
   }
 };
 
@@ -212,7 +212,7 @@ const kafkaConsumer = async () => {
               }
             } catch (error) {
               logger.error(
-                `🐛🐛 Error processing Kafka message for topic ${topic}: ${jsonify(
+                `🐛🐛 Error processing Kafka message for topic ${topic}: ${stringify(
                   error
                 )}`
               );
@@ -223,7 +223,7 @@ const kafkaConsumer = async () => {
     );
   } catch (error) {
     logObject("Error connecting to Kafka", error);
-    logger.error(`📶📶 Error connecting to Kafka: ${jsonify(error)}`);
+    logger.error(`📶📶 Error connecting to Kafka: ${stringify(error)}`);
   }
 };
 
