@@ -856,17 +856,29 @@ class BigQueryApi:
             raise ValueError(f"Invalid start date time: {start_date_time}")
 
         query = f"""
-        SELECT
-        t1.timestamp, t1.site_id, t1.pm2_5_calibrated_value, t2.city
-        FROM `{self.hourly_measurements_table_prod}` as t1
-        INNER
-        JOIN
-        `{self.sites_table}` as t2
-        on
-        t1.site_id = t2.id
-        WHERE
-        timestamp > {start_date_time} and t2.city in (
-        'kampala', "Nairobi", "Kisumu", "Lagos", "Accra", "Bujumbura", "Yaounde")
+SELECT DISTINCT 
+    TIMESTAMP_TRUNC(t1.timestamp, DAY) as timestamp,
+    t2.city,
+    t1.device_id,
+    t2.latitude,
+    t2.longitude,
+    AVG(t1.pm2_5_calibrated_value) as pm2_5
+FROM {self.hourly_measurements_table_prod} as t1 
+INNER JOIN {self.sites_table} as t2 
+    ON t1.site_id = t2.id 
+WHERE 
+    t1.timestamp > '{start_date_time}' 
+    AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
+    AND t1.device_id IS NOT NULL
+GROUP BY 
+    timestamp,
+    t1.device_id,
+    t2.city,
+    t2.latitude,
+    t2.longitude
+ORDER BY 
+    t1.device_id,
+    timestamp;
         """
 
         job_config = bigquery.QueryJobConfig()
@@ -885,9 +897,10 @@ class BigQueryApi:
             raise ValueError(f"Invalid start date time: {start_date_time}")
 
         query = f"""
-        SELECT DISTINCT * FROM `{self.satellite_measurements_table}`
+        SELECT DISTINCT * FROM `{self.satellite_data_table}`
         """
-        if job_type != "train":
+
+        if job_type == "train":
             query += f"""
             WHERE date(timestamp) >= '{start_date_time}' 
             """

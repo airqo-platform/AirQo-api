@@ -22,8 +22,8 @@ def train_satelllite_model():
     def fetch_historical_satellite_data():
         from datetime import datetime, timedelta, timezone
 
-        start_date = datetime.now(timezone.utc) - timedelta(
-            hours=int(configuration.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
+        start_date = datetime.now(timezone.utc) - relativedelta(
+            months=int(configuration.SATELLITE_TRAINING_SCOPE)
         )
         from airqo_etl_utils.date import date_to_str
 
@@ -34,21 +34,19 @@ def train_satelllite_model():
     def fetch_historical_ground_monitor_data():
         current_date = datetime.today()
         start_date = current_date - relativedelta(
-            months=int(configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE)
+            months=int(configuration.SATELLITE_TRAINING_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_satellite_job(start_date, "train")
-        # resample data on daily basis using mean
 
     @task()
     def merge_datasets(ground_data: pd.DataFrame, satellite_data: pd.DataFrame) -> pd.DataFrame:
-        ground_data = ground_data.groupby('site_id').resample("D", on='timestamp').mean(numeric_only=True)
-        ground_data.reset_index(inplace=True)
-        return satellite_data.merge(ground_data, on='timestamp')
+        ground_data['timestamp'] = pd.to_datetime(ground_data['timestamp'])
+        satellite_data['timestamp'] = pd.to_datetime(satellite_data['timestamp'])
 
-    @task()
-    def label_encoding(data):
-        return SatelliteUtils.encode(data, 'LabelEncoder')
+        ground_data['city'] = ground_data['city'].str.lower()
+        satellite_data['city'] = satellite_data['city'].str.lower()
+        return ground_data.merge(satellite_data, on=['timestamp', 'city'], how='left')
 
     @task()
     def time_related_features(data):
@@ -65,8 +63,7 @@ def train_satelllite_model():
     st_data = fetch_historical_satellite_data()
     gm_data = fetch_historical_ground_monitor_data()
     merged_data = merge_datasets(gm_data, st_data)
-    encoded_data = label_encoding(merged_data)
-    time_data = time_related_features(encoded_data)
+    time_data = time_related_features(merged_data)
     lag_data = lag_features_extraction(time_data, 'daily')
     train_and_save_model(lag_data)
 

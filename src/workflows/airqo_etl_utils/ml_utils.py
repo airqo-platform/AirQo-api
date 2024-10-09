@@ -162,6 +162,7 @@ class BaseMlUtils:
             raise ValueError("Invalid frequency")
 
         df1 = df.copy()
+        df1['timestamp'] = pd.to_datetime(df1['timestamp'])
         attributes = ["year", "month", "day", "dayofweek"]
         if freq == "hourly":
             attributes.append("hour")
@@ -811,7 +812,7 @@ class SatelliteUtils(BaseMlUtils):
 
         Return: returns a dataframe after applying the transformation
         """
-
+        data['timestamp'] = pd.to_datetime(data['timestamp'])
         if frequency == "hourly":
             shifts = [1, 2, 6, 12]
             time_unit = "hour"
@@ -826,12 +827,13 @@ class SatelliteUtils(BaseMlUtils):
 
     @staticmethod
     def train_satellite_model(data):
-        data['pm2_5'] = data[data['pm2_5'] < 200]
+        data = data[data['pm2_5'] < 200]
+        data.drop(columns = ["timestamp", "city", "device_id"], inplace = True)
         model = LGBMRegressor(random_state=42, n_estimators=200, max_depth=10, objective='mse')
 
         model.fit(data.drop(columns='pm2_5'), data['pm2_5'])
 
-        #TODO: add mlflow stuff after cluster issues handled
+        # TODO: add mlflow stuff after cluster issues handled
 
         # n_splits = 4
         # cv = GroupKFold(n_splits=n_splits)
