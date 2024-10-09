@@ -59,9 +59,9 @@ const checkNetworkStatus = async () => {
       );
     }
   } catch (error) {
-    logText(`Error checking network status: ${error.message}`);
-    logger.error(`Error checking network status: ${error.message}`);
-    logger.error(`Stack trace: ${error.stack}`);
+    logText(`🐛🐛 Error checking network status: ${error.message}`);
+    logger.error(`🐛🐛 Error checking network status: ${error.message}`);
+    logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   }
 };
 

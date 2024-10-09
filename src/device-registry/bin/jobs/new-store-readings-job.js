@@ -55,11 +55,15 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       };
       const updateResult = await Model.updateOne(filter, updateData);
     } else {
-      logger.warn(`${entityType} not found with filter: ${stringify(filter)}`);
+      logger.warn(
+        `🙀🙀 ${entityType} not found with filter: ${stringify(filter)}`
+      );
     }
   } catch (error) {
-    logger.error(`Error updating ${entityType}'s status: ${error.message}`);
-    logger.error(`Stack trace: ${error.stack}`);
+    logger.error(
+      `🐛🐛 Error updating ${entityType}'s status: ${error.message}`
+    );
+    logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   }
 }
 
@@ -106,8 +110,7 @@ async function processDocument(doc) {
       upsert: true,
     });
   } catch (error) {
-    logger.error(`Error processing document: ${error.message}`);
-    logger.error(`Error processing document, Stack trace: ${error.stack}`);
+    logger.error(`🐛🐛 Error processing document: ${error.message}`);
   }
 }
 
@@ -129,13 +132,13 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       viewEventsResponse = await EventModel("airqo").fetch(filter);
       logText("Running the data insertion script");
     } catch (fetchError) {
-      logger.error(`Error fetching events: ${stringify(fetchError)}`);
+      logger.error(`🐛🐛 Error fetching events: ${stringify(fetchError)}`);
       return;
     }
 
     if (!viewEventsResponse || typeof viewEventsResponse !== "object") {
       logger.error(
-        `Unexpected response from EventModel.fetch(): ${stringify(
+        `🐛🐛 Unexpected response from EventModel.fetch(): ${stringify(
           viewEventsResponse
         )}`
       );
@@ -183,7 +186,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
                   } else if (error.code === 11000) {
                     // Ignore duplicate key errors
                     console.warn(
-                      `Duplicate key error for document: ${stringify(doc)}`
+                      `🙀🙀 Duplicate key error for document: ${stringify(doc)}`
                     );
                   }
                 }
