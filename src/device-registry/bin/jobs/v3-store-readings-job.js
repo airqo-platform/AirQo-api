@@ -107,6 +107,7 @@ async function processDocument(doc) {
     }
   } catch (error) {
     logger.error(`🐛🐛 Error processing document: ${error.message}`);
+    throw error;
   }
 }
 const fetchAllData = async (
@@ -135,6 +136,7 @@ const fetchAllData = async (
           !response.success ||
           !response.data ||
           response.data.length === 0 ||
+          !response.data[0].data ||
           response.data[0].data.length === 0
         ) {
           hasMoreData = false;
@@ -157,6 +159,7 @@ const fetchAllData = async (
       page++;
     } catch (error) {
       logger.error(`Error fetching data: ${error.message}`);
+      hasMoreData = false;
     }
   }
 
