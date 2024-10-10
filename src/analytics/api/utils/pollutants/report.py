@@ -227,3 +227,12 @@ class PManalysis:
     def gridname(dataframe):
         unique_cities = dataframe["city"].unique().tolist()
         return unique_cities
+
+    @staticmethod
+    def hourly_mean_pm_site_name(dataframe):
+        return (
+            dataframe.groupby(["site_name","date", "hour"])[PM_COLUMNS_CORD]
+            .mean()
+            .round(4)
+            .reset_index()
+        )

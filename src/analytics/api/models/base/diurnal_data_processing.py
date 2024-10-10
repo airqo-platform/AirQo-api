@@ -44,6 +44,7 @@ def air_quality_data_diurnal():
             datetime_mean_pm2_5 = PManalysis.datetime_pm2_5(processed_data)
             hour_mean_pm2_5 = PManalysis.mean_pm2_5_by_hour(processed_data)
             mean_pm_by_day_hour = PManalysis.pm_day_hour_name(processed_data)
+            hourly_mean_site_name = PManalysis.hourly_mean_pm_site_name(processed_data)
             grid_name = PManalysis.gridname(processed_data)
 
             # Convert timestamps to the desired format
@@ -74,6 +75,7 @@ def air_quality_data_diurnal():
                     "mean_pm_by_day_hour": mean_pm_by_day_hour.to_dict(
                         orient="records"
                     ),
+                    "hourly_site_mean": hourly_mean_site_name.to_dict(orient="records"),
                 }
             }
 
