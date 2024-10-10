@@ -154,12 +154,16 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
         logText("No data found in the response");
         return;
       }
+
       const data = viewEventsResponse.data[0].data;
       if (!data || data.length === 0) {
         logText("No Events found to insert into Readings");
         logger.error(`🐛🐛 Didn't find any Events to insert into Readings`);
         return;
       }
+
+      // Extract unique device IDs from the fetched measurements
+      const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
 
       const batchSize = 50;
       const batches = [];
@@ -200,7 +204,20 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
           })
         );
       }
-      logText(`All data inserted successfully`);
+
+      // Update devices that are not in the activeDeviceIds set to offline
+      const thresholdTime = moment()
+        .subtract(INACTIVE_THRESHOLD, "milliseconds")
+        .toDate();
+      await DeviceModel("airqo").updateMany(
+        {
+          _id: { $nin: Array.from(activeDeviceIds) },
+          lastActive: { $lt: thresholdTime },
+        },
+        { isOnline: false }
+      );
+
+      logText(`All data inserted successfully and offline devices updated`);
     } else {
       logObject(
         `🐛🐛 Unable to retrieve Events to insert into Readings`,
