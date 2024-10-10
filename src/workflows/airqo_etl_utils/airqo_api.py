@@ -5,7 +5,7 @@ import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union, Generator, Tuple
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
@@ -172,7 +172,7 @@ class AirQoApi:
                     "previous_sites": List[Dict[str, Any]],
                     "cohorts": List,
                     "site": Dict[str, Any],
-                    device_number
+                    "device_number": int
                 },
             ]
         """
@@ -188,64 +188,69 @@ class AirQoApi:
         response = self.__request("devices/summary", params)
         devices = [
             {
-                **device,
                 "device_id": device.pop("name"),
-                "device_codes": device.pop("device_codes", []),
-                "mongo_id": device.pop("_id"),
-                "site_id": device.get("site", {}).get("_id"),
-                "site_location": device.pop("site", {}).get("location_name", ""),
+                "site_id": device.get("site", {}).get("_id", None),
+                "site_location": device.pop("site", {}).get("location_name", None),
                 "device_category": str(
-                    DeviceCategory.from_str(device.pop("category", ""))
+                    DeviceCategory.from_str(device.pop("category", None))
                 ),
                 "tenant": device.get("network"),
                 "device_manufacturer": Tenant.from_str(
                     device.pop("network")
                 ).device_manufacturer(),
+                **device,
             }
             for device in response.get("devices", [])
         ]
         return devices
 
-    def get_thingspeak_read_keys(self, devices: List) -> Dict[int, str]:
+    def get_thingspeak_read_keys(
+        self, devices: pd.DataFrame, return_type: str = "all"
+    ) -> Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
         """
         Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
-            - tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
-            - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
+            return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
+                            If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
         Returns:
-            Dict[int, str]: A dictionary containing device decrypted keys. The dictionary has the following structure.
-            {
-                "device_number":str,
-            }
+            Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
+                - A dictionary containing device decrypted keys when `return_type='all'`. The dictionary has the structure {device_number: decrypted_key}.
+                - A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
         """
 
         body: List = []
         decrypted_keys: List[Dict[str, str]] = []
         decrypted_read_keys: Dict[int, str] = {}
 
-        for device in devices:
-            read_key = device.get("readKey", None)
-            device_number = device.get("device_number", None)
-            if read_key and device_number:
+        for device_number, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(device_number):
                 body.append(
-                    {
-                        "encrypted_key": read_key,
-                        "device_number": device_number,
-                    }
+                    {"encrypted_key": row["readKey"], "device_number": device_number}
                 )
 
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
 
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
-            return {
-                int(entry["device_number"]): entry["decrypted_key"]
-                for entry in decrypted_keys
-            }
-        # TODO Find a better way to do better handling vs returning an empty object.
-        return decrypted_read_keys
+
+            if return_type == "all":
+                return {
+                    int(entry["device_number"]): entry["decrypted_key"]
+                    for entry in decrypted_keys
+                }
+            elif return_type == "yield":
+                for entry in decrypted_keys:
+                    device_number = int(entry["device_number"])
+                    decrypted_key = entry["decrypted_key"]
+                    yield device_number, decrypted_key
+
+        if return_type == "all":
+            return decrypted_read_keys
+        elif return_type == "yield":
+            return
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """

@@ -1,5 +1,3 @@
-import traceback
-
 import numpy as np
 import pandas as pd
 import requests
@@ -11,6 +9,10 @@ from .constants import Tenant, DataSource, Frequency, DeviceCategory
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class KccaUtils:
@@ -64,7 +66,7 @@ class KccaUtils:
                 }
             )
         except Exception as ex:
-            print(ex)
+            logger.exception(ex)
             return pd.Series({"site_id": None, "device_number": None})
 
     @staticmethod
