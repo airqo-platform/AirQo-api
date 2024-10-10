@@ -16,3 +16,4 @@ flask-cors
 earthengine-api
 overpy
 geopy
+confluent-kafka
