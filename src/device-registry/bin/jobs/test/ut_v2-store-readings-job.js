@@ -134,15 +134,31 @@ describe("new-store-readings-job", () => {
       const mockData = [
         { data: [{ site_id: "123", device_id: "456", time: new Date() }] },
       ];
+
+      // Stubs for Event and Device Models
       const fetchStub = sinon
         .stub()
         .resolves({ success: true, data: mockData });
+
       sandbox.stub(EventModel, "airqo").returns({ fetch: fetchStub });
+
+      // Stubbing Device Model for offline updates
+      const deviceUpdateManyStub = sinon.stub().resolves({});
+
+      sandbox
+        .stub(DeviceModel, "airqo")
+        .returns({ updateMany: deviceUpdateManyStub });
+
+      // Stubbing generateFilter
       sandbox.stub(generateFilter, "fetch").returns({});
 
       await fetchAndStoreDataIntoReadingsModel();
 
       expect(fetchStub).to.have.been.called;
+      expect(deviceUpdateManyStub).to.have.been.calledWith(
+        { _id: { $nin: ["456"] } }, // Assuming '456' is the only active device ID
+        { isOnline: false }
+      );
       // Add more specific expectations based on the function's behavior
     });
 
@@ -172,6 +188,38 @@ describe("new-store-readings-job", () => {
         "No data found in the response"
       );
       logTextStub.restore();
+    });
+
+    it("should mark devices as offline if not in fetched measurements", async () => {
+      // Mock data with one active device ID
+      const mockData = [
+        { data: [{ site_id: "123", device_id: "456", time: new Date() }] },
+      ];
+
+      // Stubs for Event and Device Models
+      const fetchStub = sinon
+        .stub()
+        .resolves({ success: true, data: mockData });
+
+      sandbox.stub(EventModel, "airqo").returns({ fetch: fetchStub });
+
+      // Stubbing Device Model for offline updates
+      const deviceUpdateManyStub = sinon.stub().resolves({});
+
+      sandbox
+        .stub(DeviceModel, "airqo")
+        .returns({ updateMany: deviceUpdateManyStub });
+
+      // Stubbing generateFilter
+      sandbox.stub(generateFilter, "fetch").returns({});
+
+      await fetchAndStoreDataIntoReadingsModel();
+
+      // Expectation for devices not in fetched measurements to be marked offline
+      expect(deviceUpdateManyStub).to.have.been.calledWith(
+        { _id: { $nin: ["456"] } }, // Assuming '456' is the only active device ID
+        { isOnline: false }
+      );
     });
   });
 });
