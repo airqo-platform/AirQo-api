@@ -663,7 +663,7 @@ class AirQoDataUtils:
                     continue
 
                 row_data = {
-                    "device": device_details["name"],
+                    "device": device_details["device_id"],
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
                     "device_number": device_number,
