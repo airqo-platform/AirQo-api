@@ -54,11 +54,11 @@ def train_satelllite_model():
     def time_related_features(data):
         return SatelliteUtils.get_time_features(data, "daily")
 
-    @task()
-    def lag_features_extraction(data, frequency):
-        return SatelliteUtils.lag_features(
-            data, frequency=frequency, target_col="pm2_5"
-        )
+    # @task()
+    # def lag_features_extraction(data, frequency):
+    #     return SatelliteUtils.lag_features(
+    #         data, frequency=frequency, target_col="pm2_5"
+    #     )
 
     @task()
     def train_and_save_model(train_data):
@@ -68,8 +68,8 @@ def train_satelllite_model():
     gm_data = fetch_historical_ground_monitor_data()
     merged_data = merge_datasets(gm_data, st_data)
     time_data = time_related_features(merged_data)
-    lag_data = lag_features_extraction(time_data, "daily")
-    train_and_save_model(lag_data)
+    # lag_data = lag_features_extraction(time_data, "daily")
+    train_and_save_model(time_data)
 
 
 train_satelllite_model()
