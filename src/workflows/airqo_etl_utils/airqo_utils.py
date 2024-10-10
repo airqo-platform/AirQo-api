@@ -314,13 +314,12 @@ class AirQoDataUtils:
         Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
         Optionally filters data by specific device numbers and removes outliers if requested.
 
-        Parameters:
-        - start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
-        - end_date_time (str): End date and time (ISO 8601 format) for data extraction.
-        - device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-        - device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
-        - remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
-
+        Args:
+            start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
+            end_date_time (str): End date and time (ISO 8601 format) for data extraction.
+            device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
+            device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
+            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
         """
 
         airqo_api = AirQoApi()
@@ -368,8 +367,6 @@ class AirQoDataUtils:
         ]
         data_columns = list(set(data_columns))
 
-        read_keys = airqo_api.get_thingspeak_read_keys(devices=devices)
-
         devices_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -377,10 +374,12 @@ class AirQoDataUtils:
             data_source=DataSource.THINGSPEAK,
         )
 
-        for device in devices:
-            device_number = device.get("device_number", None)
-            read_key = read_keys.get(device_number, None)
+        devices = pd.DataFrame(devices)
+        devices.set_index("device_number", inplace=True)
 
+        for device_number, read_key in airqo_api.get_thingspeak_read_keys(
+            devices[["readKey"]], return_type="yield"
+        ):
             if read_key is None or device_number is None:
                 logger.exception(f"{device_number} does not have a read key")
                 continue
@@ -411,12 +410,12 @@ class AirQoDataUtils:
 
                 meta_data = data.attrs.pop("meta_data", {})
                 data["device_number"] = device_number
-                data["device_id"] = device.get("device_id", None)
-                data["site_id"] = device.get("site_id", None)
+                data["device_id"] = devices.loc[device_number].device_id
+                data["site_id"] = devices.loc[device_number].site_id
 
                 if device_category in AirQoDataUtils.Device_Field_Mapping:
-                    data["latitude"] = device.get("latitude", None)
-                    data["longitude"] = device.get("longitude", None)
+                    data["latitude"] = devices.loc[device_number].latitude
+                    data["longitude"] = devices.loc[device_number].longitude
                     data.rename(
                         columns=AirQoDataUtils.Device_Field_Mapping[device_category],
                         inplace=True,
@@ -629,11 +628,13 @@ class AirQoDataUtils:
         """
         Formats device measurements into a format required by the events endpoint.
 
-        :param data: device measurements
-        :param frequency: frequency of the measurements.
-        :return: a list of measurements
-        """
+        Args:
+            data: device measurements
+            frequency: frequency of the measurements.
 
+        Return:
+            A list of measurements
+        """
         restructured_data = []
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
@@ -666,7 +667,6 @@ class AirQoDataUtils:
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
                     "device_number": device_number,
-                    "tenant": str(Tenant.AIRQO),
                     "tenant": str(Tenant.AIRQO),
                     "location": {
                         "latitude": {"value": row["latitude"]},
@@ -810,7 +810,7 @@ class AirQoDataUtils:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     tenant="airqo",
-                    device=dict(device).get("name", None),
+                    device=device.get("name", None),
                     activity_type="deployment",
                 )
 
