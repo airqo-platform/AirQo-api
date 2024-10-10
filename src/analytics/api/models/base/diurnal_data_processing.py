@@ -72,10 +72,7 @@ def air_quality_data_diurnal():
                         "endTime": end_time.isoformat(),
                     },
                     "diurnal": hour_mean_pm2_5.to_dict(orient="records"),
-                    "mean_pm_by_day_hour": mean_pm_by_day_hour.to_dict(
-                        orient="records"
-                    ),
-                    "hourly_site_mean": hourly_mean_site_name.to_dict(orient="records"),
+                    "hourly_mean_site_name": hourly_mean_site_name.to_dict(orient="records"),
                 }
             }
 

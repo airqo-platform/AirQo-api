@@ -231,7 +231,7 @@ class PManalysis:
     @staticmethod
     def hourly_mean_pm_site_name(dataframe):
         return (
-            dataframe.groupby(["site_name","date", "hour"])[PM_COLUMNS_CORD]
+            dataframe.groupby(["site_name","timestamp", "hour"])[PM_COLUMNS_CORD]
             .mean()
             .round(4)
             .reset_index()
