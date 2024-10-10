@@ -211,7 +211,7 @@ class AirQoApi:
         Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
-            devices (List): A list of devices, where each device contains a readKey and a device_number.
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
             return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
                             If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
