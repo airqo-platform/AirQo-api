@@ -103,11 +103,13 @@ knowYourAirLessonSchema.statics = {
     try {
       const inclusionProjection = constants.KYA_LESSONS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.path ? filter.path : "none"
       );
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
+
+      if (!isEmpty(filter.path)) {
+        delete filter.path;
       }
+
       if (!isEmpty(filter.dashboard)) {
         delete filter.dashboard;
       }

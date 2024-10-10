@@ -55,6 +55,8 @@ const envs = {
   KYA_ANSWER: process.env.KYA_ANSWER,
   KYA_QUIZ: process.env.KYA_QUIZ,
   GRID_TOPIC: process.env.GRID_TOPIC,
+  DEPLOY_TOPIC: process.env.DEPLOY_TOPIC,
+  RECALL_TOPIC: process.env.RECALL_TOPIC,
   COHORT_TOPIC: process.env.COHORT_TOPIC,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,

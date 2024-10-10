@@ -9,6 +9,7 @@ const generateFilter = require("./generate-filter");
 const constants = require("@config/constants");
 const distance = require("./distance");
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-util`
 );
@@ -27,8 +28,11 @@ const createActivity = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
       const filter = generateFilter.activities(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListActivity = await ActivityModel(tenant).list(
         {
@@ -116,6 +120,7 @@ const createActivity = {
         site_id,
         host_id,
         network,
+        user_id,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -168,6 +173,7 @@ const createActivity = {
               activityType: "deployment",
               site_id,
               host_id: host_id ? host_id : null,
+              user_id: user_id ? user_id : null,
               network,
               nextMaintenance: addMonthsToProvideDateTime(
                 date && new Date(date),
@@ -236,14 +242,47 @@ const createActivity = {
 
               if (responseFromUpdateDevice.success === true) {
                 const updatedDevice = responseFromUpdateDevice.data;
-
+                const data = {
+                  createdActivity: {
+                    activity_codes: createdActivity.activity_codes,
+                    tags: createdActivity.tags,
+                    _id: createdActivity._id,
+                    device: createdActivity.device,
+                    date: createdActivity.date,
+                    description: createdActivity.description,
+                    activityType: createdActivity.activityType,
+                    site_id: createdActivity.site_id,
+                    host_id: createdActivity.host_id,
+                    network: createdActivity.network,
+                    nextMaintenance: createdActivity.nextMaintenance,
+                    createdAt: createdActivity.createdAt,
+                  },
+                  updatedDevice: {
+                    status: updatedDevice.status,
+                    category: updatedDevice.category,
+                    isActive: updatedDevice.isActive,
+                    _id: updatedDevice._id,
+                    long_name: updatedDevice.long_name,
+                    network: updatedDevice.network,
+                    device_number: updatedDevice.device_number,
+                    name: updatedDevice.name,
+                    deployment_date: updatedDevice.deployment_date,
+                    latitude: updatedDevice.latitude,
+                    longitude: updatedDevice.longitude,
+                    mountType: updatedDevice.mountType,
+                    powerType: updatedDevice.powerType,
+                    site_id: updatedDevice.site_id,
+                  },
+                  user_id: user_id ? user_id : null,
+                };
                 try {
+                  const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
                   const kafkaProducer = kafka.producer({
                     groupId: constants.UNIQUE_PRODUCER_GROUP,
                   });
                   await kafkaProducer.connect();
                   await kafkaProducer.send({
-                    topic: constants.ACTIVITIES_TOPIC,
+                    topic: deployTopic,
                     messages: [
                       {
                         action: "create",
@@ -253,45 +292,16 @@ const createActivity = {
                   });
                   await kafkaProducer.disconnect();
                 } catch (error) {
-                  logger.error(`internal server error -- ${error.message}`);
+                  logger.error(
+                    `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`
+                  );
                 }
 
                 // Construct a simplified response structure
                 return {
                   success: true,
                   message: "successfully deployed the device",
-                  data: {
-                    createdActivity: {
-                      activity_codes: createdActivity.activity_codes,
-                      tags: createdActivity.tags,
-                      _id: createdActivity._id,
-                      device: createdActivity.device,
-                      date: createdActivity.date,
-                      description: createdActivity.description,
-                      activityType: createdActivity.activityType,
-                      site_id: createdActivity.site_id,
-                      host_id: createdActivity.host_id,
-                      network: createdActivity.network,
-                      nextMaintenance: createdActivity.nextMaintenance,
-                      createdAt: createdActivity.createdAt,
-                    },
-                    updatedDevice: {
-                      status: updatedDevice.status,
-                      category: updatedDevice.category,
-                      isActive: updatedDevice.isActive,
-                      _id: updatedDevice._id,
-                      long_name: updatedDevice.long_name,
-                      network: updatedDevice.network,
-                      device_number: updatedDevice.device_number,
-                      name: updatedDevice.name,
-                      deployment_date: updatedDevice.deployment_date,
-                      latitude: updatedDevice.latitude,
-                      longitude: updatedDevice.longitude,
-                      mountType: updatedDevice.mountType,
-                      powerType: updatedDevice.powerType,
-                      site_id: updatedDevice.site_id,
-                    },
-                  },
+                  data,
                 };
               } else if (responseFromUpdateDevice.success === false) {
                 return responseFromUpdateDevice;
@@ -327,7 +337,7 @@ const createActivity = {
   recall: async (request, next) => {
     try {
       const { query, body } = request;
-      const { recallType } = body;
+      const { recallType, user_id } = body;
       const { tenant, deviceName } = query;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -392,6 +402,7 @@ const createActivity = {
 
         const siteActivityBody = {
           device: deviceName,
+          user_id: user_id ? user_id : null,
           date: new Date(),
           description: "device recalled",
           activityType: "recallment",
@@ -435,13 +446,46 @@ const createActivity = {
           if (responseFromUpdateDevice.success === true) {
             // Extract only necessary fields for response
             const updatedDevice = responseFromUpdateDevice.data;
+            const data = {
+              createdActivity: {
+                _id: createdActivity._id,
+                device: createdActivity.device,
+                date: createdActivity.date,
+                description: createdActivity.description,
+                activityType: createdActivity.activityType,
+                recallType,
+              },
+              updatedDevice: {
+                height: updatedDevice.height,
+                category: updatedDevice.category,
+                _id: updatedDevice._id,
+                long_name: updatedDevice.long_name,
+                network: updatedDevice.network,
+                device_number: updatedDevice.device_number,
+                name: updatedDevice.name,
+                mountType: updatedDevice.mountType,
+                powerType: updatedDevice.powerType,
+                isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
+                nextMaintenance: updatedDevice.nextMaintenance,
+                latitude: updatedDevice.latitude,
+                longitude: updatedDevice.longitude,
+                isActive: updatedDevice.isActive,
+                status: updatedDevice.status,
+                site_id: updatedDevice.site_id,
+                host_id: updatedDevice.host_id,
+                previous_sites: updatedDevice.previous_sites,
+                recall_date: updatedDevice.recall_date,
+              },
+              user_id: user_id ? user_id : null,
+            };
             try {
+              const recallTopic = constants.RECALL_TOPIC || "recall-topic";
               const kafkaProducer = kafka.producer({
                 groupId: constants.UNIQUE_PRODUCER_GROUP,
               });
               await kafkaProducer.connect();
               await kafkaProducer.send({
-                topic: "activities-topic",
+                topic: recallTopic,
                 messages: [
                   {
                     action: "create",
@@ -459,37 +503,7 @@ const createActivity = {
             return {
               success: true,
               message: "successfully recalled the device",
-              data: {
-                createdActivity: {
-                  _id: createdActivity._id,
-                  device: createdActivity.device,
-                  date: createdActivity.date,
-                  description: createdActivity.description,
-                  activityType: createdActivity.activityType,
-                  recallType,
-                },
-                updatedDevice: {
-                  height: updatedDevice.height,
-                  category: updatedDevice.category,
-                  _id: updatedDevice._id,
-                  long_name: updatedDevice.long_name,
-                  network: updatedDevice.network,
-                  device_number: updatedDevice.device_number,
-                  name: updatedDevice.name,
-                  mountType: updatedDevice.mountType,
-                  powerType: updatedDevice.powerType,
-                  isPrimaryInLocation: updatedDevice.isPrimaryInLocation,
-                  nextMaintenance: updatedDevice.nextMaintenance,
-                  latitude: updatedDevice.latitude,
-                  longitude: updatedDevice.longitude,
-                  isActive: updatedDevice.isActive,
-                  status: updatedDevice.status,
-                  site_id: updatedDevice.site_id,
-                  host_id: updatedDevice.host_id,
-                  previous_sites: updatedDevice.previous_sites,
-                  recall_date: updatedDevice.recall_date,
-                },
-              },
+              data,
             };
           } else if (responseFromUpdateDevice.success === false) {
             return responseFromUpdateDevice;
@@ -520,6 +534,7 @@ const createActivity = {
         site_id,
         maintenanceType,
         network,
+        user_id,
       } = body;
 
       const deviceExists = await DeviceModel(tenant).exists({
@@ -542,6 +557,7 @@ const createActivity = {
 
       const siteActivityBody = {
         device: deviceName,
+        user_id: user_id ? user_id : null,
         date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
@@ -581,7 +597,32 @@ const createActivity = {
         );
         if (responseFromUpdateDevice.success === true) {
           const updatedDevice = responseFromUpdateDevice.data;
-          const data = { createdActivity, updatedDevice };
+          const data = {
+            createdActivity: {
+              activity_codes: createdActivity.activity_codes,
+              tags: createdActivity.tags,
+              _id: createdActivity._id,
+              device: createdActivity.device,
+              date: createdActivity.date,
+              description: createdActivity.description,
+              activityType: createdActivity.activityType,
+              site_id: createdActivity.site_id,
+              host_id: createdActivity.host_id,
+              network: createdActivity.network,
+              nextMaintenance: createdActivity.nextMaintenance,
+              createdAt: createdActivity.createdAt,
+            },
+            updatedDevice: {
+              _id: updatedDevice._id,
+              long_name: updatedDevice.long_name,
+              status: updatedDevice.status,
+              device_number: updatedDevice.device_number,
+              name: updatedDevice.name,
+              maintenance_date: updatedDevice.maintenance_date,
+              nextMaintenance: updatedDevice.nextMaintenance,
+            },
+            user_id: user_id ? user_id : null,
+          };
           try {
             const kafkaProducer = kafka.producer({
               groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -649,6 +690,8 @@ const createActivity = {
           site_name,
           network,
           deviceName,
+          user_id,
+          host_id,
         } = deployment;
 
         const coordsKey = `${latitude},${longitude}`; // Unique key for coordinates
@@ -693,6 +736,7 @@ const createActivity = {
             failed_deployments.push({
               deviceName,
               error: responseFromCreateSite.errors,
+              user_id: user_id ? user_id : null,
             });
             return; // Skip to the next deployment if site creation fails
           }
@@ -714,6 +758,8 @@ const createActivity = {
           isPrimaryInLocation,
           site_id, // Use the newly created or reused site_id
           network,
+          user_id,
+          host_id,
         };
 
         const deviceRequest = {
@@ -734,11 +780,13 @@ const createActivity = {
             deviceName,
             createdActivity,
             updatedDevice,
+            user_id: user_id ? user_id : null,
           });
         } else {
           failed_deployments.push({
             deviceName,
             error: responseFromDeploy.errors,
+            user_id: user_id ? user_id : null,
           });
         }
       });
