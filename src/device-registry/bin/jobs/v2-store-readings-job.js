@@ -206,8 +206,14 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       }
 
       // Update devices that are not in the activeDeviceIds set to offline
+      const thresholdTime = moment()
+        .subtract(INACTIVE_THRESHOLD, "milliseconds")
+        .toDate();
       await DeviceModel("airqo").updateMany(
-        { _id: { $nin: Array.from(activeDeviceIds) } },
+        {
+          _id: { $nin: Array.from(activeDeviceIds) },
+          lastActive: { $lt: thresholdTime },
+        },
         { isOnline: false }
       );
 
