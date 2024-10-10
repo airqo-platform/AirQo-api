@@ -30,7 +30,10 @@ class SatellitePredictionView:
             }
 
             features = SatellitePredictionModel.extract_data_for_location(location, satellite_collections)
+            features['latitude'] = latitude
+            features['longitude'] = longitude
             feature_array = np.array(list(features.values())).reshape(1, -1)
+
 
             model = get_trained_model_from_gcs(
             Config.GOOGLE_CLOUD_PROJECT_ID, Config.PROJECT_BUCKET, f"satellite_prediction_model.pkl"
@@ -38,7 +41,7 @@ class SatellitePredictionView:
 
             prediction = model.predict(feature_array)[0]
             return jsonify({
-                'pm2_5_prediction': float(prediction),
+                'pm2_5_prediction': round(float(prediction), 3),
                 'latitude': latitude,
                 'longitude': longitude,
                 'timestamp': datetime.now(timezone.utc).isoformat()
