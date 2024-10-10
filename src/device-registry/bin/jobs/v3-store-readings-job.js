@@ -157,8 +157,7 @@ const fetchAllData = async (
 
       page++;
     } catch (error) {
-      logger.error(`Error fetching data: ${error.message}`);
-      hasMoreData = false;
+      logger.error(`🐛🐛 Error fetching data: ${error.message}`);
     }
   }
 
