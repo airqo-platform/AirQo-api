@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
-  tag: stage-48d3d1ff-1727518091
+  tag: stage-b9a817e4-1728401762
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -21,7 +21,7 @@ resources:
       memory: 500Mi
     limits:
       cpu: 1000m
-      memory: 1000Mi
+      memory: 1500Mi
   scheduler:
     requests:
       cpu: 125m
@@ -34,14 +34,14 @@ resources:
       cpu: 125m
       memory: 500Mi
     limits:
-      cpu: 2000m
-      memory: 4000Mi
+      cpu: 1000m
+      memory: 2000Mi
   redis:
     requests:
       cpu: 50m
-      memory: 100Mi
+      memory: 125Mi
     limits:
-      cpu: 500m
+      cpu: 1000m
       memory: 2000Mi
 volumeMounts:
   - name: config-volume

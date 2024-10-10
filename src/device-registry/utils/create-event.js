@@ -2531,9 +2531,8 @@ const createEvent = {
       }
 
       if (errors.length > 0 && isEmpty(eventsAdded)) {
-        console.log("API: failed to store measurements");
-        logger.error(
-          `🐛🐛 API: failed to store measurements ${stringify(errors)}`
+        console.log(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
         );
         return {
           success: false,

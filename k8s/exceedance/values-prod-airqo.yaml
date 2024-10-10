@@ -4,6 +4,6 @@ app:
   configmap: env-exceedance-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-exceedance-job
-  tag: prod-a8d33b1e-1728371577
+  tag: prod-1b64dfed-1728542790
 nameOverride: ''
 fullnameOverride: ''
