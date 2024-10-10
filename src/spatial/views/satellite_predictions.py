@@ -1,11 +1,9 @@
 from datetime import datetime, timezone
 
-import gcsfs
-import joblib
 import numpy as np
 from flask import request, jsonify
 
-from configure import get_trained_model_from_gcs
+from configure import get_trained_model_from_gcs, Config, satellite_collections
 from models.SatellitePredictionModel import SatellitePredictionModel
 
 
@@ -19,20 +17,26 @@ class SatellitePredictionView:
             data = request.json
             latitude = data.get('latitude')
             longitude = data.get('longitude')
+            city = data.get('city')
 
             if not latitude or not longitude:
                 return jsonify({'error': 'Latitude and longitude are required'}), 400
 
             SatellitePredictionModel.initialize_earth_engine()
 
-            features = SatellitePredictionModel.extract_single_point_data(longitude, latitude)
+            location = {
+                "city": city,
+                "coords": [longitude, latitude]
+            }
 
+            features = SatellitePredictionModel.extract_data_for_location(location, satellite_collections)
             feature_array = np.array(list(features.values())).reshape(1, -1)
 
-            prediction =  get_trained_model_from_gcs(
-            project_name, bucket_name, f"satellite_model.pkl"
-        ).predict(feature_array)[0]
+            model = get_trained_model_from_gcs(
+            Config.GOOGLE_CLOUD_PROJECT_ID, Config.PROJECT_BUCKET, f"satellite_prediction_model.pkl"
+        )
 
+            prediction = model.predict(feature_array)[0]
             return jsonify({
                 'pm2_5_prediction': float(prediction),
                 'latitude': latitude,
