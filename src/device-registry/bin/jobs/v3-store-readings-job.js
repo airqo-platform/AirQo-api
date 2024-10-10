@@ -107,7 +107,6 @@ async function processDocument(doc) {
     }
   } catch (error) {
     logger.error(`🐛🐛 Error processing document: ${error.message}`);
-    throw error;
   }
 }
 const fetchAllData = async (
