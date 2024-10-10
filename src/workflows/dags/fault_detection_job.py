@@ -1,6 +1,6 @@
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.ml_utils import MlUtils
+from airqo_etl_utils.ml_utils import FaultDetectionUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
@@ -19,32 +19,37 @@ def airqo_fault_detection_dag():
 
     @task()
     def flag_rule_based_faults(data):
-        return MlUtils.flag_rule_based_faults(data)
+        return FaultDetectionUtils.flag_rule_based_faults(data)
 
     @task()
-    def feat_eng_data(data):
-        return MlUtils.get_time_and_cyclic_features(data, "hourly")
+    def get_time_features(data):
+        return FaultDetectionUtils.get_time_features(data, "hourly")
+
+    @task()
+    def get_cyclic_features(data):
+        return FaultDetectionUtils.get_cyclic_features(data, "hourly")
 
     @task()
     def flag_pattern_based_faults(data):
-        return MlUtils.flag_pattern_based_faults(data)
+        return FaultDetectionUtils.flag_pattern_based_faults(data)
 
     @task()
     def process_faulty_devices_percentage(data):
-        return MlUtils.process_faulty_devices_percentage(data)
+        return FaultDetectionUtils.process_faulty_devices_percentage(data)
 
     @task()
     def process_faulty_devices_sequence(data):
-        return MlUtils.process_faulty_devices_fault_sequence(data)
+        return FaultDetectionUtils.process_faulty_devices_fault_sequence(data)
 
     @task()
     def save_to_mongo(*data):
-        return MlUtils.save_faulty_devices(*data)
+        return FaultDetectionUtils.save_faulty_devices(*data)
 
     raw_data = fetch_raw_data()
     rule_based_faults = flag_rule_based_faults(raw_data)
-    feat_eng_data = feat_eng_data(raw_data)
-    pattern_based_faults = flag_pattern_based_faults(feat_eng_data)
+    time_features = get_time_features(raw_data)
+    cyclic_features = get_cyclic_features(time_features)
+    pattern_based_faults = flag_pattern_based_faults(cyclic_features)
     faulty_devices_percentage = process_faulty_devices_percentage(pattern_based_faults)
     faulty_devices_sequence = process_faulty_devices_sequence(pattern_based_faults)
     save_to_mongo(rule_based_faults, faulty_devices_percentage, faulty_devices_sequence)
