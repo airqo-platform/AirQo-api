@@ -858,4 +858,4 @@ class BigQueryApi:
             if_exists="append",
             credentials=credentials,
         )
-        print("Hourly data saved to bigquery")
+        print(" data saved to bigquery")
