@@ -1,5 +1,6 @@
 from flask import request, jsonify
 from models.site_category_model import SiteCategoryModel
+from kafka_producer import produce_kafka_sensor_categories 
 
 class SiteCategorizationView:
     
@@ -45,4 +46,9 @@ class SiteCategorizationView:
             "OSM_info": debug_info
         }
         }
+        # Send the data to Kafka
+        try:
+            produce_kafka_sensor_categories(response)  # You can pass the topic if needed, otherwise it defaults
+        except Exception as kafka_error:
+            return jsonify({"error": f"Kafka error: {kafka_error}"}), 500
         return jsonify(response), 200
