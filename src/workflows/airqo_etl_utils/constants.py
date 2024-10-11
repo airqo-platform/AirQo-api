@@ -323,15 +323,14 @@ class CityModel(Enum):
 
 # TODO: May need to remove when no. of locations grow
 satellite_cities = [
-    #NOTE: Syntax is lon, lat for GEE, not the usual lat, lon
+    # NOTE: Syntax is lon, lat for GEE, not the usual lat, lon
     {"city": "kampala", "coords": [32.6313083, 0.336219]},
     {"city": "nairobi", "coords": [36.886487, -1.243396]},
     {"city": "lagos", "coords": [3.39936, 6.53257]},
     {"city": "accra", "coords": [-0.205874, 5.614818]},
     {"city": "bujumbura", "coords": [29.3599, 3.3614]},
     {"city": "yaounde", "coords": [11.5202, 3.8617]},
-    {"city": "kisumu", "coords": [34.7680, 0.0917]}
-
+    {"city": "kisumu", "coords": [34.7680, 0.0917]},
 ]
 satellite_collections = {
     "COPERNICUS/S5P/OFFL/L3_SO2": [

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 import ee
+import numpy as np
 import pandas as pd
 from google.oauth2 import service_account
 
@@ -127,7 +128,14 @@ class SatelliteUtils:
                 )
             )
         all_data = pd.DataFrame(all_data)
-        all_data.columns = all_data.columns.str.lower()
-        all_data.columns = [
-            c.replace("/", "_").replace(" ", "_").lower() for c in all_data.columns
+
+        df_fixed = all_data.groupby(["timestamp", "city"]).agg(
+            lambda x: x.dropna().iloc[0] if len(x.dropna()) > 0 else np.nan
+        )
+
+        df_fixed.columns = df_fixed.columns.str.lower()
+        df_fixed.columns = [
+            c.replace("/", "_").replace(" ", "_").lower() for c in df_fixed.columns
         ]
+
+        return df_fixed
