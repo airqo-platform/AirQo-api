@@ -524,4 +524,3 @@ airqo_historical_raw_measurements()
 airqo_cleanup_measurements()
 airqo_raw_data_measurements()
 airqo_gaseous_realtime_measurements()
-

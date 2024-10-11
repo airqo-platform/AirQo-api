@@ -34,8 +34,7 @@ setup(
         "great_expectations===0.18.18",
         "airflow-provider-great-expectations==0.2.8",
         "sqlalchemy-bigquery==1.11.0",
-        "earthengine-api"
-
+        "earthengine-api",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

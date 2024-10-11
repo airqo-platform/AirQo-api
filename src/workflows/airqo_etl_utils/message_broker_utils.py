@@ -12,6 +12,7 @@ from .date import date_to_str
 
 logger = logging.getLogger(__name__)
 
+
 class MessageBrokerUtils:
     def __init__(self):
         self.__partitions = configuration.TOPIC_PARTITIONS
