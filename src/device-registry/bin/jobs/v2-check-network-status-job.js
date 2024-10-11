@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/new-check-network-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/v2-check-network-status-job`
 );
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
