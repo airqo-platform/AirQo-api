@@ -8,7 +8,7 @@ from airqo_etl_utils.config import configuration
 
 
 @dag(
-    "Satellite-Data",
+    dag_id="Satellite-Data",
     schedule="0 0 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
