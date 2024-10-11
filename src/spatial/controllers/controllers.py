@@ -4,6 +4,7 @@ from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
 from views.derived_pm2_5 import PM25View, PM25_aod_Model_daily, Sentinel5PView, Satellite_data
+from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
 
@@ -46,3 +47,7 @@ def categorize_site():
 @controller_bp.route('/site_location', methods=['GET'])
 def site_selection():
     return SiteSelectionView.site_selection()
+
+@controller_bp.route('/satellite_prediction', methods=['POST'])
+def get_satellite_prediction():
+    return SatellitePredictionView.make_predictions()
