@@ -2,7 +2,6 @@
 flask~=3.0.3
 pandas~=2.2.3
 geopandas~=1.0.1
-matplotlib
 pysal~=24.7
 geojson~=3.1.0
 libpysal~=4.12.1
@@ -16,7 +15,6 @@ flask-cors~=5.0.0
 earthengine-api~=1.1.1
 overpy~=0.7
 geopy~=2.4.1
-numpy~=2.0.2
 protobuf~=5.28.2
 esda~=2.6.0
 shapely~=2.0.6
@@ -24,3 +22,4 @@ scikit-learn~=1.5.2
 gcsfs~=2024.9.0.post1
 joblib~=1.4.2
 lightgbm~=4.1.0
+numpy~=1.25.2
