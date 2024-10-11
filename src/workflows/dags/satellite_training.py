@@ -12,15 +12,15 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 
 @dag(
-    "AirQo-satellite-model-training-job",
+    dag_id="AirQo-satellite-model-training-job",
     schedule="0 0 1 * *",
     default_args=AirflowUtils.dag_default_configs(),
     tags=["airqo", "hourly-forecast", "daily-forecast", "training-job", "satellite"],
 )
-def train_satelllite_model():
+def train_satellite_model():
     @task()
     def fetch_historical_satellite_data():
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timezone
 
         start_date = datetime.now(timezone.utc) - relativedelta(
             months=int(configuration.SATELLITE_TRAINING_SCOPE)
@@ -41,7 +41,7 @@ def train_satelllite_model():
 
     @task()
     def merge_datasets(
-        ground_data: pd.DataFrame, satellite_data: pd.DataFrame
+            ground_data: pd.DataFrame, satellite_data: pd.DataFrame
     ) -> pd.DataFrame:
         ground_data["timestamp"] = pd.to_datetime(ground_data["timestamp"])
         satellite_data["timestamp"] = pd.to_datetime(satellite_data["timestamp"])
@@ -72,4 +72,4 @@ def train_satelllite_model():
     train_and_save_model(time_data)
 
 
-train_satelllite_model()
+train_satellite_model()
