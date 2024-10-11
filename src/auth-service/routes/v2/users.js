@@ -977,6 +977,42 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided firstName should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided lastName should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("address")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided address should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("city")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided city should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("state")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided state should not be empty IF provided")
+        .bail()
+        .trim(),
+      body("zipCode")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided zipCode should not be empty IF provided")
+        .bail()
+        .trim(),
     ],
   ]),
   createUserController.subscribeToNewsLetter

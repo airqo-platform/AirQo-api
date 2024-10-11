@@ -1,4 +1,5 @@
 import json
+import logging
 
 import numpy as np
 import pandas as pd
@@ -9,6 +10,7 @@ from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.constants import Tenant
 from .date import date_to_str
 
+logger = logging.getLogger(__name__)
 
 class MessageBrokerUtils:
     def __init__(self):
@@ -73,15 +75,18 @@ class MessageBrokerUtils:
     @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
         """
-        Add extra devices meta-data such as the device names, latitude and longitude e.t.c to the data.
+        Update the hourly data topic with additional device metadata,
+        including device names, latitude, longitude, and tenant information.
+
+        Args:
+            data(pandas.DataFrame): The Pandas DataFrame to update with device metadata.
         """
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
         devices = pd.DataFrame(devices)
         devices = devices[
             [
-                "mongo_id",
                 "tenant",
-                "name",
+                "device_id",
                 "device_number",
                 "site_id",
                 "latitude",
@@ -90,8 +95,8 @@ class MessageBrokerUtils:
         ]
         devices.rename(
             columns={
-                "name": "device_name",
-                "mongo_id": "device_id",
+                "device_id": "device_name",
+                "_id": "device_id",
                 "latitude": "device_latitude",
                 "longitude": "device_longitude",
             },
@@ -105,7 +110,7 @@ class MessageBrokerUtils:
             inplace=True,
         )
 
-        del data["device_number"]
+        data.drop(columns=["device_number"], inplace=True, errors="ignore")
 
         data = pd.merge(
             left=data,

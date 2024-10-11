@@ -83,7 +83,7 @@ jobs:
               echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/data-mgt/node/* ]]; then
+            if [[ $file == src/data-mgt/* ]]; then
               echo "run_data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
@@ -394,7 +394,7 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/data-mgt/node/
+          cd src/data-mgt/
           docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} ./
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }}
 
@@ -515,7 +515,6 @@ jobs:
               repo: context.repo.repo,
               body: 'Data Proxy changes in this PR available for preview [here](${{ needs.data-proxy.outputs.url }})'
             })
-
 
   ### analytics ###
   analytics:
@@ -985,7 +984,6 @@ jobs:
               body: 'Calibrate changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
             })
 
-  
   ### incentives ###
   incentives:
     name: build-push-deploy-incentives
@@ -1063,7 +1061,7 @@ jobs:
               repo: context.repo.repo,
               body: 'Incentives API changes in this PR available for preview [here](${{ needs.incentives.outputs.url }})'
             })
-            
+
   ### spatial ###
   spatial:
     name: build-push-deploy-spatial

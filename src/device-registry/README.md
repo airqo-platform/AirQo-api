@@ -1,148 +1,105 @@
-# Device Registry.
+# Device Registry Microservice
 
-Device registry microservice handles device creation, site creation, events creation and the respective activities which take place on a site.
+![Coverage Status](https://coveralls.io/repos/github/airqo-platform/AirQo-api/src/device-registry/badge.svg)
 
-## Run Locally
+The Device Registry microservice is responsible for managing the creation of devices, sites, and events, along with handling the associated activities that occur within a site.
 
-#### a) Using npm scripts
+## Features
 
-You can clone the project
+- **Device Management**: Create, edit, and delete devices.
+- **Site Management**: Manage sites associated with devices.
+- **Event Management**: Log and manage events (measurements) related to devices and sites.
+- **Activity Monitoring**: Track activities occurring within the site.
+- **Cohort Management**: Manage Cohorts associated with devices.
+- **Grid Management**: Manage Grids associated with sites.
+- **Health Tips Management**: Manage Health Tips associated with Measurements.
+- **Know Your Air (KYA) Management**: Manage Know Your Air (KYA) lessons and quizzes.
 
-```bash
-  git clone https://github.com/airqo-platform/AirQo-api
-```
+## Technical Stack
 
-Go to the microservice directory and follow the steps below:
+- **Backend**: Node.js with Express.js
+- **Database**: MongoDB
+- **Authentication**: AirQo Tokens
+- **Containerization**: Docker
+- **Orchestration**: Kubernetes
 
-```bash
-  cd AirQo-api/src/device-registry
-```
+## Getting Started
 
-Install the dependencies
+### Prerequisites
 
-```bash
-  npm install
-```
+Ensure you have the following installed:
 
-To run on MacOS
+- Node.js (version 14 or higher)
+- Docker (if using Docker for deployment)
 
-```bash
-  npm run dev-mac
-```
+### Running Locally
 
-To run on Windows
+1. **Clone the repository**
 
-```bash
-  npm run dev-pc
-```
+   ```bash
+   git clone https://github.com/airqo-platform/AirQo-api.git
+   ```
 
-#### b) Using Docker
+2. **Navigate to the microservice directory**
 
-Build the image within the microservice's directory
+   ```bash
+   cd AirQo-api/src/device-registry
+   ```
 
-```bash
-docker build --target={TARGET_STAGE} -t {IMAGE_NAME} .
-```
+3. **Install dependencies**
 
-Then run the container based on the newly created image
+   ```bash
+   npm install
+   ```
 
-```bash
-docker run -d -n {CONTAINER_NAME} -p host-port:container-port {IMAGE_NAME}
-```
+4. **Run the service**
 
-After successfully runing the container, you can go ahead and test out the respective endpoints
+   - On macOS:
+
+     ```bash
+     npm run dev-mac
+     ```
+
+   - On Windows:
+
+     ```bash
+     npm run dev-pc
+     ```
+
+### Running with Docker
+
+1. **Build the Docker image**
+
+   ```bash
+   docker build --target={TARGET_STAGE} -t {IMAGE_NAME} .
+   ```
+
+2. **Run the Docker container**
+
+   ```bash
+   docker run -d --name {CONTAINER_NAME} -p host-port:container-port {IMAGE_NAME}
+   ```
+
+After successfully running the container, you can test the respective endpoints.
 
 ## Deployment
 
-To deploy this project, we take advantages of kubernetes
-as a container orchestration tool
+This project utilizes Kubernetes for container orchestration.
 
-Build the image within the microservice's directory
+1. **Build the image within the microservice's directory**
 
-```bash
-docker build --target={TARGET_STAGE} -t {IMAGE_NAME} .
-```
+   ```bash
+   docker build --target={TARGET_STAGE} -t {IMAGE_NAME} .
+   ```
 
-Push the respective images to a respective Docker register
+2. **Push the image to a Docker registry**
 
-Use the images in deployment files for Kubernetes accordingly
+3. **Use the images in your Kubernetes deployment files accordingly**
 
-## API Reference
+## Contributing
 
-#### Get all devices
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for more details.
 
-```http
-  GET /api/v1/devices
-```
+## License
 
-| Query Parameter | Type     | Description                                                                                      |
-| :-------------- | :------- | :----------------------------------------------------------------------------------------------- |
-| `tenant`        | `string` | **Required**. the tenant string                                                                  |
-| `active`        | `string` | **Optional**. filters active device, _yes_ returns active devices, _no_ returns inactive devices |
-| `primary`       | `string` | **Optional**. yes returns primary in location devices, no returns non primary devices            |
-| `site`          | `string` | **Optional**. the name of the site which appears on upper section of the Map nodes               |
-| `map`           | `string` | **Optional**. the map address which appears on the lower section of the map nodes                |
-| `channel`       | `string` | **Optional**. the unique channel ID                                                              |
-| `chid`          | `string` | **Optional**. the unique channel ID                                                              |
-| `name`          | `string` | **Optional**. the name of the device                                                             |
-| `skip`          | `Number` | **Optional**. skip this number of records in the response                                        |
-| `limit`         | `Number` | **Optional**. limit the response to this number of records                                       |
-| `location`      | `string` | **Optional**. the unique location ID                                                             |
-| `site_id`       | `string` | **Optional**. the site_id associated with the device                                             |
-| `siteName`      | `string` | **Optional**. the siteName associated with the device                                            |
-| `mapAddress`    | `string` | **Optional**. the mapAddress associated with the device                                          |
-| `map`           | `string` | **Optional**. the mapAddress associated with the device                                          |
-| `primary`       | `string` | **Optional**. yes if device is primary and no if it is not                                       |
-| `active`        | `string` | **Optional**. yes if device is active and no if it is not active                                 |
-
-#### Get all sites
-
-```http
-  GET /api/v1/devices/sites
-```
-
-| Query Parameter  | Type        | Description                                   |
-| :--------------- | :---------- | :-------------------------------------------- |
-| `tenant`         | `string`    | **Required**. the tenant/organisation         |
-| `id`             | `Object ID` | **Optional**. the Object ID of the site       |
-| `lat_long`       | `string`    | **Optional**. the lat_long string of the site |
-| `generated_name` | `string`    | **Optional**. the generated name of the site  |
-| `formatted_name` | `string`    | **Optional**. the formatted name of the site  |
-| `name`           | `string`    | **Optional**. the name of the site            |
-| `county`         | `string`    | **Optional**. the county of the site          |
-| `district`       | `string`    | **Optional**. the district of the site        |
-| `region`         | `string`    | **Optional**. the region of the site          |
-| `city`           | `string`    | **Optional**. the city of the site            |
-| `street`         | `string`    | **Optional**. the street of the site          |
-| `country`        | `string`    | **Optional**. the country of the site         |
-| `parish`         | `string`    | **Optional**. the parish of the site          |
-
-#### Get all Events
-
-```http
-  GET /api/v1/devices/events
-```
-
-| Query Parameter | Type     | Description                                                                                             |
-| :-------------- | :------- | :------------------------------------------------------------------------------------------------------ |
-| `tenant`        | `string` | **Required**. the tenant/organisation                                                                   |
-| `startTime`     | `string` | **Optional**. the startTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD) |
-| `endTime`       | `string` | **Optional**. the endTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD)   |
-| `device`        | `string` | **Optional**. the unique name of the device                                                             |
-| `frequency`     | `string` | **Optional**. the frequency of the events. Includes: hourly, daily and raw                              |
-
-#### Get all Site activities
-
-```http
-  GET /api/v1/devices/activities
-```
-
-| Query Parameter    | Type        | Description                                                                         |
-| :----------------- | :---------- | :---------------------------------------------------------------------------------- |
-| `tenant`           | `string`    | **Required**. the tenant/organisation                                               |
-| `site_id`          | `string`    | **Optional**. the id of the site                                                    |
-| `activity_tags`    | `string`    | **Optional**. the tags for the activity                                             |
-| `maintenance_type` | `string`    | **Optional**. the type of maintenance                                               |
-| `id`               | `Object ID` | **Optional**. the Object ID associated with the activity                            |
-| `device`           | `string`    | **Optional**. the unique device name                                                |
-| `activity_type`    | `string`    | **Optional**. the activity types which include: deployment, recallment, maintenance |
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

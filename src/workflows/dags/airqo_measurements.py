@@ -35,7 +35,9 @@ def airqo_historical_hourly_measurements():
             historical=True, days=3, **kwargs
         )
         return AirQoDataUtils.extract_aggregated_raw_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            dynamic_query=True,
         )
 
     @task()

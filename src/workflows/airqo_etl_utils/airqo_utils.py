@@ -24,6 +24,10 @@ from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any
 from .airqo_gx_expectations import AirQoGxExpectations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class AirQoDataUtils:
     Device_Field_Mapping = {
@@ -113,40 +117,26 @@ class AirQoDataUtils:
         return not_duplicated_data
 
     @staticmethod
-    def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
+    def extract_aggregated_raw_data(
+        start_date_time: str, end_date_time: str, dynamic_query: bool = False
+    ) -> pd.DataFrame:
         """
         Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
         """
         bigquery_api = BigQueryApi()
+
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
             tenant=Tenant.AIRQO,
+            dynamic_query=dynamic_query,
         )
 
         if measurements.empty:
             return pd.DataFrame([])
 
-        measurements = measurements.dropna(subset=["timestamp"])
-        measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
-        averaged_measurements_list: List[pd.DataFrame] = []
-
-        for (device_number, device_id, site_id), device_site in measurements.groupby(
-            ["device_number", "device_id", "site_id"]
-        ):
-            data = device_site.sort_index(axis=0)
-            numeric_columns = data.select_dtypes(include="number").columns
-            averages = data.resample("1H", on="timestamp")[numeric_columns].mean()
-            averages["timestamp"] = averages.index
-            averages["device_number"] = device_number
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averaged_measurements_list.append(averages)
-
-        averaged_measurements = pd.concat(averaged_measurements_list, ignore_index=True)
-
-        return averaged_measurements
+        return measurements
 
     @staticmethod
     def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
@@ -171,13 +161,13 @@ class AirQoDataUtils:
             case DeviceCategory.LOW_COST:
                 mappings = configuration.AIRQO_LOW_COST_CONFIG
             case _:
-                raise ValueError("A valid device category must be provided")
+                logger.exception("A valid device category must be provided")
 
         for key, value in mappings.items():
             try:
                 series[value] = values[key]
             except Exception as ex:
-                print(ex)
+                logger.exception(f"An error occurred: {ex}")
                 series[value] = None
 
         return series
@@ -324,13 +314,12 @@ class AirQoDataUtils:
         Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
         Optionally filters data by specific device numbers and removes outliers if requested.
 
-        Parameters:
-        - start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
-        - end_date_time (str): End date and time (ISO 8601 format) for data extraction.
-        - device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-        - device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
-        - remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
-
+        Args:
+            start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
+            end_date_time (str): End date and time (ISO 8601 format) for data extraction.
+            device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
+            device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
+            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
         """
 
         airqo_api = AirQoApi()
@@ -378,8 +367,6 @@ class AirQoDataUtils:
         ]
         data_columns = list(set(data_columns))
 
-        read_keys = airqo_api.get_thingspeak_read_keys(devices=devices)
-
         devices_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -387,12 +374,14 @@ class AirQoDataUtils:
             data_source=DataSource.THINGSPEAK,
         )
 
-        for device in devices:
-            device_number = device.get("device_number", None)
-            read_key = read_keys.get(device_number, None)
+        devices = pd.DataFrame(devices)
+        devices.set_index("device_number", inplace=True)
 
+        for device_number, read_key in airqo_api.get_thingspeak_read_keys(
+            devices[["readKey"]], return_type="yield"
+        ):
             if read_key is None or device_number is None:
-                print(f"{device_number} does not have a read key")
+                logger.exception(f"{device_number} does not have a read key")
                 continue
 
             for start, end in dates:
@@ -403,7 +392,9 @@ class AirQoDataUtils:
                     read_key=read_key,
                 )
                 if data.empty:
-                    print(f"Device does not have data between {start} and {end}")
+                    logger.exception(
+                        f"Device does not have data between {start} and {end}"
+                    )
                     continue
 
                 if "field8" not in data.columns.to_list():
@@ -419,12 +410,12 @@ class AirQoDataUtils:
 
                 meta_data = data.attrs.pop("meta_data", {})
                 data["device_number"] = device_number
-                data["device_id"] = device.get("device_id", None)
-                data["site_id"] = device.get("site_id", None)
+                data["device_id"] = devices.loc[device_number].device_id
+                data["site_id"] = devices.loc[device_number].site_id
 
                 if device_category in AirQoDataUtils.Device_Field_Mapping:
-                    data["latitude"] = device.get("latitude", None)
-                    data["longitude"] = device.get("longitude", None)
+                    data["latitude"] = devices.loc[device_number].latitude
+                    data["longitude"] = devices.loc[device_number].longitude
                     data.rename(
                         columns=AirQoDataUtils.Device_Field_Mapping[device_category],
                         inplace=True,
@@ -637,33 +628,45 @@ class AirQoDataUtils:
         """
         Formats device measurements into a format required by the events endpoint.
 
-        :param data: device measurements
-        :param frequency: frequency of the measurements.
-        :return: a list of measurements
-        """
+        Args:
+            data: device measurements
+            frequency: frequency of the measurements.
 
+        Return:
+            A list of measurements
+        """
         restructured_data = []
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
+
+        # Create a device lookup dictionary for faster access
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
+
+        device_lookup = {
+            device["device_number"]: device
+            for device in devices
+            if device.get("device_number")
+        }
 
         for _, row in data.iterrows():
             try:
                 device_number = row["device_number"]
-                device_details = list(
-                    filter(
-                        lambda device: (device["device_number"] == device_number),
-                        devices,
+
+                # Get device details from the lookup dictionary
+                device_details = device_lookup.get(device_number)
+                if not device_details:
+                    logger.exception(
+                        f"Device number {device_number} not found in device list."
                     )
-                )[0]
+                    continue
+
                 row_data = {
-                    "device": device_details["name"],
+                    "device": device_details["device_id"],
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
                     "device_number": device_number,
-                    "tenant": str(Tenant.AIRQO),
                     "tenant": str(Tenant.AIRQO),
                     "location": {
                         "latitude": {"value": row["latitude"]},
@@ -706,8 +709,7 @@ class AirQoDataUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                traceback.print_exc()
-                print(ex)
+                logger.exception(f"An error occurred: {ex}")
 
         return restructured_data
 
@@ -808,7 +810,7 @@ class AirQoDataUtils:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     tenant="airqo",
-                    device=dict(device).get("name", None),
+                    device=device.get("name", None),
                     activity_type="deployment",
                 )
 
@@ -855,8 +857,7 @@ class AirQoDataUtils:
                 )
 
             except Exception as ex:
-                print(ex)
-                traceback.print_exc()
+                logger.exception(f"An error occurred {ex}")
 
         return devices_history.dropna()
 
@@ -988,8 +989,8 @@ class AirQoDataUtils:
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
-                except Exception as e:
-                    print(f"Error getting model: {e}")
+                except Exception as ex:
+                    logger.exception(f"Error getting model: {ex}")
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 

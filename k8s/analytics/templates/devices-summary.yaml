@@ -4,6 +4,7 @@ metadata:
   name: {{ .Values.jobs.devicesSummaryJob.name }}
   namespace: {{ .Values.namespace }}
 spec:
+  suspend: True
   concurrencyPolicy: Allow
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1

@@ -126,9 +126,9 @@ module.exports = {
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     <p>Thank you for your interest in our work.</p>
-                                    <p>If you are interested in data science, please reach out to the data science lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: Raja Wabinyai (raja@airqo.net) and Usman Abdul-Ganiy (usman@airqo.net).</p>
-                                    <p>If you are interested in hardware engineering, reach out to our hardware lead, Joel Ssematimba, at joel@airqo.net and CC: Gideon Lubisia (gideon@airqo.net).</p>
-                                    <p>If interested in software engineering or UI/UX design, please reach out to software engineering lead, Martin Bbaale, at martin@airqo.net and CC: Belinda (belindamarion@airqo.net).</p>
+                                    <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
+                                    <p>If you are interested in Hardware (Embedded Systems) Engineering, reach out to our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
+                                    <p>If interested in Software Product Development, please reach out to our Software Engineering Lead, Martin Bbaale, at martin@airqo.net and CC: platform@airqo.net.</p>
                                 </td>
                   </tr>`;
         break;
@@ -321,6 +321,51 @@ module.exports = {
                             </tr>`;
     const name = firstName + " " + lastName;
 
+    return constants.EMAIL_BODY({ email, content, name });
+  },
+  field_activity: ({
+    firstName = "",
+    lastName = "",
+    activityDetails = {},
+    deviceDetails = {},
+    email = "",
+    activityType = "recall", // New parameter to determine activity type
+  }) => {
+    // Create a list of activity details
+    let activityDetailsList = Object.entries(activityDetails)
+      .map(([key, value]) => `<li>${key}: "${value}"</li>`)
+      .join("\n");
+
+    // Create a list of device details
+    let deviceDetailsList = Object.entries(deviceDetails)
+      .map(([key, value]) => `<li>${key}: "${value}"</li>`)
+      .join("\n");
+
+    const actionMessage =
+      activityType === "recall"
+        ? "A device has been recalled in your AirQo system."
+        : "A device has been deployed in your AirQo system.";
+
+    const content = `
+        <tr>
+            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                ${actionMessage}
+                <br />
+                <strong>Here are the details:</strong>
+                <br />
+                <strong>Activity Details:</strong>
+                <ol>${activityDetailsList}</ol>
+                <strong>Device Details:</strong>
+                <ol>${deviceDetailsList}</ol>
+                <br />
+                If you have any questions or concerns regarding this action, please contact your organization's administrator.
+                <br />
+                Access AirQo Analytics here: ${constants.LOGIN_PAGE}
+                <br /><br />
+            </td>
+        </tr>`;
+
+    const name = `${firstName} ${lastName}`;
     return constants.EMAIL_BODY({ email, content, name });
   },
   token_compromised: ({

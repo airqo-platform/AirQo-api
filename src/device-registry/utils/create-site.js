@@ -836,8 +836,11 @@ const createSite = {
   },
   list: async (request, next) => {
     try {
-      const { skip, limit, tenant } = request.query;
+      const { skip, limit, tenant, path } = request.query;
       const filter = generateFilter.sites(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
       const responseFromListSite = await SiteModel(tenant).list(
         {
           filter,

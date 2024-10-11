@@ -5,11 +5,14 @@ import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union, Generator, Tuple
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
 from .utils import Utils
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AirQoApi:
@@ -34,7 +37,6 @@ class AirQoApi:
                 method="post",
                 body=data,
             )
-            print(response)
 
     def get_maintenance_logs(
         self, tenant: str, device: str, activity_type: str = None
@@ -124,8 +126,7 @@ class AirQoApi:
             )
             return response if response else []
         except Exception as ex:
-            traceback.print_exc()
-            print(ex)
+            logger.exception()
             return []
 
     def get_devices(
@@ -171,11 +172,11 @@ class AirQoApi:
                     "previous_sites": List[Dict[str, Any]],
                     "cohorts": List,
                     "site": Dict[str, Any],
-                    device_number
+                    "device_number": int
                 },
             ]
         """
-        params = {"tenant": str(Tenant.AIRQO)}
+        params = {"tenant": str(Tenant.AIRQO), "category": str(device_category)}
         if configuration.ENVIRONMENT == "production":
             # Query for active devices only when in production
             params["active"] = "yes"
@@ -183,78 +184,73 @@ class AirQoApi:
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
 
-        response = self.__request("devices", params)
+        # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
+        response = self.__request("devices/summary", params)
         devices = [
             {
-                **device,
-                "device_number": device.get("device_number"),
-                "latitude": device.get("latitude")
-                or device.get("approximate_latitude"),
-                "longitude": device.get("longitude")
-                or device.get("approximate_longitude"),
-                "device_id": device.get("name"),
-                "device_codes": [str(code) for code in device.get("device_codes", [])],
-                "mongo_id": device.get("_id"),
-                "site_id": device.get("site", {}).get("_id"),
-                "site_location": device.get("site", {}).get("location_name"),
+                "device_id": device.pop("name"),
+                "site_id": device.get("site", {}).get("_id", None),
+                "site_location": device.pop("site", {}).get("location_name", None),
                 "device_category": str(
-                    DeviceCategory.from_str(device.get("category", ""))
+                    DeviceCategory.from_str(device.pop("category", None))
                 ),
                 "tenant": device.get("network"),
-                "device_manufacturer": device.get("device_manufacturer")
-                or Tenant.from_str(device.get("network")).device_manufacturer(),
+                "device_manufacturer": Tenant.from_str(
+                    device.pop("network")
+                ).device_manufacturer(),
+                **device,
             }
             for device in response.get("devices", [])
         ]
-
-        if device_category != DeviceCategory.NONE:
-            devices = [
-                device
-                for device in devices
-                if device["device_category"] == str(device_category)
-            ]
         return devices
 
-    def get_thingspeak_read_keys(self, devices: List) -> Dict[int, str]:
+    def get_thingspeak_read_keys(
+        self, devices: pd.DataFrame, return_type: str = "all"
+    ) -> Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
         """
-        Retrieve read keys from thingspeak given a list of devices.
+        Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
-            - tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
-            - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
+            return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
+                            If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
         Returns:
-            Dict[int, str]: A dictionary containing device decrypted keys. The dictionary has the following structure.
-            {
-                "device_number":str,
-            }
+            Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
+                - A dictionary containing device decrypted keys when `return_type='all'`. The dictionary has the structure {device_number: decrypted_key}.
+                - A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
         """
 
         body: List = []
         decrypted_keys: List[Dict[str, str]] = []
         decrypted_read_keys: Dict[int, str] = {}
 
-        for device in devices:
-            read_key = device.get("readKey", None)
-            device_number = device.get("device_number", None)
-            if read_key and device_number:
+        for device_number, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(device_number):
                 body.append(
-                    {
-                        "encrypted_key": read_key,
-                        "device_number": device_number,
-                    }
+                    {"encrypted_key": row["readKey"], "device_number": device_number}
                 )
 
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
 
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
-            return {
-                int(entry["device_number"]): entry["decrypted_key"]
-                for entry in decrypted_keys
-            }
-        # TODO Find a better way to do better handling vs returning an empty object.
-        return decrypted_read_keys
+
+            if return_type == "all":
+                return {
+                    int(entry["device_number"]): entry["decrypted_key"]
+                    for entry in decrypted_keys
+                }
+            elif return_type == "yield":
+                for entry in decrypted_keys:
+                    device_number = int(entry["device_number"])
+                    decrypted_key = entry["decrypted_key"]
+                    yield device_number, decrypted_key
+
+        if return_type == "all":
+            return decrypted_read_keys
+        elif return_type == "yield":
+            return
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """
@@ -377,7 +373,7 @@ class AirQoApi:
 
                 meta_data[key] = float(response["data"])
             except Exception as ex:
-                print(ex)
+                logger.exception()
 
         return meta_data
 
@@ -386,13 +382,11 @@ class AirQoApi:
         query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
 
         try:
-            response = self.__request(
-                endpoint="devices/airqlouds/refresh",
-                params=query_params,
-                method="put",
+            self.__request(
+                endpoint="devices/airqlouds/refresh", params=query_params, method="put"
             )
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception()
 
     def refresh_grid(self, grid_id: str) -> None:
         # TODO Update doc string.
@@ -404,8 +398,8 @@ class AirQoApi:
                 params=query_params,
                 method="put",
             )
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception()
 
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
         """
@@ -541,8 +535,8 @@ class AirQoApi:
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
             measurement = response["measurements"][0]["pm2_5"]["value"]
             return measurement
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            logger.exception()
             return None
 
     def get_grids(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
@@ -690,8 +684,7 @@ class AirQoApi:
         for i in updated_sites:
             site = dict(i)
             params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
-            response = self.__request("devices/sites", params, site, "put")
-            print(response)
+            self.__request("devices/sites", params, site, "put")
 
     def get_tenants(self, data_source: str) -> List[Dict[str, Any]]:
         """
@@ -778,7 +771,6 @@ class AirQoApi:
         http = urllib3.PoolManager(retries=retry_strategy)
 
         url = f"{base_url}/{endpoint}"
-        print(url)
         try:
             if method == "put" or method == "post":
                 headers["Content-Type"] = "application/json"
@@ -800,10 +792,8 @@ class AirQoApi:
                     method.upper(), url, fields=params, headers=headers
                 )
             else:
-                print("Method not supported")
+                logger.exception("Method not supported")
                 return None
-
-            print(response._request_url)
 
             if response.status == 200 or response.status == 201:
                 return simplejson.loads(response.data)
@@ -811,6 +801,6 @@ class AirQoApi:
                 Utils.handle_api_error(response)
                 return None
 
-        except urllib3.exceptions.HTTPError as e:
-            print(f"HTTPError: {e}")
+        except urllib3.exceptions.HTTPError as ex:
+            logger.exception(f"HTTPError: {ex}")
             return None

@@ -46,12 +46,12 @@ const gridShapeExclusionProjection = gridShapeFieldsToExclude.reduce(
   },
   {}
 );
-const getDocumentsByNetworkId = async (tenantId, network, category) => {
+const getDocumentsByNetworkId = async (tenantId, network, path) => {
   try {
-    if (category === "summary") {
+    if (path === "summary") {
       //make modifications to the exclusion projection
     }
-    if (category === "dashboard") {
+    if (path === "dashboard") {
       //make modifications to the exclusion projection
     }
     const cohortsQuery = CohortModel(tenantId).aggregate([
@@ -113,13 +113,13 @@ const getDocumentsByNetworkId = async (tenantId, network, category) => {
     };
   }
 };
-const getDocumentsByGroupId = async (tenantId, groupId, category) => {
+const getDocumentsByGroupId = async (tenantId, groupId, path) => {
   try {
-    if (category === "summary") {
-      // Make modifications to the exclusion projection for summary category
+    if (path === "summary") {
+      // Make modifications to the exclusion projection for summary path
     }
-    if (category === "dashboard") {
-      // Make modifications to the exclusion projection for dashboard category
+    if (path === "dashboard") {
+      // Make modifications to the exclusion projection for dashboard path
     }
 
     const cohortsQuery = CohortModel(tenantId).aggregate([
@@ -658,8 +658,11 @@ const createAirqloud = {
   },
   list: async (request, next) => {
     try {
-      const { tenant, limit, skip } = request.query;
+      const { tenant, limit, skip, path } = request.query;
       const filter = generateFilter.airqlouds(request, next);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
       const responseFromListAirQloud = await AirQloudModel(tenant).list(
         {
           filter,
@@ -685,10 +688,10 @@ const createAirqloud = {
       const { params, query } = request;
       const groupId = params.group_id;
       const networkId = params.net_id;
-      const { tenant, category } = query;
+      const { tenant, path } = query;
 
       if (groupId) {
-        return await getDocumentsByGroupId(tenant, groupId, category)
+        return await getDocumentsByGroupId(tenant, groupId, path)
           .then(({ cohorts, grids }) => {
             return {
               success: true,
@@ -706,7 +709,7 @@ const createAirqloud = {
             };
           });
       } else if (networkId) {
-        return await getDocumentsByNetworkId(tenant, networkId, category)
+        return await getDocumentsByNetworkId(tenant, networkId, path)
           .then(({ cohorts, grids }) => {
             return {
               success: true,

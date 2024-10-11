@@ -25,6 +25,15 @@ const noSpaces = /^\S*$/;
 
 const accessCodeGenerator = require("generate-password");
 
+function sanitizeObject(obj, invalidKeys) {
+  invalidKeys.forEach((key) => {
+    if (obj.hasOwnProperty(key)) {
+      delete obj[key];
+    }
+  });
+  return obj;
+}
+
 const deviceSchema = new mongoose.Schema(
   {
     cohorts: {
@@ -95,6 +104,12 @@ const deviceSchema = new mongoose.Schema(
     },
     createdAt: {
       type: Date,
+    },
+    lastActive: { type: Date },
+    isOnline: {
+      type: Boolean,
+      trim: true,
+      default: false,
     },
     generation_version: {
       type: Number,
@@ -283,6 +298,8 @@ deviceSchema.methods = {
       mountType: this.mountType,
       isActive: this.isActive,
       writeKey: this.writeKey,
+      lastActive: this.lastActive,
+      isOnline: this.isOnline,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
@@ -445,12 +462,13 @@ deviceSchema.statics = {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : "none"
+        filter.path ? filter.path : "none"
       );
 
-      if (!isEmpty(filter.category)) {
-        delete filter.category;
+      if (!isEmpty(filter.path)) {
+        delete filter.path;
       }
+
       if (!isEmpty(filter.dashboard)) {
         delete filter.dashboard;
       }
@@ -482,6 +500,12 @@ deviceSchema.statics = {
           localField: "cohorts",
           foreignField: "_id",
           as: "cohorts",
+        })
+        .lookup({
+          from: "grids",
+          localField: "site.grids",
+          foreignField: "_id",
+          as: "grids",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -522,12 +546,10 @@ deviceSchema.statics = {
     try {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
-      delete modifiedUpdate.name;
-      delete modifiedUpdate.device_number;
-      delete modifiedUpdate._id;
-      delete modifiedUpdate.generation_count;
-      delete modifiedUpdate.generation_version;
-      delete modifiedUpdate.network;
+      //device_number, generation_count, generation_version, network
+      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      modifiedUpdate = sanitizeObject(modifiedUpdate, invalidKeys);
+
       let options = { new: true, projected: modifiedUpdate, ...opts };
 
       if (!isEmpty(modifiedUpdate.access_code)) {
@@ -598,12 +620,6 @@ deviceSchema.statics = {
       logObject("the filter", filter);
       let options = { new: true };
       let modifiedUpdate = update;
-      delete modifiedUpdate.name;
-      delete modifiedUpdate.device_number;
-      delete modifiedUpdate._id;
-      delete modifiedUpdate.generation_count;
-      delete modifiedUpdate.generation_version;
-
       validKeys = ["writeKey", "readKey"];
       Object.keys(modifiedUpdate).forEach(
         (key) => validKeys.includes(key) || delete modifiedUpdate[key]

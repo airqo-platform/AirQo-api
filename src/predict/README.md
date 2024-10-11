@@ -1,4 +1,4 @@
-# Predict Microservice Guide
+# Predict Microservice Guide.
 This repository contains code for the predict microservice, and contains 3 main directories
 * API - code for predict API
 * Jobs - This contains code for three machine learning models `forecast model training`, `forecasting job`

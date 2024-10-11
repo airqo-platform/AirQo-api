@@ -2073,15 +2073,37 @@ const createUserModule = {
   },
   subscribeToNewsLetter: async (request, next) => {
     try {
-      const { email, tags } = request.body;
+      const {
+        email,
+        tags,
+        firstName,
+        lastName,
+        address,
+        city,
+        state,
+        zipCode,
+      } = request.body;
 
       const subscriberHash = md5(email);
       const listId = constants.MAILCHIMP_LIST_ID;
 
+      const mergeFields = {
+        ...(firstName && { FNAME: firstName }),
+        ...(lastName && { LNAME: lastName }),
+        ...(address && { ADDRESS: address }),
+        ...(city && { CITY: city }),
+        ...(state && { STATE: state }),
+        ...(zipCode && { ZIP: zipCode }),
+      };
+
       const responseFromMailChimp = await mailchimp.lists.setListMember(
         listId,
         subscriberHash,
-        { email_address: email, status_if_new: "subscribed" }
+        {
+          email_address: email,
+          status_if_new: "subscribed",
+          merge_fields: mergeFields,
+        }
       );
       const existingTags = responseFromMailChimp.tags.map((tag) => tag.name);
 
