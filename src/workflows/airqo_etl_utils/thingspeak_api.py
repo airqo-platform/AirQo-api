@@ -1,10 +1,12 @@
 import json
-import traceback
 
 import pandas as pd
 import requests
 
 from .config import configuration
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ThingspeakApi:
@@ -33,7 +35,6 @@ class ThingspeakApi:
                 data.attrs["meta_data"] = response["channel"]
 
         except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+            logger.exception(f"An error occured: {ex}")
 
         return data

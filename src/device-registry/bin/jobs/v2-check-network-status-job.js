@@ -6,8 +6,9 @@ const logger = log4js.getLogger(
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
 const { logText } = require("@utils/log");
-
-const BATCH_SIZE = 1000; // Define the size of each batch
+const moment = require("moment-timezone");
+const TIMEZONE = moment.tz.guess();
+const UPTIME_THRESHOLD = 50;
 
 const checkNetworkStatus = async () => {
   try {
@@ -34,15 +35,14 @@ const checkNetworkStatus = async () => {
     const { totalDevices, offlineDevicesCount } = result[0];
     const offlinePercentage = (offlineDevicesCount / totalDevices) * 100;
 
-    if (offlinePercentage > 60) {
+    if (offlinePercentage > UPTIME_THRESHOLD) {
       logText(
-        `⚠️💔😥 More than 60% of devices are offline: ${offlinePercentage.toFixed(
+        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of devices are offline: ${offlinePercentage.toFixed(
           2
         )}%`
       );
-
       logger.warn(
-        `⚠️💔😥 More than 60% of devices are offline: ${offlinePercentage.toFixed(
+        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of devices are offline: ${offlinePercentage.toFixed(
           2
         )}%`
       );
@@ -52,22 +52,22 @@ const checkNetworkStatus = async () => {
           2
         )}% offline`
       );
-      //   logger.info(
-      //     `✅ Network status is acceptable: ${offlinePercentage.toFixed(
-      //       2
-      //     )}% offline`
-      //   );
+      logger.info(
+        `✅ Network status is acceptable: ${offlinePercentage.toFixed(
+          2
+        )}% offline`
+      );
     }
   } catch (error) {
-    logText(`Error checking network status: ${error.message}`);
-    logger.error(`Error checking network status: ${error.message}`);
-    logger.error(`Stack trace: ${error.stack}`);
+    logText(`🐛🐛 Error checking network status: ${error.message}`);
+    logger.error(`🐛🐛 Error checking network status: ${error.message}`);
+    logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   }
 };
 
 logText("Network status job is now running.....");
-const schedule = "0 */2 * * *";
+const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
 cron.schedule(schedule, checkNetworkStatus, {
   scheduled: true,
-  timezone: constants.TIMEZONE,
+  timezone: TIMEZONE,
 });
