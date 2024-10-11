@@ -92,6 +92,12 @@ app.use(function (err, req, res, next) {
         message: err.message,
         errors: err.errors,
       });
+    } else if (err instanceof SyntaxError) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid JSON",
+        errors: { message: "Invalid JSON" },
+      });
     } else if (err.status === 404) {
       res.status(err.status).json({
         success: false,
