@@ -24,8 +24,8 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const { logText, logObject } = require("@utils/log");
 const stringify = require("@utils/stringify");
 require("@bin/jobs/store-signals-job");
-require("@bin/jobs/new-store-readings-job");
-// require("@bin/jobs/new-check-network-status-job");
+require("@bin/jobs/v2-store-readings-job");
+require("@bin/jobs/v2-check-network-status-job");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
