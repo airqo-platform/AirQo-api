@@ -779,7 +779,7 @@ class SatelliteUtils(BaseMlUtils):
         Return: returns a dataframe after applying the encoding
         """
 
-        if not "city" in data.columns:
+        if "city" not in data.columns:
             raise ValueError("data frame does not contain city or country column")
 
         if encoder == "LabelEncoder":
@@ -871,5 +871,5 @@ class SatelliteUtils(BaseMlUtils):
         #     rmse.append(validate(train_v, test_v, 'pm2_5', origin))
 
         GCSUtils.upload_trained_model_to_gcs(
-            model, project_id, bucket, f"satellite_prediction_model.pkl"
+            model, project_id, bucket, "satellite_prediction_model.pkl"
         )

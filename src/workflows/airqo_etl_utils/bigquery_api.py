@@ -896,8 +896,8 @@ ORDER BY
     ) -> pd.DataFrame:
         try:
             pd.to_datetime(start_date_time)
-        except ValueError:
-            raise ValueError(f"Invalid start date time: {start_date_time}")
+        except ValueError as e:
+            raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
         query = f"""
         SELECT DISTINCT * FROM `{self.satellite_data_table}`

@@ -91,8 +91,7 @@ def train_forecasting_models():
 
     @task()
     def train_and_save_daily_model(train_data):
-        return ForecastUtils.train_and_save_forecast_models(train_data, "daily")
-
+        return ForecastUtils.train_and_save_forecast_models(train_data, frequency="daily")
     hourly_data = fetch_training_data_for_hourly_forecast_model()
     hourly_preprocessed_data = preprocess_training_data_for_hourly_forecast_model(
         hourly_data

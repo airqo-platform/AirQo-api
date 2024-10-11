@@ -32,7 +32,7 @@ def train_satellite_model():
 
     @task()
     def fetch_historical_ground_monitor_data():
-        current_date = datetime.today()
+        current_date = datetime.now(timezone.utc)
         start_date = current_date - relativedelta(
             months=int(configuration.SATELLITE_TRAINING_SCOPE)
         )
