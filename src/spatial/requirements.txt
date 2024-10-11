@@ -1,7 +1,7 @@
 #requirements.txt
 flask~=3.0.3
 pandas~=2.2.3
-geopandas~=1.0.1
+geopandas
 pysal~=24.7
 geojson~=3.1.0
 libpysal~=4.12.1
