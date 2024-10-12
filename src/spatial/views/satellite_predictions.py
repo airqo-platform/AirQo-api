@@ -48,4 +48,5 @@ class SatellitePredictionView:
             )
 
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            app.logger.error("Exception occurred", exc_info=True)
+            return jsonify({"error": "An internal error has occurred"}), 500
