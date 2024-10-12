@@ -485,8 +485,7 @@ const filter = {
   tokens: (req, next) => {
     try {
       const { query, params } = req;
-      const { id } = query;
-      const { token, client_id, name } = params;
+      const { token, client_id, name, id, emailed } = { ...query, ...params };
       let filter = {};
 
       if (id) {
@@ -495,6 +494,10 @@ const filter = {
 
       if (token) {
         filter["token"] = token;
+      }
+
+      if (emailed) {
+        filter.expiredEmailSent = emailed.toLowerCase() === "yes";
       }
 
       if (client_id) {

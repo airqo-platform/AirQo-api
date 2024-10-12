@@ -8,6 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
 const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
+const moment = require("moment-timezone");
 
 const toMilliseconds = (hrs, min, sec) => {
   return (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -39,6 +40,10 @@ const AccessTokenSchema = new mongoose.Schema(
     expires: {
       type: Date,
       required: [true, "expiry date is required!"],
+    },
+    expiredEmailSent: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
@@ -207,6 +212,131 @@ AccessTokenSchema.statics = {
         return {
           success: true,
           message: "No tokens found, please crosscheck provided details",
+          status: httpStatus.NOT_FOUND,
+          data: [],
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  async getExpiredTokens({ skip = 0, limit = 100, filter = {} } = {}, next) {
+    try {
+      const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.TOKENS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const currentDate = moment().tz(moment.tz.guess()).toDate(); // Get current date in the user's timezone
+      const response = await this.aggregate()
+        .match({
+          expires: { $lt: currentDate },
+          ...filter,
+        })
+        .lookup({
+          from: "clients",
+          localField: "client_id",
+          foreignField: "_id",
+          as: "client",
+        })
+        .lookup({
+          from: "users",
+          localField: "client.user_id",
+          foreignField: "_id",
+          as: "user",
+        })
+        .sort({ createdAt: -1 })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
+        .skip(skip)
+        .limit(limit)
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message: "Successfully retrieved expired tokens",
+          data: response,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No expired tokens found",
+          status: httpStatus.NOT_FOUND,
+          data: [],
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  async getExpiringTokens({ skip = 0, limit = 100, filter = {} } = {}, next) {
+    try {
+      const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.TOKENS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const currentDate = moment().tz(moment.tz.guess()).toDate(); // current date in the user's timezone
+      const oneMonthFromNow = moment(currentDate).add(1, "month").toDate(); // one month from now
+
+      const response = await this.aggregate()
+        .match({
+          expires: { $gt: currentDate, $lt: oneMonthFromNow },
+          ...filter,
+        })
+        .lookup({
+          from: "clients",
+          localField: "client_id",
+          foreignField: "_id",
+          as: "client",
+        })
+        .lookup({
+          from: "users",
+          localField: "client.user_id",
+          foreignField: "_id",
+          as: "user",
+        })
+        .sort({ createdAt: -1 })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
+        .skip(skip)
+        .limit(limit)
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message:
+            "Successfully retrieved tokens expiring within the next month",
+          data: response,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No tokens found expiring within the next month",
           status: httpStatus.NOT_FOUND,
           data: [],
         };
