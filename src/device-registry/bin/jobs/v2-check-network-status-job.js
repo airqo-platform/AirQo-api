@@ -14,6 +14,11 @@ const checkNetworkStatus = async () => {
   try {
     const result = await DeviceModel("airqo").aggregate([
       {
+        $match: {
+          status: "deployed", // Only consider deployed devices
+        },
+      },
+      {
         $group: {
           _id: null,
           totalDevices: { $sum: 1 },
@@ -27,8 +32,8 @@ const checkNetworkStatus = async () => {
     ]);
 
     if (result.length === 0 || result[0].totalDevices === 0) {
-      logText("No devices found");
-      logger.info("No devices found.");
+      logText("No deployed devices found");
+      logger.info("No deployed devices found.");
       return;
     }
 
@@ -37,23 +42,23 @@ const checkNetworkStatus = async () => {
 
     if (offlinePercentage > UPTIME_THRESHOLD) {
       logText(
-        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of devices are offline: ${offlinePercentage.toFixed(
+        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are offline: ${offlinePercentage.toFixed(
           2
         )}%`
       );
       logger.warn(
-        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of devices are offline: ${offlinePercentage.toFixed(
+        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are offline: ${offlinePercentage.toFixed(
           2
         )}%`
       );
     } else {
       logText(
-        `✅ Network status is acceptable: ${offlinePercentage.toFixed(
+        `✅ Network status is acceptable for deployed devices: ${offlinePercentage.toFixed(
           2
         )}% offline`
       );
       logger.info(
-        `✅ Network status is acceptable: ${offlinePercentage.toFixed(
+        `✅ Network status is acceptable for deployed devices: ${offlinePercentage.toFixed(
           2
         )}% offline`
       );

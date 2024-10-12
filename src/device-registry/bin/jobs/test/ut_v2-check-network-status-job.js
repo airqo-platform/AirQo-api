@@ -4,7 +4,7 @@ const { expect } = require("chai");
 const log4js = require("log4js");
 const DeviceModel = require("@models/Device");
 const { logText } = require("@utils/log");
-const checkNetworkStatus = require("@bin/jobs/new-check-network-status-job");
+const checkNetworkStatus = require("@bin/jobs/v2-check-network-status-job");
 
 describe("checkNetworkStatus", () => {
   let loggerStub;
@@ -27,14 +27,14 @@ describe("checkNetworkStatus", () => {
     sinon.restore();
   });
 
-  it("should log 'No devices found' when there are no devices", async () => {
+  it("should log 'No deployed devices found' when there are no devices", async () => {
     await checkNetworkStatus();
 
-    expect(loggerStub.calledWith("No devices found.")).to.be.true;
-    expect(logText.calledWith("No devices found")).to.be.true;
+    expect(loggerStub.calledWith("No deployed devices found.")).to.be.true;
+    expect(logText.calledWith("No deployed devices found")).to.be.true;
   });
 
-  it("should calculate offline percentage correctly and log acceptable status", async () => {
+  it("should calculate offline percentage correctly and log acceptable status for deployed devices", async () => {
     aggregateStub.returns(
       Promise.resolve([{ totalDevices: 10, offlineDevicesCount: 2 }])
     );
@@ -42,11 +42,13 @@ describe("checkNetworkStatus", () => {
     await checkNetworkStatus();
 
     expect(
-      loggerStub.calledWith("✅ Network status is acceptable: 20.00% offline")
+      loggerStub.calledWith(
+        "✅ Network status is acceptable for deployed devices: 20.00% offline"
+      )
     ).to.be.true;
   });
 
-  it("should calculate offline percentage correctly and log warning if more than 60% are offline", async () => {
+  it("should calculate offline percentage correctly and log warning if more than 60% of deployed devices are offline", async () => {
     aggregateStub.returns(
       Promise.resolve([{ totalDevices: 5, offlineDevicesCount: 4 }])
     );
@@ -55,7 +57,7 @@ describe("checkNetworkStatus", () => {
 
     expect(
       loggerStub.calledWith(
-        "⚠️💔😥 More than 60% of devices are offline: 80.00%"
+        "⚠️💔😥 More than 60% of deployed devices are offline: 80.00%"
       )
     ).to.be.true;
   });
@@ -67,7 +69,9 @@ describe("checkNetworkStatus", () => {
     await checkNetworkStatus();
 
     expect(
-      loggerStub.calledWith("Error checking network status: Database error")
+      loggerStub.calledWith(
+        "🐛🐛 Error checking network status: Database error"
+      )
     ).to.be.true;
   });
 });
