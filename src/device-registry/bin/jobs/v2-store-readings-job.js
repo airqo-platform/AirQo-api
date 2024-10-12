@@ -96,7 +96,7 @@ async function processDocument(doc) {
         )
       );
     } else {
-      logDocumentDetails(doc);
+      // logDocumentDetails(doc);
     }
 
     // Wait for both updates to complete
