@@ -338,7 +338,7 @@ const isIPBlacklistedHelper = async (
       WhitelistedIPModel("airqo").findOne({ ip }),
       AccessTokenModel("airqo")
         .findOne(accessTokenFilter)
-        .select("name token client_id"),
+        .select("name token client_id expiredEmailSent"),
       BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
     ]);
 
@@ -384,24 +384,34 @@ const isIPBlacklistedHelper = async (
               user: { email, firstName, lastName },
               token,
               name,
+              expiredEmailSent,
             } = tokenDetails;
-            logger.info(
-              `🚨🚨 An AirQo Analytics Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
-            );
-            const emailResponse = await mailer.expiredToken(
-              {
-                email,
-                firstName,
-                lastName,
-                token,
-              },
-              next
-            );
 
-            if (emailResponse && emailResponse.success === false) {
-              logger.error(
-                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+            if (!expiredEmailSent) {
+              logger.info(
+                `🚨🚨 An AirQo Analytics Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
               );
+              const emailResponse = await mailer.expiredToken(
+                {
+                  email,
+                  firstName,
+                  lastName,
+                  token,
+                },
+                next
+              );
+
+              if (emailResponse && emailResponse.success === false) {
+                logger.error(
+                  `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+                );
+              } else {
+                // Update the expiredEmailSent field to true after sending the email
+                await AccessTokenModel("airqo").updateOne(
+                  { token },
+                  { $set: { expiredEmailSent: true } }
+                );
+              }
             }
           }
         }
@@ -890,6 +900,46 @@ const controlAccess = {
         tenant.toLowerCase()
       ).list({ skip, limit, filter }, next);
       return responseFromListToken;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listExpiringTokens: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant, limit, skip } = { ...query, ...params };
+      const filter = generateFilter.tokens(request, next);
+      const responseFromListExpiringTokens = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).getExpiringTokens({ skip, limit, filter }, next);
+      return responseFromListExpiringTokens;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listExpiredTokens: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant, limit, skip } = { ...query, ...params };
+      const filter = generateFilter.tokens(request, next);
+      const responseFromListExpiredTokens = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).getExpiredTokens({ skip, limit, filter }, next);
+      return responseFromListExpiredTokens;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
