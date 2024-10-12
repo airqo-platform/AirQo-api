@@ -778,6 +778,7 @@ const dbProjections = {
     last_used_at: 1,
     isActive: 1,
     expires: 1,
+    expiredEmailSent: 1,
     name: 1,
     permissions: 1,
     scopes: 1,
