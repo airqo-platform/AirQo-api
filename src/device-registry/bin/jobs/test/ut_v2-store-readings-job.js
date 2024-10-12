@@ -14,7 +14,7 @@ const {
   isEntityActive,
   updateEntityStatus,
   processDocument,
-} = require("@bin/jobs/new-store-readings-job");
+} = require("@bin/jobs/v2-store-readings-job");
 
 chai.use(sinonChai);
 chai.use(chaiAsPromised);
