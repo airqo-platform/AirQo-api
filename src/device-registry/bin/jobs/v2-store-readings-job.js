@@ -83,7 +83,7 @@ async function processDocument(doc) {
         )
       );
     } else {
-      logDocumentDetails(doc);
+      // logDocumentDetails(doc);
     }
 
     if (doc.device_id) {
@@ -110,7 +110,7 @@ async function processDocument(doc) {
       upsert: true,
     });
   } catch (error) {
-    logger.error(`🐛🐛 Error processing document: ${error.message}`);
+    // logger.error(`🐛🐛 Error processing document: ${error.message}`);
   }
 }
 

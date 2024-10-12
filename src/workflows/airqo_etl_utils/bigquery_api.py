@@ -1,5 +1,7 @@
+import logging
 import os
 from datetime import datetime
+from typing import List
 
 import pandas as pd
 from google.cloud import bigquery
@@ -9,10 +11,6 @@ from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .date import date_to_str
 from .utils import Utils
-
-from typing import List
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +56,7 @@ class BigQueryApi:
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
         self.openweathermap_table = configuration.BIGQUERY_OPENWEATHERMAP_TABLE
+        self.satellite_data_table = configuration.BIGQUERY_SATELLITE_DATA_TABLE
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
@@ -807,7 +806,7 @@ class BigQueryApi:
         return results
 
     #
-    def fetch_data(
+    def fetch_device_data_for_forecast_job(
         self,
         start_date_time: str,
         job_type: str,
@@ -846,6 +845,79 @@ class BigQueryApi:
         except Exception as e:
             print("Error fetching data from bigquery", {e})
 
+    def fetch_device_data_for_satellite_job(
+        self,
+        start_date_time: str,
+        job_type: str,
+    ) -> pd.DataFrame:
+        try:
+            pd.to_datetime(start_date_time)
+        except ValueError as e:
+            raise ValueError(f"Invalid start date time: {start_date_time}") from e
+
+        query = f"""
+SELECT DISTINCT 
+    TIMESTAMP_TRUNC(t1.timestamp, DAY) as timestamp,
+    t2.city,
+    t1.device_id,
+    t2.latitude,
+    t2.longitude,
+    AVG(t1.pm2_5_calibrated_value) as pm2_5
+FROM {self.hourly_measurements_table_prod} as t1 
+INNER JOIN {self.sites_table} as t2 
+    ON t1.site_id = t2.id 
+WHERE 
+    t1.timestamp > '{start_date_time}' 
+    AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
+    AND t1.device_id IS NOT NULL
+GROUP BY 
+    timestamp,
+    t1.device_id,
+    t2.city,
+    t2.latitude,
+    t2.longitude
+ORDER BY 
+    t1.device_id,
+    timestamp;
+        """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+        try:
+            df = self.client.query(query, job_config).result().to_dataframe()
+            return df
+        except Exception as e:
+            print("Error fetching data from bigquery", {e})
+
+    def fetch_satellite_readings(
+        self,
+        job_type: str,
+        start_date_time: str = " ",
+    ) -> pd.DataFrame:
+        try:
+            pd.to_datetime(start_date_time)
+        except ValueError as e:
+            raise ValueError(f"Invalid start date time: {start_date_time}") from e
+
+        query = f"""
+        SELECT DISTINCT * FROM `{self.satellite_data_table}`
+        """
+
+        if job_type == "train":
+            query += f"""
+            WHERE date(timestamp) >= '{start_date_time}' 
+            """
+
+        query += "ORDER BY timestamp" ""
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+        try:
+            df = self.client.query(query, job_config).result().to_dataframe()
+            return df
+        except Exception as e:
+            print("Error fetching data from bigquery", {e})
+
     @staticmethod
     def save_data_to_bigquery(data: pd.DataFrame, table: str):
         """saves the dataframes to the bigquery tables"""
@@ -858,4 +930,4 @@ class BigQueryApi:
             if_exists="append",
             credentials=credentials,
         )
-        print("Hourly data saved to bigquery")
+        print(" data saved to bigquery")
