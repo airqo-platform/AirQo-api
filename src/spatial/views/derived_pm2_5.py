@@ -6,7 +6,9 @@ from models.pull_satellite_model import (
     SatelliteData,
 )
 import numpy as np
+import logging
 
+logging.basicConfig(level=logging.ERROR)
 
 class PM25View:
     @staticmethod
@@ -51,7 +53,8 @@ class PM25View:
         #            return jsonify(data.to_dict(orient='records')[0]), 200, {'Content-Type': 'application/json'}
 
         except Exception as e:
-            return jsonify({"error": str(e)}), 500, {"Content-Type": "application/json"}
+            logging.error("An error occurred: %s", str(e))
+            return jsonify({"error": "An internal error has occurred!"}), 500, {"Content-Type": "application/json"}
 
 
 #            return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}
