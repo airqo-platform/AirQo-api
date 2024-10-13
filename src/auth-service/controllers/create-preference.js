@@ -345,7 +345,7 @@ const preferences = {
         res.status(status).json({
           success: true,
           message: result.message,
-          seletected_sites: result.data,
+          selected_sites: result.data,
         });
       } else if (result.success === false) {
         const status = result.status

@@ -1,18 +1,18 @@
-require("module-alias/register");
 const express = require("express");
 const request = require("supertest");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 // Mock the router
-jest.mock("@controllers/create-preference", () => ({
-  create: jest.fn(),
-  list: jest.fn(),
-  delete: jest.fn(),
-  addSelectedSites: jest.fn(),
-  updateSelectedSite: jest.fn(),
-  deleteSelectedSite: jest.fn(),
-}));
+const sinon = require("sinon");
+const createPreferenceController = {
+  create: sinon.stub(),
+  list: sinon.stub(),
+  delete: sinon.stub(),
+  addSelectedSites: sinon.stub(),
+  updateSelectedSite: sinon.stub(),
+  deleteSelectedSite: sinon.stub(),
+};
 
 describe("Preference Controller Tests", () => {
   let app;
@@ -57,6 +57,46 @@ describe("Preference Controller Tests", () => {
 
     it("should fail validation for missing required fields", async () => {
       await request(app).post("/api/preferences").send({}).expect(400);
+    });
+
+    it("should handle partial valid data", async () => {
+      const response = await request(app)
+        .post("/api/preferences")
+        .send({
+          user_id: "1234567890abcdef1234567890abcdef",
+          chartTitle: "Partial Data Test",
+        })
+        .expect(200);
+
+      expect(response.body).toBeDefined();
+      // Add more specific assertions based on your API's behavior with partial data
+    });
+
+    it("should reject invalid data types", async () => {
+      const response = await request(app)
+        .post("/api/preferences")
+        .send({
+          user_id: 12345, // Should be a string
+          chartTitle: ["Invalid Title"], // Should be a string
+          period: "Invalid Period", // Should be an object
+        })
+        .expect(400);
+
+      expect(response.body).toHaveProperty("error");
+      // Add more specific assertions based on your error response structure
+    });
+
+    it("should return the correct response structure", async () => {
+      const response = await request(app)
+        .post("/api/preferences")
+        .send({
+          // ... valid data ...
+        })
+        .expect(200);
+
+      expect(response.body).toHaveProperty("id");
+      expect(response.body).toHaveProperty("user_id");
+      // Add more assertions to check all expected properties
     });
   });
 
