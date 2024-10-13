@@ -104,6 +104,82 @@ function validateSelectedSitesField(value) {
   return numericValid && stringValid && tagValid;
 }
 
+function validateDefaultSelectedSitesField(value) {
+  const requiredFields = ["site_id", "search_name", "name"];
+  // Check if all required fields exist
+  if (!requiredFields.every((field) => field in value)) {
+    return false;
+  }
+
+  function validateNumericFields(fields) {
+    let isValid = true;
+
+    fields.forEach((field) => {
+      if (!(field in value)) {
+        isValid = false;
+        return;
+      }
+      const numValue = parseFloat(value[field]);
+      if (Number.isNaN(numValue)) {
+        isValid = false;
+        return;
+      } else if (
+        field === "latitude" ||
+        field === "longitude" ||
+        field === "approximate_latitude" ||
+        field === "approximate_longitude"
+      ) {
+        if (Math.abs(numValue) > 90) {
+          isValid = false;
+          return;
+        }
+      } else if (field === "search_radius") {
+        if (numValue <= 0) {
+          isValid = false;
+          return;
+        }
+      }
+    });
+
+    return isValid;
+  }
+
+  function validateStringFields(fields) {
+    let isValid = true;
+    fields.forEach((field) => {
+      if (typeof value[field] !== "string" || value[field].trim() === "") {
+        isValid = false;
+        return;
+      }
+    });
+    return isValid;
+  }
+
+  function validateTags(tags) {
+    if (isEmpty(tags)) {
+      return true;
+    } else if (!Array.isArray(tags)) {
+      return false;
+    } else {
+      return tags.every((tag) => typeof tag === "string");
+    }
+  }
+
+  const numericValid = validateNumericFields([
+    "latitude",
+    "longitude",
+    "approximate_latitude",
+    "approximate_longitude",
+  ]);
+
+  const stringValid = validateStringFields(["name", "search_name"]);
+
+  const tags = value && value.site_tags;
+  const tagValid = validateTags(tags);
+
+  return numericValid && stringValid && tagValid;
+}
+
 router.use(headers);
 router.use(validatePagination);
 
@@ -1005,6 +1081,186 @@ router.delete(
   setJWTAuth,
   authJWT,
   createPreferenceController.delete
+);
+router.get(
+  "/selected-sites",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("airqloud_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided airqloud_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("cohort_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided cohort_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the cohort_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("grid_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided grid_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the grid_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the provided site_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createPreferenceController.listSelectedSites
+);
+
+router.post(
+  "/selected-sites",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("selected_sites")
+        .exists()
+        .withMessage("selected_sites should be provided")
+        .bail()
+        .isArray()
+        .withMessage("selected_sites should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("selected_sites should not be empty"),
+      body("selected_sites.*")
+        .custom(validateDefaultSelectedSitesField)
+        .withMessage(
+          "Invalid selected_sites format. Verify required fields and data types."
+        ),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPreferenceController.addSelectedSites
+);
+
+router.put(
+  "/selected-sites/:site_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("site_id")
+        .exists()
+        .withMessage("the site_id parameter is required")
+        .bail()
+        .isMongoId()
+        .withMessage("site_id must be a valid MongoDB ObjectId")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body()
+        .custom(validateDefaultSelectedSitesField)
+        .withMessage(
+          "Invalid selected site data. Verify required fields and data types."
+        ),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPreferenceController.updateSelectedSite
+);
+
+router.delete(
+  "/selected-sites/:site_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("site_id")
+        .exists()
+        .withMessage("the site_id parameter is required")
+        .bail()
+        .isMongoId()
+        .withMessage("site_id must be a valid MongoDB ObjectId")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPreferenceController.deleteSelectedSite
 );
 
 router.get(

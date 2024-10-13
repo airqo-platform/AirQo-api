@@ -1,5 +1,6 @@
 const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
+const SelectedSiteModel = require("@models/SelectedSite");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const httpStatus = require("http-status");
@@ -336,6 +337,137 @@ const preferences = {
       );
       return responseFromRemovePreference;
     } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  addSelectedSites: async (request, next) => {
+    try {
+      const { tenant, selected_sites } = {
+        ...body,
+        ...query,
+        ...params,
+      };
+
+      const result = await SelectedSiteModel(tenant).insertMany(
+        selected_sites,
+        {
+          ordered: false,
+        }
+      );
+
+      const successCount = result.length;
+      const failureCount = selected_sites.length - successCount;
+
+      return {
+        success: true,
+        message: `Successfully added ${successCount} selected sites. ${failureCount} failed.`,
+        data: result,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (error.code === 11000) {
+        // Handle duplicate key errors
+        return next(
+          new HttpError("Conflict", httpStatus.CONFLICT, {
+            message: "One or more selected sites already exist.",
+            details: error.writeErrors || error.message,
+          })
+        );
+      }
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+  updateSelectedSite: async (request, next) => {
+    try {
+      const { query, params, body } = request;
+      const { tenant, site_id } = { ...query, ...params };
+      const filter = { site_id };
+      const update = body;
+      const modifyResponse = await SelectedSiteModel(tenant).modify(
+        {
+          filter,
+          update,
+        },
+        next
+      );
+      return modifyResponse;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  deleteSelectedSite: async (request, next) => {
+    try {
+      return {
+        success: false,
+        message: "Service Temporarily Unavailable",
+        errors: {
+          message: "Service Temporarily Unavailable",
+        },
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
+      const { query, params, body } = request;
+      const { tenant, site_id } = { ...query, ...params };
+      const filter = { site_id };
+      const responseFromRemoveSelectedSite = await SelectedSiteModel(
+        tenant
+      ).remove(
+        {
+          filter,
+        },
+        next
+      );
+      return responseFromRemoveSelectedSite;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  listSelectedSites: async (request, next) => {
+    try {
+      const {
+        query: { tenant, site_id, limit, skip },
+      } = request;
+      const filter = generateFilter.selected_sites(request, next);
+      const listResponse = await SelectedSiteModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+      return listResponse;
+    } catch (error) {
+      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
