@@ -23,6 +23,7 @@ require("@bin/jobs/active-status-job");
 require("@bin/jobs/token-expiration-job");
 require("@bin/jobs/incomplete-profile-job");
 require("@bin/jobs/preferences-log-job");
+require("@bin/jobs/preferences-update-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");

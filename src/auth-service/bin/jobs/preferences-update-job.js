@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const UserModel = require("@models/User");
 const PreferenceModel = require("@models/Preference");
+const SelectedSiteModel = require("@models/SelectedSite");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const { logText, logObject } = require("@utils/log");
@@ -9,9 +10,7 @@ const logger = log4js.getLogger(
 );
 const stringify = require("@utils/stringify");
 const isEmpty = require("is-empty");
-
-// Predefined array of 4 site IDs
-const defaultSiteIds = constants.SELECTED_SITES;
+const BATCH_SIZE = 100;
 
 // Default preference object
 const defaultPreference = {
@@ -28,16 +27,52 @@ const defaultPreference = {
     unitValue: 14,
     unit: "day",
   },
-  airqloud_id: constants.DEFAULT_AIRQLOUD,
-  grid_id: constants.DEFAULT_GRID,
-  network_id: constants.DEFAULT_NETWORK,
-  group_id: constants.DEFAULT_GROUP,
+  airqloud_id: constants.DEFAULT_AIRQLOUD || "NA",
+  grid_id: constants.DEFAULT_GRID || "NA",
+  network_id: constants.DEFAULT_NETWORK || "NA",
+  group_id: constants.DEFAULT_GROUP || "NA",
 };
 
-const updatePreferences = async () => {
+// Function to get selected sites based on the specified method
+const getSelectedSites = async (method = "featured") => {
   try {
-    const batchSize = 100;
+    let selectedSites;
+    if (method === "featured") {
+      selectedSites = await SelectedSiteModel("airqo")
+        .find({ isFeatured: true })
+        .sort({ createdAt: -1 })
+        .limit(4)
+        .lean();
+    } else {
+      selectedSites = await SelectedSiteModel("airqo")
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(4)
+        .lean();
+    }
+    const modifiedSelectedSites = selectedSites.map((site) => ({
+      ...site,
+      _id: site.site_id || null,
+    }));
+    return modifiedSelectedSites;
+  } catch (error) {
+    logger.error(`🐛🐛 Error fetching selected sites: ${stringify(error)}`);
+    return [];
+  }
+};
+
+const updatePreferences = async (siteSelectionMethod = "featured") => {
+  try {
+    const batchSize = BATCH_SIZE;
     let skip = 0;
+
+    // Fetch selected sites data
+    const selectedSites = await getSelectedSites(siteSelectionMethod);
+
+    if (isEmpty(selectedSites) || selectedSites.length < 4) {
+      logger.error("🐛🐛 No selected sites found. Aborting preference update.");
+      return;
+    }
 
     while (true) {
       const users = await UserModel("airqo")
@@ -59,15 +94,10 @@ const updatePreferences = async () => {
         .lean();
 
       const preferencesMap = new Map();
+
       preferences.forEach((pref) => {
         preferencesMap.set(pref.user_id.toString(), pref);
       });
-
-      // Initialize selected_sites data
-      const selectedSitesData = defaultSiteIds.map((siteId) => ({
-        _id: siteId,
-        createdAt: new Date(),
-      }));
 
       for (const user of users) {
         const userIdStr = user._id.toString();
@@ -79,11 +109,11 @@ const updatePreferences = async () => {
             .create({
               ...defaultPreference,
               user_id: user._id,
-              selected_sites: selectedSitesData,
+              selected_sites: selectedSites,
             })
             .catch((error) => {
               logger.error(
-                `Failed to create preference for user ${userIdStr}: ${stringify(
+                `🐛🐛 Failed to create preference for user ${userIdStr}: ${stringify(
                   error
                 )}`
               );
@@ -96,14 +126,14 @@ const updatePreferences = async () => {
               {
                 $set: {
                   ...defaultPreference,
-                  selected_sites: selectedSitesData,
+                  selected_sites: selectedSites,
                 },
               },
               { new: true }
             )
             .catch((error) => {
               logger.error(
-                `Failed to update preference for user ${userIdStr}: ${stringify(
+                `🐛🐛 Failed to update preference for user ${userIdStr}: ${stringify(
                   error
                 )}`
               );
@@ -120,7 +150,7 @@ const updatePreferences = async () => {
 };
 
 const schedule = "30 * * * *"; // At minute 30 of every hour
-cron.schedule(schedule, updatePreferences, {
+cron.schedule(schedule, () => updatePreferences("featured"), {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });
