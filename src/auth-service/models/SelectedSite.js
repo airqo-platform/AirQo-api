@@ -43,8 +43,7 @@ SelectedSiteSchema.pre("update", function (next) {
 
 SelectedSiteSchema.index({ name: 1 }, { unique: true });
 SelectedSiteSchema.index({ site_id: 1 }, { unique: true });
-SelectedSiteSchema.index({ lat_long: 1 }, { unique: true });
-SelectedSiteSchema.index({ generated_name: 1 }, { unique: true });
+SelectedSiteSchema.index({ search_name: 1 }, { unique: true });
 SelectedSiteSchema.index({ isFeatured: 1, createdAt: -1 });
 
 SelectedSiteSchema.statics = {

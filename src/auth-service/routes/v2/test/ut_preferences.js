@@ -116,12 +116,12 @@ describe("Preference Controller Tests", () => {
     });
   });
 
-  describe("GET /api/preferences/:user_id", () => {
-    it("should return preference details", async () => {
+  describe("GET /api/preferences/selected-sites", () => {
+    it("should return selected sites", async () => {
       const response = await request(app)
-        .get("/api/preferences/1234567890abcdef1234567890abcdef")
+        .get("/api/preferences/selected-sites")
         .expect(200);
-      expect(response.body).toBeDefined();
+      expect(createPreferenceController.listSelectedSites).toHaveBeenCalled();
     });
   });
 
@@ -179,6 +179,15 @@ describe("Preference Controller Tests", () => {
         )
         .expect(204);
       expect(createPreferenceController.deleteSelectedSite).toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /api/preferences/:user_id", () => {
+    it("should return preference details", async () => {
+      const response = await request(app)
+        .get("/api/preferences/1234567890abcdef1234567890abcdef")
+        .expect(200);
+      expect(response.body).toBeDefined();
     });
   });
 });

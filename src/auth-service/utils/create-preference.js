@@ -350,9 +350,9 @@ const preferences = {
   addSelectedSites: async (request, next) => {
     try {
       const { tenant, selected_sites } = {
-        ...body,
-        ...query,
-        ...params,
+        ...request.body,
+        ...request.query,
+        ...request.params,
       };
 
       const result = await SelectedSiteModel(tenant).insertMany(
