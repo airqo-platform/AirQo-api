@@ -2,7 +2,7 @@
 
 ![Coverage Status](https://coveralls.io/repos/github/airqo-platform/AirQo-api/src/device-registry/badge.svg)
 
-The Device Registry microservice is responsible for managing the creation of devices, sites, and events, along with handling the associated activities that occur within a site.
+Device Registry is responsible for managing the creation of devices, sites, and events, along with handling the associated activities that occur within a site.
 
 ## Features
 
