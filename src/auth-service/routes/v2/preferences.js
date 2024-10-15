@@ -29,8 +29,17 @@ const headers = (req, res, next) => {
   next();
 };
 
-function createValidateSelectedSitesField(requiredFields) {
+function createValidateSelectedSitesField(requiredFields, allowId = false) {
   return function (value) {
+    if (!value) {
+      throw new Error("Value must not be null or undefined");
+    }
+    // Edge case: Check if _id field is present
+    if (!allowId && "_id" in value) {
+      throw new Error("_id field is not allowed");
+    }
+
+    // Check for required fields
     if (!requiredFields.every((field) => field in value)) {
       throw new Error(
         `Missing required fields: ${requiredFields
@@ -110,6 +119,7 @@ function createValidateSelectedSitesField(requiredFields) {
     return numericValid && stringValid && tagValid && isValidSiteId;
   };
 }
+
 const validateUniqueFieldsInSelectedSites = (req, res, next) => {
   const selectedSites = req.body.selected_sites;
 
@@ -123,25 +133,31 @@ const validateUniqueFieldsInSelectedSites = (req, res, next) => {
   const duplicateNames = [];
 
   selectedSites.forEach((item) => {
-    // Check for duplicate site_id
-    if (uniqueSiteIds.has(item.site_id)) {
-      duplicateSiteIds.push(item.site_id);
-    } else {
-      uniqueSiteIds.add(item.site_id);
+    // Check for duplicate site_id if it exists
+    if (item.site_id !== undefined) {
+      if (uniqueSiteIds.has(item.site_id)) {
+        duplicateSiteIds.push(item.site_id);
+      } else {
+        uniqueSiteIds.add(item.site_id);
+      }
     }
 
-    // Check for duplicate search_name
-    if (uniqueSearchNames.has(item.search_name)) {
-      duplicateSearchNames.push(item.search_name);
-    } else {
-      uniqueSearchNames.add(item.search_name);
+    // Check for duplicate search_name if it exists
+    if (item.search_name !== undefined) {
+      if (uniqueSearchNames.has(item.search_name)) {
+        duplicateSearchNames.push(item.search_name);
+      } else {
+        uniqueSearchNames.add(item.search_name);
+      }
     }
 
-    // Check for duplicate name
-    if (uniqueNames.has(item.name)) {
-      duplicateNames.push(item.name);
-    } else {
-      uniqueNames.add(item.name);
+    // Check for duplicate name if it exists
+    if (item.name !== undefined) {
+      if (uniqueNames.has(item.name)) {
+        duplicateNames.push(item.name);
+      } else {
+        uniqueNames.add(item.name);
+      }
     }
   });
 
@@ -176,6 +192,7 @@ const validateUniqueFieldsInSelectedSites = (req, res, next) => {
 
   next();
 };
+
 router.use(headers);
 router.use(validatePagination);
 
@@ -372,7 +389,7 @@ router.post(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -574,7 +591,7 @@ router.patch(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -777,7 +794,7 @@ router.put(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -947,7 +964,7 @@ router.post(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -1178,7 +1195,10 @@ router.post(
         .notEmpty()
         .withMessage("selected_sites should not be empty"),
       body("selected_sites.*").custom(
-        createValidateSelectedSitesField(["site_id", "search_name", "name"])
+        createValidateSelectedSitesField(
+          ["site_id", "search_name", "name"],
+          false
+        )
       ),
     ],
   ]),
@@ -1214,7 +1234,7 @@ router.put(
           return ObjectId(value);
         }),
       body("selected_site")
-        .custom(createValidateSelectedSitesField([]))
+        .custom(createValidateSelectedSitesField([], false))
         .withMessage(
           "Invalid selected site data. Verify required fields and data types."
         ),
