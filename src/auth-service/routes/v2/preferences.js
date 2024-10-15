@@ -29,8 +29,14 @@ const headers = (req, res, next) => {
   next();
 };
 
-function createValidateSelectedSitesField(requiredFields) {
+function createValidateSelectedSitesField(requiredFields, allowId = false) {
   return function (value) {
+    // Edge case: Check if _id field is present
+    if (!allowId && "_id" in value) {
+      throw new Error("_id field is not allowed");
+    }
+
+    // Check for required fields
     if (!requiredFields.every((field) => field in value)) {
       throw new Error(
         `Missing required fields: ${requiredFields
@@ -110,6 +116,7 @@ function createValidateSelectedSitesField(requiredFields) {
     return numericValid && stringValid && tagValid && isValidSiteId;
   };
 }
+
 const validateUniqueFieldsInSelectedSites = (req, res, next) => {
   const selectedSites = req.body.selected_sites;
 
@@ -372,7 +379,7 @@ router.post(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -574,7 +581,7 @@ router.patch(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -777,7 +784,7 @@ router.put(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -947,7 +954,7 @@ router.post(
       body("selected_sites.*")
         .optional()
         .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"])
+          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
         )
         .withMessage(
           "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
@@ -1178,7 +1185,10 @@ router.post(
         .notEmpty()
         .withMessage("selected_sites should not be empty"),
       body("selected_sites.*").custom(
-        createValidateSelectedSitesField(["site_id", "search_name", "name"])
+        createValidateSelectedSitesField(
+          ["site_id", "search_name", "name"],
+          false
+        )
       ),
     ],
   ]),
@@ -1214,7 +1224,7 @@ router.put(
           return ObjectId(value);
         }),
       body("selected_site")
-        .custom(createValidateSelectedSitesField([]))
+        .custom(createValidateSelectedSitesField([], false))
         .withMessage(
           "Invalid selected site data. Verify required fields and data types."
         ),
