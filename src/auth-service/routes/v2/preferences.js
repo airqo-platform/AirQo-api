@@ -31,6 +31,9 @@ const headers = (req, res, next) => {
 
 function createValidateSelectedSitesField(requiredFields, allowId = false) {
   return function (value) {
+    if (!value) {
+      throw new Error("Value must not be null or undefined");
+    }
     // Edge case: Check if _id field is present
     if (!allowId && "_id" in value) {
       throw new Error("_id field is not allowed");
