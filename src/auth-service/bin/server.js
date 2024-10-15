@@ -23,6 +23,7 @@ require("@bin/jobs/active-status-job");
 require("@bin/jobs/token-expiration-job");
 require("@bin/jobs/incomplete-profile-job");
 require("@bin/jobs/preferences-log-job");
+require("@bin/jobs/preferences-update-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
@@ -46,6 +47,7 @@ app.use(
     saveUninitialized: false,
   })
 ); // session setup
+
 app.use(fileUpload());
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
@@ -91,6 +93,12 @@ app.use(function (err, req, res, next) {
         success: false,
         message: err.message,
         errors: err.errors,
+      });
+    } else if (err instanceof SyntaxError) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid JSON",
+        errors: { message: "Invalid JSON" },
       });
     } else if (err.status === 404) {
       res.status(err.status).json({

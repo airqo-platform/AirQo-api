@@ -9,7 +9,7 @@ const constants = require("@config/constants");
 const log4jsConfiguration = require("@config/log4js");
 log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/index`);
-const jsonify = require("@utils/jsonify");
+const stringify = require("@utils/stringify");
 
 try {
   require("fs").mkdirSync("./log");
@@ -24,7 +24,7 @@ const startKafka = async () => {
   await kafkaConsumer().catch((error) => {
     logObject("KAFKA error in the main()", error);
     logger.error(
-      `🐛🐛 KAFKA: internal server error in the main() -- ${jsonify(error)}`
+      `🐛🐛 KAFKA: internal server error in the main() -- ${stringify(error)}`
     );
     logger.error(
       `🐛🐛 KAFKA error message: internal server error in the main() -- ${error.message}`
@@ -37,11 +37,11 @@ const main = async () => {
     await startKafka();
     createServer();
   } catch (error) {
-    logger.error(`🐛🐛 error in the main() -- ${jsonify(error)}`);
+    logger.error(`🐛🐛 error in the main() -- ${stringify(error)}`);
   }
 };
 
 main().catch((error) => {
   console.error("🐛🐛 Error starting the application: ", error);
-  logger.error(`🐛🐛 Error starting the application -- ${jsonify(error)}`);
+  logger.error(`🐛🐛 Error starting the application -- ${stringify(error)}`);
 });

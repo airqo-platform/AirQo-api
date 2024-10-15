@@ -15,7 +15,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
 const { Kafka } = require("kafkajs");
 const fs = require("fs");
-const jsonify = require("@utils/jsonify");
+const stringify = require("@utils/stringify");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -109,7 +109,7 @@ const createGrid = {
               messages: [
                 {
                   action: "create",
-                  value: jsonify(responseFromRegisterGrid.data),
+                  value: stringify(responseFromRegisterGrid.data),
                 },
               ],
             });
@@ -296,7 +296,7 @@ const createGrid = {
         }
       } catch (error) {
         logger.error(
-          `🐛🐛 Internal Server Error -- grid refresh -- Remove the Grid from INACTIVE Sites -- ${jsonify(
+          `🐛🐛 Internal Server Error -- grid refresh -- Remove the Grid from INACTIVE Sites -- ${stringify(
             error
           )}`
         );

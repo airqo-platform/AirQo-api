@@ -9,6 +9,7 @@ import pandas as pd
 import pymongo as pm
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from .config import configuration, db
 
@@ -18,6 +19,7 @@ environment = configuration.ENVIRONMENT
 additional_columns = ["site_id"]
 
 pd.options.mode.chained_assignment = None
+
 
 ### This module contains utility functions for ML jobs.
 
@@ -52,8 +54,10 @@ class GCSUtils:
             job = joblib.dump(trained_model, handle)
 
 
-class MlUtils:
-    """Utility class for ML related tasks"""
+class BaseMlUtils:
+    """Base Utility class for ML related tasks"""
+
+    # TODO: need to review this, may need to make better abstractions
 
     @staticmethod
     def preprocess_data(data, data_frequency, job_type):
@@ -146,7 +150,7 @@ class MlUtils:
         return df1
 
     @staticmethod
-    def get_time_and_cyclic_features(df, freq):
+    def get_time_features(df, freq):
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -157,22 +161,39 @@ class MlUtils:
 
         if freq not in ["daily", "hourly"]:
             raise ValueError("Invalid frequency")
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+
         df1 = df.copy()
+        df1["timestamp"] = pd.to_datetime(df1["timestamp"])
+        attributes = ["year", "month", "day", "dayofweek"]
+        if freq == "hourly":
+            attributes.append("hour")
+
+        for a in attributes:
+            df1[a] = df1["timestamp"].dt.__getattribute__(a)
+
+        df1["week"] = df1["timestamp"].dt.isocalendar().week
+
+        return df1
+
+    @staticmethod
+    def get_cyclic_features(df, freq):
+        df1 = BaseMlUtils.get_time_features(df, freq)
+
         attributes = ["year", "month", "day", "dayofweek"]
         max_vals = [2023, 12, 30, 7]
         if freq == "hourly":
             attributes.append("hour")
             max_vals.append(23)
+
         for a, m in zip(attributes, max_vals):
-            df1[a] = df1["timestamp"].dt.__getattribute__(a)
             df1[a + "_sin"] = np.sin(2 * np.pi * df1[a] / m)
             df1[a + "_cos"] = np.cos(2 * np.pi * df1[a] / m)
 
-        df1["week"] = df1["timestamp"].dt.isocalendar().week
         df1["week_sin"] = np.sin(2 * np.pi * df1["week"] / 52)
         df1["week_cos"] = np.cos(2 * np.pi * df1["week"] / 52)
+
         df1.drop(columns=attributes + ["week"], inplace=True)
+
         return df1
 
     @staticmethod
@@ -213,6 +234,8 @@ class MlUtils:
     #
     #     return df_tmp
 
+
+class ForecastUtils(BaseMlUtils):
     @staticmethod
     def train_and_save_forecast_models(training_data, frequency):
         """
@@ -418,6 +441,7 @@ class MlUtils:
         data = data.dropna(subset=["device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
+
         # data["margin_of_error"] = data["adjusted_forecast"] = 0
 
         def get_forecasts(
@@ -604,8 +628,8 @@ class MlUtils:
                     f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
                 )
 
-    ###Fault Detection
 
+class FaultDetectionUtils(BaseMlUtils):
     @staticmethod
     def flag_rule_based_faults(df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -741,3 +765,111 @@ class MlUtils:
                 print(f"Error saving faulty devices to MongoDB: {e}")
 
             print("Faulty devices saved/updated to MongoDB")
+
+
+class SatelliteUtils(BaseMlUtils):
+    @staticmethod
+    def encode(data: pd.DataFrame, encoder: str = "LabelEncoder") -> pd.DataFrame:
+        """
+        applies encoding for the city and country features
+
+        Keyword arguments:
+        data --  the data frame to apply the transformation on
+        encoder --  the type of encoding to apply (default: 'LabelEncoder')
+        Return: returns a dataframe after applying the encoding
+        """
+
+        if "city" not in data.columns:
+            raise ValueError("data frame does not contain city or country column")
+
+        if encoder == "LabelEncoder":
+            le = LabelEncoder()
+            for column in ["city"]:
+                data[column] = le.fit_transform(data[column])
+        elif encoder == "OneHotEncoder":
+            ohe = OneHotEncoder(sparse=False)
+            for column in ["city"]:
+                encoded_data = ohe.fit_transform(data[[column]])
+                encoded_columns = [
+                    f"{column}_{i}" for i in range(encoded_data.shape[1])
+                ]
+                encoded_df = pd.DataFrame(encoded_data, columns=encoded_columns)
+                data = pd.concat([data, encoded_df], axis=1)
+                data = data.drop(column, axis=1)
+        else:
+            raise ValueError(
+                "Invalid encoder. Please choose 'LabelEncoder' or 'OneHotEncoder'."
+            )
+
+        return data
+
+    @staticmethod
+    def lag_features(
+        data: pd.DataFrame, frequency: str, target_col: str
+    ) -> pd.DataFrame:
+        """appends lags to specific feature in the data frame.
+
+        Keyword arguments:
+
+            data -- the dataframe to apply the transformation on.
+
+            frequency -- (hourly/daily) weather the lag is applied per hours or per days.
+
+            target_col -- the column to apply the transformation on.
+
+        Return: returns a dataframe after applying the transformation
+        """
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        if frequency == "hourly":
+            shifts = [1, 2, 6, 12]
+            time_unit = "hour"
+        elif frequency == "daily":
+            shifts = [1, 2, 3, 7]
+            time_unit = "day"
+        else:
+            raise ValueError("freq must be daily or hourly")
+        for s in shifts:
+            data[f"pm2_5_last_{s}_{time_unit}"] = data.groupby(["city"])[
+                target_col
+            ].shift(s)
+        return data
+
+    @staticmethod
+    def train_satellite_model(data):
+        data = data[data["pm2_5"] < 200]
+        data.drop(columns=["timestamp", "city", "device_id"], inplace=True)
+        model = LGBMRegressor(
+            random_state=42, n_estimators=200, max_depth=10, objective="mse"
+        )
+
+        model.fit(data.drop(columns="pm2_5"), data["pm2_5"])
+
+        # TODO: add mlflow stuff after cluster issues handled
+
+        # n_splits = 4
+        # cv = GroupKFold(n_splits=n_splits)
+        # groups = data['city']
+        # stds = []
+        # rmse = []
+        #
+        # def validate(trainset, testset, t, origin):
+        #     with mlflow.start_run():
+        #         model.fit(data.drop(columns=t), trainset[t])
+        #         pred = model.predict(np.array(testset.drop(columns=t)))
+        #         origin['pm2_5'] = pred
+        #         origin['date'] = pd.to_datetime(origin['date'])
+        #         origin['date_day'] = origin['date'].dt.dayofyear
+        #         pred = origin['date_day'].map(origin[['date_day', 'pm_5']].groupby('date_day')['pm_5'].mean())
+        #         stds.append(testset[t].std())
+        #         score = mean_squared_error(pred, testset[t], squared=False)
+        #         mlflow.log_metric("rmse", score)
+        #         mlflow.sklearn.log_model(model, "model")
+        #
+        # for v_train, v_test in cv.split(data, groups=groups):
+        #     train_v, test_v = data.iloc[v_train], data.iloc[v_test]
+        #     origin = data.iloc[v_test]
+        #     rmse.append(validate(train_v, test_v, 'pm2_5', origin))
+
+        GCSUtils.upload_trained_model_to_gcs(
+            model, project_id, bucket, "satellite_prediction_model.pkl"
+        )

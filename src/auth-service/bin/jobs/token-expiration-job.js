@@ -1,27 +1,30 @@
 const AccessTokenModel = require("@models/AccessToken");
 const cron = require("node-cron");
 const constants = require("@config/constants");
+const { logObject, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const stringify = require("@utils/stringify");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/token-expiration-job`
 );
-const moment = require("moment-timezone");
 
 async function sendEmailsInBatches(tokens, batchSize = 100) {
   for (let i = 0; i < tokens.length; i += batchSize) {
     const batch = tokens.slice(i, i + batchSize);
     const emailPromises = batch.map((token) => {
-      const email = token.email;
-      const firstName = token.firstName;
-      const lastName = token.lastName;
+      logObject("the expiring token", token);
+      const {
+        user: { email, firstName, lastName },
+      } = token;
+
+      logObject("the email to be used", email);
       return mailer
         .expiringToken({ email, firstName, lastName })
         .then((response) => {
           if (response && response.success === false) {
             logger.error(
-              `Error sending email to ${email}: ${stringify(response)}`
+              `🐛🐛 Error sending email to ${email}: ${stringify(response)}`
             );
           }
         });
@@ -30,24 +33,44 @@ async function sendEmailsInBatches(tokens, batchSize = 100) {
   }
 }
 
-const weeklyOnSundayAtMidnight = "0 0 * * 0";
-cron.schedule(
-  weeklyOnSundayAtMidnight,
-  async () => {
-    const timeZone = moment.tz.guess();
-    const now = moment().tz(timeZone);
-    const twoMonthsFromNow = now.clone().add(2, "months");
-    const filter = {
-      expires: { $gte: now.toDate(), $lt: twoMonthsFromNow.toDate() },
-    };
+async function fetchAllExpiringTokens() {
+  let allTokens = [];
+  let skip = 0;
+  const limit = 100;
+  let hasMoreTokens = true;
 
-    try {
-      const tokens = await AccessTokenModel("airqo").list({ filter });
-      await sendEmailsInBatches(tokens);
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+  while (hasMoreTokens) {
+    const tokensResponse = await AccessTokenModel("airqo").getExpiringTokens({
+      skip,
+      limit,
+    });
+
+    if (tokensResponse.success && tokensResponse.data.length > 0) {
+      allTokens = allTokens.concat(tokensResponse.data);
+      skip += limit; // Increment skip for the next batch
+    } else {
+      hasMoreTokens = false; // No more tokens to fetch
     }
-  },
+  }
+  return allTokens;
+}
+
+const sendAlertsForExpiringTokens = async () => {
+  try {
+    const tokens = await fetchAllExpiringTokens();
+    if (tokens.length > 0) {
+      await sendEmailsInBatches(tokens);
+    } else {
+      logger.info("No expiring tokens found for this month.");
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+  }
+};
+
+cron.schedule(
+  "0 0 */30 * *", // Every 30 days at midnight
+  sendAlertsForExpiringTokens,
   {
     scheduled: true,
     timezone: "Africa/Nairobi",
