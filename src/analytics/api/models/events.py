@@ -40,238 +40,243 @@ class EventsModel(BasePyMongoModel):
         self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
         super().__init__(tenant, collection_name="events")
 
-    @classmethod
-    @cache.memoize()
-    def download_from_bigquery(
-        cls,
-        devices,
-        sites,
-        airqlouds,
-        start_date,
-        end_date,
-        frequency,
-        pollutants,
-        weather_fields,
-    ) -> pd.DataFrame:
-        decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
+@classmethod
+@cache.memoize()
+def download_from_bigquery(
+    cls,
+    devices,
+    sites,
+    airqlouds,
+    start_date,
+    end_date,
+    frequency,
+    network,
+    resolution,
+    datatype,
+    pollutants,
+    weather_fields,
+) -> pd.DataFrame:
+    decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
-        # Data sources
-        sites_table = cls.BIGQUERY_SITES
-        airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
-        devices_table = cls.BIGQUERY_DEVICES
-        airqlouds_table = cls.BIGQUERY_AIRQLOUDS
+    # Data sources
+    sites_table = cls.BIGQUERY_SITES
+    airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
+    devices_table = cls.BIGQUERY_DEVICES
+    airqlouds_table = cls.BIGQUERY_AIRQLOUDS
 
-        sorting_cols = ["site_id", "datetime", "device_name"]
+    sorting_cols = ["site_id", "datetime", "device_name"]
 
-        if frequency == "raw":
-            data_table = cls.BIGQUERY_RAW_DATA
-        elif frequency == "daily":
-            data_table = cls.BIGQUERY_DAILY_DATA
-        elif frequency == "hourly":
-            data_table = cls.BIGQUERY_HOURLY_DATA
-        else:
-            raise Exception("Invalid frequency")
+    if frequency == "raw":
+        data_table = cls.BIGQUERY_RAW_DATA
+    elif frequency == "daily":
+        data_table = cls.BIGQUERY_DAILY_DATA
+    elif frequency == "hourly":
+        data_table = cls.BIGQUERY_HOURLY_DATA
+    else:
+        raise Exception("Invalid frequency")
 
-        pollutant_columns = []
-        bam_pollutant_columns = []
-        weather_columns = []
-        for pollutant in pollutants:
-            pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
-                pollutant, []
+    pollutant_columns = []
+    bam_pollutant_columns = []
+    weather_columns = []
+    for pollutant in pollutants:
+        pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
+            pollutant, []
+        )
+        for mapping in pollutant_mapping:
+            if datatype == "raw" and mapping.endswith("_raw_value"):
+                pollutant_columns.append(f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}")
+            elif datatype == "calibrated" and mapping.endswith("_calibrated_value"):
+                pollutant_columns.append(f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}")
+            elif datatype not in ["raw", "calibrated"]:
+                pollutant_columns.append(f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}")
+
+        if pollutant == "pm2_5":
+            bam_pollutant_columns.extend(
+                ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
             )
-            pollutant_columns.extend(
+        elif pollutant == "pm10":
+            bam_pollutant_columns.extend(
+                ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
+            )
+        elif pollutant == "no2":
+            bam_pollutant_columns.extend(
+                ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
+            )
+
+    if weather_fields is not None:
+        for field in weather_fields:
+            weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
+            weather_columns.extend(
                 [
-                    f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}"
-                    for mapping in pollutant_mapping
+                    f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
                 ]
             )
+    pollutants_query = (
+        f" SELECT {', '.join(map(str, set(pollutant_columns + weather_columns)))} ,"
+        f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
+    )
+    bam_pollutants_query = (
+        f" SELECT {', '.join(map(str, set(bam_pollutant_columns)))} ,"
+        f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
+    )
 
-            if pollutant == "pm2_5":
-                bam_pollutant_columns.extend(
-                    ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
-                )
-            elif pollutant == "pm10":
-                bam_pollutant_columns.extend(
-                    ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
-                )
-            elif pollutant == "no2":
-                bam_pollutant_columns.extend(
-                    ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
-                )
-
-        if weather_fields is not None:
-            for field in weather_fields:
-                weather_mapping = WEATHER_FIELDS_MAPPER.get(field, None)
-                weather_columns.extend(
-                    [
-                        f"ROUND({data_table}.{weather_mapping}, {decimal_places}) AS {weather_mapping}"
-                    ]
-                )
-        pollutants_query = (
-            f" SELECT {', '.join(map(str, set(pollutant_columns + weather_columns)))} ,"
-            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
-        )
-        bam_pollutants_query = (
-            f" SELECT {', '.join(map(str, set(bam_pollutant_columns)))} ,"
-            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
+    base_query = ""
+    if len(devices) != 0:
+        base_query = (
+            f" {pollutants_query} , "
+            f" {devices_table}.device_id AS device_name , "
+            f" {devices_table}.site_id AS site_id , "
+            f" {devices_table}.tenant AS tenant , "
+            f" {devices_table}.approximate_latitude AS device_latitude , "
+            f" {devices_table}.approximate_longitude  AS device_longitude , "
+            f" FROM {data_table} "
+            f" JOIN {devices_table} ON {devices_table}.device_id = {data_table}.device_id "
+            f" WHERE {data_table}.timestamp >= '{start_date}' "
+            f" AND {data_table}.timestamp <= '{end_date}' "
+            f" AND {devices_table}.device_id IN UNNEST({devices}) "
         )
 
-        if len(devices) != 0:
-            # Adding device information, start and end times
-            query = (
-                f" {pollutants_query} , "
-                f" {devices_table}.device_id AS device_name , "
-                f" {devices_table}.site_id AS site_id , "
-                f" {devices_table}.tenant AS tenant , "
-                f" {devices_table}.approximate_latitude AS device_latitude , "
-                f" {devices_table}.approximate_longitude  AS device_longitude , "
-                f" FROM {data_table} "
-                f" JOIN {devices_table} ON {devices_table}.device_id = {data_table}.device_id "
-                f" WHERE {data_table}.timestamp >= '{start_date}' "
-                f" AND {data_table}.timestamp <= '{end_date}' "
-                f" AND {devices_table}.device_id IN UNNEST({devices}) "
-            )
-
-            bam_query = (
-                f" {bam_pollutants_query} , "
-                f" {devices_table}.device_id AS device_name , "
-                f" {devices_table}.site_id AS site_id , "
-                f" {devices_table}.tenant AS tenant , "
-                f" {devices_table}.approximate_latitude AS device_latitude , "
-                f" {devices_table}.approximate_longitude  AS device_longitude , "
-                f" FROM {cls.BIGQUERY_BAM_DATA} "
-                f" JOIN {devices_table} ON {devices_table}.device_id = {cls.BIGQUERY_BAM_DATA}.device_id "
-                f" WHERE {cls.BIGQUERY_BAM_DATA}.timestamp >= '{start_date}' "
-                f" AND {cls.BIGQUERY_BAM_DATA}.timestamp <= '{end_date}' "
-                f" AND {devices_table}.device_id IN UNNEST({devices}) "
-            )
-
-            # Adding site information
-            query = (
-                f" SELECT "
-                f" {sites_table}.name AS site_name , "
-                f" {sites_table}.approximate_latitude AS site_latitude , "
-                f" {sites_table}.approximate_longitude  AS site_longitude , "
-                f" data.* "
-                f" FROM {sites_table} "
-                f" RIGHT JOIN ({query}) data ON data.site_id = {sites_table}.id "
-            )
-
-            bam_query = (
-                f" SELECT "
-                f" {sites_table}.name AS site_name , "
-                f" {sites_table}.approximate_latitude AS site_latitude , "
-                f" {sites_table}.approximate_longitude  AS site_longitude , "
-                f" data.* "
-                f" FROM {sites_table} "
-                f" RIGHT JOIN ({bam_query}) data ON data.site_id = {sites_table}.id "
-            )
-
-            if frequency == "hourly":
-                query = f"{query} UNION ALL {bam_query}"
-
-        elif len(sites) != 0:
-            # Adding site information, start and end times
-            query = (
-                f" {pollutants_query} , "
-                f" {sites_table}.tenant AS tenant , "
-                f" {sites_table}.id AS site_id , "
-                f" {sites_table}.name AS site_name , "
-                f" {sites_table}.approximate_latitude AS site_latitude , "
-                f" {sites_table}.approximate_longitude  AS site_longitude , "
-                f" {data_table}.device_id AS device_name , "
-                f" FROM {data_table} "
-                f" JOIN {sites_table} ON {sites_table}.id = {data_table}.site_id "
-                f" WHERE {data_table}.timestamp >= '{start_date}' "
-                f" AND {data_table}.timestamp <= '{end_date}' "
-                f" AND {sites_table}.id IN UNNEST({sites}) "
-            )
-
-            # Adding device information
-            query = (
-                f" SELECT "
-                f" {devices_table}.approximate_latitude AS device_latitude , "
-                f" {devices_table}.approximate_longitude  AS device_longitude , "
-                f" {devices_table}.device_id AS device_name , "
-                f" data.* "
-                f" FROM {devices_table} "
-                f" RIGHT JOIN ({query}) data ON data.device_name = {devices_table}.device_id "
-            )
-        else:
-            sorting_cols = ["airqloud_id", "site_id", "datetime", "device_name"]
-
-            meta_data_query = (
-                f" SELECT {airqlouds_sites_table}.tenant , "
-                f" {airqlouds_sites_table}.airqloud_id , "
-                f" {airqlouds_sites_table}.site_id , "
-                f" FROM {airqlouds_sites_table} "
-                f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({airqlouds}) "
-            )
-
-            # Adding airqloud information
-            meta_data_query = (
-                f" SELECT "
-                f" {airqlouds_table}.name  AS airqloud_name , "
-                f" meta_data.* "
-                f" FROM {airqlouds_table} "
-                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
-            )
-
-            # Adding site information
-            meta_data_query = (
-                f" SELECT "
-                f" {sites_table}.approximate_latitude AS site_latitude , "
-                f" {sites_table}.approximate_longitude  AS site_longitude , "
-                f" {sites_table}.name  AS site_name , "
-                f" meta_data.* "
-                f" FROM {sites_table} "
-                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
-            )
-
-            # Adding device information
-            meta_data_query = (
-                f" SELECT "
-                f" {devices_table}.approximate_latitude AS device_latitude , "
-                f" {devices_table}.approximate_longitude  AS device_longitude , "
-                f" {devices_table}.device_id AS device_name , "
-                f" meta_data.* "
-                f" FROM {devices_table} "
-                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
-            )
-
-            # Adding start and end times
-            query = (
-                f" {pollutants_query} , "
-                f" meta_data.* "
-                f" FROM {data_table} "
-                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
-                f" WHERE {data_table}.timestamp >= '{start_date}' "
-                f" AND {data_table}.timestamp <= '{end_date}' "
-                f" ORDER BY {data_table}.timestamp "
-            )
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-        dataframe = (
-            bigquery.Client()
-            .query(
-                f"select distinct * from ({query}) limit {cls.DATA_EXPORT_LIMIT}",
-                job_config,
-            )
-            .result()
-            .to_dataframe()
+        bam_query = (
+            f" {bam_pollutants_query} , "
+            f" {devices_table}.device_id AS device_name , "
+            f" {devices_table}.site_id AS site_id , "
+            f" {devices_table}.tenant AS tenant , "
+            f" {devices_table}.approximate_latitude AS device_latitude , "
+            f" {devices_table}.approximate_longitude  AS device_longitude , "
+            f" FROM {cls.BIGQUERY_BAM_DATA} "
+            f" JOIN {devices_table} ON {devices_table}.device_id = {cls.BIGQUERY_BAM_DATA}.device_id "
+            f" WHERE {cls.BIGQUERY_BAM_DATA}.timestamp >= '{start_date}' "
+            f" AND {cls.BIGQUERY_BAM_DATA}.timestamp <= '{end_date}' "
+            f" AND {devices_table}.device_id IN UNNEST({devices}) "
         )
 
-        if len(dataframe) == 0:
-            return dataframe
-
-        dataframe.drop_duplicates(
-            subset=["datetime", "device_name"], inplace=True, keep="first"
+        base_query = (
+            f" SELECT "
+            f" {sites_table}.name AS site_name , "
+            f" {sites_table}.approximate_latitude AS site_latitude , "
+            f" {sites_table}.approximate_longitude  AS site_longitude , "
+            f" data.* "
+            f" FROM {sites_table} "
+            f" RIGHT JOIN ({base_query}) data ON data.site_id = {sites_table}.id "
         )
-        dataframe.sort_values(sorting_cols, ascending=True, inplace=True)
-        dataframe["frequency"] = frequency
-        dataframe = dataframe.replace(np.nan, None)
+
+        bam_query = (
+            f" SELECT "
+            f" {sites_table}.name AS site_name , "
+            f" {sites_table}.approximate_latitude AS site_latitude , "
+            f" {sites_table}.approximate_longitude  AS site_longitude , "
+            f" data.* "
+            f" FROM {sites_table} "
+            f" RIGHT JOIN ({bam_query}) data ON data.site_id = {sites_table}.id "
+        )
+
+        if frequency == "hourly":
+            base_query = f"{base_query} UNION ALL {bam_query}"
+
+    elif len(sites) != 0:
+        base_query = (
+            f" {pollutants_query} , "
+            f" {sites_table}.tenant AS tenant , "
+            f" {sites_table}.id AS site_id , "
+            f" {sites_table}.name AS site_name , "
+            f" {sites_table}.approximate_latitude AS site_latitude , "
+            f" {sites_table}.approximate_longitude  AS site_longitude , "
+            f" {data_table}.device_id AS device_name , "
+            f" FROM {data_table} "
+            f" JOIN {sites_table} ON {sites_table}.id = {data_table}.site_id "
+            f" WHERE {data_table}.timestamp >= '{start_date}' "
+            f" AND {data_table}.timestamp <= '{end_date}' "
+            f" AND {sites_table}.id IN UNNEST({sites}) "
+        )
+
+        base_query = (
+            f" SELECT "
+            f" {devices_table}.approximate_latitude AS device_latitude , "
+            f" {devices_table}.approximate_longitude  AS device_longitude , "
+            f" {devices_table}.device_id AS device_name , "
+            f" data.* "
+            f" FROM {devices_table} "
+            f" RIGHT JOIN ({base_query}) data ON data.device_name = {devices_table}.device_id "
+        )
+    else:
+        sorting_cols = ["airqloud_id", "site_id", "datetime", "device_name"]
+
+        meta_data_query = (
+            f" SELECT {airqlouds_sites_table}.tenant , "
+            f" {airqlouds_sites_table}.airqloud_id , "
+            f" {airqlouds_sites_table}.site_id , "
+            f" FROM {airqlouds_sites_table} "
+            f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({airqlouds}) "
+        )
+
+        meta_data_query = (
+            f" SELECT "
+            f" {airqlouds_table}.name  AS airqloud_name , "
+            f" meta_data.* "
+            f" FROM {airqlouds_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+        )
+
+        meta_data_query = (
+            f" SELECT "
+            f" {sites_table}.approximate_latitude AS site_latitude , "
+            f" {sites_table}.approximate_longitude  AS site_longitude , "
+            f" {sites_table}.name  AS site_name , "
+            f" meta_data.* "
+            f" FROM {sites_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+        )
+
+        meta_data_query = (
+            f" SELECT "
+            f" {devices_table}.approximate_latitude AS device_latitude , "
+            f" {devices_table}.approximate_longitude  AS device_longitude , "
+            f" {devices_table}.device_id AS device_name , "
+            f" meta_data.* "
+            f" FROM {devices_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
+        )
+
+        base_query = (
+            f" {pollutants_query} , "
+            f" meta_data.* "
+            f" FROM {data_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+            f" WHERE {data_table}.timestamp >= '{start_date}' "
+            f" AND {data_table}.timestamp <= '{end_date}' "
+            f" ORDER BY {data_table}.timestamp "
+        )
+
+    # Add resolution filter
+    if resolution:
+        base_query += f" AND {data_table}.frequency = '{resolution}' "
+
+    # Add network (tenant) filter
+    if network:
+        base_query += f" AND {devices_table}.tenant = '{network}' "
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_query_cache = True
+    dataframe = (
+        bigquery.Client()
+        .query(
+            f"select distinct * from ({base_query}) limit {cls.DATA_EXPORT_LIMIT}",
+            job_config,
+        )
+        .result()
+        .to_dataframe()
+    )
+
+    if len(dataframe) == 0:
         return dataframe
+
+    dataframe.drop_duplicates(
+        subset=["datetime", "device_name"], inplace=True, keep="first"
+    )
+    dataframe.sort_values(sorting_cols, ascending=True, inplace=True)
+    dataframe["frequency"] = frequency
+    dataframe = dataframe.replace(np.nan, None)
+    return dataframe
 
     @classmethod
     def data_export_query(

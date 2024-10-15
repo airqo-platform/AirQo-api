@@ -45,11 +45,14 @@ class DataExportResource(Resource):
     @validate_request_json(
         "startDateTime|required:datetime",
         "endDateTime|required:datetime",
-        "frequency|optional:str",
+        "frequency|optional:str", 
+        "resolution|optional:str", # added resolution
+        "datatype|optional:str", # added datatype
+        "network|optional:str", # added network
         "weatherFields|optional:list",
         "downloadType|optional:str",
         "outputFormat|optional:str",
-        "pollutants|optional:list",
+        "pollutants|optional:list", #already existing
         "sites|optional:list",
         "devices|optional:list",
         "airqlouds|optional:list",
@@ -58,7 +61,11 @@ class DataExportResource(Resource):
         valid_pollutants = ["pm2_5", "pm10", "no2"]
         valid_download_types = ["csv", "json"]
         valid_output_formats = ["airqo-standard", "aqcsv"]
-        valid_frequencies = ["hourly", "daily", "raw"]
+        valid_frequencies = ["hourly", "daily", "monthly", "weekly", "raw"] # added monthly and weekly, removed raw
+        valid_datatypes = ["calibrated", "raw",] # added datatypes
+        valid_resolutions = ["hourly", "daily", "monthly", "weekly"] # added resolutions
+        valid_networks = ["airqo", "kcca"] # added networks
+        
 
         json_data = request.get_json()
 
@@ -74,6 +81,9 @@ class DataExportResource(Resource):
         pollutants = json_data.get("pollutants", valid_pollutants)
         weather_fields = json_data.get("weatherFields", None)
         frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
+        datatype = f"{json_data.get('datatype', valid_datatypes[0])}".lower()
+        network = f"{json_data.get('network', valid_networks[0])}".lower()
+        resolution = f"{json_data.get('resolution', valid_resolutions[0])}".lower()
         download_type = (
             f"{json_data.get('downloadType', valid_download_types[0])}".lower()
         )
@@ -103,6 +113,33 @@ class DataExportResource(Resource):
             return (
                 create_response(
                     f"Invalid frequency {frequency}. Valid string values are any of {', '.join(valid_frequencies)}",
+                    success=False,
+                ),
+                Status.HTTP_400_BAD_REQUEST,
+            )
+
+        if datatype not in valid_datatypes:
+            return (
+                create_response(
+                    f"Invalid datatype {datatype}. Valid string values are any of {', '.join(valid_datatypes)}",
+                    success=False,
+                ),
+                Status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if network not in valid_networks:
+            return (
+                create_response(
+                    f"Invalid network {network}. Valid string values are any of {', '.join(valid_networks)}",
+                    success=False,
+                ),
+                Status.HTTP_400_BAD_REQUEST,
+            )
+
+        if resolution not in valid_resolutions:
+            return (
+                create_response(
+                    f"Invalid resolution {resolution}. Valid string values are any of {', '.join(valid_resolutions)}",
                     success=False,
                 ),
                 Status.HTTP_400_BAD_REQUEST,
@@ -146,6 +183,9 @@ class DataExportResource(Resource):
                 start_date=start_date,
                 end_date=end_date,
                 frequency=frequency,
+                datatype=datatype,
+                network=network,
+                resolution=resolution,
                 pollutants=pollutants,
                 weather_fields=weather_fields,
             )
@@ -160,7 +200,7 @@ class DataExportResource(Resource):
 
             if output_format == "aqcsv":
                 records = format_to_aqcsv(
-                    data=records, frequency=frequency, pollutants=pollutants
+                    data=records, frequency=frequency, datatype=datatype, network=network, resolution=resolution, pollutants=pollutants
                 )
 
             if download_type == "json":
@@ -172,7 +212,7 @@ class DataExportResource(Resource):
                 )
 
             return excel.make_response_from_records(
-                records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
+                records, "csv", file_name=f"{frequency}-{datatype}-{network}-{resolution}-air-quality{postfix}data"
             )
         except Exception as ex:
             print(ex)
