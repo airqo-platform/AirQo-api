@@ -158,7 +158,7 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       const data = viewEventsResponse.data[0].data;
       if (!data || data.length === 0) {
         logText("No Events found to insert into Readings");
-        logger.error(`🐛🐛 Didn't find any Events to insert into Readings`);
+        logger.error(`☹️☹️ Didn't find any Events to insert into Readings`);
         return;
       }
 
