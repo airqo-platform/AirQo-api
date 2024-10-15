@@ -130,25 +130,31 @@ const validateUniqueFieldsInSelectedSites = (req, res, next) => {
   const duplicateNames = [];
 
   selectedSites.forEach((item) => {
-    // Check for duplicate site_id
-    if (uniqueSiteIds.has(item.site_id)) {
-      duplicateSiteIds.push(item.site_id);
-    } else {
-      uniqueSiteIds.add(item.site_id);
+    // Check for duplicate site_id if it exists
+    if (item.site_id !== undefined) {
+      if (uniqueSiteIds.has(item.site_id)) {
+        duplicateSiteIds.push(item.site_id);
+      } else {
+        uniqueSiteIds.add(item.site_id);
+      }
     }
 
-    // Check for duplicate search_name
-    if (uniqueSearchNames.has(item.search_name)) {
-      duplicateSearchNames.push(item.search_name);
-    } else {
-      uniqueSearchNames.add(item.search_name);
+    // Check for duplicate search_name if it exists
+    if (item.search_name !== undefined) {
+      if (uniqueSearchNames.has(item.search_name)) {
+        duplicateSearchNames.push(item.search_name);
+      } else {
+        uniqueSearchNames.add(item.search_name);
+      }
     }
 
-    // Check for duplicate name
-    if (uniqueNames.has(item.name)) {
-      duplicateNames.push(item.name);
-    } else {
-      uniqueNames.add(item.name);
+    // Check for duplicate name if it exists
+    if (item.name !== undefined) {
+      if (uniqueNames.has(item.name)) {
+        duplicateNames.push(item.name);
+      } else {
+        uniqueNames.add(item.name);
+      }
     }
   });
 
@@ -183,6 +189,7 @@ const validateUniqueFieldsInSelectedSites = (req, res, next) => {
 
   next();
 };
+
 router.use(headers);
 router.use(validatePagination);
 
