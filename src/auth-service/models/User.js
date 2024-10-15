@@ -758,10 +758,11 @@ UserSchema.statics = {
       ).select(fieldsString);
 
       if (!isEmpty(updatedUser)) {
+        const { _id, ...userData } = updatedUser._doc;
         return {
           success: true,
           message: "successfully modified the user",
-          data: updatedUser._doc,
+          data: userData,
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedUser)) {
