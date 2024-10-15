@@ -69,7 +69,7 @@ const sendAlertsForExpiringTokens = async () => {
 };
 
 cron.schedule(
-  "0 0 */30 * *", // Every 30 days at midnight
+  "0 0 5 * *", // every 5th day of the month at midnight
   sendAlertsForExpiringTokens,
   {
     scheduled: true,
