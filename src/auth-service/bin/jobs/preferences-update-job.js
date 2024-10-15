@@ -70,7 +70,7 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
     const selectedSites = await getSelectedSites(siteSelectionMethod);
 
     if (isEmpty(selectedSites) || selectedSites.length < 4) {
-      logger.error("👀👀 No selected sites found. Aborting preference update.");
+      logger.error("👀 No selected sites found. Aborting preference update.");
       return;
     }
 
