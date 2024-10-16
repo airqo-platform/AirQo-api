@@ -28,7 +28,7 @@ function handleError(err, next, defaultMessage) {
 
   if (err.code === 11000 || err.code === 11001) {
     errors = err.keyValue;
-    message = "Duplicate values provided";
+    message = "Duplicate maintenance entry for the product.";
     status = httpStatus.CONFLICT;
     Object.entries(errors).forEach(([key, value]) => {
       response[key] = value;
@@ -51,6 +51,7 @@ const MaintenanceSchema = new mongoose.Schema(
       type: String,
       enum: Object.values(PRODUCT_NAMES),
       required: [true, "Product name is required!"],
+      unique: true,
     },
     isActive: {
       type: Boolean,
