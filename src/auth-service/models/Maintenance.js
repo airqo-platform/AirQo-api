@@ -120,11 +120,9 @@ MaintenanceSchema.statics = {
       handleError(err, next, "Internal Server Error");
     }
   },
-  async list(
-    { skip = 0, limit = Math.min(limit, maxLimit), filter = {} } = {},
-    next
-  ) {
+  async list({ skip = 0, limit = maxLimit, filter = {} } = {}, next) {
     try {
+      limit = Math.min(limit, maxLimit);
       const maintenances = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
