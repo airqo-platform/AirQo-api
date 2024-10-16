@@ -119,14 +119,10 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     oneOf([tenantValidation]),
-    // Assuming you want to validate id as well
     query("id")
       .optional()
       .isMongoId()
       .withMessage("id must be a valid ObjectId"),
-
-    setJWTAuth,
-    authJWT,
     createMaintenanceController.list
   );
 
