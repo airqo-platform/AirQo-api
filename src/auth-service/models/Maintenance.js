@@ -12,6 +12,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- maintenances-model`
 );
 const { HttpError } = require("@utils/errors");
+const moment = require("moment-timezone");
+const timeZone = moment.tz.guess();
 const maxLimit = 100;
 const PRODUCT_NAMES = Object.freeze({
   MOBILE: "mobile",
@@ -66,11 +68,12 @@ const MaintenanceSchema = new mongoose.Schema(
     startDate: {
       type: Date,
       required: [true, "Start date is required!"],
-      default: Date.now,
+      default: () => moment.tz(timeZone).toDate(),
     },
     endDate: {
       type: Date,
       required: [true, "End date is required!"],
+      default: () => moment.tz(timeZone).add(5, "hours").toDate(),
       validate: {
         validator: function (value) {
           return this.startDate && value > this.startDate;

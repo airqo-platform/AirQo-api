@@ -1,15 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const createMaintenanceController = require("@controllers/create-maintenance");
-const { oneOf, query, body, param } = require("express-validator");
+const { oneOf, query, body } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-// const { logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const { logText, logObject } = require("@utils/log");
-const { isMongoId } = require("validator");
-// const stringify = require("@utils/stringify");
 const setDefaultTenant = require("@middleware/setDefaultTenant");
 const products = ["mobile", "website", "analytics"];
 
@@ -52,30 +48,44 @@ const tenantValidation = [
     .withMessage("the tenant value is not among the expected ones"),
 ];
 
+const startDateValidation = [
+  body("startDate")
+    .optional()
+    .notEmpty()
+    .withMessage("startDate should not be empty if provided")
+    .bail()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage("startDate must be a valid datetime."),
+];
+
+const endDateValidation = [
+  body("endDate")
+    .optional()
+    .notEmpty()
+    .withMessage("endDate should not be empty if provided")
+    .bail()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage("endDate must be a valid datetime."),
+];
+
 const isActiveValidation = [
   body("isActive")
-    .exists()
-    .withMessage("isActive field is missing")
-    .bail()
+    .optional()
     .notEmpty()
     .withMessage("isActive should not be empty if provided")
     .bail()
     .isBoolean()
-    .withMessage("isActive should be a Boolean value"),
+    .withMessage("isActive must be Boolean"),
 ];
 
-const idValidations = [
-  query("id")
+const messageValidation = [
+  body("message")
     .optional()
     .notEmpty()
-    .withMessage("the provided id should not be empty if provided")
-    .bail()
-    .trim()
-    .isMongoId()
-    .withMessage("id must be an object ID")
-    .bail()
-    .customSanitizer((value) => ObjectId(value)),
-  // Add other ID validations here...
+    .withMessage("message should not be empty if provided")
+    .trim(),
 ];
 
 products.forEach((product) => {
@@ -83,7 +93,10 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     oneOf([tenantValidation]),
+    oneOf([startDateValidation]),
+    oneOf([endDateValidation]),
     oneOf([isActiveValidation]),
+    oneOf([messageValidation]),
     setJWTAuth,
     authJWT,
     createMaintenanceController.create
@@ -93,7 +106,10 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     oneOf([tenantValidation]),
+    oneOf([startDateValidation]),
+    oneOf([endDateValidation]),
     oneOf([isActiveValidation]),
+    oneOf([messageValidation]),
     setJWTAuth,
     authJWT,
     createMaintenanceController.update
@@ -103,7 +119,12 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     oneOf([tenantValidation]),
-    oneOf([idValidations]),
+    // Assuming you want to validate id as well
+    query("id")
+      .optional()
+      .isMongoId()
+      .withMessage("id must be a valid ObjectId"),
+
     setJWTAuth,
     authJWT,
     createMaintenanceController.list
@@ -113,7 +134,10 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     oneOf([tenantValidation]),
-    oneOf([idValidations]),
+    query("id")
+      .optional()
+      .isMongoId()
+      .withMessage("id must be a valid ObjectId"),
     setJWTAuth,
     authJWT,
     createMaintenanceController.delete
