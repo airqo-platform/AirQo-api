@@ -129,11 +129,14 @@ MaintenanceSchema.statics = {
   },
   async list({ skip = 0, limit = maxLimit, filter = {} } = {}, next) {
     try {
-      limit = Math.min(parseInt(limit) || maxLimit, maxLimit);
+      const parsedLimit = parseInt(limit, 10);
+      const effectiveLimit = Number.isNaN(parsedLimit)
+        ? maxLimit
+        : Math.min(parsedLimit, maxLimit);
       const maintenances = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
+        .limit(effectiveLimit)
         .exec();
 
       if (!isEmpty(maintenances)) {
