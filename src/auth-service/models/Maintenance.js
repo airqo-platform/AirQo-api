@@ -13,6 +13,32 @@ const logger = log4js.getLogger(
 const { HttpError } = require("@utils/errors");
 const maxLimit = 100;
 
+function handleError(err, next, defaultMessage) {
+  logger.error(`Internal Server Error -- ${err.message}`);
+  let response = {};
+  let errors = {};
+  let message = defaultMessage;
+  let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+  if (err.code === 11000 || err.code === 11001) {
+    errors = err.keyValue;
+    message = "Duplicate values provided";
+    status = httpStatus.CONFLICT;
+    Object.entries(errors).forEach(([key, value]) => {
+      response[key] = value;
+    });
+  } else {
+    errors = err.errors || { message: err.message };
+    message = "Validation errors for some of the provided fields";
+    status = httpStatus.BAD_REQUEST;
+    Object.entries(errors).forEach(([key, value]) => {
+      response[key] = value.message || value;
+    });
+  }
+
+  next(new HttpError(message, status, response));
+}
+
 const MaintenanceSchema = new mongoose.Schema(
   {
     product: {
@@ -91,30 +117,7 @@ MaintenanceSchema.statics = {
         };
       }
     } catch (err) {
-      logObject("error in the object", err);
-      logger.error(`Data conflicts detected -- ${err.message}`);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      handleError(err, next, "Internal Server Error");
     }
   },
   async list(
@@ -144,14 +147,7 @@ MaintenanceSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next, "Internal Server Error");
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -180,16 +176,7 @@ MaintenanceSchema.statics = {
         );
       }
     } catch (err) {
-      logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code == 11000) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-      }
-      next(new HttpError(message, status, errors));
+      handleError(err, next, "Internal Server Error");
     }
   },
   async remove({ filter = {} } = {}, next) {
@@ -225,12 +212,7 @@ MaintenanceSchema.statics = {
         );
       }
     } catch (error) {
-      logger.error(`Data conflicts detected -- ${error.message}`);
-      next(
-        new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-          message: error.message,
-        })
-      );
+      handleError(error, next, "Internal Server Error");
     }
   },
 };
