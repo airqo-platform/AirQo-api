@@ -1,6 +1,9 @@
 # Use the official Python image as a base image
 FROM python:3.10-slim-bullseye as base
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 # Set the working directory inside the container
 WORKDIR /app/
 
