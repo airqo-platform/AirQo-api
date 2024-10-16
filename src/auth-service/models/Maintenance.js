@@ -1,4 +1,5 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
+mongoose.set("debug", process.env.NODE_ENV !== "production");
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject } = require("@utils/log");
@@ -68,6 +69,12 @@ const MaintenanceSchema = new mongoose.Schema(
     endDate: {
       type: Date,
       required: [true, "End date is required!"],
+      validate: {
+        validator: function (value) {
+          return this.startDate && value > this.startDate;
+        },
+        message: "End date must be after the start date",
+      },
     },
   },
   {
@@ -122,7 +129,7 @@ MaintenanceSchema.statics = {
   },
   async list({ skip = 0, limit = maxLimit, filter = {} } = {}, next) {
     try {
-      limit = Math.min(limit, maxLimit);
+      limit = Math.min(parseInt(limit) || maxLimit, maxLimit);
       const maintenances = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
