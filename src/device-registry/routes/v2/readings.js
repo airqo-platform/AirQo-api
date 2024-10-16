@@ -228,8 +228,15 @@ router.get(
       query("site_id")
         .optional()
         .notEmpty()
-        .withMessage("the provided site_id cannot be empty IF provided")
-        .trim(),
+        .withMessage("site_id cannot be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       query("primary")
         .optional()
         .notEmpty()
