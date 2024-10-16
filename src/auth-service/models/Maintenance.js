@@ -11,6 +11,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- maintenances-model`
 );
 const { HttpError } = require("@utils/errors");
+const maxLimit = 100;
 
 const MaintenanceSchema = new mongoose.Schema(
   {
@@ -116,7 +117,10 @@ MaintenanceSchema.statics = {
       next(new HttpError(message, status, response));
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
+  async list(
+    { skip = 0, limit = Math.min(limit, maxLimit), filter = {} } = {},
+    next
+  ) {
     try {
       const maintenances = await this.find(filter)
         .sort({ createdAt: -1 })
