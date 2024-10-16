@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const { logText, logObject } = require("@utils/log");
 const { isMongoId } = require("validator");
 // const stringify = require("@utils/stringify");
+const setDefaultTenant = require("@middleware/setDefaultTenant");
 
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -46,6 +47,7 @@ const headers = (req, res, next) => {
 
 router.use(headers);
 router.use(validatePagination);
+router.use(setDefaultTenant);
 
 /**
  * airqo-mobile

@@ -8,6 +8,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- maintenances-controller`
 );
 const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { handleResponse } = require("@utils/responseHandler");
 
 const maintenances = {
   update: async (req, res, next) => {
@@ -19,43 +20,19 @@ const maintenances = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createMaintenanceUtil.update(request, next);
+      const result = await createMaintenanceUtil.update(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          maintenance: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          maintenance: result.data,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleResponse(res, result, "maintenance");
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          { message: "An unexpected error occurred." }
         )
       );
       return;
@@ -70,43 +47,19 @@ const maintenances = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createMaintenanceUtil.create(request, next);
+      const result = await createMaintenanceUtil.create(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          maintenance: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          maintenance: result.data,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleResponse(res, result, "maintenance");
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          { message: "An unexpected error occurred." }
         )
       );
       return;
@@ -123,42 +76,19 @@ const maintenances = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createMaintenanceUtil.list(request, next);
+      const result = await createMaintenanceUtil.list(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          maintenances: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleResponse(res, result, "maintenance");
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          { message: "An unexpected error occurred." }
         )
       );
       return;
@@ -174,44 +104,20 @@ const maintenances = {
         );
         return;
       }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
-      const result = await createMaintenanceUtil.delete(request, next);
+      const result = await createMaintenanceUtil.delete(req, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
       }
-
-      logObject("result", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          maintenance: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          maintenance: result.data,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleResponse(res, result, "maintenance");
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          { message: "An unexpected error occurred." }
         )
       );
       return;
