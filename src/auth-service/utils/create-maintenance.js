@@ -44,8 +44,8 @@ const maintenances = {
       const { body, query } = request;
       const { tenant, product } = query;
       const creationBody = {
-        ...body,
         product,
+        ...body,
       };
       const responseFromRegisterMaintenance = await MaintenanceModel(
         tenant
