@@ -16,7 +16,7 @@ const options = {
   useUnifiedTopology: true,
   autoIndex: true,
   poolSize: 10,
-  bufferMaxEntries: 2,
+  bufferMaxEntries: 0,
   connectTimeoutMS: 1200000,
   socketTimeoutMS: 600000,
   serverSelectionTimeoutMS: 3600000,
