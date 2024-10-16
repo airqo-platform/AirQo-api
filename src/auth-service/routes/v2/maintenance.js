@@ -11,7 +11,7 @@ const { logText, logObject } = require("@utils/log");
 const { isMongoId } = require("validator");
 // const stringify = require("@utils/stringify");
 const setDefaultTenant = require("@middleware/setDefaultTenant");
-const products = ["airqo-mobile", "official-website", "airqo-analytics"];
+const products = ["mobile", "website", "analytics"];
 
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);

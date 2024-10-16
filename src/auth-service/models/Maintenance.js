@@ -13,6 +13,11 @@ const logger = log4js.getLogger(
 );
 const { HttpError } = require("@utils/errors");
 const maxLimit = 100;
+const PRODUCT_NAMES = Object.freeze({
+  MOBILE: "mobile",
+  WEBSITE: "website",
+  ANALYTICS: "analytics",
+});
 
 function handleError(err, next, defaultMessage) {
   logger.error(`Internal Server Error -- ${err.message}`);
@@ -44,11 +49,7 @@ const MaintenanceSchema = new mongoose.Schema(
   {
     product: {
       type: String,
-      enum: [
-        "AirQo Mobile Application",
-        "Official AirQo Website",
-        "AirQo Analytics",
-      ],
+      enum: Object.values(PRODUCT_NAMES),
       required: [true, "Product name is required!"],
     },
     isActive: {
@@ -227,15 +228,12 @@ MaintenanceSchema.statics = {
 
 const MaintenanceModel = (tenant) => {
   try {
-    let maintenances = mongoose.model("maintenances");
-    return maintenances;
+    return mongoose.model("maintenances");
   } catch (error) {
-    let maintenances = getModelByTenant(
-      tenant,
-      "maintenance",
-      MaintenanceSchema
+    logger.info(
+      `Model 'maintenances' not found. Creating new model for tenant: ${tenant}`
     );
-    return maintenances;
+    return getModelByTenant(tenant, "maintenance", MaintenanceSchema);
   }
 };
 
