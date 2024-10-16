@@ -169,7 +169,7 @@ MaintenanceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
-              "the User Maintenance  you are trying to UPDATE does not exist, please crosscheck",
+              "The maintenance record you are trying to update does not exist. Please verify the provided filters",
           })
         );
       }
@@ -205,7 +205,7 @@ MaintenanceSchema.statics = {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
-              "the User Maintenance  you are trying to DELETE does not exist, please crosscheck",
+              "The maintenance record you are trying to delete does not exist. Please verify the provided filters",
           })
         );
       }
