@@ -107,28 +107,28 @@ app.use(function (err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 400) {
-      logger.error(`Bad request error --- ${JSON.stringify(err)}`);
+      logger.error(`Bad request error --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Bad request error",
         errors: { message: err.message },
       });
     } else if (err.status === 401) {
-      logger.error(`Unauthorized --- ${JSON.stringify(err)}`);
+      logger.error(`Unauthorized --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Unauthorized",
         errors: { message: err.message },
       });
     } else if (err.status === 403) {
-      logger.error(`Forbidden --- ${JSON.stringify(err)}`);
+      logger.error(`Forbidden --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Forbidden",
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
+      // logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
       // logger.error(`Stack Trace: ${err.stack}`);
       logObject("the error", err);
       res.status(err.status).json({
@@ -137,14 +137,14 @@ app.use(function (err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 502 || err.status === 503 || err.status === 504) {
-      logger.error(`${err.message} --- ${JSON.stringify(err)}`);
+      logger.error(`${err.message} --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: err.message,
         errors: { message: err.message },
       });
     } else {
-      logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(err)}`);
+      logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
       logObject("Internal Server Error", err);
       logger.error(`Stack Trace: ${err.stack}`);
       res.status(err.status || 500).json({
