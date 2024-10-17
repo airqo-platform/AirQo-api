@@ -36,7 +36,7 @@ class MessageBrokerUtils:
             int(p): 0 for p in self.__partitions
         }  # Initialize partition loads
         self.conf = {
-            "bootstrap.servers": "localhost:9094",
+            "bootstrap.servers": self.__bootstrap_servers,
         }
 
     def __get_partition(self, current_partition) -> int:
