@@ -14,7 +14,7 @@ const {
   isEntityActive,
   updateEntityStatus,
   processDocument,
-} = require("@bin/jobs/new-store-readings-job");
+} = require("@bin/jobs/v2-store-readings-job");
 
 chai.use(sinonChai);
 chai.use(chaiAsPromised);
@@ -134,15 +134,31 @@ describe("new-store-readings-job", () => {
       const mockData = [
         { data: [{ site_id: "123", device_id: "456", time: new Date() }] },
       ];
+
+      // Stubs for Event and Device Models
       const fetchStub = sinon
         .stub()
         .resolves({ success: true, data: mockData });
+
       sandbox.stub(EventModel, "airqo").returns({ fetch: fetchStub });
+
+      // Stubbing Device Model for offline updates
+      const deviceUpdateManyStub = sinon.stub().resolves({});
+
+      sandbox
+        .stub(DeviceModel, "airqo")
+        .returns({ updateMany: deviceUpdateManyStub });
+
+      // Stubbing generateFilter
       sandbox.stub(generateFilter, "fetch").returns({});
 
       await fetchAndStoreDataIntoReadingsModel();
 
       expect(fetchStub).to.have.been.called;
+      expect(deviceUpdateManyStub).to.have.been.calledWith(
+        { _id: { $nin: ["456"] } }, // Assuming '456' is the only active device ID
+        { isOnline: false }
+      );
       // Add more specific expectations based on the function's behavior
     });
 
@@ -172,6 +188,59 @@ describe("new-store-readings-job", () => {
         "No data found in the response"
       );
       logTextStub.restore();
+    });
+
+    it("should mark devices as offline if not in fetched measurements and lastActive is older than threshold", async () => {
+      // Mock data with one active device ID and its lastActive time
+      const mockData = [
+        { data: [{ site_id: "123", device_id: "456", time: new Date() }] },
+      ];
+
+      // Setting up a device that should be marked offline
+      const inactiveDeviceId = "789";
+      const inactiveDeviceLastActive = moment()
+        .subtract(INACTIVE_THRESHOLD + 1000, "milliseconds") // Older than threshold
+        .toDate();
+
+      // Stubbing DeviceModel to return an inactive device
+      const findStub = sinon.stub(DeviceModel, "airqo").returns({
+        find: sinon
+          .stub()
+          .resolves([
+            { _id: inactiveDeviceId, lastActive: inactiveDeviceLastActive },
+          ]),
+      });
+
+      // Stubbing EventModel for fetching events
+      const fetchStub = sinon
+        .stub()
+        .resolves({ success: true, data: mockData });
+
+      sandbox.stub(EventModel, "airqo").returns({ fetch: fetchStub });
+
+      // Stubbing Device Model for offline updates
+      const deviceUpdateManyStub = sinon.stub().resolves({});
+      sandbox
+        .stub(DeviceModel, "airqo")
+        .returns({ updateMany: deviceUpdateManyStub });
+
+      // Stubbing generateFilter
+      sandbox.stub(generateFilter, "fetch").returns({});
+
+      await fetchAndStoreDataIntoReadingsModel();
+
+      // Expectation for devices not in fetched measurements and older than threshold to be marked offline
+      expect(deviceUpdateManyStub).to.have.been.calledWith(
+        {
+          _id: { $nin: ["456"] }, // Assuming '456' is the only active device ID
+          lastActive: {
+            $lt: moment()
+              .subtract(INACTIVE_THRESHOLD, "milliseconds")
+              .toDate(),
+          }, // Check lastActive condition
+        },
+        { isOnline: false }
+      );
     });
   });
 });

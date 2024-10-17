@@ -102,11 +102,13 @@ networkSchema.statics.list = async function(
   try {
     const inclusionProjection = constants.NETWORK_INCLUSION_PROJECTION;
     const exclusionProjection = constants.NETWORK_EXCLUSION_PROJECTION(
-      filter.category ? filter.category : "none"
+      filter.path ? filter.path : "none"
     );
-    if (!isEmpty(filter.category)) {
-      delete filter.category;
+
+    if (!isEmpty(filter.path)) {
+      delete filter.path;
     }
+
     if (!isEmpty(filter.dashboard)) {
       delete filter.dashboard;
     }

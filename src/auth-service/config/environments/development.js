@@ -26,5 +26,10 @@ const devConfig = {
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
   REDIS_SERVER: process.env.DEV_REDIS_SERVER,
   REDIS_PORT: process.env.DEV_REDIS_PORT,
+  SELECTED_SITES: process.env.SELECTED_SITES_DEVELOPMENT
+    ? process.env.SELECTED_SITES_DEVELOPMENT.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
 };
 module.exports = devConfig;

@@ -35,6 +35,7 @@ setup(
         "sqlalchemy-bigquery==1.11.0",
         "confluent-kafka==2.5.0",
         "lz4==4.3.3",
+        "earthengine-api",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

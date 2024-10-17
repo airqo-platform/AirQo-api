@@ -49,7 +49,7 @@ const setLocalOptions = (req, res, next) => {
 
     return {
       success: true,
-      message: "the auth fields have been set",
+      message: "all the auth fields have been set",
       authenticationFields,
     };
   } catch (e) {
@@ -374,7 +374,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       const endpoint = req.headers["x-original-uri"];
       const clientOriginalIp = req.headers["x-client-original-ip"];
       const requestBody = req.body;
-      logObject("Request Body:", requestBody);
+      logObject("Request Body", requestBody);
 
       let service = req.headers["service"] || "unknown";
       let userAction = "unknown";

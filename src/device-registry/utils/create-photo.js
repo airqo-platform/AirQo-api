@@ -175,8 +175,11 @@ const createPhoto = {
   list: async (request, next) => {
     try {
       const { query } = request;
-      const { tenant, limit, skip } = query;
+      const { tenant, limit, skip, path } = query;
       const filter = generateFilter.photos(request);
+      if (!isEmpty(path)) {
+        filter.path = path;
+      }
 
       const responseFromListPhotos = await PhotoModel(tenant).list(
         {

@@ -333,6 +333,79 @@ const filter = {
       );
     }
   },
+  maintenances: (req, next) => {
+    try {
+      let { id, product, isActive, startDate, endDate, message } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      // Filter by product name
+      if (product) {
+        filter["product"] = product;
+      }
+
+      // Filter by maintenance status
+      if (isActive !== undefined) {
+        filter["isActive"] = isActive === "true"; // Convert string to boolean
+      }
+
+      // Filter by start date
+      if (startDate) {
+        filter["startDate"] = { $gte: new Date(startDate) };
+      }
+
+      // Filter by end date
+      if (endDate) {
+        filter["endDate"] = { $lte: new Date(endDate) };
+      }
+
+      // Filter by message content
+      if (message) {
+        filter["message"] = { $regex: message, $options: "i" }; // Case-insensitive search
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  selected_sites: (req, next) => {
+    try {
+      let { site_id } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+      if (site_id) {
+        filter["site_id"] = site_id;
+      }
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   checklists: (req, next) => {
     try {
       let { id, user_id } = {
@@ -485,8 +558,7 @@ const filter = {
   tokens: (req, next) => {
     try {
       const { query, params } = req;
-      const { id } = query;
-      const { token, client_id, name } = params;
+      const { token, client_id, name, id, emailed } = { ...query, ...params };
       let filter = {};
 
       if (id) {
@@ -495,6 +567,10 @@ const filter = {
 
       if (token) {
         filter["token"] = token;
+      }
+
+      if (emailed) {
+        filter.expiredEmailSent = emailed.toLowerCase() === "yes";
       }
 
       if (client_id) {

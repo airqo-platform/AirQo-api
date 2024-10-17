@@ -1,7 +1,7 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const kafkaConsumer = require("@bin/kafka-consumer");
+const kafkaConsumer = require("@bin/jobs/kafka-consumer");
 
 // Mock the required modules/functions
 const constants = require("@config/constants");

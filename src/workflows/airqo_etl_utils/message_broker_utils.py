@@ -143,7 +143,7 @@ class MessageBrokerUtils:
             inplace=True,
         )
 
-        del data["device_number"]
+        data.drop(columns=["device_number"], inplace=True, errors="ignore")
 
         data = pd.merge(
             left=data,

@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import concurrent.futures
 
 
-
 class BasePM25Model:
     def __init__(self):
         """Initialize the BasePM25Model class with necessary configurations and Earth Engine initialization."""
@@ -19,16 +18,16 @@ class BasePM25Model:
         """Retrieve service account credentials for Google Earth Engine."""
         return ee.ServiceAccountCredentials(
             email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL,
-            key_file=Config.CREDENTIALS
-            
+            key_file=Config.CREDENTIALS,
         )
 
     def initialize_earth_engine(self):
         """Initialize Earth Engine with provided credentials."""
         ee.Initialize(
-            credentials=self.credentials, 
-            project=Config.GOOGLE_CLOUD_PROJECT_ID
+            credentials=self.credentials, project=Config.GOOGLE_CLOUD_PROJECT_ID
         )
+
+
 class PM25Model(BasePM25Model):
     def get_pm25_from_satellite(self, longitude, latitude, start_date, end_date):
         """
@@ -51,32 +50,36 @@ class PM25Model(BasePM25Model):
         end = ee.Date(end_date)
 
         # Load the MODIS data
-        dataset = ee.ImageCollection('MODIS/061/MCD19A2_GRANULES') \
-            .filterDate(start, end) \
+        dataset = (
+            ee.ImageCollection("MODIS/061/MCD19A2_GRANULES")
+            .filterDate(start, end)
             .filterBounds(point)
+        )
 
         # Select the AOD band
-        aod = dataset.select('Optical_Depth_047')
+        aod = dataset.select("Optical_Depth_047")
 
         # Calculate the mean AOD value over the time period
         mean_aod = aod.mean()
 
         # Sample the mean AOD value at the point
-        aod_value = mean_aod.sample(point, 30).first().get('Optical_Depth_047').getInfo()
+        aod_value = (
+            mean_aod.sample(point, 30).first().get("Optical_Depth_047").getInfo()
+        )
 
         # Create a pandas DataFrame with the results
         data = {
-            'longitude': [longitude],
-            'latitude': [latitude],
-            'start_date': [start_date],
-            'end_date': [end_date],
-            'aod': [aod_value]
+            "longitude": [longitude],
+            "latitude": [latitude],
+            "start_date": [start_date],
+            "end_date": [end_date],
+            "aod": [aod_value],
         }
 
         df = pd.DataFrame(data)
 
         # Derive PM2.5 from AOD using a linear regression model
-        df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
+        df["derived_pm2_5"] = 13.124535561712058 + 0.037990584629823805 * df["aod"]
         return df
 
     def get_pm25_for_multiple_locations(self, locations, start_date, end_date):
@@ -91,13 +94,19 @@ class PM25Model(BasePM25Model):
         Returns:
             pandas.DataFrame: A DataFrame containing the PM2.5 data for all locations.
         """
+
         def fetch_data_for_location(location):
             longitude, latitude = location
-            return self.get_pm25_from_satellite(longitude, latitude, start_date, end_date)
+            return self.get_pm25_from_satellite(
+                longitude, latitude, start_date, end_date
+            )
 
         results = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_data_for_location, location): location for location in locations}
+            futures = {
+                executor.submit(fetch_data_for_location, location): location
+                for location in locations
+            }
             for future in as_completed(futures):
                 location = futures[future]
                 try:
@@ -107,6 +116,8 @@ class PM25Model(BasePM25Model):
                     print(f"Error fetching data for location {location}: {e}")
 
         return pd.concat(results, ignore_index=True)
+
+
 class PM25ModelDaily(BasePM25Model):
     def get_aod_for_dates(self, longitude, latitude, start_date, end_date):
         """
@@ -125,29 +136,39 @@ class PM25ModelDaily(BasePM25Model):
         point = ee.Geometry.Point(longitude, latitude)
 
         # Define the date range
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
 
         # Load the MODIS data
-        dataset = ee.ImageCollection('MODIS/061/MCD19A2_GRANULES') \
-            .filterBounds(point) \
-            .select('Optical_Depth_047')
+        dataset = (
+            ee.ImageCollection("MODIS/061/MCD19A2_GRANULES")
+            .filterBounds(point)
+            .select("Optical_Depth_047")
+        )
 
         def fetch_aod_for_date(current_date):
             """Fetch AOD for a single date."""
-            daily_dataset = dataset.filterDate(current_date.strftime('%Y-%m-%d'), (current_date + timedelta(days=1)).strftime('%Y-%m-%d'))
+            daily_dataset = dataset.filterDate(
+                current_date.strftime("%Y-%m-%d"),
+                (current_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
             daily_aod = daily_dataset.mean()
 
             try:
-                aod_value = daily_aod.sample(point, 500).first().get('Optical_Depth_047').getInfo()
+                aod_value = (
+                    daily_aod.sample(point, 500)
+                    .first()
+                    .get("Optical_Depth_047")
+                    .getInfo()
+                )
             except Exception as e:
                 aod_value = None
 
             return {
-                'date': current_date.strftime('%Y-%m-%d'),
-                'longitude': longitude,
-                'latitude': latitude,
-                'aod': aod_value
+                "date": current_date.strftime("%Y-%m-%d"),
+                "longitude": longitude,
+                "latitude": latitude,
+                "aod": aod_value,
             }
 
         # Generate the list of dates
@@ -156,7 +177,9 @@ class PM25ModelDaily(BasePM25Model):
         # Use ThreadPoolExecutor to fetch data concurrently
         data = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_aod_for_date, date): date for date in date_range}
+            futures = {
+                executor.submit(fetch_aod_for_date, date): date for date in date_range
+            }
             for future in as_completed(futures):
                 try:
                     result = future.result()
@@ -168,12 +191,14 @@ class PM25ModelDaily(BasePM25Model):
         df = pd.DataFrame(data)
 
         # Drop rows with NaN values in the 'aod' column
-        df.dropna(subset=['aod'], inplace=True)
+        df.dropna(subset=["aod"], inplace=True)
 
         # Calculate derived PM2.5
-        df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * df['aod']
+        df["derived_pm2_5"] = 13.124535561712058 + 0.037990584629823805 * df["aod"]
 
-        return df   
+        return df
+
+
 class Sentinel5PModel(BasePM25Model):
     def get_pollutant_data(self, longitude, latitude, start_date, end_date, pollutants):
         """
@@ -190,8 +215,8 @@ class Sentinel5PModel(BasePM25Model):
             pandas.DataFrame: A dataframe containing the daily pollutant data for all pollutants.
         """
         point = ee.Geometry.Point(longitude, latitude)
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
 
         # Generate a list of dates between start_date and end_date
         dates = [start + timedelta(days=x) for x in range((end - start).days + 1)]
@@ -199,17 +224,25 @@ class Sentinel5PModel(BasePM25Model):
         # Define a helper function to fetch data for a single pollutant on a single date
         def fetch_pollutant_data(date, pollutant):
             dataset = self.get_dataset_for_pollutant(pollutant)
-            daily_dataset = dataset.filterDate(date.strftime('%Y-%m-%d'), (date + timedelta(days=1)).strftime('%Y-%m-%d'))
+            daily_dataset = dataset.filterDate(
+                date.strftime("%Y-%m-%d"),
+                (date + timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
             daily_mean = daily_dataset.mean()
             try:
-                value = daily_mean.sample(point, 500).first().get(self.get_band_name_for_pollutant(pollutant)).getInfo()
+                value = (
+                    daily_mean.sample(point, 500)
+                    .first()
+                    .get(self.get_band_name_for_pollutant(pollutant))
+                    .getInfo()
+                )
             except Exception:
                 value = None
             return {
-                'date': date.strftime('%Y-%m-%d'),
-                'longitude': longitude,
-                'latitude': latitude,
-                pollutant: value
+                "date": date.strftime("%Y-%m-%d"),
+                "longitude": longitude,
+                "latitude": latitude,
+                pollutant: value,
             }
 
         # Use ThreadPoolExecutor to fetch data concurrently
@@ -217,7 +250,9 @@ class Sentinel5PModel(BasePM25Model):
             futures = []
             for date in dates:
                 for pollutant in pollutants:
-                    futures.append(executor.submit(fetch_pollutant_data, date, pollutant))
+                    futures.append(
+                        executor.submit(fetch_pollutant_data, date, pollutant)
+                    )
 
             # Collect the results as they complete
             data = []
@@ -240,14 +275,14 @@ class Sentinel5PModel(BasePM25Model):
             str: Dataset ID for the pollutant.
         """
         datasets = {
-            'SO2': 'COPERNICUS/S5P/NRTI/L3_SO2',
-            'HCHO': 'COPERNICUS/S5P/NRTI/L3_HCHO',  # Formaldehyde
-            'CO': 'COPERNICUS/S5P/NRTI/L3_CO',
-            'NO2': 'COPERNICUS/S5P/NRTI/L3_NO2',
-            'O3': 'COPERNICUS/S5P/NRTI/L3_O3',
-            'AOD': 'COPERNICUS/S5P/OFFL/L3_AER_AI',
-            'CH4': 'COPERNICUS/S5P/OFFL/L3_CH4',  # Methane
-            'TEMP': 'MODIS/061/MOD21A1D'  # Land Surface Temperature
+            "SO2": "COPERNICUS/S5P/NRTI/L3_SO2",
+            "HCHO": "COPERNICUS/S5P/NRTI/L3_HCHO",  # Formaldehyde
+            "CO": "COPERNICUS/S5P/NRTI/L3_CO",
+            "NO2": "COPERNICUS/S5P/NRTI/L3_NO2",
+            "O3": "COPERNICUS/S5P/NRTI/L3_O3",
+            "AOD": "COPERNICUS/S5P/OFFL/L3_AER_AI",
+            "CH4": "COPERNICUS/S5P/OFFL/L3_CH4",  # Methane
+            "TEMP": "MODIS/061/MOD21A1D",  # Land Surface Temperature
         }
         return ee.ImageCollection(datasets[pollutant])
 
@@ -262,35 +297,43 @@ class Sentinel5PModel(BasePM25Model):
             str: Band name for the pollutant.
         """
         band_names = {
-            'SO2': 'SO2_column_number_density',
-            'HCHO': 'HCHO_column_number_density',
-            'CO': 'CO_column_number_density',
-            'NO2': 'NO2_column_number_density',
-            'O3': 'O3_column_number_density',
-            'AOD': 'absorbing_aerosol_index',
-            'CH4': 'CH4_column_volume_mixing_ratio_dry_air',
-            'TEMP': 'LST_1KM',
+            "SO2": "SO2_column_number_density",
+            "HCHO": "HCHO_column_number_density",
+            "CO": "CO_column_number_density",
+            "NO2": "NO2_column_number_density",
+            "O3": "O3_column_number_density",
+            "AOD": "absorbing_aerosol_index",
+            "CH4": "CH4_column_volume_mixing_ratio_dry_air",
+            "TEMP": "LST_1KM",
         }
         return band_names[pollutant]
 
- 
+
 class SatelliteData(BasePM25Model):
-    def get_sate_pollutant_data(self, longitude, latitude, start_date, end_date, pollutant):
+    def get_sate_pollutant_data(
+        self, longitude, latitude, start_date, end_date, pollutant
+    ):
         # Define the geometry of the point
         point = ee.Geometry.Point(longitude, latitude)
 
         # Define the date range
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
 
         # Mapping pollutant to collection ID and band name
         pollutants_info = {
-            'SO2': ('COPERNICUS/S5P/NRTI/L3_SO2', 'SO2_column_number_density'),
-            'HCHO': ('COPERNICUS/S5P/NRTI/L3_HCHO', 'tropospheric_HCHO_column_number_density'),
-            'CO': ('COPERNICUS/S5P/NRTI/L3_CO', 'CO_column_number_density'),
-            'NO2': ('COPERNICUS/S5P/NRTI/L3_NO2', 'NO2_column_number_density'),
-            'O3': ('COPERNICUS/S5P/NRTI/L3_O3', 'O3_column_number_density'),
-            'CH4': ('COPERNICUS/S5P/OFFL/L3_CH4','CH4_column_volume_mixing_ratio_dry_air'),
+            "SO2": ("COPERNICUS/S5P/NRTI/L3_SO2", "SO2_column_number_density"),
+            "HCHO": (
+                "COPERNICUS/S5P/NRTI/L3_HCHO",
+                "tropospheric_HCHO_column_number_density",
+            ),
+            "CO": ("COPERNICUS/S5P/NRTI/L3_CO", "CO_column_number_density"),
+            "NO2": ("COPERNICUS/S5P/NRTI/L3_NO2", "NO2_column_number_density"),
+            "O3": ("COPERNICUS/S5P/NRTI/L3_O3", "O3_column_number_density"),
+            "CH4": (
+                "COPERNICUS/S5P/OFFL/L3_CH4",
+                "CH4_column_volume_mixing_ratio_dry_air",
+            ),
         }
 
         if pollutant not in pollutants_info:
@@ -299,16 +342,22 @@ class SatelliteData(BasePM25Model):
         collection_id, band_name = pollutants_info[pollutant]
 
         # Load the Sentinel-5P data
-        dataset = ee.ImageCollection(collection_id).filterBounds(point).select(band_name)
+        dataset = (
+            ee.ImageCollection(collection_id).filterBounds(point).select(band_name)
+        )
 
         # Initialize an empty list to store the data
         data = []
 
         # Loop through each day in the date range
-        for single_date in (start + timedelta(days=n) for n in range((end - start).days + 1)):
+        for single_date in (
+            start + timedelta(days=n) for n in range((end - start).days + 1)
+        ):
             # Filter the dataset for the current date
-            daily_dataset = dataset.filterDate(single_date.strftime('%Y-%m-%d'), 
-                                               (single_date + timedelta(days=1)).strftime('%Y-%m-%d'))
+            daily_dataset = dataset.filterDate(
+                single_date.strftime("%Y-%m-%d"),
+                (single_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+            )
 
             # Calculate the mean value for the day
             daily_mean = daily_dataset.mean()
@@ -320,12 +369,14 @@ class SatelliteData(BasePM25Model):
                 value = None
 
             # Append the result to the data list
-            data.append({
-                'date': single_date.strftime('%Y-%m-%d'),
-                'longitude': longitude,
-                'latitude': latitude,
-                pollutant: value
-            })
+            data.append(
+                {
+                    "date": single_date.strftime("%Y-%m-%d"),
+                    "longitude": longitude,
+                    "latitude": latitude,
+                    pollutant: value,
+                }
+            )
 
         # Create a pandas DataFrame with the results
         df = pd.DataFrame(data)
@@ -347,12 +398,19 @@ class SatelliteData(BasePM25Model):
         Returns:
             pandas.DataFrame: A DataFrame containing the merged pollutant data.
         """
-        pollutants = ['SO2', 'HCHO', 'CO', 'NO2', 'O3','CH4']
+        pollutants = ["SO2", "HCHO", "CO", "NO2", "O3", "CH4"]
         data_frames = {}
 
         with ThreadPoolExecutor() as executor:
             future_to_pollutant = {
-                executor.submit(self.get_sate_pollutant_data, longitude, latitude, start_date, end_date, pollutant): pollutant
+                executor.submit(
+                    self.get_sate_pollutant_data,
+                    longitude,
+                    latitude,
+                    start_date,
+                    end_date,
+                    pollutant,
+                ): pollutant
                 for pollutant in pollutants
             }
 
@@ -367,11 +425,21 @@ class SatelliteData(BasePM25Model):
         # Start merging with the first pollutant data frame
         merged_df = data_frames[pollutants[0]]
         for pollutant in pollutants[1:]:
-            merged_df = pd.merge(merged_df, data_frames[pollutant], on=['date', 'latitude', 'longitude'], how='outer')
+            merged_df = pd.merge(
+                merged_df,
+                data_frames[pollutant],
+                on=["date", "latitude", "longitude"],
+                how="outer",
+            )
 
         # Reorder columns to ensure the format [date, latitude, longitude, SO2, HCHO, CO, NO2, O3]
-        merged_df = merged_df[['date', 'latitude', 'longitude'] + pollutants]
+        merged_df = merged_df[["date", "latitude", "longitude"] + pollutants]
         # Derived PM2.5
-        merged_df['derived_pm2_5'] = 13.124535561712058 + 0.037990584629823805 * merged_df['O3'] + 0.03799 * merged_df['NO2'] + 0.00799 * merged_df['CO']
-        
-        return merged_df  
+        merged_df["derived_pm2_5"] = (
+            13.124535561712058
+            + 0.037990584629823805 * merged_df["O3"]
+            + 0.03799 * merged_df["NO2"]
+            + 0.00799 * merged_df["CO"]
+        )
+
+        return merged_df

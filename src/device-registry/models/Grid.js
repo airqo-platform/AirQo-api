@@ -227,10 +227,10 @@ gridSchema.statics.list = async function(
     logText("we are inside model's list....");
     const inclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
-      filter.category ? filter.category : "none"
+      filter.path ? filter.path : "none"
     );
-    if (!isEmpty(filter.category)) {
-      delete filter.category;
+    if (!isEmpty(filter.path)) {
+      delete filter.path;
     }
     if (!isEmpty(filter.dashboard)) {
       delete filter.dashboard;
@@ -238,6 +238,8 @@ gridSchema.statics.list = async function(
     if (!isEmpty(filter.summary)) {
       delete filter.summary;
     }
+    logObject("filter", filter);
+    logObject("exclusionProjection", exclusionProjection);
     const pipeline = this.aggregate()
       .match(filter)
       .lookup({

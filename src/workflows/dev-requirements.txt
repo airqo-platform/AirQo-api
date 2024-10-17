@@ -29,6 +29,7 @@ pytest-cov
 firebase-admin
 db_dtypes
 tweepy
+ee
 great_expectations===0.18.18
 airflow-provider-great-expectations==0.2.8
 sqlalchemy-bigquery==1.11.0

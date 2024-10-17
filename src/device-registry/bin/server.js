@@ -22,10 +22,10 @@ const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const { logText, logObject } = require("@utils/log");
-const jsonify = require("@utils/jsonify");
+const stringify = require("@utils/stringify");
 require("@bin/jobs/store-signals-job");
-require("@bin/jobs/new-store-readings-job");
-require("@bin/jobs/new-check-network-status-job");
+require("@bin/jobs/v2-store-readings-job");
+require("@bin/jobs/v2-check-network-status-job");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -83,6 +83,12 @@ app.use(function(err, req, res, next) {
         message: err.message,
         errors: err.errors,
       });
+    } else if (err instanceof SyntaxError) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid JSON",
+        errors: { message: "Invalid JSON" },
+      });
     } else if (err.status === 404) {
       res.status(err.status).json({
         success: false,
@@ -90,28 +96,28 @@ app.use(function(err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 400) {
-      logger.error(`Bad request error --- ${jsonify(err)}`);
+      logger.error(`Bad request error --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Bad request error",
         errors: { message: err.message },
       });
     } else if (err.status === 401) {
-      logger.error(`Unauthorized --- ${jsonify(err)}`);
+      logger.error(`Unauthorized --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Unauthorized",
         errors: { message: err.message },
       });
     } else if (err.status === 403) {
-      logger.error(`Forbidden --- ${jsonify(err)}`);
+      logger.error(`Forbidden --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Forbidden",
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // logger.error(`Internal Server Error --- ${jsonify(err)}`);
+      // logger.error(`Internal Server Error --- ${stringify(err)}`);
       // logger.error(`Stack Trace: ${err.stack}`);
       logObject("the error", err);
       res.status(err.status).json({
@@ -120,14 +126,14 @@ app.use(function(err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 502 || err.status === 503 || err.status === 504) {
-      logger.error(`${err.message} --- ${jsonify(err)}`);
+      logger.error(`${err.message} --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: err.message,
         errors: { message: err.message },
       });
     } else {
-      logger.error(`Internal Server Error --- ${jsonify(err)}`);
+      logger.error(`Internal Server Error --- ${stringify(err)}`);
       logObject("Internal Server Error", err);
       logger.error(`Stack Trace: ${err.stack}`);
       res.status(err.status || 500).json({
@@ -138,7 +144,7 @@ app.use(function(err, req, res, next) {
     }
   } else {
     logger.info(
-      `🍻🍻 HTTP response already sent to the client -- ${jsonify(err)}`
+      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`
     );
   }
 });

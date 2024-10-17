@@ -65,7 +65,7 @@ spec:
   partitions: 2
   replicas: 2
   config:
-    retention.ms: 86400000 
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -79,7 +79,7 @@ spec:
   partitions: 2
   replicas: 2
   config:
-    retention.ms: 86400000 
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -262,4 +262,31 @@ spec:
   replicas: 2
   config:
     retention.ms: 18000000
-  
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: recall-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 2
+  replicas: 2
+  config:
+    retention.ms: 18000000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: deploy-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 2
+  replicas: 2
+  config:
+    retention.ms: 18000000
