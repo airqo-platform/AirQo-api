@@ -257,9 +257,15 @@ const dbProjections = {
         "devices.mobility": 0,
         "devices.device_codes": 0,
         "devices.status": 0,
+        "devices.grids": 0,
+        "devices.cohorts": 0,
+        "devices.host_id": 0,
+        "devices.lastActive": 0,
+        "devices.isOnline": 0,
         "devices.isPrimaryInLocation": 0,
         "devices.category": 0,
         "devices.isActive": 0,
+        "devices.name": 0,
         "devices.device_number": 0,
         "devices.network": 0,
         "devices.createdAt": 0,
@@ -291,6 +297,9 @@ const dbProjections = {
         "airqlouds.weather_stations": 0,
         "airqlouds.createdAt": 0,
         "airqlouds.devices": 0,
+        "grids.admin_level": 0,
+        "grids.visibility": 0,
+        "grids.name": 0,
       });
     }
 
