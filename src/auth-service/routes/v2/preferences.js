@@ -588,14 +588,14 @@ router.patch(
           return Array.isArray(value);
         })
         .withMessage("the selected_sites should be an array"),
-      body("selected_sites.*")
-        .optional()
-        .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
-        )
-        .withMessage(
-          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
-        ),
+      // body("selected_sites.*")
+      //   .optional()
+      //   .custom(
+      //     createValidateSelectedSitesField(["_id", "search_name", "name"], true)
+      //   )
+      //   .withMessage(
+      //     "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+      //   ),
     ],
   ]),
   createPreferenceController.replace
