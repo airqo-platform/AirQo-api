@@ -39,13 +39,22 @@ function createValidateSelectedSitesField(requiredFields, allowId = false) {
       throw new Error("_id field is not allowed");
     }
 
-    // Check for required fields
     if (!requiredFields.every((field) => field in value)) {
       throw new Error(
         `Missing required fields: ${requiredFields
           .filter((field) => !(field in value))
           .join(", ")}`
       );
+    }
+
+    const isValidId = isMongoId(value._id);
+    if (!isValidId && allowId) {
+      throw new Error("_id must be a valid MongoDB ObjectId");
+    }
+
+    const isValidSiteId = isMongoId(value.site_id);
+    if (!isValidSiteId && !allowId) {
+      throw new Error("site_id must be a valid MongoDB ObjectId");
     }
 
     function validateNumericFields(fields) {
@@ -80,6 +89,9 @@ function createValidateSelectedSitesField(requiredFields, allowId = false) {
           (typeof value[field] !== "string" || value[field].trim() === "")
         ) {
           throw new Error(`${field} must be a non-empty string`);
+        } else if (!(field in value)) {
+          // Log missing field
+          throw new Error(`Field "${field}" is missing`);
         }
       }
       return true;
@@ -99,11 +111,6 @@ function createValidateSelectedSitesField(requiredFields, allowId = false) {
       }
     }
 
-    const isValidSiteId = "site_id" in value && isMongoId(value.site_id);
-    if (!isValidSiteId) {
-      throw new Error("site_id must be a valid MongoDB ObjectId");
-    }
-
     const numericValid = validateNumericFields([
       "latitude",
       "longitude",
@@ -112,11 +119,10 @@ function createValidateSelectedSitesField(requiredFields, allowId = false) {
     ]);
 
     const stringValid = validateStringFields(["name", "search_name"]);
-
     const tags = value && value.site_tags;
     const tagValid = validateTags(tags);
 
-    return numericValid && stringValid && tagValid && isValidSiteId;
+    return numericValid && stringValid && tagValid;
   };
 }
 
@@ -386,14 +392,14 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the selected_sites should be an array"),
-      body("selected_sites.*")
-        .optional()
-        .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
-        )
-        .withMessage(
-          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
-        ),
+      // body("selected_sites.*")
+      //   .optional()
+      //   .custom(
+      //     createValidateSelectedSitesField(["_id", "search_name", "name"], true)
+      //   )
+      //   .withMessage(
+      //     "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+      //   ),
     ],
   ]),
   createPreferenceController.upsert
@@ -592,9 +598,6 @@ router.patch(
       //   .optional()
       //   .custom(
       //     createValidateSelectedSitesField(["_id", "search_name", "name"], true)
-      //   )
-      //   .withMessage(
-      //     "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
       //   ),
     ],
   ]),
@@ -791,14 +794,14 @@ router.put(
           return Array.isArray(value);
         })
         .withMessage("the selected_sites should be an array"),
-      body("selected_sites.*")
-        .optional()
-        .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
-        )
-        .withMessage(
-          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
-        ),
+      // body("selected_sites.*")
+      //   .optional()
+      //   .custom(
+      //     createValidateSelectedSitesField(["_id", "search_name", "name"], true)
+      //   )
+      //   .withMessage(
+      //     "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+      //   ),
     ],
   ]),
   createPreferenceController.update
@@ -961,14 +964,14 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the selected_sites should be an array"),
-      body("selected_sites.*")
-        .optional()
-        .custom(
-          createValidateSelectedSitesField(["_id", "search_name", "name"], true)
-        )
-        .withMessage(
-          "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
-        ),
+      // body("selected_sites.*")
+      //   .optional()
+      //   .custom(
+      //     createValidateSelectedSitesField(["_id", "search_name", "name"], true)
+      //   )
+      //   .withMessage(
+      //     "Invalid selected_sites format. Verify required fields (latitude, longitude, search_name, name, approximate_latitude, approximate_longitude), numeric fields (latitude, longitude, approximate_latitude, approximate_longitude, search_radius if present), string fields (name, search_name), and ensure site_tags is an array of strings."
+      //   ),
     ],
   ]),
   createPreferenceController.create
@@ -1194,12 +1197,12 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("selected_sites should not be empty"),
-      body("selected_sites.*").custom(
-        createValidateSelectedSitesField(
-          ["site_id", "search_name", "name"],
-          false
-        )
-      ),
+      // body("selected_sites.*").custom(
+      //   createValidateSelectedSitesField(
+      //     ["site_id", "search_name", "name"],
+      //     false
+      //   )
+      // ),
     ],
   ]),
   setJWTAuth,
@@ -1233,11 +1236,11 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("selected_site")
-        .custom(createValidateSelectedSitesField([], false))
-        .withMessage(
-          "Invalid selected site data. Verify required fields and data types."
-        ),
+      // body("selected_site")
+      //   .custom(createValidateSelectedSitesField([], false))
+      //   .withMessage(
+      //     "Invalid selected site data. Verify required fields and data types."
+      //   ),
     ],
   ]),
   setJWTAuth,
