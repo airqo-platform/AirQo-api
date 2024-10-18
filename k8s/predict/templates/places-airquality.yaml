@@ -10,7 +10,6 @@ spec:
   failedJobsHistoryLimit: 2
   startingDeadlineSeconds: 1200
   schedule: '{{ .Values.jobs.predictPlaces.schedule }}'
-  suspend: false
   jobTemplate:
     metadata:
       name: {{ .Values.jobs.predictPlaces.name }}
