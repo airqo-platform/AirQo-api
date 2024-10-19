@@ -299,7 +299,7 @@ ReadingsSchema.statics.recent = async function(
 };
 
 ReadingsSchema.statics.getBestAirQualityLocations = async function(
-  { threshold = 10, pollutant = "pm2_5" } = {},
+  { threshold = 10, pollutant = "pm2_5", limit = 100, skip = 0 } = {},
   next
 ) {
   try {
@@ -328,7 +328,9 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
         [pollutant]: 1,
         siteDetails: 1,
       })
-      .allowDiskUse(true);
+      .allowDiskUse(true)
+      .skip(skip)
+      .limit(limit);
 
     const data = await pipeline;
 

@@ -1285,7 +1285,7 @@ const createEvent = {
 
       const readingsResponse = await ReadingModel(
         tenant
-      ).getBestAirQualityLocations({ threshold, pollutant }, next);
+      ).getBestAirQualityLocations({ threshold, pollutant, limit, skip }, next);
 
       // Handle language translation for health tips if applicable
       if (
