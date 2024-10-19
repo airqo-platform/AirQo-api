@@ -2800,4 +2800,273 @@ describe("create Event utils", function() {
       eventUtil.list.restore();
     });
   });
+
+  describe("getBestAirQuality", () => {
+    let request, next, ReadingModel, createEvent, translateUtil, logger;
+
+    beforeEach(() => {
+      request = {
+        query: {
+          tenant: "test_tenant",
+          threshold: "50",
+          pollutant: "PM2.5",
+          language: "fr",
+          limit: "10",
+          skip: "0",
+        },
+      };
+      next = sinon.stub();
+      ReadingModel = sinon.stub().returns({
+        getBestAirQualityLocations: sinon.stub().resolves({
+          success: true,
+          data: [
+            { id: 1, health_tips: ["Tip 1", "Tip 2"] },
+            { id: 2, health_tips: ["Tip 3", "Tip 4"] },
+          ],
+        }),
+      });
+      createEvent = {
+        getCache: sinon.stub().resolves({ success: false }),
+        setCache: sinon.stub().resolves({ success: true }),
+      };
+      translateUtil = {
+        translateTips: sinon.stub().resolves({
+          success: true,
+          data: ["Translated Tip 1", "Translated Tip 2"],
+        }),
+      };
+      logger = {
+        error: sinon.stub(),
+      };
+
+      // Bind the function to an object with the required dependencies
+      eventUtil.getBestAirQuality = eventUtil.getBestAirQuality.bind({
+        ReadingModel,
+        createEvent,
+        translateUtil,
+        logger,
+        logText: sinon.stub(),
+        logObject: sinon.stub(),
+        isEmpty: sinon.stub().returns(false),
+        HttpError: sinon.stub(),
+      });
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should retrieve best air quality data successfully", async () => {
+      const result = await eventUtil.getBestAirQuality(request, next);
+
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal(
+        "Successfully retrieved air quality data."
+      );
+      expect(result.data)
+        .to.be.an("array")
+        .with.lengthOf(2);
+      expect(result.isCache).to.be.false;
+      expect(translateUtil.translateTips).to.have.been.calledTwice;
+    });
+
+    it("should return cached data if available", async () => {
+      createEvent.getCache.resolves({
+        success: true,
+        message: "Cache hit",
+        data: { cachedData: true },
+      });
+
+      const result = await eventUtil.getBestAirQuality(request, next);
+
+      expect(result).to.deep.equal({ cachedData: true });
+      expect(createEvent.getCache).to.have.been.calledOnce;
+      expect(ReadingModel().getBestAirQualityLocations).to.not.have.been.called;
+    });
+
+    it("should handle cache timeout gracefully", async () => {
+      createEvent.getCache.resolves(
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ success: false, message: "Cache timeout" }),
+            70000
+          )
+        )
+      );
+
+      const result = await eventUtil.getBestAirQuality(request, next);
+
+      expect(result.success).to.be.true;
+      expect(result.isCache).to.be.false;
+      expect(ReadingModel().getBestAirQualityLocations).to.have.been.calledOnce;
+    });
+
+    it("should handle translation errors gracefully", async () => {
+      translateUtil.translateTips.resolves({ success: false });
+
+      const result = await eventUtil.getBestAirQuality(request, next);
+
+      expect(result.success).to.be.true;
+      expect(result.data[0].health_tips).to.deep.equal(["Tip 1", "Tip 2"]);
+    });
+
+    it("should handle internal server errors", async () => {
+      ReadingModel().getBestAirQualityLocations.rejects(
+        new Error("Database error")
+      );
+
+      await eventUtil.getBestAirQuality(request, next);
+
+      expect(next).to.have.been.calledOnce;
+      expect(next.args[0][0]).to.be.an.instanceOf(eventUtil.HttpError);
+      expect(next.args[0][0].message).to.equal("Internal Server Error");
+    });
+
+    it("should handle cache set errors gracefully", async () => {
+      createEvent.setCache.resolves({
+        success: false,
+        errors: { message: "Cache set error" },
+      });
+
+      const result = await eventUtil.getBestAirQuality(request, next);
+
+      expect(result.success).to.be.true;
+      expect(logger.error).to.have.been.calledOnce;
+      expect(logger.error.args[0][0]).to.include("Internal Server Error");
+    });
+  });
+
+  describe("recentReadings", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = {
+        query: { tenant: "custom" },
+        params: {},
+        query: {},
+      };
+      res = {
+        status: sinon.spy(),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = { success: true, message: "Success message", data: [] };
+      sinon.stub(createEventUtil, "readRecentWithFilter").resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restoreDefaultSpyCache();
+    });
+
+    it("should return recent readings", async () => {
+      await recentReadings(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("should handle errors", async () => {
+      mockResult.success = false;
+      mockResult.message = "Error message";
+      mockResult.errors = ["error"];
+
+      await recentReadings(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
+
+  describe("signalsForMap", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = {
+        query: { tenant: "custom" },
+        params: {},
+        query: {},
+      };
+      res = {
+        status: sinon.spy(),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = { success: true, message: "Success message", data: [] };
+      sinon.stub(createEventUtil, "signal").resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restoreDefaultSpyCache();
+    });
+
+    it("should return signals for map", async () => {
+      await signalsForMap(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("should handle errors", async () => {
+      mockResult.success = false;
+      mockResult.message = "Error message";
+      mockResult.errors = ["error"];
+
+      await signalsForMap(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
+
+  describe("listForMap", () => {
+    let req, res, next, mockResult;
+
+    beforeEach(() => {
+      req = {
+        query: { tenant: "custom" },
+        params: {},
+        query: {},
+      };
+      res = {
+        status: sinon.spy(),
+        json: sinon.spy(),
+      };
+      next = sinon.spy();
+      mockResult = {
+        success: true,
+        isCache: true,
+        message: "Success message",
+        data: [{ meta: {}, data: [] }],
+      };
+      sinon.stub(createEventUtil, "view").resolves(mockResult);
+    });
+
+    afterEach(() => {
+      sinon.restoreDefaultSpyCache();
+    });
+
+    it("should return cached data for map", async () => {
+      await listForMap(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+
+    it("should handle errors", async () => {
+      mockResult.success = false;
+      mockResult.message = "Error message";
+      mockResult.errors = ["error"];
+
+      await listForMap(req, res, next);
+
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith(sinon.match.object);
+    });
+  });
 });
