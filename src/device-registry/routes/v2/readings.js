@@ -107,6 +107,31 @@ router.use(validatePagination);
 
 router.get("/map", eventController.readingsForMap);
 router.get(
+  "/best-air-quality",
+  oneOf([
+    [
+      query("threshold")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("threshold must be a number")
+        .bail()
+        .toFloat(),
+      query("pollutant")
+        .optional()
+        .notEmpty()
+        .withMessage("the pollutant cannot be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["pm2_5", "pm10", "no2"])
+        .withMessage("valid values include: pm2_5, pm10, no2"),
+    ],
+  ]),
+  eventController.getBestAirQuality
+);
+router.get(
   "/recent",
   [
     validateOptionalObjectId("cohort_id"),
