@@ -128,6 +128,29 @@ router.get(
       .toLowerCase()
       .isIn(["pm2_5", "pm10", "no2"])
       .withMessage("valid values include: pm2_5, pm10, no2"),
+    query("language")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("language cannot be empty if provided")
+      .isLength({ min: 2, max: 5 })
+      .withMessage("language should be a valid ISO 639-1 code"),
+    query("limit")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("limit cannot be empty if provided")
+      .isInt({ min: 1, max: 100 })
+      .withMessage("limit must be an integer between 1 and 100")
+      .toInt(),
+    query("skip")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("skip cannot be empty if provided")
+      .isInt({ min: 0 })
+      .withMessage("skip must be a non-negative integer")
+      .toInt(),
   ],
 
   eventController.getBestAirQuality
