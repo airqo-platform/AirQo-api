@@ -107,6 +107,55 @@ router.use(validatePagination);
 
 router.get("/map", eventController.readingsForMap);
 router.get(
+  "/best-air-quality",
+  [
+    query("threshold")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("the threshold cannot be empty IF provided")
+      .bail()
+      .isFloat()
+      .withMessage("threshold must be a number")
+      .bail()
+      .toFloat(),
+    query("pollutant")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("the pollutant cannot be empty IF provided")
+      .bail()
+      .toLowerCase()
+      .isIn(["pm2_5", "pm10", "no2"])
+      .withMessage("valid values include: pm2_5, pm10, no2"),
+    query("language")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("language cannot be empty if provided")
+      .isLength({ min: 2, max: 5 })
+      .withMessage("language should be a valid ISO 639-1 code"),
+    query("limit")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("limit cannot be empty if provided")
+      .isInt({ min: 1, max: 100 })
+      .withMessage("limit must be an integer between 1 and 100")
+      .toInt(),
+    query("skip")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("skip cannot be empty if provided")
+      .isInt({ min: 0 })
+      .withMessage("skip must be a non-negative integer")
+      .toInt(),
+  ],
+
+  eventController.getBestAirQuality
+);
+router.get(
   "/recent",
   [
     validateOptionalObjectId("cohort_id"),
