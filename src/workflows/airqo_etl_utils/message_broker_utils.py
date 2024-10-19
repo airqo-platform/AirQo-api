@@ -5,7 +5,6 @@ import sys
 import numpy as np
 import pandas as pd
 from confluent_kafka import Producer, Consumer, TopicPartition
-import time
 
 from .config import configuration
 from airqo_etl_utils.airqo_api import AirQoApi
@@ -161,8 +160,8 @@ class MessageBrokerUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
-        MessageBrokerUtils().__send_data(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        MessageBrokerUtils().publish_to_topic(
+            configuration.HOURLY_MEASUREMENTS_TOPIC, data
         )
 
     @staticmethod
@@ -220,8 +219,8 @@ class MessageBrokerUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
-        MessageBrokerUtils().__send_data(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        MessageBrokerUtils().publish_to_topic(
+            configuration.HOURLY_MEASUREMENTS_TOPIC, data
         )
 
     def __on_delivery(self, err, msg):
