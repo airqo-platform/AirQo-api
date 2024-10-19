@@ -357,7 +357,7 @@ class MessageBrokerUtils:
                 if not auto_partition:
                     self.partition_loads[selected_partition] += 1
 
-        producer.close()
+        producer.flush()
 
     def consume_from_topic(
         self,
