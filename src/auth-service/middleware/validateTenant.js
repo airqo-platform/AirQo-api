@@ -1,4 +1,5 @@
 const { query } = require("express-validator");
+const ALLOWED_TENANTS = ["kcca", "airqo"];
 
 const validateTenant = () => {
   return query("tenant")
@@ -8,7 +9,7 @@ const validateTenant = () => {
     .trim()
     .toLowerCase()
     .bail()
-    .isIn(["kcca", "airqo"])
+    .isIn(ALLOWED_TENANTS)
     .withMessage("the tenant value is not among the expected ones");
 };
 
