@@ -13,7 +13,7 @@ connectToMongoDB();
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
-const { HttpError } = require("@utils/errors");
+const { HttpError, BadRequestError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
@@ -83,6 +83,12 @@ app.use(function(err, req, res, next) {
         message: err.message,
         errors: err.errors,
       });
+    } else if (err instanceof BadRequestError) {
+      return res.status(err.statusCode).json({
+        success: false,
+        message: err.message,
+        errors: err.errors,
+      });
     } else if (err instanceof SyntaxError) {
       res.status(400).json({
         success: false,
@@ -136,9 +142,9 @@ app.use(function(err, req, res, next) {
       logger.error(`Internal Server Error --- ${stringify(err)}`);
       logObject("Internal Server Error", err);
       logger.error(`Stack Trace: ${err.stack}`);
-      res.status(err.status || 500).json({
+      res.status(err.statusCode || err.status || 500).json({
         success: false,
-        message: "Internal Server Error - app entry",
+        message: err.message || "Internal Server Error",
         errors: { message: err.message },
       });
     }

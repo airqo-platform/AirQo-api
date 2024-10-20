@@ -45,6 +45,7 @@ const siteSchema = new mongoose.Schema(
     sub_county: { type: String },
     grid_id: { type: ObjectId },
     createdAt: { type: Date },
+    isFeatured: { type: Boolean, default: false },
   },
   { _id: false }
 );

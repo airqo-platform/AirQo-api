@@ -12,6 +12,15 @@ class HttpError extends Error {
   }
 }
 
+class BadRequestError extends Error {
+  constructor({ message, errors }) {
+    super(message);
+    this.name = "BadRequestError";
+    this.statusCode = 400;
+    this.errors = errors;
+  }
+}
+
 const convertErrorArrayToObject = (arrays) => {
   const initialValue = {};
   return arrays.reduce((obj, item) => {
@@ -42,5 +51,6 @@ const extractErrorsFromRequest = (req) => {
 
 module.exports = {
   HttpError,
+  BadRequestError,
   extractErrorsFromRequest,
 };
