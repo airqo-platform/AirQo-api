@@ -53,7 +53,7 @@ const validateSelectedSites = (requiredFields, allowId = false) => {
       }
 
       // Validate site_id
-      if (site.site_id && typeof site.site_id !== "string") {
+      if (typeof site.site_id !== "string" || site.site_id.trim() === "") {
         siteErrors.push("site_id must be a non-empty string");
       }
 
