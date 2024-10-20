@@ -8,11 +8,9 @@ const validateRequestBody = () => {
   return oneOf([
     [
       body("user_id")
-        .exists()
-        .withMessage("the user_id should be provided in the request body")
-        .bail()
+        .optional()
         .notEmpty()
-        .withMessage("the provided user_id should not be empty")
+        .withMessage("the provided user_id should not be empty IF provided")
         .bail()
         .trim()
         .isMongoId()
@@ -215,11 +213,7 @@ const validateRequestBody = () => {
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the site_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .withMessage("the site_id must be an object ID"),
     ],
   ]);
 };

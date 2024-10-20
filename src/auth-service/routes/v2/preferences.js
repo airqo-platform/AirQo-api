@@ -24,85 +24,24 @@ const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
   next();
 };
-
-const validateUniqueFieldsInSelectedSites = (req, res, next) => {
-  const selectedSites = req.body.selected_sites;
-
-  // Create Sets to track unique values for each field
-  const uniqueSiteIds = new Set();
-  const uniqueSearchNames = new Set();
-  const uniqueNames = new Set();
-
-  const duplicateSiteIds = [];
-  const duplicateSearchNames = [];
-  const duplicateNames = [];
-
-  selectedSites.forEach((item) => {
-    // Check for duplicate site_id if it exists
-    if (item.site_id !== undefined) {
-      if (uniqueSiteIds.has(item.site_id)) {
-        duplicateSiteIds.push(item.site_id);
-      } else {
-        uniqueSiteIds.add(item.site_id);
-      }
-    }
-
-    // Check for duplicate search_name if it exists
-    if (item.search_name !== undefined) {
-      if (uniqueSearchNames.has(item.search_name)) {
-        duplicateSearchNames.push(item.search_name);
-      } else {
-        uniqueSearchNames.add(item.search_name);
-      }
-    }
-
-    // Check for duplicate name if it exists
-    if (item.name !== undefined) {
-      if (uniqueNames.has(item.name)) {
-        duplicateNames.push(item.name);
-      } else {
-        uniqueNames.add(item.name);
-      }
-    }
-  });
-
-  // Prepare error messages based on duplicates found
-  let errorMessage = "";
-  if (duplicateSiteIds.length > 0) {
-    errorMessage +=
-      "Duplicate site_ids found: " +
-      [...new Set(duplicateSiteIds)].join(", ") +
-      ". ";
-  }
-  if (duplicateSearchNames.length > 0) {
-    errorMessage +=
-      "Duplicate search_names found: " +
-      [...new Set(duplicateSearchNames)].join(", ") +
-      ". ";
-  }
-  if (duplicateNames.length > 0) {
-    errorMessage +=
-      "Duplicate names found: " +
-      [...new Set(duplicateNames)].join(", ") +
-      ". ";
-  }
-
-  // If any duplicates were found, respond with an error
-  if (errorMessage) {
-    return res.status(400).json({
-      success: false,
-      message: errorMessage.trim(),
-    });
-  }
-
-  next();
-};
 router.use(headers);
 router.use(validatePagination(100, 1000));
 
 router.post(
   "/upsert",
   validateTenant(),
+  body("user_id")
+    .exists()
+    .withMessage("the user_id should be provided in the request body")
+    .bail()
+    .notEmpty()
+    .withMessage("the provided user_id should not be empty")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("the user_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
   validatePreferences(),
   validateSelectedSites(["_id", "search_name", "name"], true),
   createPreferenceController.upsert
@@ -110,6 +49,18 @@ router.post(
 router.patch(
   "/replace",
   validateTenant(),
+  body("user_id")
+    .exists()
+    .withMessage("the user_id should be provided in the request body")
+    .bail()
+    .notEmpty()
+    .withMessage("the provided user_id should not be empty")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("the user_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
   validatePreferences(),
   validateSelectedSites(["_id", "search_name", "name"], true),
   createPreferenceController.replace
@@ -137,6 +88,18 @@ router.put(
 router.post(
   "/",
   validateTenant(),
+  body("user_id")
+    .exists()
+    .withMessage("the user_id should be provided in the request body")
+    .bail()
+    .notEmpty()
+    .withMessage("the provided user_id should not be empty")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("the user_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
   validatePreferences(),
   validateSelectedSites(["_id", "search_name", "name"], true),
   createPreferenceController.create
@@ -174,7 +137,6 @@ router.get(
 router.post(
   "/selected-sites",
   validateTenant(),
-  validateUniqueFieldsInSelectedSites,
   validateSelectedSites(["site_id", "search_name", "name"], false),
   setJWTAuth,
   authJWT,
