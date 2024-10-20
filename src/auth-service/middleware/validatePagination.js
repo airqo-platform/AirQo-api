@@ -4,7 +4,7 @@ const validatePagination = (defaultLimit = 100, maxLimit = 1000) => {
     const skip = parseInt(req.query.skip || req.body.skip, 10) || 0;
 
     // Set default limit if not provided or invalid
-    if (isNaN(limit) || limit < 1) {
+    if (Number.isNaN(limit) || limit < 1) {
       limit = defaultLimit;
     }
 
