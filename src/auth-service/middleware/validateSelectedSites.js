@@ -160,12 +160,12 @@ const validateSelectedSites = (requiredFields, allowId = false) => {
       }
     } else {
       logText(
-        "Request body should contain either an array of sites or a single site object"
+        "Request body(field) for Selected Sites should  contain either an array of Site objects or a single site object"
       );
       return res.status(400).json({
         success: false,
         message:
-          "Request body should contain either an array of sites or a single site object",
+          "Request body(field) for Selected Sites should contain either an array of Site objects or a single site object",
       });
     }
 
