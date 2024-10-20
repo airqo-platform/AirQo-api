@@ -16,7 +16,10 @@ const validateSelectedSites = (requiredFields, allowId = false) => {
     }
 
     // Early check for selectedSites type
-    if (!Array.isArray(selectedSites) && typeof selectedSites !== "object") {
+    if (
+      !Array.isArray(selectedSites) &&
+      (typeof selectedSites !== "object" || selectedSites === null)
+    ) {
       return res.status(400).json({
         success: false,
         message:
