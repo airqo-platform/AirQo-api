@@ -1,8 +1,5 @@
 const { body, oneOf, query } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
-const { isMongoId } = require("validator");
-const { logText } = require("@utils/log");
-const isEmpty = require("is-empty");
 
 const validateRequestBody = () => {
   return oneOf([
