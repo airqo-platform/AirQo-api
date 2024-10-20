@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const { logText, logObject } = require("@utils/log");
 const { isMongoId } = require("validator");
 // const stringify = require("@utils/stringify");
+const validateSelectedSites = require("@middleware/validateSelectedSites");
 
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
@@ -1172,144 +1173,93 @@ router.get(
 );
 router.post(
   "/selected-sites",
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(["kcca", "airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
   validateUniqueFieldsInSelectedSites,
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      body("selected_sites")
-        .exists()
-        .withMessage("selected_sites should be provided")
-        .bail()
-        .isArray()
-        .withMessage("selected_sites should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("selected_sites should not be empty"),
-      // body("selected_sites.*").custom(
-      //   createValidateSelectedSitesField(
-      //     ["site_id", "search_name", "name"],
-      //     false
-      //   )
-      // ),
-    ],
-  ]),
+  validateSelectedSites(["site_id", "search_name", "name"], false),
   setJWTAuth,
   authJWT,
   createPreferenceController.addSelectedSites
 );
 router.put(
   "/selected-sites/:site_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("site_id")
-        .exists()
-        .withMessage("the site_id parameter is required")
-        .bail()
-        .isMongoId()
-        .withMessage("site_id must be a valid MongoDB ObjectId")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      // body("selected_site")
-      //   .custom(createValidateSelectedSitesField([], false))
-      //   .withMessage(
-      //     "Invalid selected site data. Verify required fields and data types."
-      //   ),
-    ],
-  ]),
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(["kcca", "airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
+  param("site_id")
+    .exists()
+    .withMessage("the site_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("site_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
   setJWTAuth,
   authJWT,
   createPreferenceController.updateSelectedSite
 );
 router.delete(
   "/selected-sites/:site_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("site_id")
-        .exists()
-        .withMessage("the site_id parameter is required")
-        .bail()
-        .isMongoId()
-        .withMessage("site_id must be a valid MongoDB ObjectId")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(["kcca", "airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
+  param("site_id")
+    .exists()
+    .withMessage("the site_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("site_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
   setJWTAuth,
   authJWT,
   createPreferenceController.deleteSelectedSite
 );
 router.get(
   "/:user_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("user_id")
-        .exists()
-        .withMessage("the user ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the user ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(["kcca", "airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
+  param("user_id")
+    .exists()
+    .withMessage("the user ID param is missing in the request")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("the user ID must be an object ID")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
   setJWTAuth,
   authJWT,
   createPreferenceController.list
