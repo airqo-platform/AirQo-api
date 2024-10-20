@@ -54,7 +54,7 @@ const logUserPreferences = async () => {
     }
 
     // Log the aggregated results once after processing all users
-    if (totalUsersProcessed > 0) {
+    if (totalUsersProcessed > 0 && totalCountWithoutSelectedSites > 0) {
       const percentageWithoutSelectedSites = (
         (totalCountWithoutSelectedSites / totalUsersProcessed) *
         100
@@ -63,6 +63,8 @@ const logUserPreferences = async () => {
       logger.info(
         `💔💔 Total count of users without any Customised Locations: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of all Analytics users.`
       );
+    } else {
+      logger.info(`😎🎉✅ All Analytics users have Customised Locations.`);
     }
   } catch (error) {
     logger.error(`🐛🐛 Error in logUserPreferences: ${stringify(error)}`);
