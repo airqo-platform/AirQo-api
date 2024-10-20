@@ -111,9 +111,10 @@ describe("validateSelectedSites Middleware", () => {
           success: false,
           errors: {
             "selected_sites[0]": [
-              "Missing required fields: site_id, name, search_name",
+              'Field "site_id" is missing',
+              'Field "name" is missing',
+              'Field "search_name" is missing',
             ],
-            "site[0]": ['Field "name" is missing'],
           },
           message: "bad request errors",
         })
@@ -160,6 +161,136 @@ describe("validateSelectedSites Middleware", () => {
       ).to.be.true;
       expect(next.notCalled).to.be.true;
     });
+
+    it("should return a 400 error for invalid latitude value", () => {
+      req.body.selected_sites = [{ latitude: 100 }]; // Invalid latitude
+
+      const middleware = validateSelectedSites(["latitude"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": ["latitude must be between -90 and 90"],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
+
+    it("should return a 400 error for invalid longitude value", () => {
+      req.body.selected_sites = [{ longitude: -200 }]; // Invalid longitude
+
+      const middleware = validateSelectedSites(["longitude"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": ["longitude must be between -180 and 180"],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
+
+    it("should return a 400 error for invalid approximate_latitude value", () => {
+      req.body.selected_sites = [{ approximate_latitude: 100 }]; // Invalid approximate_latitude
+
+      const middleware = validateSelectedSites(["approximate_latitude"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": [
+              "approximate_latitude must be between -90 and 90",
+            ],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
+
+    it("should return a 400 error for invalid approximate_longitude value", () => {
+      req.body.selected_sites = [{ approximate_longitude: -200 }]; // Invalid approximate_longitude
+
+      const middleware = validateSelectedSites(["approximate_longitude"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": [
+              "approximate_longitude must be between -180 and 180",
+            ],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
+
+    it("should return a 400 error for non-array site_tags", () => {
+      req.body.selected_sites = [{ site_tags: "not_an_array" }]; // Invalid site_tags
+
+      const middleware = validateSelectedSites(["site_tags"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": ["site_tags must be an array"],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
+
+    it("should return a 400 error for non-string tags in site_tags", () => {
+      req.body.selected_sites = [{ site_tags: [123] }]; // Invalid tag
+
+      const middleware = validateSelectedSites(["site_tags"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": ["site_tags[0] must be a string"],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
+
+    it("should return a 400 error for invalid isFeatured value", () => {
+      req.body.selected_sites = [{ isFeatured: "not_a_boolean" }]; // Invalid isFeatured
+
+      const middleware = validateSelectedSites(["isFeatured"]);
+      middleware(req, res, next);
+
+      expect(res.status.calledWith(400)).to.be.true;
+      expect(
+        res.json.calledWith({
+          success: false,
+          errors: {
+            "selected_sites[0]": ["isFeatured must be a boolean"],
+          },
+          message: "bad request errors",
+        })
+      ).to.be.true;
+    });
   });
 
   describe("when all validations pass", () => {
@@ -169,6 +300,12 @@ describe("validateSelectedSites Middleware", () => {
           site_id: "610a43c1909756001e235e93",
           name: "Valid Site",
           search_name: "Valid Search",
+          latitude: -1.2345,
+          longitude: 34.5678,
+          approximate_latitude: -1.2345,
+          approximate_longitude: 34.5678,
+          site_tags: ["tag1", "tag2"],
+          country: "Country Name",
         },
       ];
 

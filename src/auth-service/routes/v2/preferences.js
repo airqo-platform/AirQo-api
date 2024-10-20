@@ -1209,6 +1209,7 @@ router.put(
     .customSanitizer((value) => {
       return ObjectId(value);
     }),
+  validateSelectedSites([], false),
   setJWTAuth,
   authJWT,
   createPreferenceController.updateSelectedSite
