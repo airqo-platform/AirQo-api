@@ -18,11 +18,17 @@ router.use(headers);
 router.use(validatePagination);
 
 // Decrypt key route
-router.post("/decrypt", validateDecryptKeys, deviceController.decryptKey);
+router.post(
+  "/decrypt",
+  validateTenant,
+  validateDecryptKeys,
+  deviceController.decryptKey
+);
 
 // Decrypt bulk keys route
 router.post(
   "/decrypt/bulk",
+  validateTenant,
   validateArrayBody,
   validateDecryptManyKeys,
   deviceController.decryptManyKeys
@@ -82,6 +88,7 @@ router.put(
 // List devices by nearest coordinates route
 router.get(
   "/by/nearest-coordinates",
+  validateTenant,
   deviceController.listAllByNearestCoordinates
 );
 
