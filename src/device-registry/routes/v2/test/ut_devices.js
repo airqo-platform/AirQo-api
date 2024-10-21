@@ -1,182 +1,298 @@
 require("module-alias/register");
 const request = require("supertest");
-const express = require("express");
-const { expect } = require("chai");
+const app = require("@bin/index");
+const expect = chai.expect;
 const sinon = require("sinon");
-const proxyquire = require("proxyquire");
 
-// Import the device router and controller
-const deviceRouter = require("@routes/v2/devices");
-const deviceController = require("@controllers/create-device");
+describe("Router Tests", () => {
+  let req;
+  let res;
 
-describe("Device Router", () => {
-  let app;
-
-  before(() => {
-    app = express();
-    app.use(express.json());
-    app.use(deviceRouter);
+  beforeEach(() => {
+    req = {};
+    res = {
+      json: sinon.spy(),
+      status: sinon.stub().returns(res),
+      send: sinon.spy(),
+    };
   });
 
   afterEach(() => {
     sinon.restore();
   });
+});
 
-  describe("POST /decrypt", () => {
-    it("should call deviceController.decryptKey", async () => {
-      const decryptKeyStub = sinon.stub(deviceController, "decryptKey");
-      const response = await request(app)
-        .post("/decrypt")
-        .send({
-          encrypted_key: "encrypted_value",
-        });
-      expect(decryptKeyStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+const sinon = require("sinon");
+const express = require("express");
+const router = express.Router();
+
+// Mock the deviceController
+const deviceController = {
+  decryptKey: sinon.spy(),
+  encryptKeys: sinon.spy(),
+  getDevicesCount: sinon.spy(),
+  list: sinon.spy(),
+  listSummary: sinon.spy(),
+  create: sinon.spy(),
+  delete: sinon.spy(),
+  update: sinon.spy(),
+  refresh: sinon.spy(),
+  listAllByNearestCoordinates: sinon.spy(),
+  createOnPlatform: sinon.spy(),
+  deleteOnPlatform: sinon.spy(),
+  updateOnPlatform: sinon.spy(),
+  generateQRCode: sinon.spy(),
+};
+
+// Mock the validators
+const validateTenant = sinon.spy();
+const validateDeviceIdentifier = sinon.spy();
+const validateCreateDevice = sinon.spy();
+const validateUpdateDevice = sinon.spy();
+const validateEncryptKeys = sinon.spy();
+const validateDecryptKeys = sinon.spy();
+const validateDecryptManyKeys = sinon.spy();
+const validateListDevices = sinon.spy();
+const validateArrayBody = sinon.spy();
+
+// Mock the middleware
+const headers = sinon.spy();
+const validatePagination = sinon.spy();
+
+// Replace the actual router with our mocked one
+router.post("/decrypt", validateDecryptKeys, deviceController.decryptKey);
+router.post(
+  "/decrypt/bulk",
+  validateArrayBody,
+  validateDecryptManyKeys,
+  deviceController.decryptManyKeys
+);
+router.put(
+  "/encrypt",
+  validateTenant,
+  validateDeviceIdentifier,
+  validateEncryptKeys,
+  deviceController.encryptKeys
+);
+router.get("/count", validateTenant, deviceController.getDevicesCount);
+router.get("/", validateTenant, validateListDevices, deviceController.list);
+router.get(
+  "/summary",
+  validateTenant,
+  validateListDevices,
+  deviceController.listSummary
+);
+router.post("/", validateTenant, validateCreateDevice, deviceController.create);
+router.delete(
+  "/",
+  validateTenant,
+  validateDeviceIdentifier,
+  deviceController.delete
+);
+router.put(
+  "/",
+  validateTenant,
+  validateDeviceIdentifier,
+  validateUpdateDevice,
+  deviceController.update
+);
+router.put(
+  "/refresh",
+  validateTenant,
+  validateDeviceIdentifier,
+  deviceController.refresh
+);
+router.get(
+  "/by/nearest-coordinates",
+  deviceController.listAllByNearestCoordinates
+);
+router.post(
+  "/soft",
+  validateTenant,
+  validateCreateDevice,
+  deviceController.createOnPlatform
+);
+router.delete(
+  "/soft",
+  validateTenant,
+  validateDeviceIdentifier,
+  deviceController.deleteOnPlatform
+);
+router.put(
+  "/soft",
+  validateTenant,
+  validateDeviceIdentifier,
+  validateUpdateDevice,
+  deviceController.updateOnPlatform
+);
+router.get(
+  "/qrcode",
+  validateTenant,
+  validateDeviceIdentifier,
+  deviceController.generateQRCode
+);
+
+describe("GET /count", () => {
+  it("should call getDevicesCount with tenant validation", async () => {
+    await request(app)
+      .get("/count")
+      .expect(200);
+    expect(deviceController.getDevicesCount).to.have.been.calledWith(
+      sinon.match.object
+    );
   });
+});
 
-  describe("PUT /encrypt", () => {
-    it("should call deviceController.encryptKeys", async () => {
-      const encryptKeysStub = sinon.stub(deviceController, "encryptKeys");
-      const response = await request(app)
-        .put("/encrypt?tenant=example")
-        .query({
-          device_number: 12345,
-        });
-      expect(encryptKeysStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+describe("GET /", () => {
+  it("should call list with tenant validation and listDevices validation", async () => {
+    await request(app)
+      .get("/")
+      .expect(200);
+    expect(deviceController.list).to.have.been.calledWith(sinon.match.object);
   });
+});
 
-  describe("GET /count", () => {
-    it("should call deviceController.getDevicesCount", async () => {
-      const getDevicesCountStub = sinon.stub(
-        deviceController,
-        "getDevicesCount"
-      );
-      const response = await request(app).get("/count?tenant=example");
-      expect(getDevicesCountStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+describe("GET /summary", () => {
+  it("should call listSummary with tenant validation and listDevices validation", async () => {
+    await request(app)
+      .get("/summary")
+      .expect(200);
+    expect(deviceController.listSummary).to.have.been.calledWith(
+      sinon.match.object
+    );
   });
+});
 
-  describe("GET /", () => {
-    it("should call deviceController.list", async () => {
-      const listStub = sinon.stub(deviceController, "list");
-      const response = await request(app).get("/?tenant=example");
-      expect(listStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+describe("POST /", () => {
+  it("should call create with tenant validation and createDevice validation", async () => {
+    const body = {
+      /* sample device data */
+    };
+    await request(app)
+      .post("/")
+      .send(body)
+      .expect(201);
+    expect(deviceController.create).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
   });
+});
 
-  describe("POST /", () => {
-    it("should call deviceController.create", async () => {
-      const createStub = sinon.stub(deviceController, "create");
-      const response = await request(app)
-        .post("/?tenant=example")
-        .send({
-          device_number: 12345,
-          long_name: "Device 1",
-          // Add other required fields for device creation
-        });
-      expect(createStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+describe("DELETE /", () => {
+  it("should call delete with tenant validation, deviceIdentifier validation, and delete method", async () => {
+    const deviceId = "12345";
+    await request(app)
+      .delete("/")
+      .query({ id: deviceId })
+      .expect(204);
+    expect(deviceController.delete).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
   });
+});
 
-  describe("DELETE /", () => {
-    it("should call deviceController.delete", async () => {
-      const deleteStub = sinon.stub(deviceController, "delete");
-      const response = await request(app)
-        .delete("/?tenant=example")
-        .query({
-          device_number: 12345,
-        });
-      expect(deleteStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+describe("PUT /", () => {
+  it("should call update with tenant validation, deviceIdentifier validation, updateDevice validation, and update method", async () => {
+    const deviceId = "12345";
+    const body = {
+      /* sample device update data */
+    };
+    await request(app)
+      .put("/")
+      .query({ id: deviceId })
+      .send(body)
+      .expect(200);
+    expect(deviceController.update).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
   });
+});
 
-  describe("PUT /", () => {
-    it("should call deviceController.update", async () => {
-      const updateStub = sinon.stub(deviceController, "update");
-      const response = await request(app)
-        .put("/?tenant=example")
-        .query({
-          device_number: 12345,
-        });
-      expect(updateStub.calledOnce).to.be.true;
-      expect(response.status).to.equal(200);
-      // Add more assertions as needed
-    });
+describe("PUT /refresh", () => {
+  it("should call refresh with tenant validation, deviceIdentifier validation", async () => {
+    const deviceId = "12345";
+    await request(app)
+      .put("/refresh")
+      .query({ id: deviceId })
+      .expect(200);
+    expect(deviceController.refresh).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
   });
+});
 
-  describe("Create Device", () => {
-    let sandbox;
-    let routes; // The routes module with injected stubs
+describe("GET /by/nearest-coordinates", () => {
+  it("should call listAllByNearestCoordinates without any validations", async () => {
+    await request(app)
+      .get("/by/nearest-coordinates")
+      .expect(200);
+    expect(deviceController.listAllByNearestCoordinates).to.have.been
+      .calledOnce;
+  });
+});
 
-    beforeEach(() => {
-      // Create a sandbox for stubs, spies, and mocks
-      sandbox = sinon.createSandbox();
+describe("POST /soft", () => {
+  it("should call createOnPlatform with tenant validation and createDevice validation", async () => {
+    const body = {
+      /* sample soft create device data */
+    };
+    await request(app)
+      .post("/soft")
+      .send(body)
+      .expect(201);
+    expect(deviceController.createOnPlatform).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
+  });
+});
 
-      // Import the routes module using proxyquire and inject stubs
-      routes = proxyquire("@controllers/create-device", {
-        "@controllers/create-device": {
-          // Use an empty object to stub the entire controller module if needed
-          // Or you can include any other stubs you need here
-        },
-        "express-validator": {
-          ...require("express-validator"), // Import and include all methods
-          custom: (validatorFunction) => {
-            // Replace the custom validator function with a stub
-            // This is specific to the custom validator you want to stub
-            return (value, { req }) => {
-              // Customize the stub behavior based on your test case
-              // Return null if validation passes, or an error message if it fails
-              /* Stub condition for success */
-              if (true) {
-                return null; // Validation passes
-              } else {
-                return "Validation failed"; // Validation fails
-              }
-            };
-          },
-        },
-        // Include other dependencies if needed
-      });
-    });
+describe("DELETE /soft", () => {
+  it("should call deleteOnPlatform with tenant validation, deviceIdentifier validation", async () => {
+    const deviceId = "67890";
+    await request(app)
+      .delete("/soft")
+      .query({ id: deviceId })
+      .expect(204);
+    expect(deviceController.deleteOnPlatform).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
+  });
+});
 
-    afterEach(() => {
-      // Restore and clear stubs, spies, and mocks
-      sandbox.restore();
-    });
+describe("PUT /soft", () => {
+  it("should call updateOnPlatform with tenant validation, deviceIdentifier validation, updateDevice validation, and updateOnPlatform method", async () => {
+    const deviceId = "67890";
+    const body = {
+      /* sample soft update device data */
+    };
+    await request(app)
+      .put("/soft")
+      .query({ id: deviceId })
+      .send(body)
+      .expect(200);
+    expect(deviceController.updateOnPlatform).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
+  });
+});
 
-    it("should pass validation for valid request", async () => {
-      const req = {
-        body: {
-          tenant: "valid_tenant",
-          name: "Device Name",
-          // ... other valid fields
-        },
-      };
-      const res = {
-        status: sandbox.stub().returnsThis(),
-        json: sandbox.stub(),
-      };
-
-      await routes.create(req, res);
-
-      expect(res.status.called).to.be.false;
-      expect(res.json.called).to.be.false;
-      // Add assertions for your stubs and test cases
-    });
-
-    // ... other test cases
+describe("GET /qrcode", () => {
+  it("should call generateQRCode with tenant validation and deviceIdentifier validation", async () => {
+    const deviceId = "11111";
+    await request(app)
+      .get("/qrcode")
+      .query({ id: deviceId })
+      .expect(200);
+    expect(deviceController.generateQRCode).to.have.been.calledWith(
+      sinon.match.object,
+      sinon.match.object
+    );
   });
 });
