@@ -26,7 +26,8 @@
     "@middleware": "middleware",
     "@scripts": "scripts",
     "@routes": "routes",
-    "@bin": "bin"
+    "@bin": "bin",
+    "@validators": "validators"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^5.5.0",
