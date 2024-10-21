@@ -1,6 +1,7 @@
 require("module-alias/register");
 const request = require("supertest");
 const app = require("@bin/index");
+const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 
