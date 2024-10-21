@@ -1043,6 +1043,23 @@ router.put(
         .withMessage(
           "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly, testing, not deployed "
         ),
+      body("device_codes")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the device_codes should be an array if provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_codes should not be empty if provided"),
+      body("isUsedForCollocation")
+        .optional()
+        .notEmpty()
+        .withMessage("isUsedForCollocation should not be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("isUsedForCollocation must be Boolean"),
       body("powerType")
         .optional()
         .notEmpty()
@@ -1231,6 +1248,17 @@ router.put(
         )
         .bail()
         .trim(),
+      body("category")
+        .optional()
+        .notEmpty()
+        .withMessage("category should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST, GAS and BAM"
+        ),
     ],
   ]),
   deviceController.update
@@ -1404,6 +1432,15 @@ router.post(
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
+      body("device_codes")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the device_codes should be an array if provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_codes should not be empty if provided"),
     ],
   ]),
   deviceController.createOnPlatform
@@ -1693,6 +1730,26 @@ router.put(
         .optional()
         .notEmpty()
         .trim(),
+      body("device_codes")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the device_codes should be an array if provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_codes should not be empty if provided"),
+      body("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost", "gas"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost, bam and gas"
+        ),
     ],
   ]),
   deviceController.updateOnPlatform
