@@ -721,6 +721,249 @@ deviceSchema.statics = {
   },
 };
 
+/***
+ * 
+ * To use the function (getUptimeStatistics) below
+ * const uptimeStats = await DeviceModel(tenant).getUptimeStatistics({
+  devices: ['device1Id', 'device2Id'],
+  startDate: '2023-01-01',
+  endDate: '2023-12-31',
+  timeFrame: 'monthly',
+  networkFilter: 'airqo'
+});
+ */
+
+deviceSchema.statics.getUptimeStatistics = async function({
+  devices = [],
+  startDate = new Date(new Date().setDate(new Date().getDate() - 14)),
+  endDate = new Date(),
+  timeFrame,
+  networkFilter,
+} = {}) {
+  const pipeline = [];
+
+  // Match stage
+  const matchStage = {};
+  if (devices.length > 0) {
+    matchStage._id = { $in: devices };
+  }
+  if (networkFilter) {
+    matchStage.network = networkFilter;
+  }
+
+  // Add date range to match stage if provided
+  if (startDate && endDate) {
+    matchStage.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  logObject("matchStage", matchStage);
+  pipeline.push({ $match: matchStage });
+
+  // Group by device and calculate uptime
+  pipeline.push({
+    $group: {
+      _id: "$_id",
+      name: { $first: "$name" },
+      network: { $first: "$network" },
+      isOnline: { $first: "$isOnline" },
+      createdAt: { $first: "$createdAt" },
+      totalTime: {
+        $sum: {
+          $cond: [{ $eq: [true, "$isOnline"] }, 1, 0],
+        },
+      },
+      uptime: {
+        $sum: {
+          $cond: [
+            {
+              $and: [
+                { $eq: [true, "$isOnline"] },
+                { $gt: ["$createdAt", startDate] },
+              ],
+            },
+            1,
+            0,
+          ],
+        },
+      },
+    },
+  });
+
+  // Calculate uptime percentage
+  pipeline.push({
+    $project: {
+      name: 1,
+      network: 1,
+      isOnline: 1,
+      createdAt: 1,
+      uptimePercentage: {
+        $multiply: [{ $divide: ["$uptime", "$totalTime"] }, 100],
+      },
+    },
+  });
+
+  // Group by network
+  pipeline.push({
+    $group: {
+      _id: "$network",
+      devices: { $push: "$$ROOT" },
+      totalDevices: { $sum: 1 },
+      avgUptimePercentage: { $avg: "$uptimePercentage" },
+    },
+  });
+
+  // Calculate online and offline devices based on current status
+  pipeline.push({
+    $project: {
+      network: "$_id",
+      totalDevices: 1,
+      avgUptimePercentage: 1,
+      devices: 1,
+      onlineDevices: {
+        $size: {
+          $filter: {
+            input: "$devices",
+            as: "device",
+            cond: { $eq: ["$$device.isOnline", true] },
+          },
+        },
+      },
+      offlineDevices: {
+        $size: {
+          $filter: {
+            input: "$devices",
+            as: "device",
+            cond: { $ne: ["$$device.isOnline", true] },
+          },
+        },
+      },
+    },
+  });
+
+  // Calculate percentages and prepare device names
+  pipeline.push({
+    $project: {
+      network: 1,
+      totalDevices: 1,
+      avgUptimePercentage: 1,
+      onlineDevices: 1,
+      offlineDevices: 1,
+      onlinePercentage: {
+        $multiply: [{ $divide: ["$onlineDevices", "$totalDevices"] }, 100],
+      },
+      offlinePercentage: {
+        $multiply: [{ $divide: ["$offlineDevices", "$totalDevices"] }, 100],
+      },
+      onlineDeviceNames: {
+        $map: {
+          input: {
+            $filter: {
+              input: "$devices",
+              as: "device",
+              cond: { $eq: ["$$device.isOnline", true] },
+            },
+          },
+          as: "device",
+          in: "$$device.name",
+        },
+      },
+      offlineDeviceNames: {
+        $map: {
+          input: {
+            $filter: {
+              input: "$devices",
+              as: "device",
+              cond: { $ne: ["$$device.isOnline", true] },
+            },
+          },
+          as: "device",
+          in: "$$device.name",
+        },
+      },
+    },
+  });
+
+  // Apply time frame aggregation if specified
+  if (timeFrame) {
+    pipeline.push({
+      $group: {
+        _id: {
+          network: "$network",
+          timeFrame: {
+            $switch: {
+              branches: [
+                {
+                  case: { $eq: [timeFrame, "daily"] },
+                  then: {
+                    $dateToString: { format: "%Y-%m-%d", date: "$$NOW" },
+                  },
+                },
+                {
+                  case: { $eq: [timeFrame, "weekly"] },
+                  then: { $dateToString: { format: "%Y-W%V", date: "$$NOW" } },
+                },
+                {
+                  case: { $eq: [timeFrame, "monthly"] },
+                  then: { $dateToString: { format: "%Y-%m", date: "$$NOW" } },
+                },
+              ],
+              default: "all",
+            },
+          },
+        },
+        network: { $first: "$network" },
+        totalDevices: { $sum: "$totalDevices" },
+        avgUptimePercentage: { $avg: "$avgUptimePercentage" },
+        onlineDevices: { $sum: "$onlineDevices" },
+        offlineDevices: { $sum: "$offlineDevices" },
+        onlinePercentage: { $avg: "$onlinePercentage" },
+        offlinePercentage: { $avg: "$offlinePercentage" },
+        onlineDeviceNames: { $addToSet: "$onlineDeviceNames" },
+        offlineDeviceNames: { $addToSet: "$offlineDeviceNames" },
+      },
+    });
+    pipeline.push({
+      $project: {
+        network: 1,
+        timeFrame: "$_id.timeFrame",
+        totalDevices: 1,
+        avgUptimePercentage: 1,
+        onlineDevices: 1,
+        offlineDevices: 1,
+        onlinePercentage: 1,
+        offlinePercentage: 1,
+        onlineDeviceNames: {
+          $reduce: {
+            input: "$onlineDeviceNames",
+            initialValue: [],
+            in: { $setUnion: ["$$value", "$$this"] },
+          },
+        },
+        offlineDeviceNames: {
+          $reduce: {
+            input: "$offlineDeviceNames",
+            initialValue: [],
+            in: { $setUnion: ["$$value", "$$this"] },
+          },
+        },
+      },
+    });
+  }
+
+  // Sort by network and timeFrame if applicable
+  pipeline.push({
+    $sort: timeFrame ? { network: 1, timeFrame: 1 } : { network: 1 },
+  });
+
+  // Execute the aggregation pipeline
+  const result = await this.aggregate(pipeline);
+
+  return result;
+};
+
 const DeviceModel = (tenant) => {
   try {
     let devices = mongoose.model("devices");
