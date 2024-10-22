@@ -336,9 +336,9 @@ class MessageBrokerUtils:
         logger.info(f"Preparing to publish data to topic: {topic}")
         data.replace(np.nan, None, inplace=True)
         dataframe_list = data.to_dict("records")
+        message_counts = 0
         if column_key:
             logger.info(f"Using '{column_key}' as the key for messages")
-            message_counts = 0
             for row in dataframe_list:
                 key = row.pop(column_key, None)
                 if key is None:
@@ -351,14 +351,15 @@ class MessageBrokerUtils:
                 selected_partition = (
                     None if auto_partition else self.__get_least_loaded_partition()
                 )
-                message_counts += 1
                 self._send_message(producer, topic, key, message, selected_partition)
                 if not auto_partition:
                     self.partition_loads[selected_partition] += 1
+                message_counts += 1
 
         else:
             logger.info("No key provided, splitting data into chunks and publishing")
             for chunk_data in self._generate_chunks(dataframe_list):
+                message_counts += len(chunk_data)
                 message = json.dumps({"data": chunk_data}).encode("utf-8")
 
                 selected_partition = (
