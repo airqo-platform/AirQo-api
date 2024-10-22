@@ -31,11 +31,12 @@ class MessageBrokerUtils:
         """
         self.__partitions = configuration.TOPIC_PARTITIONS
         self.__bootstrap_servers = configuration.BOOTSTRAP_SERVERS
-        self.partition_loads = {
-            int(p): 0 for p in self.__partitions
-        }  # Initialize partition loads
-        self.conf = {
+        # Initialize partition loads
+        self.partition_loads = {int(p): 0 for p in self.__partitions}
+        self.config = {
             "bootstrap.servers": self.__bootstrap_servers,
+            "request.timeout.ms": 300000,
+            "metadata.max.age.ms": 60000,
         }
 
     def __get_partition(self, current_partition) -> int:
@@ -296,6 +297,7 @@ class MessageBrokerUtils:
                 producer.produce(
                     topic=topic, key=key, value=message, on_delivery=self.__on_delivery
                 )
+                producer.poll(1.0)
         except Exception as e:
             logger.exception(f"Error while sending message to topic {topic}: {e}")
 
@@ -319,14 +321,24 @@ class MessageBrokerUtils:
         Raises:
             Exception: If an error occurs while sending a message, the exception is logged.
         """
-        producer = Producer(self.conf)
+        producer_config = self.config.copy()
+        producer_config.update(
+            {
+                "retries": 5,
+                "batch.num.messages": 1000,
+                "retry.backoff.ms": 80000,
+                "debug": "msg",
+                "message.timeout.ms": 300000,
+            }
+        )
+        producer = Producer(producer_config)
 
         logger.info(f"Preparing to publish data to topic: {topic}")
         data.replace(np.nan, None, inplace=True)
         dataframe_list = data.to_dict("records")
-
         if column_key:
             logger.info(f"Using '{column_key}' as the key for messages")
+            message_counts = 0
             for row in dataframe_list:
                 key = row.pop(column_key, None)
                 if key is None:
@@ -339,8 +351,8 @@ class MessageBrokerUtils:
                 selected_partition = (
                     None if auto_partition else self.__get_least_loaded_partition()
                 )
+                message_counts += 1
                 self._send_message(producer, topic, key, message, selected_partition)
-
                 if not auto_partition:
                     self.partition_loads[selected_partition] += 1
 
@@ -357,6 +369,7 @@ class MessageBrokerUtils:
                 if not auto_partition:
                     self.partition_loads[selected_partition] += 1
 
+        logger.info(f"{message_counts} messages have been loaded.")
         producer.flush()
 
     def consume_from_topic(
@@ -389,7 +402,8 @@ class MessageBrokerUtils:
             A generator that yields consumed messages from the topic.
         """
 
-        self.conf.update(
+        consumer_config = self.config.copy()
+        consumer_config.update(
             {
                 "group.id": group_id,
                 "auto.offset.reset": auto_offset_reset,
@@ -397,7 +411,7 @@ class MessageBrokerUtils:
             }
         )
 
-        consumer = Consumer(self.conf)
+        consumer = Consumer(consumer_config)
         consumer.subscribe([topic])
 
         assigned = False
