@@ -147,9 +147,9 @@ app.use(function (err, req, res, next) {
       logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
       logObject("Internal Server Error", err);
       logger.error(`Stack Trace: ${err.stack}`);
-      res.status(err.status || 500).json({
+      res.status(err.status || err.statusCode || 500).json({
         success: false,
-        message: "Internal Server Error - app entry",
+        message: "Internal Server Error",
         errors: { message: err.message },
       });
     }
