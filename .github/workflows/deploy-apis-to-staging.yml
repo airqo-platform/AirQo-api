@@ -1359,26 +1359,6 @@ jobs:
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
-      - name: Build and push KCCA Docker image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/exceedances
-          target: kcca-staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/exceedance/values-stage-kcca.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
         with:
