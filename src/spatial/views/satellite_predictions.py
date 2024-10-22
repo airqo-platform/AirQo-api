@@ -34,7 +34,7 @@ class SatellitePredictionView:
             model = get_trained_model_from_gcs(
                 Config.GOOGLE_CLOUD_PROJECT_ID,
                 Config.PROJECT_BUCKET,
-                f"satellite_prediction_model.pkl",
+                "satellite_prediction_model.pkl",
             )
 
             prediction = model.predict(feature_array)[0]
@@ -48,5 +48,5 @@ class SatellitePredictionView:
             )
 
         except Exception as e:
-            app.logger.error("Exception occurred", exc_info=True)
+            print(f"Error making predictions: {e}")
             return jsonify({"error": "An internal error has occurred"}), 500
