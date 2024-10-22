@@ -52,9 +52,9 @@ const validateSelectedSites = (requiredFields, allowId = false) => {
         siteErrors.push("_id must be a valid MongoDB ObjectId");
       }
 
-      // Validate site_id
-      if (typeof site.site_id !== "string" || site.site_id.trim() === "") {
-        siteErrors.push("site_id must be a non-empty string");
+      // Validate _id if allowed
+      if (!allowId && site.site_id && !isMongoId(site.site_id)) {
+        siteErrors.push("_id must be a valid MongoDB ObjectId");
       }
 
       // Validate latitude
