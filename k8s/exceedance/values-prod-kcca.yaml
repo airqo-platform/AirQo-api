@@ -1,9 +1,0 @@
-app:
-  name: kcca-exceedance-job
-  namespace: production
-  configmap: env-exceedance-production
-image:
-  repository: eu.gcr.io/airqo-250220/kcca-exceedance-job
-  tag: prod-19e9002c-1729551840
-nameOverride: ''
-fullnameOverride: ''
