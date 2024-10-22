@@ -79,10 +79,10 @@ class MessageBrokerUtils:
             request_timeout_ms=300000,
         )
 
-        logger.info("Dataframe info : ")
-        logger.info(data.info())
-        logger.info("Dataframe description : ")
-        logger.info(data.describe())
+        print("Dataframe info : ")
+        print(data.info())
+        print("Dataframe description : ")
+        print(data.describe())
 
         chunks = int(len(data) / 50)
         chunks = chunks if chunks > 0 else 1
@@ -321,7 +321,8 @@ class MessageBrokerUtils:
         Raises:
             Exception: If an error occurs while sending a message, the exception is logged.
         """
-        self.config.update(
+        producer_config = self.config.copy()
+        producer_config.update(
             {
                 "retries": 5,
                 "batch.num.messages": 1000,
@@ -330,7 +331,7 @@ class MessageBrokerUtils:
                 "message.timeout.ms": 300000,
             }
         )
-        producer = Producer(self.config)
+        producer = Producer(producer_config)
 
         logger.info(f"Preparing to publish data to topic: {topic}")
         data.replace(np.nan, None, inplace=True)
@@ -401,7 +402,8 @@ class MessageBrokerUtils:
             A generator that yields consumed messages from the topic.
         """
 
-        self.config.update(
+        consumer_config = self.config.copy()
+        consumer_config.update(
             {
                 "group.id": group_id,
                 "auto.offset.reset": auto_offset_reset,
@@ -409,7 +411,7 @@ class MessageBrokerUtils:
             }
         )
 
-        consumer = Consumer(self.config)
+        consumer = Consumer(consumer_config)
         consumer.subscribe([topic])
 
         assigned = False
