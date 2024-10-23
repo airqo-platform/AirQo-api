@@ -8,6 +8,7 @@ const logger = require("log4js").getLogger(
 const { HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { logText } = require("@utils/log");
 
 const SelectedSiteSchema = new Schema(
   {

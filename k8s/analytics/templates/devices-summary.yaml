@@ -9,7 +9,6 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   schedule: "0 4 * * *" # Every day at 4am
-  suspend: false
   jobTemplate:
     metadata:
       name: {{ .Values.jobs.devicesSummaryJob.name }}
