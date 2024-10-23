@@ -31,7 +31,8 @@ class MessageBrokerUtils:
         """
         self.__partitions = configuration.TOPIC_PARTITIONS
         self.__bootstrap_servers = configuration.BOOTSTRAP_SERVERS
-        # Initialize partition loads
+        # Initialize partition loads. Should only be used if you know the partions available.
+        # Note: This should be updated in case the number of partions used changes.
         self.partition_loads = {int(p): 0 for p in self.__partitions}
         self.config = {
             "bootstrap.servers": self.__bootstrap_servers,
@@ -39,190 +40,9 @@ class MessageBrokerUtils:
             "metadata.max.age.ms": 60000,
         }
 
-    def __get_partition(self, current_partition) -> int:
-        """Get next partition to load data into -- roundrobin"""
-        current_partition = current_partition + 1
-        if current_partition in self.__partitions:
-            return current_partition
-        return self.__partitions[0]
-
     def __get_least_loaded_partition(self) -> int:
         """Select the least loaded partition."""
         return min(self.partition_loads, key=self.partition_loads.get)
-
-    @classmethod
-    def __on_success(cls, record_metadata):
-        logger.info(
-            f"Successfully sent message: Topic-{record_metadata.topic}, Partition-{record_metadata.partition}, Offset-{record_metadata.offset}"
-        )
-
-    @classmethod
-    def __on_error(cls, record_metadata):
-        logger.exception(
-            f"Failed to send message: Topic-{record_metadata.topic}, Partition-{record_metadata.partition}, Offset-{record_metadata.offset}"
-        )
-
-    def __send_data(self, topic: str, data: pd.DataFrame, partition: int = None):
-        """
-        Send data in chunks to a specified Kafka topic.
-
-        Args:
-            topic: Kafka topic to send the data to.
-            data: Pandas DataFrame containing the data to send.
-            partition: Optional partition to which the message should be sent.
-        """
-        data.to_csv("message_broker_data.csv", index=False)
-        producer = Producer(
-            bootstrap_servers=self.__bootstrap_servers,
-            api_version_auto_timeout_ms=300000,
-            retries=5,
-            request_timeout_ms=300000,
-        )
-
-        print("Dataframe info : ")
-        print(data.info())
-        print("Dataframe description : ")
-        print(data.describe())
-
-        chunks = int(len(data) / 50)
-        chunks = chunks if chunks > 0 else 1
-        dataframes = np.array_split(data, chunks)
-        current_partition = -1
-        for dataframe in dataframes:
-            dataframe = pd.DataFrame(dataframe).replace(np.nan, None)
-            message = {"data": dataframe.to_dict("records")}
-
-            current_partition = (
-                partition
-                if partition or partition == 0
-                else self.__get_partition(current_partition=current_partition)
-            )
-            kafka_message = json.dumps(message, allow_nan=True).encode("utf-8")
-
-            producer.send(
-                topic=topic,
-                value=kafka_message,
-                partition=current_partition,
-            ).add_callback(self.__on_success).add_errback(self.__on_error)
-
-    @staticmethod
-    def update_hourly_data_topic(data: pd.DataFrame):
-        """
-        Update the hourly data topic with additional device metadata,
-        including device names, latitude, longitude, and tenant information.
-
-        Args:
-            data(pandas.DataFrame): The Pandas DataFrame to update with device metadata.
-        """
-        devices = AirQoApi().get_devices(tenant=Tenant.ALL)
-        devices = pd.DataFrame(devices)
-        devices = devices[
-            [
-                "tenant",
-                "device_id",
-                "device_number",
-                "site_id",
-                "latitude",
-                "longitude",
-            ]
-        ]
-        devices.rename(
-            columns={
-                "device_id": "device_name",
-                "_id": "device_id",
-                "latitude": "device_latitude",
-                "longitude": "device_longitude",
-            },
-            inplace=True,
-        )
-
-        data.rename(
-            columns={
-                "device_id": "device_name",
-            },
-            inplace=True,
-        )
-
-        data.drop(columns=["device_number"], inplace=True, errors="ignore")
-
-        data = pd.merge(
-            left=data,
-            right=devices,
-            on=["device_name", "site_id", "tenant"],
-            how="left",
-        )
-        data.rename(
-            columns={
-                "tenant": "network",
-            },
-            inplace=True,
-        )
-        data["tenant"] = str(Tenant.AIRQO)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
-
-        MessageBrokerUtils().publish_to_topic(
-            configuration.HOURLY_MEASUREMENTS_TOPIC, data
-        )
-
-    @staticmethod
-    def update_hourly_data_topic_(data: pd.DataFrame) -> None:
-        """
-        Update the hourly data topic with additional device metadata,
-        including device names, latitude, longitude, and tenant information.
-
-        Args:
-            data (pandas.DataFrame): The Pandas DataFrame to update with device metadata.
-        """
-        # Fetch and prepare device data
-        devices = AirQoApi().get_devices(tenant=Tenant.ALL)
-        devices = pd.DataFrame(devices)
-        devices = devices[
-            [
-                "tenant",
-                "device_id",
-                "device_number",
-                "site_id",
-                "latitude",
-                "longitude",
-            ]
-        ]
-
-        devices.rename(
-            columns={
-                "device_id": "device_name",
-                "_id": "device_id",
-                "latitude": "device_latitude",
-                "longitude": "device_longitude",
-            },
-            inplace=True,
-        )
-
-        data.rename(
-            columns={
-                "device_id": "device_name",
-            },
-            inplace=True,
-        )
-
-        data.drop(columns=["device_number"], inplace=True, errors="ignore")
-
-        data = pd.concat(
-            [
-                data.set_index(["device_name", "site_id", "tenant"]),
-                devices.set_index(["device_name", "site_id", "tenant"]),
-            ],
-            axis=1,
-        ).reset_index()
-
-        data.rename(columns={"tenant": "network"}, inplace=True)
-        data["tenant"] = str(Tenant.AIRQO)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
-
-        MessageBrokerUtils().publish_to_topic(
-            configuration.HOURLY_MEASUREMENTS_TOPIC, data
-        )
 
     def __on_delivery(self, err, msg):
         """
@@ -326,9 +146,11 @@ class MessageBrokerUtils:
             {
                 "retries": 5,
                 "batch.num.messages": 1000,
-                "retry.backoff.ms": 80000,
+                "batch.size": 1 * 1024 * 1024,
+                "retry.backoff.ms": 1000,
                 "debug": "msg",
                 "message.timeout.ms": 300000,
+                "message.max.bytes": 2 * 1024 * 1024,
             }
         )
         producer = Producer(producer_config)
@@ -340,7 +162,7 @@ class MessageBrokerUtils:
         if column_key:
             logger.info(f"Using '{column_key}' as the key for messages")
             for row in dataframe_list:
-                key = row.pop(column_key, None)
+                key = row.get(column_key, None)
                 if key is None:
                     logger.warning(
                         f"No key found for column '{column_key}' in row: {row}"
@@ -409,6 +231,7 @@ class MessageBrokerUtils:
                 "group.id": group_id,
                 "auto.offset.reset": auto_offset_reset,
                 "enable.auto.commit": "true" if auto_commit else "false",
+                "fetch.message.max.bytes": 2 * 1024 * 1024,
             }
         )
 

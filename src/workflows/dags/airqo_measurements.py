@@ -90,15 +90,22 @@ def airqo_historical_hourly_measurements():
             print("The send to API parameter has been set to false")
 
     @task()
-    def send_hourly_measurements_to_message_broker(data: pd.DataFrame) -> None:
+    def send_hourly_measurements_to_message_broker(
+        data: pd.DataFrame, **kwargs
+    ) -> None:
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
 
         data = DataValidationUtils.process_for_message_broker(
-            data=data, tenant=Tenant.AIRQO
+            data=data,
+            tenant=Tenant.AIRQO,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id,
         )
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        MessageBrokerUtils.publish_to_topic(
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        )
 
     extracted_device_measurements = extract_device_measurements()
     extracted_weather_data = extract_weather_data()
@@ -353,15 +360,20 @@ def airqo_realtime_measurements():
         airqo_api.save_events(measurements=data)
 
     @task()
-    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
 
         data = DataValidationUtils.process_for_message_broker(
-            data=data, tenant=Tenant.AIRQO
+            data=data,
+            tenant=Tenant.AIRQO,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id,
         )
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        MessageBrokerUtils.publish_to_topic(
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        )
 
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: pd.DataFrame):
@@ -393,7 +405,9 @@ def airqo_realtime_measurements():
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        MessageBrokerUtils.publish_to_topic(
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        )
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)

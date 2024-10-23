@@ -458,8 +458,12 @@ class AirQoDataUtils:
             del device_group["site_id"]
             del device_group["device_id"]
             del device_group["device_number"]
-
-            averages = device_group.resample("1H", on="timestamp").mean()
+            try:
+                averages = device_group.resample("1H", on="timestamp").mean()
+            except ValueError as value_error:
+                print(f"Error: {value_error}")
+                print(device_group)
+                continue
             averages["timestamp"] = averages.index
             averages["device_id"] = device_id
             averages["site_id"] = site_id
@@ -1028,3 +1032,37 @@ class AirQoDataUtils:
                 "city",
             ]
         )
+
+    @staticmethod
+    def get_devices(group_id: str) -> pd.DataFrame:
+        """
+        Fetches the list of devices from the 'devices-topic' Kafka topic and returns them as a DataFrame.
+
+        Args:
+            group_id (str): The group ID used for consuming devices from the topic.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the list of devices.
+        """
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+
+        broker = MessageBrokerUtils()
+        devices_list: list = []
+
+        for device in broker.consume_from_topic(
+            topic="devices-topic",
+            group_id=group_id,
+            auto_offset_reset="earliest",
+            from_beginning=True,
+        ):
+            devices_list.append(device)
+
+        devices = pd.DataFrame(devices_list)
+        # Will be removed in the future. Just here for initial tests.
+        devices.drop(
+            devices.columns[devices.columns.str.contains("^Unnamed")],
+            axis=1,
+            inplace=True,
+        )
+
+        return devices
