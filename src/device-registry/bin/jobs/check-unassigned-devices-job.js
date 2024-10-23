@@ -43,14 +43,14 @@ const checkUnassignedDevices = async () => {
 
     if (percentage > UNASSIGNED_THRESHOLD) {
       logText(
-        `${percentage.toFixed(
+        `🤦‍♀️🫣 ${percentage.toFixed(
           2
         )}% of deployed devices are not assigned to any category (${uniqueDeviceNames.join(
           ", "
         )})`
       );
       logger.info(
-        `${percentage.toFixed(
+        `🤦‍♀️🫣 ${percentage.toFixed(
           2
         )}% of deployed devices are not assigned to any category (${uniqueDeviceNames.join(
           ", "
