@@ -136,13 +136,63 @@ class DataValidationUtils:
 
     @staticmethod
     def process_for_message_broker(
-        data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
+        data: pd.DataFrame,
+        tenant: Tenant,
+        frequency: Frequency = Frequency.HOURLY,
+        topic: str = None,
+        caller: str = None,
     ) -> pd.DataFrame:
+        """
+        Processes the input DataFrame for message broker consumption based on the specified tenant, frequency, and topic.
+
+        Args:
+            data (pd.DataFrame): The input data to be processed.
+            tenant (Tenant): The tenant filter for the data, defaults to Tenant.ALL.
+            frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
+            topic (str, optional): The Kafka topic being processed, defaults to None.
+            caller (str, optional): The group ID or identifier for devices processing, defaults to None.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame ready for message broker consumption.
+        """
+        print(caller)
+        from .airqo_utils import AirQoDataUtils
+
         data.loc[:, "frequency"] = str(frequency)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         if tenant != Tenant.ALL:
             data.loc[:, "tenant"] = str(tenant)
+
+        # Additional processing for hourly measurements topic
+        if topic == configuration.HOURLY_MEASUREMENTS_TOPIC:
+            data.rename(columns={"device_id": "device_name"}, inplace=True)
+
+            devices = AirQoDataUtils.get_devices(group_id=caller)
+            devices = devices[
+                ["tenant", "device_id", "site_id", "latitude", "longitude"]
+            ]
+            devices.rename(
+                columns={
+                    "device_id": "device_name",
+                    "mongo_id": "device_id",
+                    "latitude": "device_latitude",
+                    "longitude": "device_longitude",
+                },
+                inplace=True,
+            )
+
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "tenant"],
+                how="left",
+            )
+
+            data.rename(columns={"tenant": "network"}, inplace=True)
+            data["tenant"] = str(Tenant.AIRQO)
+
         return data
 
     @staticmethod
