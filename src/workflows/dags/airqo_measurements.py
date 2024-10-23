@@ -103,7 +103,8 @@ def airqo_historical_hourly_measurements():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id,
         )
-        MessageBrokerUtils.publish_to_topic(
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
         )
 
@@ -371,7 +372,8 @@ def airqo_realtime_measurements():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id,
         )
-        MessageBrokerUtils.publish_to_topic(
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
         )
 
@@ -405,7 +407,8 @@ def airqo_realtime_measurements():
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
-        MessageBrokerUtils.publish_to_topic(
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
         )
 
