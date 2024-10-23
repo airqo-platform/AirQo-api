@@ -127,8 +127,8 @@ module.exports = {
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     <p>Thank you for your interest in our work.</p>
                                     <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
-                                    <p>If you are interested in Hardware (Embedded Systems) Engineering, reach out to our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
-                                    <p>If interested in Software Product Development, please reach out to our Software Engineering Lead, Martin Bbaale, at martin@airqo.net and CC: platform@airqo.net.</p>
+                                    <p>For inquiries related to Hardware (Embedded Systems) Engineering, accessing the AirQo API, obtaining AirQo devices, or setting up an Air Quality Monitoring Network, please contact our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
+                                    <p>For open source contributors interested in AirQo software products, please contact our Software Engineering Lead, Martin Bbaale, at martin@airqo.net and CC: platform@airqo.net.</p>
                                 </td>
                   </tr>`;
         break;
