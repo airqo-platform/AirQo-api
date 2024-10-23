@@ -50,61 +50,6 @@ class MessageBrokerUtils:
         """Select the least loaded partition."""
         return min(self.partition_loads, key=self.partition_loads.get)
 
-    @classmethod
-    def __on_success(cls, record_metadata):
-        logger.info(
-            f"Successfully sent message: Topic-{record_metadata.topic}, Partition-{record_metadata.partition}, Offset-{record_metadata.offset}"
-        )
-
-    @classmethod
-    def __on_error(cls, record_metadata):
-        logger.exception(
-            f"Failed to send message: Topic-{record_metadata.topic}, Partition-{record_metadata.partition}, Offset-{record_metadata.offset}"
-        )
-
-    def __send_data(self, topic: str, data: pd.DataFrame, partition: int = None):
-        """
-        Send data in chunks to a specified Kafka topic.
-
-        Args:
-            topic: Kafka topic to send the data to.
-            data: Pandas DataFrame containing the data to send.
-            partition: Optional partition to which the message should be sent.
-        """
-        data.to_csv("message_broker_data.csv", index=False)
-        producer = Producer(
-            bootstrap_servers=self.__bootstrap_servers,
-            api_version_auto_timeout_ms=300000,
-            retries=5,
-            request_timeout_ms=300000,
-        )
-
-        print("Dataframe info : ")
-        print(data.info())
-        print("Dataframe description : ")
-        print(data.describe())
-
-        chunks = int(len(data) / 50)
-        chunks = chunks if chunks > 0 else 1
-        dataframes = np.array_split(data, chunks)
-        current_partition = -1
-        for dataframe in dataframes:
-            dataframe = pd.DataFrame(dataframe).replace(np.nan, None)
-            message = {"data": dataframe.to_dict("records")}
-
-            current_partition = (
-                partition
-                if partition or partition == 0
-                else self.__get_partition(current_partition=current_partition)
-            )
-            kafka_message = json.dumps(message, allow_nan=True).encode("utf-8")
-
-            producer.send(
-                topic=topic,
-                value=kafka_message,
-                partition=current_partition,
-            ).add_callback(self.__on_success).add_errback(self.__on_error)
-
     @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
         """
@@ -326,9 +271,11 @@ class MessageBrokerUtils:
             {
                 "retries": 5,
                 "batch.num.messages": 1000,
-                "retry.backoff.ms": 80000,
+                "batch.size": 1 * 1024 * 1024,
+                "retry.backoff.ms": 1000,
                 "debug": "msg",
                 "message.timeout.ms": 300000,
+                "message.max.bytes": 2 * 1024 * 1024,
             }
         )
         producer = Producer(producer_config)
@@ -409,6 +356,7 @@ class MessageBrokerUtils:
                 "group.id": group_id,
                 "auto.offset.reset": auto_offset_reset,
                 "enable.auto.commit": "true" if auto_commit else "false",
+                "fetch.message.max.bytes": 2 * 1024 * 1024,
             }
         )
 
