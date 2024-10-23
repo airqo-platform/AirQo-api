@@ -1036,33 +1036,53 @@ class AirQoDataUtils:
     @staticmethod
     def get_devices(group_id: str) -> pd.DataFrame:
         """
-        Fetches the list of devices from the 'devices-topic' Kafka topic and returns them as a DataFrame.
+        Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
 
         Args:
-            group_id (str): The group ID used for consuming devices from the topic.
+            group_id (str): The consumer group ID used to track message consumption from the topic.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the list of devices.
+            pd.DataFrame: A DataFrame containing the list of devices, where each device is represented as a row.
+                      If any errors occur during the process, an empty DataFrame is returned.
         """
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from confluent_kafka import KafkaException
 
         broker = MessageBrokerUtils()
         devices_list: list = []
 
-        for device in broker.consume_from_topic(
+        for message in broker.consume_from_topic(
             topic="devices-topic",
             group_id=group_id,
             auto_offset_reset="earliest",
             from_beginning=True,
         ):
-            devices_list.append(device)
+            try:
+                key = message.key()
+                value = message.value()
 
-        devices = pd.DataFrame(devices_list)
-        # Will be removed in the future. Just here for initial tests.
-        devices.drop(
-            devices.columns[devices.columns.str.contains("^Unnamed")],
-            axis=1,
-            inplace=True,
-        )
+                if not key or not value.get("device_id"):
+                    logger.info(
+                        f"Skipping message with key: {key}, missing 'device_id'."
+                    )
+                    continue
+
+                devices_list.append(value)
+            except KafkaException as e:
+                logger.exception(f"Error while consuming message: {e}")
+            continue
+
+        try:
+            devices = pd.DataFrame(devices_list)
+            # Will be removed in the future. Just here for initial tests.
+            devices.drop(
+                devices.columns[devices.columns.str.contains("^Unnamed")],
+                axis=1,
+                inplace=True,
+            )
+        except Exception as e:
+            logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
+            # Return empty DataFrame on failure
+            devices = pd.DataFrame()
 
         return devices
