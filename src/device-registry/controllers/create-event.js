@@ -486,7 +486,6 @@ const createEvent = {
   addValues: async (req, res, next) => {
     try {
       logText("adding values...");
-      const { tenant } = req.query;
       const measurements = req.body;
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -502,7 +501,11 @@ const createEvent = {
         ? defaultTenant
         : req.query.tenant;
 
-      let result = await createEventUtil.insert(tenant, measurements, next);
+      let result = await createEventUtil.insert(
+        defaultTenant,
+        measurements,
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
