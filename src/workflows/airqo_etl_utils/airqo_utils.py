@@ -1081,7 +1081,7 @@ class AirQoDataUtils:
                 inplace=True,
             )
         except Exception as e:
-            logger.exception("Failed to convert consumed messages to DataFrame")
+            logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
             # Return empty DataFrame on failure
             devices = pd.DataFrame()
 
