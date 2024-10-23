@@ -2,7 +2,12 @@ const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const SignalModel = require("@models/Signal");
 const DeviceModel = require("@models/Device");
-const { logObject, logElement, logText } = require("./log");
+const {
+  logObject,
+  logElement,
+  logText,
+  logTextWithTimestamp,
+} = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
@@ -2624,7 +2629,7 @@ const createEvent = {
       }
 
       if (errors.length > 0 && isEmpty(eventsAdded)) {
-        console.log(
+        logTextWithTimestamp(
           "API: failed to store measurements, most likely DB cast errors or duplicate records"
         );
         return {
@@ -2634,7 +2639,7 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
-        console.log("API: successfully added the events");
+        logTextWithTimestamp("API: successfully added the events");
         return {
           success: true,
           message: "successfully added the events",
@@ -2643,6 +2648,7 @@ const createEvent = {
         };
       }
     } catch (error) {
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(

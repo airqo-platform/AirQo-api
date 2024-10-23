@@ -1,3 +1,5 @@
+const moment = require("moment");
+
 const logText = (message) => {
   if (process.env.NODE_ENV !== "production") {
     console.log(message);
@@ -28,4 +30,14 @@ const logError = (error) => {
   return "log deactivated in prod and stage";
 };
 
-module.exports = { logText, logElement, logObject, logError };
+const logTextWithTimestamp = (message) => {
+  console.log(`[${moment().format("YYYY-MM-DD HH:mm:ss")}] ${message}`);
+};
+
+module.exports = {
+  logText,
+  logTextWithTimestamp,
+  logElement,
+  logObject,
+  logError,
+};
