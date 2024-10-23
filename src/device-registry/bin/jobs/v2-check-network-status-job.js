@@ -8,7 +8,7 @@ const cron = require("node-cron");
 const { logText } = require("@utils/log");
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
-const UPTIME_THRESHOLD = 50;
+const UPTIME_THRESHOLD = 35;
 
 const checkNetworkStatus = async () => {
   try {

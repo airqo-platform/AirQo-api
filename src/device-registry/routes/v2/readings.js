@@ -4,41 +4,8 @@ const eventController = require("@controllers/create-event");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const { logElement, logText, logObject } = require("@utils/log");
-const NetworkModel = require("@models/Network");
-const {
-  check,
-  oneOf,
-  query,
-  body,
-  param,
-  validationResult,
-} = require("express-validator");
-
-const decimalPlaces = require("decimal-places");
-const numeral = require("numeral");
-
-// Define a custom function to check if a value is a valid ObjectId
-const isValidObjectId = (value) => {
-  return mongoose.Types.ObjectId.isValid(value);
-};
-
-const addCategoryQueryParam = (req, res, next) => {
-  req.query.path = "public";
-  next();
-};
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { oneOf, query, validationResult } = require("express-validator");
+const validateOptionalObjectId = require("@middleware/validateOptionalObjectId");
 
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);
@@ -57,40 +24,6 @@ const validatePagination = (req, res, next) => {
   next();
 };
 
-// Custom validation function to check if values are valid MongoDB ObjectIds
-const isValidObjectIds = (value) => {
-  const ids = value.split(",");
-  return ids.every((id) => /^[0-9a-fA-F]{24}$/.test(id)); // Check if each ID is a valid ObjectId
-};
-
-// Middleware for validation
-const validateObjectId = (paramName) => {
-  return [
-    query(paramName)
-      .custom(isValidObjectIds)
-      .withMessage(`Invalid ${paramName}`),
-  ];
-};
-
-const validateOptionalObjectId = (field) => {
-  return (req, res, next) => {
-    if (req.query[field]) {
-      let values;
-      if (Array.isArray(req.query[field])) {
-        values = req.query[field];
-      } else {
-        values = req.query[field].toString().split(",");
-      }
-      for (const value of values) {
-        if (!isValidObjectId(value)) {
-          throw new Error(`Invalid ${field} format: ${value}`);
-        }
-      }
-    }
-    next();
-  };
-};
-
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
@@ -106,6 +39,55 @@ router.use(validatePagination);
 /******************* create-events use-case *******************************/
 
 router.get("/map", eventController.readingsForMap);
+router.get(
+  "/best-air-quality",
+  [
+    query("threshold")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("the threshold cannot be empty IF provided")
+      .bail()
+      .isFloat()
+      .withMessage("threshold must be a number")
+      .bail()
+      .toFloat(),
+    query("pollutant")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("the pollutant cannot be empty IF provided")
+      .bail()
+      .toLowerCase()
+      .isIn(["pm2_5", "pm10", "no2"])
+      .withMessage("valid values include: pm2_5, pm10, no2"),
+    query("language")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("language cannot be empty if provided")
+      .isLength({ min: 2, max: 5 })
+      .withMessage("language should be a valid ISO 639-1 code"),
+    query("limit")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("limit cannot be empty if provided")
+      .isInt({ min: 1, max: 100 })
+      .withMessage("limit must be an integer between 1 and 100")
+      .toInt(),
+    query("skip")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("skip cannot be empty if provided")
+      .isInt({ min: 0 })
+      .withMessage("skip must be a non-negative integer")
+      .toInt(),
+  ],
+
+  eventController.getBestAirQuality
+);
 router.get(
   "/recent",
   [
@@ -195,7 +177,7 @@ router.get(
       query("device_id")
         .optional()
         .notEmpty()
-        .withMessage("the provided device_id cannot be empty IF provided")
+        .withMessage("device_id cannot be empty IF provided")
         .trim(),
       query("lat_long")
         .optional()
@@ -228,8 +210,7 @@ router.get(
       query("site_id")
         .optional()
         .notEmpty()
-        .withMessage("the provided site_id cannot be empty IF provided")
-        .trim(),
+        .withMessage("site_id cannot be empty IF provided"),
       query("primary")
         .optional()
         .notEmpty()

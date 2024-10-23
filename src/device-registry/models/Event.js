@@ -21,7 +21,7 @@ const logger = require("log4js").getLogger(
 const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
-const UPTIME_CHECK_THRESHOLD = 48;
+const UPTIME_CHECK_THRESHOLD = 168;
 
 const valueSchema = new Schema({
   time: {

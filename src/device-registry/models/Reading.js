@@ -298,6 +298,69 @@ ReadingsSchema.statics.recent = async function(
   }
 };
 
+ReadingsSchema.statics.getBestAirQualityLocations = async function(
+  { threshold = 10, pollutant = "pm2_5", limit = 100, skip = 0 } = {},
+  next
+) {
+  try {
+    const validPollutants = ["pm2_5", "pm10", "no2"];
+    if (!validPollutants.includes(pollutant)) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `Invalid pollutant specified. Valid options are: ${validPollutants.join(
+            ", "
+          )}`,
+        })
+      );
+      return;
+    }
+
+    const matchCondition = {
+      [`${pollutant}.value`]: { $lt: threshold },
+    };
+
+    const pipeline = this.aggregate()
+      .match(matchCondition)
+      .project({
+        _id: 0,
+        site_id: 1,
+        time: 1,
+        [pollutant]: 1,
+        siteDetails: 1,
+      })
+      .allowDiskUse(true)
+      .skip(skip)
+      .limit(limit);
+
+    const data = await pipeline;
+
+    if (!isEmpty(data)) {
+      return {
+        success: true,
+        message: "Successfully retrieved locations with best air quality.",
+        data,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: true,
+        message:
+          "No locations found with air quality below the specified threshold.",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+};
+
 const ReadingModel = (tenant) => {
   try {
     const readings = mongoose.model("readings");

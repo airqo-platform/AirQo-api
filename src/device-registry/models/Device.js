@@ -34,6 +34,12 @@ function sanitizeObject(obj, invalidKeys) {
   return obj;
 }
 
+const DEVICE_CATEGORIES = Object.freeze({
+  GAS: "gas",
+  LOWCOST: "lowcost",
+  BAM: "bam",
+});
+
 const deviceSchema = new mongoose.Schema(
   {
     cohorts: {
@@ -197,6 +203,7 @@ const deviceSchema = new mongoose.Schema(
     category: {
       type: String,
       default: "lowcost",
+      enum: Object.values(DEVICE_CATEGORIES),
       trim: true,
     },
     isActive: {

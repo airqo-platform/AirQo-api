@@ -2,7 +2,12 @@ const EventModel = require("@models/Event");
 const ReadingModel = require("@models/Reading");
 const SignalModel = require("@models/Signal");
 const DeviceModel = require("@models/Device");
-const { logObject, logElement, logText } = require("./log");
+const {
+  logObject,
+  logElement,
+  logText,
+  logTextWithTimestamp,
+} = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
@@ -1243,6 +1248,99 @@ const createEvent = {
           isCache: false,
         };
       }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  getBestAirQuality: async (request, next) => {
+    try {
+      const {
+        query: { tenant, threshold, pollutant, language, limit, skip },
+      } = request;
+
+      try {
+        const cacheResult = await Promise.race([
+          createEvent.getCache(request, next),
+          new Promise((resolve) =>
+            setTimeout(resolve, 60000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+
+        if (cacheResult.success === true) {
+          logText(cacheResult.message);
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+      }
+
+      const readingsResponse = await ReadingModel(
+        tenant
+      ).getBestAirQualityLocations({ threshold, pollutant, limit, skip }, next);
+
+      // Handle language translation for health tips if applicable
+      if (
+        language !== undefined &&
+        readingsResponse.success === true &&
+        !isEmpty(readingsResponse.data)
+      ) {
+        const data = readingsResponse.data;
+        for (const event of data) {
+          const translatedHealthTips = await translateUtil.translateTips(
+            { healthTips: event.health_tips, targetLanguage: language },
+            next
+          );
+          if (translatedHealthTips.success === true) {
+            event.health_tips = translatedHealthTips.data;
+          }
+        }
+      }
+
+      try {
+        const resultOfCacheOperation = await Promise.race([
+          createEvent.setCache(readingsResponse, request, next),
+          new Promise((resolve) =>
+            setTimeout(resolve, 60000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+        if (resultOfCacheOperation.success === false) {
+          const errors = resultOfCacheOperation.errors || {
+            message: "Internal Server Error",
+          };
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
+        }
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+      }
+
+      return {
+        success: true,
+        message:
+          readingsResponse.message ||
+          "Successfully retrieved air quality data.",
+        data: readingsResponse.data,
+        status: readingsResponse.status || "",
+        isCache: false,
+      };
     } catch (error) {
       logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2531,7 +2629,7 @@ const createEvent = {
       }
 
       if (errors.length > 0 && isEmpty(eventsAdded)) {
-        console.log(
+        logTextWithTimestamp(
           "API: failed to store measurements, most likely DB cast errors or duplicate records"
         );
         return {
@@ -2541,7 +2639,7 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
-        console.log("API: successfully added the events");
+        logTextWithTimestamp("API: successfully added the events");
         return {
           success: true,
           message: "successfully added the events",
@@ -2550,6 +2648,7 @@ const createEvent = {
         };
       }
     } catch (error) {
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
