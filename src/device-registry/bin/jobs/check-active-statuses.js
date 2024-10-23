@@ -60,15 +60,14 @@ const checkActiveStatuses = async () => {
 
     logObject("activeIncorrectStatusCount", activeIncorrectStatusCount);
     logObject("activeMissingStatusCount", activeMissingStatusCount);
+    const totalActiveDevices = await DeviceModel("airqo").countDocuments({
+      isActive: true,
+    });
 
     const percentageActiveIncorrectStatus =
-      (activeIncorrectStatusCount /
-        (await DeviceModel("airqo").countDocuments({ isActive: true }))) *
-      100;
+      (activeIncorrectStatusCount / totalActiveDevices) * 100;
     const percentageActiveMissingStatus =
-      (activeMissingStatusCount /
-        (await DeviceModel("airqo").countDocuments({ isActive: true }))) *
-      100;
+      (activeMissingStatusCount / totalActiveDevices) * 100;
 
     logObject(
       "percentageActiveIncorrectStatus",
