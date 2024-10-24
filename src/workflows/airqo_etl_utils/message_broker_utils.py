@@ -36,7 +36,6 @@ class MessageBrokerUtils:
         self.partition_loads = {int(p): 0 for p in self.__partitions}
         self.config = {
             "bootstrap.servers": self.__bootstrap_servers,
-            "request.timeout.ms": 300000,
             "metadata.max.age.ms": 60000,
         }
 
@@ -153,6 +152,7 @@ class MessageBrokerUtils:
                 "linger.ms": 100,
                 "message.timeout.ms": 300000,
                 "message.max.bytes": 2 * 1024 * 1024,
+                "request.timeout.ms": 300000,
             }
         )
         producer = Producer(producer_config)
@@ -204,7 +204,6 @@ class MessageBrokerUtils:
         auto_offset_reset: str = "latest",
         max_messages: Optional[int] = None,
         auto_commit: bool = True,
-        from_beginning: bool = False,
         offset: Optional[int] = None,
         wait_time_sec: int = 30,
         streaming: bool = False,
@@ -218,7 +217,6 @@ class MessageBrokerUtils:
             auto_offset_reset: Determines where to start reading when there's no valid offset. Default is 'latest'.
             max_messages: Limit on the number of messages to consume. If None, consume all available messages.
             auto_commit: Whether to auto-commit offsets.
-            from_beginning: Whether to start consuming from the beginning of the topic.
             offset: Start consuming from a specific offset if provided.
             wait_time_sec: How long to wait for messages (useful for one-time data requests).
             streaming: If True, run as a continuous streaming job.
@@ -247,16 +245,6 @@ class MessageBrokerUtils:
             if msg is not None and msg.error() is None:
                 assigned = True
             wait_time_sec -= 1
-
-        if from_beginning:
-            logger.info("Seeking to the beginning of all partitions...")
-            partitions = [
-                TopicPartition(topic, p.partition, offset=0)
-                for p in consumer.assignment()
-            ]
-            consumer.assign(partitions)
-            for partition in partitions:
-                consumer.seek(partition)
 
         if offset is not None:
             logger.info(f"Seeking to offset {offset} for all partitions...")
