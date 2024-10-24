@@ -50,7 +50,7 @@ def kcca_hourly_measurements():
         from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
-        data = DataValidationUtils.process_for_message_broker(
+        data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             tenant=Tenant.KCCA,
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,

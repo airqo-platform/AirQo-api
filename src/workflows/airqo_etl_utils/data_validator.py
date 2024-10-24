@@ -1,14 +1,15 @@
-import traceback
 from itertools import chain
-
+import logging
 import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
 from airqo_etl_utils.date import date_to_str
-from typing import Any
+from typing import Any, Dict, List
 from .config import configuration
+
+logger = logging.getLogger(__name__)
 
 
 class DataValidationUtils:
@@ -135,12 +136,12 @@ class DataValidationUtils:
         return dataframe[columns]
 
     @staticmethod
-    def process_for_message_broker(
+    def process_data_for_message_broker(
         data: pd.DataFrame,
         tenant: Tenant,
+        topic: str,
+        caller: str,
         frequency: Frequency = Frequency.HOURLY,
-        topic: str = None,
-        caller: str = None,
     ) -> pd.DataFrame:
         """
         Processes the input DataFrame for message broker consumption based on the specified tenant, frequency, and topic.
@@ -148,14 +149,13 @@ class DataValidationUtils:
         Args:
             data (pd.DataFrame): The input data to be processed.
             tenant (Tenant): The tenant filter for the data, defaults to Tenant.ALL.
+            topic (str): The Kafka topic being processed, defaults to None.
+            caller (str): The group ID or identifier for devices processing, defaults to None.
             frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
-            topic (str, optional): The Kafka topic being processed, defaults to None.
-            caller (str, optional): The group ID or identifier for devices processing, defaults to None.
 
         Returns:
             pd.DataFrame: The processed DataFrame ready for message broker consumption.
         """
-        print(caller)
         from .airqo_utils import AirQoDataUtils
 
         data.loc[:, "frequency"] = str(frequency)
@@ -271,7 +271,31 @@ class DataValidationUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                traceback.print_exc()
+                logger.exception(f"Error ocurred: {e}")
                 print(ex)
 
         return restructured_data
+
+    def transform_devices(devices: List[Dict[str, Any]], task_instance) -> pd.DataFrame:
+        import hashlib
+        from .airqo_utils import AirQoDataUtils
+
+        devices.rename(
+            columns={
+                "device_id": "device_name",
+                "mongo_id": "device_id",
+                "latitude": "device_latitude",
+                "longitude": "device_longitude",
+            },
+            inplace=True,
+        )
+
+        devices_json = devices.to_json(orient="records", date_format="iso")
+        api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
+        previous_cheksum = task_instance.xcom_pull(key="devices_checksum")
+
+        if previous_cheksum and previous_cheksum == api_devices_checksum:
+            return pd.DataFrame()
+
+        task_instance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+        return devices

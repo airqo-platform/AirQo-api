@@ -79,6 +79,7 @@ class MessageBrokerUtils:
         for row in dataframe_list:
             row_size = sys.getsizeof(json.dumps(row))
             if size + row_size > self.MAX_MESSAGE_SIZE:
+                logger.info(f"Message size: {size}")
                 yield chunk
                 chunk = []
                 size = 0
@@ -145,10 +146,11 @@ class MessageBrokerUtils:
         producer_config.update(
             {
                 "retries": 5,
-                "batch.num.messages": 1000,
-                "batch.size": 1 * 1024 * 1024,
+                "batch.num.messages": 100,
+                "batch.size": 10 * 1024 * 1024,
                 "retry.backoff.ms": 1000,
                 "debug": "msg",
+                "linger.ms": 100,
                 "message.timeout.ms": 300000,
                 "message.max.bytes": 2 * 1024 * 1024,
             }

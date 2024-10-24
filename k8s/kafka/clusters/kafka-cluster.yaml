@@ -42,7 +42,7 @@ spec:
       min.insync.replicas: 2
       inter.broker.protocol.version: "3.6"
       message.max.bytes: 2097152
-      replica.fetch.max.bytes: 2097152
+      replica.fetch.max.bytes: 10485760
     storage:
       type: ephemeral
   zookeeper:

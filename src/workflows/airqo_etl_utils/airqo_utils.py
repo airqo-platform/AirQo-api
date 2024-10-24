@@ -461,8 +461,8 @@ class AirQoDataUtils:
             try:
                 averages = device_group.resample("1H", on="timestamp").mean()
             except ValueError as value_error:
-                print(f"Error: {value_error}")
-                print(device_group)
+                logger.exception(f"Error: {value_error}")
+                logger.info(device_group)
                 continue
             averages["timestamp"] = averages.index
             averages["device_id"] = device_id
@@ -716,13 +716,6 @@ class AirQoDataUtils:
                 logger.exception(f"An error occurred: {ex}")
 
         return restructured_data
-
-    @staticmethod
-    def process_data_for_message_broker(
-        data: pd.DataFrame, frequency: Frequency
-    ) -> list:
-        data["frequency"] = frequency
-        return data.to_dict("records")
 
     @staticmethod
     def merge_aggregated_weather_data(
@@ -1084,5 +1077,10 @@ class AirQoDataUtils:
             logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
             # Return empty DataFrame on failure
             devices = pd.DataFrame()
+
+        if "device_name" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_name"], keep="last")
+        elif "device_id" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_id"], keep="last")
 
         return devices
