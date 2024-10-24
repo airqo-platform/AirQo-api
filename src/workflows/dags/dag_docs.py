@@ -46,3 +46,18 @@ Data Destinations:
 - Bigquery raw_data.gaseous_measurements
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+extract_store_devices_data_in_kafka = """
+### AirQo devices hourly ETL
+#### Purpose
+Extract devices data from the api(or source database) and store it in bigquery.
+#### Notes
+- Imagine you had a many devices(100,000+) and had to extract them each time you were going to query their data.
+- This pipeline extracts the data and store it in kafka for easy access to cancel out the repeatitive queries.
+
+Data sources:
+- API(devices/summary):
+Data Destinations:
+- Kafka - devices-topic
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""

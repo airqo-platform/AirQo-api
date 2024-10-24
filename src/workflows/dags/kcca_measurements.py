@@ -1,6 +1,7 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.config import configuration
 
 
 @dag(
@@ -44,13 +45,16 @@ def kcca_hourly_measurements():
         airqo_api.save_events(measurements=kcca_data)
 
     @task()
-    def send_to_message_broker(data: pd.DataFrame):
+    def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
-        data = DataValidationUtils.process_for_message_broker(
-            data=data, tenant=Tenant.KCCA
+        data = DataValidationUtils.process_data_for_message_broker(
+            data=data,
+            tenant=Tenant.KCCA,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id,
         )
 
         MessageBrokerUtils.update_hourly_data_topic(data=data)

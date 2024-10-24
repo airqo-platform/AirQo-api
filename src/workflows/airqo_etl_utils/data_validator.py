@@ -1,14 +1,15 @@
-import traceback
 from itertools import chain
-
+import logging
 import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
 from airqo_etl_utils.date import date_to_str
-from typing import Any
+from typing import Any, Dict, List
 from .config import configuration
+
+logger = logging.getLogger(__name__)
 
 
 class DataValidationUtils:
@@ -135,14 +136,63 @@ class DataValidationUtils:
         return dataframe[columns]
 
     @staticmethod
-    def process_for_message_broker(
-        data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
+    def process_data_for_message_broker(
+        data: pd.DataFrame,
+        tenant: Tenant,
+        topic: str,
+        caller: str,
+        frequency: Frequency = Frequency.HOURLY,
     ) -> pd.DataFrame:
+        """
+        Processes the input DataFrame for message broker consumption based on the specified tenant, frequency, and topic.
+
+        Args:
+            data (pd.DataFrame): The input data to be processed.
+            tenant (Tenant): The tenant filter for the data, defaults to Tenant.ALL.
+            topic (str): The Kafka topic being processed, defaults to None.
+            caller (str): The group ID or identifier for devices processing, defaults to None.
+            frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame ready for message broker consumption.
+        """
+        from .airqo_utils import AirQoDataUtils
+
         data.loc[:, "frequency"] = str(frequency)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         if tenant != Tenant.ALL:
             data.loc[:, "tenant"] = str(tenant)
+
+        # Additional processing for hourly measurements topic
+        if topic == configuration.HOURLY_MEASUREMENTS_TOPIC:
+            data.rename(columns={"device_id": "device_name"}, inplace=True)
+
+            devices = AirQoDataUtils.get_devices(group_id=caller)
+            devices = devices[
+                ["tenant", "device_id", "site_id", "latitude", "longitude"]
+            ]
+            devices.rename(
+                columns={
+                    "device_id": "device_name",
+                    "mongo_id": "device_id",
+                    "latitude": "device_latitude",
+                    "longitude": "device_longitude",
+                },
+                inplace=True,
+            )
+
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "tenant"],
+                how="left",
+            )
+
+            data.rename(columns={"tenant": "network"}, inplace=True)
+            data["tenant"] = str(Tenant.AIRQO)
+
         return data
 
     @staticmethod
@@ -221,7 +271,31 @@ class DataValidationUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                traceback.print_exc()
+                logger.exception(f"Error ocurred: {e}")
                 print(ex)
 
         return restructured_data
+
+    def transform_devices(devices: List[Dict[str, Any]], task_instance) -> pd.DataFrame:
+        import hashlib
+        from .airqo_utils import AirQoDataUtils
+
+        devices.rename(
+            columns={
+                "device_id": "device_name",
+                "mongo_id": "device_id",
+                "latitude": "device_latitude",
+                "longitude": "device_longitude",
+            },
+            inplace=True,
+        )
+
+        devices_json = devices.to_json(orient="records", date_format="iso")
+        api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
+        previous_cheksum = task_instance.xcom_pull(key="devices_checksum")
+
+        if previous_cheksum and previous_cheksum == api_devices_checksum:
+            return pd.DataFrame()
+
+        task_instance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+        return devices
