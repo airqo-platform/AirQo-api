@@ -12,7 +12,7 @@ from dag_docs import extract_store_devices_data_in_kafka
     doc_md=extract_store_devices_data_in_kafka,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["devices", "hourly", "low cost"],
+    tags=["devices", "kafka"],
 )
 def airqo_devices_data():
     import pandas as pd
@@ -30,10 +30,16 @@ def airqo_devices_data():
         devices = DataValidationUtils.transform_devices(
             devices=devices, taskinstance=kwargs["ti"]
         )
-        broker = MessageBrokerUtils()
-        broker.publish_to_topic(
-            data=devices, topic=configuration.DEVICES_TOPIC, column_key="device_name"
-        )
+        if not devices.empty:
+            broker = MessageBrokerUtils()
+            broker.publish_to_topic(
+                data=devices,
+                topic=configuration.DEVICES_TOPIC,
+                column_key="device_name",
+            )
 
     extracted_device = extract_devices()
     send_device_data_to_broker(extracted_device)
+
+
+airqo_devices_data()
