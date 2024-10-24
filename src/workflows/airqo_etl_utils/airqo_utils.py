@@ -1040,6 +1040,7 @@ class AirQoDataUtils:
         """
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from confluent_kafka import KafkaException
+        import json
 
         broker = MessageBrokerUtils()
         devices_list: list = []
@@ -1048,12 +1049,15 @@ class AirQoDataUtils:
             topic="devices-topic",
             group_id=group_id,
             auto_offset_reset="earliest",
-            from_beginning=True,
+            auto_commit=False,
         ):
             try:
-                key = message.key()
-                value = message.value()
-
+                key = message.get("key", None)
+                try:
+                    value = json.loads(message.get("value", None))
+                except json.JSONDecodeError as e:
+                    logger.exception(f"Error decoding JSON: {e}")
+                    continue
                 if not key or not value.get("device_id"):
                     logger.info(
                         f"Skipping message with key: {key}, missing 'device_id'."
@@ -1082,5 +1086,5 @@ class AirQoDataUtils:
             devices.drop_duplicates(subset=["device_name"], keep="last")
         elif "device_id" in devices.columns.tolist():
             devices.drop_duplicates(subset=["device_id"], keep="last")
-
+        devices.to_csv("devices_kafka_try.csv")
         return devices
