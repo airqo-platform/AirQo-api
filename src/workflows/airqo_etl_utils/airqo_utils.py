@@ -1086,5 +1086,5 @@ class AirQoDataUtils:
             devices.drop_duplicates(subset=["device_name"], keep="last")
         elif "device_id" in devices.columns.tolist():
             devices.drop_duplicates(subset=["device_id"], keep="last")
-        devices.to_csv("devices_kafka_try.csv")
+
         return devices
