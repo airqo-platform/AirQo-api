@@ -277,8 +277,23 @@ class DataValidationUtils:
         return restructured_data
 
     def transform_devices(devices: List[Dict[str, Any]], task_instance) -> pd.DataFrame:
+        """
+        Transforms and processes the devices DataFrame. If the checksum of the
+        devices data has not changed since the last execution, it returns an empty DataFrame.
+        Otherwise, it updates the checksum in XCom and returns the transformed DataFrame.
+
+        Args:
+            devices (pd.DataFrame): A Pandas DataFrame containing the devices data.
+            task_instance: The Airflow task instance used to pull and push XCom values.
+
+        Returns:
+            pd.DataFrame: Transformed DataFrame if the devices data has changed since
+                        the last execution; otherwise, an empty DataFrame.
+        """
+        from .airqo_utils import (
+            AirQoDataUtils,
+        )  # Ensure this utility is imported if needed.
         import hashlib
-        from .airqo_utils import AirQoDataUtils
 
         devices.rename(
             columns={
@@ -290,12 +305,15 @@ class DataValidationUtils:
             inplace=True,
         )
 
+        # Convert devices DataFrame to JSON for consistency since JSON stores metadata and compute checksum
         devices_json = devices.to_json(orient="records", date_format="iso")
         api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
-        previous_cheksum = task_instance.xcom_pull(key="devices_checksum")
 
-        if previous_cheksum and previous_cheksum == api_devices_checksum:
+        previous_checksum = task_instance.xcom_pull(key="devices_checksum")
+
+        if previous_checksum == api_devices_checksum:
             return pd.DataFrame()
 
         task_instance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+
         return devices
