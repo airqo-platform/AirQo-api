@@ -97,7 +97,7 @@ def airqo_historical_hourly_measurements():
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
 
-        data = DataValidationUtils.process_for_message_broker(
+        data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             tenant=Tenant.AIRQO,
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
@@ -366,7 +366,7 @@ def airqo_realtime_measurements():
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
 
-        data = DataValidationUtils.process_for_message_broker(
+        data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             tenant=Tenant.AIRQO,
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
