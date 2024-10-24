@@ -11,13 +11,13 @@ const { logText, logObject } = require("@utils/log");
 const checkUnassignedDevices = async () => {
   try {
     const totalCount = await DeviceModel("airqo").countDocuments({
-      isActive: false,
+      isActive: true,
     });
 
     const result = await DeviceModel("airqo").aggregate([
       {
         $match: {
-          isActive: false,
+          isActive: true,
           category: { $exists: false } || { $eq: "" },
         },
       },
