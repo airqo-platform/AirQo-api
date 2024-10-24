@@ -9,8 +9,7 @@ const moment = require("moment-timezone"); // Keep using Moment.js
 const ACTIVE_STATUS_THRESHOLD = process.env.ACTIVE_STATUS_THRESHOLD || 0;
 const { logText, logObject } = require("@utils/log");
 
-// Configure timezone (e.g., 'UTC')
-const TIMEZONE = process.env.TIMEZONE || 'UTC'; // Default to UTC if not set // You can change this to your desired timezone
+const TIMEZONE = moment.tz.guess();
 const MAX_RETRIES = 3; // Maximum retry attempts
 const RETRY_DELAY = 5000; // Delay between retries in milliseconds
 
