@@ -276,7 +276,9 @@ class DataValidationUtils:
 
         return restructured_data
 
-    def transform_devices(devices: List[Dict[str, Any]], caller: str) -> pd.DataFrame:
+    def transform_devices(
+        devices: List[Dict[str, Any]], task_instance, caller: str
+    ) -> pd.DataFrame:
         import hashlib
         from .airqo_utils import AirQoDataUtils
 
@@ -292,12 +294,10 @@ class DataValidationUtils:
 
         devices_json = devices.to_json(orient="records", date_format="iso")
         api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
+        previous_cheksum = task_instance.xcom_pull(key="devices_checksum")
 
-        devices_kafka = AirQoDataUtils.get_devices(group_id=caller)
-        kafka_devices_json = devices_kafka.to_json(orient="records", date_format="iso")
-        kafka_devices_checksum = hashlib.md5(kafka_devices_json.encode()).hexdigest()
-
-        if kafka_devices_checksum == api_devices_checksum:
+        if previous_cheksum and previous_cheksum == api_devices_checksum:
             return pd.DataFrame()
 
+        task_instance.xcom_push(key="devices_checksum", value=api_devices_checksum)
         return devices
