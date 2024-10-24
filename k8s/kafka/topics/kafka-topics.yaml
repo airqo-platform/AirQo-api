@@ -48,10 +48,12 @@ metadata:
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
-  partitions: 2
+  partitions: 3
   replicas: 2
   config:
-    retention.ms: 86400000
+    cleanup.policy: compact
+    min.insync.replicas: 2
+    compression.type: lz4
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
