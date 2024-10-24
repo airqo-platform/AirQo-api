@@ -276,9 +276,7 @@ class DataValidationUtils:
 
         return restructured_data
 
-    def transform_devices(
-        devices: List[Dict[str, Any]], task_instance, caller: str
-    ) -> pd.DataFrame:
+    def transform_devices(devices: List[Dict[str, Any]], task_instance) -> pd.DataFrame:
         import hashlib
         from .airqo_utils import AirQoDataUtils
 
