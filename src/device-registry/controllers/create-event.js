@@ -1311,12 +1311,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request",
         });
       }
     } catch (error) {
