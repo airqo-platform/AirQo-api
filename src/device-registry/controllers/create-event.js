@@ -938,6 +938,58 @@ const createEvent = {
       return;
     }
   },
+  listReadingAverages: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
+          averages: "readings",
+        },
+      };
+
+      const result = await createEventUtil.listReadingAverages(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      const status = result.status || httpStatus.OK;
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          measurements: result.data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   signalsForMap: async (req, res, next) => {
     try {
       logText("the signals for the AirQo Map...");
@@ -1181,6 +1233,90 @@ const createEvent = {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
           message: "Internal Server Error",
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  listAverages: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      request.query.recent = "no";
+      request.query.metadata = "site_id";
+      request.query.averages = "events";
+      request.query.brief = "yes";
+      const { cohort_id, grid_id } = { ...req.query, ...req.params };
+
+      let locationErrors = 0;
+
+      if (cohort_id) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        }
+      } else if (grid_id) {
+        await processGridIds(grid_id, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      }
+
+      if (locationErrors === 0) {
+        const result = await createEventUtil.listAverages(request, next);
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
+
+        if (result.success === true) {
+          const status = result.status ? result.status : httpStatus.OK;
+
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            measurements: result.data,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : { message: "" };
+          res.status(status).json({
+            success: false,
+            errors,
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          errors: {
+            message: `Unable to process measurements for the provided measurement IDs`,
+          },
+          message: "Bad Request",
         });
       }
     } catch (error) {
