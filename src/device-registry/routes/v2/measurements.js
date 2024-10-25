@@ -16,6 +16,11 @@ const { logElement, logText, logObject } = require("@utils/log");
 const NetworkModel = require("@models/Network");
 const decimalPlaces = require("decimal-places");
 const numeral = require("numeral");
+const rateLimit = require("express-rate-limit");
+const averagesLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+});
 
 // Define a custom function to check if a value is a valid ObjectId
 const isValidObjectId = (value) => {
@@ -1195,6 +1200,16 @@ router.get(
   ]),
   eventController.listRecent
 );
+/**
+ * @route GET /sites/:site_id/averages
+ * @description Get average measurements for a specific site
+ * @param {string} site_id - MongoDB ObjectId of the site
+ * @query {string} [tenant] - Optional tenant identifier
+ * @query {string} [startTime] - ISO8601 start time
+ * @query {string} [endTime] - ISO8601 end time
+ * @query {string} [frequency] - Data frequency (hourly|daily|raw|minute)
+ * @returns {object} Average measurements data
+ */
 router.get(
   "/sites/:site_id/averages",
   oneOf([
@@ -1310,6 +1325,7 @@ router.get(
         .withMessage("valid values include: YES and NO"),
     ],
   ]),
+  averagesLimiter,
   eventController.listAverages
 );
 router.get(
