@@ -581,7 +581,10 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
 
       const lastValue = data[data.length - 1];
       const previousValue = data[data.length - 2];
-      const percentChange = ((lastValue - previousValue) / previousValue) * 100;
+      const percentChange =
+        previousValue === 0
+          ? 0
+          : ((lastValue - previousValue) / previousValue) * 100;
 
       if (percentChange > 5) return "increasing";
       if (percentChange < -5) return "decreasing";
