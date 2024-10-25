@@ -35,7 +35,7 @@ class MessageBrokerUtils:
         # Note: This should be updated in case the number of partions used changes.
         self.partition_loads = {int(p): 0 for p in self.__partitions}
         self.config = {
-            "bootstrap.servers": self.__bootstrap_servers,
+            "bootstrap.servers": "35.187.179.27:30200,34.79.78.204:30200,34.78.90.92:30200",
             "metadata.max.age.ms": 60000,
         }
 
@@ -205,7 +205,7 @@ class MessageBrokerUtils:
         max_messages: Optional[int] = None,
         auto_commit: bool = True,
         offset: Optional[int] = None,
-        wait_time_sec: int = 30,
+        wait_time_sec: int = 40,
         streaming: bool = False,
     ) -> Any:
         """
