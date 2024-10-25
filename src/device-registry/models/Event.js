@@ -2541,6 +2541,132 @@ eventSchema.statics.signal = async function(filter) {
   }
 };
 
+eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
+  try {
+    // Get current date and date 2 weeks ago
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(today.getDate() - 14);
+
+    // Base query to match site and time range
+    const baseMatch = {
+      "values.site_id": mongoose.Types.ObjectId(siteId),
+      "values.time": {
+        $gte: twoWeeksAgo,
+        $lte: now,
+      },
+    };
+
+    const result = await this.aggregate([
+      // Unwind the values array to work with individual readings
+      { $unwind: "$values" },
+
+      // Match site and time range
+      { $match: baseMatch },
+
+      // Project only needed fields and add date fields for grouping
+      {
+        $project: {
+          time: "$values.time",
+          pm2_5: "$values.pm2_5.value",
+          dayOfYear: { $dayOfYear: "$values.time" },
+          year: { $year: "$values.time" },
+          week: { $week: "$values.time" },
+        },
+      },
+
+      // Group by day to get daily averages
+      {
+        $group: {
+          _id: {
+            year: "$year",
+            dayOfYear: "$dayOfYear",
+          },
+          dailyAverage: { $avg: "$pm2_5" },
+          date: { $first: "$time" },
+          week: { $first: "$week" },
+        },
+      },
+
+      // Sort by date
+      { $sort: { date: -1 } },
+
+      // Group again to calculate weekly averages
+      {
+        $group: {
+          _id: "$week",
+          weeklyAverage: { $avg: "$dailyAverage" },
+          days: {
+            $push: {
+              date: "$date",
+              average: "$dailyAverage",
+            },
+          },
+        },
+      },
+
+      // Sort by week
+      { $sort: { _id: -1 } },
+
+      // Limit to get only last 2 weeks
+      { $limit: 2 },
+    ]).allowDiskUse(true);
+
+    // If we don't have enough data
+    if (result.length < 2) {
+      return {
+        success: false,
+        message: "Insufficient data for comparison",
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+
+    // Get current week and previous week data
+    const currentWeek = result[0];
+    const previousWeek = result[1];
+
+    // Calculate percentage difference
+    const percentageDifference =
+      ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
+        previousWeek.weeklyAverage) *
+      100;
+
+    // Get today's date string in YYYY-MM-DD format
+    const todayStr = today.toISOString().split("T")[0];
+
+    // Find today's average from the current week's days
+    const todayAverage =
+      currentWeek.days.find(
+        (day) => day.date.toISOString().split("T")[0] === todayStr
+      )?.average || null;
+
+    return {
+      success: true,
+      data: {
+        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        percentageDifference: parseFloat(percentageDifference.toFixed(2)),
+        weeklyAverages: {
+          currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
+          previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
+        },
+      },
+      message: "Successfully retrieved air quality averages",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `Internal Server Error --- getAirQualityAverages --- ${error.message}`
+    );
+    logObject("error", error);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const eventsModel = (tenant) => {
   try {
     const events = mongoose.model("events");
