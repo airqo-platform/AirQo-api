@@ -276,7 +276,7 @@ class DataValidationUtils:
 
         return restructured_data
 
-    def transform_devices(devices: List[Dict[str, Any]], task_instance) -> pd.DataFrame:
+    def transform_devices(devices: List[Dict[str, Any]], taskinstance) -> pd.DataFrame:
         """
         Transforms and processes the devices DataFrame. If the checksum of the
         devices data has not changed since the last execution, it returns an empty DataFrame.
@@ -292,6 +292,7 @@ class DataValidationUtils:
         """
         import hashlib
 
+        devices = pd.DataFrame(devices)
         devices.rename(
             columns={
                 "device_id": "device_name",
@@ -306,11 +307,11 @@ class DataValidationUtils:
         devices_json = devices.to_json(orient="records", date_format="iso")
         api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
 
-        previous_checksum = task_instance.xcom_pull(key="devices_checksum")
+        previous_checksum = taskinstance.xcom_pull(key="devices_checksum")
 
         if previous_checksum == api_devices_checksum:
             return pd.DataFrame()
 
-        task_instance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+        taskinstance.xcom_push(key="devices_checksum", value=api_devices_checksum)
 
         return devices
