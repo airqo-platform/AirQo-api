@@ -1383,6 +1383,123 @@ const createEvent = {
       return;
     }
   },
+  listReadingAverages: async (request, next) => {
+    try {
+      let missingDataMessage = "";
+      const { tenant, language, site_id } = {
+        ...request.query,
+        ...request.params,
+      };
+      try {
+        const cacheResult = await Promise.race([
+          createEvent.getCache(request, next),
+          new Promise((resolve) =>
+            setTimeout(resolve, 60000, {
+              success: false,
+              message: "Internal Server Error",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: "Cache timeout" },
+            })
+          ),
+        ]);
+
+        if (cacheResult.success === true) {
+          logText(cacheResult.message);
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+      }
+
+      const readingsResponse = await ReadingModel(
+        tenant
+      ).getAirQualityAnalytics(site_id, next);
+
+      if (
+        language !== undefined &&
+        !isEmpty(readingsResponse) &&
+        readingsResponse.success === true &&
+        !isEmpty(readingsResponse.data)
+      ) {
+        const data = readingsResponse.data;
+        for (const event of data) {
+          const translatedHealthTips = await translateUtil.translateTips(
+            { healthTips: event.health_tips, targetLanguage: language },
+            next
+          );
+          if (translatedHealthTips.success === true) {
+            event.health_tips = translatedHealthTips.data;
+          }
+        }
+      }
+
+      if (readingsResponse.success === true) {
+        const data = readingsResponse.data;
+
+        logText("Setting cache...");
+
+        try {
+          const resultOfCacheOperation = await Promise.race([
+            createEvent.setCache(readingsResponse, request, next),
+            new Promise((resolve) =>
+              setTimeout(resolve, 60000, {
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: { message: "Cache timeout" },
+              })
+            ),
+          ]);
+          if (resultOfCacheOperation.success === false) {
+            const errors = resultOfCacheOperation.errors
+              ? resultOfCacheOperation.errors
+              : { message: "Internal Server Error" };
+            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
+            // return resultOfCacheOperation;
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        }
+
+        logText("Cache set.");
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data)
+            ? "no measurements for this search"
+            : readingsResponse.message,
+          data,
+          status: readingsResponse.status || "",
+          isCache: false,
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
+        );
+
+        return {
+          success: false,
+          message: readingsResponse.message,
+          errors: readingsResponse.errors || { message: "" },
+          status: readingsResponse.status || "",
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   getBestAirQuality: async (request, next) => {
     try {
       const {
@@ -2202,7 +2319,6 @@ const createEvent = {
   getCache: async (request, next) => {
     try {
       const cacheID = createEvent.generateCacheID(request, next);
-
       const result = await redisGetAsync(cacheID); // Use the promise-based version
 
       const resultJSON = JSON.parse(result);
