@@ -593,15 +593,17 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
 
     // Process all data
     const weeklyData = processWeeklyData(weeklyComparison);
+    // Denominator: replaced 24 with Object.keys(hourlyData).length
     const dailyAverages = {
       pm2_5:
         Object.values(hourlyData).reduce((sum, hour) => sum + hour.pm2_5, 0) /
-        24,
+        Object.keys(hourlyData).length,
       pm10:
         Object.values(hourlyData).reduce((sum, hour) => sum + hour.pm10, 0) /
-        24,
+        Object.keys(hourlyData).length,
       no2:
-        Object.values(hourlyData).reduce((sum, hour) => sum + hour.no2, 0) / 24,
+        Object.values(hourlyData).reduce((sum, hour) => sum + hour.no2, 0) /
+        Object.keys(hourlyData).length,
     };
 
     // Calculate percentage differences
