@@ -11,8 +11,8 @@ images:
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
   tag: prod-3f8fdc79-1729849480
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   webserver:

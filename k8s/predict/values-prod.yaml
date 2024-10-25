@@ -1,5 +1,5 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: production
 images:
   repositories:
