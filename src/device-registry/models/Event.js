@@ -2627,10 +2627,13 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     const previousWeek = result[1];
 
     // Calculate percentage difference
+
     const percentageDifference =
-      ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
-        previousWeek.weeklyAverage) *
-      100;
+      previousWeek.weeklyAverage !== 0
+        ? ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
+            previousWeek.weeklyAverage) *
+          100
+        : 0;
 
     // Get today's date string in YYYY-MM-DD format
     const todayStr = today.toISOString().split("T")[0];
