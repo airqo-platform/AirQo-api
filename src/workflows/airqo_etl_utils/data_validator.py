@@ -290,9 +290,6 @@ class DataValidationUtils:
             pd.DataFrame: Transformed DataFrame if the devices data has changed since
                         the last execution; otherwise, an empty DataFrame.
         """
-        from .airqo_utils import (
-            AirQoDataUtils,
-        ) 
         import hashlib
 
         devices.rename(
