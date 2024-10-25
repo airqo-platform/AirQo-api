@@ -2546,7 +2546,7 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     // Get current date and date 2 weeks ago
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const twoWeeksAgo = new Date();
+    const twoWeeksAgo = new Date(today);
     twoWeeksAgo.setDate(today.getDate() - 14);
 
     // Base query to match site and time range
