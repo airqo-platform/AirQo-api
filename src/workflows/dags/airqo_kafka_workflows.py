@@ -20,14 +20,16 @@ def airqo_devices_data():
 
     @task()
     def extract_devices(**kwargs) -> pd.DataFrame:
-        return AirQoApi.get_devices()
+        airqo_api = AirQoApi()
+        return airqo_api.get_devices()
 
     @task()
     def send_device_data_to_broker(devices: pd.DataFrame, **kwargs) -> None:
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
 
-        devices = DataValidationUtils.transform_devices(
+        data_validation = DataValidationUtils()
+        devices = data_validation.transform_devices(
             devices=devices, taskinstance=kwargs["ti"]
         )
         if not devices.empty:
