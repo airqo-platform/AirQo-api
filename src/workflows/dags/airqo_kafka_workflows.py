@@ -28,8 +28,7 @@ def airqo_devices_data():
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
 
-        data_validation = DataValidationUtils()
-        devices = data_validation.transform_devices(
+        devices = DataValidationUtils.transform_devices(
             devices=devices, taskinstance=kwargs["ti"]
         )
         if not devices.empty:
