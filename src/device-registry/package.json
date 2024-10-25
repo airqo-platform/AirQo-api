@@ -54,6 +54,7 @@
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "express-cluster": "0.0.5",
+    "express-rate-limit": "^7.4.1",
     "express-session": "^1.17.1",
     "express-validation": "^1.0.3",
     "express-validator": "^6.12.0",
