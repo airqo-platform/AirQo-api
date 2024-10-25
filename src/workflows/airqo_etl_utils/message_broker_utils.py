@@ -205,7 +205,7 @@ class MessageBrokerUtils:
         max_messages: Optional[int] = None,
         auto_commit: bool = True,
         offset: Optional[int] = None,
-        wait_time_sec: int = 30,
+        wait_time_sec: int = 40,
         streaming: bool = False,
     ) -> Any:
         """
