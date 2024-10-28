@@ -50,8 +50,8 @@ class DateUtils:
         delta_kwargs = {unit: value}
         dag_run = kwargs.get("dag_run", None)
         is_manual_run = dag_run.external_trigger if dag_run else False
-        logger.info("KWARGS:", kwargs)
-        print("IS MANUAL RUN:", is_manual_run)
+        logger.info(f"KWARGS:, {kwargs}")
+        logger.info(f"IS MANUAL RUN: {is_manual_run}")
 
         if historical and is_manual_run:
             start_date_time = kwargs.get("params", {}).get("start_date_time")
