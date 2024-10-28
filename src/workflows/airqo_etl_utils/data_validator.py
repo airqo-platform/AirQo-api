@@ -170,13 +170,10 @@ class DataValidationUtils:
             data.rename(columns={"device_id": "device_name"}, inplace=True)
 
             devices = AirQoDataUtils.get_devices(group_id=caller)
-            devices = devices[
-                ["tenant", "device_id", "site_id", "latitude", "longitude"]
-            ]
+            devices = devices[["tenant", "_id", "site_id", "latitude", "longitude"]]
             devices.rename(
                 columns={
-                    "device_id": "device_name",
-                    "mongo_id": "device_id",
+                    "_id": "device_id",
                     "latitude": "device_latitude",
                     "longitude": "device_longitude",
                 },
@@ -295,7 +292,7 @@ class DataValidationUtils:
         devices.rename(
             columns={
                 "device_id": "device_name",
-                "mongo_id": "device_id",
+                "_id": "device_id",
                 "latitude": "device_latitude",
                 "longitude": "device_longitude",
             },
