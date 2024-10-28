@@ -314,6 +314,6 @@ class DataValidationUtils:
 
             taskinstance.xcom_push(key="devices_checksum", value=api_devices_checksum)
         else:
-            logger.warning(f"No devices returned.")
+            logger.warning("No devices returned.")
 
         return devices
