@@ -1058,8 +1058,8 @@ class AirQoDataUtils:
                 except json.JSONDecodeError as e:
                     logger.exception(f"Error decoding JSON: {e}")
                     continue
-                if not key or not value.get("device_id"):
-                    logger.info(
+                if not key or not value.get("_id"):
+                    logger.warning(
                         f"Skipping message with key: {key}, missing 'device_id'."
                     )
                     continue

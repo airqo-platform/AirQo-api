@@ -232,6 +232,8 @@ class MessageBrokerUtils:
                 "auto.offset.reset": auto_offset_reset,
                 "enable.auto.commit": "true" if auto_commit else "false",
                 "fetch.message.max.bytes": 2 * 1024 * 1024,
+                "api.version.request.timeout.ms": 15000,
+                "socket.timeout.ms": 30000,
             }
         )
         consumer = Consumer(consumer_config)
