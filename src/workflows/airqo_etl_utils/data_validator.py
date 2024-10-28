@@ -121,7 +121,7 @@ class DataValidationUtils:
     def fill_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
         for col in cols:
             if col not in list(data.columns):
-                print(f"{col} missing in dataframe")
+                logger.warning(f"{col} missing in dataframe")
                 data.loc[:, col] = None
 
         return data
@@ -271,8 +271,7 @@ class DataValidationUtils:
                 restructured_data.append(row_data)
 
             except Exception as ex:
-                logger.exception(f"Error ocurred: {e}")
-                print(ex)
+                logger.exception(f"Error ocurred: {ex}")
 
         return restructured_data
 
@@ -304,14 +303,17 @@ class DataValidationUtils:
         )
 
         # Convert devices DataFrame to JSON for consistency since JSON stores metadata and compute checksum
-        devices_json = devices.to_json(orient="records", date_format="iso")
-        api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
+        if not devices.empty:
+            devices_json = devices.to_json(orient="records", date_format="iso")
+            api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
 
-        previous_checksum = taskinstance.xcom_pull(key="devices_checksum")
+            previous_checksum = taskinstance.xcom_pull(key="devices_checksum")
 
-        if previous_checksum == api_devices_checksum:
-            return pd.DataFrame()
+            if previous_checksum == api_devices_checksum:
+                return pd.DataFrame()
 
-        taskinstance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+            taskinstance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+        else:
+            logger.warning(f"No devices returned.")
 
         return devices

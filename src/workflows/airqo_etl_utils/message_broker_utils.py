@@ -234,7 +234,6 @@ class MessageBrokerUtils:
                 "fetch.message.max.bytes": 2 * 1024 * 1024,
             }
         )
-
         consumer = Consumer(consumer_config)
         consumer.subscribe([topic])
 
@@ -245,7 +244,6 @@ class MessageBrokerUtils:
             if msg is not None and msg.error() is None:
                 assigned = True
             wait_time_sec -= 1
-
         if offset is not None:
             logger.info(f"Seeking to offset {offset} for all partitions...")
             partitions = [
@@ -253,12 +251,10 @@ class MessageBrokerUtils:
                 for p in consumer.assignment()
             ]
             consumer.assign(partitions)
-
         message_count = 0
         try:
             while streaming or (message_count < max_messages if max_messages else True):
                 msg = consumer.poll(timeout=1.0)
-
                 if msg is None:
                     logger.info("No messages in this poll.")
                     if not streaming:
