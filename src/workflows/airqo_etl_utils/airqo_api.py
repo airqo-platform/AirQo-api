@@ -185,7 +185,12 @@ class AirQoApi:
             params["network"] = str(tenant)
 
         # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
-        response = self.__request("devices/summary", params)
+        try:
+            response = self.__request("devices/summary", params)
+        except Exception as e:
+            logger.exception(f"Failed to fetch devices: {e}")
+            return []
+
         devices = [
             {
                 "device_id": device.pop("name"),
