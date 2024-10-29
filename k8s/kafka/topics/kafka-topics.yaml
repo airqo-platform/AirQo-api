@@ -29,6 +29,20 @@ spec:
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
+  name: averaged-hourly-measurements-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 18000000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
   name: sites-topic
   namespace: message-broker
   labels:
@@ -37,6 +51,7 @@ spec:
   partitions: 2
   replicas: 2
   config:
+    min.insync.replicas: 2
     retention.ms: 86400000
 
 ---
