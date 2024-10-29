@@ -9,6 +9,7 @@ from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.constants import DeviceCategory, DataType
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from datetime import timedelta
 
 
 @dag(
@@ -20,7 +21,7 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
     start_date=days_ago(1),
 )
 def airqo_bam_historical_measurements():
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, **kwargs
@@ -31,7 +32,7 @@ def airqo_bam_historical_measurements():
             device_category=DeviceCategory.BAM,
         )
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_unclean_data(data: pd.DataFrame):
         data = AirQoDataUtils.format_data_for_bigquery(
             data=data, data_type=DataType.UNCLEAN_BAM_DATA
@@ -46,7 +47,7 @@ def airqo_bam_historical_measurements():
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
         return AirQoDataUtils.clean_bam_data(data=data)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
         data = AirQoDataUtils.format_data_for_bigquery(
             data=data, data_type=DataType.CLEAN_BAM_DATA
@@ -76,13 +77,13 @@ airqo_bam_historical_measurements_dag = airqo_bam_historical_measurements()
 def airqo_bam_realtime_measurements():
     import pandas as pd
 
-    @task()
-    def extract_bam_data():
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def extract_bam_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.constants import DeviceCategory
 
-        start_date_time, end_date_time = DateUtils.get_query_date_time_values()
+        start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
 
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
@@ -90,7 +91,7 @@ def airqo_bam_realtime_measurements():
             device_category=DeviceCategory.BAM,
         )
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_unclean_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import DataType
@@ -111,7 +112,7 @@ def airqo_bam_realtime_measurements():
 
         return AirQoDataUtils.clean_bam_data(data=data)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import DataType
@@ -126,23 +127,37 @@ def airqo_bam_realtime_measurements():
             table=big_query_api.bam_measurements_table,
         )
 
-    @task()
-    def update_latest_data_topic(data: pd.DataFrame):
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.constants import DeviceCategory
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+        from datetime import datetime
+
+        now = datetime.now()
+        unique_str = str(now.date()) + "-" + str(now.hour)
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        data = DataValidationUtils.process_data_for_message_broker(
+            data=data,
+            tenant=Tenant.AIRQO,
+            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id + unique_str,
+        )
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(
+            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC, data=data
+        )
 
     unclean_data = extract_bam_data()
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
-    if configuration.ENVIRONMENT == "staging":
-        update_latest_data_topic(measurements)
+    update_latest_data_topic(measurements)
 
 
 airqo_bam_realtime_measurements()
