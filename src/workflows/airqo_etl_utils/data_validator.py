@@ -165,30 +165,22 @@ class DataValidationUtils:
         if tenant != Tenant.ALL:
             data.loc[:, "tenant"] = str(tenant)
 
-        # Additional processing for hourly measurements topic
-        if topic == configuration.HOURLY_MEASUREMENTS_TOPIC:
-            data.rename(columns={"device_id": "device_name"}, inplace=True)
+        data.rename(columns={"device_id": "device_name"}, inplace=True)
 
-            devices = AirQoDataUtils.get_devices(group_id=caller)
-            devices = devices[["tenant", "_id", "site_id", "latitude", "longitude"]]
-            devices.rename(
-                columns={
-                    "_id": "device_id",
-                    "latitude": "device_latitude",
-                    "longitude": "device_longitude",
-                },
-                inplace=True,
-            )
+        devices = AirQoDataUtils.get_devices(group_id=caller)
+        devices = devices[
+            ["tenant", "device_name", "site_id", "device_latitude", "device_longitude"]
+        ]
 
-            data = pd.merge(
-                left=data,
-                right=devices,
-                on=["device_name", "site_id", "tenant"],
-                how="left",
-            )
+        data = pd.merge(
+            left=data,
+            right=devices,
+            on=["device_name", "site_id", "tenant"],
+            how="left",
+        )
 
-            data.rename(columns={"tenant": "network"}, inplace=True)
-            data["tenant"] = str(Tenant.AIRQO)
+        data.rename(columns={"tenant": "network"}, inplace=True)
+        data["tenant"] = str(Tenant.AIRQO)
 
         return data
 
