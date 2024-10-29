@@ -17,7 +17,6 @@ class AirflowUtils:
             "start_date": datetime.now(timezone.utc) - timedelta(days=2),
             "owner": "AirQo",
             "owner_links": {"AirQo": "https://airqo.africa"},
-            "retries": 0,
             "on_failure_callback": AirflowUtils.dag_failure_notification,
         }
 
