@@ -15,6 +15,9 @@ from task_docs import (
     extract_raw_airqo_gaseous_data_doc,
 )
 from datetime import timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dag(
@@ -419,17 +422,28 @@ def airqo_realtime_measurements():
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def update_latest_data_topic(data: pd.DataFrame):
+    def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.constants import DeviceCategory
+        from airqo_etl_utils.constants import DeviceCategory, Tenant
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from datetime import datetime
+
+        now = datetime.now()
+        unique_str = str(now.date()) + "-" + str(now.hour)
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
+        data = DataValidationUtils.process_data_for_message_broker(
+            data=data,
+            tenant=Tenant.AIRQO,
+            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id + unique_str,
+        )
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC, data=data
         )
 
     raw_data = extract_raw_data()
