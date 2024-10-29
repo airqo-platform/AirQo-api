@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Tuple
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class DateUtils:
     day_start_date_time_format = "%Y-%m-%dT00:00:00Z"
@@ -46,8 +50,8 @@ class DateUtils:
         delta_kwargs = {unit: value}
         dag_run = kwargs.get("dag_run", None)
         is_manual_run = dag_run.external_trigger if dag_run else False
-        print("KWARGS:", kwargs)
-        print("IS MANUAL RUN:", is_manual_run)
+        logger.info(f"KWARGS:, {kwargs}")
+        logger.info(f"IS MANUAL RUN: {is_manual_run}")
 
         if historical and is_manual_run:
             start_date_time = kwargs.get("params", {}).get("start_date_time")
@@ -62,7 +66,8 @@ class DateUtils:
                     print("Exception in get_dag_date_time_values", repr(e))
 
         if exception_occurred or not is_manual_run:
-            start_date_time = datetime.now(timezone.utc) - timedelta(**delta_kwargs)
+            execution_date = kwargs["dag_run"].execution_date
+            start_date_time = execution_date - timedelta(**delta_kwargs)
             end_date_time = (
                 start_date_time + timedelta(**delta_kwargs)
                 if hours or days
