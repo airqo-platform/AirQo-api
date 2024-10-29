@@ -83,12 +83,15 @@ class DateUtils:
         return start_date_time, end_date_time
 
     @staticmethod
-    def get_query_date_time_values(hours=1, days=0):
-        start_date_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+    def get_query_date_time_values(hours=1, days=0, **kwargs):
+
+        execution_date = kwargs["dag_run"].execution_date
+
+        start_date_time = execution_date - timedelta(hours=hours)
         end_date_time = start_date_time + timedelta(hours=hours)
 
         if days != 0:
-            start_date_time = datetime.now(timezone.utc) - timedelta(days=days)
+            start_date_time = execution_date - timedelta(days=days)
             end_date_time = start_date_time + timedelta(days=days)
 
         return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)

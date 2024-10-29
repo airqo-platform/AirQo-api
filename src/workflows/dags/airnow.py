@@ -1,6 +1,8 @@
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from datetime import timedelta
+from airqo_etl_utils.config import configuration
 
 
 # Historical Data DAG
@@ -15,7 +17,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 def airnow_bam_historical_data():
     import pandas as pd
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
@@ -34,13 +36,28 @@ def airnow_bam_historical_data():
 
         return AirnowDataUtils.process_bam_data(data=data)
 
-    @task()
-    def send_to_message_broker(data: pd.DataFrame):
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+        from datetime import datetime
 
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        now = datetime.now()
+        unique_str = str(now.date()) + "-" + str(now.hour)
 
-    @task()
+        data = DataValidationUtils.process_data_for_message_broker(
+            data=data,
+            tenant=Tenant.AIRQO,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id + unique_str,
+        )
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
@@ -53,7 +70,7 @@ def airnow_bam_historical_data():
         )
         big_query_api.load_data(dataframe=processed_data, table=table)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame, **kwargs):
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
@@ -85,12 +102,12 @@ def airnow_bam_historical_data():
 def airnow_bam_realtime_data():
     import pandas as pd
 
-    @task()
-    def extract_bam_data():
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def extract_bam_data(**kwargs):
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_query_date_time_values()
+        start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
         return AirnowDataUtils.extract_bam_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -102,13 +119,28 @@ def airnow_bam_realtime_data():
 
         return AirnowDataUtils.process_bam_data(data=data)
 
-    @task()
-    def send_to_message_broker(data: pd.DataFrame):
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+        from datetime import datetime
 
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        now = datetime.now()
+        unique_str = str(now.date()) + "-" + str(now.hour)
 
-    @task()
+        data = DataValidationUtils.process_data_for_message_broker(
+            data=data,
+            tenant=Tenant.AIRQO,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            caller=kwargs["dag"].dag_id + unique_str,
+        )
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
@@ -121,7 +153,7 @@ def airnow_bam_realtime_data():
         )
         big_query_api.load_data(dataframe=processed_data, table=table)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame):
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.airqo_api import AirQoApi
