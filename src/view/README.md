@@ -1,4 +1,4 @@
-# Running the view application .
+# Running the view application..
 
 ## Using Command line.
 
@@ -47,7 +47,44 @@ bin/kafka-console-producer.sh --topic sites-topic --bootstrap-server localhost:9
 Create dummy insights data
 
 ```json
-[{ "time": "2022-02-21T02:00:00Z", "pm2_5": 72, "pm10": 85, "empty": true, "forecast": true, "frequency": "HOURLY", "siteId": "site-01" }, { "time": "2022-02-20T23:00:00Z", "pm2_5": 8, "pm10": 5, "empty": false, "forecast": false, "frequency": "HOURLY", "siteId": "site-02" }, { "time": "2022-02-20T00:00:00Z", "pm2_5": 11, "pm10": 10, "empty": false, "forecast": false, "frequency": "DAILY", "siteId": "site-01" }, { "time": "2022-02-20T00:00:00Z", "pm2_5": 21, "pm10": 29, "empty": false, "forecast": true, "frequency": "DAILY", "siteId": "site-02" }]
+[
+  {
+    "time": "2022-02-21T02:00:00Z",
+    "pm2_5": 72,
+    "pm10": 85,
+    "empty": true,
+    "forecast": true,
+    "frequency": "HOURLY",
+    "siteId": "site-01"
+  },
+  {
+    "time": "2022-02-20T23:00:00Z",
+    "pm2_5": 8,
+    "pm10": 5,
+    "empty": false,
+    "forecast": false,
+    "frequency": "HOURLY",
+    "siteId": "site-02"
+  },
+  {
+    "time": "2022-02-20T00:00:00Z",
+    "pm2_5": 11,
+    "pm10": 10,
+    "empty": false,
+    "forecast": false,
+    "frequency": "DAILY",
+    "siteId": "site-01"
+  },
+  {
+    "time": "2022-02-20T00:00:00Z",
+    "pm2_5": 21,
+    "pm10": 29,
+    "empty": false,
+    "forecast": true,
+    "frequency": "DAILY",
+    "siteId": "site-02"
+  }
+]
 ```
 
 ## Using Docker Compose
@@ -55,7 +92,7 @@ Create dummy insights data
 ### Start containers
 
 ```bash
-sh setup/run.sh  
+sh setup/run.sh
 ```
 
 ## Using Docker compose
@@ -69,7 +106,7 @@ Ctrl + c
 ### Cleanup
 
 ```bash
-sh clean.sh  
+sh clean.sh
 ```
 
 ## Useful commands

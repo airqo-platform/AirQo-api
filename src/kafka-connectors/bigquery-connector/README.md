@@ -1,4 +1,4 @@
-# BigQuery connector
+# BigQuery connector.
 
 ## Create a virtual environment
 
