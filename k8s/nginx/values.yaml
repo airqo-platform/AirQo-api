@@ -208,7 +208,9 @@ controller:
   ## The Ingress Controller only processes resources that belong to its class - i.e. have the "ingressClassName" field resource equal to the class.
 
   ## The Ingress Controller processes all the resources that do not have the "ingressClassName" field for all versions of kubernetes.
-  ingressClass: nginx
+  ingressClass:
+    name: nginx
+    setAsDefaultIngress: false
 
   ## New Ingresses without an ingressClassName field specified will be assigned the class specified in `controller.ingressClass`.
   setAsDefaultIngress: false
