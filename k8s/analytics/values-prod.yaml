@@ -8,7 +8,7 @@ images:
     celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
-  tag: prod-6d574693-1730189592
+  tag: prod-a9db9d5e-1730205601
 api:
   name: airqo-analytics-api
   label: analytics-api
