@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-incentives-api
-  tag: prod-64a606a3-1715507322
+  tag: prod-015fde10-1730310056
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
