@@ -1,4 +1,4 @@
-# Firebase Authentication Functions
+# Firebase Authentication Functions.
 
 This Folder contains Firebase Cloud Functions related to users for the AirQo project.
 
@@ -60,4 +60,3 @@ Feel free to contribute to this repository by submitting pull requests or raisin
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-

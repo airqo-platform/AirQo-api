@@ -1,4 +1,4 @@
-# Metadata microservice.
+# Metadata microservice..
 
 Prerequisites
 Add the `.env` & `google_application_credentials.json` files to this directory. Both files can be obtained from the DevOps engineer.
@@ -11,7 +11,9 @@ source venv/bin/activate
 
 pip install -r requirements.txt
 ```
+
 ## To run the API.
+
 ```bash
 flask run
 ```
@@ -22,7 +24,7 @@ flask run
 python message-broker.py --target=sites-consumer
 ```
 
-## To build and run with docker 
+## To build and run with docker
 
 ```bash
 docker build --target=development -t meta-data .
@@ -38,7 +40,7 @@ bash run-docker-compose.sh
 ## Endpoints
 
 Checkout the API documentation for available endpoints.
+
 ```http
 http://localhost:4001/api/v1/meta-data/apidocs/
 ```
-

@@ -1,4 +1,4 @@
-# Blog Content Manager
+# Blog Content Manager.
 
 This is a comprehensive microservice designed to create, manage, and share content efficiently. It provides a robust set of features for both content creators and readers, ensuring a seamless blogging experience.
 
