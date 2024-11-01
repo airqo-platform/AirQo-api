@@ -22,4 +22,11 @@ scikit-learn~=1.5.2
 gcsfs~=2024.9.0.post1
 joblib~=1.4.2
 lightgbm~=4.1.0
-numpy~=1.25.2
+numpy
+torch
+transformers
+datasets
+sentencepiece
+huggingface_hub
+google-generativeai
+openai

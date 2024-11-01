@@ -21,6 +21,12 @@ class Config:
         "GOOGLE_APPLICATION_CREDENTIALS_EMAIL"
     )
     PROJECT_BUCKET = os.getenv("PROJECT_BUCKET")
+    HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+
+
 
 
 class ProductionConfig(Config):
