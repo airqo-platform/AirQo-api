@@ -27,5 +27,9 @@ google_application_credentials.json
 .gitkeep
 .DS_Store
 
-*json
-*test*
+*jsontest*.py
+-*test*
++**/*test*.py
++**/*_test.py
++tests/
++testing/
