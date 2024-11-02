@@ -64,7 +64,6 @@ class AirQualityReport:
         main_site_info = self.monthly_data[0] if self.monthly_data else {}
         self.main_site = main_site_info.get('site_name')
         self.site_names = [item.get('site_name', None) for item in self.data.get('airquality', {}).get('site_annual_mean_pm', [])]
-        
         self.site_latitude = main_site_info.get('site_latitude')
         self.site_longitude = main_site_info.get('site_longitude')
         self.num_sites = data.get('airquality', {}).get('sites', {}).get('number_of_sites') 
@@ -73,9 +72,9 @@ class AirQualityReport:
     def _prepare_base_info(self):
         return (
             f"The air quality report is for {self.grid_name} for "
-            f"The monitoring sites are {self.site_names},  "
+            f"These air quality monitoring sites are {self.site_names} measures PM2.5 and PM10 ,  "
             f"at coordinates {self.site_latitude}°N, {self.site_longitude}°E. "
-            f"The annual PM2.5 concentration averages {self.annual_data} µg/m³."
+            f"The annual PM2.5 concentration averages {self.annual_data} µg/m³." 
         )
 
     def _generate_prompt(self, audience):
