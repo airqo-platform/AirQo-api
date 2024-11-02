@@ -445,14 +445,11 @@ router.post(
           let dp = decimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
-              "the latitude must have 5 or more characters"
+              "the latitude must have 5 or more decimal places"
             );
           }
           return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        }),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
@@ -464,14 +461,11 @@ router.post(
           let dp = decimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
-              "the longitude must have 5 or more characters"
+              "the longitude must have 5 or more decimal places"
             );
           }
           return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        }),
       body("name")
         .exists()
         .withMessage("the name is is missing in your request")
@@ -530,14 +524,11 @@ router.post(
           let dp = decimalPlaces(value);
           if (dp < 2) {
             return Promise.reject(
-              "the latitude must have 2 or more characters"
+              "the latitude must have 2 or more decimal places"
             );
           }
           return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 2 })
-        .withMessage("the latitude must have atleast 2 decimal places in it"),
+        }),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
@@ -549,14 +540,11 @@ router.post(
           let dp = decimalPlaces(value);
           if (dp < 2) {
             return Promise.reject(
-              "the longitude must have 2 or more characters"
+              "the longitude must have 2 or more decimal places"
             );
           }
           return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 2 })
-        .withMessage("the longitude must have atleast 2 decimal places in it"),
+        }),
     ],
   ]),
   siteController.generateMetadata
@@ -814,14 +802,11 @@ router.put(
           let dp = decimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
-              "the latitude must have 5 or more characters"
+              "the latitude must have 5 or more decimal places"
             );
           }
           return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        }),
       body("longitude")
         .optional()
         .notEmpty()
@@ -833,14 +818,11 @@ router.put(
           let dp = decimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
-              "the longitude must have 5 or more characters"
+              "the longitude must have 5 or more decimal places"
             );
           }
           return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        }),
       body("description")
         .optional()
         .notEmpty()
@@ -991,14 +973,11 @@ router.get(
           let dp = decimalPlaces(value);
           if (dp < 1) {
             return Promise.reject(
-              "the longitude must have 1 or more characters"
+              "the longitude must have 1 or more decimal places"
             );
           }
           return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 1 })
-        .withMessage("the longitude must have atleast 1 decimal places in it"),
+        }),
       query("radius")
         .exists()
         .withMessage("the radius is missing in request")
@@ -1020,14 +999,11 @@ router.get(
           let dp = decimalPlaces(value);
           if (dp < 1) {
             return Promise.reject(
-              "the latitude must have 1 or more characters"
+              "the latitude must have 1 or more decimal places"
             );
           }
           return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .isDecimal({ min_decimal_places: 1 })
-        .withMessage("the latitude must have atleast 1 decimal places in it"),
+        }),
     ],
   ]),
   siteController.findNearestSite
