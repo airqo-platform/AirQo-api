@@ -56,21 +56,24 @@ class DataFetcher:
 class AirQualityReport:  
     def __init__(self, data): 
         self.data = data
-        self.grid_name = data.get('airquality', {}).get('sites', {}).get('grid_name', [None])[0]
+        self.grid_name = data.get('airquality', {}).get('sites', {}).get('grid name', [None])  
         self.annual_data = data.get('airquality', {}).get('annual_pm', [None])[0]
         self.daily_mean_data = data.get('airquality', {}).get('daily_mean_pm', [])
         self.diurnal = data.get('airquality', {}).get('diurnal', [])
         self.monthly_data = data.get('airquality', {}).get('site_monthly_mean_pm', [])
         main_site_info = self.monthly_data[0] if self.monthly_data else {}
         self.main_site = main_site_info.get('site_name')
+        self.site_names = [item.get('site_name', None) for item in self.data.get('airquality', {}).get('site_annual_mean_pm', [])]
+        
         self.site_latitude = main_site_info.get('site_latitude')
         self.site_longitude = main_site_info.get('site_longitude')
-        self.num_sites = data.get('airquality', {}).get('sites', {}).get('number_of_sites')
-        self.site_names = data.get('airquality', {}).get('sites', {}).get('site_name')
-
+        self.num_sites = data.get('airquality', {}).get('sites', {}).get('number_of_sites') 
+        
+    
     def _prepare_base_info(self):
         return (
-            f"The monitoring sites are {self.site_names}, with {self.num_sites} sites "
+            f"The air quality report is for {self.grid_name} for "
+            f"The monitoring sites are {self.site_names},  "
             f"at coordinates {self.site_latitude}°N, {self.site_longitude}°E. "
             f"The annual PM2.5 concentration averages {self.annual_data} µg/m³."
         )
