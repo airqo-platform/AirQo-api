@@ -451,10 +451,7 @@ router.post(
           return Promise.resolve("latitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ min_decimal_places: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
@@ -473,10 +470,7 @@ router.post(
           return Promise.resolve("longitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ min_decimal_places: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("name")
         .exists()
@@ -542,11 +536,8 @@ router.post(
           return Promise.resolve("latitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00");
-        })
-        .isDecimal({ decimal_digits: 2 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .isDecimal({ min_decimal_places: 2 })
+        .withMessage("the latitude must have atleast 2 decimal places in it"),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
@@ -564,10 +555,7 @@ router.post(
           return Promise.resolve("longitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00");
-        })
-        .isDecimal({ decimal_digits: 2 })
+        .isDecimal({ min_decimal_places: 2 })
         .withMessage("the longitude must have atleast 2 decimal places in it"),
     ],
   ]),
@@ -832,10 +820,7 @@ router.put(
           return Promise.resolve("latitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ min_decimal_places: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .optional()
@@ -854,10 +839,7 @@ router.put(
           return Promise.resolve("longitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ min_decimal_places: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .optional()
@@ -1015,11 +997,8 @@ router.get(
           return Promise.resolve("longitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .isDecimal({ min_decimal_places: 1 })
+        .withMessage("the longitude must have atleast 1 decimal places in it"),
       query("radius")
         .exists()
         .withMessage("the radius is missing in request")
@@ -1047,11 +1026,8 @@ router.get(
           return Promise.resolve("latitude validation test has passed");
         })
         .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .isDecimal({ min_decimal_places: 1 })
+        .withMessage("the latitude must have atleast 1 decimal places in it"),
     ],
   ]),
   siteController.findNearestSite
