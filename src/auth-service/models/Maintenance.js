@@ -234,9 +234,6 @@ const MaintenanceModel = (tenant) => {
   try {
     return mongoose.model("maintenances");
   } catch (error) {
-    logger.info(
-      `Model 'maintenances' not found. Creating new model for tenant: ${tenant}`
-    );
     return getModelByTenant(tenant, "maintenance", MaintenanceSchema);
   }
 };
