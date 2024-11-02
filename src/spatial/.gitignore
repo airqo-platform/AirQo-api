@@ -28,4 +28,9 @@ google_application_credentials.json
 .DS_Store
 
 *json
-*test*
+test*.py
+-*test*
++**/*test*.py
++**/*_test.py
++tests/
++testing/

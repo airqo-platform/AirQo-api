@@ -130,7 +130,7 @@ class AirQualityReport:
         return report_json
     
     def generate_report_with_openai(self, audience):
-        openai.api_key = Config.AIRQO_API_TOKEN
+        openai.api_key = Config.OPENAI_API_KEY
         prompt = self._generate_prompt(audience)
 
         response = openai.ChatCompletion.create(
