@@ -1,9 +1,7 @@
 import requests
 import torch 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import login
-from configure import Config
-
+from huggingface_hub import login 
 # Initialize gemini
 import google.generativeai as genai
 from configure import Config
