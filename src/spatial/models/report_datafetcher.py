@@ -4,7 +4,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import login
 from configure import Config
 import google.generativeai as genai
-import torch
 
 # Configure API keys
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
@@ -74,7 +73,7 @@ class AirQualityReport:
         if audience == "researcher":
             return (
                 f"{audience}"
-                f"Generate a comprehensive air quality assessment report for {self.grid_name}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "
+                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}.. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "
                 f"{base_info} include the period under review."
                 f"Daily mean measurements show: {self.daily_mean_data}. "
                 f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "
@@ -84,7 +83,7 @@ class AirQualityReport:
         elif audience == "policymaker":
             return (
                 f"{audience}"
-                f"Create an executive summary of air quality conditions in {self.grid_name} for policy decision-making. Begin with key findings and their policy implications (50-75 words). "
+                f"Create an executive summary of air quality conditions in {self.grid_name} for the period of {self.starttime} to {self.endtime}. for policy decision-making. Begin with key findings and their policy implications (50-75 words). "
                 f"{base_info} include the period under review."
                 f"Highlight critical trends: {self.monthly_data}. Diurnal patterns indicate: {self.diurnal}. "
                 f"Focus on: 1) Areas exceeding air quality standards, 2) Population exposure risk assessment, "
@@ -95,7 +94,7 @@ class AirQualityReport:
             return (
                 f"{audience}"
                 f"{base_info} include the period under review."
-                f"Create a clear, easy-to-understand report about air quality in {self.grid_name}. Start with a simple explanation of why air quality matters for public health. "
+                f"Create a clear, easy-to-understand report about air quality in {self.grid_name} for the period of {self.starttime} to {self.endtime}.. Start with a simple explanation of why air quality matters for public health. "
                 f"We have {self.num_sites} air quality monitors in your area. The average PM2.5 level this year is {self.annual_data} µg/m³. "
                 f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "
                 f"Explain what these numbers mean for daily activities. Include: 1) When air quality is best and worst during the day, "

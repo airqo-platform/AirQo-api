@@ -30,6 +30,7 @@ class ReportView:
         # Generate the report with the specified audience
         json_report = report.generate_report_with_gemini(audience)
     #    json_report = report.generate_report_with_openai(audience)
+    
         
         if json_report is None:
             return jsonify({"error": "Failed to generate report"}), 500
