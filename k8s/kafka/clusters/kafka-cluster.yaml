@@ -47,6 +47,12 @@ spec:
     replicas: 3
     storage:
       type: ephemeral
+    jvmOptions:
+      javaSystemProperties:
+        - name: zookeeper.ssl.hostnameVerification
+          value: "false"
+        - name: zookeeper.ssl.quorum.hostnameVerification
+          value: "false"
   entityOperator:
     topicOperator: {}
     userOperator: {}
