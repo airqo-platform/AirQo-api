@@ -57,9 +57,11 @@ class SatellitePredictionView:
                     if_exists="append",
                     credentials=credentials,
                 )
-                return jsonify(result)
+
             except Exception as e:
                 print(f"Error saving predictions to BigQuery: {e}")
+
+            return jsonify(result), 200
         except Exception as e:
             print(f"Error making predictions: {e}")
             return jsonify({"error": "An internal error has occurred"}), 500
