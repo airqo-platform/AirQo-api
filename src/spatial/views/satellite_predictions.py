@@ -42,15 +42,16 @@ class SatellitePredictionView:
             prediction = model.predict(feature_array)[0]
 
             result = {
-            "pm2_5_prediction": round(float(prediction), 3),
-            "latitude": latitude,
-            "longitude": longitude,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pm2_5_prediction": round(float(prediction), 3),
+                "latitude": latitude,
+                "longitude": longitude,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             try:
                 df = pd.DataFrame([result])
                 credentials = service_account.Credentials.from_service_account_file(
-                    Config.CREDENTIALS)
+                    Config.CREDENTIALS
+                )
 
                 df.to_gbq(
                     destination_table=f"{Config.BIGQUERY_SATELLITE_MODEL_PREDICTIONS}",

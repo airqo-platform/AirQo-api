@@ -10,6 +10,7 @@ import logging
 
 logging.basicConfig(level=logging.ERROR)
 
+
 class PM25View:
     @staticmethod
     def get_pm25():
@@ -54,7 +55,11 @@ class PM25View:
 
         except Exception as e:
             logging.error("An error occurred: %s", str(e))
-            return jsonify({"error": "An internal error has occurred!"}), 500, {"Content-Type": "application/json"}
+            return (
+                jsonify({"error": "An internal error has occurred!"}),
+                500,
+                {"Content-Type": "application/json"},
+            )
 
 
 #            return jsonify({'error': 'An internal error occurred'}), 500, {'Content-Type': 'application/json'}
