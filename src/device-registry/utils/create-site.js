@@ -353,7 +353,7 @@ const createSite = {
         };
       }
 
-      let lat_long = createSite.generateLatLong(latitude, longitude, next);
+      let lat_long = createSite.generateLatLong(latitude, longitude);
       request["body"]["lat_long"] = lat_long;
 
       let responseFromGenerateName = await createSite.generateName(
@@ -686,7 +686,7 @@ const createSite = {
         request["body"]["name"] = availableName;
       }
 
-      let lat_long = createSite.generateLatLong(latitude, longitude, next);
+      let lat_long = createSite.generateLatLong(latitude, longitude);
       request["body"]["lat_long"] = lat_long;
 
       if (isEmpty(request["body"]["generated_name"])) {
@@ -1075,7 +1075,7 @@ const createSite = {
       );
     }
   },
-  generateLatLong: (lat, long, next) => {
+  generateLatLong: (lat, long) => {
     try {
       return `${lat}_${long}`;
     } catch (error) {
