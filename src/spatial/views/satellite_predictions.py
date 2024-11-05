@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 
 import numpy as np
+import pandas as pd
 from flask import request, jsonify
+from google.oauth2 import service_account
 
 from configure import get_trained_model_from_gcs, Config, satellite_collections
 from models.SatellitePredictionModel import SatellitePredictionModel
@@ -38,15 +40,26 @@ class SatellitePredictionView:
             )
 
             prediction = model.predict(feature_array)[0]
-            return jsonify(
-                {
+            result = {
                     "pm2_5_prediction": round(float(prediction), 3),
                     "latitude": latitude,
                     "longitude": longitude,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
-            )
+            try:
+                df = pd.DataFrame([result])
+                credentials = service_account.Credentials.from_service_account_file(
+                    Config.CREDENTIALS)
 
+                df.to_gbq(
+                    destination_table=f"{Config.BIGQUERY_SATELLITE_MODEL_PREDICTIONS}",
+                    project_id=Config.GOOGLE_CLOUD_PROJECT_ID,
+                    if_exists="append",
+                    credentials=credentials,
+                )
+                return jsonify(result)
+            except Exception as e:
+                print(f"Error saving predictions to BigQuery: {e}")
         except Exception as e:
             print(f"Error making predictions: {e}")
             return jsonify({"error": "An internal error has occurred"}), 500
