@@ -335,7 +335,7 @@ const filter = {
   },
   maintenances: (req, next) => {
     try {
-      let { id, product, isActive, startDate, endDate, message } = {
+      let { id, product } = {
         ...req.body,
         ...req.query,
         ...req.params,
@@ -346,29 +346,8 @@ const filter = {
         filter["_id"] = ObjectId(id);
       }
 
-      // Filter by product name
       if (product) {
         filter["product"] = product;
-      }
-
-      // Filter by maintenance status
-      if (isActive !== undefined) {
-        filter["isActive"] = isActive === "true"; // Convert string to boolean
-      }
-
-      // Filter by start date
-      if (startDate) {
-        filter["startDate"] = { $gte: new Date(startDate) };
-      }
-
-      // Filter by end date
-      if (endDate) {
-        filter["endDate"] = { $lte: new Date(endDate) };
-      }
-
-      // Filter by message content
-      if (message) {
-        filter["message"] = { $regex: message, $options: "i" }; // Case-insensitive search
       }
 
       return filter;
