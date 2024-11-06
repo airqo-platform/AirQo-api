@@ -1064,7 +1064,6 @@ const generateFilter = {
       category,
       site_category,
       path,
-      name,
       site_codes,
       _id,
       network,
@@ -1076,10 +1075,6 @@ const generateFilter = {
       last_active_after,
     } = { ...req.query, ...req.params, ...req.body };
     const filter = {};
-    logText("we are generating the filter man!");
-    if (name) {
-      filter["name"] = name;
-    }
 
     if (county) {
       filter["county"] = county;
