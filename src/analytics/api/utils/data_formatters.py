@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import Any
+from typing import Any, List, Union, Dict
+import logging
 
 import pandas as pd
 import requests
@@ -13,7 +14,10 @@ from api.utils.pollutants.pm_25 import (
     BIGQUERY_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
+from api.utils.http import AirQoRequests
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class Entity(Enum):
@@ -194,8 +198,8 @@ def compute_airqloud_summary(
 
 
 def format_to_aqcsv(
-    data: list, pollutants: list, frequency: str
-) -> list[Any] | list[dict]:
+    data: List, pollutants: List, frequency: str
+) -> Union[List[Any], List[Dict]]:
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
@@ -290,25 +294,55 @@ def device_category_to_str(device_category: str) -> str:
     return ""
 
 
-def filter_non_private_entities(entities: list, entity_type: Entity) -> list:
-    source = "cohorts" if entity_type == Entity.DEVICES else "grids"
+def filter_non_private_sites(sites: List[str]) -> Dict[str, Any]:
+    """
+    Filters out private site IDs from a provided array of site IDs.
 
-    if len(entities) == 0:
-        return []
+    Args:
+        sites(List[str]): List of site ids to filter against.
+    """
+
+    if len(sites) == 0:
+        return {}
+
+    endpoint: str = "devices/grids/filterNonPrivateSites"
+
     try:
-        response = requests.post(
-            url=f"{Config.AIRQO_API_BASE_URL}/devices/{source}/filterNonPrivate{entity_type.value.capitalize()}",
-            json={entity_type.value: entities},
-            params={"token": Config.AIRQO_API_TOKEN},
+        airqo_requests = AirQoRequests()
+        response = airqo_requests.request(
+            endpoint=endpoint, body={"sites": sites}, method="post"
         )
-        data = response.json()
-        if data.get("success"):
-            return data.get(entity_type.value, [])
+        if response and response.get("status", None) == "success":
+            print(response.get("data"))
+            return response.get("data")
         else:
-            raise RuntimeError(data.get("message"))
+            raise RuntimeError(response.get("message"))
     except RuntimeError as rex:
-        print(f"Error while filtering non private entities {rex}")
-    except Exception as ex:
-        print(f"Error while filtering non private entities {ex}")
-    # TODO: Remove once @Martin updates endpoint to support other ID format
-    return entities
+        logger.exception(f"Error while filtering non private entities {rex}")
+
+
+def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
+    """
+    FilterS out private device IDs from a provided array of device IDs.
+
+    Args:
+        entities(List[str]): List of device/site ids to filter against.
+
+    """
+
+    if len(devices) == 0:
+        return {}
+
+    endpoint: str = "devices/cohorts/filterNonPrivateDevices"
+    try:
+        airqo_requests = AirQoRequests
+        response = airqo_requests.request(
+            endpoint=endpoint, body={"devices": devices}, method="post"
+        )
+        if response and response.get("status", None) == "success":
+            return response.get("data")
+        else:
+            raise RuntimeError(response.get("message"))
+    except RuntimeError as rex:
+        logger.exception(f"Error while filtering non private devices {rex}")
+        return

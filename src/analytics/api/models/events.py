@@ -192,7 +192,7 @@ class EventsModel(BasePyMongoModel):
                 f" SELECT "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
                 f" {devices_table}.approximate_longitude  AS device_longitude , "
-                f" {devices_table}.device_id AS device_name , "
+                # f" {devices_table}.device_id AS device_name , " #this column  creates a duplicate column
                 f" data.* "
                 f" FROM {devices_table} "
                 f" RIGHT JOIN ({query}) data ON data.device_name = {devices_table}.device_id "
