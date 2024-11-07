@@ -1,6 +1,6 @@
 # REPORT.
 
-## 1. Create venv file.
+## 1. Create venv file..
 
 `python -m venv venv`
 
