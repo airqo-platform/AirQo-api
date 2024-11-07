@@ -313,7 +313,6 @@ def filter_non_private_sites(sites: List[str]) -> Dict[str, Any]:
             endpoint=endpoint, body={"sites": sites}, method="post"
         )
         if response and response.get("status", None) == "success":
-            print(response.get("data"))
             return response.get("data")
         else:
             raise RuntimeError(response.get("message"))
