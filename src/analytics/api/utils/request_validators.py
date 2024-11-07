@@ -7,7 +7,7 @@ import re
 # third-party imports
 from flask import request
 
-from api.utils.http import Status
+from api.utils.http import AirQoRequests
 from api.utils.pollutants import PM_25_CATEGORY
 
 
@@ -213,7 +213,7 @@ def request_validator_factory(input_source, info):
                         "status": "error",
                         "message": "an error occurred while processing this request",
                         "errors": errors,
-                    }, Status.HTTP_400_BAD_REQUEST
+                    }, AirQoRequests.Status.HTTP_400_BAD_REQUEST
 
                 return func(*args, **kwargs)
 

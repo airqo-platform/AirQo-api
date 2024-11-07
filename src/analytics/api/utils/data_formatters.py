@@ -300,6 +300,9 @@ def filter_non_private_sites(sites: List[str]) -> Dict[str, Any]:
 
     Args:
         sites(List[str]): List of site ids to filter against.
+
+    Returns:
+        a response dictionary object that contains a list of non-private site ids if any.
     """
 
     if len(sites) == 0:
@@ -327,6 +330,8 @@ def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
     Args:
         entities(List[str]): List of device/site ids to filter against.
 
+    Returns:
+        a response dictionary object that contains a list of non-private device ids if any.
     """
 
     if len(devices) == 0:
