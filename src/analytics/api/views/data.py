@@ -20,7 +20,6 @@ from api.models.data_export import (
 from api.utils.data_formatters import (
     filter_non_private_sites,
     filter_non_private_devices,
-    Entity,
 )
 
 # Middlewares
