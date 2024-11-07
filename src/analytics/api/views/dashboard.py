@@ -11,10 +11,13 @@ from api.models import (
     SiteModel,
     ExceedanceModel,
 )
-from api.utils.data_formatters import filter_non_private_entities, Entity
+from api.utils.data_formatters import (
+    filter_non_private_sites,
+    filter_non_private_devices,
+)
 
 # Middlewares
-from api.utils.http import create_response, Status
+from api.utils.http import AirQoRequests
 from api.utils.pollutants import (
     generate_pie_chart_data,
     d3_generate_pie_chart_data,
@@ -40,8 +43,8 @@ class ChartDataResource(Resource):
         tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
-        sites = filter_non_private_entities(
-            entities=json_data["sites"], entity_type=Entity.SITES
+        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
+            "sites", []
         )
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
@@ -123,11 +126,11 @@ class ChartDataResource(Resource):
             chart_datasets.append(dataset)
 
         return (
-            create_response(
+            AirQoRequests.create_response(
                 "successfully retrieved chart data",
                 data={"labels": chart_labels, "datasets": chart_datasets},
             ),
-            Status.HTTP_200_OK,
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
 
@@ -146,8 +149,8 @@ class D3ChartDataResource(Resource):
         tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
-        sites = filter_non_private_entities(
-            entities=json_data["sites"], entity_type=Entity.SITES
+        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
+            "sites", []
         )
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
@@ -165,8 +168,10 @@ class D3ChartDataResource(Resource):
             data = d3_generate_pie_chart_data(data, pollutant)
 
         return (
-            create_response("successfully retrieved d3 chart data", data=data),
-            Status.HTTP_200_OK,
+            AirQoRequests.create_response(
+                "successfully retrieved d3 chart data", data=data
+            ),
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
 
@@ -181,8 +186,10 @@ class MonitoringSiteResource(Resource):
         sites = ms_model.get_all_sites()
 
         return (
-            create_response("monitoring site data successfully fetched", data=sites),
-            Status.HTTP_200_OK,
+            AirQoRequests.create_response(
+                "monitoring site data successfully fetched", data=sites
+            ),
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
 
@@ -201,8 +208,8 @@ class DailyAveragesResource(Resource):
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        sites = filter_non_private_entities(
-            entities=json_data.get("sites", None), entity_type=Entity.SITES
+        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
+            "sites", []
         )
 
         events_model = EventsModel(tenant)
@@ -238,7 +245,7 @@ class DailyAveragesResource(Resource):
             background_colors.append(set_pm25_category_background(value))
 
         return (
-            create_response(
+            AirQoRequests.create_response(
                 "daily averages successfully fetched",
                 data={
                     "average_values": values,
@@ -246,7 +253,7 @@ class DailyAveragesResource(Resource):
                     "background_colors": background_colors,
                 },
             ),
-            Status.HTTP_200_OK,
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
 
@@ -265,10 +272,9 @@ class DailyAveragesResource2(Resource):
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        devices = filter_non_private_entities(
-            entities=json_data["devices"], entity_type=Entity.DEVICES
+        devices = filter_non_private_devices(devices=json_data.get("devices", {})).get(
+            "devices", []
         )
-
         events_model = EventsModel(tenant)
         data = events_model.get_device_averages_from_bigquery(
             start_date, end_date, pollutant, devices=devices
@@ -289,7 +295,7 @@ class DailyAveragesResource2(Resource):
             labels.append(device_id)
             background_colors.append(set_pm25_category_background(value))
         return (
-            create_response(
+            AirQoRequests.create_response(
                 "daily averages successfully fetched",
                 data={
                     "average_values": values,
@@ -297,7 +303,7 @@ class DailyAveragesResource2(Resource):
                     "background_colors": background_colors,
                 },
             ),
-            Status.HTTP_200_OK,
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
 
@@ -319,8 +325,8 @@ class ExceedancesResource(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        sites = filter_non_private_entities(
-            entities=json_data.get("sites", None), entity_type=Entity.SITES
+        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
+            "sites", []
         )
 
         exc_model = ExceedanceModel(tenant)
@@ -329,11 +335,11 @@ class ExceedancesResource(Resource):
         )
 
         return (
-            create_response(
+            AirQoRequests.create_response(
                 "exceedance data successfully fetched",
                 data=data,
             ),
-            Status.HTTP_200_OK,
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
 
@@ -355,8 +361,8 @@ class ExceedancesResource2(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        devices = filter_non_private_entities(
-            entities=json_data.get("devices", None), entity_type=Entity.DEVICES
+        devices = filter_non_private_devices(devices=json_data.get("devices", {})).get(
+            "devices", []
         )
 
         events_model = EventsModel(tenant)
@@ -369,7 +375,7 @@ class ExceedancesResource2(Resource):
             data, standards_mapping, standard, pollutant
         )
 
-        return create_response(
+        return AirQoRequests.create_response(
             message="exceedance data successfully fetched",
             data=[
                 {
@@ -379,5 +385,5 @@ class ExceedancesResource2(Resource):
                 }
                 for device_id, exceedances in device_exceedances.items()
             ],
-            success=Status.HTTP_200_OK,
+            success=AirQoRequests.Status.HTTP_200_OK,
         )

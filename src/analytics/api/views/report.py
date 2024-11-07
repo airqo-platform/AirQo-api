@@ -9,7 +9,7 @@ from flask_restx import Resource
 from api.models import ReportTemplateModel
 from api.models.base.data_processing import air_quality_data
 from api.utils.case_converters import camel_to_snake
-from api.utils.http import create_response, Status
+from api.utils.http import AirQoRequests
 
 # Utils
 from api.utils.request_validators import validate_request_params, validate_request_json
@@ -38,8 +38,10 @@ class DefaultReportTemplateResource(Resource):
 
         if count > 0:
             return (
-                create_response("A default template already exist", success=False),
-                Status.HTTP_400_BAD_REQUEST,
+                AirQoRequests.create_response(
+                    "A default template already exist", success=False
+                ),
+                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
             )
 
         report_model.insert(
@@ -53,8 +55,8 @@ class DefaultReportTemplateResource(Resource):
         )
 
         return (
-            create_response("Default Report Template Saved Successfully"),
-            Status.HTTP_201_CREATED,
+            AirQoRequests.create_response("Default Report Template Saved Successfully"),
+            AirQoRequests.Status.HTTP_201_CREATED,
         )
 
     @swag_from("/api/docs/report/default_report_template_get.yml")
@@ -84,10 +86,10 @@ class DefaultReportTemplateResource(Resource):
         report = default_template[0] if default_template else {}
 
         return (
-            create_response(
+            AirQoRequests.create_response(
                 "default report successfully fetched", data={"report": report}
             ),
-            Status.HTTP_200_OK,
+            AirQoRequests.Status.HTTP_200_OK,
         )
 
     @swag_from("/api/docs/report/default_report_template_patch.yml")
@@ -107,8 +109,8 @@ class DefaultReportTemplateResource(Resource):
 
         if not update_fields:
             return {
-                "message": f"the update fields is empty. valid keys are {valid_keys}"
-            }, Status.HTTP_400_BAD_REQUEST
+                "message": f"The update fields are empty. valid keys are {valid_keys}"
+            }, AirQoRequests.Status.HTTP_400_BAD_REQUEST
 
         report_model = ReportTemplateModel(tenant)
 
@@ -118,13 +120,17 @@ class DefaultReportTemplateResource(Resource):
 
         if update_result.modified_count > 0 or update_result.matched_count > 0:
             return (
-                create_response("default reporting template updated successfully"),
-                Status.HTTP_202_ACCEPTED,
+                AirQoRequests.create_response(
+                    "default reporting template updated successfully"
+                ),
+                AirQoRequests.Status.HTTP_202_ACCEPTED,
             )
 
         return (
-            create_response("could not update default template", success=False),
-            Status.HTTP_404_NOT_FOUND,
+            AirQoRequests.create_response(
+                "could not update default template", success=False
+            ),
+            AirQoRequests.Status.HTTP_404_NOT_FOUND,
         )
 
 
@@ -154,8 +160,8 @@ class MonthlyReportResource(Resource):
         )
 
         return (
-            create_response("Monthly Report Saved Successfully"),
-            Status.HTTP_201_CREATED,
+            AirQoRequests.create_response("Monthly Report Saved Successfully"),
+            AirQoRequests.Status.HTTP_201_CREATED,
         )
 
     @swag_from("/api/docs/report/monthly_report_get.yml")
@@ -187,15 +193,15 @@ class MonthlyReportResource(Resource):
 
         if report:
             return (
-                create_response(
+                AirQoRequests.create_response(
                     "reports successfully fetched", data={"reports": report}
                 ),
-                Status.HTTP_200_OK,
+                AirQoRequests.Status.HTTP_200_OK,
             )
 
         return (
-            create_response("report(s) not found", success=False),
-            Status.HTTP_404_NOT_FOUND,
+            AirQoRequests.create_response("report(s) not found", success=False),
+            AirQoRequests.Status.HTTP_404_NOT_FOUND,
         )
 
 
@@ -217,11 +223,11 @@ class MonthlyReportExtraResource(Resource):
 
         if not update_fields:
             return (
-                create_response(
+                AirQoRequests.create_response(
                     f"the update fields is empty. valid keys are {valid_keys}",
                     success=False,
                 ),
-                Status.HTTP_400_BAD_REQUEST,
+                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
             )
 
         report_model = ReportTemplateModel(tenant)
@@ -232,13 +238,13 @@ class MonthlyReportExtraResource(Resource):
 
         if update_result.modified_count > 0 or update_result.matched_count > 0:
             return (
-                create_response("report updated successfully"),
-                Status.HTTP_202_ACCEPTED,
+                AirQoRequests.create_response("report updated successfully"),
+                AirQoRequests.Status.HTTP_202_ACCEPTED,
             )
 
         return (
-            create_response("report not found", success=False),
-            Status.HTTP_404_NOT_FOUND,
+            AirQoRequests.create_response("report not found", success=False),
+            AirQoRequests.Status.HTTP_404_NOT_FOUND,
         )
 
     @swag_from("/api/docs/report/monthly_report_extra_delete.yml")
@@ -251,13 +257,15 @@ class MonthlyReportExtraResource(Resource):
 
         if delete_result.deleted_count > 0:
             return (
-                create_response(f"monthly report {report_name} deleted successfully"),
-                Status.HTTP_200_OK,
+                AirQoRequests.create_response(
+                    f"monthly report {report_name} deleted successfully"
+                ),
+                AirQoRequests.Status.HTTP_200_OK,
             )
 
         return (
-            create_response("report not found", success=False),
-            Status.HTTP_404_NOT_FOUND,
+            AirQoRequests.create_response("report not found", success=False),
+            AirQoRequests.Status.HTTP_404_NOT_FOUND,
         )
 
 
