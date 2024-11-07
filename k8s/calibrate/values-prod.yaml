@@ -6,11 +6,11 @@ app:
 initContainer:
   image:
     repository: eu.gcr.io/airqo-250220/airqo-calibrate-pickle-file
-    tag: prod-d4d0e2dc-1730777653
+    tag: prod-5244fe67-1730977223
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-calibrate-api
-  tag: prod-d4d0e2dc-1730777653
+  tag: prod-5244fe67-1730977223
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

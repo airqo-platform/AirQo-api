@@ -41,7 +41,6 @@ const siteSchema = new Schema(
     name: {
       type: String,
       trim: true,
-      unique: true,
       required: [true, "name is required!"],
     },
     visibility: {

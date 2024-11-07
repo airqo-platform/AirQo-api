@@ -73,10 +73,21 @@ const maintenances = {
         body,
       } = request;
       const filter = generateFilter.maintenances(request, next);
+      if (isEmpty(filter)) {
+        return {
+          success: false,
+          message: "Unable to identify which product to update",
+          errors: {
+            message: "Unable to identify which product to update",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
       const modifyResponse = await MaintenanceModel(tenant).modify(
         {
           filter,
-          body,
+          update: body,
         },
         next
       );
