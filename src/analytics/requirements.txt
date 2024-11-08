@@ -18,6 +18,7 @@ python-decouple
 celery
 google-cloud-storage
 gunicorn
+google-cloud-bigquery-storage==2.27.0
 
 # Ports for stable python 3 functionality
 dataclasses~=0.6
