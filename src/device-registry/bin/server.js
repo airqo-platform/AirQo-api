@@ -29,7 +29,7 @@ require("@bin/jobs/v2-check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
-
+require("@bin/jobs/check-duplicate-site-fields-job");
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
