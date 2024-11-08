@@ -41,7 +41,15 @@ const findDuplicatesForField = (groupedSites) => {
 const checkDuplicateSiteFields = async () => {
   try {
     // Get all active sites
-    const sites = await SitesModel("airqo").find({ isOnline: true });
+    const fieldsToProject = FIELDS_TO_CHECK.concat([
+      "_id",
+      "generated_name",
+    ]).join(" ");
+    const sites = await SitesModel("airqo").find(
+      { isOnline: true },
+      fieldsToProject
+    );
+    // const sites = await SitesModel("airqo").find({ isOnline: true });
     logObject("Total sites checked", sites.length);
 
     const duplicateReport = {};
@@ -85,6 +93,7 @@ const checkDuplicateSiteFields = async () => {
 
 // Initial run message
 logText("Duplicate site fields checker job is now running.....");
+checkDuplicateSiteFields();
 // Schedule the job to run every 2 hours at minute 45
 const schedule = "45 */2 * * *";
 cron.schedule(schedule, checkDuplicateSiteFields, {
