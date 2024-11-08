@@ -339,7 +339,7 @@ def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
 
     endpoint: str = "devices/cohorts/filterNonPrivateDevices"
     try:
-        airqo_requests = AirQoRequests
+        airqo_requests = AirQoRequests()
         response = airqo_requests.request(
             endpoint=endpoint, body={"devices": devices}, method="post"
         )
