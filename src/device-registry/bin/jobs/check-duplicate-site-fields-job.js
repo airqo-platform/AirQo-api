@@ -93,7 +93,6 @@ const checkDuplicateSiteFields = async () => {
 
 // Initial run message
 logText("Duplicate site fields checker job is now running.....");
-checkDuplicateSiteFields();
 // Schedule the job to run every 2 hours at minute 45
 const schedule = "45 */2 * * *";
 cron.schedule(schedule, checkDuplicateSiteFields, {
