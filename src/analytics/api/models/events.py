@@ -44,9 +44,8 @@ class EventsModel(BasePyMongoModel):
     @cache.memoize()
     def download_from_bigquery(
         cls,
-        devices,
-        sites,
-        airqlouds,
+        filter_type,  # Either 'devices', 'sites', or 'airqlouds'
+        filter_value,  # The actual list of values for the filter type
         start_date,
         end_date,
         frequency,
@@ -63,14 +62,15 @@ class EventsModel(BasePyMongoModel):
 
         sorting_cols = ["site_id", "datetime", "device_name"]
 
-        if frequency == "raw":
-            data_table = cls.BIGQUERY_RAW_DATA
-        elif frequency == "daily":
-            data_table = cls.BIGQUERY_DAILY_DATA
-        elif frequency == "hourly":
-            data_table = cls.BIGQUERY_HOURLY_DATA
-        else:
-            raise Exception("Invalid frequency")
+        # Define table mapping for dynamic selection based on frequency
+        data_table = {
+            "raw": cls.BIGQUERY_RAW_DATA,
+            "daily": cls.BIGQUERY_DAILY_DATA,
+            "hourly": cls.BIGQUERY_HOURLY_DATA,
+        }.get(frequency)
+
+        if not data_table:
+            raise ValueError("Invalid frequency")
 
         pollutant_columns = []
         bam_pollutant_columns = []
@@ -116,7 +116,7 @@ class EventsModel(BasePyMongoModel):
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
         )
 
-        if len(devices) != 0:
+        if filter_type == "devices":
             # Adding device information, start and end times
             query = (
                 f" {pollutants_query} , "
@@ -129,7 +129,7 @@ class EventsModel(BasePyMongoModel):
                 f" JOIN {devices_table} ON {devices_table}.device_id = {data_table}.device_id "
                 f" WHERE {data_table}.timestamp >= '{start_date}' "
                 f" AND {data_table}.timestamp <= '{end_date}' "
-                f" AND {devices_table}.device_id IN UNNEST({devices}) "
+                f" AND {devices_table}.device_id IN UNNEST(@filter_value) "
             )
 
             bam_query = (
@@ -143,7 +143,7 @@ class EventsModel(BasePyMongoModel):
                 f" JOIN {devices_table} ON {devices_table}.device_id = {cls.BIGQUERY_BAM_DATA}.device_id "
                 f" WHERE {cls.BIGQUERY_BAM_DATA}.timestamp >= '{start_date}' "
                 f" AND {cls.BIGQUERY_BAM_DATA}.timestamp <= '{end_date}' "
-                f" AND {devices_table}.device_id IN UNNEST({devices}) "
+                f" AND {devices_table}.device_id IN UNNEST(@filter_value) "
             )
 
             # Adding site information
@@ -170,7 +170,7 @@ class EventsModel(BasePyMongoModel):
             if frequency == "hourly":
                 query = f"{query} UNION ALL {bam_query}"
 
-        elif len(sites) != 0:
+        elif filter_type == "sites":
             # Adding site information, start and end times
             query = (
                 f" {pollutants_query} , "
@@ -184,7 +184,7 @@ class EventsModel(BasePyMongoModel):
                 f" JOIN {sites_table} ON {sites_table}.id = {data_table}.site_id "
                 f" WHERE {data_table}.timestamp >= '{start_date}' "
                 f" AND {data_table}.timestamp <= '{end_date}' "
-                f" AND {sites_table}.id IN UNNEST({sites}) "
+                f" AND {sites_table}.id IN UNNEST(@filter_value) "
             )
 
             # Adding device information
@@ -197,7 +197,7 @@ class EventsModel(BasePyMongoModel):
                 f" FROM {devices_table} "
                 f" RIGHT JOIN ({query}) data ON data.device_name = {devices_table}.device_id "
             )
-        else:
+        elif filter_type == "airqlouds":
             sorting_cols = ["airqloud_id", "site_id", "datetime", "device_name"]
 
             meta_data_query = (
@@ -205,7 +205,7 @@ class EventsModel(BasePyMongoModel):
                 f" {airqlouds_sites_table}.airqloud_id , "
                 f" {airqlouds_sites_table}.site_id , "
                 f" FROM {airqlouds_sites_table} "
-                f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({airqlouds}) "
+                f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST(@filter_value) "
             )
 
             # Adding airqloud information
@@ -250,7 +250,11 @@ class EventsModel(BasePyMongoModel):
                 f" ORDER BY {data_table}.timestamp "
             )
 
-        job_config = bigquery.QueryJobConfig()
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
+            ]
+        )
         job_config.use_query_cache = True
         dataframe = (
             bigquery.Client()
