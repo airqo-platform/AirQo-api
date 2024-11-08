@@ -129,7 +129,7 @@ class EventsModel(BasePyMongoModel):
                 f" JOIN {devices_table} ON {devices_table}.device_id = {data_table}.device_id "
                 f" WHERE {data_table}.timestamp >= '{start_date}' "
                 f" AND {data_table}.timestamp <= '{end_date}' "
-                f" AND {devices_table}.device_id IN UNNEST({filter_value}) "
+                f" AND {devices_table}.device_id IN UNNEST(@filter_value) "
             )
 
             bam_query = (
@@ -143,7 +143,7 @@ class EventsModel(BasePyMongoModel):
                 f" JOIN {devices_table} ON {devices_table}.device_id = {cls.BIGQUERY_BAM_DATA}.device_id "
                 f" WHERE {cls.BIGQUERY_BAM_DATA}.timestamp >= '{start_date}' "
                 f" AND {cls.BIGQUERY_BAM_DATA}.timestamp <= '{end_date}' "
-                f" AND {devices_table}.device_id IN UNNEST({filter_value}) "
+                f" AND {devices_table}.device_id IN UNNEST(@filter_value) "
             )
 
             # Adding site information
@@ -184,7 +184,7 @@ class EventsModel(BasePyMongoModel):
                 f" JOIN {sites_table} ON {sites_table}.id = {data_table}.site_id "
                 f" WHERE {data_table}.timestamp >= '{start_date}' "
                 f" AND {data_table}.timestamp <= '{end_date}' "
-                f" AND {sites_table}.id IN UNNEST({filter_value}) "
+                f" AND {sites_table}.id IN UNNEST(@filter_value) "
             )
 
             # Adding device information
@@ -205,7 +205,7 @@ class EventsModel(BasePyMongoModel):
                 f" {airqlouds_sites_table}.airqloud_id , "
                 f" {airqlouds_sites_table}.site_id , "
                 f" FROM {airqlouds_sites_table} "
-                f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({filter_value}) "
+                f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST(@filter_value) "
             )
 
             # Adding airqloud information
@@ -250,7 +250,11 @@ class EventsModel(BasePyMongoModel):
                 f" ORDER BY {data_table}.timestamp "
             )
 
-        job_config = bigquery.QueryJobConfig()
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
+            ]
+        )
         job_config.use_query_cache = True
         dataframe = (
             bigquery.Client()
