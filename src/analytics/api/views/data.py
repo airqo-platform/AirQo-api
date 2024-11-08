@@ -138,9 +138,8 @@ class DataExportResource(Resource):
 
         try:
             data_frame = EventsModel.download_from_bigquery(
-                **{
-                    filter_type: filter_value
-                },  # Pass one filter[sites, airqlouds, devices] that has been passed in the api query
+                filter_type=filter_type,  # Pass one filter[sites, airqlouds, devices] that has been passed in the api query
+                filter_value=filter_value,
                 start_date=start_date,
                 end_date=end_date,
                 frequency=frequency,
