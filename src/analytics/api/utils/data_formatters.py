@@ -320,7 +320,7 @@ def filter_non_private_sites(sites: List[str]) -> Dict[str, Any]:
         else:
             raise RuntimeError(response.get("message"))
     except RuntimeError as rex:
-        logger.exception(f"Error while filtering non private entities {rex}")
+        raise RuntimeError(f"Error while filtering non private sites {rex}")
 
 
 def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
@@ -348,5 +348,4 @@ def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
         else:
             raise RuntimeError(response.get("message"))
     except RuntimeError as rex:
-        logger.exception(f"Error while filtering non private devices {rex}")
-        return
+        raise RuntimeError(f"Error while filtering non private devices {rex}")

@@ -1,5 +1,6 @@
 import datetime
 import traceback
+import logging
 
 import flask_excel as excel
 import pandas as pd
@@ -32,6 +33,8 @@ from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import AirQoRequests
 from api.utils.request_validators import validate_request_json, validate_request_params
 from main import rest_api_v2
+
+logger = logging.getLogger(__name__)
 
 
 @rest_api_v2.errorhandler(ExportRequestNotFound)
@@ -86,46 +89,41 @@ class DataExportResource(Resource):
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
-        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
-            "sites", []
-        )
-        devices = filter_non_private_devices(devices=json_data.get("devices", {})).get(
-            "devices", []
-        )
-        airqlouds = json_data.get("airqlouds", [])
+
+        try:
+            filter_type, filter_value = self._get_validated_filter(json_data)
+        except ValueError as e:
+            return (
+                AirQoRequests.create_response(f"An error occured: {e}", success=False),
+                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            frequency = self._get_valid_option(
+                json_data.get("frequency"), valid_options["frequencies"], "frequency"
+            )
+            download_type = self._get_valid_option(
+                json_data.get("downloadType"),
+                valid_options["download_types"],
+                "downloadType",
+            )
+            output_format = self._get_valid_option(
+                json_data.get("outputFormat"),
+                valid_options["output_formats"],
+                "outputFormat",
+            )
+            data_type = self._get_valid_option(
+                json_data.get("datatype"), valid_options["data_types"], "datatype"
+            )
+        except ValueError as e:
+            return (
+                AirQoRequests.create_response(f"An error occured: {e}", success=False),
+                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+            )
+
+        pollutants = json_data.get("pollutants", valid_options["pollutants"])
         weather_fields = json_data.get("weatherFields", None)
         minimum_output = json_data.get("minimum", True)
-        frequency = self._get_valid_option(
-            json_data.get("frequency"), valid_options["frequencies"]
-        )
-        download_type = self._get_valid_option(
-            json_data.get("downloadType"), valid_options["download_types"]
-        )
-        output_format = self._get_valid_option(
-            json_data.get("outputFormat"), valid_options["output_formats"]
-        )
-        data_type = self._get_valid_option(
-            json_data.get("datatype"), valid_options["data_types"]
-        )
-        pollutants = json_data.get("pollutants", valid_options["pollutants"])
-
-        if sum([len(sites) == 0, len(devices) == 0, len(airqlouds) == 0]) == 3:
-            return (
-                AirQoRequests.create_response(
-                    f"Specify either a list of airqlouds, sites or devices in the request body",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if sum([len(sites) != 0, len(devices) != 0, len(airqlouds) != 0]) != 1:
-            return (
-                AirQoRequests.create_response(
-                    f"You cannot specify airqlouds, sites and devices in one go",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
 
         if not all(p in valid_options["pollutants"] for p in pollutants):
             return (
@@ -140,9 +138,9 @@ class DataExportResource(Resource):
 
         try:
             data_frame = EventsModel.download_from_bigquery(
-                sites=sites,
-                devices=devices,
-                airqlouds=airqlouds,
+                **{
+                    filter_type: filter_value
+                },  # Pass one filter[sites, airqlouds, devices] that has been passed in the api query
                 start_date=start_date,
                 end_date=end_date,
                 frequency=frequency,
@@ -196,22 +194,67 @@ class DataExportResource(Resource):
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def _get_valid_option(self, option, valid_options):
+    def _get_validated_filter(self, json_data):
         """
-        Returns a validated option, defaulting to the first valid option if not provided or invalid.
+        Ensures that only one of 'airqlouds', 'sites', or 'devices' is provided in the request.
+        Calls filter_non_private_* only after confirming exclusivity.
+
+        Args:
+            json_data (dict): JSON payload from the request.
+
+        Returns:
+            tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
+
+        Raises:
+            ValueError: If more than one or none of the filters are provided.
+        """
+        provided_filters = [
+            key for key in ["sites", "devices", "airqlouds"] if json_data.get(key)
+        ]
+
+        if len(provided_filters) != 1:
+            raise ValueError(
+                "Specify exactly one of 'airqlouds', 'sites', or 'devices' in the request body."
+            )
+
+        filter_type = provided_filters[0]
+        filter_value = json_data.get(filter_type)
+
+        if filter_type == "sites":
+            validated_value = filter_non_private_sites(sites=filter_value).get(
+                "sites", []
+            )
+        elif filter_type == "devices":
+            validated_value = filter_non_private_devices(devices=filter_value).get(
+                "devices", []
+            )
+        else:
+            # No additional processing is needed for 'airqlouds'
+            validated_value = filter_value
+
+        return filter_type, validated_value
+
+    def _get_valid_option(self, option, valid_options, option_name):
+        """
+        Returns a validated option, raising an error with valid options if invalid.
 
         Args:
             option (str): Option provided in the request.
             valid_options (list): List of valid options.
+            option_name (str): The name of the option being validated.
 
         Returns:
             str: A validated option from the list.
+
+        Raises:
+            ValueError: If the provided option is invalid.
         """
-        return (
-            option.lower()
-            if option and option.lower() in valid_options
-            else valid_options[0]
-        )
+        if option and option.lower() in valid_options:
+            return option.lower()
+        if option:
+            raise ValueError(
+                f"Invalid {option_name}. Valid values are: {', '.join(valid_options)}."
+            )
 
 
 @rest_api_v2.route("/data-export")
