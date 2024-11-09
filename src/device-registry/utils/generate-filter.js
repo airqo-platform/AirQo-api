@@ -22,6 +22,41 @@ const isLowerCase = (str) => {
   return str === str.toLowerCase();
 };
 //startTime=2022-12-20T10:34:15.880Z
+
+function applyAQIFilter(filter, index) {
+  if (!index) {
+    delete filter["values.pm2_5.value"];
+    return filter;
+  }
+
+  if (!Object.keys(constants.AQI_INDEX).includes(index)) {
+    delete filter["values.pm2_5.value"];
+    return filter;
+  }
+
+  // Get range values for the index
+  const range = constants.AQI_INDEX[index];
+
+  // Initialize the pm2_5 value filter if it doesn't exist
+  if (!filter["values.pm2_5.value"]) {
+    filter["values.pm2_5.value"] = {};
+  }
+
+  // Apply minimum value
+  filter["values.pm2_5.value"]["$gte"] = range.min;
+
+  // Apply maximum value only if it exists (not null)
+  if (range.max !== null) {
+    filter["values.pm2_5.value"]["$lte"] = range.max;
+  } else {
+    // Remove any existing upper bound if this is the hazardous category
+    delete filter["values.pm2_5.value"]["$lte"];
+  }
+
+  filter["index"] = index;
+  return filter;
+}
+
 const generateFilter = {
   events: (request, next) => {
     const { query, params } = request;
@@ -77,15 +112,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
-      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAQIFilter(filter, index);
 
     // Handle startTime and endTime filtering
     if (startTime) {
@@ -338,15 +365,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
-      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAQIFilter(filter, index);
 
     // Handle startTime and endTime filtering
     if (startTime) {
@@ -667,15 +686,7 @@ const generateFilter = {
     }
 
     // Handle index filtering
-    if (!index) {
-      delete filter["values.pm2_5.value"];
-    } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
-      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
-      filter["index"] = index;
-    } else {
-      delete filter["values.pm2_5.value"];
-    }
+    applyAQIFilter(filter, index);
 
     // Handle startTime and endTime filtering
     if (startTime) {
