@@ -10,6 +10,9 @@ const { logText, logObject } = require("@utils/log");
 // Fields to check for duplicates - easily modifiable
 const FIELDS_TO_CHECK = ["name", "search_name", "description"];
 
+// Frequency configuration
+const WARNING_FREQUENCY_HOURS = 6; // Change this value to adjust frequency
+
 // Helper function to group sites by field value
 const groupSitesByFieldValue = (sites, fieldName) => {
   return sites.reduce((acc, site) => {
@@ -49,7 +52,7 @@ const checkDuplicateSiteFields = async () => {
       { isOnline: true },
       fieldsToProject
     );
-    // const sites = await SitesModel("airqo").find({ isOnline: true });
+
     logObject("Total sites checked", sites.length);
 
     const duplicateReport = {};
@@ -68,17 +71,17 @@ const checkDuplicateSiteFields = async () => {
     if (Object.keys(duplicateReport).length > 0) {
       logText("⚠️ Duplicate site field values detected!");
 
-      for (const [field, duplicates] of Object.entries(duplicateReport)) {
-        logText(`\nField: ${field}`);
-        logger.warn(`⚠️ Duplicates found in field: ${field}`);
+      // Combine all warning messages into one descriptive message
+      let combinedWarningMessage = "⚠️ Duplicates found in fields:";
 
+      for (const [field, duplicates] of Object.entries(duplicateReport)) {
+        combinedWarningMessage += `\n- Field: ${field}`;
         duplicates.forEach(({ value, sites }) => {
           const siteNames = sites.map((site) => site.generated_name).join(", ");
-          const message = `⚠️ Value "${value}" shared by sites: ${siteNames}`;
-          logText(message);
-          logger.warn(message);
+          combinedWarningMessage += `\n  Value "${value}" shared by sites: ${siteNames}`;
         });
       }
+      logger.warn(combinedWarningMessage); // Log the combined message
     } else {
       logText("✅ No duplicate Site field values found");
       logger.info("✅ No duplicate Site field values found");
@@ -93,8 +96,8 @@ const checkDuplicateSiteFields = async () => {
 
 // Initial run message
 logText("Duplicate site fields checker job is now running.....");
-// Schedule the job to run every 2 hours at minute 45
-const schedule = "45 */2 * * *";
+// Schedule the job to run every 6 hours at minute 45
+const schedule = `45 */${WARNING_FREQUENCY_HOURS} * * *`;
 cron.schedule(schedule, checkDuplicateSiteFields, {
   scheduled: true,
 });

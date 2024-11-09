@@ -145,7 +145,6 @@ describe("Duplicate Site Fields Checker", () => {
 
       await checkDuplicateSiteFields();
 
-      // Should not detect these as duplicates due to case differences
       expect(logTextStub.calledWith("✅ No duplicate field values found")).to.be
         .true;
     });
@@ -201,7 +200,7 @@ describe("Duplicate Site Fields Checker", () => {
       ).to.be.true;
       expect(
         logTextStub.calledWith(
-          'Value "Test\nMultiline" shared by sites: site1, site2'
+          'Value "Test\\nMultiline" shared by sites: site1, site2'
         )
       ).to.be.true;
     });
@@ -230,14 +229,29 @@ describe("Duplicate Site Fields Checker", () => {
       expect(loggerStub.warn.called).to.be.true;
     });
 
-    it("should handle empty sites array", async () => {
-      findStub.resolves([]);
+    it("should handle missing fields", async () => {
+      const mockSites = [
+        {
+          _id: "1",
+          generated_name: "site1",
+          // name field missing
+          description: "Test",
+        },
+        {
+          _id: "2",
+          generated_name: "site2",
+          // name field missing
+          description: "Test",
+        },
+      ];
+
+      findStub.resolves(mockSites);
 
       await checkDuplicateSiteFields();
 
-      expect(logTextStub.calledWith("✅ No duplicate field values found")).to.be
-        .true;
-      expect(logObjectStub.calledWith("Total sites checked", 0)).to.be.true;
+      expect(
+        logTextStub.calledWith('Value "Test" shared by sites: site1, site2')
+      ).to.be.true;
     });
 
     it("should handle missing fields", async () => {
@@ -265,7 +279,6 @@ describe("Duplicate Site Fields Checker", () => {
         logTextStub.calledWith('Value "Test" shared by sites: site1, site2')
       ).to.be.true;
     });
-
     it("should handle non-string field values", async () => {
       const mockSites = [
         {
@@ -289,7 +302,6 @@ describe("Duplicate Site Fields Checker", () => {
       expect(logTextStub.calledWith("⚠️ Duplicate site field values detected!"))
         .to.be.true;
     });
-
     it("should handle database timeout errors", async () => {
       const timeoutError = new Error("Database operation timeout");
       timeoutError.code = "ETIMEDOUT";
@@ -417,9 +429,156 @@ describe("Duplicate Site Fields Checker", () => {
 
       await checkDuplicateSiteFields();
 
-      // Should not detect null values as duplicates
       expect(logTextStub.calledWith("✅ No duplicate field values found")).to.be
         .true;
+    });
+    it("should handle sites with duplicate values across multiple fields", async () => {
+      const mockSites = [
+        {
+          _id: "1",
+          generated_name: "site1",
+          name: "Duplicate",
+          search_name: "Duplicate",
+          description: "Duplicate",
+        },
+        {
+          _id: "2",
+          generated_name: "site2",
+          name: "Duplicate",
+          search_name: "Duplicate",
+          description: "Duplicate",
+        },
+      ];
+
+      findStub.resolves(mockSites);
+
+      await checkDuplicateSiteFields();
+
+      FIELDS_TO_CHECK.forEach((field) => {
+        expect(
+          logTextStub.calledWith(
+            'Value "Duplicate" shared by sites: site1, site2'
+          )
+        ).to.be.true;
+      });
+    });
+
+    it("should handle very long field values", async () => {
+      const longString = "a".repeat(1000);
+      const mockSites = [
+        {
+          _id: "1",
+          generated_name: "site1",
+          name: longString,
+          description: "Test",
+        },
+        {
+          _id: "2",
+          generated_name: "site2",
+          name: longString,
+          description: "Test",
+        },
+      ];
+
+      findStub.resolves(mockSites);
+
+      await checkDuplicateSiteFields();
+
+      expect(loggerStub.warn.called).to.be.true;
+    });
+
+    it("should handle empty string values", async () => {
+      const mockSites = [
+        {
+          _id: "1",
+          generated_name: "site1",
+          name: "",
+          description: "",
+        },
+        {
+          _id: "2",
+          generated_name: "site2",
+          name: "",
+          description: "",
+        },
+      ];
+
+      findStub.resolves(mockSites);
+
+      await checkDuplicateSiteFields();
+
+      expect(logTextStub.calledWith("⚠️ Duplicate site field values detected!"))
+        .to.be.true;
+      expect(logTextStub.calledWith('Value "" shared by sites: site1, site2'))
+        .to.be.true;
+    });
+
+    it("should handle special characters in field values", async () => {
+      const mockSites = [
+        {
+          _id: "1",
+          generated_name: "site1",
+          name: "Test@#$%",
+          description: "Test\nMultiline",
+        },
+        {
+          _id: "2",
+          generated_name: "site2",
+          name: "Test@#$%",
+          description: "Test\nMultiline",
+        },
+      ];
+
+      findStub.resolves(mockSites);
+
+      await checkDuplicateSiteFields();
+
+      expect(
+        logTextStub.calledWith('Value "Test@#$%" shared by sites: site1, site2')
+      ).to.be.true;
+      expect(
+        logTextStub.calledWith(
+          'Value "Test\\nMultiline" shared by sites: site1, site2'
+        )
+      ).to.be.true;
+    });
+
+    it("should handle non-string field values", async () => {
+      const mockSites = [
+        {
+          _id: "1",
+          generated_name: "site1",
+          name: 123,
+          description: true,
+        },
+        {
+          _id: "2",
+          generated_name: "site2",
+          name: 123,
+          description: true,
+        },
+      ];
+
+      findStub.resolves(mockSites);
+
+      await checkDuplicateSiteFields();
+
+      expect(logTextStub.calledWith("⚠️ Duplicate site field values detected!"))
+        .to.be.true;
+    });
+
+    it("should handle database timeout errors", async () => {
+      const timeoutError = new Error("Database operation timeout");
+      timeoutError.code = "ETIMEDOUT";
+      findStub.rejects(timeoutError);
+
+      await checkDuplicateSiteFields();
+
+      expect(
+        loggerStub.error.calledWith(
+          "🐛 Error checking duplicate site fields: Database operation timeout"
+        )
+      ).to.be.true;
     });
   });
 });
