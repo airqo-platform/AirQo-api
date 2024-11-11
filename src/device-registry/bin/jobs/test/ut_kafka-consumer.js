@@ -1,107 +1,228 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
-const kafkaConsumer = require("@bin/jobs/kafka-consumer"); // Replace with the actual path to your kafkaConsumer.js file
+const { Kafka } = require("kafkajs");
+const log4js = require("log4js");
+const constants = require("@config/constants");
+const createEvent = require("@utils/create-event");
+const kafkaConsumer = require("@bin/jobs/kafka-consumer");
 
 describe("kafkaConsumer", () => {
   let consumerMock;
-  let connectSpy;
-  let subscribeSpy;
-  let runStub;
-  let consumeHourlyMeasurementsStub;
-  let operationFunction2Stub;
+  let kafkaMock;
+  let loggerMock;
+  let createEventMock;
 
   beforeEach(() => {
     // Mock the Kafka consumer and its methods
     consumerMock = {
-      connect: sinon.stub(),
-      subscribe: sinon.stub(),
-      run: sinon.stub(),
-    };
-    connectSpy = consumerMock.connect;
-    subscribeSpy = consumerMock.subscribe;
-    runStub = consumerMock.run;
-
-    // Stub the topic operations functions
-    consumeHourlyMeasurementsStub = sinon.stub();
-    operationFunction2Stub = sinon.stub();
-
-    // Define the topic-to-operation function mapping
-    const topicOperations = {
-      [constants.HOURLY_MEASUREMENTS_TOPIC]: consumeHourlyMeasurementsStub,
-      topic2: operationFunction2Stub,
-      // Add more topics and their corresponding functions as needed
+      connect: sinon.stub().resolves(),
+      subscribe: sinon.stub().resolves(),
+      run: sinon.stub().resolves(),
     };
 
-    // Replace the Kafka consumer with the mock
+    // Mock Kafka instance
+    kafkaMock = {
+      consumer: sinon.stub().returns(consumerMock),
+    };
+
+    // Mock logger
+    loggerMock = {
+      error: sinon.stub(),
+    };
+
+    // Mock createEvent
+    createEventMock = {
+      create: sinon.stub(),
+    };
+
+    // Setup stubs
     sinon.stub(Kafka.prototype, "consumer").returns(consumerMock);
-
-    // Call the kafkaConsumer function with the mocked topicOperations
-    kafkaConsumer(topicOperations);
+    sinon.stub(log4js, "getLogger").returns(loggerMock);
+    sinon.stub(createEvent, "create").returns(createEventMock.create);
   });
 
   afterEach(() => {
-    // Restore the original Kafka.prototype.consumer
-    Kafka.prototype.consumer.restore();
-    // Reset the stubs and spies
-    connectSpy.reset();
-    subscribeSpy.reset();
-    runStub.reset();
-    consumeHourlyMeasurementsStub.reset();
-    operationFunction2Stub.reset();
+    sinon.restore();
   });
 
-  it("should connect to Kafka and subscribe to all topics", async () => {
-    // Check that the consumer connects and subscribes to all topics
-    expect(connectSpy.calledOnce).to.be.true;
-    expect(subscribeSpy.calledOnce).to.be.true;
-    // Replace "topic2" with your actual topic name
-    expect(subscribeSpy.calledWith({ topic: "topic2", fromBeginning: true })).to
-      .be.true;
-    // Add more topic expectations if needed
+  describe("Kafka Connection and Subscription", () => {
+    it("should connect to Kafka and subscribe to the hourly-measurements topic", async () => {
+      await kafkaConsumer();
+
+      expect(consumerMock.connect.calledOnce).to.be.true;
+      expect(consumerMock.subscribe.calledOnce).to.be.true;
+      expect(
+        consumerMock.subscribe.calledWith({
+          topic: "hourly-measurements-topic",
+          fromBeginning: false,
+        })
+      ).to.be.true;
+    });
+
+    it("should handle connection errors gracefully", async () => {
+      const error = new Error("Connection failed");
+      consumerMock.connect.rejects(error);
+
+      await kafkaConsumer();
+
+      expect(
+        loggerMock.error.calledWith(
+          `📶📶 Error connecting to Kafka: ${JSON.stringify(error)}`
+        )
+      ).to.be.true;
+    });
   });
 
-  it("should consume hourly measurements for the HOURLY_MEASUREMENTS_TOPIC", async () => {
-    // Create a sample Kafka message
-    const sampleMessage = {
-      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
-      partition: 0,
-      message: {
-        value: Buffer.from("Sample Kafka Message"),
-      },
-    };
+  describe("Message Processing", () => {
+    it("should process valid hourly measurements successfully", async () => {
+      const validMessage = {
+        value: JSON.stringify({
+          data: [
+            {
+              device_id: "device1",
+              site_id: "site1",
+              timestamp: "2024-01-01T00:00:00Z",
+              pm2_5: 10,
+              temperature: 25,
+            },
+          ],
+        }),
+      };
 
-    // Simulate the consumer.run callback with the sample message
-    await runStub.callArgWith(0, sampleMessage);
+      createEventMock.create.resolves({ success: true });
 
-    // Check that the consumeHourlyMeasurementsStub function was called with the correct message data
-    expect(consumeHourlyMeasurementsStub.calledOnce).to.be.true;
-    // Replace the data parameter with the expected message data for the consumeHourlyMeasurements function
-    expect(consumeHourlyMeasurementsStub.calledWith("Sample Kafka Message")).to
-      .be.true;
+      await consumerMock.run.callArgWith(0, {
+        topic: "hourly-measurements-topic",
+        partition: 0,
+        message: validMessage,
+      });
+
+      expect(createEventMock.create.calledOnce).to.be.true;
+      expect(
+        console.log.calledWith("KAFKA: successfully stored the measurements")
+      ).to.be.true;
+    });
+
+    it("should handle empty message data", async () => {
+      const emptyMessage = {
+        value: JSON.stringify({ data: [] }),
+      };
+
+      await consumerMock.run.callArgWith(0, {
+        topic: "hourly-measurements-topic",
+        partition: 0,
+        message: emptyMessage,
+      });
+
+      expect(createEventMock.create.called).to.be.false;
+    });
+
+    it("should handle invalid JSON data", async () => {
+      const invalidMessage = {
+        value: "invalid json",
+      };
+
+      await consumerMock.run.callArgWith(0, {
+        topic: "hourly-measurements-topic",
+        partition: 0,
+        message: invalidMessage,
+      });
+
+      expect(loggerMock.error.calledWith(sinon.match(/KAFKA: error message/)))
+        .to.be.true;
+    });
+
+    it("should validate measurements against schema", async () => {
+      const invalidData = {
+        data: [
+          {
+            device_id: "", // Empty device_id should fail validation
+            site_id: "site1",
+            timestamp: "2024-01-01T00:00:00Z",
+          },
+        ],
+      };
+
+      const message = {
+        value: JSON.stringify(invalidData),
+      };
+
+      await consumerMock.run.callArgWith(0, {
+        topic: "hourly-measurements-topic",
+        partition: 0,
+        message: message,
+      });
+
+      // Validation error should be logged
+      expect(loggerMock.error.called).to.be.true;
+    });
+
+    it("should handle failed event creation", async () => {
+      const validMessage = {
+        value: JSON.stringify({
+          data: [
+            {
+              device_id: "device1",
+              site_id: "site1",
+              timestamp: "2024-01-01T00:00:00Z",
+            },
+          ],
+        }),
+      };
+
+      createEventMock.create.resolves({ success: false });
+
+      await consumerMock.run.callArgWith(0, {
+        topic: "hourly-measurements-topic",
+        partition: 0,
+        message: validMessage,
+      });
+
+      expect(console.log.calledWith("KAFKA: failed to store the measurements"))
+        .to.be.true;
+    });
   });
 
-  it("should handle errors when processing Kafka messages", async () => {
-    // Create a sample Kafka message with an unknown topic
-    const unknownTopicMessage = {
-      topic: "unknown-topic",
-      partition: 0,
-      message: {
-        value: Buffer.from("Sample Kafka Message"),
-      },
-    };
+  describe("Error Handling", () => {
+    it("should handle unknown topics gracefully", async () => {
+      await consumerMock.run.callArgWith(0, {
+        topic: "unknown-topic",
+        partition: 0,
+        message: { value: "test" },
+      });
 
-    // Simulate the consumer.run callback with the unknown topic message
-    await runStub.callArgWith(0, unknownTopicMessage);
+      expect(
+        loggerMock.error.calledWith(
+          `🐛🐛 No operation defined for topic: unknown-topic`
+        )
+      ).to.be.true;
+    });
 
-    // Check that the error is logged for the unknown topic
-    expect(logger.error.calledOnce).to.be.true;
-    expect(
-      logger.error.calledWith(
-        `No operation defined for topic: ${unknownTopicMessage.topic}`
-      )
-    ).to.be.true;
+    it("should handle message processing errors", async () => {
+      const error = new Error("Processing failed");
+      createEventMock.create.rejects(error);
+
+      const validMessage = {
+        value: JSON.stringify({
+          data: [
+            {
+              device_id: "device1",
+              site_id: "site1",
+              timestamp: "2024-01-01T00:00:00Z",
+            },
+          ],
+        }),
+      };
+
+      await consumerMock.run.callArgWith(0, {
+        topic: "hourly-measurements-topic",
+        partition: 0,
+        message: validMessage,
+      });
+
+      expect(loggerMock.error.calledWith(sinon.match(/KAFKA: error message/)))
+        .to.be.true;
+    });
   });
-
-  // Add more tests for other topics and scenarios as needed
 });
