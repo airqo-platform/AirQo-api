@@ -1,6 +1,6 @@
 namespace: staging
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
@@ -17,8 +17,8 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 100m
-      memory: 600Mi
+      cpu: 500m
+      memory: 1000Mi
     requests:
       cpu: 10m
       memory: 250Mi
