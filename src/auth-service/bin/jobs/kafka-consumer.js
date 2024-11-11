@@ -332,8 +332,8 @@ const kafkaConsumer = async () => {
     const kafka = new Kafka({
       clientId: constants.KAFKA_CLIENT_ID,
       brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-      fetchMaxWaitMs: 500, // Set a maximum threshold for time-based batching
-      fetchMinBytes: 16384, // Set a minimum threshold for size-based batching
+      fetchMaxWaitMs: 500,
+      fetchMinBytes: 16384,
     });
 
     const consumer = kafka.consumer({
@@ -342,37 +342,40 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      // ["new-mobile-app-user-topic"]: operationForNewMobileAppUser,
       ["ip-address"]: operationForBlacklistedIPs,
       ["deploy-topic"]: emailsForDeployedDevices,
       ["recall-topic"]: emailsForRecalledDevices,
     };
+
     await consumer.connect();
-    // Subscribe to all topics in the mapping
+
+    // First, subscribe to all topics
     await Promise.all(
-      Object.keys(topicOperations).map(async (topic) => {
-        consumer.subscribe({ topic, fromBeginning: true });
-        await consumer.run({
-          eachMessage: async ({ topic, partition, message }) => {
-            try {
-              const operation = topicOperations[topic];
-              if (operation) {
-                const messageData = message.value.toString();
-                await operation(messageData);
-              } else {
-                logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
-              }
-            } catch (error) {
-              logger.error(
-                `🐛🐛 Error processing Kafka message for topic ${topic}: ${stringify(
-                  error
-                )}`
-              );
-            }
-          },
-        });
-      })
+      Object.keys(topicOperations).map((topic) =>
+        consumer.subscribe({ topic, fromBeginning: true })
+      )
     );
+
+    // Then, start consuming messages
+    await consumer.run({
+      eachMessage: async ({ topic, partition, message }) => {
+        try {
+          const operation = topicOperations[topic];
+          if (operation) {
+            const messageData = message.value.toString();
+            await operation(messageData);
+          } else {
+            logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
+          }
+        } catch (error) {
+          logger.error(
+            `🐛🐛 Error processing Kafka message for topic ${topic}: ${stringify(
+              error
+            )}`
+          );
+        }
+      },
+    });
   } catch (error) {
     logObject("📶📶 Error connecting to Kafka", error);
     logger.error(`📶📶 Error connecting to Kafka: ${stringify(error)}`);
