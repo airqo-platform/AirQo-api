@@ -3,7 +3,8 @@ import openai
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import login
 from configure import Config
-import google.generativeai as genai
+import google.generativeai as genai 
+
 
 # Configure API keys
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
@@ -73,7 +74,8 @@ class AirQualityReport:
         if audience == "researcher":
             return (
                 f"{audience}"
-                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}.. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "
+                
+                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "
                 f"{base_info} include the period under review."
                 f"Daily mean measurements show: {self.daily_mean_data}. "
                 f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "
@@ -94,7 +96,7 @@ class AirQualityReport:
             return (
                 f"{audience}"
                 f"{base_info} include the period under review."
-                f"Create a clear, easy-to-understand report about air quality in {self.grid_name} for the period of {self.starttime} to {self.endtime}.. Start with a simple explanation of why air quality matters for public health. "
+                f"Create a clear, easy-to-understand report about air quality in {self.grid_name} for the period of {self.starttime} to {self.endtime}. Start with a simple explanation of why air quality matters for public health. "
                 f"We have {self.num_sites} air quality monitors in your area. The average PM2.5 level this year is {self.annual_data} µg/m³. "
                 f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "
                 f"Explain what these numbers mean for daily activities. Include: 1) When air quality is best and worst during the day, "
@@ -120,6 +122,12 @@ class AirQualityReport:
         openai_output = response.choices[0].message['content']
         return self._prepare_report_json(openai_output)
 
+    # Use non-LLM template text as report content
+    def generate_report_template_witout_LLM(self, audience):
+        prompt = self._generate_prompt(audience)
+        report_content = prompt
+        return self._prepare_report_json(report_content)
+    
     def _prepare_report_json(self, report_content):
         return {
             "grid_name": self.grid_name,

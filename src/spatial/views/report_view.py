@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import request, jsonify
 from models.report_datafetcher import DataFetcher, AirQualityReport
 
 class ReportView:
@@ -28,8 +28,9 @@ class ReportView:
         report = AirQualityReport(air_quality_data)
         
         # Generate the report with the specified audience
-        json_report = report.generate_report_with_gemini(audience)
-    #    json_report = report.generate_report_with_openai(audience)
+        json_report = report.generate_report_with_gemini(audience)          # using google gemini
+    #    json_report = report.generate_report_template_witout_LLM(audience) # without LLM
+    #    json_report = report.generate_report_with_openai(audience)         # Using openai api
     
         
         if json_report is None:
