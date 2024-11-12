@@ -66,6 +66,7 @@ router.get(
       .trim()
       .notEmpty()
       .withMessage("language cannot be empty if provided")
+      .bail()
       .isLength({ min: 2, max: 5 })
       .withMessage("language should be a valid ISO 639-1 code"),
     query("limit")
@@ -73,14 +74,16 @@ router.get(
       .trim()
       .notEmpty()
       .withMessage("limit cannot be empty if provided")
-      .isInt({ min: 1, max: 100 })
-      .withMessage("limit must be an integer between 1 and 100")
+      .bail()
+      .isInt({ min: 1, max: 2000 })
+      .withMessage("limit must be between 1 and 2000")
       .toInt(),
     query("skip")
       .optional()
       .trim()
       .notEmpty()
       .withMessage("skip cannot be empty if provided")
+      .bail()
       .isInt({ min: 0 })
       .withMessage("skip must be a non-negative integer")
       .toInt(),
