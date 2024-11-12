@@ -75,8 +75,8 @@ router.get(
       .notEmpty()
       .withMessage("limit cannot be empty if provided")
       .bail()
-      .isInt({ min: 0 })
-      .withMessage("limit must be a non-negative integer")
+      .isInt({ min: 1, max: 2000 })
+      .withMessage("limit must be between 1 and 2000")
       .toInt(),
     query("skip")
       .optional()
