@@ -346,6 +346,7 @@ const generateFilter = {
       delete filter["values.pm2_5.value"];
     } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
       const range = constants.AQI_INDEX[index];
+      filter["values.pm2_5.value"] = {};
       filter["values.pm2_5.value"]["$gte"] = range.min;
       // Only set $lte if max is not null
       if (range.max !== null) {
@@ -679,6 +680,7 @@ const generateFilter = {
       delete filter["values.pm2_5.value"];
     } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
       const range = constants.AQI_INDEX[index];
+      filter["values.pm2_5.value"] = {};
       filter["values.pm2_5.value"]["$gte"] = range.min;
       // Only set $lte if max is not null
       if (range.max !== null) {
