@@ -80,8 +80,12 @@ const generateFilter = {
     if (!index) {
       delete filter["values.pm2_5.value"];
     } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
-      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
+      const range = constants.AQI_INDEX[index];
+      filter["values.pm2_5.value"]["$gte"] = range.min;
+      // Only set $lte if max is not null
+      if (range.max !== null) {
+        filter["values.pm2_5.value"]["$lte"] = range.max;
+      }
       filter["index"] = index;
     } else {
       delete filter["values.pm2_5.value"];
@@ -341,8 +345,12 @@ const generateFilter = {
     if (!index) {
       delete filter["values.pm2_5.value"];
     } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
-      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
+      const range = constants.AQI_INDEX[index];
+      filter["values.pm2_5.value"]["$gte"] = range.min;
+      // Only set $lte if max is not null
+      if (range.max !== null) {
+        filter["values.pm2_5.value"]["$lte"] = range.max;
+      }
       filter["index"] = index;
     } else {
       delete filter["values.pm2_5.value"];
@@ -670,8 +678,12 @@ const generateFilter = {
     if (!index) {
       delete filter["values.pm2_5.value"];
     } else if (Object.keys(constants.AQI_INDEX).includes(index)) {
-      filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX[index][0];
-      filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX[index][1];
+      const range = constants.AQI_INDEX[index];
+      filter["values.pm2_5.value"]["$gte"] = range.min;
+      // Only set $lte if max is not null
+      if (range.max !== null) {
+        filter["values.pm2_5.value"]["$lte"] = range.max;
+      }
       filter["index"] = index;
     } else {
       delete filter["values.pm2_5.value"];
