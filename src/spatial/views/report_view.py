@@ -28,12 +28,15 @@ class ReportView:
         report = AirQualityReport(air_quality_data)
         
         # Generate the report with the specified audience
-        json_report = report.generate_report_with_gemini(audience)          # using google gemini
+    #    json_report = report.generate_report_with_gemini(audience)          # using google gemini
+        json_report = report.generate_report_without_llm()
     #    json_report = report.generate_report_template_witout_LLM(audience) # without LLM
-    #    json_report = report.generate_report_with_openai(audience)         # Using openai api
+    #    json_report = report.generate_report_with_openai(audience)         # Using openai api 
     
         
         if json_report is None:
             return jsonify({"error": "Failed to generate report"}), 500
 
         return jsonify({"report": json_report}), 200
+ 
+ 

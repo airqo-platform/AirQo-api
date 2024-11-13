@@ -48,6 +48,7 @@ class AirQualityReport:
         self.daily_mean_data = data.get('airquality', {}).get('daily_mean_pm', [])
         self.diurnal = data.get('airquality', {}).get('diurnal', [])
         self.monthly_data = data.get('airquality', {}).get('site_monthly_mean_pm', [])
+        self.monthly_name_data = data.get('airquality', {}).get('pm_by_month_name', [])
         main_site_info = self.monthly_data[0] if self.monthly_data else {}
         self.main_site = main_site_info.get('site_name')
         self.site_names = [item.get('site_name', None) for item in self.data.get('airquality', {}).get('site_annual_mean_pm', [])]
@@ -56,6 +57,15 @@ class AirQualityReport:
         self.num_sites = data.get('airquality', {}).get('sites', {}).get('number_of_sites') 
         self.starttime = data.get('airquality', {}).get('period', {}).get('startTime', '')[:10]
         self.endtime = data.get('airquality', {}).get('period', {}).get('endTime', '')[:10] 
+
+        self.annual_pm2_5_calibrated_value = self.annual_data.get("pm2_5_calibrated_value")
+        self.annual_pm10_calibrated_value = self.annual_data.get("pm10_calibrated_value")
+
+        # Finding the minimum and maximum values
+        self.daily_min_pm2_5 = min(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
+        self.daily_max_pm2_5 = max(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
+        
+
 
         # Initialize models once in the constructor
         self.gemini_model = genai.GenerativeModel('gemini-pro')
@@ -128,6 +138,70 @@ class AirQualityReport:
         report_content = prompt
         return self._prepare_report_json(report_content)
     
+    def generate_report_without_llm(self):
+    # Determine peak time and least PM2.5 values
+        peak_data = max(self.diurnal, key=lambda x: x['pm2_5_calibrated_value'])
+        peak_time = peak_data['hour']
+        peak_pm2_5 = peak_data['pm2_5_calibrated_value']
+
+        least_data = min(self.diurnal, key=lambda x: x['pm2_5_calibrated_value'])
+        least_pm2_5 = least_data['pm2_5_calibrated_value']
+        least_pm2_5_time = least_data['hour']
+
+
+        
+        introduction = (
+            f"The air quality report for {self.grid_name} covers the period from {self.starttime} to {self.endtime}. "
+            f"The {self.num_sites} monitored sites include: {', '.join(self.site_names)}. "
+            f"Measurements are taken for PM2.5 and PM10 concentrations. " 
+            f"The annual average PM2.5 concentration is {self.annual_pm2_5_calibrated_value} µg/m³."
+        )
+        
+        diurnal_description = (
+            f"Diurnal patterns observed include the following: {self.diurnal}. "
+            f"These patterns provide insight into air quality fluctuations throughout the day. "
+            f"The peak in PM2.5 {peak_pm2_5} levels occurs around {peak_time}:00 hr, indicating a period of higher pollution, often associated with increased activity or traffic. "
+            f"Conversely, the period with the least PM2.5 {least_pm2_5}  µg/m³ levels is around {least_pm2_5_time} :00 hr , "
+            f"which usually represents a period of lower activity or better atmospheric dispersion."
+            f"Understanding the patterns of pollution and their impacts on public health is crucial for effective environmental management and policy-making. "
+            f"Throughout this report, we will explore key trends in PM2.5 and PM10 concentrations, the diurnal variations, and the impact of these levels on air quality across the region."
+
+        )
+
+        daily_mean_description = (
+            f"Daily mean PM2.5 measurements during the period were recorded as follows: {self.daily_mean_data}. "
+            f"This data reveals variations in air quality on a day-to-day basis."
+        )
+
+        site_pm25_description = (
+            f"The concentration of PM2.5 across different sites shows variability: "
+            f"{', '.join([f'{site} with PM2.5 levels' for site in self.site_names])}. "
+            f"These variations indicate site-specific air quality differences for the known grids."
+        )
+        conclusion = (
+            f"Overall, the air quality report highlights the importance of monitoring and understanding the patterns of PM2.5 and PM10 concentrations in the {self.grid_name} "
+            f"The analysis of the data reveals that air quality varies significantly over time, with periods of both moderate and unhealthy conditions. "
+            f"It’s observed that these fluctuations may be influenced by various factors, including seasonal changes. For instance, the washout effect during the rainy"
+            f" season could potentially contribute to these variations. Specifically, for the period from   {self.starttime} to {self.endtime},"
+            f" the PM2.5 raw values ranged from {self.daily_min_pm2_5['pm2_5_raw_value']} µg/m³ on {self.daily_min_pm2_5['date']} to {self.daily_max_pm2_5['pm2_5_raw_value']} µg/m³ on {self.daily_max_pm2_5['date']}. respectively."
+            f"This pattern underscores the importance of continuous monitoring and the implementation of"
+            f"effective interventions to maintain air quality within safe limits. Ensuring good air quality is crucial for "
+            f"the well-being of both residents and visitors. Therefore, it’s imperative to adopt long-term"
+            f"strategies and measures that can effectively mitigate the impact of factors leading to poor airquality."
+            f"In conclusion, continuous monitoring, timely intervention, and effective policies are key to maintaining good air quality and safeguarding public health. "
+        )
+
+        report_content = (
+            f"{introduction}\n\n"
+            f"{diurnal_description}\n\n"
+            f"{daily_mean_description}\n\n"
+            f"{site_pm25_description}\n\n"
+            f"{conclusion}"
+        )
+
+
+        return self._prepare_report_json(report_content)
+
     def _prepare_report_json(self, report_content):
         return {
             "grid_name": self.grid_name,
