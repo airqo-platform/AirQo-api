@@ -27,12 +27,12 @@ function generateDateFormatWithoutHrs(ISODate) {
 
 const mappings = {
   AQI_INDEX: {
-    good: [0, 12],
-    moderate: [12.1, 35.4],
-    u4sg: [35.5, 55.4],
-    unhealthy: [55.5, 150.4],
-    very_unhealthy: [150.5, 250.4],
-    hazardous: [250.5, 500],
+    good: { min: 0, max: 9.0 },
+    moderate: { min: 9.1, max: 35.4 },
+    u4sg: { min: 35.5, max: 55.4 },
+    unhealthy: { min: 55.5, max: 125.4 },
+    very_unhealthy: { min: 125.5, max: 225.4 },
+    hazardous: { min: 225.5, max: null },
   },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
