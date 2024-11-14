@@ -132,7 +132,7 @@ class AirQualityReport:
         return self._prepare_report_json(openai_output)
 
     # Use non-LLM template text as report content
-    def generate_report_template_witout_LLM(self, audience):
+    def generate_report_template_without_LLM(self, audience):
         prompt = self._generate_prompt(audience)
         report_content = prompt
         return self._prepare_report_json(report_content)
