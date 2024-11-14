@@ -1,6 +1,7 @@
 import datetime
 import traceback
-import logging
+from typing import List
+
 
 import flask_excel as excel
 import pandas as pd
@@ -33,6 +34,7 @@ from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import AirQoRequests
 from api.utils.request_validators import validate_request_json, validate_request_params
 from main import rest_api_v2
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,11 @@ class DataExportResource(Resource):
         "outputFormat|optional:str",
         "pollutants|optional:list",
         "sites|optional:list",
+        "site_ids|optional:list",
+        "site_names|optional:list",
+        "device_ids|optional:list",
         "devices|optional:list",
+        "device_names|optional:list",
         "airqlouds|optional:list",
         "datatype|optional:str",
         "minimum|optional:bool",
@@ -89,14 +95,14 @@ class DataExportResource(Resource):
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
-
         try:
-            filter_type, filter_value = self._get_validated_filter(json_data)
-        except ValueError as e:
-            return (
-                AirQoRequests.create_response(f"An error occured: {e}", success=False),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+            filter_type, filter_value, error_message = self._get_validated_filter(
+                json_data
             )
+            if error_message:
+                return error_message, AirQoRequests.Status.HTTP_400_BAD_REQUEST
+        except Exception as e:
+            logger.exception(f"An error has occured; {e}")
 
         try:
             frequency = self._get_valid_option(
@@ -144,6 +150,7 @@ class DataExportResource(Resource):
                 end_date=end_date,
                 frequency=frequency,
                 pollutants=pollutants,
+                data_type=data_type,
                 weather_fields=weather_fields,
             )
 
@@ -183,11 +190,10 @@ class DataExportResource(Resource):
                 records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
             )
         except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+            logger.exception(f"An error occurred: {ex}")
             return (
                 AirQoRequests.create_response(
-                    f"An Error occurred while processing your request. Please contact support",
+                    f"An Error occurred while processing your request. Please contact support. {ex}",
                     success=False,
                 ),
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -195,8 +201,8 @@ class DataExportResource(Resource):
 
     def _get_validated_filter(self, json_data):
         """
-        Ensures that only one of 'airqlouds', 'sites', or 'devices' is provided in the request.
-        Calls filter_non_private_* only after confirming exclusivity.
+        Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
+        and applies filtering if necessary.
 
         Args:
             json_data (dict): JSON payload from the request.
@@ -207,31 +213,46 @@ class DataExportResource(Resource):
         Raises:
             ValueError: If more than one or none of the filters are provided.
         """
-        provided_filters = [
-            key for key in ["sites", "devices", "airqlouds"] if json_data.get(key)
-        ]
+        error_message: str = ""
+        validated_data: List[str] = None
 
+        # TODO Lias with device registry to cleanup this makeshift implementation
+        devices = ["devices", "device_ids", "device_names"]
+        sites = ["sites", "site_names", "site_ids"]
+
+        valid_filters = [
+            "sites",
+            "site_names",
+            "site_ids",
+            "devices",
+            "device_ids",
+            "airqlouds",
+            "device_names",
+        ]
+        provided_filters = [key for key in valid_filters if json_data.get(key)]
         if len(provided_filters) != 1:
             raise ValueError(
-                "Specify exactly one of 'airqlouds', 'sites', or 'devices' in the request body."
+                "Specify exactly one of 'airqlouds', 'sites', 'device_names', or 'devices' in the request body."
             )
-
         filter_type = provided_filters[0]
         filter_value = json_data.get(filter_type)
 
-        if filter_type == "sites":
-            validated_value = filter_non_private_sites(sites=filter_value).get(
-                "sites", []
-            )
-        elif filter_type == "devices":
-            validated_value = filter_non_private_devices(devices=filter_value).get(
-                "devices", []
+        if filter_type in sites:
+            validated_value = filter_non_private_sites(filter_type, filter_value)
+        elif filter_type in devices:
+            validated_value = filter_non_private_devices(filter_type, filter_value)
+        else:
+            return filter_type, filter_value, None
+
+        if validated_value and validated_value.get("status") == "success":
+            # TODO This should be cleaned up.
+            validated_data = validated_value.get("data", {}).get(
+                "sites" if filter_type in sites else "devices", []
             )
         else:
-            # No additional processing is needed for 'airqlouds'
-            validated_value = filter_value
+            error_message = validated_value.get("message", "Validation failed")
 
-        return filter_type, validated_value
+        return filter_type, validated_data, error_message
 
     def _get_valid_option(self, option, valid_options, option_name):
         """

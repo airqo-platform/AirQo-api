@@ -61,14 +61,20 @@ BIGQUERY_FREQUENCY_MAPPER = {
         "no2": ["no2"],
     },
     "daily": {
-        "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
-        "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
-        "no2": ["no2_calibrated_value", "no2_raw_value"],
+        "pm2_5_calibrated": ["pm2_5_calibrated_value"],
+        "pm2_5_raw": ["pm2_5_raw_value"],
+        "pm10_calibrated": ["pm10_calibrated_value"],
+        "pm10_raw": ["pm10_raw_value"],
+        "no2_calibrated": ["no2_calibrated_value"],
+        "no2_raw": ["no2_raw_value"],
     },
     "hourly": {
-        "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
-        "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
-        "no2": ["no2_calibrated_value", "no2_raw_value"],
+        "pm2_5_calibrated": ["pm2_5_calibrated_value"],
+        "pm2_5_raw": ["pm2_5_raw_value"],
+        "pm10_calibrated": ["pm10_calibrated_value"],
+        "pm10_raw": ["pm10_raw_value"],
+        "no2_calibrated": ["no2_calibrated_value"],
+        "no2_raw": ["no2_raw_value"],
     },
 }
 

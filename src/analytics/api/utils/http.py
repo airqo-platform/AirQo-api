@@ -163,7 +163,7 @@ class AirQoRequests:
                     success=True,
                 )
             else:
-                return self.create_response(f"Error: {response.status}", success=False)
+                return self.create_response(f"Error: {response.data}", success=False)
 
         except urllib3.exceptions.HTTPError as ex:
             logger.exception(f"HTTPError: {ex}")
