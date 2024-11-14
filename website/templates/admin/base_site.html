@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %} {% load static %} {% block title %}AirQo
+Website Administration{% endblock %} {% block extrahead %}
+<!-- Link to custom Quill CSS -->
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{% static 'admin/css/custom_quill.css' %}"
+/>
+{% endblock %} {% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">AirQo Website Administration</a>
+</h1>
+{% endblock %} {% block footer %} {{ block.super }}
+<!-- Include custom Dark Mode JavaScript -->
+<script src="{% static 'admin/js/admin_dark_mode.js' %}"></script>
+{% endblock %}
