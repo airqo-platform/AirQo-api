@@ -83,3 +83,4 @@ class ReportView:
 
         except Exception as e:
             return ReportView._handle_error(e)
+        
