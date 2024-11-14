@@ -28,7 +28,8 @@ class ReportView:
     @staticmethod
     def _handle_error(exception):
         return jsonify({
-            "error": str(exception)
+        #    "error": str(exception)
+            "error": "An internal error has occurred!"
         }), 500
 
     @staticmethod
