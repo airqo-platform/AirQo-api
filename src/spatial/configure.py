@@ -24,9 +24,20 @@ class Config:
     BIGQUERY_SATELLITE_MODEL_PREDICTIONS = os.getenv(
         "BIGQUERY_SATELLITE_MODEL_PREDICTIONS"
     )
-    HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN") or None
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY") or None
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or None
+
+    @classmethod
+    def validate_api_keys(cls):
+        required_keys = {
+            "HUGGING_FACE_TOKEN": cls.HUGGING_FACE_TOKEN,
+            "GOOGLE_API_KEY": cls.GOOGLE_API_KEY,
+            "OPENAI_API_KEY": cls.OPENAI_API_KEY
+        }
+        missing_keys = [key for key, value in required_keys.items() if not value]
+        if missing_keys:
+            raise ValueError(f"Missing required API keys: {', '.join(missing_keys)}")
     
 class ProductionConfig(Config):
     DEBUG = False
