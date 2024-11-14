@@ -27,7 +27,7 @@ class Config:
     HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
+    
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
