@@ -1,11 +1,15 @@
 from flask import request, jsonify
 from models.report_datafetcher import DataFetcher, AirQualityReport
+import logging
+# Set up a basic logger configuration
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class ReportView:
     @staticmethod
     def generate_air_quality_report():
         """Fetch air quality data and generate a report based on grid_id, start_time, end_time, and audience."""
-        print('Processing request to generate air quality report...')
+        logger.info('Received request to generate air quality report.')
 
         # Extract data from the request
         data = request.json
