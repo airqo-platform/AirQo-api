@@ -70,107 +70,53 @@ const consumeHourlyMeasurements = async (messageData) => {
       logger.error(
         `KAFKA: the sent message in undefined --- ${stringify(messageData)}`
       );
+      return;
     }
+
     const repairedJSONString = jsonrepair(messageData);
-    // logObject("original string", messageData);
-    // logObject("repaired string", repairedJSONString);
     const measurements = JSON.parse(repairedJSONString).data;
-    // const measurements = JSON.parse(repairedJSONString);
+
     if (!Array.isArray(measurements) || isEmpty(measurements)) {
-      // logger.error(
-      //   `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${stringify(
-      //     measurements
-      //   )}`
-      // );
-    } else {
-      const cleanedMeasurements = measurements.map((obj) =>
-        cleanDeep(obj, { cleanValues: ["NaN"] })
-      );
-      const options = {
-        abortEarly: false,
-      };
-      const { error, value } = eventsSchema.validate(
-        cleanedMeasurements,
-        options
-      );
+      return;
+    }
 
-      if (error) {
-        // logObject("error.details[0].message", error.details[0].message);
-        // logObject("error.details[0]", error.details[0]);
-        // logObject("error.details", error.details);
-        const errorDetails = error.details.map((detail) => {
-          const event = detail.context.value;
-          // logObject("KAFKA: the event causing the error", event);
-          const {
-            device_number,
-            device_id,
-            timestamp,
-            site_id,
-            battery,
-            network,
-            device_latitude,
-            device_longitude,
-            site_latitude,
-            site_longitude,
-          } = value[detail.path[0]];
-          // return {
-          //   message: detail.message,
-          //   key: detail.context.key,
-          //   value: detail.context.value,
-          //   device_number: device_number ? device_number : undefined,
-          //   timestamp: timestamp ? timestamp : undefined,
-          // };
-        });
-        // logger.error(
-        //   `KAFKA: Input validation formatted errors -- ${stringify(
-        //     errorDetails
-        //   )}`
-        // );
+    const cleanedMeasurements = measurements.map((obj) =>
+      cleanDeep(obj, { cleanValues: ["NaN"] })
+    );
 
-        // logger.error(
-        //     `KAFKA: ALL the input validation errors --- ${stringify(error.details)}`
-        // );
+    const options = {
+      abortEarly: false,
+    };
 
-        // logger.info(
-        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${stringify(value)}`
-        // );
-      }
-      // logObject("value", value);
-      // logObject("cleanedMeasurements", cleanedMeasurements);
-      const request = {
-        body: cleanedMeasurements,
-      };
-      const responseFromInsertMeasurements = await createEvent.create(request);
+    const { error, value } = eventsSchema.validate(
+      cleanedMeasurements,
+      options
+    );
 
-      // logObject(
-      //   "responseFromInsertMeasurements",
-      //   responseFromInsertMeasurements
-      // );
+    if (error) {
+      const errorDetails = error.details.map((detail) => {
+        const { device_number, timestamp } = value[detail.path[0]];
+        return {
+          message: detail.message,
+          key: detail.context.key,
+          device_number,
+          timestamp,
+        };
+      });
+    }
 
-      if (responseFromInsertMeasurements.success === false) {
-        console.log("KAFKA: failed to store the measurements");
-        // logger.error(
-        //   `KAFKA: responseFromInsertMeasurements --- ${stringify(
-        //     responseFromInsertMeasurements
-        //   )}`
-        // );
-      } else if (responseFromInsertMeasurements.success === true) {
-        console.log("KAFKA: successfully stored the measurements");
-        // logger.info(
-        //     `KAFKA: successfully inserted the measurements --- ${stringify(responseFromInsertMeasurements.message ?
-        //     responseFromInsertMeasurements.message :
-        //     "")}`
-        // );
-      }
+    const request = {
+      body: cleanedMeasurements,
+    };
+
+    const responseFromInsertMeasurements = await createEvent.create(request);
+
+    if (responseFromInsertMeasurements.success === false) {
+      console.log("KAFKA: failed to store the measurements");
+    } else if (responseFromInsertMeasurements.success === true) {
+      console.log("KAFKA: successfully stored the measurements");
     }
   } catch (error) {
-    // logObject("KAFKA error for consumeHourlyMeasurements()", error);
-    logger.info(
-      `ℹ️ℹ️ incoming KAFKA value which is causing errors --- ${message.value.toString()}`
-    );
-    logger.info(
-      `ℹ️ℹ️ incoming KAFKA value's TYPE which is causing errors --- ${typeof message.value}`
-    );
     logger.error(`🐛🐛 KAFKA: error message --- ${error.message}`);
     logger.error(`🐛🐛 KAFKA: full error object --- ${stringify(error)}`);
   }
@@ -192,35 +138,37 @@ const kafkaConsumer = async () => {
     // Define topic-to-operation function mapping
     const topicOperations = {
       ["hourly-measurements-topic"]: consumeHourlyMeasurements,
-      // ["new-hourly-measurements-topic"]: consumeHourlyMeasurements,
-      // Add more topics and their corresponding functions as needed
     };
+
     await consumer.connect();
-    // Subscribe to all topics in the mapping
+
+    // First, subscribe to all topics
     await Promise.all(
-      Object.keys(topicOperations).map((topic) => {
-        consumer.subscribe({ topic, fromBeginning: false });
-        consumer.run({
-          eachMessage: async ({ message }) => {
-            try {
-              const operation = topicOperations[topic];
-              if (operation) {
-                const messageData = message.value.toString();
-                await operation(messageData);
-              } else {
-                logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
-              }
-            } catch (error) {
-              logger.error(
-                `🐛🐛 Error processing Kafka message for topic ${topic}: ${stringify(
-                  error
-                )}`
-              );
-            }
-          },
-        });
-      })
+      Object.keys(topicOperations).map((topic) =>
+        consumer.subscribe({ topic, fromBeginning: false })
+      )
     );
+
+    // Then, start consuming messages
+    await consumer.run({
+      eachMessage: async ({ topic, partition, message }) => {
+        try {
+          const operation = topicOperations[topic];
+          if (operation) {
+            const messageData = message.value.toString();
+            await operation(messageData);
+          } else {
+            logger.error(`🐛🐛 No operation defined for topic: ${topic}`);
+          }
+        } catch (error) {
+          logger.error(
+            `🐛🐛 Error processing Kafka message for topic ${topic}: ${stringify(
+              error
+            )}`
+          );
+        }
+      },
+    });
   } catch (error) {
     logObject("Error connecting to Kafka", error);
     logger.error(`📶📶 Error connecting to Kafka: ${stringify(error)}`);
