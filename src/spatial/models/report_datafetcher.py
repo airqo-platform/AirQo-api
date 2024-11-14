@@ -11,6 +11,7 @@ GOOGLE_API_KEY = Config.GOOGLE_API_KEY
 genai.configure(api_key=GOOGLE_API_KEY)
 hf_token = Config.HUGGING_FACE_TOKEN
 
+
 if hf_token:
     login(hf_token)
 else:
@@ -20,11 +21,12 @@ class DataFetcher:
     @staticmethod
     def fetch_air_quality_data_a(grid_id, start_time, end_time):
         token = Config.AIRQO_API_TOKEN  
+        analtics_url = Config.ANALTICS_URL
         if token is None:
             print("Error: AIRQO_API_TOKEN environment variable is not set.")
             return None
 
-        url = f"https://platform.airqo.net/api/v2/analytics/grid/report?token={token}"
+        url= f"{analtics_url}?token={token}"
         payload = {"grid_id": grid_id, "start_time": start_time, "end_time": end_time}
 
         try:
