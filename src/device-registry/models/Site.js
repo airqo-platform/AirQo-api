@@ -92,6 +92,7 @@ const siteSchema = new Schema(
       trim: true,
       unique: true,
       required: [true, "generated name is required!"],
+      immutable: true,
     },
     airqloud_id: {
       type: ObjectId,
@@ -112,6 +113,7 @@ const siteSchema = new Schema(
       trim: true,
       unique: true,
       required: [true, "lat_long is required!"],
+      immutable: true,
     },
     description: {
       type: String,
@@ -127,6 +129,7 @@ const siteSchema = new Schema(
     latitude: {
       type: Number,
       required: [true, "latitude is required!"],
+      immutable: true,
     },
     approximate_latitude: {
       type: Number,
@@ -135,6 +138,7 @@ const siteSchema = new Schema(
     longitude: {
       type: Number,
       required: [true, "longitude is required!"],
+      immutable: true,
     },
     approximate_longitude: {
       type: Number,
@@ -360,60 +364,64 @@ const siteSchema = new Schema(
   }
 );
 
-siteSchema.post("save", async function(doc) {});
+siteSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  function(next) {
+    if (this.getUpdate) {
+      const updates = this.getUpdate();
+      if (updates) {
+        if (updates.latitude) delete updates.latitude;
+        if (updates.longitude) delete updates.longitude;
 
-siteSchema.pre("save", function(next) {
-  if (this.isModified("latitude")) {
-    delete this.latitude;
-  }
-  if (this.isModified("longitude")) {
-    delete this.longitude;
-  }
-  if (this.isModified("_id")) {
-    delete this._id;
-  }
-  if (this.isModified("generated_name")) {
-    delete this.generated_name;
-  }
+        if (updates.$set) {
+          if (updates.$set.latitude || updates.$set.longitude) {
+            return next(
+              new HttpError(
+                "Cannot modify latitude or longitude after creation",
+                httpStatus.BAD_REQUEST,
+                {
+                  message: "Cannot modify latitude or longitude after creation",
+                }
+              )
+            );
+          }
+          delete updates.$set.latitude;
+          delete updates.$set.longitude;
+        }
 
-  this.site_codes = [this._id, this.name, this.generated_name, this.lat_long];
-  if (this.search_name) {
-    this.site_codes.push(this.search_name);
-  }
-  if (this.location_name) {
-    this.site_codes.push(this.location_name);
-  }
-  if (this.formatted_name) {
-    this.site_codes.push(this.formatted_name);
-  }
+        if (updates.$push) {
+          delete updates.$push.latitude;
+          delete updates.$push.longitude;
+        }
+      }
+    }
 
-  // Check for duplicate values in the grids array
-  const duplicateValues = this.grids.filter(
-    (value, index, self) => self.indexOf(value) !== index
-  );
-  if (duplicateValues.length > 0) {
-    const error = new Error("Duplicate values found in grids array.");
-    return next(error);
-  }
+    if (this.isNew) {
+      if (this.isModified("latitude")) delete this.latitude;
+      if (this.isModified("longitude")) delete this.longitude;
+      if (this.isModified("_id")) delete this._id;
+      if (this.isModified("generated_name")) delete this.generated_name;
+      this.site_codes = [
+        this._id,
+        this.name,
+        this.generated_name,
+        this.lat_long,
+      ];
+      if (this.search_name) this.site_codes.push(this.search_name);
+      if (this.location_name) this.site_codes.push(this.location_name);
+      if (this.formatted_name) this.site_codes.push(this.formatted_name);
 
-  return next();
-});
+      const duplicateValues = this.grids.filter(
+        (value, index, self) => self.indexOf(value) !== index
+      );
+      if (duplicateValues.length > 0) {
+        return next(new Error("Duplicate values found in grids array."));
+      }
+    }
 
-siteSchema.pre("update", function(next) {
-  if (this.isModified("latitude")) {
-    delete this.latitude;
+    next();
   }
-  if (this.isModified("longitude")) {
-    delete this.longitude;
-  }
-  if (this.isModified("_id")) {
-    delete this._id;
-  }
-  if (this.isModified("generated_name")) {
-    delete this.generated_name;
-  }
-  return next();
-});
+);
 
 siteSchema.index({ lat_long: 1 }, { unique: true });
 siteSchema.index({ generated_name: 1 }, { unique: true });
