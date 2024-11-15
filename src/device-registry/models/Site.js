@@ -92,6 +92,7 @@ const siteSchema = new Schema(
       trim: true,
       unique: true,
       required: [true, "generated name is required!"],
+      immutable: true,
     },
     airqloud_id: {
       type: ObjectId,
@@ -112,6 +113,7 @@ const siteSchema = new Schema(
       trim: true,
       unique: true,
       required: [true, "lat_long is required!"],
+      immutable: true,
     },
     description: {
       type: String,
@@ -365,15 +367,12 @@ const siteSchema = new Schema(
 siteSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
   function(next) {
-    // Handle updates
     if (this.getUpdate) {
       const updates = this.getUpdate();
       if (updates) {
-        // Remove latitude and longitude from updates
         if (updates.latitude) delete updates.latitude;
         if (updates.longitude) delete updates.longitude;
 
-        // Check for $set operator
         if (updates.$set) {
           if (updates.$set.latitude || updates.$set.longitude) {
             return next(
@@ -386,27 +385,22 @@ siteSchema.pre(
               )
             );
           }
-          if (updates.$set.latitude) delete updates.$set.latitude;
-          if (updates.$set.longitude) delete updates.$set.longitude;
+          delete updates.$set.latitude;
+          delete updates.$set.longitude;
         }
 
-        // Check for $push operator
         if (updates.$push) {
-          if (updates.$push.latitude) delete updates.$push.latitude;
-          if (updates.$push.longitude) delete updates.$push.longitude;
+          delete updates.$push.latitude;
+          delete updates.$push.longitude;
         }
       }
     }
 
-    // Handle save operation
-    if (this.isNew || this.isModified()) {
-      // Remove specific fields on save
+    if (this.isNew) {
       if (this.isModified("latitude")) delete this.latitude;
       if (this.isModified("longitude")) delete this.longitude;
       if (this.isModified("_id")) delete this._id;
       if (this.isModified("generated_name")) delete this.generated_name;
-
-      // Update site_codes array
       this.site_codes = [
         this._id,
         this.name,
@@ -417,7 +411,6 @@ siteSchema.pre(
       if (this.location_name) this.site_codes.push(this.location_name);
       if (this.formatted_name) this.site_codes.push(this.formatted_name);
 
-      // Check for duplicate values in the grids array
       const duplicateValues = this.grids.filter(
         (value, index, self) => self.indexOf(value) !== index
       );
