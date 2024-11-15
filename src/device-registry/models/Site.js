@@ -362,38 +362,6 @@ const siteSchema = new Schema(
   }
 );
 
-siteSchema.post(
-  ["save", "updateOne", "findOneAndUpdate", "updateMany", "update"],
-  async function(doc, next) {
-    // Handle post-save logic
-    if (this.op === "save") {
-      // You can add any additional logic needed after saving a document here
-      // For example, logging, notifications, etc.
-    }
-
-    // Handle post-update logic
-    if (this.getUpdate) {
-      const updates = this.getUpdate();
-      if (updates && updates.$set) {
-        // Check if latitude or longitude are being modified
-        if (updates.$set.latitude || updates.$set.longitude) {
-          return next(
-            new HttpError(
-              "Cannot modify latitude or longitude after creation",
-              httpStatus.BAD_REQUEST,
-              {
-                message: "Cannot modify latitude or longitude after creation",
-              }
-            )
-          );
-        }
-      }
-    }
-
-    next();
-  }
-);
-
 siteSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
   function(next) {
@@ -407,6 +375,17 @@ siteSchema.pre(
 
         // Check for $set operator
         if (updates.$set) {
+          if (updates.$set.latitude || updates.$set.longitude) {
+            return next(
+              new HttpError(
+                "Cannot modify latitude or longitude after creation",
+                httpStatus.BAD_REQUEST,
+                {
+                  message: "Cannot modify latitude or longitude after creation",
+                }
+              )
+            );
+          }
           if (updates.$set.latitude) delete updates.$set.latitude;
           if (updates.$set.longitude) delete updates.$set.longitude;
         }
