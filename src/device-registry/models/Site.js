@@ -127,6 +127,7 @@ const siteSchema = new Schema(
     latitude: {
       type: Number,
       required: [true, "latitude is required!"],
+      immutable: true,
     },
     approximate_latitude: {
       type: Number,
@@ -135,6 +136,7 @@ const siteSchema = new Schema(
     longitude: {
       type: Number,
       required: [true, "longitude is required!"],
+      immutable: true,
     },
     approximate_longitude: {
       type: Number,
@@ -360,60 +362,94 @@ const siteSchema = new Schema(
   }
 );
 
-siteSchema.post("save", async function(doc) {});
+siteSchema.post(
+  ["save", "updateOne", "findOneAndUpdate", "updateMany", "update"],
+  async function(doc, next) {
+    // Handle post-save logic
+    if (this.op === "save") {
+      // You can add any additional logic needed after saving a document here
+      // For example, logging, notifications, etc.
+    }
 
-siteSchema.pre("save", function(next) {
-  if (this.isModified("latitude")) {
-    delete this.latitude;
-  }
-  if (this.isModified("longitude")) {
-    delete this.longitude;
-  }
-  if (this.isModified("_id")) {
-    delete this._id;
-  }
-  if (this.isModified("generated_name")) {
-    delete this.generated_name;
-  }
+    // Handle post-update logic
+    if (this.getUpdate) {
+      const updates = this.getUpdate();
+      if (updates && updates.$set) {
+        // Check if latitude or longitude are being modified
+        if (updates.$set.latitude || updates.$set.longitude) {
+          return next(
+            new HttpError(
+              "Cannot modify latitude or longitude after creation",
+              httpStatus.BAD_REQUEST,
+              {
+                message: "Cannot modify latitude or longitude after creation",
+              }
+            )
+          );
+        }
+      }
+    }
 
-  this.site_codes = [this._id, this.name, this.generated_name, this.lat_long];
-  if (this.search_name) {
-    this.site_codes.push(this.search_name);
+    next();
   }
-  if (this.location_name) {
-    this.site_codes.push(this.location_name);
-  }
-  if (this.formatted_name) {
-    this.site_codes.push(this.formatted_name);
-  }
+);
 
-  // Check for duplicate values in the grids array
-  const duplicateValues = this.grids.filter(
-    (value, index, self) => self.indexOf(value) !== index
-  );
-  if (duplicateValues.length > 0) {
-    const error = new Error("Duplicate values found in grids array.");
-    return next(error);
-  }
+siteSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  function(next) {
+    // Handle updates
+    if (this.getUpdate) {
+      const updates = this.getUpdate();
+      if (updates) {
+        // Remove latitude and longitude from updates
+        if (updates.latitude) delete updates.latitude;
+        if (updates.longitude) delete updates.longitude;
 
-  return next();
-});
+        // Check for $set operator
+        if (updates.$set) {
+          if (updates.$set.latitude) delete updates.$set.latitude;
+          if (updates.$set.longitude) delete updates.$set.longitude;
+        }
 
-siteSchema.pre("update", function(next) {
-  if (this.isModified("latitude")) {
-    delete this.latitude;
+        // Check for $push operator
+        if (updates.$push) {
+          if (updates.$push.latitude) delete updates.$push.latitude;
+          if (updates.$push.longitude) delete updates.$push.longitude;
+        }
+      }
+    }
+
+    // Handle save operation
+    if (this.isNew || this.isModified()) {
+      // Remove specific fields on save
+      if (this.isModified("latitude")) delete this.latitude;
+      if (this.isModified("longitude")) delete this.longitude;
+      if (this.isModified("_id")) delete this._id;
+      if (this.isModified("generated_name")) delete this.generated_name;
+
+      // Update site_codes array
+      this.site_codes = [
+        this._id,
+        this.name,
+        this.generated_name,
+        this.lat_long,
+      ];
+      if (this.search_name) this.site_codes.push(this.search_name);
+      if (this.location_name) this.site_codes.push(this.location_name);
+      if (this.formatted_name) this.site_codes.push(this.formatted_name);
+
+      // Check for duplicate values in the grids array
+      const duplicateValues = this.grids.filter(
+        (value, index, self) => self.indexOf(value) !== index
+      );
+      if (duplicateValues.length > 0) {
+        return next(new Error("Duplicate values found in grids array."));
+      }
+    }
+
+    next();
   }
-  if (this.isModified("longitude")) {
-    delete this.longitude;
-  }
-  if (this.isModified("_id")) {
-    delete this._id;
-  }
-  if (this.isModified("generated_name")) {
-    delete this.generated_name;
-  }
-  return next();
-});
+);
 
 siteSchema.index({ lat_long: 1 }, { unique: true });
 siteSchema.index({ generated_name: 1 }, { unique: true });
