@@ -714,12 +714,11 @@ const manageSite = {
         );
         return;
       }
-      const {
-        latitude,
-        longitude,
-        approximate_distance_in_km,
-        bearing,
-      } = req.body;
+      const { latitude, longitude, approximate_distance_in_km, bearing } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
 
       const result = createSiteUtil.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km, bearing },
