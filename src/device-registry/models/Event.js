@@ -23,6 +23,15 @@ const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
 const UPTIME_CHECK_THRESHOLD = 168;
 
+const AQI_RANGES = {
+  good: { min: 0, max: 9.0 },
+  moderate: { min: 9.1, max: 35.4 },
+  u4sg: { min: 35.5, max: 55.4 },
+  unhealthy: { min: 55.5, max: 125.4 },
+  very_unhealthy: { min: 125.5, max: 225.4 },
+  hazardous: { min: 225.5, max: null },
+};
+
 const valueSchema = new Schema({
   time: {
     type: Date,
@@ -856,6 +865,9 @@ async function fetchData(model, filter) {
         "site_image.airqloud_id": 0,
       })
       .project(projection)
+      .addFields({
+        aqi_ranges: AQI_RANGES,
+      })
       .facet({
         total: [{ $count: "device" }],
         data: [
@@ -868,8 +880,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 0] },
-                          { $lte: ["$pm2_5.value", 9.0] },
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                         ],
                       },
                       then: "00e400",
@@ -877,8 +889,12 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 9.0] },
-                          { $lte: ["$pm2_5.value", 35.4] },
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"],
+                          },
                         ],
                       },
                       then: "ffff00",
@@ -886,8 +902,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 35.4] },
-                          { $lte: ["$pm2_5.value", 55.4] },
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                         ],
                       },
                       then: "ff7e00",
@@ -895,8 +911,12 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 55.4] },
-                          { $lte: ["$pm2_5.value", 125.4] },
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"],
+                          },
                         ],
                       },
                       then: "ff0000",
@@ -904,14 +924,26 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 125.4] },
-                          { $lte: ["$pm2_5.value", 225.4] },
+                          {
+                            $gte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.min",
+                            ],
+                          },
+                          {
+                            $lte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.max",
+                            ],
+                          },
                         ],
                       },
                       then: "8f3f97",
                     },
                     {
-                      case: { $gt: ["$pm2_5.value", 225.4] },
+                      case: {
+                        $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                      },
                       then: "7e0023",
                     },
                   ],
@@ -925,8 +957,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 0] },
-                          { $lte: ["$pm2_5.value", 9.0] },
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                         ],
                       },
                       then: "Good",
@@ -934,8 +966,12 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 9.0] },
-                          { $lte: ["$pm2_5.value", 35.4] },
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"],
+                          },
                         ],
                       },
                       then: "Moderate",
@@ -943,8 +979,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 35.4] },
-                          { $lte: ["$pm2_5.value", 55.4] },
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                         ],
                       },
                       then: "Unhealthy for Sensitive Groups",
@@ -952,8 +988,12 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 55.4] },
-                          { $lte: ["$pm2_5.value", 125.4] },
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"],
+                          },
                         ],
                       },
                       then: "Unhealthy",
@@ -961,15 +1001,29 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 125.4] },
-                          { $lte: ["$pm2_5.value", 225.4] },
+                          {
+                            $gte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.min",
+                            ],
+                          },
+                          {
+                            $lte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.max",
+                            ],
+                          },
                         ],
                       },
                       then: "Very Unhealthy",
                     },
                     {
                       case: {
-                        $and: [{ $gt: ["$pm2_5.value", 225.4] }],
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                          },
+                        ],
                       },
                       then: "Hazardous",
                     },
@@ -983,8 +1037,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gte: ["$pm2_5.value", 0] },
-                          { $lte: ["$pm2_5.value", 9.0] },
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                         ],
                       },
                       then: "Green",
@@ -992,8 +1046,12 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 9.0] },
-                          { $lte: ["$pm2_5.value", 35.4] },
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"],
+                          },
                         ],
                       },
                       then: "Yellow",
@@ -1001,8 +1059,8 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 35.4] },
-                          { $lte: ["$pm2_5.value", 55.4] },
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                         ],
                       },
                       then: "Orange",
@@ -1010,8 +1068,12 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 55.4] },
-                          { $lte: ["$pm2_5.value", 125.4] },
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"],
+                          },
                         ],
                       },
                       then: "Red",
@@ -1019,15 +1081,29 @@ async function fetchData(model, filter) {
                     {
                       case: {
                         $and: [
-                          { $gt: ["$pm2_5.value", 125.4] },
-                          { $lte: ["$pm2_5.value", 225.4] },
+                          {
+                            $gte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.min",
+                            ],
+                          },
+                          {
+                            $lte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.max",
+                            ],
+                          },
                         ],
                       },
                       then: "Purple",
                     },
                     {
                       case: {
-                        $and: [{ $gt: ["$pm2_5.value", 225.4] }],
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                          },
+                        ],
                       },
                       then: "Maroon",
                     },
@@ -1035,6 +1111,7 @@ async function fetchData(model, filter) {
                   default: "Unknown",
                 },
               },
+              aqi_ranges: "$aqi_ranges",
             },
           },
         ],
@@ -1466,6 +1543,9 @@ async function signalData(model, filter) {
       "site_image.airqloud_id": 0,
     })
     .project(projection)
+    .addFields({
+      aqi_ranges: AQI_RANGES,
+    })
     .facet({
       total: [{ $count: "device" }],
       data: [
@@ -1478,8 +1558,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 0] },
-                        { $lte: ["$pm2_5.value", 9.0] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                       ],
                     },
                     then: "00e400",
@@ -1487,8 +1567,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 9.0] },
-                        { $lte: ["$pm2_5.value", 35.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
                       ],
                     },
                     then: "ffff00",
@@ -1496,8 +1576,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 35.4] },
-                        { $lte: ["$pm2_5.value", 55.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                       ],
                     },
                     then: "ff7e00",
@@ -1505,8 +1585,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 55.4] },
-                        { $lte: ["$pm2_5.value", 125.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
                       ],
                     },
                     then: "ff0000",
@@ -1514,14 +1594,26 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 125.4] },
-                        { $lte: ["$pm2_5.value", 225.4] },
+                        {
+                          $gte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.min",
+                          ],
+                        },
+                        {
+                          $lte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.max",
+                          ],
+                        },
                       ],
                     },
                     then: "8f3f97",
                   },
                   {
-                    case: { $gt: ["$pm2_5.value", 225.4] },
+                    case: {
+                      $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                    },
                     then: "7e0023",
                   },
                 ],
@@ -1535,8 +1627,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 0] },
-                        { $lte: ["$pm2_5.value", 9.0] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                       ],
                     },
                     then: "Good",
@@ -1544,8 +1636,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 9.0] },
-                        { $lte: ["$pm2_5.value", 35.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
                       ],
                     },
                     then: "Moderate",
@@ -1553,8 +1645,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 35.4] },
-                        { $lte: ["$pm2_5.value", 55.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                       ],
                     },
                     then: "Unhealthy for Sensitive Groups",
@@ -1562,8 +1654,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 55.4] },
-                        { $lte: ["$pm2_5.value", 125.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
                       ],
                     },
                     then: "Unhealthy",
@@ -1571,15 +1663,27 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 125.4] },
-                        { $lte: ["$pm2_5.value", 225.4] },
+                        {
+                          $gte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.min",
+                          ],
+                        },
+                        {
+                          $lte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.max",
+                          ],
+                        },
                       ],
                     },
                     then: "Very Unhealthy",
                   },
                   {
                     case: {
-                      $and: [{ $gt: ["$pm2_5.value", 225.4] }],
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
+                      ],
                     },
                     then: "Hazardous",
                   },
@@ -1593,8 +1697,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gte: ["$pm2_5.value", 0] },
-                        { $lte: ["$pm2_5.value", 9.0] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                       ],
                     },
                     then: "Green",
@@ -1602,8 +1706,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 9.0] },
-                        { $lte: ["$pm2_5.value", 35.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
                       ],
                     },
                     then: "Yellow",
@@ -1611,8 +1715,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 35.4] },
-                        { $lte: ["$pm2_5.value", 55.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                       ],
                     },
                     then: "Orange",
@@ -1620,8 +1724,8 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 55.4] },
-                        { $lte: ["$pm2_5.value", 125.4] },
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
                       ],
                     },
                     then: "Red",
@@ -1629,15 +1733,27 @@ async function signalData(model, filter) {
                   {
                     case: {
                       $and: [
-                        { $gt: ["$pm2_5.value", 125.4] },
-                        { $lte: ["$pm2_5.value", 225.4] },
+                        {
+                          $gte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.min",
+                          ],
+                        },
+                        {
+                          $lte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.max",
+                          ],
+                        },
                       ],
                     },
                     then: "Purple",
                   },
                   {
                     case: {
-                      $and: [{ $gt: ["$pm2_5.value", 225.4] }],
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
+                      ],
                     },
                     then: "Maroon",
                   },
@@ -1645,6 +1761,7 @@ async function signalData(model, filter) {
                 default: "Unknown",
               },
             },
+            aqi_ranges: "$aqi_ranges",
           },
         },
       ],
@@ -2106,6 +2223,9 @@ eventSchema.statics.list = async function(
           "site_image.airqloud_id": 0,
         })
         .project(projection)
+        .addFields({
+          aqi_ranges: AQI_RANGES,
+        })
         .facet({
           total: [{ $count: "device" }],
           data: [
@@ -2118,8 +2238,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 0] },
-                            { $lte: ["$pm2_5.value", 9.0] },
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                           ],
                         },
                         then: "00e400",
@@ -2127,8 +2247,18 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 9.0] },
-                            { $lte: ["$pm2_5.value", 35.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.max",
+                              ],
+                            },
                           ],
                         },
                         then: "ffff00",
@@ -2136,8 +2266,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 35.4] },
-                            { $lte: ["$pm2_5.value", 55.4] },
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                           ],
                         },
                         then: "ff7e00",
@@ -2145,8 +2275,18 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 55.4] },
-                            { $lte: ["$pm2_5.value", 125.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.max",
+                              ],
+                            },
                           ],
                         },
                         then: "ff0000",
@@ -2154,29 +2294,40 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 125.4] },
-                            { $lte: ["$pm2_5.value", 225.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.max",
+                              ],
+                            },
                           ],
                         },
                         then: "8f3f97",
                       },
                       {
-                        case: { $gt: ["$pm2_5.value", 225.4] },
+                        case: {
+                          $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                        },
                         then: "7e0023",
                       },
                     ],
                     default: "Unknown",
                   },
                 },
-
                 aqi_category: {
                   $switch: {
                     branches: [
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 0] },
-                            { $lte: ["$pm2_5.value", 9.0] },
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                           ],
                         },
                         then: "Good",
@@ -2184,8 +2335,18 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 9.0] },
-                            { $lte: ["$pm2_5.value", 35.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.max",
+                              ],
+                            },
                           ],
                         },
                         then: "Moderate",
@@ -2193,8 +2354,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 35.4] },
-                            { $lte: ["$pm2_5.value", 55.4] },
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                           ],
                         },
                         then: "Unhealthy for Sensitive Groups",
@@ -2202,8 +2363,18 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 55.4] },
-                            { $lte: ["$pm2_5.value", 125.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.max",
+                              ],
+                            },
                           ],
                         },
                         then: "Unhealthy",
@@ -2211,15 +2382,32 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 125.4] },
-                            { $lte: ["$pm2_5.value", 225.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.max",
+                              ],
+                            },
                           ],
                         },
                         then: "Very Unhealthy",
                       },
                       {
                         case: {
-                          $and: [{ $gt: ["$pm2_5.value", 225.4] }],
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.hazardous.min",
+                              ],
+                            },
+                          ],
                         },
                         then: "Hazardous",
                       },
@@ -2233,8 +2421,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gte: ["$pm2_5.value", 0] },
-                            { $lte: ["$pm2_5.value", 9.0] },
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
                           ],
                         },
                         then: "Green",
@@ -2242,8 +2430,18 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 9.0] },
-                            { $lte: ["$pm2_5.value", 35.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.max",
+                              ],
+                            },
                           ],
                         },
                         then: "Yellow",
@@ -2251,8 +2449,8 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 35.4] },
-                            { $lte: ["$pm2_5.value", 55.4] },
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
                           ],
                         },
                         then: "Orange",
@@ -2260,8 +2458,18 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 55.4] },
-                            { $lte: ["$pm2_5.value", 125.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.max",
+                              ],
+                            },
                           ],
                         },
                         then: "Red",
@@ -2269,15 +2477,32 @@ eventSchema.statics.list = async function(
                       {
                         case: {
                           $and: [
-                            { $gt: ["$pm2_5.value", 125.4] },
-                            { $lte: ["$pm2_5.value", 225.4] },
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.max",
+                              ],
+                            },
                           ],
                         },
                         then: "Purple",
                       },
                       {
                         case: {
-                          $and: [{ $gt: ["$pm2_5.value", 225.4] }],
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.hazardous.min",
+                              ],
+                            },
+                          ],
                         },
                         then: "Maroon",
                       },
@@ -2285,6 +2510,7 @@ eventSchema.statics.list = async function(
                     default: "Unknown",
                   },
                 },
+                aqi_ranges: "$aqi_ranges",
               },
             },
           ],
