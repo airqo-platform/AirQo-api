@@ -46,6 +46,36 @@ const SiteDetailsSchema = new Schema(
   { _id: false }
 );
 
+const AqiRangeSchema = new Schema(
+  {
+    good: {
+      min: { type: Number, required: true },
+      max: { type: Number, required: true },
+    },
+    moderate: {
+      min: { type: Number, required: true },
+      max: { type: Number, required: true },
+    },
+    u4sg: {
+      min: { type: Number, required: true },
+      max: { type: Number, required: true },
+    },
+    unhealthy: {
+      min: { type: Number, required: true },
+      max: { type: Number, required: true },
+    },
+    very_unhealthy: {
+      min: { type: Number, required: true },
+      max: { type: Number, required: true },
+    },
+    hazardous: {
+      min: { type: Number, required: true },
+      max: { type: Number }, // max can be null
+    },
+  },
+  { _id: false }
+);
+
 const ReadingsSchema = new Schema(
   {
     device: String,
@@ -59,6 +89,7 @@ const ReadingsSchema = new Schema(
     frequency: String,
     no2: { value: Number },
     siteDetails: SiteDetailsSchema,
+    aqi_ranges: AqiRangeSchema,
     timeDifferenceHours: Number,
     aqi_color: String,
     aqi_category: String,
