@@ -23,6 +23,15 @@ const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
 const UPTIME_CHECK_THRESHOLD = 168;
 
+const AQI_RANGES = {
+  good: { min: 0, max: 9.0 },
+  moderate: { min: 9.1, max: 35.4 },
+  u4sg: { min: 35.5, max: 55.4 },
+  unhealthy: { min: 55.5, max: 125.4 },
+  very_unhealthy: { min: 125.5, max: 225.4 },
+  hazardous: { min: 225.5, max: null },
+};
+
 const valueSchema = new Schema({
   time: {
     type: Date,
@@ -857,14 +866,7 @@ async function fetchData(model, filter) {
       })
       .project(projection)
       .addFields({
-        aqi_ranges: {
-          good: { min: 0, max: 9.0 },
-          moderate: { min: 9.1, max: 35.4 },
-          u4sg: { min: 35.5, max: 55.4 },
-          unhealthy: { min: 55.5, max: 125.4 },
-          very_unhealthy: { min: 125.5, max: 225.4 },
-          hazardous: { min: 225.5, max: null },
-        },
+        aqi_ranges: AQI_RANGES,
       })
       .facet({
         total: [{ $count: "device" }],
@@ -940,7 +942,7 @@ async function fetchData(model, filter) {
                     },
                     {
                       case: {
-                        $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.max"],
+                        $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
                       },
                       then: "7e0023",
                     },
@@ -1542,14 +1544,7 @@ async function signalData(model, filter) {
     })
     .project(projection)
     .addFields({
-      aqi_ranges: {
-        good: { min: 0, max: 9.0 },
-        moderate: { min: 9.1, max: 35.4 },
-        u4sg: { min: 35.5, max: 55.4 },
-        unhealthy: { min: 55.5, max: 125.4 },
-        very_unhealthy: { min: 125.5, max: 225.4 },
-        hazardous: { min: 225.5, max: null },
-      },
+      aqi_ranges: AQI_RANGES,
     })
     .facet({
       total: [{ $count: "device" }],
@@ -2229,14 +2224,7 @@ eventSchema.statics.list = async function(
         })
         .project(projection)
         .addFields({
-          aqi_ranges: {
-            good: { min: 0, max: 9.0 },
-            moderate: { min: 9.1, max: 35.4 },
-            u4sg: { min: 35.5, max: 55.4 },
-            unhealthy: { min: 55.5, max: 125.4 },
-            very_unhealthy: { min: 125.5, max: 225.4 },
-            hazardous: { min: 225.5, max: null },
-          },
+          aqi_ranges: AQI_RANGES,
         })
         .facet({
           total: [{ $count: "device" }],
