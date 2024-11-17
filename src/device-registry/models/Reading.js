@@ -49,27 +49,27 @@ const SiteDetailsSchema = new Schema(
 const AqiRangeSchema = new Schema(
   {
     good: {
-      min: { type: Number, required: true },
-      max: { type: Number, required: true },
+      min: { type: Number },
+      max: { type: Number },
     },
     moderate: {
-      min: { type: Number, required: true },
-      max: { type: Number, required: true },
+      min: { type: Number },
+      max: { type: Number },
     },
     u4sg: {
-      min: { type: Number, required: true },
-      max: { type: Number, required: true },
+      min: { type: Number },
+      max: { type: Number },
     },
     unhealthy: {
-      min: { type: Number, required: true },
-      max: { type: Number, required: true },
+      min: { type: Number },
+      max: { type: Number },
     },
     very_unhealthy: {
-      min: { type: Number, required: true },
-      max: { type: Number, required: true },
+      min: { type: Number },
+      max: { type: Number },
     },
     hazardous: {
-      min: { type: Number, required: true },
+      min: { type: Number },
       max: { type: Number }, // max can be null
     },
   },
