@@ -133,6 +133,7 @@ ReadingsSchema.methods = {
       no2: this.no2,
       siteDetails: this.siteDetails,
       timeDifferenceHours: this.timeDifferenceHours,
+      aqi_ranges: this.aqi_ranges,
       aqi_color: this.aqi_color,
       aqi_category: this.aqi_category,
       aqi_color_name: this.aqi_color_name,
