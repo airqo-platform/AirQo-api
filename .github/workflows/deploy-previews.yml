@@ -1181,7 +1181,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/website/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} ./
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} ./
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
@@ -1192,7 +1192,7 @@ jobs:
             --timeout=60 \
             --concurrency=10 \
             --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} \
-            --port=5000 \
+            --port=8000 \
             --cpu=1000m \
             --memory=1024Mi \
             --update-secrets=/etc/env/.env=sta-env-website-backend:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
