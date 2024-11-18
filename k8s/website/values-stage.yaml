@@ -1,0 +1,38 @@
+app:
+  name: airqo-stage-website-api
+  label: sta-website-api
+  namespace: staging
+  configmap: stage-website-api-config
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-website-api
+  tag: latest
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations: {}
+resources:
+  limits:
+    cpu: 100m
+    memory: 400Mi
+  requests:
+    cpu: 10m
+    memory: 180Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: stage-website-api-config-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8000
+  protocol: TCP
+  targetPort: 8000
+  nodePort: 31020
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetMemoryUtilizationPercentage: 80
