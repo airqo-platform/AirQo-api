@@ -1,37 +1,37 @@
 app:
-  name: airqo-stage-device-registry-api
-  label: sta-device-reg
+  name: airqo-stage-website-api
+  label: sta-website-api
   namespace: staging
-  configmap: env-device-registry-staging
+  configmap: stage-website-api-config
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api
-  tag: stage-4292371f-1731851989
+  repository: eu.gcr.io/airqo-250220/airqo-stage-website-api
+  tag: latest
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 100m
-    memory: 550Mi
+    memory: 400Mi
   requests:
-    cpu: 5m
-    memory: 450Mi
+    cpu: 10m
+    memory: 180Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
 volumes:
   - name: config-volume
     configMap:
-      name: device-registry-config-files
+      name: stage-website-api-config-files
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 3000
+  port: 8000
   protocol: TCP
-  targetPort: 3000
-  nodePort: 31002
+  targetPort: 8000
+  nodePort: 31020
 autoscaling:
   minReplicas: 1
   maxReplicas: 2

@@ -1,12 +1,12 @@
 app:
-  name: airqo-auth-api
-  label: auth-api
+  name: airqo-website-api
+  label: website-api
   namespace: production
-  configmap: prod-auth-api-config
+  configmap: prod-website-api-config
 replicaCount: 3
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-auth-api
-  tag: prod-0200622c-1731852033
+  repository: eu.gcr.io/airqo-250220/airqo-website-api
+  tag: latest
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -23,15 +23,15 @@ volumeMounts:
 volumes:
   - name: config-volume
     configMap:
-      name: prod-auth-api-config-files
+      name: prod-website-api-config-files
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 3000
+  port: 8000
   protocol: TCP
-  targetPort: 3000
-  nodePort: 30000
+  targetPort: 8000
+  nodePort: 30020
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
