@@ -21,9 +21,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the backend code into the container
 COPY . .
 
-# Ensure environment variables are read correctly
-COPY .env .env
-
 # Expose the port the Django app will run on
 EXPOSE 8000
 
