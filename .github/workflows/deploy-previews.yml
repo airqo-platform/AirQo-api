@@ -1181,7 +1181,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/website/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} ./
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} ./
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
