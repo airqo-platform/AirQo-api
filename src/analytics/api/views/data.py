@@ -2,7 +2,6 @@ import datetime
 import traceback
 from typing import List
 
-
 import flask_excel as excel
 import pandas as pd
 from flasgger import swag_from
@@ -88,7 +87,7 @@ class DataExportResource(Resource):
             "download_types": ["csv", "json"],
             "data_types": ["calibrated", "raw"],
             "output_formats": ["airqo-standard", "aqcsv"],
-            "frequencies": ["hourly", "daily", "raw"],
+            "frequencies": ["hourly", "daily", "raw", "weekly", "monthly", "yearly"],
         }
 
         json_data = request.get_json()
@@ -160,13 +159,10 @@ class DataExportResource(Resource):
                     AirQoRequests.Status.HTTP_404_NOT_FOUND,
                 )
             if minimum_output:
+                # Drop unnecessary columns
                 data_frame.drop(
                     columns=[
-                        "device_latitude",
-                        "device_longitude",
                         "site_id",
-                        "site_latitude",
-                        "site_longitude",
                     ],
                     inplace=True,
                 )
