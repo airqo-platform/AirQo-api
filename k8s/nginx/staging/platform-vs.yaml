@@ -63,8 +63,25 @@ spec:
   subroutes:
     - path: /inventory
       action:
-        pass: inventory
+        pass: inventory 
 
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: website
+  namespace: staging
+spec:
+  host: staging-platform.airqo.net
+  upstreams:
+    - name: website
+      service: airqo-stage-website-api-svc
+      port: 8000
+  subroutes:
+    - path: /website
+      action:
+        pass: website        
+               
 ---
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
@@ -141,7 +158,7 @@ spec:
       port: 8080
     - name: spatial
       service: airqo-stage-spatial-api-svc
-      port: 5000      
+      port: 5000            
   routes:
     - path: /
       action:
@@ -158,6 +175,8 @@ spec:
       route: staging/inventory  
     - path: /reports
       route: staging/reports  
+    - path: /website
+      route: staging/website      
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -286,3 +305,4 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
+               

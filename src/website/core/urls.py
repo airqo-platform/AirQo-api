@@ -34,33 +34,33 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('website/admin/', admin.site.urls),
 
     # API routes from custom apps in the 'apps' folder
-    path('api/', include('apps.press.urls')),
-    path('api/', include('apps.impact.urls')),
-    path('api/', include('apps.event.urls')),
-    path('api/', include('apps.highlights.urls')),
-    path('api/', include('apps.career.urls')),
-    path('api/', include('apps.publications.urls')),
-    path('api/', include('apps.team.urls')),
-    path('api/', include('apps.board.urls')),
-    path('api/', include('apps.externalTeam.urls')),
-    path('api/', include('apps.partners.urls')),
-    path('api/', include('apps.cleanair.urls')),
-    path('api/', include('apps.FAQ.urls')),
-    path('api/', include('apps.africancities.urls')),
+    path('website/', include('apps.press.urls')),
+    path('website/', include('apps.impact.urls')),
+    path('website/', include('apps.event.urls')),
+    path('website/', include('apps.highlights.urls')),
+    path('website/', include('apps.career.urls')),
+    path('website/', include('apps.publications.urls')),
+    path('website/', include('apps.team.urls')),
+    path('website/', include('apps.board.urls')),
+    path('website/', include('apps.externalTeam.urls')),
+    path('website/', include('apps.partners.urls')),
+    path('website/', include('apps.cleanair.urls')),
+    path('website/', include('apps.FAQ.urls')),
+    path('website/', include('apps.africancities.urls')),
 
     # Swagger URLs
     re_path(r'^swagger(?P<format>\.json|\.yaml)$',
             schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('swagger/', schema_view.with_ui('swagger',
+    path('website/swagger/', schema_view.with_ui('swagger',
          cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc',
+    path('website/redoc/', schema_view.with_ui('redoc',
          cache_timeout=0), name='schema-redoc'),
 
     # Healthcheck route for Docker container readiness
-    path('healthcheck/', healthcheck, name='healthcheck'),
+    path('website/healthcheck/', healthcheck, name='healthcheck'),
 ]
 
 # Serve media files during development
