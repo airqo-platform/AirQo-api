@@ -923,7 +923,7 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
-      manufacturer_id,
+      serial_number,
       authRequired,
     } = { ...req.query, ...req.params };
 
@@ -985,8 +985,8 @@ const generateFilter = {
     if (network) {
       filter.network = network;
     }
-    if (manufacturer_id) {
-      filter.manufacturer_id = manufacturer_id;
+    if (serial_number) {
+      filter.serial_number = serial_number;
     }
 
     if (authRequired) {
