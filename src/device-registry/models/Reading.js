@@ -349,6 +349,8 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
     const matchCondition = {
       [`${pollutant}.value`]: { $lt: threshold },
     };
+    logObject("matchCondition", matchCondition);
+    logObject("pollutant", pollutant);
 
     const pipeline = this.aggregate()
       .match(matchCondition)

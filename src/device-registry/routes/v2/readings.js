@@ -1,11 +1,14 @@
 const express = require("express");
 const router = express.Router();
+const redis = require("@config/redis");
+const cacheGenerator = require("@utils/cache-id-generator");
 const eventController = require("@controllers/create-event");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { oneOf, query, validationResult, param } = require("express-validator");
 const validateOptionalObjectId = require("@middleware/validateOptionalObjectId");
+// const { cacheMiddleware, createCacheMiddleware } = require("@middleware/cache");
 
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);
@@ -24,6 +27,36 @@ const validatePagination = (req, res, next) => {
   next();
 };
 
+const cacheMiddleware = async (req, res, next) => {
+  try {
+    const cacheID = cacheGenerator.generateCacheID(req, next);
+
+    // Attach cache-related data to the request object
+    req.cacheID = cacheID;
+    req.cache = {
+      get: async () => await redis.get(cacheID),
+      set: async (data) => await redis.set(cacheID, JSON.stringify(data)),
+    };
+
+    // Check for cached data
+    const cachedData = await redis.get(cacheID);
+    if (cachedData) {
+      req.cachedData = JSON.parse(cachedData);
+    }
+
+    // Always call next() to proceed to the route handler
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// const customCacheMiddleware = createCacheMiddleware({
+//   timeout: 3000, // 3-second timeout
+//   logErrors: true,
+//   fallbackOnError: true,
+// });
+
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
@@ -35,6 +68,7 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 router.use(validatePagination);
+// router.use(cacheMiddleware);
 
 /******************* create-events use-case *******************************/
 
