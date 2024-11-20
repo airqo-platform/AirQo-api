@@ -1,6 +1,7 @@
 # Third-party libraries
 
 import math
+from typing import List
 
 from flasgger import swag_from
 from flask import request
@@ -26,6 +27,10 @@ from api.utils.pollutants import (
 )
 from api.utils.request_validators import validate_request_json
 from main import rest_api_v2
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @rest_api_v2.route("/dashboard/chart/data")
@@ -145,13 +150,79 @@ class D3ChartDataResource(Resource):
         "pollutant|required:str",
         "chartType|required:str",
     )
+    def _get_validated_filter(self, json_data):
+        """
+        Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
+        and applies filtering if necessary.
+
+        Args:
+            json_data (dict): JSON payload from the request.
+
+        Returns:
+            tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
+
+        Raises:
+            ValueError: If more than one or none of the filters are provided.
+        """
+        error_message: str = ""
+        validated_data: List[str] = None
+
+        # TODO Lias with device registry to cleanup this makeshift implementation
+        devices = ["devices", "device_ids", "device_names"]
+        sites = ["sites", "site_names", "site_ids"]
+
+        valid_filters = [
+            "sites",
+            "site_names",
+            "site_ids",
+            "devices",
+            "device_ids",
+            "airqlouds",
+            "device_names",
+        ]
+        provided_filters = [key for key in valid_filters if json_data.get(key)]
+        if len(provided_filters) != 1:
+            raise ValueError(
+                "Specify exactly one of 'airqlouds', 'sites', 'device_names', or 'devices' in the request body."
+            )
+        filter_type = provided_filters[0]
+        filter_value = json_data.get(filter_type)
+
+        if filter_type in sites:
+            validated_value = filter_non_private_sites(filter_type, filter_value)
+        elif filter_type in devices:
+            validated_value = filter_non_private_devices(filter_type, filter_value)
+        else:
+            return filter_type, filter_value, None
+
+        if validated_value and validated_value.get("status") == "success":
+            # TODO This should be cleaned up.
+            validated_data = validated_value.get("data", {}).get(
+                "sites" if filter_type in sites else "devices", []
+            )
+        else:
+            error_message = validated_value.get("message", "Validation failed")
+
+        return filter_type, validated_data, error_message
+
     def post(self):
         tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
-        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
+
+        try:
+            filter_type, filter_value, error_message = self._get_validated_filter(
+                json_data
+            )
+            if error_message:
+                return error_message, AirQoRequests.Status.HTTP_400_BAD_REQUEST
+        except Exception as e:
+            logger.exception(f"An error has occured; {e}")
+
+        sites = filter_non_private_sites("sites", json_data.get("sites", {})).get(
             "sites", []
         )
+
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
@@ -161,7 +232,7 @@ class D3ChartDataResource(Resource):
         events_model = EventsModel(tenant)
         # data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
         data = events_model.get_d3_chart_events_v2(
-            sites, start_date, end_date, pollutant, frequency, tenant
+            filter_value, start_date, end_date, pollutant, frequency, tenant
         )
 
         if chart_type.lower() == "pie":
