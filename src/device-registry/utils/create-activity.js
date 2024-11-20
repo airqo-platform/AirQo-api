@@ -162,7 +162,18 @@ const createActivity = {
           errors: { message: `Device ${deviceName} already deployed` },
         };
       } else if (responseFromDeviceSearchCheck.success === false) {
-        const responseFromListSite = await createSiteUtil.list(request, next);
+        // I might consider just adding the site_id to the query field of request
+        // from here....
+        const siteListRequest = {
+          ...request,
+          query: {
+            site_id,
+          },
+        };
+        const responseFromListSite = await createSiteUtil.list(
+          siteListRequest,
+          next
+        );
         if (responseFromListSite.success === true) {
           if (responseFromListSite.data.length === 1) {
             const { latitude, longitude } = responseFromListSite.data[0];

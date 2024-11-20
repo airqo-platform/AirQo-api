@@ -195,14 +195,11 @@ router.post(
         .withMessage(
           "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
-
       body("network")
         .trim()
-        .exists()
-        .withMessage("the network is is missing in your request")
-        .bail()
+        .optional()
         .notEmpty()
-        .withMessage("the network should not be empty")
+        .withMessage("the network should not be empty IF provided")
         .bail()
         .toLowerCase()
         .custom(validateNetwork)
