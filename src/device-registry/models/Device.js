@@ -309,6 +309,9 @@ deviceSchema.pre("save", function(next) {
   if (this.alias) {
     this.device_codes.push(this.alias);
   }
+  if (this.serial_number) {
+    this.device_codes.push(this.serial_number);
+  }
 
   // Check for duplicate values in cohorts array
   const duplicateValues = this.cohorts.filter(
@@ -697,6 +700,8 @@ deviceSchema.statics = {
           _id: 1,
           name: 1,
           device_number: 1,
+          serial_number: 1,
+          device_codes: 1,
           long_name: 1,
           category: 1,
         },
