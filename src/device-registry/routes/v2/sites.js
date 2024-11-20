@@ -944,6 +944,86 @@ router.delete(
   ]),
   siteController.delete
 );
+router.post(
+  "/approximate",
+  oneOf([
+    [
+      body("latitude")
+        .exists()
+        .withMessage("the latitude should be provided")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the latitude must have 2 or more decimal places"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        }),
+      body("longitude")
+        .exists()
+        .withMessage("the longitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the longitude must have 2 or more decimal places"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        }),
+    ],
+  ]),
+  siteController.createApproximateCoordinates
+);
+router.get(
+  "/approximate",
+  oneOf([
+    [
+      query("latitude")
+        .exists()
+        .withMessage("the latitude should be provided")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the latitude must have 2 or more decimal places"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        }),
+      query("longitude")
+        .exists()
+        .withMessage("the longitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the longitude must have 2 or more decimal places"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        }),
+    ],
+  ]),
+  siteController.createApproximateCoordinates
+);
 router.get(
   "/nearest",
   oneOf([

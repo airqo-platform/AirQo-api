@@ -56,7 +56,7 @@ spec:
       port: 8080  
     - name: spatial
       service: airqo-stage-spatial-api-svc
-      port: 5000           
+      port: 5000                
   routes:
     - path: /
       action:
@@ -189,3 +189,4 @@ spec:
             add:
               - name: Content-Type
                 value: application/json 
+               

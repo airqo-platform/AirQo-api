@@ -1,19 +1,19 @@
 app:
-  name: airqo-stage-auth-api
-  label: sta-auth-api
+  name: airqo-stage-website-api
+  label: sta-website-api
   namespace: staging
-  configmap: stage-auth-api-config
+  configmap: stage-website-api-config
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-auth-api
-  tag: stage-e0815cc8-1731824148
+  repository: eu.gcr.io/airqo-250220/airqo-stage-website-api
+  tag: stage-18f9b58d-1731945154
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 100m
-    memory: 250Mi
+    memory: 400Mi
   requests:
     cpu: 10m
     memory: 180Mi
@@ -23,15 +23,15 @@ volumeMounts:
 volumes:
   - name: config-volume
     configMap:
-      name: stage-auth-api-config-files
+      name: stage-website-api-config-files
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 3000
+  port: 8000
   protocol: TCP
-  targetPort: 3000
-  nodePort: 31000
+  targetPort: 8000
+  nodePort: 31020
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
