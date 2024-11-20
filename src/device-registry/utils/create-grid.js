@@ -223,10 +223,14 @@ const createGrid = {
         next
       );
 
-      logObject("responseFromFindSites", responseFromFindSites);
-
       if (responseFromFindSites.success === false) {
         return responseFromFindSites;
+      } else if (isEmpty(responseFromFindSites.data)) {
+        return {
+          success: true,
+          message: `Refresh successful but NO active sites yet for Grid ${grid_id.toString()}`,
+          status: httpStatus.OK,
+        };
       }
 
       const site_ids = responseFromFindSites.data.map(({ _id }) =>
@@ -416,7 +420,7 @@ const createGrid = {
         "site_id"
       );
 
-      logObject("sitesWithDeployedDevices", sitesWithDeployedDevices);
+      // logObject("sitesWithDeployedDevices", sitesWithDeployedDevices);
 
       // Calculate the bounding box of the grid polygon
       const minLongitude = Math.min(

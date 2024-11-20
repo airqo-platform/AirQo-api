@@ -1087,7 +1087,7 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
-    } = { ...req.query, ...req.params, ...req.body };
+    } = { ...req.query, ...req.params };
     const filter = {};
 
     if (county) {
@@ -1360,7 +1360,6 @@ const generateFilter = {
       const { id, name, network_codes, net_id } = {
         ...req.query,
         ...req.params,
-        ...req.body,
       };
       let filter = {};
       if (name) {
@@ -1397,7 +1396,6 @@ const generateFilter = {
       const { id, name, admin_level_codes, level_id } = {
         ...req.query,
         ...req.params,
-        ...req.body,
       };
 
       let filter = {};
@@ -1435,7 +1433,6 @@ const generateFilter = {
     let { id, name, admin_level, summary, network } = {
       ...req.query,
       ...req.params,
-      ...req.body,
     };
     let filter = {};
 
@@ -1476,7 +1473,6 @@ const generateFilter = {
     } = {
       ...req.query,
       ...req.params,
-      ...req.body,
     };
 
     let filter = {};
@@ -1542,7 +1538,6 @@ const generateFilter = {
     } = {
       ...req.query,
       ...req.params,
-      ...req.body,
     };
     let filter = {};
     if (id) {
