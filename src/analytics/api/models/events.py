@@ -364,6 +364,7 @@ class EventsModel(BasePyMongoModel):
                 time_grouping,
                 start_date,
                 end_date,
+                frequency,
             )
         elif filter_type == "airqlouds":
             return self.get_airqloud_query(
@@ -373,6 +374,7 @@ class EventsModel(BasePyMongoModel):
                 time_grouping,
                 start_date,
                 end_date,
+                frequency,
             )
         else:
             raise ValueError("Invalid filter type")
