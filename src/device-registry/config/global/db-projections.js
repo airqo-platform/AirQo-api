@@ -382,6 +382,7 @@ const dbProjections = {
     group: 1,
     api_code: 1,
     manufacturer_id: 1,
+    authRequired: 1,
     category: 1,
     cohorts: 1,
     grids: 1,
