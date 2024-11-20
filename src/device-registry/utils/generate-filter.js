@@ -929,6 +929,50 @@ const generateFilter = {
 
     const filter = {};
 
+    const toBooleanSafe = (value) => {
+      if (value === undefined) return undefined;
+
+      // If already a boolean, return it
+      if (typeof value === "boolean") return value;
+
+      // String conversions
+      const stringValue = String(value)
+        .toLowerCase()
+        .trim();
+      if (["true", "yes", "1"].includes(stringValue)) return true;
+      if (["false", "no", "0"].includes(stringValue)) return false;
+
+      return undefined; // Invalid input
+    };
+
+    if (authRequired !== undefined) {
+      const boolValue = toBooleanSafe(authRequired);
+      if (boolValue !== undefined) {
+        filter.authRequired = boolValue;
+      }
+    }
+
+    if (active !== undefined) {
+      const boolValue = toBooleanSafe(active);
+      if (boolValue !== undefined) {
+        filter.isActive = boolValue;
+      }
+    }
+
+    if (visibility !== undefined) {
+      const boolValue = toBooleanSafe(visibility);
+      if (boolValue !== undefined) {
+        filter.visibility = boolValue;
+      }
+    }
+
+    if (primary !== undefined) {
+      const boolValue = toBooleanSafe(primary);
+      if (boolValue !== undefined) {
+        filter.primary = boolValue;
+      }
+    }
+
     const modifyAndConcatArray = (value) => {
       const deviceArray = value.toString().split(",");
       const modifiedDeviceArray = deviceArray.map((value) =>
@@ -989,9 +1033,9 @@ const generateFilter = {
       filter.serial_number = serial_number;
     }
 
-    if (authRequired) {
-      filter.authRequired = authRequired.toLowerCase() === "yes";
-    }
+    // if (authRequired) {
+    //   filter.authRequired = authRequired.toLowerCase() === "yes";
+    // }
 
     if (group) {
       filter["group"] = group;
@@ -1033,17 +1077,17 @@ const generateFilter = {
       filter.locationName = mapAddress || map;
     }
 
-    if (primary) {
-      filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
-    }
+    // if (primary) {
+    //   filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
+    // }
 
-    if (active) {
-      filter.isActive = active.toLowerCase() === "yes";
-    }
+    // if (active) {
+    //   filter.isActive = active.toLowerCase() === "yes";
+    // }
 
-    if (visibility) {
-      filter.visibility = visibility.toLowerCase() === "yes";
-    }
+    // if (visibility) {
+    //   filter.visibility = visibility.toLowerCase() === "yes";
+    // }
 
     const validStatuses = constants.VALID_DEVICE_STATUSES;
 
