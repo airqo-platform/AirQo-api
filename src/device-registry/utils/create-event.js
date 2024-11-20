@@ -2246,32 +2246,42 @@ const createEvent = {
         network,
         language,
         averages,
+        threshold,
+        pollutant,
       } = { ...request.query, ...request.params };
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
-      return `list_events_${device ? device : "noDevice"}_${tenant}_${
-        skip ? skip : 0
-      }_${limit ? limit : 0}_${recent ? recent : "noRecent"}_${
-        frequency ? frequency : "noFrequency"
-      }_${endTime ? endTime : "noEndTime"}_${
-        startTime ? startTime : "noStartTime"
-      }_${device_id ? device_id : "noDeviceId"}_${site ? site : "noSite"}_${
-        site_id ? site_id : "noSiteId"
-      }_${day ? day : "noDay"}_${
-        device_number ? device_number : "noDeviceNumber"
-      }_${metadata ? metadata : "noMetadata"}_${
-        external ? external : "noExternal"
-      }_${airqloud ? airqloud : "noAirQloud"}_${
-        airqloud_id ? airqloud_id : "noAirQloudID"
-      }_${lat_long ? lat_long : "noLatLong"}_${page ? page : "noPage"}_${
-        running ? running : "noRunning"
-      }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}_${
-        latitude ? latitude : "noLatitude"
-      }_${longitude ? longitude : "noLongitude"}_${
-        network ? network : "noNetwork"
-      }_${language ? language : "noLanguage"}_${
-        averages ? averages : "noAverages"
-      }`;
+      return `list_events
+      _${device ? device : "noDevice"}
+      _${tenant}
+      _${skip ? skip : 0}
+      _${limit ? limit : 0}
+      _${recent ? recent : "noRecent"}
+      _${frequency ? frequency : "noFrequency"}
+      _${endTime ? endTime : "noEndTime"}
+      _${startTime ? startTime : "noStartTime"}
+      _${device_id ? device_id : "noDeviceId"}
+      _${site ? site : "noSite"}
+      _${site_id ? site_id : "noSiteId"}
+      _${day ? day : "noDay"}
+      _${device_number ? device_number : "noDeviceNumber"}
+      _${metadata ? metadata : "noMetadata"}
+      _${external ? external : "noExternal"}
+      _${airqloud ? airqloud : "noAirQloud"}
+      _${airqloud_id ? airqloud_id : "noAirQloudID"}
+      _${lat_long ? lat_long : "noLatLong"}
+      _${page ? page : "noPage"}
+      _${running ? running : "noRunning"}
+      _${index ? index : "noIndex"}
+      _${brief ? brief : "noBrief"}
+      _${latitude ? latitude : "noLatitude"}
+      _${longitude ? longitude : "noLongitude"}
+      _${network ? network : "noNetwork"}
+      _${language ? language : "noLanguage"}
+      _${averages ? averages : "noAverages"}
+      _${threshold ? threshold : "noThreshold"}
+      _${pollutant ? pollutant : "noPollutant"}
+      `;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

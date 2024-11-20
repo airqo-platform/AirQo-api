@@ -77,6 +77,16 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    manufacturer_id: {
+      type: String,
+      trim: true,
+      unique: true,
+    },
+    api_code: {
+      type: String,
+      trim: true,
+      unique: true,
+    },
     access_code: {
       type: String,
     },
@@ -283,6 +293,8 @@ deviceSchema.methods = {
       mobility: this.mobility,
       network: this.network,
       group: this.group,
+      api_code: this.api_code,
+      manufacturer_id: this.manufacturer_id,
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
