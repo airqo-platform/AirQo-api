@@ -923,6 +923,8 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
+      manufacturer_id,
+      authRequired,
     } = { ...req.query, ...req.params };
 
     const filter = {};
@@ -982,6 +984,13 @@ const generateFilter = {
 
     if (network) {
       filter.network = network;
+    }
+    if (manufacturer_id) {
+      filter.manufacturer_id = manufacturer_id;
+    }
+
+    if (authRequired) {
+      filter.authRequired = authRequired.toLowerCase() === "yes";
     }
 
     if (group) {

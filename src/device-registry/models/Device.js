@@ -82,6 +82,11 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
+    authRequired: {
+      type: Boolean,
+      trim: true,
+      default: true,
+    },
     api_code: {
       type: String,
       trim: true,
@@ -295,6 +300,7 @@ deviceSchema.methods = {
       group: this.group,
       api_code: this.api_code,
       manufacturer_id: this.manufacturer_id,
+      authRequired: this.authRequired,
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
