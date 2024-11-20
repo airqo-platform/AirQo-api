@@ -78,7 +78,7 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    manufacturer_id: {
+    serial_number: {
       type: String,
       trim: true,
       unique: true,
@@ -245,13 +245,13 @@ deviceSchema.pre("save", function(next) {
     this.network = constants.DEFAULT_NETWORK;
   }
 
-  // Manage manufacturer_id based on device_number and network
+  // Manage serial_number based on device_number and network
   if (this.network === "airqo" && this.device_number) {
-    this.manufacturer_id = String(this.device_number); // Assign device_number as a string
-  } else if (!this.manufacturer_id && this.network !== "airqo") {
+    this.serial_number = String(this.device_number); // Assign device_number as a string
+  } else if (!this.serial_number && this.network !== "airqo") {
     next(
       new HttpError(
-        "Devices not part of the AirQo network must include a manufacturer_id as a string.",
+        "Devices not part of the AirQo network must include a serial_number as a string.",
         httpStatus.BAD_REQUEST
       )
     );
@@ -338,9 +338,9 @@ deviceSchema.pre(
     // Handling the network condition
     if (updateData.network === "airqo") {
       if (updateData.device_number) {
-        updateData.manufacturer_id = String(updateData.device_number);
-      } else if (updateData.manufacturer_id) {
-        updateData.device_number = Number(updateData.manufacturer_id);
+        updateData.serial_number = String(updateData.device_number);
+      } else if (updateData.serial_number) {
+        updateData.device_number = Number(updateData.serial_number);
       }
     }
 
@@ -408,7 +408,7 @@ deviceSchema.methods = {
       network: this.network,
       group: this.group,
       api_code: this.api_code,
-      manufacturer_id: this.manufacturer_id,
+      serial_number: this.serial_number,
       authRequired: this.authRequired,
       long_name: this.long_name,
       latitude: this.latitude,

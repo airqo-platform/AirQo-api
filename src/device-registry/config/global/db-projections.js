@@ -381,7 +381,7 @@ const dbProjections = {
     network: 1,
     group: 1,
     api_code: 1,
-    manufacturer_id: 1,
+    serial_number: 1,
     authRequired: 1,
     category: 1,
     cohorts: 1,
