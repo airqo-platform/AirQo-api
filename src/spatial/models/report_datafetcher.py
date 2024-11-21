@@ -4,6 +4,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import login
 from configure import Config
 import google.generativeai as genai 
+import logging
 
 
 # Configure API keys
@@ -21,12 +22,12 @@ class DataFetcher:
     @staticmethod
     def fetch_air_quality_data_a(grid_id, start_time, end_time):
         token = Config.AIRQO_API_TOKEN  
-        analtics_url = Config.ANALTICS_URL
+        analytics_url = Config.ANALTICS_URL
         if token is None:
             print("Error: AIRQO_API_TOKEN environment variable is not set.")
             return None
 
-        url= f"{analtics_url}?token={token}"
+        url= f"{analytics_url}?token={token}"
         payload = {"grid_id": grid_id, "start_time": start_time, "end_time": end_time}
 
         try:
@@ -35,10 +36,13 @@ class DataFetcher:
             return response.json()
         except requests.exceptions.HTTPError as http_err:
             print(f"HTTP error occurred: {http_err}")
+            logging.error(f"HTTP error occurred: {http_err}")
         except requests.exceptions.RequestException as req_err:
             print(f"Request error occurred: {req_err}")
+            logging.error(f"Request error occurred: {req_err}")
         except ValueError as json_err:
             print(f"JSON decoding error: {json_err}")
+            logging.error(f"JSON decoding error: {json_err}")
 
         return None
 
@@ -64,10 +68,13 @@ class AirQualityReport:
         self.annual_pm10_calibrated_value = self.annual_data.get("pm10_calibrated_value")
 
         # Finding the minimum and maximum values
-        self.daily_min_pm2_5 = min(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
-        self.daily_max_pm2_5 = max(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
-        
-
+        if self.daily_mean_data:
+            self.daily_min_pm2_5 = min(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
+            self.daily_max_pm2_5 = max(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
+        else:
+            self.daily_min_pm2_5 = None
+            self.daily_max_pm2_5 = None
+          
 
         # Initialize models once in the constructor
         self.gemini_model = genai.GenerativeModel('gemini-pro')
@@ -86,13 +93,19 @@ class AirQualityReport:
         base_info = self._prepare_base_info()
         if audience == "researcher":
             return (   
-                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "
-                f"{base_info} include the period under review."
-                f"Daily mean measurements show: {self.daily_mean_data}. "
-                f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "
-                f"Provide a thorough analysis of spatial and temporal air quality variations, identify pollution hotspots and clean zones, examine seasonal patterns, and assess compliance with WHO guidelines. "
-                f"Conclude with actionable recommendations for air quality improvement and public health protection. Data source: AirQo monitoring network."
-            )
+-                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "  
+-                f"{base_info} include the period under review."  
+-                f"Daily mean measurements show: {self.daily_mean_data}. "  
+-                f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "  
++                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources.\n"  
++                f"{base_info}\n"  
++                f"Daily mean measurements show values ranging from {self.daily_min_pm2_5['pm2_5_calibrated_value']} to {self.daily_max_pm2_5['pm2_5_calibrated_value']} µg/m³.\n"  
++                f"Diurnal patterns indicate peak pollution levels at {self._format_diurnal_peak()}.\n"  
++                f"Monthly trends reveal fluctuations correlated with seasonal changes.\n"  
+                 f"Provide a thorough analysis of spatial and temporal air quality variations, identify pollution hotspots and clean zones, examine seasonal patterns, and assess compliance with WHO guidelines. "  
+                 f"Conclude with actionable recommendations for air quality improvement and public health protection. Data source: AirQo monitoring network."  
+             ) 
+
         elif audience == "policymaker":
             return (
                 f"Create an executive summary of air quality conditions in {self.grid_name} for the period of {self.starttime} to {self.endtime}. for policy decision-making. Begin with key findings and their policy implications (50-75 words). "
@@ -106,7 +119,7 @@ class AirQualityReport:
             return ( 
                 f"{base_info} include the period under review."
                 f"Create a clear, easy-to-understand report about air quality in {self.grid_name} for the period of {self.starttime} to {self.endtime}. Start with a simple explanation of why air quality matters for public health. "
-                f"We have {self.num_sites} air quality monitors in your area. The average PM2.5 level this year is {self.annual_data} µg/m³. "
+                f"We have {self.num_sites} air quality monitors in your area. The average PM2.5 level this year is {self.annual_pm2_5_calibrated_value} µg/m³. "
                 f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "
                 f"Explain what these numbers mean for daily activities. Include: 1) When air quality is best and worst during the day, "
                 f"2) Which areas have better or worse air quality, 3) Simple steps people can take to protect their health, "
@@ -124,12 +137,17 @@ class AirQualityReport:
 
     def generate_report_with_openai(self, audience):
         prompt = self._generate_prompt(audience)
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        openai_output = response.choices[0].message['content']
-        return self._prepare_report_json(openai_output)
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            openai_output = response.choices[0].message['content']
+            return self._prepare_report_json(openai_output)
+        except Exception as e:
+            print(f"Error: {e}")
+            return None
+
 
     # Use non-LLM template text as report content
     def generate_report_template_without_LLM(self, audience):
@@ -139,14 +157,18 @@ class AirQualityReport:
     
     def generate_report_without_llm(self):
     # Determine peak time and least PM2.5 values
-        peak_data = max(self.diurnal, key=lambda x: x['pm2_5_calibrated_value'])
-        peak_time = peak_data['hour']
-        peak_pm2_5 = peak_data['pm2_5_calibrated_value']
-
-        least_data = min(self.diurnal, key=lambda x: x['pm2_5_calibrated_value'])
-        least_pm2_5 = least_data['pm2_5_calibrated_value']
-        least_pm2_5_time = least_data['hour']
-
+        if self.diurnal:
+            peak_data = max(self.diurnal, key=lambda x: x['pm2_5_calibrated_value'])
+            peak_time = peak_data['hour']
+            peak_pm2_5 = peak_data['pm2_5_calibrated_value']
+            least_data = min(self.diurnal, key=lambda x: x['pm2_5_calibrated_value'])
+            least_pm2_5 = least_data['pm2_5_calibrated_value']
+            least_pm2_5_time = least_data['hour']
+        else:
+            peak_time = None
+            peak_pm2_5 = None
+            least_pm2_5 = None
+        least_pm2_5_time = None
 
         
         introduction = (
