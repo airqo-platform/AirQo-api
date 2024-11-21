@@ -15,17 +15,20 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # Copy requirements file and install dependencies
-COPY requirements.txt ./
+COPY requirements.txt ./ 
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the backend code into the container
 COPY . .
 
+# Run Django migrations
+RUN python manage.py migrate --noinput
+
+# Collect static files
+RUN python manage.py collectstatic --noinput
+
 # Expose the port the Django app will run on
 EXPOSE 8000
 
-# Add execution permissions to entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Set the entrypoint for the container
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Start Gunicorn server to serve the Django application
+CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--log-level", "info"]
