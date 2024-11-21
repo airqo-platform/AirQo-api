@@ -131,9 +131,14 @@ class AirQualityReport:
 
     def generate_report_with_gemini(self, audience):
         prompt = self._generate_prompt(audience)
-        response = self.gemini_model.generate_content(prompt)
-        gemini_output = response.text
-        return self._prepare_report_json(gemini_output)
+        try:
+            response = self.gemini_model.generate_content(prompt)
+            gemini_output = response.text
+            return self._prepare_report_json(gemini_output)
+        except Exception as e:
+            print(f"Error: {e}")
+            return None
+
 
     def generate_report_with_openai(self, audience):
         prompt = self._generate_prompt(audience)
