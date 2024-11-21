@@ -139,7 +139,6 @@ class AirQualityReport:
             print(f"Error: {e}")
             return None
 
-
     def generate_report_with_openai(self, audience):
         prompt = self._generate_prompt(audience)
         try:
