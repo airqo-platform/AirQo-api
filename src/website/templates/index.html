@@ -10,8 +10,6 @@
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
       rel="stylesheet"
-      integrity="sha384-ENjdO4Dr2bkBIFxQpeoA6aKuhmG6c6wG3f9C9Q+VzFJ0h6Evd93vN3E+5Bv9T9aR"
-      crossorigin="anonymous"
     />
 
     <!-- Custom CSS -->
@@ -54,7 +52,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow">
       <div class="container">
-        <a class="navbar-brand" href="{% url 'index' %}">AirQo</a>
+        <a class="navbar-brand" href="/">AirQo</a>
         <button
           class="navbar-toggler"
           type="button"
@@ -69,22 +67,19 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'admin:login' %}">Admin Login</a>
+              <a class="nav-link" href="/website/admin/login/">Admin Login</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'schema-swagger-ui' %}"
-                >API Documentation</a
-              >
+              <a class="nav-link" href="/website/swagger/">API Documentation</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'schema-redoc' %}">API Redoc</a>
+              <a class="nav-link" href="/website/redoc/">API Redoc</a>
             </li>
             <li class="nav-item">
               <a
                 class="nav-link ms-2"
                 href="https://www.airqo.net"
                 target="_blank"
-                rel="noopener noreferrer"
                 >Visit AirQo Website</a
               >
             </li>
@@ -108,17 +103,17 @@
               </p>
               <div class="mt-4 d-flex flex-wrap justify-content-start">
                 <a
-                  href="{% url 'admin:login' %}"
+                  href="/website/admin/login/"
                   class="btn btn-primary btn-lg m-2"
                   >Admin Login</a
                 >
                 <a
-                  href="{% url 'schema-swagger-ui' %}"
+                  href="/website/swagger/"
                   class="btn btn-outline-primary btn-lg m-2"
                   >API Documentation</a
                 >
                 <a
-                  href="{% url 'schema-redoc' %}"
+                  href="/website/redoc/"
                   class="btn btn-outline-primary btn-lg m-2"
                   >API Redoc</a
                 >
@@ -184,10 +179,6 @@
     </footer>
 
     <!-- Bootstrap JS Bundle with Popper -->
-    <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-      integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+9aUP6czwPpc+9jgR9HWq4L6fDQG7"
-      crossorigin="anonymous"
-    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>
