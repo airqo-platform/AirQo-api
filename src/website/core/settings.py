@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
 
     # Third-party apps
@@ -63,12 +62,13 @@ INSTALLED_APPS = [
     'apps.impact',
     'apps.highlights',
     'apps.career',
-    'apps.FAQ',
+    'apps.faq',
     'apps.partners',
-    'apps.externalTeam',
+    'apps.externalteam',
     'apps.board',
     'apps.team',
 ]
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
