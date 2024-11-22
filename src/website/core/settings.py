@@ -14,13 +14,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Add the apps directory to the Python path
 sys.path.append(os.path.join(BASE_DIR, 'apps'))
 
+
+def parse_env_list(env_var, default=""):
+    """
+    Parses a comma-separated string from an environment variable and trims whitespace.
+    Does not add unnecessary quotes to values.
+    """
+    raw_value = os.getenv(env_var, default)
+    return [v.strip() for v in raw_value.split(',') if v.strip()]
+
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS", "")
 
 # Application definition
 INSTALLED_APPS = [
@@ -73,16 +83,14 @@ MIDDLEWARE = [
 CORS_ORIGIN_ALLOW_ALL = False
 
 # Handle CORS_ALLOWED_ORIGINS
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv(
-    'CORS_ALLOWED_ORIGINS', '').split(',')]
+CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS", "")
 
 # Handle CORS_ORIGIN_REGEX_WHITELIST
-CORS_ORIGIN_REGEX_WHITELIST = [regex.strip() for regex in os.getenv(
-    'CORS_ORIGIN_REGEX_WHITELIST', '').split(',')]
+CORS_ORIGIN_REGEX_WHITELIST = parse_env_list(
+    "CORS_ORIGIN_REGEX_WHITELIST", "")
 
 # Handle CSRF_TRUSTED_ORIGINS
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv(
-    'CSRF_TRUSTED_ORIGINS', '').split(',')]
+CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS", "")
 
 # Only allow CSRF cookie over HTTPS (recommended for production)
 if DEBUG:
