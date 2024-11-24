@@ -98,8 +98,6 @@ uniqueIdentifierCounterSchema.statics = {
   },
 };
 
-uniqueIdentifierCounterSchema.methods = {};
-
 const UniqueIdentifierCounterModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
