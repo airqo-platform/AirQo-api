@@ -292,12 +292,14 @@ userLessonProgressSchema.statics = {
 };
 
 const KnowYourAirUserLessonProgressModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let kyaprogress = mongoose.model("kyaprogresses");
     return kyaprogress;
   } catch (error) {
     let kyaprogress = getModelByTenant(
-      tenant,
+      dbTenant,
       "kyaprogress",
       userLessonProgressSchema
     );

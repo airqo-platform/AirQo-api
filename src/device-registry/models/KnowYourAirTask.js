@@ -300,11 +300,13 @@ knowYourAirTaskSchema.statics = {
 };
 
 const KnowYourAirTaskModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let kyatasks = mongoose.model("kyatasks");
     return kyatasks;
   } catch (error) {
-    let kyatasks = getModelByTenant(tenant, "kyatask", knowYourAirTaskSchema);
+    let kyatasks = getModelByTenant(dbTenant, "kyatask", knowYourAirTaskSchema);
     return kyatasks;
   }
 };

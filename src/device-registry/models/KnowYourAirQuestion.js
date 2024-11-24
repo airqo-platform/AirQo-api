@@ -304,12 +304,14 @@ knowYourAirQuestionSchema.statics = {
 };
 
 const KnowYourAirQuestionModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let kyaquestions = mongoose.model("kyaquestions");
     return kyaquestions;
   } catch (error) {
     let kyaquestions = getModelByTenant(
-      tenant,
+      dbTenant,
       "kyaquestion",
       knowYourAirQuestionSchema
     );
