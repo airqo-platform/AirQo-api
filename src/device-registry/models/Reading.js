@@ -731,11 +731,13 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
 };
 
 const ReadingModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const readings = mongoose.model("readings");
     return readings;
   } catch (error) {
-    const readings = getModelByTenant(tenant, "reading", ReadingsSchema);
+    const readings = getModelByTenant(dbTenant, "reading", ReadingsSchema);
     return readings;
   }
 };

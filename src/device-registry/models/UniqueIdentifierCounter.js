@@ -101,12 +101,14 @@ uniqueIdentifierCounterSchema.statics = {
 uniqueIdentifierCounterSchema.methods = {};
 
 const UniqueIdentifierCounterModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const activities = mongoose.model("uniqueIdentifierCounters");
     return activities;
   } catch (errors) {
     return getModelByTenant(
-      tenant.toLowerCase(),
+      dbTenant.toLowerCase(),
       "uniqueIdentifierCounter",
       uniqueIdentifierCounterSchema
     );

@@ -2897,11 +2897,13 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
 };
 
 const eventsModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const events = mongoose.model("events");
     return events;
   } catch (error) {
-    return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
+    return getModelByTenant(dbTenant.toLowerCase(), "event", eventSchema);
   }
 };
 

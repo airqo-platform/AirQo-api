@@ -376,11 +376,13 @@ airqloudSchema.statics.remove = async function({ filter = {} } = {}, next) {
 };
 
 const airqloudsModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const airqlouds = mongoose.model("airqlouds");
     return airqlouds;
   } catch (error) {
-    return getModelByTenant(tenant.toLowerCase(), "airqloud", airqloudSchema);
+    return getModelByTenant(dbTenant.toLowerCase(), "airqloud", airqloudSchema);
   }
 };
 
