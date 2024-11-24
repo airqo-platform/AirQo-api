@@ -20,6 +20,29 @@ const HealthTipsSchema = new Schema(
   { _id: false }
 );
 
+const categorySchema = new Schema(
+  {
+    area_name: { type: String },
+    category: { type: String },
+    highway: { type: String },
+    landuse: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    natural: { type: String },
+    search_radius: { type: Number },
+    waterway: { type: String },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+  },
+  {
+    _id: false,
+  }
+);
+
 const SiteDetailsSchema = new Schema(
   {
     _id: Schema.Types.ObjectId,
@@ -42,6 +65,7 @@ const SiteDetailsSchema = new Schema(
     bearing_in_radians: Number,
     description: String,
     data_provider: String,
+    site_category: { type: categorySchema },
   },
   { _id: false }
 );
