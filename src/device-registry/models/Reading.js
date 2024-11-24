@@ -100,6 +100,20 @@ const AqiRangeSchema = new Schema(
   { _id: false }
 );
 
+const averagesSchema = new Schema(
+  {
+    dailyAverage: { type: Number },
+    percentageDifference: { type: Number },
+    weeklyAverages: {
+      currentWeek: { type: Number },
+      previousWeek: { type: Number },
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const ReadingsSchema = new Schema(
   {
     device: String,
@@ -118,6 +132,7 @@ const ReadingsSchema = new Schema(
     aqi_color: String,
     aqi_category: String,
     aqi_color_name: String,
+    averages: { type: averagesSchema },
   },
   {
     timestamps: true,
@@ -161,6 +176,7 @@ ReadingsSchema.methods = {
       aqi_color: this.aqi_color,
       aqi_category: this.aqi_category,
       aqi_color_name: this.aqi_color_name,
+      averages: this.averages,
     };
   },
 };
@@ -307,8 +323,6 @@ ReadingsSchema.statics.recent = async function(
   try {
     let threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-
-    logObject("The recent filter inside Readings Model....", filter);
 
     const pipeline = this.aggregate()
       .match({
