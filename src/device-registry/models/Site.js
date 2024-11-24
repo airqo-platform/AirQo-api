@@ -848,11 +848,13 @@ siteSchema.statics = {
 };
 
 const SiteModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let sites = mongoose.model("sites");
     return sites;
   } catch (error) {
-    let sites = getModelByTenant(tenant, "site", siteSchema);
+    let sites = getModelByTenant(dbTenant, "site", siteSchema);
     return sites;
   }
 };

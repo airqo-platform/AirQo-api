@@ -738,11 +738,13 @@ deviceSchema.statics = {
 };
 
 const DeviceModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let devices = mongoose.model("devices");
     return devices;
   } catch (error) {
-    let devices = getModelByTenant(tenant, "device", deviceSchema);
+    let devices = getModelByTenant(dbTenant, "device", deviceSchema);
     return devices;
   }
 };

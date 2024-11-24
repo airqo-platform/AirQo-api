@@ -361,11 +361,13 @@ cohortSchema.statics.remove = async function({ filter = {} } = {}, next) {
 };
 
 const CohortModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const cohorts = mongoose.model("cohorts");
     return cohorts;
   } catch (error) {
-    const cohorts = getModelByTenant(tenant, "cohort", cohortSchema);
+    const cohorts = getModelByTenant(dbTenant, "cohort", cohortSchema);
     return cohorts;
   }
 };

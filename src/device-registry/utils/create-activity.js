@@ -165,9 +165,9 @@ const createActivity = {
         // I might consider just adding the site_id to the query field of request
         // from here....
         const siteListRequest = {
-          ...request,
           query: {
             site_id,
+            tenant,
           },
         };
         const responseFromListSite = await createSiteUtil.list(

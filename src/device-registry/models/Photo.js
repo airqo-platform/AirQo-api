@@ -332,11 +332,13 @@ photoSchema.statics = {
 };
 
 const PhotoModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const photos = mongoose.model("photos");
     return photos;
   } catch (error) {
-    const photos = getModelByTenant(tenant, "photo", photoSchema);
+    const photos = getModelByTenant(dbTenant, "photo", photoSchema);
     return photos;
   }
 };

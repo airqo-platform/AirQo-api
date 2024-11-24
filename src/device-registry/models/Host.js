@@ -231,10 +231,12 @@ HostSchema.methods.toJSON = function() {
 };
 
 const HostModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     return mongoose.model("hosts");
   } catch (error) {
-    return getModelByTenant(tenant, "host", HostSchema);
+    return getModelByTenant(dbTenant, "host", HostSchema);
   }
 };
 
