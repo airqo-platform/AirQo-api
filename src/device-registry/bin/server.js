@@ -24,7 +24,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const { logText, logObject } = require("@utils/log");
 const stringify = require("@utils/stringify");
 require("@bin/jobs/store-signals-job");
-require("@bin/jobs/v2.1-store-readings-job");
+require("@bin/jobs/v2-store-readings-job");
 require("@bin/jobs/v2-check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
