@@ -198,12 +198,14 @@ BlacklistedIPPrefixSchema.methods = {
 };
 
 const BlacklistedIPPrefixModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let prefix = mongoose.model("BlacklistedIPPrefixes");
     return prefix;
   } catch (error) {
     let prefix = getModelByTenant(
-      tenant,
+      dbTenant,
       "BlacklistedIPPrefix",
       BlacklistedIPPrefixSchema
     );

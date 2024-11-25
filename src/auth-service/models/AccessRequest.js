@@ -227,12 +227,14 @@ AccessRequestSchema.methods = {
 };
 
 const AccessRequestModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const access_requests = mongoose.model("access_requests");
     return access_requests;
   } catch (error) {
     const access_requests = getModelByTenant(
-      tenant,
+      dbTenant,
       "access_request",
       AccessRequestSchema
     );

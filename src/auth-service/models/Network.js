@@ -484,11 +484,13 @@ NetworkSchema.statics = {
 };
 
 const NetworkModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const networks = mongoose.model("networks");
     return networks;
   } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    const networks = getModelByTenant(dbTenant, "network", NetworkSchema);
     return networks;
   }
 };

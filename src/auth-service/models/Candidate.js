@@ -268,11 +268,13 @@ CandidateSchema.methods = {
 };
 
 const CandidateModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let candidates = mongoose.model("candidates");
     return candidates;
   } catch (error) {
-    let candidates = getModelByTenant(tenant, "candidate", CandidateSchema);
+    let candidates = getModelByTenant(dbTenant, "candidate", CandidateSchema);
     return candidates;
   }
 };

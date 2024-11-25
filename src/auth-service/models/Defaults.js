@@ -311,11 +311,13 @@ DefaultsSchema.statics = {
 };
 
 const DefaultModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let defaults = mongoose.model("defaults");
     return defaults;
   } catch (error) {
-    let defaults = getModelByTenant(tenant, "default", DefaultsSchema);
+    let defaults = getModelByTenant(dbTenant, "default", DefaultsSchema);
     return defaults;
   }
 };

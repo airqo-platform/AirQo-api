@@ -215,12 +215,14 @@ PermissionSchema.methods = {
 };
 
 const PermissionModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const permissions = mongoose.model("permissions");
     return permissions;
   } catch (error) {
     const permissions = getModelByTenant(
-      tenant,
+      dbTenant,
       "permission",
       PermissionSchema
     );
