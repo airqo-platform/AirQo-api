@@ -22,6 +22,8 @@ const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
 const UPTIME_CHECK_THRESHOLD = 168;
+const moment = require("moment-timezone");
+const TIMEZONE = moment.tz.guess();
 
 const AQI_RANGES = {
   good: { min: 0, max: 9.0 },
@@ -2771,10 +2773,19 @@ eventSchema.statics.signal = async function(filter) {
 
 eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
   try {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const twoWeeksAgo = new Date(today);
-    twoWeeksAgo.setDate(today.getDate() - 14);
+    const testDate = "2022-12-20T11:43:18.595Z";
+    const now = moment()
+      .tz(TIMEZONE)
+      .toDate(); // Convert back to Date object
+    const today = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .toDate();
+    const twoWeeksAgo = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .subtract(14, "days")
+      .toDate();
 
     const result = await this.aggregate([
       // Initial match to reduce documents early
@@ -2808,15 +2819,38 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
           time: "$values.time",
           pm2_5: "$values.pm2_5.value",
           yearWeek: {
-            $dateToString: {
-              format: "%Y-%V",
-              date: "$values.time",
+            $let: {
+              vars: {
+                dateParts: {
+                  $dateToParts: {
+                    date: "$values.time",
+                    timezone: TIMEZONE,
+                    iso8601: true,
+                  },
+                },
+              },
+              in: {
+                $concat: [
+                  { $toString: "$$dateParts.isoWeekYear" },
+                  "-",
+                  {
+                    $cond: [
+                      { $lt: ["$$dateParts.isoWeek", 10] },
+                      {
+                        $concat: ["0", { $toString: "$$dateParts.isoWeek" }],
+                      },
+                      { $toString: "$$dateParts.isoWeek" },
+                    ],
+                  },
+                ],
+              },
             },
           },
           dayOfYear: {
             $dateToString: {
               format: "%Y-%m-%d",
               date: "$values.time",
+              timezone: TIMEZONE,
             },
           },
         },
@@ -2859,7 +2893,9 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     }
 
     const [currentWeek, previousWeek] = result;
-    const todayStr = today.toISOString().split("T")[0];
+    const todayStr = moment(today)
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
     const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
       ?.average;
 
