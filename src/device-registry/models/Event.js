@@ -8,7 +8,7 @@ and following up on its deployment. :)
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
@@ -22,6 +22,8 @@ const DEFAULT_LIMIT = 1000;
 const DEFAULT_SKIP = 0;
 const DEFAULT_PAGE = 1;
 const UPTIME_CHECK_THRESHOLD = 168;
+const moment = require("moment-timezone");
+const TIMEZONE = moment.tz.guess();
 
 const AQI_RANGES = {
   good: { min: 0, max: 9.0 },
@@ -449,6 +451,8 @@ eventSchema.index(
     },
   }
 );
+
+eventSchema.index({ "values.time": 1, "values.site_id": 1 });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
@@ -2769,77 +2773,123 @@ eventSchema.statics.signal = async function(filter) {
 
 eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
   try {
-    // Get current date and date 2 weeks ago
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const twoWeeksAgo = new Date(today);
-    twoWeeksAgo.setDate(today.getDate() - 14);
+    const testDate = "2022-12-20T11:43:18.595Z";
+    const now = moment()
+      .tz(TIMEZONE)
+      .toDate(); // Convert back to Date object
+    const today = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .toDate();
+    const twoWeeksAgo = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .subtract(14, "days")
+      .toDate();
 
-    // Base query to match site and time range
-    const baseMatch = {
-      "values.site_id": mongoose.Types.ObjectId(siteId),
-      "values.time": {
-        $gte: twoWeeksAgo,
-        $lte: now,
-      },
-    };
+    logText("Debug Info:");
+    logObject("TIMEZONE", TIMEZONE);
+    logObject("now", now);
+    logObject("today", today);
+    logObject("twoWeeksAgo", twoWeeksAgo);
 
     const result = await this.aggregate([
-      // Unwind the values array to work with individual readings
-      { $unwind: "$values" },
+      // Initial match to reduce documents early
+      {
+        $match: {
+          "values.site_id": mongoose.Types.ObjectId(siteId),
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+        },
+      },
 
-      // Match site and time range
-      { $match: baseMatch },
+      // Unwind with preservation to handle empty arrays
+      {
+        $unwind: {
+          path: "$values",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
 
-      // Project only needed fields and add date fields for grouping
+      // Secondary match to filter unwound documents
+      {
+        $match: {
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+          "values.pm2_5.value": { $exists: true, $ne: null },
+        },
+      },
+
+      // Optimized projection
       {
         $project: {
+          _id: 0,
           time: "$values.time",
           pm2_5: "$values.pm2_5.value",
-          dayOfYear: { $dayOfYear: "$values.time" },
-          year: { $year: "$values.time" },
-          week: { $week: "$values.time" },
-        },
-      },
-
-      // Group by day to get daily averages
-      {
-        $group: {
-          _id: {
-            year: "$year",
-            dayOfYear: "$dayOfYear",
+          yearWeek: {
+            $let: {
+              vars: {
+                dateParts: {
+                  $dateToParts: {
+                    date: "$values.time",
+                    timezone: TIMEZONE,
+                    iso8601: true,
+                  },
+                },
+              },
+              in: {
+                $concat: [
+                  { $toString: "$$dateParts.isoWeekYear" },
+                  "-",
+                  {
+                    $cond: [
+                      { $lt: ["$$dateParts.isoWeek", 10] },
+                      {
+                        $concat: ["0", { $toString: "$$dateParts.isoWeek" }],
+                      },
+                      { $toString: "$$dateParts.isoWeek" },
+                    ],
+                  },
+                ],
+              },
+            },
           },
-          dailyAverage: { $avg: "$pm2_5" },
-          date: { $first: "$time" },
-          week: { $first: "$week" },
+          dayOfYear: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$values.time",
+              timezone: TIMEZONE,
+            },
+          },
         },
       },
 
-      // Sort by date
-      { $sort: { date: -1 } },
-
-      // Group again to calculate weekly averages
+      // First group by day
       {
         $group: {
-          _id: "$week",
+          _id: "$dayOfYear",
+          dailyAverage: { $avg: "$pm2_5" },
+          yearWeek: { $first: "$yearWeek" },
+        },
+      },
+
+      // Then group by week
+      {
+        $group: {
+          _id: "$yearWeek",
           weeklyAverage: { $avg: "$dailyAverage" },
           days: {
             $push: {
-              date: "$date",
+              date: "$_id",
               average: "$dailyAverage",
             },
           },
         },
       },
 
-      // Sort by week
+      // Sort and limit
       { $sort: { _id: -1 } },
-
-      // Limit to get only last 2 weeks
       { $limit: 2 },
     ]).allowDiskUse(true);
 
-    // If we don't have enough data
     if (result.length < 2) {
       return {
         success: false,
@@ -2848,11 +2898,21 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
       };
     }
 
-    // Get current week and previous week data
-    const currentWeek = result[0];
-    const previousWeek = result[1];
+    const [currentWeek, previousWeek] = result;
+    logObject("Current Week days", currentWeek.days);
+    const todayStr = moment(today)
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
 
-    // Calculate percentage difference
+    logObject("todayStr", todayStr);
+    const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
+      ?.average;
+
+    logObject("Found todayAverage", todayAverage);
+    logObject(
+      "Matching day",
+      currentWeek.days.find((day) => day.date === todayStr)
+    );
 
     const percentageDifference =
       previousWeek.weeklyAverage !== 0
@@ -2860,15 +2920,6 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
             previousWeek.weeklyAverage) *
           100
         : 0;
-
-    // Get today's date string in YYYY-MM-DD format
-    const todayStr = today.toISOString().split("T")[0];
-
-    // Find today's average from the current week's days
-    const todayAverage =
-      currentWeek.days.find(
-        (day) => day.date.toISOString().split("T")[0] === todayStr
-      )?.average || null;
 
     return {
       success: true,
@@ -2897,11 +2948,13 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
 };
 
 const eventsModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const events = mongoose.model("events");
     return events;
   } catch (error) {
-    return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
+    return getModelByTenant(dbTenant.toLowerCase(), "event", eventSchema);
   }
 };
 

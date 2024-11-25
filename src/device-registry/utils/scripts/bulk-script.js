@@ -1,12 +1,24 @@
 const axios = require("axios");
 const isEmpty = require("is-empty");
 
+function extractBeforeV2IncludingSlash(url) {
+  const v2Index = url.indexOf("v2/");
+
+  if (v2Index !== -1) {
+    // Found "v2/" in the string
+    return url.substring(0, v2Index + 3); // Include "v2/"
+  } else {
+    // "v2/" not found, return the original string
+    return url;
+  }
+}
+
 /**
  * Update each device to have the default network of VISIBLE_DEVICES_ONLY
  */
 
 // Make a GET request
-const url = "http://localhost:3000/api/v1/devices";
+const url = "http://localhost:3000/api/v2/devices/summary";
 const config = {
   headers: {
     Authorization: "",
@@ -22,9 +34,11 @@ axios
       // Process batch of 10 items
       batch.forEach(async (device) => {
         // console.log("the device _id", device._id);
-        const url = `http://localhost:3000/api/v1/devices?id=${device._id}`;
+        const url = `http://localhost:3000/api/v2/devices/soft?id=${device._id}`;
+        const new_api_code = extractBeforeV2IncludingSlash(device.api_code);
+
         const data = {
-          network: "airqo",
+          api_code: new_api_code,
         };
 
         if (isEmpty(device.network)) {

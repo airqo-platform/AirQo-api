@@ -246,11 +246,13 @@ SignalsSchema.statics.latest = async function(
 };
 
 const SignalModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const signals = mongoose.model("signals");
     return signals;
   } catch (error) {
-    const signals = getModelByTenant(tenant, "signal", SignalsSchema);
+    const signals = getModelByTenant(dbTenant, "signal", SignalsSchema);
     return signals;
   }
 };

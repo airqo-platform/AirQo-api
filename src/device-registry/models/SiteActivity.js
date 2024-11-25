@@ -285,11 +285,13 @@ activitySchema.statics = {
 };
 
 const ActivityModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const activities = mongoose.model("activities");
     return activities;
   } catch (errors) {
-    return getModelByTenant(tenant.toLowerCase(), "activity", activitySchema);
+    return getModelByTenant(dbTenant.toLowerCase(), "activity", activitySchema);
   }
 };
 

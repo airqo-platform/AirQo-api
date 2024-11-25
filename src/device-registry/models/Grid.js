@@ -371,11 +371,13 @@ gridSchema.statics.remove = async function({ filter = {} } = {}, next) {
 };
 
 const GridModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const grids = mongoose.model("grids");
     return grids;
   } catch (error) {
-    const grids = getModelByTenant(tenant, "grid", gridSchema);
+    const grids = getModelByTenant(dbTenant, "grid", gridSchema);
     return grids;
   }
 };
