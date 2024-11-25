@@ -60,11 +60,11 @@ INSTALLED_APPS = [
     'apps.publications',
     'apps.press',
     'apps.impact',
+    'apps.faqs',
     'apps.highlights',
     'apps.career',
-    # 'apps.faq',
     'apps.partners',
-    'apps.externalteam',
+    # 'apps.externalteam',
     'apps.board',
     'apps.team',
 ]
