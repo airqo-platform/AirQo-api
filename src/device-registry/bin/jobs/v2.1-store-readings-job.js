@@ -7,41 +7,22 @@ const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
-const { logText, logObject } = require("@utils/log");
+const { logText, logObject, logElement } = require("@utils/log");
 const stringify = require("@utils/stringify");
 const asyncRetry = require("async-retry");
 const generateFilter = require("@utils/generate-filter");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
+const NodeCache = require("node-cache");
+
+// Constants
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
-function logDocumentDetails(doc) {
-  const deviceId = doc.device_id || "N/A";
-  const device = doc.device || "N/A";
-  const time = doc.time || "N/A";
-  const siteId = doc.site_id || "N/A";
-  const site = doc.site || "N/A";
-  logger.warn(
-    `🙀🙀 Measurement missing some key details: { time: ${time}, device_id: ${deviceId}, device: ${device}, site_id: ${siteId}, site: ${site}}`
-  );
-}
+// Cache manager for storing site averages
+const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 
-function isEntityActive(entity, time) {
-  const inactiveThreshold = INACTIVE_THRESHOLD;
-
-  if (!entity || !entity.lastActive) {
-    return false;
-  }
-  const currentTime = moment()
-    .tz(TIMEZONE)
-    .toDate();
-  const measurementTime = moment(time)
-    .tz(TIMEZONE)
-    .toDate();
-  return currentTime - measurementTime < inactiveThreshold;
-}
-
+// Helper function to update entity status (previously undefined)
 async function updateEntityStatus(Model, filter, time, entityType) {
   try {
     const entity = await Model.findOne(filter);
@@ -53,7 +34,7 @@ async function updateEntityStatus(Model, filter, time, entityType) {
           .toDate(),
         isOnline: isActive,
       };
-      const updateResult = await Model.updateOne(filter, updateData);
+      await Model.updateOne(filter, updateData);
     } else {
       logger.warn(
         `🙀🙀 ${entityType} not found with filter: ${stringify(filter)}`
@@ -67,83 +48,144 @@ async function updateEntityStatus(Model, filter, time, entityType) {
   }
 }
 
-async function getAveragesForSite(siteId) {
-  try {
-    const averages = await EventModel("airqo").getAirQualityAverages(siteId);
-    if (averages && averages.success) {
-      return averages.data;
+// Helper function to check if entity is active
+function isEntityActive(entity, time) {
+  if (!entity || !entity.lastActive) {
+    return false;
+  }
+  const currentTime = moment()
+    .tz(TIMEZONE)
+    .toDate();
+  const measurementTime = moment(time)
+    .tz(TIMEZONE)
+    .toDate();
+  return currentTime - measurementTime < INACTIVE_THRESHOLD;
+}
+
+// Batch processing manager
+class BatchProcessor {
+  constructor(batchSize = 50) {
+    this.batchSize = batchSize;
+    this.pendingAveragesQueue = new Map(); // site_id -> Promise
+    this.processingBatch = false;
+  }
+
+  async processDocument(doc) {
+    try {
+      const docTime = moment(doc.time).tz(TIMEZONE);
+      const updatePromises = [];
+
+      // Handle site and device status updates
+      if (doc.site_id) {
+        updatePromises.push(
+          updateEntityStatus(
+            SiteModel("airqo"),
+            { _id: doc.site_id },
+            docTime.toDate(),
+            "Site"
+          )
+        );
+      }
+
+      if (doc.device_id) {
+        updatePromises.push(
+          updateEntityStatus(
+            DeviceModel("airqo"),
+            { _id: doc.device_id },
+            docTime.toDate(),
+            "Device"
+          )
+        );
+      }
+
+      // Wait for status updates
+      await Promise.all(updatePromises);
+
+      // Handle averages calculation with caching
+      let averages = null;
+      if (doc.site_id) {
+        averages = await this.getOrQueueAverages(doc.site_id.toString());
+      }
+
+      // Prepare and save reading
+      const filter = { site_id: doc.site_id, time: docTime.toDate() };
+      const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
+
+      if (averages) {
+        updateDoc.averages = averages;
+      }
+      await ReadingModel("airqo").updateOne(filter, updateDoc, {
+        upsert: true,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Error processing document: ${error.message}`);
+      throw error;
     }
-    return null;
-  } catch (error) {
-    logger.error(
-      `🐛🐛 Error fetching averages for site ${siteId}: ${error.message}`
-    );
-    return null;
+  }
+
+  async getOrQueueAverages(siteId) {
+    // Check cache first
+    // logObject("the siteId", siteId);
+    const cachedAverages = siteAveragesCache.get(siteId);
+    if (cachedAverages) {
+      return cachedAverages;
+    }
+
+    // If there's already a pending request for this site, return that promise
+    if (this.pendingAveragesQueue.has(siteId)) {
+      return this.pendingAveragesQueue.get(siteId);
+    }
+
+    // Create new promise for this site
+    const averagesPromise = this.calculateAverages(siteId);
+    this.pendingAveragesQueue.set(siteId, averagesPromise);
+
+    try {
+      const averages = await averagesPromise;
+      // Cache the result
+      if (averages) {
+        siteAveragesCache.set(siteId, averages);
+      }
+      return averages;
+    } finally {
+      // Clean up the queue
+      this.pendingAveragesQueue.delete(siteId);
+    }
+  }
+
+  async calculateAverages(siteId) {
+    try {
+      const averages = await EventModel("airqo").getAirQualityAverages(siteId);
+      return averages?.success ? averages.data : null;
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Error calculating averages for site ${siteId}: ${error.message}`
+      );
+      return null;
+    }
   }
 }
 
-async function processDocument(doc) {
-  try {
-    const docTime = moment(doc.time).tz(TIMEZONE);
-    const updatePromises = [];
+// Helper function to update offline devices
+async function updateOfflineDevices(data) {
+  const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
+  const thresholdTime = moment()
+    .subtract(INACTIVE_THRESHOLD, "milliseconds")
+    .toDate();
 
-    if (doc.site_id) {
-      updatePromises.push(
-        updateEntityStatus(
-          SiteModel("airqo"),
-          { _id: doc.site_id },
-          docTime.toDate(),
-          "Site"
-        )
-      );
-    }
-
-    if (doc.device_id) {
-      updatePromises.push(
-        updateEntityStatus(
-          DeviceModel("airqo"),
-          { _id: doc.device_id },
-          docTime.toDate(),
-          "Device"
-        )
-      );
-    }
-
-    // Wait for both updates to complete
-    await Promise.all(updatePromises);
-
-    // Get averages for site if available
-    let averages = null;
-    if (doc.site_id) {
-      averages = await getAveragesForSite(doc.site_id);
-    }
-
-    // Update Reading with averages
-    const filter = { site_id: doc.site_id, time: docTime.toDate() };
-    const updateDoc = { ...doc, time: docTime.toDate() };
-    delete updateDoc._id;
-
-    // Add averages if available
-    if (averages) {
-      updateDoc.averages = {
-        dailyAverage: averages.dailyAverage,
-        percentageDifference: averages.percentageDifference,
-        weeklyAverages: {
-          currentWeek: averages.weeklyAverages.currentWeek,
-          previousWeek: averages.weeklyAverages.previousWeek,
-        },
-      };
-    }
-    await ReadingModel("airqo").updateOne(filter, updateDoc, {
-      upsert: true,
-    });
-  } catch (error) {
-    logger.error(`🐛🐛 Error processing document: ${error.message}`);
-    throw error; // Propagate error for retry mechanism
-  }
+  await DeviceModel("airqo").updateMany(
+    {
+      _id: { $nin: Array.from(activeDeviceIds) },
+      lastActive: { $lt: thresholdTime },
+    },
+    { isOnline: false }
+  );
 }
 
-const fetchAndStoreDataIntoReadingsModel = async () => {
+// Main function to fetch and store data
+async function fetchAndStoreDataIntoReadingsModel() {
+  const batchProcessor = new BatchProcessor(50);
+
   try {
     const request = {
       query: {
@@ -165,108 +207,79 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
       return;
     }
 
-    if (!viewEventsResponse || typeof viewEventsResponse !== "object") {
-      logger.error(
-        `🐛🐛 Unexpected response from EventModel.fetch(): ${stringify(
-          viewEventsResponse
-        )}`
-      );
+    if (
+      !viewEventsResponse?.success ||
+      !Array.isArray(viewEventsResponse.data?.[0]?.data)
+    ) {
+      logger.warn("🙀🙀 Invalid or empty response from EventModel.fetch()");
       return;
     }
 
-    if (viewEventsResponse.success === true) {
-      if (
-        !viewEventsResponse.data ||
-        !Array.isArray(viewEventsResponse.data) ||
-        viewEventsResponse.data.length === 0
-      ) {
-        logText("No data found in the response");
-        return;
-      }
-
-      const data = viewEventsResponse.data[0].data;
-      if (!data || data.length === 0) {
-        logText("No Events found to insert into Readings");
-        logger.error(`☹️☹️ Didn't find any Events to insert into Readings`);
-        return;
-      }
-
-      // Extract unique device IDs from the fetched measurements
-      const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
-
-      const batchSize = 50;
-      const batches = [];
-      for (let i = 0; i < data.length; i += batchSize) {
-        batches.push(data.slice(i, i + batchSize));
-      }
-
-      for (const batch of batches) {
-        await Promise.all(
-          batch.map(async (doc) => {
-            await asyncRetry(
-              async (bail) => {
-                try {
-                  await processDocument(doc);
-                } catch (error) {
-                  logObject("the error inside processing of batches", error);
-                  if (error.name === "MongoError" && error.code !== 11000) {
-                    logger.error(
-                      `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
-                        error
-                      )}`
-                    );
-                    throw error; // Retry the operation
-                  } else if (error.code === 11000) {
-                    // Ignore duplicate key errors
-                    console.warn(
-                      `🙀🙀 Duplicate key error for document: ${stringify(doc)}`
-                    );
-                  }
-                }
-              },
-              {
-                retries: 3,
-                minTimeout: 1000,
-                factor: 2,
-              }
-            );
-          })
-        );
-      }
-
-      // Update devices that are not in the activeDeviceIds set to offline
-      const thresholdTime = moment()
-        .subtract(INACTIVE_THRESHOLD, "milliseconds")
-        .toDate();
-      await DeviceModel("airqo").updateMany(
-        {
-          _id: { $nin: Array.from(activeDeviceIds) },
-          lastActive: { $lt: thresholdTime },
-        },
-        { isOnline: false }
-      );
-
-      logText(`All data inserted successfully and offline devices updated`);
-    } else {
-      logObject(
-        `🐛🐛 Unable to retrieve Events to insert into Readings`,
-        viewEventsResponse
-      );
-      logger.error(
-        `🐛🐛 Unable to retrieve Events to insert into Readings -- ${stringify(
-          viewEventsResponse
-        )}`
-      );
-      logText(`🐛🐛 Unable to retrieve Events to insert into Readings`);
+    const data = viewEventsResponse.data[0].data;
+    if (data.length === 0) {
+      logText("No Events found to insert into Readings");
+      return;
     }
+
+    // Process in batches
+    const batches = [];
+    for (let i = 0; i < data.length; i += batchProcessor.batchSize) {
+      batches.push(data.slice(i, i + batchProcessor.batchSize));
+    }
+
+    for (const batch of batches) {
+      await Promise.all(
+        batch.map((doc) =>
+          asyncRetry(
+            async (bail) => {
+              try {
+                await batchProcessor.processDocument(doc);
+              } catch (error) {
+                if (error.name === "MongoError" && error.code !== 11000) {
+                  logger.error(
+                    `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
+                      error
+                    )}`
+                  );
+                  throw error; // Retry non-duplicate errors
+                }
+                // Log duplicate errors but don't retry
+                console.warn(
+                  `🙀🙀 Duplicate key error for document: ${stringify(doc)}`
+                );
+              }
+            },
+            {
+              retries: 3,
+              minTimeout: 1000,
+              factor: 2,
+            }
+          )
+        )
+      );
+    }
+
+    // Update offline devices
+    await updateOfflineDevices(data);
+
+    logText("All data inserted successfully and offline devices updated");
   } catch (error) {
-    logObject("error", error);
     logger.error(`🐛🐛 Internal Server Error ${stringify(error)}`);
   }
-};
+}
 
+// Schedules job to run once every hour at minute 30
 const schedule = "30 * * * *";
 cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
   scheduled: true,
   timezone: TIMEZONE,
 });
+
+// Export for testing purposes
+module.exports = {
+  fetchAndStoreDataIntoReadingsModel,
+  BatchProcessor,
+  updateEntityStatus,
+  isEntityActive,
+  updateOfflineDevices,
+};
