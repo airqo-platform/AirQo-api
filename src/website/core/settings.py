@@ -252,3 +252,18 @@ if DEBUG:
     print(f"Media files are stored in: {MEDIA_ROOT}")
 else:
     print("Production mode is ON")
+
+
+# Django Admin Configuration
+LOGIN_URL = '/website/admin/login/'
+
+SWAGGER_SETTINGS = {
+    'LOGIN_URL': '/website/admin/login/',
+    'LOGOUT_URL': '/website/admin/logout/',
+    'USE_SESSION_AUTH': True,
+    'SECURITY_DEFINITIONS': {
+        'basic': {
+            'type': 'basic'
+        }
+    },
+}
