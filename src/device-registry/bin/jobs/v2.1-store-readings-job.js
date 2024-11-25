@@ -109,8 +109,7 @@ class BatchProcessor {
 
       // Prepare and save reading
       const filter = { site_id: doc.site_id, time: docTime.toDate() };
-      const updateDoc = { ...doc, time: docTime.toDate() };
-      delete updateDoc._id;
+      const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
 
       if (averages) {
         updateDoc.averages = averages;
@@ -269,7 +268,7 @@ async function fetchAndStoreDataIntoReadingsModel() {
   }
 }
 
-// Schedule the job to run every 30 minutes
+// Schedules job to run once every hour at minute 30
 const schedule = "30 * * * *";
 cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
   scheduled: true,
