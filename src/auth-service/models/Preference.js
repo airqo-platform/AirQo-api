@@ -526,11 +526,17 @@ PreferenceSchema.statics = {
 };
 
 const PreferenceModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let preferences = mongoose.model("preferences");
     return preferences;
   } catch (error) {
-    let preferences = getModelByTenant(tenant, "preference", PreferenceSchema);
+    let preferences = getModelByTenant(
+      dbTenant,
+      "preference",
+      PreferenceSchema
+    );
     return preferences;
   }
 };

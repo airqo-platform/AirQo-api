@@ -373,11 +373,17 @@ DepartmentSchema.statics = {
 };
 
 const DepartmentModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let departments = mongoose.model("departments");
     return departments;
   } catch (error) {
-    let departments = getModelByTenant(tenant, "department", DepartmentSchema);
+    let departments = getModelByTenant(
+      dbTenant,
+      "department",
+      DepartmentSchema
+    );
     return departments;
   }
 };

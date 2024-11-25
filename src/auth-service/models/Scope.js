@@ -205,11 +205,13 @@ ScopeSchema.methods = {
 };
 
 const ScopeModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const scopes = mongoose.model("scopes");
     return scopes;
   } catch (error) {
-    const scopes = getModelByTenant(tenant, "scope", ScopeSchema);
+    const scopes = getModelByTenant(dbTenant, "scope", ScopeSchema);
     return scopes;
   }
 };

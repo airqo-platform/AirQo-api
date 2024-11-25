@@ -315,11 +315,13 @@ GroupSchema.statics = {
 };
 
 const GroupModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let groups = mongoose.model("groups");
     return groups;
   } catch (error) {
-    let groups = getModelByTenant(tenant, "group", GroupSchema);
+    let groups = getModelByTenant(dbTenant, "group", GroupSchema);
     return groups;
   }
 };

@@ -241,11 +241,13 @@ FavoriteSchema.methods = {
 };
 
 const FavoriteModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let favorites = mongoose.model("favorites");
     return favorites;
   } catch (error) {
-    let favorites = getModelByTenant(tenant, "favorite", FavoriteSchema);
+    let favorites = getModelByTenant(dbTenant, "favorite", FavoriteSchema);
     return favorites;
   }
 };

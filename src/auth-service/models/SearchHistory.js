@@ -246,12 +246,14 @@ SearchHistorySchema.methods = {
 };
 
 const SearchHistoryModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const searchHistories = mongoose.model("searchHistories");
     return searchHistories;
   } catch (error) {
     const searchHistories = getModelByTenant(
-      tenant,
+      dbTenant,
       "searchHistory",
       SearchHistorySchema
     );

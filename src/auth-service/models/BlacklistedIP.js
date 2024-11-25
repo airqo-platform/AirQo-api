@@ -199,11 +199,13 @@ BlacklistedIPSchema.methods = {
 };
 
 const BlacklistedIPModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let ips = mongoose.model("BlacklistedIPs");
     return ips;
   } catch (error) {
-    let ips = getModelByTenant(tenant, "BlacklistedIP", BlacklistedIPSchema);
+    let ips = getModelByTenant(dbTenant, "BlacklistedIP", BlacklistedIPSchema);
     return ips;
   }
 };

@@ -951,11 +951,13 @@ UserSchema.methods = {
 };
 
 const UserModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let users = mongoose.model("users");
     return users;
   } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
+    let users = getModelByTenant(dbTenant, "user", UserSchema);
     return users;
   }
 };
