@@ -7,6 +7,21 @@
 const axios = require("axios");
 const isEmpty = require("is-empty");
 
+function filterWithoutSiteCategoryAndInvalidCoordinates(sites) {
+  const result = sites
+    .filter(
+      (site) =>
+        !site.hasOwnProperty("site_category") &&
+        site.hasOwnProperty("latitude") &&
+        site.hasOwnProperty("longitude") &&
+        typeof site.latitude === "number" &&
+        typeof site.longitude === "number"
+    )
+    .map((site) => site._id.toString());
+
+  return result;
+}
+
 function transformApiResponse(inputData) {
   // Extract site-category data for direct mapping
   const siteCategory = inputData.site["site-category"];
@@ -80,26 +95,32 @@ const createRequestBody = (apiResponse) => {
     throw error;
   }
 };
-
+const token = "";
 // Make a GET request
 const url = "http://localhost:3000/api/v2/devices/sites/summary";
 const config = {
   headers: {
-    Authorization: "",
+    Authorization: token,
   },
 };
 axios
   .get(url, config)
   .then((response) => {
     console.log("GET response site name" + ": ");
-    console.dir(response.data);
-    for (let i = 0; i < response.data.sites.length; i += 10) {
-      const batch = response.data.sites.slice(i, i + 10);
+    // console.dir(response.data);
+    const sites = filterWithoutSiteCategoryAndInvalidCoordinates(
+      response.data.sites
+    );
+    console.log("site without category:", sites.length);
+
+    console.dir(sites);
+
+    for (let i = 0; i < sites.length; i += 10) {
+      const batch = sites.slice(i, i + 10);
       // Process batch of 10 items
       batch.forEach(async (site) => {
         // console.log("the site _id", site._id);
         const url = `http://localhost:3000/api/v2/spatial/categorize_site?latitude=${site.latitude}&longitude=${site.longitude}`;
-
         //***MAKE THE GET REQUEST */
         axios
           .get(url, config)
@@ -107,7 +128,7 @@ axios
             // console.log("PUT response:", response.data);
             const apiResponse = response.data;
             const requestBody = createRequestBody(apiResponse);
-            // console.log("requestBody", requestBody);
+            console.log("requestBody", requestBody);
             const updateURL = `http://localhost:3000/api/v2/devices/sites?id=${site._id}`;
             const data = {
               site_category: requestBody,
@@ -117,7 +138,7 @@ axios
             axios
               .put(updateURL, data, config)
               .then((response) => {
-                console.log("PUT response:", response.data);
+                // console.log("PUT response:", response.data);
               })
               .catch((error) => {
                 if (error.response) {
