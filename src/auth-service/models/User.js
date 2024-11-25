@@ -17,6 +17,7 @@ const logger = require("log4js").getLogger(
 const validUserTypes = ["user", "guest"];
 const { HttpError } = require("@utils/errors");
 const mailer = require("@utils/mailer");
+const ORGANISATIONS_LIMIT = 6;
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -138,8 +139,7 @@ const UserSchema = new Schema(
       validate: [
         {
           validator: function (value) {
-            const maxLimit = 6;
-            return value.length <= maxLimit;
+            return value.length <= ORGANISATIONS_LIMIT;
           },
           message: "Too many networks. Maximum limit: 6.",
         },
@@ -167,8 +167,7 @@ const UserSchema = new Schema(
       validate: [
         {
           validator: function (value) {
-            const maxLimit = 6;
-            return value.length <= maxLimit;
+            return value.length <= ORGANISATIONS_LIMIT;
           },
           message: "Too many groups. Maximum limit: 6.",
         },
@@ -247,14 +246,27 @@ UserSchema.path("group_roles.userType").validate(function (value) {
   return validUserTypes.includes(value);
 }, "Invalid userType value");
 
-UserSchema.pre("save", function (next) {
+UserSchema.pre("save", async function (next) {
+  // Password hashing
   if (this.isModified("password")) {
     this.password = bcrypt.hashSync(this.password, saltRounds);
   }
+
+  // Validate contact information
   if (!this.email && !this.phoneNumber) {
     return next(new Error("Phone number or email is required!"));
   }
 
+  // Profile picture validation
+  if (this.profilePicture && !validateProfilePicture(this.profilePicture)) {
+    return next(
+      new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: "Invalid profile picture URL",
+      })
+    );
+  }
+
+  // Network roles handling
   if (!this.network_roles || this.network_roles.length === 0) {
     if (
       !constants ||
@@ -281,6 +293,7 @@ UserSchema.pre("save", function (next) {
     ];
   }
 
+  // Group roles handling
   if (!this.group_roles || this.group_roles.length === 0) {
     if (
       !constants ||
@@ -292,7 +305,7 @@ UserSchema.pre("save", function (next) {
         httpStatus.INTERNAL_SERVER_ERROR,
         {
           message:
-            "Contact support@airqo.net -- unable to retrieve the default Group or Role to which the User will belong",
+            "Contact support@airqo.net -- unable to retrieve the default Group or Role",
         }
       );
     }
@@ -307,23 +320,122 @@ UserSchema.pre("save", function (next) {
     ];
   }
 
-  if (!this.verified) {
-    this.verified = false;
+  // Permissions handling
+  if (this.permissions && this.permissions.length > 0) {
+    // Additional permissions validation can be added here if needed
+    this.permissions = [...new Set(this.permissions)]; // Ensure unique permissions
   }
 
-  if (!this.analyticsVersion) {
-    this.analyticsVersion = 2;
-  }
+  // Ensure default values
+  this.verified = this.verified ?? false;
+  this.analyticsVersion = this.analyticsVersion ?? 2;
 
   return next();
 });
 
-UserSchema.pre("update", function (next) {
-  if (this.isModified("password")) {
-    this.password = bcrypt.hashSync(this.password, saltRounds);
+UserSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  function (next) {
+    if (this.getUpdate) {
+      const updates = this.getUpdate();
+      const fieldsToValidate = [
+        "_id",
+        "firstName",
+        "lastName",
+        "userName",
+        "email",
+        "organization",
+        "long_organization",
+        "privilege",
+        "country",
+        "profilePicture",
+        "phoneNumber",
+        "createdAt",
+        "updatedAt",
+        "rateLimit",
+        "lastLogin",
+        "iat",
+      ];
+
+      // Get all actual fields being updated from both root and $set
+      const actualUpdates = {
+        ...(updates || {}),
+        ...(updates.$set || {}),
+      };
+
+      // Only validate fields that are present in the update
+      fieldsToValidate.forEach((field) => {
+        if (field in actualUpdates) {
+          const value = actualUpdates[field];
+          if (value === undefined || value === null || value === "") {
+            return next(
+              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                message: `${field} cannot be empty, null, or undefined`,
+              })
+            );
+          }
+        }
+      });
+
+      if (updates) {
+        // Prevent modification of certain immutable fields
+        const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
+        immutableFields.forEach((field) => {
+          if (updates[field]) delete updates[field];
+          if (updates.$set && updates.$set[field]) {
+            return next(
+              new HttpError(
+                "Modification Not Allowed",
+                httpStatus.BAD_REQUEST,
+                { message: `Cannot modify ${field} after creation` }
+              )
+            );
+          }
+          if (updates.$set) delete updates.$set[field];
+          if (updates.$push) delete updates.$push[field];
+        });
+
+        // Validate network roles and group roles limits
+        if (
+          updates.network_roles &&
+          updates.network_roles.length > ORGANISATIONS_LIMIT
+        ) {
+          return next(
+            new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+              message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
+            })
+          );
+        }
+        if (
+          updates.group_roles &&
+          updates.group_roles.length > ORGANISATIONS_LIMIT
+        ) {
+          return next(
+            new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+              message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
+            })
+          );
+        }
+
+        // Ensure password is hashed if modified
+        if (updates.password) {
+          updates.password = bcrypt.hashSync(updates.password, saltRounds);
+        }
+      }
+    }
+
+    // Additional checks for new documents
+    if (this.isNew) {
+      const requiredFields = ["firstName", "lastName", "email"];
+      requiredFields.forEach((field) => {
+        if (this.isModified(field) && !this[field]) {
+          return next(new Error(`${field} is required`));
+        }
+      });
+    }
+    next();
   }
-  return next();
-});
+);
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
@@ -702,61 +814,18 @@ UserSchema.statics = {
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the user modification function........");
-      let options = { new: true };
+      const options = { new: true };
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
-      let modifiedUpdate = update;
-      modifiedUpdate["$addToSet"] = {};
 
-      if (update.password) {
-        modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
-      }
-
-      if (modifiedUpdate.profilePicture) {
-        if (!validateProfilePicture(modifiedUpdate.profilePicture)) {
-          next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: "Invalid profile picture URL",
-            })
-          );
-        }
-      }
-
-      if (modifiedUpdate.network_roles) {
-        if (isEmpty(modifiedUpdate.network_roles.network)) {
-          delete modifiedUpdate.network_roles;
-        } else {
-          modifiedUpdate["$addToSet"] = {
-            network_roles: { $each: modifiedUpdate.network_roles },
-          };
-          delete modifiedUpdate.network_roles;
-        }
-      }
-
-      if (modifiedUpdate.group_roles) {
-        if (isEmpty(modifiedUpdate.group_roles.group)) {
-          delete modifiedUpdate.group_roles;
-        } else {
-          modifiedUpdate["$addToSet"] = {
-            group_roles: { $each: modifiedUpdate.group_roles },
-          };
-          delete modifiedUpdate.group_roles;
-        }
-      }
-
-      if (modifiedUpdate.permissions) {
-        modifiedUpdate["$addToSet"]["permissions"] = {};
-        modifiedUpdate["$addToSet"]["permissions"]["$each"] =
-          modifiedUpdate.permissions;
-        delete modifiedUpdate["permissions"];
-      }
-
+      // Find and update user
       const updatedUser = await this.findOneAndUpdate(
         filter,
-        modifiedUpdate,
+        update,
         options
       ).select(fieldsString);
 
+      // Handle update result
       if (!isEmpty(updatedUser)) {
         const { _id, ...userData } = updatedUser._doc;
         return {
@@ -765,16 +834,17 @@ UserSchema.statics = {
           data: userData,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "user does not exist, please crosscheck",
-          })
-        );
       }
+
+      // User not found
+      return next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "user does not exist, please crosscheck",
+        })
+      );
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
