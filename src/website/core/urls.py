@@ -3,6 +3,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
 
 # Swagger Imports
 from rest_framework import permissions
@@ -29,10 +30,18 @@ api_info = openapi.Info(
     license=openapi.License(name="BSD License"),
 )
 
-schema_view = get_schema_view(
+# Public schema view for JSON and YAML (no authentication required)
+public_schema_view = get_schema_view(
     api_info,
     public=True,
     permission_classes=(permissions.AllowAny,),
+)
+
+# Protected schema view for Swagger and ReDoc (requires authentication)
+protected_schema_view = get_schema_view(
+    api_info,
+    public=False,
+    permission_classes=(permissions.IsAuthenticated,),
 )
 
 urlpatterns = [
@@ -58,12 +67,23 @@ urlpatterns = [
     path('website/', include('apps.africancities.urls')),
 
     # Swagger URLs
-    re_path(r'^swagger(?P<format>\.json|\.yaml)$',
-            schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('website/swagger/', schema_view.with_ui('swagger',
-         cache_timeout=0), name='schema-swagger-ui'),
-    path('website/redoc/', schema_view.with_ui('redoc',
-         cache_timeout=0), name='schema-redoc'),
+    re_path(
+        r'^swagger(?P<format>\.json|\.yaml)$',
+        public_schema_view.without_ui(cache_timeout=0),
+        name='schema-json'
+    ),
+    path(
+        'website/swagger/',
+        login_required(protected_schema_view.with_ui(
+            'swagger', cache_timeout=0)),
+        name='schema-swagger-ui'
+    ),
+    path(
+        'website/redoc/',
+        login_required(protected_schema_view.with_ui(
+            'redoc', cache_timeout=0)),
+        name='schema-redoc'
+    ),
 
     # Healthcheck route
     path('website/healthcheck/', healthcheck, name='healthcheck'),
