@@ -8,7 +8,7 @@ and following up on its deployment. :)
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
@@ -2787,11 +2787,11 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
       .subtract(14, "days")
       .toDate();
 
-    logObject("Debug Info:");
-    logObject("TIMEZONE:", TIMEZONE);
-    logObject("now:", now);
-    logObject("today:", today);
-    logObject("twoWeeksAgo:", twoWeeksAgo);
+    logText("Debug Info:");
+    logObject("TIMEZONE", TIMEZONE);
+    logObject("now", now);
+    logObject("today", today);
+    logObject("twoWeeksAgo", twoWeeksAgo);
 
     const result = await this.aggregate([
       // Initial match to reduce documents early
@@ -2899,18 +2899,18 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     }
 
     const [currentWeek, previousWeek] = result;
-    logObject("Current Week days:", currentWeek.days);
+    logObject("Current Week days", currentWeek.days);
     const todayStr = moment(today)
       .tz(TIMEZONE)
       .format("YYYY-MM-DD");
 
-    logObject("todayStr:", todayStr);
+    logObject("todayStr", todayStr);
     const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
       ?.average;
 
-    logObject("Found todayAverage:", todayAverage);
+    logObject("Found todayAverage", todayAverage);
     logObject(
-      "Matching day:",
+      "Matching day",
       currentWeek.days.find((day) => day.date === todayStr)
     );
 
