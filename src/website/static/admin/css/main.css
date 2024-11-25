@@ -1,0 +1,20 @@
+/* Override Bootstrap primary color if needed */
+.text-primary {
+  color: #0056b3 !important;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+  border-color: #004085;
+}
+
+/* Custom styling for the hero image */
+header img {
+  max-width: 100%;
+  height: auto;
+}

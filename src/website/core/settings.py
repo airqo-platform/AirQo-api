@@ -1,29 +1,41 @@
 import os
-import sys
-import dj_database_url
 from pathlib import Path
+import sys
+
+import dj_database_url
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-# Adjusting BASE_DIR to point to the backend folder level
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Add the apps directory to the Python path
-sys.path.append(os.path.join(BASE_DIR, 'apps'))
+sys.path.append(str(BASE_DIR / 'apps'))
+
+
+def parse_env_list(env_var, default=""):
+    """
+    Parses a comma-separated string from an environment variable and trims whitespace.
+    """
+    raw_value = os.getenv(env_var, default)
+    return [v.strip() for v in raw_value.split(',') if v.strip()]
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("The SECRET_KEY environment variable is not set.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 't']
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
 
 # Application definition
 INSTALLED_APPS = [
+    # Django default apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -42,20 +54,21 @@ INSTALLED_APPS = [
     'django_quill',
 
     # Custom apps
+    'apps.externalteams',
     'apps.event',
     'apps.cleanair',
     'apps.africancities',
     'apps.publications',
     'apps.press',
     'apps.impact',
+    'apps.faqs',
     'apps.highlights',
     'apps.career',
-    'apps.FAQ',
     'apps.partners',
-    'apps.externalTeam',
     'apps.board',
     'apps.team',
 ]
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -71,25 +84,12 @@ MIDDLEWARE = [
 
 # CORS Configuration
 CORS_ORIGIN_ALLOW_ALL = False
+CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
+CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
+CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
 
-# Handle CORS_ALLOWED_ORIGINS
-CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv(
-    'CORS_ALLOWED_ORIGINS', '').split(',')]
-
-# Handle CORS_ORIGIN_REGEX_WHITELIST
-CORS_ORIGIN_REGEX_WHITELIST = [regex.strip() for regex in os.getenv(
-    'CORS_ORIGIN_REGEX_WHITELIST', '').split(',')]
-
-# Handle CSRF_TRUSTED_ORIGINS
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv(
-    'CSRF_TRUSTED_ORIGINS', '').split(',')]
-
-# Only allow CSRF cookie over HTTPS (recommended for production)
-if DEBUG:
-    CSRF_COOKIE_SECURE = False
-else:
-    CSRF_COOKIE_SECURE = True
-
+# Only allow CSRF cookie over HTTPS in production
+CSRF_COOKIE_SECURE = not DEBUG
 
 # Root URL configuration
 ROOT_URLCONF = 'core.urls'
@@ -98,7 +98,7 @@ ROOT_URLCONF = 'core.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -123,8 +123,12 @@ if DEBUG:
         }
     }
 else:
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    if not DATABASE_URL:
+        raise ValueError(
+            "The DATABASE_URL environment variable is not set in production.")
     DATABASES = {
-        'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
     }
 
 # Password validation
@@ -142,27 +146,45 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-# Static files configuration
-# Point STATICFILES_DIRS to the correct path for the 'static' folder inside 'backend'
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Media files configuration
+# Define where `collectstatic` will output collected static files
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Additional locations for app-specific static files
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# Use WhiteNoise for serving static files in production
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Media files (Uploaded files)
+MEDIA_URL = '/media/' if DEBUG else f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/'
+MEDIA_ROOT = BASE_DIR / 'assets' if DEBUG else None
+
 if DEBUG:
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'assets')
+    # Local file storage for media
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 else:
+    # Validate Cloudinary settings for production
+    CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
+    CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY')
+    CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET')
+
+    if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+        raise ValueError(
+            "Cloudinary environment variables are not fully set in production."
+        )
+
     CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+        'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
+        'API_KEY': CLOUDINARY_API_KEY,
+        'API_SECRET': CLOUDINARY_API_SECRET,
         'SECURE': True,
     }
+
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    MEDIA_URL = '/media/'
+
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -211,21 +233,18 @@ QUILL_CONFIGS = {
 def local_file_upload(file):
     from django.core.files.storage import default_storage
     file_name = default_storage.save(f'quill_uploads/{file.name}', file)
-    return os.path.join(MEDIA_URL, file_name)
+    return f"{MEDIA_URL}{file_name}"
 
 
 def cloudinary_file_upload(file):
     from django.core.files.storage import default_storage
     file_name = default_storage.save(
         f'website/uploads/quill_uploads/{file.name}', file)
-    return MEDIA_URL + file_name
+    return f"{MEDIA_URL}{file_name}"
 
 
 # Set the appropriate upload handler
-if DEBUG:
-    QUILL_UPLOAD_HANDLER = local_file_upload
-else:
-    QUILL_UPLOAD_HANDLER = cloudinary_file_upload
+QUILL_UPLOAD_HANDLER = local_file_upload if DEBUG else cloudinary_file_upload
 
 # Debug logging
 if DEBUG:

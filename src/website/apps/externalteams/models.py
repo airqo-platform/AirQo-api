@@ -5,7 +5,7 @@ from utils.models import BaseModel
 
 class ExternalTeamMember(BaseModel):
     name = models.CharField(max_length=100)
-    title = models.CharField(max_length=100)
+    title = models.CharField(max_length=120)
 
     picture = ConditionalImageField(
         local_upload_to='external_team/',
