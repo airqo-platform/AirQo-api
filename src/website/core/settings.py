@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django_quill',
 
     # Custom apps
+    'apps.externalteams',
     'apps.event',
     'apps.cleanair',
     'apps.africancities',
@@ -64,7 +65,6 @@ INSTALLED_APPS = [
     'apps.highlights',
     'apps.career',
     'apps.partners',
-    # 'apps.externalteam',
     'apps.board',
     'apps.team',
 ]
