@@ -1,14 +1,23 @@
-{% extends "admin/base_site.html" %} {% load static %} {% block title %}AirQo
-Website Administration{% endblock %} {% block extrahead %}
-<!-- Link to custom Quill CSS -->
+{% extends "admin/base_site.html" %} {% load static %} {% block title %} AirQo
+Website Admin Portal {% endblock %} {% block extrahead %} {{ block.super }}
 <link
   rel="stylesheet"
   type="text/css"
   href="{% static 'admin/css/custom_quill.css' %}"
 />
+<link
+  rel="stylesheet"
+  type="text/css"
+  href="{% static 'admin/css/main.css' %}"
+/>
+<link
+  rel="icon"
+  href="{% static 'admin/images/favicon.ico' %}"
+  type="image/x-icon"
+/>
 {% endblock %} {% block branding %}
 <h1 id="site-name">
-  <a href="{% url 'admin:index' %}">AirQo Website Administration</a>
+  <a href="{% url 'admin:index' %}">AirQo Website Admin Portal</a>
 </h1>
 {% endblock %} {% block footer %} {{ block.super }}
 <!-- Include custom Dark Mode JavaScript -->
