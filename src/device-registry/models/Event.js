@@ -2787,6 +2787,12 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
       .subtract(14, "days")
       .toDate();
 
+    logObject("Debug Info:");
+    logObject("TIMEZONE:", TIMEZONE);
+    logObject("now:", now);
+    logObject("today:", today);
+    logObject("twoWeeksAgo:", twoWeeksAgo);
+
     const result = await this.aggregate([
       // Initial match to reduce documents early
       {
@@ -2893,11 +2899,20 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     }
 
     const [currentWeek, previousWeek] = result;
+    logObject("Current Week days:", currentWeek.days);
     const todayStr = moment(today)
       .tz(TIMEZONE)
       .format("YYYY-MM-DD");
+
+    logObject("todayStr:", todayStr);
     const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
       ?.average;
+
+    logObject("Found todayAverage:", todayAverage);
+    logObject(
+      "Matching day:",
+      currentWeek.days.find((day) => day.date === todayStr)
+    );
 
     const percentageDifference =
       previousWeek.weeklyAverage !== 0
