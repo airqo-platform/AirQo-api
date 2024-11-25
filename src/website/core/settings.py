@@ -88,8 +88,10 @@ CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
 CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
 CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
 
+
 # Only allow CSRF cookie over HTTPS in production
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
 
 # Root URL configuration
 ROOT_URLCONF = 'core.urls'
