@@ -237,11 +237,13 @@ IPPrefixSchema.methods = {
 };
 
 const IPPrefixModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let prefix = mongoose.model("IPPrefixes");
     return prefix;
   } catch (error) {
-    let prefix = getModelByTenant(tenant, "IPPrefix", IPPrefixSchema);
+    let prefix = getModelByTenant(dbTenant, "IPPrefix", IPPrefixSchema);
     return prefix;
   }
 };

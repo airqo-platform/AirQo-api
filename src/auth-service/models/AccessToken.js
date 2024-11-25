@@ -458,11 +458,13 @@ AccessTokenSchema.methods = {
 };
 
 const AccessTokenModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let tokens = mongoose.model("access_tokens");
     return tokens;
   } catch (error) {
-    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
+    let tokens = getModelByTenant(dbTenant, "access_token", AccessTokenSchema);
     return tokens;
   }
 };

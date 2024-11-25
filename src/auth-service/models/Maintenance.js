@@ -231,10 +231,12 @@ MaintenanceSchema.statics = {
 };
 
 const MaintenanceModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     return mongoose.model("maintenances");
   } catch (error) {
-    return getModelByTenant(tenant, "maintenance", MaintenanceSchema);
+    return getModelByTenant(dbTenant, "maintenance", MaintenanceSchema);
   }
 };
 

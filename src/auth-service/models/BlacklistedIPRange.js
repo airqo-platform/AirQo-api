@@ -200,12 +200,14 @@ BlacklistedIPRangeSchema.methods = {
 };
 
 const BlacklistedIPRangeModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let ips = mongoose.model("BlacklistedIPRanges");
     return ips;
   } catch (error) {
     let ips = getModelByTenant(
-      tenant,
+      dbTenant,
       "BlacklistedIPRange",
       BlacklistedIPRangeSchema
     );

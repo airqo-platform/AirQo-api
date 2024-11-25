@@ -287,11 +287,13 @@ VerifyTokenSchema.methods = {
 };
 
 const VerifyTokenModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let tokens = mongoose.model("verify_tokens");
     return tokens;
   } catch (error) {
-    let tokens = getModelByTenant(tenant, "verify_token", VerifyTokenSchema);
+    let tokens = getModelByTenant(dbTenant, "verify_token", VerifyTokenSchema);
     return tokens;
   }
 };

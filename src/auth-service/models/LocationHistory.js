@@ -254,12 +254,14 @@ LocationHistorySchema.methods = {
 };
 
 const LocationHistoryModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const locationHistories = mongoose.model("locationHistories");
     return locationHistories;
   } catch (error) {
     const locationHistories = getModelByTenant(
-      tenant,
+      dbTenant,
       "locationHistory",
       LocationHistorySchema
     );
