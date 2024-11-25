@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any, List, Union, Dict
-import logging
+from werkzeug.exceptions import BadRequest
 
 import pandas as pd
 import requests
@@ -15,7 +15,8 @@ from api.utils.pollutants.pm_25 import (
     AQCSV_DATA_STATUS_MAPPER,
 )
 from api.utils.http import AirQoRequests
-from config import Config
+
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +295,7 @@ def device_category_to_str(device_category: str) -> str:
     return ""
 
 
-def filter_non_private_sites(sites: List[str]) -> Dict[str, Any]:
+def filter_non_private_sites(filter_type: str, sites: List[str]) -> Dict[str, Any]:
     """
     Filters out private site IDs from a provided array of site IDs.
 
@@ -313,17 +314,21 @@ def filter_non_private_sites(sites: List[str]) -> Dict[str, Any]:
     try:
         airqo_requests = AirQoRequests()
         response = airqo_requests.request(
-            endpoint=endpoint, body={"sites": sites}, method="post"
+            endpoint=endpoint, body={filter_type: sites}, method="post"
         )
-        if response and response.get("status", None) == "success":
-            return response.get("data")
+        if response and response.get("status") == "success":
+            return airqo_requests.create_response(
+                message="Successfully returned data.",
+                data=response.get("data"),
+                success=True,
+            )
         else:
-            raise RuntimeError(response.get("message"))
-    except RuntimeError as rex:
-        raise RuntimeError(f"Error while filtering non private sites {rex}")
+            return airqo_requests.create_response(response, success=False)
+    except Exception as rex:
+        logger.exception(f"Error while filtering non private devices {rex}")
 
 
-def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
+def filter_non_private_devices(filter_type: str, devices: List[str]) -> Dict[str, Any]:
     """
     FilterS out private device IDs from a provided array of device IDs.
 
@@ -341,11 +346,15 @@ def filter_non_private_devices(devices: List[str]) -> Dict[str, Any]:
     try:
         airqo_requests = AirQoRequests()
         response = airqo_requests.request(
-            endpoint=endpoint, body={"devices": devices}, method="post"
+            endpoint=endpoint, body={filter_type: devices}, method="post"
         )
-        if response and response.get("status", None) == "success":
-            return response.get("data")
+        if response and response.get("status") == "success":
+            return airqo_requests.create_response(
+                message="Successfully returned data.",
+                data=response.get("data"),
+                success=True,
+            )
         else:
-            raise RuntimeError(response.get("message"))
-    except RuntimeError as rex:
-        raise RuntimeError(f"Error while filtering non private devices {rex}")
+            return airqo_requests.create_response(response, success=False)
+    except Exception as rex:
+        logger.exception(f"Error while filtering non private devices {rex}")

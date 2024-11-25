@@ -923,9 +923,55 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
+      serial_number,
+      authRequired,
     } = { ...req.query, ...req.params };
 
     const filter = {};
+
+    const toBooleanSafe = (value) => {
+      if (value === undefined) return undefined;
+
+      // If already a boolean, return it
+      if (typeof value === "boolean") return value;
+
+      // String conversions
+      const stringValue = String(value)
+        .toLowerCase()
+        .trim();
+      if (["true", "yes", "1"].includes(stringValue)) return true;
+      if (["false", "no", "0"].includes(stringValue)) return false;
+
+      return undefined; // Invalid input
+    };
+
+    if (authRequired !== undefined) {
+      const boolValue = toBooleanSafe(authRequired);
+      if (boolValue !== undefined) {
+        filter.authRequired = boolValue;
+      }
+    }
+
+    if (active !== undefined) {
+      const boolValue = toBooleanSafe(active);
+      if (boolValue !== undefined) {
+        filter.isActive = boolValue;
+      }
+    }
+
+    if (visibility !== undefined) {
+      const boolValue = toBooleanSafe(visibility);
+      if (boolValue !== undefined) {
+        filter.visibility = boolValue;
+      }
+    }
+
+    if (primary !== undefined) {
+      const boolValue = toBooleanSafe(primary);
+      if (boolValue !== undefined) {
+        filter.primary = boolValue;
+      }
+    }
 
     const modifyAndConcatArray = (value) => {
       const deviceArray = value.toString().split(",");
@@ -983,6 +1029,13 @@ const generateFilter = {
     if (network) {
       filter.network = network;
     }
+    if (serial_number) {
+      filter.serial_number = serial_number;
+    }
+
+    // if (authRequired) {
+    //   filter.authRequired = authRequired.toLowerCase() === "yes";
+    // }
 
     if (group) {
       filter["group"] = group;
@@ -1024,17 +1077,17 @@ const generateFilter = {
       filter.locationName = mapAddress || map;
     }
 
-    if (primary) {
-      filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
-    }
+    // if (primary) {
+    //   filter.isPrimaryInLocation = primary.toLowerCase() === "yes";
+    // }
 
-    if (active) {
-      filter.isActive = active.toLowerCase() === "yes";
-    }
+    // if (active) {
+    //   filter.isActive = active.toLowerCase() === "yes";
+    // }
 
-    if (visibility) {
-      filter.visibility = visibility.toLowerCase() === "yes";
-    }
+    // if (visibility) {
+    //   filter.visibility = visibility.toLowerCase() === "yes";
+    // }
 
     const validStatuses = constants.VALID_DEVICE_STATUSES;
 
@@ -1087,7 +1140,7 @@ const generateFilter = {
       last_active,
       last_active_before,
       last_active_after,
-    } = { ...req.query, ...req.params, ...req.body };
+    } = { ...req.query, ...req.params };
     const filter = {};
 
     if (county) {
@@ -1360,7 +1413,6 @@ const generateFilter = {
       const { id, name, network_codes, net_id } = {
         ...req.query,
         ...req.params,
-        ...req.body,
       };
       let filter = {};
       if (name) {
@@ -1397,7 +1449,6 @@ const generateFilter = {
       const { id, name, admin_level_codes, level_id } = {
         ...req.query,
         ...req.params,
-        ...req.body,
       };
 
       let filter = {};
@@ -1435,7 +1486,6 @@ const generateFilter = {
     let { id, name, admin_level, summary, network } = {
       ...req.query,
       ...req.params,
-      ...req.body,
     };
     let filter = {};
 
@@ -1476,7 +1526,6 @@ const generateFilter = {
     } = {
       ...req.query,
       ...req.params,
-      ...req.body,
     };
 
     let filter = {};
@@ -1542,7 +1591,6 @@ const generateFilter = {
     } = {
       ...req.query,
       ...req.params,
-      ...req.body,
     };
     let filter = {};
     if (id) {
