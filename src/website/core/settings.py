@@ -117,22 +117,28 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # Database configuration
-if DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.sqlite3'),
-            'NAME': BASE_DIR / os.getenv('DATABASE_NAME', 'db.sqlite3'),
-        }
-    }
-else:
-    DATABASE_URL = os.getenv('DATABASE_URL')
-    if not DATABASE_URL:
-        raise ValueError(
-            "The DATABASE_URL environment variable is not set in production.")
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
-    }
-
+# if DEBUG:
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.sqlite3'),
+#             'NAME': BASE_DIR / os.getenv('DATABASE_NAME', 'db.sqlite3'),
+#         }
+#     }
+# else:
+#     DATABASE_URL = os.getenv('DATABASE_URL')
+#     if not DATABASE_URL:
+#         raise ValueError(
+#             "The DATABASE_URL environment variable is not set in production.")
+#     DATABASES = {
+#         'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+#     }
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise ValueError(
+        "The DATABASE_URL environment variable is not set in production.")
+DATABASES = {
+    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+}
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
