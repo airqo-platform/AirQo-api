@@ -11,26 +11,27 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='africancountry',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 43, 837112)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='africancountry',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='africancountry',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
+        # migrations.AddField(
+        #     model_name='africancountry',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 43, 837112)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='africancountry',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='africancountry',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
         migrations.AddField(
             model_name='city',
             name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 48, 566917)),
+            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(
+                2024, 11, 26, 11, 32, 48, 566917)),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -46,7 +47,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='content',
             name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 51, 682199)),
+            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(
+                2024, 11, 26, 11, 32, 51, 682199)),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -62,7 +64,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='description',
             name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 53, 726466)),
+            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(
+                2024, 11, 26, 11, 32, 53, 726466)),
             preserve_default=False,
         ),
         migrations.AddField(
@@ -78,7 +81,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='image',
             name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 56, 110286)),
+            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(
+                2024, 11, 26, 11, 32, 56, 110286)),
             preserve_default=False,
         ),
         migrations.AddField(

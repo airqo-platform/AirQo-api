@@ -11,36 +11,37 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='boardmember',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 58, 338943)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='boardmember',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='boardmember',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
-        migrations.AddField(
-            model_name='boardmemberbiography',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 33, 0, 484548)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='boardmemberbiography',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='boardmemberbiography',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
+        # migrations.AddField(
+        #     model_name='boardmember',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 32, 58, 338943)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='boardmember',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='boardmember',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
+        # migrations.AddField(
+        #     model_name='boardmemberbiography',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(
+        #         2024, 11, 26, 11, 33, 0, 484548)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='boardmemberbiography',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='boardmemberbiography',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
     ]

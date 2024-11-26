@@ -11,36 +11,37 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='partner',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 42, 895346)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='partner',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='partner',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
-        migrations.AddField(
-            model_name='partnerdescription',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 44, 655129)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='partnerdescription',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='partnerdescription',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
+        # migrations.AddField(
+        #     model_name='partner',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 42, 895346)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='partner',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='partner',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
+        # migrations.AddField(
+        #     model_name='partnerdescription',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(
+        #         2024, 11, 26, 11, 46, 44, 655129)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='partnerdescription',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='partnerdescription',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
     ]

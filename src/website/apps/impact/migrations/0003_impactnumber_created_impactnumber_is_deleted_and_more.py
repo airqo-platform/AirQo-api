@@ -11,20 +11,20 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='impactnumber',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 40, 995400)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='impactnumber',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='impactnumber',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
+        # migrations.AddField(
+        #     model_name='impactnumber',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 40, 995400)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='impactnumber',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='impactnumber',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
     ]

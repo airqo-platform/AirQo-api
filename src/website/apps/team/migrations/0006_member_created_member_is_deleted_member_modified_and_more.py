@@ -11,36 +11,36 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='member',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 50, 81636)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='member',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='member',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
-        migrations.AddField(
-            model_name='memberbiography',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 51, 825617)),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name='memberbiography',
-            name='is_deleted',
-            field=models.BooleanField(default=False),
-        ),
-        migrations.AddField(
-            model_name='memberbiography',
-            name='modified',
-            field=models.DateTimeField(auto_now=True),
-        ),
+        # migrations.AddField(
+        #     model_name='member',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 50, 81636)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='member',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='member',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
+        # migrations.AddField(
+        #     model_name='memberbiography',
+        #     name='created',
+        #     field=models.DateTimeField(auto_now_add=True, default=datetime.datetime(2024, 11, 26, 11, 46, 51, 825617)),
+        #     preserve_default=False,
+        # ),
+        # migrations.AddField(
+        #     model_name='memberbiography',
+        #     name='is_deleted',
+        #     field=models.BooleanField(default=False),
+        # ),
+        # migrations.AddField(
+        #     model_name='memberbiography',
+        #     name='modified',
+        #     field=models.DateTimeField(auto_now=True),
+        # ),
     ]
