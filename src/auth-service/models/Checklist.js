@@ -229,11 +229,13 @@ ChecklistSchema.statics = {
 };
 
 const ChecklistModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let checklists = mongoose.model("checklists");
     return checklists;
   } catch (error) {
-    let checklists = getModelByTenant(tenant, "checklist", ChecklistSchema);
+    let checklists = getModelByTenant(dbTenant, "checklist", ChecklistSchema);
     return checklists;
   }
 };

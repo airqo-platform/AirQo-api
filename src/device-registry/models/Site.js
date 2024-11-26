@@ -370,47 +370,79 @@ siteSchema.pre(
     if (this.getUpdate) {
       const updates = this.getUpdate();
       if (updates) {
-        if (updates.latitude) delete updates.latitude;
-        if (updates.longitude) delete updates.longitude;
+        // Prevent modification of restricted fields
+        const restrictedFields = [
+          "latitude",
+          "longitude",
+          "_id",
+          "generated_name",
+          "lat_long",
+        ];
+        restrictedFields.forEach((field) => {
+          // Remove from top-level updates
+          if (updates[field]) delete updates[field];
 
-        if (updates.$set) {
-          if (updates.$set.latitude || updates.$set.longitude) {
-            return next(
-              new HttpError(
-                "Cannot modify latitude or longitude after creation",
-                httpStatus.BAD_REQUEST,
-                {
-                  message: "Cannot modify latitude or longitude after creation",
-                }
-              )
-            );
+          // Remove from $set
+          if (updates.$set && updates.$set[field]) {
+            if (field === "latitude" || field === "longitude") {
+              return next(
+                new HttpError(
+                  "Cannot modify latitude or longitude after creation",
+                  httpStatus.BAD_REQUEST,
+                  {
+                    message:
+                      "Cannot modify latitude or longitude after creation",
+                  }
+                )
+              );
+            }
+            delete updates.$set[field];
           }
-          delete updates.$set.latitude;
-          delete updates.$set.longitude;
-        }
 
-        if (updates.$push) {
-          delete updates.$push.latitude;
-          delete updates.$push.longitude;
-        }
+          // Remove from $push
+          if (updates.$push && updates.$push[field])
+            delete updates.$push[field];
+        });
+
+        // Handle array fields using $addToSet
+        const arrayFieldsToAddToSet = [
+          "site_tags",
+          "images",
+          "land_use",
+          "site_codes",
+          "airqlouds",
+          "grids",
+        ];
+        arrayFieldsToAddToSet.forEach((field) => {
+          if (updates[field]) {
+            updates.$addToSet = updates.$addToSet || {};
+            updates.$addToSet[field] = { $each: updates[field] };
+            delete updates[field];
+          }
+        });
       }
     }
 
     if (this.isNew) {
-      if (this.isModified("latitude")) delete this.latitude;
-      if (this.isModified("longitude")) delete this.longitude;
-      if (this.isModified("_id")) delete this._id;
-      if (this.isModified("generated_name")) delete this.generated_name;
+      // Prepare site_codes array
       this.site_codes = [
         this._id,
         this.name,
         this.generated_name,
         this.lat_long,
       ];
-      if (this.search_name) this.site_codes.push(this.search_name);
-      if (this.location_name) this.site_codes.push(this.location_name);
-      if (this.formatted_name) this.site_codes.push(this.formatted_name);
 
+      // Optionally add additional site codes
+      const optionalSiteCodes = [
+        "search_name",
+        "location_name",
+        "formatted_name",
+      ];
+      optionalSiteCodes.forEach((field) => {
+        if (this[field]) this.site_codes.push(this[field]);
+      });
+
+      // Check for duplicate grid values
       const duplicateValues = this.grids.filter(
         (value, index, self) => self.indexOf(value) !== index
       );
@@ -720,63 +752,10 @@ siteSchema.statics = {
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
-      let modifiedUpdateBody = update;
-      modifiedUpdateBody["$addToSet"] = {};
-      if (modifiedUpdateBody._id) {
-        delete modifiedUpdateBody._id;
-      }
-      if (modifiedUpdateBody.latitude) {
-        delete modifiedUpdateBody.latitude;
-      }
-      if (modifiedUpdateBody.longitude) {
-        delete modifiedUpdateBody.longitude;
-      }
-      if (modifiedUpdateBody.generated_name) {
-        delete modifiedUpdateBody.generated_name;
-      }
-      if (modifiedUpdateBody.lat_long) {
-        logText("yes, the lat_long does exist here");
-        delete modifiedUpdateBody.lat_long;
-      }
 
-      if (modifiedUpdateBody.site_tags) {
-        modifiedUpdateBody["$addToSet"]["site_tags"] = {};
-        modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
-          modifiedUpdateBody.site_tags;
-        delete modifiedUpdateBody["site_tags"];
-      }
-
-      if (modifiedUpdateBody.images) {
-        modifiedUpdateBody["$addToSet"]["images"] = {};
-        modifiedUpdateBody["$addToSet"]["images"]["$each"] =
-          modifiedUpdateBody.images;
-        delete modifiedUpdateBody["images"];
-      }
-
-      if (modifiedUpdateBody.land_use) {
-        modifiedUpdateBody["$addToSet"]["land_use"] = {};
-        modifiedUpdateBody["$addToSet"]["land_use"]["$each"] =
-          modifiedUpdateBody.land_use;
-        delete modifiedUpdateBody["land_use"];
-      }
-
-      if (modifiedUpdateBody.site_codes) {
-        modifiedUpdateBody["$addToSet"]["site_codes"] = {};
-        modifiedUpdateBody["$addToSet"]["site_codes"]["$each"] =
-          modifiedUpdateBody.site_codes;
-        delete modifiedUpdateBody["site_codes"];
-      }
-
-      if (modifiedUpdateBody.airqlouds) {
-        modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
-        modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
-          modifiedUpdateBody.airqlouds;
-        delete modifiedUpdateBody["airqlouds"];
-      }
-      logObject("modifiedUpdateBody", modifiedUpdateBody);
       let updatedSite = await this.findOneAndUpdate(
         filter,
-        modifiedUpdateBody,
+        update,
         options
       ).exec();
 
@@ -787,7 +766,7 @@ siteSchema.statics = {
           data: updatedSite._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedSite)) {
+      } else {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "site does not exist, please crosscheck",
@@ -848,11 +827,13 @@ siteSchema.statics = {
 };
 
 const SiteModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let sites = mongoose.model("sites");
     return sites;
   } catch (error) {
-    let sites = getModelByTenant(tenant, "site", siteSchema);
+    let sites = getModelByTenant(dbTenant, "site", siteSchema);
     return sites;
   }
 };

@@ -307,12 +307,14 @@ SubscriptionSchema.statics.checkNotificationStatus = async function (
 };
 
 const SubscriptionModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let subscriptions = mongoose.model("subscriptions");
     return subscriptions;
   } catch (error) {
     let subscriptions = getModelByTenant(
-      tenant,
+      dbTenant,
       "subscription",
       SubscriptionSchema
     );

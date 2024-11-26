@@ -20,6 +20,29 @@ const HealthTipsSchema = new Schema(
   { _id: false }
 );
 
+const categorySchema = new Schema(
+  {
+    area_name: { type: String },
+    category: { type: String },
+    highway: { type: String },
+    landuse: { type: String },
+    latitude: { type: Number },
+    longitude: { type: Number },
+    natural: { type: String },
+    search_radius: { type: Number },
+    waterway: { type: String },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+  },
+  {
+    _id: false,
+  }
+);
+
 const SiteDetailsSchema = new Schema(
   {
     _id: Schema.Types.ObjectId,
@@ -42,6 +65,7 @@ const SiteDetailsSchema = new Schema(
     bearing_in_radians: Number,
     description: String,
     data_provider: String,
+    site_category: { type: categorySchema },
   },
   { _id: false }
 );
@@ -76,6 +100,20 @@ const AqiRangeSchema = new Schema(
   { _id: false }
 );
 
+const averagesSchema = new Schema(
+  {
+    dailyAverage: { type: Number },
+    percentageDifference: { type: Number },
+    weeklyAverages: {
+      currentWeek: { type: Number },
+      previousWeek: { type: Number },
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const ReadingsSchema = new Schema(
   {
     device: String,
@@ -94,6 +132,7 @@ const ReadingsSchema = new Schema(
     aqi_color: String,
     aqi_category: String,
     aqi_color_name: String,
+    averages: { type: averagesSchema },
   },
   {
     timestamps: true,
@@ -137,6 +176,7 @@ ReadingsSchema.methods = {
       aqi_color: this.aqi_color,
       aqi_category: this.aqi_category,
       aqi_color_name: this.aqi_color_name,
+      averages: this.averages,
     };
   },
 };
@@ -283,8 +323,6 @@ ReadingsSchema.statics.recent = async function(
   try {
     let threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-
-    logObject("The recent filter inside Readings Model....", filter);
 
     const pipeline = this.aggregate()
       .match({
@@ -731,11 +769,13 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
 };
 
 const ReadingModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const readings = mongoose.model("readings");
     return readings;
   } catch (error) {
-    const readings = getModelByTenant(tenant, "reading", ReadingsSchema);
+    const readings = getModelByTenant(dbTenant, "reading", ReadingsSchema);
     return readings;
   }
 };

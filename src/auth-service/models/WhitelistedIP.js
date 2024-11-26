@@ -211,11 +211,13 @@ WhitelistedIPSchema.methods = {
 };
 
 const WhitelistedIPModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let ips = mongoose.model("WhitelistedIPs");
     return ips;
   } catch (error) {
-    let ips = getModelByTenant(tenant, "WhitelistedIP", WhitelistedIPSchema);
+    let ips = getModelByTenant(dbTenant, "WhitelistedIP", WhitelistedIPSchema);
     return ips;
   }
 };

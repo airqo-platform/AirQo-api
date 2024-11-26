@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% load static %}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to AirQo Website Admin Portal</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'admin/css/main.css' %}" />
+
+    <!-- Optional: Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      href="{% static 'admin/images/favicon.ico' %}"
+      type="image/x-icon"
+    />
+
+    <style>
+      body {
+        font-family: "Roboto", sans-serif;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        margin: 0;
+      }
+      main {
+        flex: 1;
+      }
+      .navbar-brand {
+        font-weight: 700;
+        font-size: 1.5rem;
+      }
+      footer {
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow">
+      <div class="container">
+        <a class="navbar-brand" href="/website/">AirQo</a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/website/admin/login/">Admin Login</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/website/swagger/">API Documentation</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/website/redoc/">API Redoc</a>
+            </li>
+            <li class="nav-item">
+              <a
+                class="nav-link ms-2"
+                href="https://www.airqo.net"
+                target="_blank"
+                >Visit AirQo Website</a
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+      <!-- Hero Section -->
+      <header class="bg-light py-5">
+        <div class="container">
+          <div class="row align-items-center">
+            <div class="col-md-6">
+              <h1 class="display-4 text-primary">
+                Welcome to the AirQo Admin Portal
+              </h1>
+              <p class="lead text-muted">
+                Your gateway to managing and exploring AirQo data and resources.
+              </p>
+              <div class="mt-4 d-flex flex-wrap justify-content-start">
+                <a
+                  href="/website/admin/login/"
+                  class="btn btn-primary btn-lg m-2"
+                  >Admin Login</a
+                >
+                <a
+                  href="/website/swagger/"
+                  class="btn btn-outline-primary btn-lg m-2"
+                  >API Documentation</a
+                >
+                <a
+                  href="/website/redoc/"
+                  class="btn btn-outline-primary btn-lg m-2"
+                  >API Redoc</a
+                >
+              </div>
+            </div>
+            <div class="col-md-6 text-center">
+              <img
+                src="https://res.cloudinary.com/dbibjvyhm/image/upload/v1732530981/website/photos/airqo-dashboard_mt2uwz.png"
+                alt="AirQo Dashboard"
+                class="img-fluid rounded"
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Features Section -->
+      <section class="py-5">
+        <div class="container">
+          <div class="row text-center">
+            <div class="col-lg-4 mb-4">
+              <div class="card h-100 border-primary">
+                <div class="card-body">
+                  <h5 class="card-title text-primary">Comprehensive Data</h5>
+                  <p class="card-text">
+                    Access and manage extensive AirQo datasets with ease.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+              <div class="card h-100 border-primary">
+                <div class="card-body">
+                  <h5 class="card-title text-primary">Intuitive Interface</h5>
+                  <p class="card-text">
+                    Navigate through a user-friendly admin panel designed for
+                    efficiency.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+              <div class="card h-100 border-primary">
+                <div class="card-body">
+                  <h5 class="card-title text-primary">Secure Access</h5>
+                  <p class="card-text">
+                    Ensure data integrity and security with robust
+                    authentication mechanisms.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-primary text-white py-3">
+      <div class="container">
+        <p class="mb-0">&copy; 2024 AirQo. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

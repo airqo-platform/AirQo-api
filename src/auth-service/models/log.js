@@ -200,11 +200,13 @@ logSchema.methods = {
 };
 
 const LogModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const logs = mongoose.model("logs");
     return logs;
   } catch (error) {
-    const logs = getModelByTenant(tenant, "log", logSchema);
+    const logs = getModelByTenant(dbTenant, "log", logSchema);
     return logs;
   }
 };

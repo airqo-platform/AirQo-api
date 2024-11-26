@@ -334,11 +334,13 @@ tipsSchema.statics = {
 };
 
 const TipsModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const healthtips = mongoose.model("healthtips");
     return healthtips;
   } catch (error) {
-    const healthtips = getModelByTenant(tenant, "healthtip", tipsSchema);
+    const healthtips = getModelByTenant(dbTenant, "healthtip", tipsSchema);
     return healthtips;
   }
 };

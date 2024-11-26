@@ -17,6 +17,7 @@ const logger = require("log4js").getLogger(
 const validUserTypes = ["user", "guest"];
 const { HttpError } = require("@utils/errors");
 const mailer = require("@utils/mailer");
+const ORGANISATIONS_LIMIT = 6;
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -138,8 +139,7 @@ const UserSchema = new Schema(
       validate: [
         {
           validator: function (value) {
-            const maxLimit = 6;
-            return value.length <= maxLimit;
+            return value.length <= ORGANISATIONS_LIMIT;
           },
           message: "Too many networks. Maximum limit: 6.",
         },
@@ -167,8 +167,7 @@ const UserSchema = new Schema(
       validate: [
         {
           validator: function (value) {
-            const maxLimit = 6;
-            return value.length <= maxLimit;
+            return value.length <= ORGANISATIONS_LIMIT;
           },
           message: "Too many groups. Maximum limit: 6.",
         },
@@ -247,83 +246,236 @@ UserSchema.path("group_roles.userType").validate(function (value) {
   return validUserTypes.includes(value);
 }, "Invalid userType value");
 
-UserSchema.pre("save", function (next) {
-  if (this.isModified("password")) {
-    this.password = bcrypt.hashSync(this.password, saltRounds);
-  }
-  if (!this.email && !this.phoneNumber) {
-    return next(new Error("Phone number or email is required!"));
-  }
+UserSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  async function (next) {
+    // Determine if this is a new document or an update
+    const isNew = this.isNew;
+    const updates = this.getUpdate ? this.getUpdate() : this;
 
-  if (!this.network_roles || this.network_roles.length === 0) {
-    if (
-      !constants ||
-      !constants.DEFAULT_NETWORK ||
-      !constants.DEFAULT_NETWORK_ROLE
-    ) {
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message:
-            "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
+    try {
+      // Password hashing
+      if (
+        (isNew && this.password) ||
+        (updates &&
+          (updates.password || (updates.$set && updates.$set.password)))
+      ) {
+        const passwordToHash = isNew
+          ? this.password
+          : updates.password || (updates.$set && updates.$set.password);
+
+        if (isNew) {
+          this.password = bcrypt.hashSync(passwordToHash, saltRounds);
+        } else {
+          if (updates.password) {
+            updates.password = bcrypt.hashSync(passwordToHash, saltRounds);
+          }
+          if (updates.$set && updates.$set.password) {
+            updates.$set.password = bcrypt.hashSync(passwordToHash, saltRounds);
+          }
         }
-      );
-    }
+      }
 
-    this.network_roles = [
-      {
-        network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-        userType: "guest",
-        createdAt: new Date(),
-        role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
-      },
-    ];
-  }
-
-  if (!this.group_roles || this.group_roles.length === 0) {
-    if (
-      !constants ||
-      !constants.DEFAULT_GROUP ||
-      !constants.DEFAULT_GROUP_ROLE
-    ) {
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message:
-            "Contact support@airqo.net -- unable to retrieve the default Group or Role to which the User will belong",
+      // Validation only for new documents
+      if (isNew) {
+        // Validate contact information - only for new documents
+        if (!this.email && !this.phoneNumber) {
+          return next(new Error("Phone number or email is required!"));
         }
-      );
+
+        // Profile picture validation - only for new documents
+        if (
+          this.profilePicture &&
+          !validateProfilePicture(this.profilePicture)
+        ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+
+        // Network roles handling - only for new documents
+        if (!this.network_roles || this.network_roles.length === 0) {
+          if (
+            !constants ||
+            !constants.DEFAULT_NETWORK ||
+            !constants.DEFAULT_NETWORK_ROLE
+          ) {
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message:
+                  "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
+              }
+            );
+          }
+
+          this.network_roles = [
+            {
+              network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+              userType: "guest",
+              createdAt: new Date(),
+              role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
+            },
+          ];
+        }
+
+        // Group roles handling - only for new documents
+        if (!this.group_roles || this.group_roles.length === 0) {
+          if (
+            !constants ||
+            !constants.DEFAULT_GROUP ||
+            !constants.DEFAULT_GROUP_ROLE
+          ) {
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message:
+                  "Contact support@airqo.net -- unable to retrieve the default Group or Role",
+              }
+            );
+          }
+
+          this.group_roles = [
+            {
+              group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+              userType: "guest",
+              createdAt: new Date(),
+              role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
+            },
+          ];
+        }
+
+        // Ensure default values for new documents
+        this.verified = this.verified ?? false;
+        this.analyticsVersion = this.analyticsVersion ?? 2;
+
+        // Permissions handling for new documents
+        if (this.permissions && this.permissions.length > 0) {
+          this.permissions = [...new Set(this.permissions)];
+        }
+      }
+
+      // For updates, only validate if specific fields are provided
+      if (this.getUpdate) {
+        const fieldsToValidate = [
+          "_id",
+          "firstName",
+          "lastName",
+          "userName",
+          "email",
+          "organization",
+          "long_organization",
+          "privilege",
+          "country",
+          "profilePicture",
+          "phoneNumber",
+          "createdAt",
+          "updatedAt",
+          "rateLimit",
+          "lastLogin",
+          "iat",
+        ];
+
+        // Get all actual fields being updated from both root and $set
+        const actualUpdates = {
+          ...(updates || {}),
+          ...(updates.$set || {}),
+        };
+
+        // Conditional validations for updates
+        // Only validate fields that are present in the update
+        fieldsToValidate.forEach((field) => {
+          if (field in actualUpdates) {
+            const value = actualUpdates[field];
+            if (value === undefined || value === null || value === "") {
+              return next(
+                new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                  message: `${field} cannot be empty, null, or undefined`,
+                })
+              );
+            }
+          }
+        });
+
+        // Prevent modification of certain immutable fields
+        const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
+        immutableFields.forEach((field) => {
+          if (updates[field]) delete updates[field];
+          if (updates.$set && updates.$set[field]) {
+            return next(
+              new HttpError(
+                "Modification Not Allowed",
+                httpStatus.BAD_REQUEST,
+                { message: `Cannot modify ${field} after creation` }
+              )
+            );
+          }
+          if (updates.$set) delete updates.$set[field];
+          if (updates.$push) delete updates.$push[field];
+        });
+
+        // Conditional network roles validation
+        if (updates.network_roles) {
+          if (updates.network_roles.length > ORGANISATIONS_LIMIT) {
+            return next(
+              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
+              })
+            );
+          }
+        }
+
+        // Conditional group roles validation
+        if (updates.group_roles) {
+          if (updates.group_roles.length > ORGANISATIONS_LIMIT) {
+            return next(
+              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
+              })
+            );
+          }
+        }
+
+        // Conditional permissions validation
+        if (updates.permissions) {
+          const uniquePermissions = [...new Set(updates.permissions)];
+          if (updates.$set) {
+            updates.$set.permissions = uniquePermissions;
+          } else {
+            updates.permissions = uniquePermissions;
+          }
+        }
+
+        // Conditional default values for updates
+        if (updates.$set) {
+          updates.$set.verified = updates.$set.verified ?? false;
+          updates.$set.analyticsVersion = updates.$set.analyticsVersion ?? 2;
+        } else {
+          updates.verified = updates.verified ?? false;
+          updates.analyticsVersion = updates.analyticsVersion ?? 2;
+        }
+      }
+
+      // Additional checks for new documents
+      if (isNew) {
+        const requiredFields = ["firstName", "lastName", "email"];
+        requiredFields.forEach((field) => {
+          if (!this[field]) {
+            return next(new Error(`${field} is required`));
+          }
+        });
+      }
+
+      return next();
+    } catch (error) {
+      return next(error);
     }
-
-    this.group_roles = [
-      {
-        group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
-        userType: "guest",
-        createdAt: new Date(),
-        role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
-      },
-    ];
   }
-
-  if (!this.verified) {
-    this.verified = false;
-  }
-
-  if (!this.analyticsVersion) {
-    this.analyticsVersion = 2;
-  }
-
-  return next();
-});
-
-UserSchema.pre("update", function (next) {
-  if (this.isModified("password")) {
-    this.password = bcrypt.hashSync(this.password, saltRounds);
-  }
-  return next();
-});
+);
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
@@ -702,61 +854,18 @@ UserSchema.statics = {
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the user modification function........");
-      let options = { new: true };
+      const options = { new: true };
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
-      let modifiedUpdate = update;
-      modifiedUpdate["$addToSet"] = {};
 
-      if (update.password) {
-        modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
-      }
-
-      if (modifiedUpdate.profilePicture) {
-        if (!validateProfilePicture(modifiedUpdate.profilePicture)) {
-          next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: "Invalid profile picture URL",
-            })
-          );
-        }
-      }
-
-      if (modifiedUpdate.network_roles) {
-        if (isEmpty(modifiedUpdate.network_roles.network)) {
-          delete modifiedUpdate.network_roles;
-        } else {
-          modifiedUpdate["$addToSet"] = {
-            network_roles: { $each: modifiedUpdate.network_roles },
-          };
-          delete modifiedUpdate.network_roles;
-        }
-      }
-
-      if (modifiedUpdate.group_roles) {
-        if (isEmpty(modifiedUpdate.group_roles.group)) {
-          delete modifiedUpdate.group_roles;
-        } else {
-          modifiedUpdate["$addToSet"] = {
-            group_roles: { $each: modifiedUpdate.group_roles },
-          };
-          delete modifiedUpdate.group_roles;
-        }
-      }
-
-      if (modifiedUpdate.permissions) {
-        modifiedUpdate["$addToSet"]["permissions"] = {};
-        modifiedUpdate["$addToSet"]["permissions"]["$each"] =
-          modifiedUpdate.permissions;
-        delete modifiedUpdate["permissions"];
-      }
-
+      // Find and update user
       const updatedUser = await this.findOneAndUpdate(
         filter,
-        modifiedUpdate,
+        update,
         options
       ).select(fieldsString);
 
+      // Handle update result
       if (!isEmpty(updatedUser)) {
         const { _id, ...userData } = updatedUser._doc;
         return {
@@ -765,16 +874,17 @@ UserSchema.statics = {
           data: userData,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "user does not exist, please crosscheck",
-          })
-        );
       }
+
+      // User not found
+      return next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "user does not exist, please crosscheck",
+        })
+      );
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -881,11 +991,13 @@ UserSchema.methods = {
 };
 
 const UserModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let users = mongoose.model("users");
     return users;
   } catch (error) {
-    let users = getModelByTenant(tenant, "user", UserSchema);
+    let users = getModelByTenant(dbTenant, "user", UserSchema);
     return users;
   }
 };

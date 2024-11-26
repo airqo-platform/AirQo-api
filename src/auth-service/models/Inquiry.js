@@ -219,11 +219,13 @@ InquirySchema.methods = {
 };
 
 const InquiryModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const inquiries = mongoose.model("inquiries");
     return inquiries;
   } catch (error) {
-    const inquiries = getModelByTenant(tenant, "inquiry", InquirySchema);
+    const inquiries = getModelByTenant(dbTenant, "inquiry", InquirySchema);
     return inquiries;
   }
 };

@@ -234,11 +234,13 @@ networkSchema.statics.remove = async function({ filter = {} } = {}, next) {
 };
 
 const NetworkModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const networks = mongoose.model("networks");
     return networks;
   } catch (error) {
-    const networks = getModelByTenant(tenant, "network", networkSchema);
+    const networks = getModelByTenant(dbTenant, "network", networkSchema);
     return networks;
   }
 };

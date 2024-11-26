@@ -341,11 +341,13 @@ locationSchema.statics = {
 };
 
 const LocationModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const locations = mongoose.model("locations");
     return locations;
   } catch (error) {
-    const locations = getModelByTenant(tenant, "location", locationSchema);
+    const locations = getModelByTenant(dbTenant, "location", locationSchema);
     return locations;
   }
 };

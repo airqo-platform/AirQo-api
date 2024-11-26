@@ -238,11 +238,13 @@ SelectedSiteSchema.methods = {
 };
 
 const SelectedSiteModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     let sites = mongoose.model("selected_sites");
     return sites;
   } catch (error) {
-    let sites = getModelByTenant(tenant, "selected_site", SelectedSiteSchema);
+    let sites = getModelByTenant(dbTenant, "selected_site", SelectedSiteSchema);
     return sites;
   }
 };

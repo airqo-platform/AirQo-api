@@ -236,12 +236,14 @@ adminLevelSchema.statics.remove = async function({ filter = {} } = {}, next) {
 };
 
 const AdminLevelModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const adminlevels = mongoose.model("adminlevels");
     return adminlevels;
   } catch (error) {
     const adminlevels = getModelByTenant(
-      tenant,
+      dbTenant,
       "adminlevel",
       adminLevelSchema
     );

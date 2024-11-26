@@ -297,11 +297,13 @@ RoleSchema.methods = {
 };
 
 const RoleModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
     const roles = mongoose.model("roles");
     return roles;
   } catch (error) {
-    const roles = getModelByTenant(tenant, "role", RoleSchema);
+    const roles = getModelByTenant(dbTenant, "role", RoleSchema);
     return roles;
   }
 };
