@@ -485,15 +485,18 @@ class EventsModel(BasePyMongoModel):
 
         selected_columns = set(pollutant_columns + weather_columns)
         pollutants_query = (
-            f"SELECT {', '.join(selected_columns)}, "
-            f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
+            "SELECT "
+            + (", ".join(selected_columns) + ", " if selected_columns else "")
+            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
 
         bam_selected_columns = set(bam_pollutant_columns)
         bam_pollutants_query = (
-            f"SELECT {', '.join(bam_selected_columns)}, "
-            f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
+            "SELECT "
+            + (", ".join(bam_selected_columns) + ", " if bam_selected_columns else "")
+            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
         )
+
         instance = cls("build_query")
         query = instance.build_query(
             data_table,
@@ -505,6 +508,7 @@ class EventsModel(BasePyMongoModel):
             end_date,
             frequency=frequency,
         )
+
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
                 bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
