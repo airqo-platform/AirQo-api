@@ -183,6 +183,7 @@ else:
         'API_KEY': CLOUDINARY_API_KEY,
         'API_SECRET': CLOUDINARY_API_SECRET,
         'SECURE': True,
+        'TIMEOUT': 600,
     }
 
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
@@ -254,6 +255,11 @@ if DEBUG:
     print(f"Media files are stored in: {MEDIA_ROOT}")
 else:
     print("Production mode is ON")
+
+
+# File upload size limit (e.g., 10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 # Django Admin Configuration

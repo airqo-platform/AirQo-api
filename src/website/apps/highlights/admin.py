@@ -5,26 +5,33 @@ from django.utils.html import format_html
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
+    # Display the Tag ID and name in the admin list view
     list_display = ('id', 'name')
     search_fields = ('name',)
 
 
 @admin.register(Highlight)
 class HighlightAdmin(admin.ModelAdmin):
-    list_display = ( 'title', 'display_tags', 'order', 'image_preview')
+    # Display relevant fields in the admin list view
+    list_display = ('title', 'display_tags', 'order', 'image_preview')
+
     list_filter = ('order', 'tags')
+
     search_fields = ('title', 'link', 'link_title')
     filter_horizontal = ('tags',)
     list_editable = ('order',)
-
-    fields = ('title', 'image', 'link', 'link_title', 'order')
     list_per_page = 10
 
+    # Include all fields, including 'tags', in the form view
+    fields = ('title', 'tags', 'image', 'link', 'link_title', 'order')
+
     def display_tags(self, obj):
+        """Display tags in a comma-separated format."""
         return ", ".join([tag.name for tag in obj.tags.all()])
     display_tags.short_description = 'Tags'
 
     def image_preview(self, obj):
+        """Show a preview of the image in the admin list view."""
         if obj.image:
             return format_html(
                 '<img src="{}" width="150" height="auto" style="border-radius: 8px;" />',
