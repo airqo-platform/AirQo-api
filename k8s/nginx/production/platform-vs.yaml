@@ -19,7 +19,7 @@ apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
   name: argocd
-  namespace: cicd
+  namespace: argocd
 spec:
   host: platform.airqo.net
   upstreams:
@@ -52,6 +52,23 @@ spec:
     - path: /inventory
       action:
         pass: inventory        
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: website
+  namespace: production
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: website
+      service: airqo-website-api-svc
+      port: 8000
+  subroutes:
+    - path: /website
+      action:
+        pass: website
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -139,11 +156,13 @@ spec:
     - path: /workflows
       route: pipeline/workflows
     - path: /argocd
-      route: cicd/argocd
+      route: argocd/argocd
     - path: /inventory
       route: production/inventory 
     - path: /reports
-      route: production/reports   
+      route: production/reports  
+    - path: /website
+      route: production/website       
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
