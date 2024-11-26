@@ -5,6 +5,7 @@ from huggingface_hub import login
 from configure import Config
 import google.generativeai as genai 
 import logging
+from functools import lru_cache
 
 
 # Configure API keys
@@ -20,6 +21,7 @@ else:
 
 class DataFetcher:
     @staticmethod
+    @lru_cache(maxsize=128)  # Cache up to 128 most recent queries
     def fetch_air_quality_data_a(grid_id, start_time, end_time):
         token = Config.AIRQO_API_TOKEN  
         analytics_url = Config.ANALTICS_URL
@@ -71,8 +73,16 @@ class AirQualityReport:
 
         # Finding the minimum and maximum values
         if self.daily_mean_data:
-            self.daily_min_pm2_5 = min(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
-            self.daily_max_pm2_5 = max(self.daily_mean_data, key=lambda x: x['pm2_5_calibrated_value'])
+            filtered_data = [
+                    item for item in self.daily_mean_data 
+                    if 'pm2_5_calibrated_value' in item and isinstance(item['pm2_5_calibrated_value'], (int, float))
+                ]
+            if filtered_data:
+                self.daily_min_pm2_5 = min(filtered_data, key=lambda x: x['pm2_5_calibrated_value'])
+                self.daily_max_pm2_5 = max(filtered_data, key=lambda x: x['pm2_5_calibrated_value'])
+            else:
+                self.daily_min_pm2_5 = None
+                self.daily_max_pm2_5 = None
         else:
             self.daily_min_pm2_5 = None
             self.daily_max_pm2_5 = None
@@ -141,6 +151,7 @@ class AirQualityReport:
             print(f"Error: {e}")
             return None
     # Generate report with customised prompt
+    @lru_cache(maxsize=64)  # Cache up to 64 most recent reports
     def generate_report_with_customised_prompt_gemini(self, custom_prompt):
         """
         Generate an air quality report using a customised user-provided prompt.
@@ -153,6 +164,7 @@ class AirQualityReport:
             f"number of sites or devices or airqo binos: {self.num_sites}. "
             f"{self.daily_mean_data}"
             f"site mean{self.site_mean_pm}"
+            f" daily {self.daily_mean_data}"
             f"{custom_prompt}" 
         )
         try:
