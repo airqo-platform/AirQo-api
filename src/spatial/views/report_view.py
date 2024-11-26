@@ -10,6 +10,7 @@ class ReportView:
         start_time = data.get("start_time")
         end_time = data.get("end_time")
         audience = data.get("audience", "general public")
+        customise_prompt = data.get("customise_prompt", "")  # Optional customization
 
         # Validate input parameters
         if not all([grid_id, start_time, end_time, audience]):
@@ -84,3 +85,28 @@ class ReportView:
         except Exception as e:
             return ReportView._handle_error(e)
         
+
+    @staticmethod   
+    def generate_air_quality_report_with_customised_prompt_gemini():
+        data, air_quality_data, error_response = ReportView._fetch_and_validate_request_data()
+        if error_response:
+            return error_response
+
+        try:
+            # Create an air quality report
+            report = AirQualityReport(air_quality_data)
+            # Generate the report with Gemini
+            json_report = report.generate_report_with_customised_prompt_gemini(data.get("customise_prompt", ""))
+
+            if json_report is None:
+                return jsonify({
+                    "error": "Failed to generate report with Gemini"
+                }), 500
+
+            return jsonify({
+                "report": json_report,
+                "model": "gemini"
+            }), 200
+
+        except Exception as e:
+            return ReportView._handle_error(e)

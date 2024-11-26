@@ -55,6 +55,8 @@ class AirQualityReport:
         self.diurnal = data.get('airquality', {}).get('diurnal', [])
         self.monthly_data = data.get('airquality', {}).get('site_monthly_mean_pm', [])
         self.monthly_name_data = data.get('airquality', {}).get('pm_by_month_name', [])
+        self.site_annual_mean_pm = data.get('airquality', {}).get('site_annual_mean_pm', [])
+        self.site_mean_pm = data.get('airquality', {}).get('site_mean_pm', [])
         main_site_info = self.monthly_data[0] if self.monthly_data else {}
         self.main_site = main_site_info.get('site_name')
         self.site_names = [item.get('site_name', None) for item in self.data.get('airquality', {}).get('site_annual_mean_pm', [])]
@@ -74,7 +76,7 @@ class AirQualityReport:
         else:
             self.daily_min_pm2_5 = None
             self.daily_max_pm2_5 = None
-          
+        
 
         # Initialize models once in the constructor
         self.gemini_model = genai.GenerativeModel('gemini-pro')
@@ -138,6 +140,27 @@ class AirQualityReport:
         except Exception as e:
             print(f"Error: {e}")
             return None
+    # Generate report with customised prompt
+    def generate_report_with_customised_prompt_gemini(self, custom_prompt):
+        """
+        Generate an air quality report using a customised user-provided prompt.
+        """
+        base_info = self._prepare_base_info() 
+        full_prompt = (
+
+            f"{base_info} include the period under review."
+            f"diurnal patterns indicate: {self.diurnal}. "
+            f"number of sites or devices or airqo binos: {self.num_sites}. "
+            f"{self.daily_mean_data}"
+            f"site mean{self.site_mean_pm}"
+            f"{custom_prompt}" 
+        )
+        try:
+            response = self.gemini_model.generate_content(full_prompt)
+            gemini_output = response.text
+            return self._prepare_customised_report_json(gemini_output)
+        except Exception as e:
+            print(f"Error: {e}")
 
     def generate_report_with_openai(self, audience):
         prompt = self._generate_prompt(audience)
@@ -235,5 +258,12 @@ class AirQualityReport:
             "daily_mean_data": self.daily_mean_data,
             "diurnal": self.diurnal,
             "monthly_data": self.monthly_data,
+            "report": report_content
+        }
+    
+    def _prepare_customised_report_json(self, report_content):
+        return {
+            "grid_name": self.grid_name,
+            "start_end_time": self.starttime + " to " + self.endtime,
             "report": report_content
         }

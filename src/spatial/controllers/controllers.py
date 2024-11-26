@@ -75,3 +75,7 @@ def fetch_air_quality():
 @controller_bp.route("/air_quality_report_without_llm", methods=["POST"])
 def fetch_air_quality_without_llm():
     return ReportView.generate_air_quality_report_without_llm()
+
+@controller_bp.route("/air_quality_report_with_customised_prompt", methods=["POST"])
+def fetch_air_quality_with_customised_prompt():
+    return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
