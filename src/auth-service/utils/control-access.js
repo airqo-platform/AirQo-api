@@ -2302,8 +2302,9 @@ const controlAccess = {
       const updateQuery = {
         $addToSet: {
           [isNetworkRole ? "network_roles" : "group_roles"]: {
-            network: isNetworkRole ? associatedId : undefined,
-            group: !isNetworkRole ? associatedId : undefined,
+            ...(isNetworkRole
+              ? { network: associatedId }
+              : { group: associatedId }),
             role: role_id,
             userType: "guest", // Optional: add default user type
             createdAt: new Date(),
