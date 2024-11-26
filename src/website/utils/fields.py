@@ -11,19 +11,38 @@ from cloudinary.uploader import upload_large
 
 # Validator for allowed image formats
 def validate_image_format(file):
-    """Validates and compresses the uploaded image."""
+    """Validates the uploaded image and compresses if applicable."""
     try:
+        # Open the file to ensure it is a valid image
         with Image.open(file) as img:
-            img.verify()  # Ensure it's a valid image
-            # Compress large images
-            if file.size > 2 * 1024 * 1024:  # If larger than 2MB
+            img.verify()  # Check if it's a valid image
+
+            # Check if the format is supported
+            valid_formats = ["JPEG", "JPG", "PNG",
+                             "WEBP", "GIF", "BMP", "TIFF"]
+            if img.format.upper() not in valid_formats:
+                raise ValidationError(
+                    f"Unsupported image format: {img.format}. Allowed formats: {', '.join(valid_formats)}"
+                )
+
+            # Compress image if it is larger than 2MB and compressible
+            compressible_formats = ["JPEG", "JPG", "PNG", "WEBP"]
+            if file.size > 2 * 1024 * 1024 and img.format.upper() in compressible_formats:
                 buffer = BytesIO()
-                img.save(buffer, format='JPEG', optimize=True,
-                         quality=85)  # Compress
-                # Replace file content
+                save_kwargs = {"optimize": True, "quality": 85}
+
+                # For PNG, convert to RGB to allow optimization
+                if img.format.upper() == "PNG" and img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+
+                # Save the compressed image to the buffer
+                img.save(buffer, format=img.format, **save_kwargs)
+
+                # Replace file content with compressed content
                 file.file = ContentFile(buffer.getvalue())
-    except Exception:
-        raise ValidationError(f"Invalid image file: {file.name}")
+
+    except Exception as e:
+        raise ValidationError(f"Invalid image file: {file.name}. Error: {e}")
 
 
 # Helper function for custom upload paths
