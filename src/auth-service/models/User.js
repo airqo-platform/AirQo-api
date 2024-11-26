@@ -19,6 +19,28 @@ const { HttpError } = require("@utils/errors");
 const mailer = require("@utils/mailer");
 const ORGANISATIONS_LIMIT = 6;
 
+function uniqueArrayPlugin(schema) {
+  schema.pre("findOneAndUpdate", function (next) {
+    const update = this.getUpdate();
+
+    ["network_roles", "group_roles"].forEach((field) => {
+      if (update.$set && update.$set[field]) {
+        update.$set[field] = update.$set[field].filter(
+          (role, index, self) =>
+            index ===
+            self.findIndex(
+              (t) =>
+                t.network?.toString() === role.network?.toString() &&
+                t.group?.toString() === role.group?.toString()
+            )
+        );
+      }
+    });
+
+    next();
+  });
+}
+
 function oneMonthFromNow() {
   var d = new Date();
   var targetMonth = d.getMonth() + 1;
@@ -237,6 +259,8 @@ const UserSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// UserSchema.plugin(uniqueArrayPlugin);
 
 UserSchema.path("network_roles.userType").validate(function (value) {
   return validUserTypes.includes(value);
@@ -458,6 +482,25 @@ UserSchema.pre(
           updates.verified = updates.verified ?? false;
           updates.analyticsVersion = updates.analyticsVersion ?? 2;
         }
+
+        // // Handle network roles
+        // logObject("updates HERE", updates);
+        // if (updates.$set && updates.$set.network_roles) {
+        //   this.getUpdate().$addToSet = this.getUpdate().$addToSet || {};
+        //   this.getUpdate().$addToSet.network_roles = {
+        //     $each: updates.$set.network_roles,
+        //   };
+        //   delete this.getUpdate().$set.network_roles;
+        // }
+
+        // // Similar logic for group_roles
+        // if (updates.$set && updates.$set.group_roles) {
+        //   this.getUpdate().$addToSet = this.getUpdate().$addToSet || {};
+        //   this.getUpdate().$addToSet.group_roles = {
+        //     $each: updates.$set.group_roles,
+        //   };
+        //   delete this.getUpdate().$set.group_roles;
+        // }
       }
 
       // Additional checks for new documents
@@ -990,17 +1033,6 @@ UserSchema.methods = {
   },
 };
 
-const UserModel = (tenant) => {
-  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
-  try {
-    let users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    let users = getModelByTenant(dbTenant, "user", UserSchema);
-    return users;
-  }
-};
 UserSchema.methods.createToken = async function () {
   try {
     const filter = { _id: this._id };
@@ -1043,6 +1075,38 @@ UserSchema.methods.createToken = async function () {
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
+  }
+};
+
+UserSchema.methods.addRole = async function (roleData, isNetworkRole = true) {
+  const roleField = isNetworkRole ? "network_roles" : "group_roles";
+  const existingRoleIndex = this[roleField].findIndex(
+    (role) =>
+      role.network?.toString() === roleData.network?.toString() ||
+      role.group?.toString() === roleData.group?.toString()
+  );
+
+  if (existingRoleIndex === -1) {
+    this[roleField].push({
+      ...roleData,
+      createdAt: new Date(),
+      userType: "guest",
+    });
+    await this.save();
+  }
+
+  return this;
+};
+
+const UserModel = (tenant) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
+  try {
+    let users = mongoose.model("users");
+    return users;
+  } catch (error) {
+    let users = getModelByTenant(dbTenant, "user", UserSchema);
+    return users;
   }
 };
 
