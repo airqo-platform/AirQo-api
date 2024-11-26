@@ -246,138 +246,161 @@ UserSchema.path("group_roles.userType").validate(function (value) {
   return validUserTypes.includes(value);
 }, "Invalid userType value");
 
-UserSchema.pre("save", async function (next) {
-  // Password hashing
-  if (this.isModified("password")) {
-    this.password = bcrypt.hashSync(this.password, saltRounds);
-  }
-
-  // Validate contact information
-  if (!this.email && !this.phoneNumber) {
-    return next(new Error("Phone number or email is required!"));
-  }
-
-  // Profile picture validation
-  if (this.profilePicture && !validateProfilePicture(this.profilePicture)) {
-    return next(
-      new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-        message: "Invalid profile picture URL",
-      })
-    );
-  }
-
-  // Network roles handling
-  if (!this.network_roles || this.network_roles.length === 0) {
-    if (
-      !constants ||
-      !constants.DEFAULT_NETWORK ||
-      !constants.DEFAULT_NETWORK_ROLE
-    ) {
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message:
-            "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
-        }
-      );
-    }
-
-    this.network_roles = [
-      {
-        network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-        userType: "guest",
-        createdAt: new Date(),
-        role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
-      },
-    ];
-  }
-
-  // Group roles handling
-  if (!this.group_roles || this.group_roles.length === 0) {
-    if (
-      !constants ||
-      !constants.DEFAULT_GROUP ||
-      !constants.DEFAULT_GROUP_ROLE
-    ) {
-      throw new HttpError(
-        "Internal Server Error",
-        httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message:
-            "Contact support@airqo.net -- unable to retrieve the default Group or Role",
-        }
-      );
-    }
-
-    this.group_roles = [
-      {
-        group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
-        userType: "guest",
-        createdAt: new Date(),
-        role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
-      },
-    ];
-  }
-
-  // Permissions handling
-  if (this.permissions && this.permissions.length > 0) {
-    // Additional permissions validation can be added here if needed
-    this.permissions = [...new Set(this.permissions)]; // Ensure unique permissions
-  }
-
-  // Ensure default values
-  this.verified = this.verified ?? false;
-  this.analyticsVersion = this.analyticsVersion ?? 2;
-
-  return next();
-});
-
 UserSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
-  function (next) {
-    if (this.getUpdate) {
-      const updates = this.getUpdate();
-      const fieldsToValidate = [
-        "_id",
-        "firstName",
-        "lastName",
-        "userName",
-        "email",
-        "organization",
-        "long_organization",
-        "privilege",
-        "country",
-        "profilePicture",
-        "phoneNumber",
-        "createdAt",
-        "updatedAt",
-        "rateLimit",
-        "lastLogin",
-        "iat",
-      ];
+  async function (next) {
+    // Determine if this is a new document or an update
+    const isNew = this.isNew;
+    const updates = this.getUpdate ? this.getUpdate() : this;
 
-      // Get all actual fields being updated from both root and $set
-      const actualUpdates = {
-        ...(updates || {}),
-        ...(updates.$set || {}),
-      };
+    try {
+      // Password hashing
+      if (
+        (isNew && this.password) ||
+        (updates &&
+          (updates.password || (updates.$set && updates.$set.password)))
+      ) {
+        const passwordToHash = isNew
+          ? this.password
+          : updates.password || (updates.$set && updates.$set.password);
 
-      // Only validate fields that are present in the update
-      fieldsToValidate.forEach((field) => {
-        if (field in actualUpdates) {
-          const value = actualUpdates[field];
-          if (value === undefined || value === null || value === "") {
-            return next(
-              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-                message: `${field} cannot be empty, null, or undefined`,
-              })
-            );
+        if (isNew) {
+          this.password = bcrypt.hashSync(passwordToHash, saltRounds);
+        } else {
+          if (updates.password) {
+            updates.password = bcrypt.hashSync(passwordToHash, saltRounds);
+          }
+          if (updates.$set && updates.$set.password) {
+            updates.$set.password = bcrypt.hashSync(passwordToHash, saltRounds);
           }
         }
-      });
+      }
 
-      if (updates) {
+      // Validation only for new documents
+      if (isNew) {
+        // Validate contact information - only for new documents
+        if (!this.email && !this.phoneNumber) {
+          return next(new Error("Phone number or email is required!"));
+        }
+
+        // Profile picture validation - only for new documents
+        if (
+          this.profilePicture &&
+          !validateProfilePicture(this.profilePicture)
+        ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+
+        // Network roles handling - only for new documents
+        if (!this.network_roles || this.network_roles.length === 0) {
+          if (
+            !constants ||
+            !constants.DEFAULT_NETWORK ||
+            !constants.DEFAULT_NETWORK_ROLE
+          ) {
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message:
+                  "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
+              }
+            );
+          }
+
+          this.network_roles = [
+            {
+              network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+              userType: "guest",
+              createdAt: new Date(),
+              role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
+            },
+          ];
+        }
+
+        // Group roles handling - only for new documents
+        if (!this.group_roles || this.group_roles.length === 0) {
+          if (
+            !constants ||
+            !constants.DEFAULT_GROUP ||
+            !constants.DEFAULT_GROUP_ROLE
+          ) {
+            throw new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message:
+                  "Contact support@airqo.net -- unable to retrieve the default Group or Role",
+              }
+            );
+          }
+
+          this.group_roles = [
+            {
+              group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+              userType: "guest",
+              createdAt: new Date(),
+              role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
+            },
+          ];
+        }
+
+        // Ensure default values for new documents
+        this.verified = this.verified ?? false;
+        this.analyticsVersion = this.analyticsVersion ?? 2;
+
+        // Permissions handling for new documents
+        if (this.permissions && this.permissions.length > 0) {
+          this.permissions = [...new Set(this.permissions)];
+        }
+      }
+
+      // For updates, only validate if specific fields are provided
+      if (this.getUpdate) {
+        const fieldsToValidate = [
+          "_id",
+          "firstName",
+          "lastName",
+          "userName",
+          "email",
+          "organization",
+          "long_organization",
+          "privilege",
+          "country",
+          "profilePicture",
+          "phoneNumber",
+          "createdAt",
+          "updatedAt",
+          "rateLimit",
+          "lastLogin",
+          "iat",
+        ];
+
+        // Get all actual fields being updated from both root and $set
+        const actualUpdates = {
+          ...(updates || {}),
+          ...(updates.$set || {}),
+        };
+
+        // Conditional validations for updates
+        // Only validate fields that are present in the update
+        fieldsToValidate.forEach((field) => {
+          if (field in actualUpdates) {
+            const value = actualUpdates[field];
+            if (value === undefined || value === null || value === "") {
+              return next(
+                new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                  message: `${field} cannot be empty, null, or undefined`,
+                })
+              );
+            }
+          }
+        });
+
         // Prevent modification of certain immutable fields
         const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
         immutableFields.forEach((field) => {
@@ -395,45 +418,62 @@ UserSchema.pre(
           if (updates.$push) delete updates.$push[field];
         });
 
-        // Validate network roles and group roles limits
-        if (
-          updates.network_roles &&
-          updates.network_roles.length > ORGANISATIONS_LIMIT
-        ) {
-          return next(
-            new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-              message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
-            })
-          );
-        }
-        if (
-          updates.group_roles &&
-          updates.group_roles.length > ORGANISATIONS_LIMIT
-        ) {
-          return next(
-            new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-              message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
-            })
-          );
+        // Conditional network roles validation
+        if (updates.network_roles) {
+          if (updates.network_roles.length > ORGANISATIONS_LIMIT) {
+            return next(
+              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
+              })
+            );
+          }
         }
 
-        // Ensure password is hashed if modified
-        if (updates.password) {
-          updates.password = bcrypt.hashSync(updates.password, saltRounds);
+        // Conditional group roles validation
+        if (updates.group_roles) {
+          if (updates.group_roles.length > ORGANISATIONS_LIMIT) {
+            return next(
+              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
+              })
+            );
+          }
+        }
+
+        // Conditional permissions validation
+        if (updates.permissions) {
+          const uniquePermissions = [...new Set(updates.permissions)];
+          if (updates.$set) {
+            updates.$set.permissions = uniquePermissions;
+          } else {
+            updates.permissions = uniquePermissions;
+          }
+        }
+
+        // Conditional default values for updates
+        if (updates.$set) {
+          updates.$set.verified = updates.$set.verified ?? false;
+          updates.$set.analyticsVersion = updates.$set.analyticsVersion ?? 2;
+        } else {
+          updates.verified = updates.verified ?? false;
+          updates.analyticsVersion = updates.analyticsVersion ?? 2;
         }
       }
-    }
 
-    // Additional checks for new documents
-    if (this.isNew) {
-      const requiredFields = ["firstName", "lastName", "email"];
-      requiredFields.forEach((field) => {
-        if (this.isModified(field) && !this[field]) {
-          return next(new Error(`${field} is required`));
-        }
-      });
+      // Additional checks for new documents
+      if (isNew) {
+        const requiredFields = ["firstName", "lastName", "email"];
+        requiredFields.forEach((field) => {
+          if (!this[field]) {
+            return next(new Error(`${field} is required`));
+          }
+        });
+      }
+
+      return next();
+    } catch (error) {
+      return next(error);
     }
-    next();
   }
 );
 
