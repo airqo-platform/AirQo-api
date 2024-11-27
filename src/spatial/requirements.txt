@@ -7,6 +7,7 @@ geojson~=3.1.0
 libpysal~=4.12.1
 requests~=2.32.3
 python-dotenv~=1.0.1
+pandas-gbq
 google-cloud-bigquery
 google-cloud-storage
 google-cloud-bigquery-storage
