@@ -256,7 +256,7 @@ UserSchema.pre(
     try {
       // Helper function to handle role updates
       const handleRoleUpdates = async (fieldName, idField) => {
-        const query = this.getQuery ? this.getQuery() : this;
+        const query = this.getQuery ? this.getQuery() : { _id: this._id };
         const doc = await this.model.findOne(query);
         if (!doc) return;
 
