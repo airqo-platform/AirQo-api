@@ -105,10 +105,7 @@ class AirQualityReport:
         base_info = self._prepare_base_info()
         if audience == "researcher":
             return (   
--                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources. "  
--                f"{base_info} include the period under review."  
--                f"Daily mean measurements show: {self.daily_mean_data}. "  
--                f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "  
+                 f"Diurnal patterns indicate: {self.diurnal}. Monthly trends reveal: {self.monthly_data}. "  
 +                f"Generate a comprehensive air quality assessment report for {self.grid_name} for the period of {self.starttime} to {self.endtime}. Begin with a detailed introduction (100-130 words) covering the city's geographical location, climate characteristics, population density, and major pollution sources.\n"  
 +                f"{base_info}\n"  
 +                f"Daily mean measurements show values ranging from {self.daily_min_pm2_5['pm2_5_calibrated_value']} to {self.daily_max_pm2_5['pm2_5_calibrated_value']} µg/m³.\n"  
