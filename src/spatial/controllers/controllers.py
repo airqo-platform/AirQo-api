@@ -12,6 +12,7 @@ from views.derived_pm2_5 import (
 from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
+from views.report_view import ReportView
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -66,3 +67,15 @@ def site_selection():
 @controller_bp.route("/satellite_prediction", methods=["POST"])
 def get_satellite_prediction():
     return SatellitePredictionView.make_predictions()
+
+@controller_bp.route("/air_quality_report", methods=["POST"])
+def fetch_air_quality():
+    return ReportView.generate_air_quality_report_with_gemini()
+
+@controller_bp.route("/air_quality_report_without_llm", methods=["POST"])
+def fetch_air_quality_without_llm():
+    return ReportView.generate_air_quality_report_without_llm()
+
+@controller_bp.route("/air_quality_report_with_customised_prompt", methods=["POST"])
+def fetch_air_quality_with_customised_prompt():
+    return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
