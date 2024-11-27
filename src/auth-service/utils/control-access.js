@@ -2306,26 +2306,11 @@ const controlAccess = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: "guest", // Optional: add default user type
+            userType: "guest", // Optional: adding default user type
             createdAt: new Date(),
           },
         },
       };
-
-      // const updateQuery = {
-      //   $set: {
-      //     [isNetworkRole ? "network_roles" : "group_roles"]: {
-      //       [isNetworkRole ? "network" : "group"]: associatedId,
-      //       role: role_id,
-      //     },
-      //   },
-      // };
-
-      // const updatedUser = await UserModel(tenant).findOneAndUpdate(
-      //   { _id: userObject._id },
-      //   updateQuery,
-      //   { new: true }
-      // );
 
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userObject._id },
