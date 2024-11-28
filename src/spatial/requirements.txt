@@ -142,7 +142,7 @@ starlette==0.38.6
 tenacity==9.0.0
 tensorflow-estimator==2.9.0
 tensorflow-metadata==1.9.0
-tensorflow-metal==0.5.0
+tensorflow-metal
 termcolor==2.5.0
 tifffile==2024.8.30
 torch
