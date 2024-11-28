@@ -1,4 +1,4 @@
-const ActivityModel = require("@models/SiteActivity");
+const ActivityModel = require("@models/Activity");
 const { logObject } = require("./log");
 const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
