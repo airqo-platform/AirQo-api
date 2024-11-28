@@ -31,6 +31,7 @@ const activitySchema = new Schema(
     },
     device: { type: String, trim: true },
     site_id: { type: ObjectId },
+    device_id: { type: ObjectId },
     host_id: { type: ObjectId },
     user_id: { type: ObjectId },
     date: { type: Date },
