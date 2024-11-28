@@ -1,7 +1,6 @@
 #requirements.txt
 flask~=3.0.3
 pandas~=2.2.3
-geopandas
 pysal~=24.7
 geojson~=3.1.0
 libpysal~=4.12.1
@@ -60,7 +59,6 @@ dash-leaflet==1.0.15
 dash-table==5.0.0
 decorator==5.1.1
 dnspython==2.7.0
-earthengine-api==0.1.391
 eerepr==0.0.4
 exceptiongroup==1.2.2
 executing==2.1.0
@@ -115,7 +113,6 @@ oauthlib==3.2.2
 opt_einsum==3.4.0
 osmnx==1.9.3
 packaging==24.2
-pandas==1.4.3
 parso==0.8.4
 pexpect==4.9.0
 pillow==11.0.0
