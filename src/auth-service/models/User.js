@@ -19,28 +19,6 @@ const { HttpError } = require("@utils/errors");
 const mailer = require("@utils/mailer");
 const ORGANISATIONS_LIMIT = 6;
 
-function uniqueArrayPlugin(schema) {
-  schema.pre("findOneAndUpdate", function (next) {
-    const update = this.getUpdate();
-
-    ["network_roles", "group_roles"].forEach((field) => {
-      if (update.$set && update.$set[field]) {
-        update.$set[field] = update.$set[field].filter(
-          (role, index, self) =>
-            index ===
-            self.findIndex(
-              (t) =>
-                t.network?.toString() === role.network?.toString() &&
-                t.group?.toString() === role.group?.toString()
-            )
-        );
-      }
-    });
-
-    next();
-  });
-}
-
 function oneMonthFromNow() {
   var d = new Date();
   var targetMonth = d.getMonth() + 1;
@@ -260,8 +238,6 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
-// UserSchema.plugin(uniqueArrayPlugin);
-
 UserSchema.path("network_roles.userType").validate(function (value) {
   return validUserTypes.includes(value);
 }, "Invalid userType value");
@@ -275,9 +251,72 @@ UserSchema.pre(
   async function (next) {
     // Determine if this is a new document or an update
     const isNew = this.isNew;
-    const updates = this.getUpdate ? this.getUpdate() : this;
+    let updates = this.getUpdate ? this.getUpdate() : this;
 
     try {
+      // Helper function to handle role updates
+      const handleRoleUpdates = async (fieldName, idField) => {
+        const query = this.getQuery ? this.getQuery() : { _id: this._id };
+        const doc = await this.model.findOne(query);
+        if (!doc) return;
+
+        let newRoles = [];
+        const existingRoles = doc[fieldName] || [];
+
+        // Handle $set operations
+        if (updates.$set && updates.$set[fieldName]) {
+          newRoles = updates.$set[fieldName];
+        }
+        // Handle $push operations
+        else if (updates.$push && updates.$push[fieldName]) {
+          const pushValue = updates.$push[fieldName];
+          const newRole = pushValue.$each ? pushValue.$each[0] : pushValue;
+          newRoles = [...existingRoles, newRole];
+        }
+        // Handle $addToSet operations
+        else if (updates.$addToSet && updates.$addToSet[fieldName]) {
+          const newRole = updates.$addToSet[fieldName];
+          newRoles = [...existingRoles, newRole];
+        }
+
+        if (newRoles.length > 0) {
+          // Create a Map to store unique roles based on network/group
+          const uniqueRoles = new Map();
+
+          // Process existing roles first
+          existingRoles.forEach((role) => {
+            const id = role[idField] && role[idField].toString();
+            if (id) {
+              uniqueRoles.set(id, role);
+            }
+          });
+
+          // Process new roles, overwriting existing ones if same network/group
+          newRoles.forEach((role) => {
+            const id = role[idField] && role[idField].toString();
+            if (id) {
+              uniqueRoles.set(id, role);
+            }
+          });
+
+          // Convert Map values back to array
+          const finalRoles = Array.from(uniqueRoles.values());
+
+          // Clear all update operators for this field
+          if (updates.$set) delete updates.$set[fieldName];
+          if (updates.$push) delete updates.$push[fieldName];
+          if (updates.$addToSet) delete updates.$addToSet[fieldName];
+
+          // Set the final filtered array
+          updates.$set = updates.$set || {};
+          updates.$set[fieldName] = finalRoles;
+        }
+      };
+
+      // Process both network_roles and group_roles
+      await handleRoleUpdates("network_roles", "network");
+      await handleRoleUpdates("group_roles", "group");
+
       // Password hashing
       if (
         (isNew && this.password) ||
@@ -482,25 +521,6 @@ UserSchema.pre(
           updates.verified = updates.verified ?? false;
           updates.analyticsVersion = updates.analyticsVersion ?? 2;
         }
-
-        // // Handle network roles
-        // logObject("updates HERE", updates);
-        // if (updates.$set && updates.$set.network_roles) {
-        //   this.getUpdate().$addToSet = this.getUpdate().$addToSet || {};
-        //   this.getUpdate().$addToSet.network_roles = {
-        //     $each: updates.$set.network_roles,
-        //   };
-        //   delete this.getUpdate().$set.network_roles;
-        // }
-
-        // // Similar logic for group_roles
-        // if (updates.$set && updates.$set.group_roles) {
-        //   this.getUpdate().$addToSet = this.getUpdate().$addToSet || {};
-        //   this.getUpdate().$addToSet.group_roles = {
-        //     $each: updates.$set.group_roles,
-        //   };
-        //   delete this.getUpdate().$set.group_roles;
-        // }
       }
 
       // Additional checks for new documents
@@ -511,6 +531,24 @@ UserSchema.pre(
             return next(new Error(`${field} is required`));
           }
         });
+
+        if (this.network_roles && this.network_roles.length > 0) {
+          const uniqueNetworks = new Map();
+          this.network_roles.forEach((role) => {
+            // Keep only the latest role for each network
+            uniqueNetworks.set(role.network.toString(), role);
+          });
+          this.network_roles = Array.from(uniqueNetworks.values());
+        }
+        // Handle group_roles duplicates
+        if (this.group_roles && this.group_roles.length > 0) {
+          const uniqueGroups = new Map();
+          this.group_roles.forEach((role) => {
+            // Keep only the latest role for each group
+            uniqueGroups.set(role.group.toString(), role);
+          });
+          this.group_roles = Array.from(uniqueGroups.values());
+        }
       }
 
       return next();
@@ -1076,26 +1114,6 @@ UserSchema.methods.createToken = async function () {
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
   }
-};
-
-UserSchema.methods.addRole = async function (roleData, isNetworkRole = true) {
-  const roleField = isNetworkRole ? "network_roles" : "group_roles";
-  const existingRoleIndex = this[roleField].findIndex(
-    (role) =>
-      role.network?.toString() === roleData.network?.toString() ||
-      role.group?.toString() === roleData.group?.toString()
-  );
-
-  if (existingRoleIndex === -1) {
-    this[roleField].push({
-      ...roleData,
-      createdAt: new Date(),
-      userType: "guest",
-    });
-    await this.save();
-  }
-
-  return this;
 };
 
 const UserModel = (tenant) => {

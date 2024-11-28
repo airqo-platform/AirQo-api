@@ -7,8 +7,10 @@ geojson~=3.1.0
 libpysal~=4.12.1
 requests~=2.32.3
 python-dotenv~=1.0.1
+pandas-gbq
 google-cloud-bigquery
 google-cloud-storage
+google-cloud-bigquery-storage
 google-cloud-bigquery[pandas] 
 gunicorn
 flask-cors~=5.0.0
@@ -21,8 +23,7 @@ shapely~=2.0.6
 scikit-learn~=1.5.2
 gcsfs~=2024.9.0.post1
 joblib~=1.4.2
-lightgbm~=4.1.0
-numpy~=1.25.2
+lightgbm~=4.1.0 
 numpy
 torch
 transformers
@@ -31,7 +32,6 @@ sentencepiece
 huggingface_hub
 google-generativeai
 openai
-
 absl-py==1.4.0
 affine==2.4.0
 annotated-types==0.7.0
