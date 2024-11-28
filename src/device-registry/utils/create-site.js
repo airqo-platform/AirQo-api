@@ -1,4 +1,5 @@
 const SiteModel = require("@models/Site");
+const ActivityModel = require("@models/Activity");
 const UniqueIdentifierCounterModel = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
@@ -15,6 +16,7 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-site-util`
 );
 const distanceUtil = require("@utils/distance");
+const stringify = require("@utils/stringify");
 const createAirqloudUtil = require("@utils/create-airqloud");
 const geolib = require("geolib");
 const { HttpError } = require("@utils/errors");
@@ -318,7 +320,19 @@ const createSite = {
     try {
       const { body, query } = request;
       const { tenant } = query;
-      const { name, latitude, longitude, approximate_distance_in_km } = body;
+
+      const {
+        name,
+        latitude,
+        longitude,
+        approximate_distance_in_km,
+        network,
+        userName,
+        lastName,
+        firstName,
+        user_id,
+        group,
+      } = body;
 
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km },
@@ -387,7 +401,35 @@ const createSite = {
       logObject("responseFromCreateSite in the util", responseFromCreateSite);
 
       if (responseFromCreateSite.success === true) {
-        let createdSite = responseFromCreateSite.data;
+        const createdSite = responseFromCreateSite.data;
+        try {
+          const siteActivityBody = {
+            date: new Date(),
+            description: "site created",
+            activityType: "site-creation",
+            site_id: createdSite._id,
+            ...(network && { network }),
+            ...(userName && { userName }),
+            ...(lastName && { lastName }),
+            ...(firstName && { firstName }),
+            ...(user_id && { user_id }),
+            ...(group && { group }),
+          };
+
+          const responseFromRegisterActivity = await ActivityModel(
+            tenant
+          ).register(siteActivityBody, next);
+          if (responseFromRegisterActivity.success === false) {
+            logger.error(
+              `Unable to Store the Site Activity for this operation ${stringify(
+                siteActivityBody
+              )} `
+            );
+          }
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+        }
+
         try {
           const kafkaProducer = kafka.producer({
             groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -405,7 +447,7 @@ const createSite = {
           await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error", error);
-          logger.error(`internal server error -- ${error.message}`);
+          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
         }
 
         return responseFromCreateSite;

@@ -1559,8 +1559,9 @@ const generateFilter = {
     }
 
     if (activity_tags) {
+      const activityTagsArray = activity_tags.toString().split(",");
       filter["tags"] = {};
-      filter["tags"]["$in"] = activity_tags;
+      filter["tags"]["$in"] = activityTagsArray;
     }
 
     if (id) {
