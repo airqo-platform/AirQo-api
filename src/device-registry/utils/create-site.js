@@ -421,9 +421,7 @@ const createSite = {
           ).register(siteActivityBody, next);
           if (responseFromRegisterActivity.success === false) {
             logger.error(
-              `Unable to Store the Site Activity for this operation ${stringify(
-                siteActivityBody
-              )} `
+              "Unable to store the site activity for this operation."
             );
           }
         } catch (error) {
