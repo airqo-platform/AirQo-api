@@ -1,3 +1,5 @@
+import os
+from models.pollutant_identification import PredictionAndProcessing
 
 def connect_mongo():
     client = MongoClient(configuration.MONGO_URI)
@@ -33,8 +35,8 @@ class PollutantApis:
         start_centroid_time = time.time()  # Record start time for centroids prediction
 
         # Preprocess the image and get centroids
-        image, profile = preprocess_image(file_path)
-        centroids = predict_and_get_centroids(image, profile)
+        image, profile = PredictionAndProcessing.preprocess_image(file_path)
+        centroids = PredictionAndProcessing.predict_and_get_centroids(image, profile)
 
         # Calculate duration for centroids prediction
         centroid_duration = time.time() - start_centroid_time
@@ -59,13 +61,13 @@ class PollutantApis:
             try:
                 # Start measuring time for location processing
                 start_location_time = time.time()  # Record start time for location processing
-                location_data = process_location(latitude, longitude, radius)
+                location_data = PredictionAndProcessing.process_location(latitude, longitude, radius)
                 location_duration = time.time() - start_location_time  # Calculate duration for location processing
                 total_location_duration += location_duration  # Accumulate location processing duration
 
                 # Start measuring time for environment data processing
                 start_env_time = time.time()  # Record start time for environment data processing
-                environment_data = get_environment_profile(latitude, longitude, months, radius)
+                environment_data = PredictionAndProcessing.get_environment_profile(latitude, longitude, months, radius)
                 environment_duration = time.time() - start_env_time  # Calculate duration for environment data processing
                 total_environment_duration += environment_duration  # Accumulate environment processing duration
             except Exception as e:

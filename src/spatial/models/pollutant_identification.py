@@ -44,9 +44,7 @@ warnings.filterwarnings('ignore')
 
 
 # Initialize MongoDB Client and connect to the database
-client = MongoClient("mongodb://localhost:27017/")
-db = client["sources_of_pollution"]
-collection = db["combined_data"]
+
 
 
 # Ignore warnings
