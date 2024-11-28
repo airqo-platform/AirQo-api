@@ -237,161 +237,167 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
-deviceSchema.post("save", async function(doc) {});
-
-deviceSchema.pre("save", function(next) {
-  // Set default network if not provided
-  if (!this.network) {
-    this.network = constants.DEFAULT_NETWORK;
-  }
-
-  // Manage serial_number based on device_number and network
-  if (this.network === "airqo" && this.device_number) {
-    this.serial_number = String(this.device_number); // Assign device_number as a string
-  } else if (!this.serial_number && this.network !== "airqo") {
-    next(
-      new HttpError(
-        "Devices not part of the AirQo network must include a serial_number as a string.",
-        httpStatus.BAD_REQUEST
-      )
-    );
-  }
-
-  // Generate name based on generation version and count
-  if (this.generation_version && this.generation_count) {
-    this.name = `aq_g${this.generation_version}_${this.generation_count}`;
-  }
-
-  // Handle alias generation
-  if (!this.alias && (this.long_name || this.name)) {
-    this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
-    if (!this.alias) {
-      return next(
-        new HttpError(
-          "Unable to generate ALIAS for the device.",
-          httpStatus.INTERNAL_SERVER_ERROR
-        )
-      );
-    }
-  }
-
-  // Sanitize name
-  const sanitizeName = (name) => {
-    return name
-      .replace(/[^a-zA-Z0-9]/g, "_")
-      .slice(0, 41)
-      .trim()
-      .toLowerCase();
-  };
-
-  if (this.name) {
-    this.name = sanitizeName(this.name);
-  } else if (this.long_name) {
-    this.name = sanitizeName(this.long_name);
-  }
-
-  // Set long_name if not provided
-  if (!this.long_name && this.name) {
-    this.long_name = this.name;
-  }
-
-  // Encrypt keys if modified
-  if (this.isModified("name") && this.writeKey && this.readKey) {
-    this.writeKey = this._encryptKey(this.writeKey);
-    this.readKey = this._encryptKey(this.readKey);
-  }
-
-  // Generate device codes
-  this.device_codes = [this._id, this.name];
-  if (this.device_number) {
-    this.device_codes.push(this.device_number);
-  }
-  if (this.alias) {
-    this.device_codes.push(this.alias);
-  }
-  if (this.serial_number) {
-    this.device_codes.push(this.serial_number);
-  }
-
-  // Check for duplicate values in cohorts array
-  const duplicateValues = this.cohorts.filter(
-    (value, index, self) => self.indexOf(value) !== index
-  );
-
-  if (duplicateValues.length > 0) {
-    return next(
-      new HttpError(
-        "Duplicate values found in cohorts array.",
-        httpStatus.BAD_REQUEST
-      )
-    );
-  }
-
-  return next();
-});
-
 deviceSchema.pre(
-  ["update", "findByIdAndUpdate", "updateMany", "updateOne"],
-  function(next) {
-    // Enable validation on update
-    this.setOptions({ runValidators: true });
+  [
+    "update",
+    "findByIdAndUpdate",
+    "updateMany",
+    "updateOne",
+    "save",
+    "findOneAndUpdate",
+  ],
+  async function(next) {
+    try {
+      // Determine if this is a new document or an update
+      const isNew = this.isNew;
+      const updateData = this.getUpdate ? this.getUpdate() : this;
 
-    const updateData = this.getUpdate(); // Get the data being updated
+      if (isNew) {
+        // Set default network if not provided
+        if (!this.network) {
+          this.network = constants.DEFAULT_NETWORK;
+        }
 
-    // Handling the network condition
-    if (updateData.network === "airqo") {
-      if (updateData.device_number) {
-        updateData.serial_number = String(updateData.device_number);
-      } else if (updateData.serial_number) {
-        updateData.device_number = Number(updateData.serial_number);
+        // Manage serial_number based on device_number and network
+        if (this.network === "airqo" && this.device_number) {
+          this.serial_number = String(this.device_number); // Assign device_number as a string
+        } else if (!this.serial_number && this.network !== "airqo") {
+          next(
+            new HttpError(
+              "Devices not part of the AirQo network must include a serial_number as a string.",
+              httpStatus.BAD_REQUEST
+            )
+          );
+        }
+
+        // Generate name based on generation version and count
+        if (this.generation_version && this.generation_count) {
+          this.name = `aq_g${this.generation_version}_${this.generation_count}`;
+        }
+
+        // Handle alias generation
+        if (!this.alias && (this.long_name || this.name)) {
+          this.alias = (this.long_name || this.name).trim().replace(/ /g, "_");
+          if (!this.alias) {
+            return next(
+              new HttpError(
+                "Unable to generate ALIAS for the device.",
+                httpStatus.INTERNAL_SERVER_ERROR
+              )
+            );
+          }
+        }
+
+        // Sanitize name
+        const sanitizeName = (name) => {
+          return name
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .slice(0, 41)
+            .trim()
+            .toLowerCase();
+        };
+
+        if (this.name) {
+          this.name = sanitizeName(this.name);
+        } else if (this.long_name) {
+          this.name = sanitizeName(this.long_name);
+        }
+
+        // Set long_name if not provided
+        if (!this.long_name && this.name) {
+          this.long_name = this.name;
+        }
+
+        // Encrypt keys if modified
+        if (this.isModified("name") && this.writeKey && this.readKey) {
+          this.writeKey = this._encryptKey(this.writeKey);
+          this.readKey = this._encryptKey(this.readKey);
+        }
+
+        // Generate device codes
+        this.device_codes = [this._id, this.name];
+        if (this.device_number) {
+          this.device_codes.push(this.device_number);
+        }
+        if (this.alias) {
+          this.device_codes.push(this.alias);
+        }
+        if (this.serial_number) {
+          this.device_codes.push(this.serial_number);
+        }
+
+        // Check for duplicate values in cohorts array
+        const duplicateValues = this.cohorts.filter(
+          (value, index, self) => self.indexOf(value) !== index
+        );
+
+        if (duplicateValues.length > 0) {
+          return next(
+            new HttpError(
+              "Duplicate values found in cohorts array.",
+              httpStatus.BAD_REQUEST
+            )
+          );
+        }
       }
+
+      // Handling the network condition
+      if (updateData.network === "airqo") {
+        if (updateData.device_number) {
+          updateData.serial_number = String(updateData.device_number);
+        } else if (updateData.serial_number) {
+          updateData.device_number = Number(updateData.serial_number);
+        }
+      }
+
+      // Sanitize name if modified
+      if (updateData.name) {
+        const sanitizeName = (name) => {
+          return name
+            .replace(/[^a-zA-Z0-9]/g, "_")
+            .slice(0, 41)
+            .trim()
+            .toLowerCase();
+        };
+        updateData.name = sanitizeName(updateData.name);
+      }
+
+      // Generate access code if present in update
+      if (updateData.access_code) {
+        const access_code = accessCodeGenerator.generate({
+          length: 16,
+          excludeSimilarCharacters: true,
+        });
+        updateData.access_code = access_code.toUpperCase();
+      }
+
+      // Handle $addToSet for device_codes, previous_sites, and pictures
+      const addToSetUpdates = {};
+
+      if (updateData.device_codes) {
+        addToSetUpdates.device_codes = { $each: updateData.device_codes };
+        delete updateData.device_codes; // Remove from main update object
+      }
+
+      if (updateData.previous_sites) {
+        addToSetUpdates.previous_sites = { $each: updateData.previous_sites };
+        delete updateData.previous_sites; // Remove from main update object
+      }
+
+      if (updateData.pictures) {
+        addToSetUpdates.pictures = { $each: updateData.pictures };
+        delete updateData.pictures; // Remove from main update object
+      }
+
+      // If there are any $addToSet updates, merge them into the main update object
+      if (Object.keys(addToSetUpdates).length > 0) {
+        updateData.$addToSet = addToSetUpdates;
+      }
+
+      next();
+    } catch (error) {
+      return next(error);
     }
-
-    // Sanitize name if modified
-    if (updateData.name) {
-      const sanitizeName = (name) => {
-        return name
-          .replace(/[^a-zA-Z0-9]/g, "_")
-          .slice(0, 41)
-          .trim()
-          .toLowerCase();
-      };
-      updateData.name = sanitizeName(updateData.name);
-    }
-
-    // Generate access code if present in update
-    if (updateData.access_code) {
-      const access_code = accessCodeGenerator.generate({
-        length: 16,
-        excludeSimilarCharacters: true,
-      });
-      updateData.access_code = access_code.toUpperCase();
-    }
-
-    // Handle $addToSet for device_codes, previous_sites, and pictures
-    const addToSetUpdates = {};
-
-    if (updateData.device_codes) {
-      addToSetUpdates.device_codes = { $each: updateData.device_codes };
-      delete updateData.device_codes; // Remove from main update object
-    }
-
-    if (updateData.previous_sites) {
-      addToSetUpdates.previous_sites = { $each: updateData.previous_sites };
-      delete updateData.previous_sites; // Remove from main update object
-    }
-
-    if (updateData.pictures) {
-      addToSetUpdates.pictures = { $each: updateData.pictures };
-      delete updateData.pictures; // Remove from main update object
-    }
-
-    // If there are any $addToSet updates, merge them into the main update object
-    if (Object.keys(addToSetUpdates).length > 0) {
-      updateData.$addToSet = addToSetUpdates;
-    }
-
-    next();
   }
 );
 deviceSchema.methods = {
@@ -587,6 +593,7 @@ deviceSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
+      logText("we are now inside the modify function for devices....");
       const invalidKeys = ["name", "_id", "writeKey", "readKey"];
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
