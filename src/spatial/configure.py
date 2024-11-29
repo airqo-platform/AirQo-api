@@ -28,7 +28,9 @@ class Config:
     HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    MONGO_URI = os.getenv("MONGO_GCE_URI", "mongodb://localhost:27017/test_airqo_db")
+    MONGO_URI = os.getenv("MONGO_GCE_URI", "mongodb://localhost:27017")
+    DB_NAME = os.getenv("DB_NAME", "sources_of_pollution")
+
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False

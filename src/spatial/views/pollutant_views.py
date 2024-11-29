@@ -1,9 +1,11 @@
 import os
+from configure import get_trained_model_from_gcs, Config
+from pymongo import MongoClient  
 from models.pollutant_identification import PredictionAndProcessing
 
 def connect_mongo():
-    client = MongoClient(configuration.MONGO_URI)
-    db = client[configuration.DB_NAME]
+    client = MongoClient(Config.MONGO_URI)
+    db = client[Config.DB_NAME]
     return db
 db = connect_mongo()
 collection = db["pollutant_data"]
@@ -105,7 +107,7 @@ class PollutantApis:
             "total_environment_processing_duration": total_environment_duration,  # Total duration for environment data processing
         }), 201
 
-   @staticmethod
+    @staticmethod
     def get_data_by_confidence():
         try:
             # Parse the minimum confidence score from query parameters
@@ -142,7 +144,7 @@ class PollutantApis:
         except Exception as e:
             return jsonify({"error": f"Failed to fetch data: {e}"}), 500
 
-   @staticmethod
+    @staticmethod
     def get_all_data():
         try:
             # Retrieve all documents from the collection

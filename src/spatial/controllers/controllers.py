@@ -68,7 +68,7 @@ def site_selection():
 @controller_bp.route("/satellite_prediction", methods=["POST"])
 def get_satellite_prediction():
     return SatellitePredictionView.make_predictions()
-
+    
 @controller_bp.route("/air_quality_report", methods=["POST"])
 def fetch_air_quality():
     return ReportView.generate_air_quality_report_with_gemini()
@@ -87,7 +87,7 @@ def upload_image_for_prediction():
 
 @controller_bp.route('/get-data-by-confidence', methods=['GET'])
 def get_data_by_confidence():
-    return PollutantApis.get_data_by_confidencee()
+    return PollutantApis.get_data_by_confidence()
 
 @controller_bp.route('/get-all-data', methods=['GET'])
 def get_all_data():

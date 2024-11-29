@@ -36,7 +36,7 @@ from matplotlib.patches import Polygon as pltPolygon
 from pymongo import MongoClient
 from bson import json_util
 
-
+from configure import get_trained_model_from_gcs, Config
 
 # Configure Warnings
 warnings.filterwarnings('ignore')
@@ -114,7 +114,7 @@ class PredictionAndProcessing:
             geom['properties']['confidence_score'] = mean_confidence
 
         # Create a GeoDataFrame from the geometries
-        gpd_polygonized_raster = gp.GeoDataFrame.from_features(geoms, crs='epsg:3857')
+        gpd_polygonized_raster = gpd.GeoDataFrame.from_features(geoms, crs='epsg:3857')
         gpd_polygonized_raster = gpd_polygonized_raster[gpd_polygonized_raster['raster_val'] > 0]
         # Drop the raster_val column
         gpd_polygonized_raster = gpd_polygonized_raster.drop(columns=['raster_val'])
@@ -172,7 +172,7 @@ class PredictionAndProcessing:
             road_type_lengths = defaultdict(float)
             # Calculate the length for each road type
             for _, edge in edges.iterrows():
-                for road_type in flatten_highway(edge['highway']):
+                for road_type in PredictionAndProcessing.flatten_highway(edge['highway']):
                     road_type_lengths[road_type] += edge['length']
 
             # Get buildings within the specified radius
