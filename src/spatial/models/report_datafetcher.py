@@ -5,7 +5,6 @@ from huggingface_hub import login
 from configure import Config
 import google.generativeai as genai 
 import logging
-from functools import lru_cache
 
 
 # Configure API keys
@@ -21,7 +20,6 @@ else:
 
 class DataFetcher:
     @staticmethod
-    @lru_cache(maxsize=128)  # Cache up to 128 most recent queries
     def fetch_air_quality_data_a(grid_id, start_time, end_time):
         token = Config.AIRQO_API_TOKEN  
         analytics_url = Config.ANALTICS_URL
@@ -147,8 +145,7 @@ class AirQualityReport:
         except Exception as e:
             print(f"Error: {e}")
             return None
-    # Generate report with customised prompt
-    @lru_cache(maxsize=64)  # Cache up to 64 most recent reports
+    # Generate report with customised promptrecent reports
     def generate_report_with_customised_prompt_gemini(self, custom_prompt):
         """
         Generate an air quality report using a customised user-provided prompt.
