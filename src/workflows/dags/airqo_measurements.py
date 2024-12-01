@@ -7,6 +7,7 @@ from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
     airqo_gaseous_realtime_low_cost_data_doc,
+    airqo_historical_raw_low_cost_measurements_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
@@ -130,6 +131,7 @@ def airqo_historical_hourly_measurements():
 
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
+    doc_md=airqo_historical_raw_low_cost_measurements_doc,
     schedule="0 4 * * *",
     catchup=False,
     tags=["airqo", "raw", "historical", "low cost"],
@@ -491,7 +493,7 @@ def airqo_raw_data_measurements():
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        return AirQoDataUtils.extract_devices_data(
+        return AirQoDataUtils.extract_devices_data_(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.LOW_COST,
