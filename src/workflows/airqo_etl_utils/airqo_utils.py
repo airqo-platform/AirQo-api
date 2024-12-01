@@ -1,4 +1,3 @@
-import traceback
 from datetime import datetime, timezone
 
 import numpy as np
@@ -18,10 +17,10 @@ from .constants import (
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .ml_utils import GCSUtils
-from .thingspeak_api import ThingspeakApi
+from .data_sources import DataSourcesApis
 from .utils import Utils
 from .weather_data_utils import WeatherDataUtils
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Union
 from .airqo_gx_expectations import AirQoGxExpectations
 
 import logging
@@ -171,6 +170,101 @@ class AirQoDataUtils:
                 series[value] = None
 
         return series
+
+    @staticmethod
+    def map_and_extract_data(
+        data_mapping: Dict[str, Union[str, Dict[str, List[str]]]],
+        data: Union[List[Any], Dict[str, Any]],
+    ) -> pd.DataFrame:
+        """
+        Map and extract specified fields from input data based on a provided mapping and extraction fields.
+
+        Args:
+            data_mapping (Dict[str, str]): A dictionary mapping source keys to target keys.
+                Example: {"pm25": "pm2_5", "pm10": "pm10", "tp": "temperature"}
+            data (Dict[str, Any]|): Input data containing raw key-value pairs to map and extract.
+                Example:
+                {
+                    "pm25": {"conc": 21, "aqius": 73, "aqicn": 30},
+                    "pm10": {"conc": 37, "aqius": 34, "aqicn": 37},
+                    "pr": 100836,
+                    "hm": 28,
+                    "tp": 39.7,
+                    "ts": "2024-11-24T13:14:40.000Z"
+                }
+
+        Returns:
+            pd.Series: A pandas Series containing the mapped and extracted data.
+        """
+
+        def process_single_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+            """
+            Process a single dictionary entry and map its data based on the mapping.
+
+            Args:
+                entry (Dict[str, Any]): A single data entry.
+
+            Returns:
+                Dict[str, Any]: A dictionary with the mapped data.
+            """
+            row_data = {}
+
+            # Process 'field8' mapping
+            if "field8" in entry and isinstance(entry["field8"], str):
+                field8_mapping = data_mapping.get("field8")
+                try:
+                    field8_values: List[str] = entry.pop("field8").split(",")
+                    for index, target_key in field8_mapping.items():
+                        if target_key not in row_data:
+                            row_data[target_key] = (
+                                field8_values[index]
+                                if index < len(field8_values)
+                                else None
+                            )
+                except (ValueError, TypeError, AttributeError) as e:
+                    logger.warning(f"Error processing field8: {e}")
+
+            # Process the remaining fields
+            for key, value_data in entry.items():
+                target_key = data_mapping.get(key)
+                target_value = None
+                if isinstance(target_key, dict):
+                    target_value = target_key.get("value")
+                    target_key = target_key.get("key")
+
+                if target_key and target_key not in row_data:
+                    if isinstance(value_data, dict):
+                        extracted_value = AirQoDataUtils._extract_nested_value(
+                            value_data, target_value
+                        )
+                    else:
+                        extracted_value = value_data
+                    row_data[target_key] = extracted_value
+            return row_data
+
+        if isinstance(data, dict):
+            data = [data]
+        elif not isinstance(data, list):
+            raise ValueError(
+                f"Invalid data format. Expected a dictionary or a list of dictionaries got {type(data)}"
+            )
+
+        processed_rows = [process_single_entry(entry) for entry in data]
+
+        return pd.DataFrame(processed_rows)
+
+    def _extract_nested_value(data: Dict[str, Any], key: str) -> Any:
+        """
+        Helper function to extract a nested value from a dictionary.
+
+        Args:
+            data (Dict[str, Any]): The input dictionary containing nested data.
+            key (str): The key to extract the value for.
+
+        Returns:
+            Any: The extracted value or None if not found.
+        """
+        return data.get(key)
 
     @staticmethod
     def flatten_meta_data(meta_data: list) -> list:
@@ -323,7 +417,7 @@ class AirQoDataUtils:
         """
 
         airqo_api = AirQoApi()
-        thingspeak_api = ThingspeakApi()
+        data_source_api = DataSourcesApis()
         devices = airqo_api.get_devices(
             tenant=Tenant.AIRQO, device_category=device_category
         )
@@ -336,8 +430,10 @@ class AirQoDataUtils:
 
         if device_category == DeviceCategory.BAM:
             field_8_cols = list(configuration.AIRQO_BAM_CONFIG.values())
+            mapping = configuration.AIRQO_BAM_CONFIG
         elif device_category == DeviceCategory.LOW_COST_GAS:
             field_8_cols = list(configuration.AIRQO_LOW_COST_GAS_CONFIG.values())
+            mapping = configuration.AIRQO_LOW_COST_GAS_CONFIG
             other_fields_cols.extend(
                 [
                     "pm2_5",
@@ -385,16 +481,19 @@ class AirQoDataUtils:
                 continue
 
             for start, end in dates:
-                data = thingspeak_api.query_data(
+                data = data_source_api.thingspeak(
                     device_number=device_number,
                     start_date_time=start,
                     end_date_time=end,
                     read_key=read_key,
                 )
-                if data.empty:
-                    logger.exception(
-                        f"Device does not have data between {start} and {end}"
-                    )
+                data, meta_data, data_available = data_source_api.thingspeak(
+                    device_number=device_number,
+                    start_date_time=start,
+                    end_date_time=end,
+                    read_key=read_key,
+                )
+                if not data_available:
                     continue
 
                 if "field8" not in data.columns.to_list():
@@ -408,7 +507,6 @@ class AirQoDataUtils:
                         )
                     )
 
-                meta_data = data.attrs.pop("meta_data", {})
                 data["device_number"] = device_number
                 data["device_id"] = devices.loc[device_number].device_id
                 data["site_id"] = devices.loc[device_number].site_id
@@ -432,6 +530,135 @@ class AirQoDataUtils:
             if "vapor_pressure" in devices_data.columns.to_list():
                 devices_data.loc[:, "vapor_pressure"] = devices_data[
                     "vapor_pressure"
+                ].apply(DataValidationUtils.convert_pressure_values)
+            devices_data = DataValidationUtils.remove_outliers(devices_data)
+
+        return devices_data
+
+    @staticmethod
+    def extract_devices_data_(
+        start_date_time: str,
+        end_date_time: str,
+        device_category: DeviceCategory,
+        device_numbers: list = None,
+        remove_outliers: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Extracts sensor measurements from AirQo devices recorded between specified date and time ranges.
+
+        Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
+        Optionally filters data by specific device numbers and removes outliers if requested.
+
+        Args:
+            start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
+            end_date_time (str): End date and time (ISO 8601 format) for data extraction.
+            device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
+            device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
+            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+        """
+        devices_data = pd.DataFrame()
+        airqo_api = AirQoApi()
+        data_source_api = DataSourcesApis()
+
+        devices = airqo_api.get_devices_by_network(device_category=device_category)
+        if not devices:
+            logger.exception("Failed to fetch devices.")
+            return devices_data
+
+        other_fields_cols: List[str] = []
+        network: str = None
+        devices = (
+            [x for x in devices if x["device_number"] in device_numbers]
+            if device_numbers
+            else devices
+        )
+
+        config = configuration.device_config_mapping.get(str(device_category), None)
+        if not config:
+            logger.warning("Missing device category.")
+            return devices_data
+
+        field_8_cols = config["field_8_cols"]
+        other_fields_cols = config["other_fields_cols"]
+        data_columns = list(
+            set(
+                [
+                    "device_number",
+                    "device_id",
+                    "site_id",
+                    "latitude",
+                    "longitude",
+                    "timestamp",
+                    *field_8_cols,
+                    *other_fields_cols,
+                ]
+            )
+        )
+
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.THINGSPEAK,
+        )
+
+        for device in devices:
+            device_number = device.get("device_number", None)
+            read_key = device.get("readKey", None)
+            network = device.get("network", None)
+
+            if device_number and read_key is None:
+                logger.exception(f"{device_number} does not have a read key")
+                continue
+            data = []
+            if device_number and network == "airqo":
+                for start, end in dates:
+                    data_, meta_data, data_available = data_source_api.thingspeak(
+                        device_number=device_number,
+                        start_date_time=start,
+                        end_date_time=end,
+                        read_key=read_key,
+                    )
+                    if data_available:
+                        data.extend(data_)
+                        mapping = config["mapping"][network]
+                        data = AirQoDataUtils.map_and_extract_data(mapping, data)
+            elif network == "iqair":
+                mapping = config["mapping"][network]
+                try:
+                    data = AirQoDataUtils.map_and_extract_data(
+                        mapping, data_source_api.iqair(device)
+                    )
+                except Exception as e:
+                    logger.exception(f"An error occured: {e} - device {device['name']}")
+                    continue
+            if isinstance(data, pd.DataFrame) and data.empty:
+                logger.exception(f"No data received from {device['name']}")
+                continue
+
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                data = DataValidationUtils.fill_missing_columns(
+                    data=data, cols=data_columns
+                )
+                data["device_number"] = device_number
+                data["device_id"] = device["name"]
+                data["site_id"] = device["site_id"]
+                data["network"] = network
+
+                # TODO Clean up long,lat assignment.
+                if device_category in AirQoDataUtils.Device_Field_Mapping:
+                    data["latitude"] = device["latitude"]
+                    data["longitude"] = device["longitude"]
+                else:
+                    data["latitude"] = meta_data.get("latitude", None)
+                    data["longitude"] = meta_data.get("longitude", None)
+
+                devices_data = pd.concat([devices_data, data], ignore_index=True)
+
+        if remove_outliers:
+            if "vapor_pressure" in devices_data.columns.to_list():
+                is_airqo_network = devices_data["network"] == "airqo"
+                devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
+                    is_airqo_network, "vapor_pressure"
                 ].apply(DataValidationUtils.convert_pressure_values)
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
@@ -527,7 +754,7 @@ class AirQoDataUtils:
         data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.drop_duplicates(
-            subset=["timestamp", "device_number"], keep="first", inplace=True
+            subset=["timestamp", "device_id"], keep="first", inplace=True
         )
         # TODO Find an appropriate place to put this
         if device_category == DeviceCategory.LOW_COST:
