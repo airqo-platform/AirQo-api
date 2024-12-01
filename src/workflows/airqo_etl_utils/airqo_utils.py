@@ -632,7 +632,7 @@ class AirQoDataUtils:
                     logger.exception(f"An error occured: {e} - device {device['name']}")
                     continue
             if isinstance(data, pd.DataFrame) and data.empty:
-                logger.exception(f"No data received from {device['name']}")
+                logger.warning(f"No data received from {device['name']}")
                 continue
 
             if isinstance(data, pd.DataFrame) and not data.empty:

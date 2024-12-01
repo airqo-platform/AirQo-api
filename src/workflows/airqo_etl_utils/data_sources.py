@@ -57,7 +57,7 @@ class DataSourcesApis:
             read_key (str): The API key to authenticate the request for the specified channel.
 
         Returns:
-            Optional[Tuple[List[Dict[str, Any]], Dict[str, Any]]]:
+            Optional[Tuple[List[Dict[str, Any]], Dict[str, Any], bool]]:
                 - A list of dictionaries containing the channel feeds data.
                 - A dictionary containing metadata about the channel.
                 - Returns `None` if no valid data is found or an error occurs.
@@ -116,7 +116,7 @@ class DataSourcesApis:
                 - "monthly": Monthly aggregated data.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the retrieved data, or an empty DataFrame in case of errors or no data.
+            Union[List, Dict]: A list or dictionary containing the retrieved data, or `None` in case of errors or no data.
 
         Raises:
             ValueError: If an invalid resolution is provided or if the response data is invalid or malformed.
@@ -142,10 +142,9 @@ class DataSourcesApis:
             device_id = device.get("serial_number")
             if not base_url or not device_id:
                 logger.exception(
-                    ValueError(
-                        "Device information must include 'api_code' and 'serial_number'."
-                    )
+                    "Device information must include 'api_code' and 'serial_number'."
                 )
+
             url = f"{base_url}/{device_id}"
             logger.info(f"Fetching data from URL: {url}")
 
