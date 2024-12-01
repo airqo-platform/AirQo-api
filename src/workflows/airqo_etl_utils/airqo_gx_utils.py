@@ -7,6 +7,7 @@ from google.cloud.exceptions import NotFound
 import os
 from pathlib import Path
 import numpy as np
+import pandas as pd
 
 from .airqo_gx_metrics import AirQoGxExpectations
 from .config import configuration
@@ -368,7 +369,7 @@ class AirQoGx:
             "expectation_suite_name"
         ]
         run_result = validation_result["validation_result"]["success"]
-        # Not being used for at the moment
+        # Not being used at the moment
         # local_site = validation_result["actions_results"]["update_data_docs"][
         #     "local_site"
         # ]
@@ -378,13 +379,13 @@ class AirQoGx:
             # Type ExpectationConfig
             expectation_type = result["expectation_config"]["expectation_type"]
             partial_unexpected_list = [
-                "null" if np.isnan(x) else x
+                "null" if pd.isna(x) else x
                 for x in result["result"].get("partial_unexpected_list", [])
             ]
 
             partial_unexpected_counts = [
                 {
-                    "value": "null" if np.isnan(item["value"]) else item["value"],
+                    "value": "null" if pd.isna(item["value"]) else item["value"],
                     "count": item["count"],
                 }
                 for item in result["result"].get("partial_unexpected_counts", [])

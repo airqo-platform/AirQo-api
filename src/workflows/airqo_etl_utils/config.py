@@ -199,6 +199,51 @@ class Config:
         9: "humidity",
         10: "vapor_pressure",
     }
+    AIRQO_LOW_COST_FIELD_MAPPING = {
+        "field1": "s1_pm2_5",
+        "field2": "s1_pm10",
+        "field3": "s2_pm2_5",
+        "field4": "s2_pm10",
+        "field7": "battery",
+        "created_at": "timestamp",
+        "field8": {
+            0: "latitude",
+            1: "longitude",
+            2: "altitude",
+            3: "wind_speed",  # For mobile devices (Velocity)
+            4: "satellites",  # Number of satelites tracked
+            5: "hdop",  # For mobile devices
+            6: "device_temperature",  # Internal
+            7: "device_humidity",  # Internal
+            8: "temperature",  # Internal
+            9: "humidity",
+            10: "vapor_pressure",
+        },
+    }
+    URBANBETTER_LOW_COST_FIELD_MAPPING = {
+        "pollutants.no2.value": "no2",
+        "pollutants.voc.value": "voc",
+        "pollutants.pm25.value": "pm2_5",
+        "pollutants.pm10.value": "pm10",
+        "pollutants.pm1.value": "pm1",
+        "pollutants.no2.pi": "no2_pi",
+        "pollutants.voc.pi": "voc_pi",
+        "pollutants.pm25.pi": "pm2_5_pi",
+        "pollutants.pm10.pi": "pm10_pi",
+        "pollutants.pm1.pi": "pm1_pi",
+        "date": "timestamp",
+    }
+
+    IQAIR_LOW_COST_FIELD_MAPPING = {
+        "pm25": {"key": "pm2_5", "value": "conc"},
+        "pm10": {"key": "pm10", "value": "conc"},
+        "pm1": {"key": "pm1", "value": "conc"},
+        "pr": "pressure",
+        "hm": "humidity",
+        "tp": "temperature",
+        "ts": "timestamp",
+    }
+
     AIRQO_DATA_COLUMN_NAME_MAPPING = {
         "pm2_5": "pm2_5",
         "s1_pm2_5": "pm2_5",
@@ -222,6 +267,41 @@ class Config:
         "pm1": "pm1",
         "pm1_raw_value": "pm1",
         "pm1_pi": "pm1",
+    }
+
+    device_config_mapping = {
+        "bam": {
+            "field_8_cols": list(AIRQO_BAM_CONFIG.values()),
+            "mapping": {"airqo": AIRQO_BAM_CONFIG},
+            "other_fields_cols": [],
+        },
+        "gas": {
+            "field_8_cols": list(AIRQO_LOW_COST_GAS_CONFIG.values()),
+            "mapping": {"airqo": AIRQO_LOW_COST_GAS_CONFIG},
+            "other_fields_cols": [
+                "pm2_5",
+                "tvoc",
+                "hcho",
+                "co2",
+                "intaketemperature",
+                "intakehumidity",
+                "battery",
+            ],
+        },
+        "lowcost": {
+            "field_8_cols": list(AIRQO_LOW_COST_CONFIG.values()),
+            "mapping": {
+                "airqo": AIRQO_LOW_COST_FIELD_MAPPING,
+                "iqair": IQAIR_LOW_COST_FIELD_MAPPING,
+            },
+            "other_fields_cols": [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ],
+        },
     }
 
     # Schema files mapping

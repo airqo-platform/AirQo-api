@@ -40,23 +40,57 @@ class DataValidationUtils:
         integers: list = None,
         timestamps: list = None,
     ) -> pd.DataFrame:
-        floats = [] if floats is None else floats
-        integers = [] if integers is None else integers
-        timestamps = [] if timestamps is None else timestamps
+        """
+        Formats specified columns in a DataFrame to desired data types: float, integer, and datetime.
 
-        # This drops rows that have data that cannot be converted
-        data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
-        data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
+        Args:
+            data(pd.DataFrame): The input DataFrame containing the data to be formatted.
+            floats(list, optional): List of column names to be converted to floats. Defaults to an empty list.
+            integers(list, optional): List of column names to be converted to integers. Defaults to an empty list.
+            timestamps(list, optional): List of column names to be converted to datetime. Defaults to an empty list.
 
-        # formatting integers
+        Returns:
+            pd.DataFrame: A DataFrame with the specified columns formatted to their respective data types.
+
+        Notes:
+        ------
+        - Columns specified in `floats` are converted to floats. Rows with invalid values are coerced to NaN.
+        - Columns specified in `integers` are stripped of non-numeric characters, and invalid values are replaced with -1.
+        - Columns specified in `timestamps` are converted to datetime. Invalid timestamps are coerced to NaT.
+        - The function modifies the input DataFrame in place and returns it.
+        """
+
+        floats = floats or []
+        integers = integers or []
+        timestamps = timestamps or []
+
+        if floats:
+            data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
+
+        if timestamps:
+            for col in timestamps:
+                data[col] = (
+                    data[col]
+                    .astype(str)
+                    .str.replace(r"(?<!\.\d{3})Z$", ".000Z", regex=True)
+                )  # Negative lookbehind to add missing milliseconds if needed
+                data[col] = pd.to_datetime(data[col], errors="coerce")
+
         if integers:
             for col in integers:
-                if data[col].dtype != "str":
-                    data[col] = data[col].astype(str)
-                data[col] = data[col].str.replace("[^\d]", "", regex=True)
-                data[col] = data[col].str.strip()
-                data[col] = data[col].replace("", -1)
-                data[col] = data[col].astype(np.int64)
+                data[col] = (
+                    data[col]
+                    .fillna(
+                        ""
+                    )  # Replace NaNs with empty strings to avoid errors during string operations
+                    .astype(str)  # Ensure the column is a string
+                    .str.replace(
+                        r"[^\d]", "", regex=True
+                    )  # Remove non-numeric characters
+                    .str.strip()  # Strip leading/trailing whitespace
+                    .replace("", -1)  # Replace empty strings with -1
+                    .astype(np.int64)  # Convert to integer
+                )
 
         return data
 
@@ -81,40 +115,50 @@ class DataValidationUtils:
 
     @staticmethod
     def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
-        big_query_api = BigQueryApi()
-        float_columns = set(
-            big_query_api.get_columns(table="all", column_type=[ColumnDataType.FLOAT])
-        )
-        integer_columns = set(
-            big_query_api.get_columns(table="all", column_type=[ColumnDataType.INTEGER])
-        )
-        timestamp_columns = set(
-            big_query_api.get_columns(
-                table="all", column_type=[ColumnDataType.TIMESTAMP]
-            )
-        )
+        """
+        Cleans and validates data in a DataFrame by formatting columns to their proper types and removing or correcting outliers based on predefined validation rules.
 
-        float_columns = list(float_columns & set(data.columns))
-        integer_columns = list(integer_columns & set(data.columns))
-        timestamp_columns = list(timestamp_columns & set(data.columns))
+        Args:
+            data (pd.DataFrame): Input DataFrame containing the raw data to clean.
+
+        Returns:
+            pd.DataFrame: A DataFrame with outliers removed or corrected and data formatted to their respective types (float, integer, timestamp).
+        """
+        big_query_api = BigQueryApi()
+        column_types = {
+            ColumnDataType.FLOAT: big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.FLOAT]
+            ),
+            ColumnDataType.INTEGER: big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.INTEGER]
+            ),
+            ColumnDataType.TIMESTAMP: big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.TIMESTAMP]
+            ),
+        }
+
+        filtered_columns = {
+            dtype: list(set(columns) & set(data.columns))
+            for dtype, columns in column_types.items()
+        }
 
         data = DataValidationUtils.format_data_types(
             data=data,
-            floats=float_columns,
-            integers=integer_columns,
-            timestamps=timestamp_columns,
+            floats=filtered_columns[ColumnDataType.FLOAT],
+            integers=filtered_columns[ColumnDataType.INTEGER],
+            timestamps=filtered_columns[ColumnDataType.TIMESTAMP],
         )
 
-        columns = list(chain(float_columns, integer_columns, timestamp_columns))
+        validated_columns = list(chain.from_iterable(filtered_columns.values()))
 
-        for col in columns:
-            name = configuration.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-            data.loc[:, col] = data[col].apply(
+        for col in validated_columns:
+            is_airqo_network = data["network"] == "airqo"
+            mapped_name = configuration.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
+            data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
                 lambda x: DataValidationUtils.get_valid_value(
-                    column_name=name, row_value=x
+                    column_name=mapped_name, row_value=x
                 )
             )
-
         return data
 
     @staticmethod

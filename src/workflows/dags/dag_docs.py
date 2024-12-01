@@ -27,10 +27,23 @@ Data sources:
 - Bigquery:raw_data.device_measurements
 - Bigquery:averaged_data.hourly_weather_data
 Data Destinations:
-- Bigquery(stage):averaged_data_stage.hourly_device_measurements
 - Bigquery(prod):averaged_data.hourly_device_measurements
 - API(devices/events):
 - Kafka(hourly-measurements-topic):
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+airqo_historical_raw_low_cost_measurements_doc = """
+### AirQo historical raw low cost data ETL
+#### Purpose
+Extracts historica, raw measurements for low cost sensors going back 2 days.
+#### Notes
+Data sources:
+- Airqo api - devices
+- ThingSpeak - Measurements
+Data Destinations:
+- Bigquery:raw_data.device_measurements
+- API(events/measurements):
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
 
