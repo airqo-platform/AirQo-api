@@ -289,8 +289,9 @@ class AirQoApi:
             return devices
 
         params = {"category": str(device_category)}
-        # if configuration.ENVIRONMENT == "production":
-        params["active"] = "yes"
+        if configuration.ENVIRONMENT == "production":
+            params["active"] = "yes"
+
         for network in networks:
             network_name = network.get("net_name", "airqo")
             params["network"] = network_name
