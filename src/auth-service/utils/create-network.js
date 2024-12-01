@@ -822,14 +822,14 @@ const createNetwork = {
   },
   delete: async (request, next) => {
     try {
-      return {
-        success: false,
-        message: "Service Temporarily Unavailable",
-        errors: {
-          message: "Service Temporarily Unavailable",
-        },
-        status: httpStatus.SERVICE_UNAVAILABLE,
-      };
+      // return {
+      //   success: false,
+      //   message: "Service Temporarily Unavailable",
+      //   errors: {
+      //     message: "Service Temporarily Unavailable",
+      //   },
+      //   status: httpStatus.SERVICE_UNAVAILABLE,
+      // };
       logText("the delete operation.....");
       const { query } = request;
       const { tenant } = query;
@@ -877,9 +877,12 @@ const createNetwork = {
       );
 
       // Delete the network itself
-      const networkDeleteResult = await NetworkModel(tenant).remove({
-        _id: filter._id,
-      });
+      const networkDeleteResult = await NetworkModel(tenant).remove(
+        {
+          filter,
+        },
+        next
+      );
       const data = {
         userUpdate: {
           modifiedCount: userUpdateResult.nModified,

@@ -108,6 +108,179 @@ NetworkSchema.index({ net_phoneNumber: 1 }, { unique: true });
 NetworkSchema.index({ net_acronym: 1 }, { unique: true });
 NetworkSchema.index({ net_name: 1 }, { unique: true });
 
+NetworkSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  async function (next) {
+    // Determine if this is a new document or an update
+    const isNew = this.isNew;
+    let updates = this.getUpdate ? this.getUpdate() : this;
+
+    try {
+      // Helper function to handle array field updates (departments, permissions)
+      const handleArrayFieldUpdates = (fieldName) => {
+        if (updates[fieldName]) {
+          updates["$addToSet"] = updates["$addToSet"] || {};
+          updates["$addToSet"][fieldName] = {
+            $each: updates[fieldName],
+          };
+          delete updates[fieldName];
+        }
+      };
+
+      // Process array field updates
+      handleArrayFieldUpdates("net_departments");
+      handleArrayFieldUpdates("net_permissions");
+
+      // Remove tenant field if present
+      if (updates.tenant) {
+        delete updates.tenant;
+      }
+
+      // Validation for new documents
+      if (isNew) {
+        // Required field validations
+        const requiredFields = [
+          "net_email",
+          "net_name",
+          "net_connection_string",
+          "net_connection_endpoint",
+          "net_username",
+          "net_description",
+          "net_acronym",
+        ];
+
+        requiredFields.forEach((field) => {
+          if (!this[field]) {
+            return next(new Error(`${field} is required`));
+          }
+        });
+
+        // Email validation (using the existing validator)
+        if (this.net_email && !validator.isEmail(this.net_email)) {
+          return next(new Error(`${this.net_email} is not a valid email!`));
+        }
+
+        // Set default status if not provided
+        this.net_status = this.net_status || "inactive";
+      }
+
+      // Validation for updates
+      if (this.getUpdate) {
+        const fieldsToValidate = [
+          "net_email",
+          "net_name",
+          "net_connection_string",
+          "net_connection_endpoint",
+          "net_username",
+          "net_description",
+          "net_acronym",
+        ];
+
+        // Get all actual fields being updated from both root and $set
+        const actualUpdates = {
+          ...(updates || {}),
+          ...(updates.$set || {}),
+        };
+
+        // Conditional validations for updates
+        fieldsToValidate.forEach((field) => {
+          if (field in actualUpdates) {
+            const value = actualUpdates[field];
+            if (value === undefined || value === null || value === "") {
+              return next(
+                new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+                  message: `${field} cannot be empty, null, or undefined`,
+                })
+              );
+            }
+
+            // Email validation for updates
+            if (field === "net_email" && !validator.isEmail(value)) {
+              return next(new Error(`${value} is not a valid email!`));
+            }
+          }
+        });
+
+        // Prevent modification of certain immutable fields
+        const immutableFields = ["_id", "createdAt"];
+        immutableFields.forEach((field) => {
+          if (updates[field]) delete updates[field];
+          if (updates.$set && updates.$set[field]) {
+            return next(
+              new HttpError(
+                "Modification Not Allowed",
+                httpStatus.BAD_REQUEST,
+                { message: `Cannot modify ${field} after creation` }
+              )
+            );
+          }
+          if (updates.$set) delete updates.$set[field];
+        });
+      }
+
+      // Unique field handling
+      const uniqueFields = [
+        "net_email",
+        "net_name",
+        "net_phoneNumber",
+        "net_website",
+        "net_acronym",
+      ];
+      for (const field of uniqueFields) {
+        if (isNew || updates[field] || (updates.$set && updates.$set[field])) {
+          const fieldValue = isNew
+            ? this[field]
+            : updates[field] || updates.$set[field];
+          if (fieldValue) {
+            const existingDoc = await this.model.findOne({
+              [field]: fieldValue,
+            });
+            if (
+              existingDoc &&
+              existingDoc._id.toString() !==
+                (this._id ? this._id.toString() : null)
+            ) {
+              return next(
+                new HttpError("Duplicate Error", httpStatus.CONFLICT, {
+                  message: `${field} must be unique`,
+                })
+              );
+            }
+          }
+        }
+      }
+
+      // Limit departments and permissions
+      const ORGANISATIONS_LIMIT = 10; // Adjust as needed
+      if (
+        this.net_departments &&
+        this.net_departments.length > ORGANISATIONS_LIMIT
+      ) {
+        return next(
+          new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+            message: `Maximum ${ORGANISATIONS_LIMIT} departments allowed`,
+          })
+        );
+      }
+
+      if (
+        this.net_permissions &&
+        this.net_permissions.length > ORGANISATIONS_LIMIT
+      ) {
+        return next(
+          new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+            message: `Maximum ${ORGANISATIONS_LIMIT} permissions allowed`,
+          })
+        );
+      }
+
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
 NetworkSchema.methods = {
   toJSON() {
     return {
@@ -333,7 +506,7 @@ NetworkSchema.statics = {
       next(new HttpError(message, status, response));
     }
   },
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async oldModify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -424,6 +597,64 @@ NetworkSchema.statics = {
       next(new HttpError(message, status, response));
     }
   },
+  async modify({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+
+      const updatedNetwork = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      if (!updatedNetwork) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No networks exist for this operation",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "successfully modified the network",
+        data: updatedNetwork._doc,
+        status: httpStatus.OK,
+      };
+    } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
+
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
+
+      if (
+        !isEmpty(err.code) &&
+        !isEmpty(err.keyValue) &&
+        (err.code === 11000 || err.code === 11001)
+      ) {
+        message = "duplicate values provided";
+        status = httpStatus.CONFLICT;
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          response[key] = value;
+          response["message"] = value;
+        });
+      } else if (!isEmpty(err.errors)) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          response[key] = value.message;
+          response["message"] = value.message;
+        });
+      } else if (
+        !isEmpty(err.code) &&
+        !isEmpty(err.codeName) &&
+        (err.code === 13 || err.codeName === "Unauthorized")
+      ) {
+        response["message"] = "Unauthorized to carry out this operation";
+      }
+
+      return next(new HttpError(message, status, response));
+    }
+  },
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {
@@ -435,6 +666,7 @@ NetworkSchema.statics = {
           net_manager: 1,
         },
       };
+      logObject("the FILTER we are using", filter);
       const removedNetwork = await this.findOneAndRemove(
         filter,
         options
