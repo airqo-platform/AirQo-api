@@ -5,7 +5,7 @@ import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any, Union, Generator, Tuple
+from typing import List, Dict, Any, Union, Generator, Tuple, Optional
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
@@ -178,7 +178,6 @@ class AirQoApi:
         """
         params = {"tenant": str(Tenant.AIRQO), "category": str(device_category)}
         if configuration.ENVIRONMENT == "production":
-            # Query for active devices only when in production
             params["active"] = "yes"
 
         if tenant != Tenant.ALL:
@@ -200,13 +199,121 @@ class AirQoApi:
                     DeviceCategory.from_str(device.pop("category", None))
                 ),
                 "tenant": device.get("network"),
-                "device_manufacturer": Tenant.from_str(
-                    device.pop("network")
-                ).device_manufacturer(),
+                "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }
             for device in response.get("devices", [])
         ]
+        return devices
+
+    def get_networks(
+        self, net_status: str = "active"
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """
+        Retrieve a list of networks.
+
+        Args:
+            net_status (str): The status of networks to retrieve. Defaults to "active".
+
+        Returns:
+            Tuple[List[Dict[str, Any]], Optional[str]]:
+                - List of networks (dictionaries) retrieved from the API.
+                - Optional error message if an exception occurs.
+        """
+        params = {}
+
+        params = {}
+        networks: List[Dict[str, Any]] = []
+        exception_message: Optional[str] = None
+
+        if configuration.ENVIRONMENT == "production":
+            params["net_status"] = net_status
+
+        try:
+            response = self.__request("users/networks", params)
+            networks = response.get("networks", [])
+        except Exception as e:
+            exception_message = f"Failed to fetch networks: {e}"
+            logger.exception(exception_message)
+
+        return networks, exception_message
+
+    def get_devices_by_network(
+        self, device_category: DeviceCategory = DeviceCategory.LOW_COST
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve devices by network based on the specified device category.
+
+        Args: device_category (DeviceCategory, optional): The category of devices to retrieve. Defaults to `DeviceCategory.LOW_COST`.
+
+        Returns:
+            List[Dict[str, Any]]: A List of dictionaries containing the details of the devices. The dictionary has the following structure.
+            [
+                {
+                    "_id": str,
+                    "visibility": bool,
+                    "mobility": bool,
+                    "height": int,
+                    "device_codes": List[str]
+                    "status": str,
+                    "isPrimaryInLocation": bool,
+                    "nextMaintenance": date(str),
+                    "category": str,
+                    "isActive": bool,
+                    "long_name": str,
+                    "network": str,
+                    "alias": str",
+                    "name": str,
+                    "createdAt": date(str),
+                    "description": str,
+                    "latitude": float,
+                    "longitude": float,
+                    "approximate_distance_in_km": float,
+                    "bearing_in_radians": float,
+                    "deployment_date": date(str),
+                    "mountType": str,
+                    "powerType": str,
+                    "recall_date": date(str),
+                    "previous_sites": List[Dict[str, Any]],
+                    "cohorts": List,
+                    "site": Dict[str, Any],
+                    "device_number": int
+                },
+            ]
+        """
+        devices: List[Dict[str, Any]] = []
+        networks, error = self.get_networks()
+
+        if error:
+            logger.error(f"Error while fetching networks: {error}")
+            return devices
+
+        params = {"category": str(device_category)}
+        # if configuration.ENVIRONMENT == "production":
+        params["active"] = "yes"
+        for network in networks:
+            network_name = network.get("net_name", "airqo")
+            params["network"] = network_name
+            try:
+                response = self.__request("devices/summary", params)
+                devices.extend(
+                    [
+                        {
+                            "site_id": device.get("site", {}).get("_id", None),
+                            "site_location": device.pop("site", {}).get(
+                                "location_name", None
+                            ),
+                            "device_category": device.pop("category", None),
+                            "device_manufacturer": network_name,
+                            **device,
+                        }
+                        for device in response.get("devices", [])
+                    ]
+                )
+            except Exception as e:
+                logger.exception(f"Failed to fetch devices on {network_name}: {e}")
+                continue
+
         return devices
 
     def get_thingspeak_read_keys(
