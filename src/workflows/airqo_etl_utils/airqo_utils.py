@@ -646,8 +646,8 @@ class AirQoDataUtils:
 
                 # TODO Clean up long,lat assignment.
                 if device_category in AirQoDataUtils.Device_Field_Mapping:
-                    data["latitude"] = device["latitude"]
-                    data["longitude"] = device["longitude"]
+                    data["latitude"] = device.get("latitude", None)
+                    data["longitude"] = device.get("longitude", None)
                 else:
                     data["latitude"] = meta_data.get("latitude", None)
                     data["longitude"] = meta_data.get("longitude", None)
