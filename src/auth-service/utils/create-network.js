@@ -821,12 +821,12 @@ const createNetwork = {
   },
   delete: async (request, next) => {
     try {
-      return {
-        success: false,
-        message: "Network deletion temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "Network deletion temporarily disabled" },
-      };
+      // return {
+      //   success: false,
+      //   message: "Network deletion temporarily disabled",
+      //   status: httpStatus.NOT_IMPLEMENTED,
+      //   errors: { message: "Network deletion temporarily disabled" },
+      // };
       logText("the delete operation.....");
       const { query } = request;
       const { tenant } = query;
