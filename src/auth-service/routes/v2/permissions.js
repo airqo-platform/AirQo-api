@@ -94,6 +94,18 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("group_id")
+        .optional()
+        .notEmpty()
+        .withMessage("group_id should not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("group_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("description")
         .exists()
         .withMessage("description is missing in your request")
