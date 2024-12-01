@@ -20,6 +20,10 @@ const PermissionSchema = new mongoose.Schema(
       type: ObjectId,
       ref: "network",
     },
+    group_id: {
+      type: ObjectId,
+      ref: "group",
+    },
     description: { type: String, required: [true, "description is required"] },
   },
   { timestamps: true }
@@ -34,6 +38,7 @@ PermissionSchema.pre("update", function (next) {
 });
 
 PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
+PermissionSchema.index({ permission: 1, group_id: 1 }, { unique: true });
 PermissionSchema.index({ permission: 1 }, { unique: true });
 
 PermissionSchema.statics = {
@@ -86,6 +91,12 @@ PermissionSchema.statics = {
           localField: "network_id",
           foreignField: "_id",
           as: "network",
+        })
+        .lookup({
+          from: "groups",
+          localField: "group_id",
+          foreignField: "_id",
+          as: "group",
         })
         .project({
           _id: 1,
