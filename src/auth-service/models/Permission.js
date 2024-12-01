@@ -103,6 +103,7 @@ PermissionSchema.statics = {
           permission: 1,
           description: 1,
           network: { $arrayElemAt: ["$network", 0] },
+          group: { $arrayElemAt: ["$group", 0] },
         })
         .project({
           "network.__v": 0,
