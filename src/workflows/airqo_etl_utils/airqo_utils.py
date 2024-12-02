@@ -609,7 +609,7 @@ class AirQoDataUtils:
             if device_number and read_key is None:
                 logger.exception(f"{device_number} does not have a read key")
                 continue
-            data = []
+            api_data = []
             if device_number and network == "airqo":
                 for start, end in dates:
                     data_, meta_data, data_available = data_source_api.thingspeak(
@@ -619,9 +619,10 @@ class AirQoDataUtils:
                         read_key=read_key,
                     )
                     if data_available:
-                        data.extend(data_)
-                        mapping = config["mapping"][network]
-                        data = AirQoDataUtils.map_and_extract_data(mapping, data)
+                        api_data.extend(data_)
+                if len(api_data) > 0:
+                    mapping = config["mapping"][network]
+                    data = AirQoDataUtils.map_and_extract_data(mapping, api_data)
             elif network == "iqair":
                 mapping = config["mapping"][network]
                 try:
