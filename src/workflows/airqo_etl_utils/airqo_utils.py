@@ -707,8 +707,7 @@ class AirQoDataUtils:
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data.loc[:, "tenant"] = str(Tenant.AIRQO)
-        # data = data.copy().loc[data["status"] == 0]
+        data["tenant"] = str(Tenant.AIRQO)
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
