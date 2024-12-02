@@ -111,12 +111,20 @@ NetworkSchema.index({ net_name: 1 }, { unique: true });
 NetworkSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
   async function (next) {
-    // Determine if this is a new document or an update
     const isNew = this.isNew;
     let updates = this.getUpdate ? this.getUpdate() : this;
 
     try {
-      // Helper function to handle array field updates (departments, permissions)
+      // Get the current document for context
+      const query = this.getQuery ? this.getQuery() : { _id: this._id };
+
+      // Get the correct tenant-specific model
+      const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
+      const Network = getModelByTenant(tenant, "network", NetworkSchema);
+
+      const existingDoc = await Network.findOne(query);
+
+      // Helper function to handle array field updates
       const handleArrayFieldUpdates = (fieldName) => {
         if (updates[fieldName]) {
           updates["$addToSet"] = updates["$addToSet"] || {};
@@ -131,91 +139,12 @@ NetworkSchema.pre(
       handleArrayFieldUpdates("net_departments");
       handleArrayFieldUpdates("net_permissions");
 
-      // Remove tenant field if present
-      if (updates.tenant) {
-        delete updates.tenant;
-      }
-
       // Validation for new documents
       if (isNew) {
-        // Required field validations
-        const requiredFields = [
-          "net_email",
-          "net_name",
-          "net_connection_string",
-          "net_connection_endpoint",
-          "net_username",
-          "net_description",
-          "net_acronym",
-        ];
-
-        requiredFields.forEach((field) => {
-          if (!this[field]) {
-            return next(new Error(`${field} is required`));
-          }
-        });
-
-        // Email validation (using the existing validator)
-        if (this.net_email && !validator.isEmail(this.net_email)) {
-          return next(new Error(`${this.net_email} is not a valid email!`));
-        }
+        // Required field validations are handled by schema
 
         // Set default status if not provided
         this.net_status = this.net_status || "inactive";
-      }
-
-      // Validation for updates
-      if (this.getUpdate) {
-        const fieldsToValidate = [
-          "net_email",
-          "net_name",
-          "net_connection_string",
-          "net_connection_endpoint",
-          "net_username",
-          "net_description",
-          "net_acronym",
-        ];
-
-        // Get all actual fields being updated from both root and $set
-        const actualUpdates = {
-          ...(updates || {}),
-          ...(updates.$set || {}),
-        };
-
-        // Conditional validations for updates
-        fieldsToValidate.forEach((field) => {
-          if (field in actualUpdates) {
-            const value = actualUpdates[field];
-            if (value === undefined || value === null || value === "") {
-              return next(
-                new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-                  message: `${field} cannot be empty, null, or undefined`,
-                })
-              );
-            }
-
-            // Email validation for updates
-            if (field === "net_email" && !validator.isEmail(value)) {
-              return next(new Error(`${value} is not a valid email!`));
-            }
-          }
-        });
-
-        // Prevent modification of certain immutable fields
-        const immutableFields = ["_id", "createdAt"];
-        immutableFields.forEach((field) => {
-          if (updates[field]) delete updates[field];
-          if (updates.$set && updates.$set[field]) {
-            return next(
-              new HttpError(
-                "Modification Not Allowed",
-                httpStatus.BAD_REQUEST,
-                { message: `Cannot modify ${field} after creation` }
-              )
-            );
-          }
-          if (updates.$set) delete updates.$set[field];
-        });
       }
 
       // Unique field handling
@@ -226,53 +155,45 @@ NetworkSchema.pre(
         "net_website",
         "net_acronym",
       ];
+
       for (const field of uniqueFields) {
-        if (isNew || updates[field] || (updates.$set && updates.$set[field])) {
-          const fieldValue = isNew
-            ? this[field]
-            : updates[field] || updates.$set[field];
-          if (fieldValue) {
-            const existingDoc = await this.model.findOne({
-              [field]: fieldValue,
-            });
-            if (
-              existingDoc &&
-              existingDoc._id.toString() !==
-                (this._id ? this._id.toString() : null)
-            ) {
-              return next(
-                new HttpError("Duplicate Error", httpStatus.CONFLICT, {
-                  message: `${field} must be unique`,
-                })
-              );
-            }
+        const fieldValue = isNew
+          ? this[field]
+          : updates[field] || (updates.$set && updates.$set[field]);
+
+        if (fieldValue) {
+          const duplicateDoc = await Network.findOne({
+            [field]: fieldValue,
+          });
+
+          if (
+            duplicateDoc &&
+            (!existingDoc ||
+              duplicateDoc._id.toString() !== existingDoc._id.toString())
+          ) {
+            return next(
+              new HttpError("Duplicate Error", httpStatus.CONFLICT, {
+                message: `${field} must be unique`,
+              })
+            );
           }
         }
       }
 
       // Limit departments and permissions
-      const ORGANISATIONS_LIMIT = 10; // Adjust as needed
-      if (
-        this.net_departments &&
-        this.net_departments.length > ORGANISATIONS_LIMIT
-      ) {
-        return next(
-          new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-            message: `Maximum ${ORGANISATIONS_LIMIT} departments allowed`,
-          })
-        );
-      }
+      const ORGANISATIONS_LIMIT = 6;
+      const checkArrayLimit = (arrayField) => {
+        if (this[arrayField] && this[arrayField].length > ORGANISATIONS_LIMIT) {
+          return next(
+            new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+              message: `Maximum ${ORGANISATIONS_LIMIT} ${arrayField} allowed`,
+            })
+          );
+        }
+      };
 
-      if (
-        this.net_permissions &&
-        this.net_permissions.length > ORGANISATIONS_LIMIT
-      ) {
-        return next(
-          new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-            message: `Maximum ${ORGANISATIONS_LIMIT} permissions allowed`,
-          })
-        );
-      }
+      checkArrayLimit("net_departments");
+      checkArrayLimit("net_permissions");
 
       return next();
     } catch (error) {
@@ -324,13 +245,8 @@ const sanitizeName = (name) => {
 NetworkSchema.statics = {
   async register(args, next) {
     try {
-      let modifiedArgs = args;
-      let tenant = modifiedArgs.tenant;
-      if (tenant) {
-        modifiedArgs["tenant"] = sanitizeName(tenant);
-      }
       const data = await this.create({
-        ...modifiedArgs,
+        ...args,
       });
       if (!isEmpty(data)) {
         return {
