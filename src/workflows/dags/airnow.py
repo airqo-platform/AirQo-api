@@ -48,7 +48,6 @@ def airnow_bam_historical_data():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            tenant=Tenant.AIRQO,
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
@@ -131,7 +130,6 @@ def airnow_bam_realtime_data():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            tenant=Tenant.AIRQO,
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
