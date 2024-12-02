@@ -119,7 +119,7 @@ NetworkSchema.pre(
       const query = this.getQuery ? this.getQuery() : { _id: this._id };
 
       // Get the correct tenant-specific model
-      const tenant = this.tenant || constants.DEFAULT_TENANT;
+      const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
       const Network = getModelByTenant(tenant, "network", NetworkSchema);
 
       const existingDoc = await Network.findOne(query);
