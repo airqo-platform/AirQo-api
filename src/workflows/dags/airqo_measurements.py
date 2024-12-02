@@ -493,7 +493,7 @@ def airqo_raw_data_measurements():
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        return AirQoDataUtils.extract_devices_data_(
+        return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.LOW_COST,
