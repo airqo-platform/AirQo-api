@@ -395,7 +395,7 @@ class AirQoDataUtils:
         return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
-    def extract_devices_data(
+    def extract_devices_data_(
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
@@ -536,7 +536,7 @@ class AirQoDataUtils:
         return devices_data
 
     @staticmethod
-    def extract_devices_data_(
+    def extract_devices_data(
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
