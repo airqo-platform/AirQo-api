@@ -52,7 +52,6 @@ def kcca_hourly_measurements():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            tenant=Tenant.KCCA,
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id,
         )

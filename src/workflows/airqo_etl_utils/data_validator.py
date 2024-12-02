@@ -182,7 +182,6 @@ class DataValidationUtils:
     @staticmethod
     def process_data_for_message_broker(
         data: pd.DataFrame,
-        tenant: Tenant,
         topic: str,
         caller: str,
         frequency: Frequency = Frequency.HOURLY,
@@ -202,12 +201,9 @@ class DataValidationUtils:
         """
         from .airqo_utils import AirQoDataUtils
 
-        data.loc[:, "frequency"] = str(frequency)
+        data["frequency"] = str(frequency)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        if tenant != Tenant.ALL:
-            data.loc[:, "tenant"] = str(tenant)
 
         data.rename(columns={"device_id": "device_name"}, inplace=True)
 
@@ -224,7 +220,6 @@ class DataValidationUtils:
         )
 
         data.rename(columns={"tenant": "network"}, inplace=True)
-        data["tenant"] = str(Tenant.AIRQO)
 
         return data
 
