@@ -168,9 +168,28 @@ class Config:
         12: "status",
     }
 
+    AIRQO_BAM_MAPPING_NEW = {
+        "field8": {
+            0: "timestamp",
+            1: "realtime_conc",
+            2: "hourly_conc",
+            3: "short_time_conc",
+            4: "air_flow",
+            5: "wind_speed",
+            6: "wind_direction",
+            7: "temperature",
+            8: "humidity",
+            9: "barometric_pressure",
+            10: "filter_temperature",
+            11: "filter_humidity",
+            12: "status",
+        },
+    }
+
     AIRQO_BAM_MAPPING = {
         "hourly_conc": "pm2_5",
     }
+
     # 1st 6 values are from the gps
     AIRQO_LOW_COST_CONFIG = {
         0: "latitude",
@@ -199,6 +218,30 @@ class Config:
         9: "humidity",
         10: "vapor_pressure",
     }
+    AIRQO_LOW_COST_GAS_FIELD_MAPPING = {
+        "field1": "pm2_5",
+        "field2": "tvoc",
+        "field3": "hcho",
+        "field4": "co2",
+        "field5": "intaketemperature",
+        "field6": "intakehumidity",
+        "field7": "battery",
+        "created_at": "timestamp",
+        "field8": {
+            0: "latitude",
+            1: "longitude",
+            2: "altitude",
+            3: "wind_speed",  # For mobile devices (Velocity)
+            4: "satellites",  # Number of satelites tracked
+            5: "hdop",  # For mobile devices
+            6: "device_temperature",  # Internal
+            7: "device_humidity",  # Internal
+            8: "temperature",  # Internal
+            9: "humidity",
+            10: "vapor_pressure",
+        },
+    }
+
     AIRQO_LOW_COST_FIELD_MAPPING = {
         "field1": "s1_pm2_5",
         "field2": "s1_pm10",
@@ -271,13 +314,15 @@ class Config:
 
     device_config_mapping = {
         "bam": {
-            "field_8_cols": list(AIRQO_BAM_CONFIG.values()),
-            "mapping": {"airqo": AIRQO_BAM_CONFIG},
+            "field_8_cols": list(AIRQO_BAM_MAPPING_NEW.get("field8", {}).values()),
+            "mapping": {"airqo": AIRQO_BAM_MAPPING_NEW},
             "other_fields_cols": [],
         },
         "gas": {
-            "field_8_cols": list(AIRQO_LOW_COST_GAS_CONFIG.values()),
-            "mapping": {"airqo": AIRQO_LOW_COST_GAS_CONFIG},
+            "field_8_cols": list(
+                AIRQO_LOW_COST_GAS_FIELD_MAPPING.get("field8", {}).values()
+            ),
+            "mapping": {"airqo": AIRQO_LOW_COST_GAS_FIELD_MAPPING},
             "other_fields_cols": [
                 "pm2_5",
                 "tvoc",
@@ -289,7 +334,9 @@ class Config:
             ],
         },
         "lowcost": {
-            "field_8_cols": list(AIRQO_LOW_COST_CONFIG.values()),
+            "field_8_cols": list(
+                AIRQO_LOW_COST_FIELD_MAPPING.get("field8", {}).values()
+            ),
             "mapping": {
                 "airqo": AIRQO_LOW_COST_FIELD_MAPPING,
                 "iqair": IQAIR_LOW_COST_FIELD_MAPPING,
