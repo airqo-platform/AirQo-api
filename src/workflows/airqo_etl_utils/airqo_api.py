@@ -131,14 +131,14 @@ class AirQoApi:
 
     def get_devices(
         self,
-        tenant: Tenant = Tenant.ALL,
+        network: Union[str, Any] = None,
         device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a tenant and device category.
 
         Args:
-            - tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
+            - network (str): An Enum that represents site ownership.
             - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
 
         Returns:
@@ -176,12 +176,12 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"tenant": str(Tenant.AIRQO), "category": str(device_category)}
+        params = {"category": str(device_category)}
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
 
-        if tenant != Tenant.ALL:
-            params["network"] = str(tenant)
+        if network:
+            params["network"] = network
 
         # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
         try:
@@ -198,7 +198,7 @@ class AirQoApi:
                 "device_category": str(
                     DeviceCategory.from_str(device.pop("category", None))
                 ),
-                "tenant": device.get("network"),
+                "network": device.get("network"),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }
