@@ -102,7 +102,7 @@ class Utils:
         for column in columns:
             if column not in data_cols:
                 print(f"{column} missing in dataset")
-                data.loc[:, column] = None
+                data[column] = None
         return data
 
     @staticmethod

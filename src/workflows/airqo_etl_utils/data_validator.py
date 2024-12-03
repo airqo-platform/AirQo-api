@@ -216,7 +216,7 @@ class DataValidationUtils:
         data = pd.merge(
             left=data,
             right=devices,
-            on=["device_name", "site_id", "tenant"],
+            on=["device_name", "site_id", "network"],
             how="left",
         )
         return data
