@@ -128,7 +128,9 @@ class AirQoDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            tenant=Tenant.AIRQO,
+            network=str(
+                Tenant.AIRQO
+            ),  # TODO Replace tenant implementation with network implementation
             dynamic_query=dynamic_query,
         )
 
