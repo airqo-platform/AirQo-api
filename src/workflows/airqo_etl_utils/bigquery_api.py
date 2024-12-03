@@ -576,8 +576,6 @@ class BigQueryApi:
             """
         else:
             raise Exception(f"Invalid Query Type {str(query_type)}")
-        print(query)
-        exit()
         return query
 
     def reload_data(
