@@ -225,21 +225,22 @@ class AirQoDataUtils:
                     logger.warning(f"Error processing field8: {e}")
 
             # Process the remaining fields
-            for key, value_data in entry.items():
-                target_key = data_mapping.get(key)
-                target_value = None
-                if isinstance(target_key, dict):
-                    target_value = target_key.get("value")
-                    target_key = target_key.get("key")
+            if isinstance(entry, dict):
+                for key, value_data in entry.items():
+                    target_key = data_mapping.get(key, None)
+                    target_value = None
+                    if isinstance(target_key, dict):
+                        target_value = target_key.get("value")
+                        target_key = target_key.get("key")
 
-                if target_key and target_key not in row_data:
-                    if isinstance(value_data, dict):
-                        extracted_value = AirQoDataUtils._extract_nested_value(
-                            value_data, target_value
-                        )
-                    else:
-                        extracted_value = value_data
-                    row_data[target_key] = extracted_value
+                    if target_key and target_key not in row_data:
+                        if isinstance(value_data, dict):
+                            extracted_value = AirQoDataUtils._extract_nested_value(
+                                value_data, target_value
+                            )
+                        else:
+                            extracted_value = value_data
+                        row_data[target_key] = extracted_value
             return row_data
 
         if isinstance(data, dict):
@@ -433,7 +434,7 @@ class AirQoDataUtils:
             mapping = configuration.AIRQO_BAM_CONFIG
         elif device_category == DeviceCategory.LOW_COST_GAS:
             field_8_cols = list(configuration.AIRQO_LOW_COST_GAS_CONFIG.values())
-            mapping = configuration.AIRQO_LOW_COST_GAS_CONFIG
+            mapping = configuration.AIRQO_LOW_COST_GAS_FIELD_MAPPING
             other_fields_cols.extend(
                 [
                     "pm2_5",
@@ -446,7 +447,9 @@ class AirQoDataUtils:
                 ]
             )
         else:
-            field_8_cols = list(configuration.AIRQO_LOW_COST_CONFIG.values())
+            field_8_cols = list(
+                configuration.AIRQO_LOW_COST_CONFIG.get("field8", {}).values()
+            )
             other_fields_cols.extend(
                 ["s1_pm2_5", "s1_pm10", "s2_pm2_5", "s2_pm10", "battery"]
             )
@@ -562,7 +565,9 @@ class AirQoDataUtils:
 
         devices = airqo_api.get_devices_by_network(device_category=device_category)
         if not devices:
-            logger.exception("Failed to fetch devices.")
+            logger.exception(
+                "Failed to fetch devices. Please check if devices are deployed"
+            )
             return devices_data
 
         other_fields_cols: List[str] = []
@@ -602,6 +607,7 @@ class AirQoDataUtils:
         )
 
         for device in devices:
+            data = []
             device_number = device.get("device_number", None)
             read_key = device.get("readKey", None)
             network = device.get("network", None)
@@ -652,7 +658,6 @@ class AirQoDataUtils:
                 else:
                     data["latitude"] = meta_data.get("latitude", None)
                     data["longitude"] = meta_data.get("longitude", None)
-
                 devices_data = pd.concat([devices_data, data], ignore_index=True)
 
         if remove_outliers:
@@ -771,7 +776,7 @@ class AirQoDataUtils:
     ) -> pd.DataFrame:
         # Currently only used for BAM device measurements
         data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
-        data.loc[:, "tenant"] = str(Tenant.AIRQO)
+
         big_query_api = BigQueryApi()
         if data_type == DataType.UNCLEAN_BAM_DATA:
             cols = big_query_api.get_columns(
@@ -797,7 +802,6 @@ class AirQoDataUtils:
         Makes neccessary conversions, adds missing columns and sets them to `None`
         """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["tenant"] = str(Tenant.AIRQO)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
         return Utils.populate_missing_columns(data=data, columns=cols)
@@ -808,7 +812,6 @@ class AirQoDataUtils:
         Makes neccessary conversions, adds missing columns and sets them to `None`
         """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["tenant"] = str(Tenant.AIRQO)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.hourly_measurements_table)
         return Utils.populate_missing_columns(data=data, columns=cols)
@@ -849,7 +852,6 @@ class AirQoDataUtils:
             data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
             data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
 
-        data.loc[:, "tenant"] = str(Tenant.AIRQO)
         data.loc[:, "device_category"] = str(device_category)
 
         return data

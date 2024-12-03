@@ -144,7 +144,6 @@ def airqo_bam_realtime_measurements():
         )
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            tenant=Tenant.AIRQO,
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
