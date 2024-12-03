@@ -509,7 +509,7 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        tenant: Tenant,
+        network: str,
         where_fields: dict = None,
         null_cols: list = None,
         columns: list = None,
@@ -523,7 +523,7 @@ class BigQueryApi:
             table (str): The BigQuery table to query.
             start_date_time (str): The start datetime for filtering records.
             end_date_time (str): The end datetime for filtering records.
-            tenant (Tenant): The tenant or ownership information (e.g., to filter data).
+            network (str): The network or ownership information (e.g., to filter data).
             where_fields (dict): Optional dictionary of fields to filter on.
             null_cols (list): Optional list of columns to check for null values.
             columns (list): Optional list of columns to select. If None, selects all.
@@ -536,6 +536,8 @@ class BigQueryApi:
             Exception: If an invalid column is provided in `where_fields` or `null_cols`,
                       or if the `query_type` is not supported.
         """
+        tenant = "airqo"
+
         null_cols = [] if null_cols is None else null_cols
         where_fields = {} if where_fields is None else where_fields
 
@@ -544,7 +546,7 @@ class BigQueryApi:
             f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' "
         )
         if tenant != Tenant.ALL:
-            where_clause = f" {where_clause} and tenant = '{str(tenant)}' "
+            where_clause = f" {where_clause} and tenant = '{str(tenant)}' or network = '{str(network)}' "
 
         valid_cols = self.get_columns(table=table)
 
@@ -574,7 +576,6 @@ class BigQueryApi:
             """
         else:
             raise Exception(f"Invalid Query Type {str(query_type)}")
-
         return query
 
     def reload_data(
@@ -612,7 +613,7 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         table: str,
-        tenant: Tenant,
+        network: str,
         dynamic_query: bool = False,
         columns: list = None,
         where_fields: dict = None,
@@ -626,7 +627,7 @@ class BigQueryApi:
             start_date_time (str): The start datetime for the data query in ISO format.
             end_date_time (str): The end datetime for the data query in ISO format.
             table (str): The name of the table from which to retrieve the data.
-            tenant (Tenant): An Enum representing the site ownership. Defaults to `Tenant.ALL` if not supplied, representing all tenants.
+            network(str): An Enum representing the site ownership. Defaults to `ALL` if not supplied, representing all networks.
             dynamic_query (bool): A boolean value to signal bypassing the automatic query composition to a more dynamic averaging approach.
             columns (list, optional): A list of column names to include in the query. If None, all columns are included. Defaults to None.
             where_fields (dict, optional): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value. Defaults to None.
@@ -639,7 +640,7 @@ class BigQueryApi:
             query = self.compose_query(
                 QueryType.GET,
                 table=table,
-                tenant=tenant,
+                network=network,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
                 where_fields=where_fields,
