@@ -37,7 +37,11 @@ const mappings = {
   PREDEFINED_FILTER_VALUES: {
     NETWORKS: ["metone", "usembassy"],
     COMBINATIONS: {
-      NETWORK_PAIRS: [["metone", "usembassy"], ["kcca", "clarity"]],
+      NETWORK_PAIRS: [
+        ["metone", "usembassy", "us_embassy"],
+        ["kcca", "clarity"],
+        [("urbanbetter", "airbeam", "urban_better")],
+      ],
       GROUP_PAIRS: [["metone", "usembassy"], ["kcca", "clarity"]],
       STATUS_PAIRS: [
         ["active", "enabled", "running"],
