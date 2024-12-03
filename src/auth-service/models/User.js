@@ -257,7 +257,11 @@ UserSchema.pre(
       // Helper function to handle role updates
       const handleRoleUpdates = async (fieldName, idField) => {
         const query = this.getQuery ? this.getQuery() : { _id: this._id };
-        const doc = await this.model.findOne(query);
+
+        // Get the correct tenant-specific model
+        const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
+        const User = getModelByTenant(tenant, "user", UserSchema);
+        const doc = await User.findOne(query);
         if (!doc) return;
 
         let newRoles = [];
