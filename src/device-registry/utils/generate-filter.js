@@ -21,6 +21,67 @@ const logger = log4js.getLogger(
 const isLowerCase = (str) => {
   return str === str.toLowerCase();
 };
+
+const handlePredefinedValueMatch = (
+  value,
+  allowedValues,
+  options = { matchCombinations: false }
+) => {
+  if (!value || !allowedValues || !Array.isArray(allowedValues))
+    return undefined;
+
+  // Split input value by commas and trim whitespace
+  const inputValues = value.split(",").map((v) => v.trim().toLowerCase());
+
+  // If matchCombinations is false but we received an array of arrays,
+  // flatten it to get all possible values
+  const flattenedValues =
+    !options.matchCombinations && Array.isArray(allowedValues[0])
+      ? allowedValues.flat()
+      : allowedValues;
+
+  // Handle combinations matching
+  if (options.matchCombinations && Array.isArray(allowedValues[0])) {
+    const matchedForms = new Set();
+
+    for (const inputValue of inputValues) {
+      for (const combination of allowedValues) {
+        if (combination.some((term) => term.toLowerCase() === inputValue)) {
+          combination.forEach((term) => {
+            matchedForms.add(term.toLowerCase());
+            matchedForms.add(term.toUpperCase());
+          });
+        }
+      }
+    }
+
+    return matchedForms.size > 0 ? { $in: [...matchedForms] } : value;
+  }
+
+  // Handle single value matching
+  const matchedValues = inputValues.filter((inputValue) =>
+    flattenedValues.some((allowed) => allowed.toLowerCase() === inputValue)
+  );
+
+  if (matchedValues.length > 0) {
+    const allForms = new Set();
+    matchedValues.forEach((matchedValue) => {
+      const originalValue = flattenedValues.find(
+        (allowed) => allowed.toLowerCase() === matchedValue
+      );
+      allForms.add(originalValue);
+      allForms.add(
+        isLowerCase(originalValue)
+          ? originalValue.toUpperCase()
+          : originalValue.toLowerCase()
+      );
+    });
+    return { $in: [...allForms] };
+  }
+
+  return value;
+};
+
 //startTime=2022-12-20T10:34:15.880Z
 const generateFilter = {
   events: (request, next) => {
@@ -268,7 +329,11 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (tenant) {
@@ -542,7 +607,11 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (tenant) {
@@ -873,7 +942,11 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (tenant) {
@@ -1027,8 +1100,13 @@ const generateFilter = {
     }
 
     if (network) {
-      filter.network = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
+
     if (serial_number) {
       filter.serial_number = serial_number;
     }
@@ -1038,7 +1116,11 @@ const generateFilter = {
     // }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (device_number) {
@@ -1112,7 +1194,7 @@ const generateFilter = {
         filter.status = { $in: validStatusArray };
       }
     }
-
+    logObject("filter", filter);
     return filter;
   },
   sites: (req, next) => {
@@ -1148,11 +1230,19 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (lat_long) {
@@ -1265,42 +1355,50 @@ const generateFilter = {
     const filter = {};
 
     if (id) {
-      filter["_id"] = ObjectId(id);
+      filter._id = ObjectId(id);
     }
 
     if (airqloud_id) {
-      filter["_id"] = ObjectId(airqloud_id);
+      filter._id = ObjectId(airqloud_id);
     }
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
     if (admin_level) {
-      filter["admin_level"] = admin_level;
+      filter.admin_level = admin_level;
     }
 
     if (summary === "yes") {
-      filter["summary"] = summary;
+      filter.summary = summary;
     }
 
     if (dashboard === "yes") {
-      filter["dashboard"] = dashboard;
+      filter.dashboard = dashboard;
     }
 
     if (airqloud_codes) {
       const airqloudCodesArray = airqloud_codes.toString().split(",");
-      filter["airqloud_codes"] = { $in: airqloudCodesArray };
+      filter.airqloud_codes = { $in: airqloudCodesArray };
     }
 
     if (category) {
-      filter["category"] = category;
+      filter.category = category;
     }
 
     if (!isEmpty(path) && path === "public" && isEmpty(airqloud_id)) {
-      filter["visibility"] = true;
+      filter.visibility = true;
     }
 
     return filter;
@@ -1331,11 +1429,19 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (admin_level) {
@@ -1386,11 +1492,19 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (cohort_codes) {
@@ -1502,7 +1616,11 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (admin_level) {
@@ -1545,11 +1663,19 @@ const generateFilter = {
       filter["site_id"] = ObjectId(site_id);
     }
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (activity_codes) {
@@ -1625,11 +1751,19 @@ const generateFilter = {
     }
 
     if (network) {
-      filter["network"] = network;
+      filter.network = handlePredefinedValueMatch(
+        network,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     if (group) {
-      filter["group"] = group;
+      filter.group = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
+        { matchCombinations: true }
+      );
     }
 
     return filter;
