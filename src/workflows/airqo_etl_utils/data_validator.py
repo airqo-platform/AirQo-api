@@ -72,6 +72,7 @@ class DataValidationUtils:
                 data[col] = (
                     data[col]
                     .astype(str)
+                    .str.replace(r"[^\w\s\.\-:]", "", regex=True)
                     .str.replace(r"(?<!\.\d{3})Z$", ".000Z", regex=True)
                 )  # Negative lookbehind to add missing milliseconds if needed
                 data[col] = pd.to_datetime(data[col], errors="coerce")
@@ -209,7 +210,7 @@ class DataValidationUtils:
 
         devices = AirQoDataUtils.get_devices(group_id=caller)
         devices = devices[
-            ["tenant", "device_name", "site_id", "device_latitude", "device_longitude"]
+            ["device_name", "site_id", "device_latitude", "device_longitude"]
         ]
 
         data = pd.merge(
@@ -218,9 +219,6 @@ class DataValidationUtils:
             on=["device_name", "site_id", "tenant"],
             how="left",
         )
-
-        data.rename(columns={"tenant": "network"}, inplace=True)
-
         return data
 
     @staticmethod
