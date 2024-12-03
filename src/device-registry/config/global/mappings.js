@@ -34,6 +34,24 @@ const mappings = {
     very_unhealthy: { min: 125.5, max: 225.4 },
     hazardous: { min: 225.5, max: null },
   },
+  PREDEFINED_FILTER_VALUES: {
+    NETWORKS: ["metone", "usembassy"],
+    COMBINATIONS: {
+      NETWORK_PAIRS: [["metone", "usembassy"], ["kcca", "clarity"]],
+      GROUP_PAIRS: [["metone", "usembassy"], ["kcca", "clarity"]],
+      STATUS_PAIRS: [
+        ["active", "enabled", "running"],
+        ["inactive", "disabled"],
+        ["inactive", "disabled", "stopped", "halted"],
+        ["pending", "processing"][("pending", "processing", "initializing")],
+      ],
+      LOCATION_ALIASES: [
+        ["kampala", "kla", "kamp"],
+        ["entebbe", "ebb", "entb"],
+        ["jinja", "jja"],
+      ],
+    },
+  },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
