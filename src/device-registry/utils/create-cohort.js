@@ -186,6 +186,12 @@ const createCohort = {
   },
   createNetwork: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Disabled --coming soon",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       /**
        * in the near future, this wont be needed since Kafka
        * will handle the entire creation process
@@ -289,6 +295,12 @@ const createCohort = {
   },
   delete: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Service Temporarily Disabled --coming soon",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       const { query } = request;
       const { tenant } = query;
       const filter = generateFilter.cohorts(request, next);
