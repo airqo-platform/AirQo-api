@@ -40,7 +40,7 @@ const mappings = {
       NETWORK_PAIRS: [
         ["metone", "usembassy", "us_embassy"],
         ["kcca", "clarity"],
-        [("urbanbetter", "airbeam", "urban_better")],
+        ["urbanbetter", "airbeam", "urban_better"],
       ],
       GROUP_PAIRS: [["metone", "usembassy"], ["kcca", "clarity"]],
       STATUS_PAIRS: [
