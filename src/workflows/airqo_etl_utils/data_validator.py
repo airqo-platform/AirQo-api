@@ -215,7 +215,7 @@ class DataValidationUtils:
 
         devices = AirQoDataUtils.get_devices(group_id=caller)
         devices = devices[
-            ["device_name", "site_id", "device_latitude", "device_longitude"]
+            ["device_name", "site_id", "device_latitude", "device_longitude", "network"]
         ]
 
         data = pd.merge(

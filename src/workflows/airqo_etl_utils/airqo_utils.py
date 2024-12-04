@@ -885,7 +885,7 @@ class AirQoDataUtils:
 
         # Create a device lookup dictionary for faster access
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
+        devices = airqo_api.get_devices()
 
         device_lookup = {
             device["device_number"]: device
