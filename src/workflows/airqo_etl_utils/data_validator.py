@@ -151,9 +151,16 @@ class DataValidationUtils:
 
         validated_columns = list(chain.from_iterable(filtered_columns.values()))
         for col in validated_columns:
-            is_airqo_network = data["network"] == "airqo"
             mapped_name = configuration.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-            data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
+            if "network" in data.columns:
+                is_airqo_network = data["network"] == "airqo"
+                data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
+                )
+        else:
+            data[col] = data[col].apply(
                 lambda x: DataValidationUtils.get_valid_value(
                     column_name=mapped_name, row_value=x
                 )

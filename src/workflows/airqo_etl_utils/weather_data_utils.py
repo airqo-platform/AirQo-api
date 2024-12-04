@@ -133,7 +133,6 @@ class WeatherDataUtils:
         data["value"] = pd.to_numeric(data["value"], errors="coerce", downcast="float")
         data["time"] = pd.to_datetime(data["time"], errors="coerce")
         # TODO Clean this up.
-        data["network"] = "airqo"
         parameter_mappings = {
             "te": "temperature",
             "rh": "humidity",
