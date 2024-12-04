@@ -10,11 +10,12 @@ from .weather_data_utils import WeatherDataUtils
 class MetaDataUtils:
     @staticmethod
     def extract_devices_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        devices = AirQoApi().get_devices(tenant=tenant)
+        devices = AirQoApi().get_devices()
         dataframe = pd.json_normalize(devices)
         dataframe = dataframe[
             [
                 "tenant",
+                "network",
                 "latitude",
                 "longitude",
                 "site_id",
