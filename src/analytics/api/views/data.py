@@ -189,7 +189,7 @@ class DataExportResource(Resource):
             logger.exception(f"An error occurred: {ex}")
             return (
                 AirQoRequests.create_response(
-                    f"An Error occurred while processing your request. Please contact support. {ex}",
+                    f"An Error occurred while processing your request. Please contact support.",
                     success=False,
                 ),
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
