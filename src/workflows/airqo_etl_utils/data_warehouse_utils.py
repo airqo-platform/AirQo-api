@@ -64,7 +64,7 @@ class DataWarehouseUtils:
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         return data.drop_duplicates(
-            subset=["tenant", "timestamp", "device_number", "device_id"],
+            subset=["network", "timestamp", "device_number", "device_id"],
             keep="first",
         )
 
