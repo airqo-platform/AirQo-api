@@ -42,6 +42,7 @@ def airqo_historical_hourly_measurements():
         return AirQoDataUtils.extract_aggregated_raw_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            network="airqo",
             dynamic_query=True,
         )
 

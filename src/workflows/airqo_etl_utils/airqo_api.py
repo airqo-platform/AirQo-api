@@ -135,7 +135,7 @@ class AirQoApi:
         device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve devices given a tenant and device category.
+        Retrieve devices given a network and device category.
 
         Args:
             - network (str): An Enum that represents site ownership.
@@ -198,7 +198,6 @@ class AirQoApi:
                 "device_category": str(
                     DeviceCategory.from_str(device.pop("category", None))
                 ),
-                "network": device.get("network"),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }
