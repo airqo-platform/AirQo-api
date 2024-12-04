@@ -423,7 +423,7 @@ class AirQoDataUtils:
         airqo_api = AirQoApi()
         data_source_api = DataSourcesApis()
         devices = airqo_api.get_devices(
-            tenant=Tenant.AIRQO, device_category=device_category
+            network=str(Tenant.AIRQO), device_category=device_category
         )
         other_fields_cols: List[str] = []
         devices = (
