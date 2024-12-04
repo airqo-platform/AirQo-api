@@ -1,3 +1,5 @@
+# settings.py
+
 import os
 from pathlib import Path
 import sys
@@ -47,6 +49,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'cloudinary',
     'cloudinary_storage',
+    'django_cleanup.apps.CleanupConfig',
     'rest_framework',
     'django_extensions',
     'nested_admin',
@@ -69,7 +72,6 @@ INSTALLED_APPS = [
     'apps.team',
 ]
 
-
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -88,10 +90,9 @@ CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
 CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
 CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
 
-
 # Only allow CSRF cookie over HTTPS in production
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 
 # Root URL configuration
 ROOT_URLCONF = 'core.urls'
@@ -105,7 +106,7 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
-                'django.template.context_processors.request',
+                'django.template.context_processors.request',  # Required by django-quill
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -117,28 +118,22 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # Database configuration
-# if DEBUG:
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.sqlite3'),
-#             'NAME': BASE_DIR / os.getenv('DATABASE_NAME', 'db.sqlite3'),
-#         }
-#     }
-# else:
-#     DATABASE_URL = os.getenv('DATABASE_URL')
-#     if not DATABASE_URL:
-#         raise ValueError(
-#             "The DATABASE_URL environment variable is not set in production.")
-#     DATABASES = {
-#         'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
-#     }
-DATABASE_URL = os.getenv('DATABASE_URL')
-if not DATABASE_URL:
-    raise ValueError(
-        "The DATABASE_URL environment variable is not set in production.")
-DATABASES = {
-    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
-}
+if DEBUG:
+    DATABASES = {
+        'default': {
+            'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.sqlite3'),
+            'NAME': BASE_DIR / os.getenv('DATABASE_NAME', 'db.sqlite3'),
+        }
+    }
+else:
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    if not DATABASE_URL:
+        raise ValueError(
+            "The DATABASE_URL environment variable is not set in production.")
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
+    }
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -166,13 +161,12 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 # Use WhiteNoise for serving static files in production
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Media files (Uploaded files)
-MEDIA_URL = '/media/' if DEBUG else f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/'
-MEDIA_ROOT = BASE_DIR / 'assets' if DEBUG else None
 
 if DEBUG:
     # Local file storage for media
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'assets'
 else:
     # Validate Cloudinary settings for production
     CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
@@ -181,8 +175,7 @@ else:
 
     if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
         raise ValueError(
-            "Cloudinary environment variables are not fully set in production."
-        )
+            "Cloudinary environment variables are not fully set in production.")
 
     CLOUDINARY_STORAGE = {
         'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
@@ -193,6 +186,7 @@ else:
     }
 
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    # MEDIA_URL = '/media/'  # Optional, Cloudinary handles media URLs
 
 
 # Default primary key field type
@@ -216,10 +210,10 @@ QUILL_CONFIGS = {
         'modules': {
             'toolbar': [
                 [{'header': [1, 2, 3, 4, 5, 6, False]}],
-                ['bold', 'italic', 'underline', 'strike',
-                    'blockquote', 'code-block'],
-                [{'list': 'ordered'}, {'list': 'bullet'},
-                    {'indent': '-1'}, {'indent': '+1'}],
+                ['bold', 'italic', 'underline', 'strike'],
+                ['blockquote', 'code-block'],
+                [{'list': 'ordered'}, {'list': 'bullet'}],
+                [{'indent': '-1'}, {'indent': '+1'}],
                 [{'direction': 'rtl'}],
                 [{'size': ['small', False, 'large', 'huge']}],
                 [{'color': []}, {'background': []}],
@@ -227,33 +221,13 @@ QUILL_CONFIGS = {
                 ['link', 'image', 'video'],
                 ['clean'],
             ],
-            'clipboard': {'matchVisual': False},
         },
-        'placeholder': 'Compose an epic...',
-        'readOnly': False,
-        'bounds': '#editor',
-        'scrollingContainer': '#scrolling-container',
+        'placeholder': 'Start typing...',
     },
 }
 
-# Custom upload handlers
-
-
-def local_file_upload(file):
-    from django.core.files.storage import default_storage
-    file_name = default_storage.save(f'quill_uploads/{file.name}', file)
-    return f"{MEDIA_URL}{file_name}"
-
-
-def cloudinary_file_upload(file):
-    from django.core.files.storage import default_storage
-    file_name = default_storage.save(
-        f'website/uploads/quill_uploads/{file.name}', file)
-    return f"{MEDIA_URL}{file_name}"
-
-
-# Set the appropriate upload handler
-QUILL_UPLOAD_HANDLER = local_file_upload if DEBUG else cloudinary_file_upload
+# Custom upload handlers (if any, optional)
+# You can customize upload handlers here if needed
 
 # Debug logging
 if DEBUG:
@@ -262,11 +236,9 @@ if DEBUG:
 else:
     print("Production mode is ON")
 
-
 # File upload size limit (e.g., 10MB)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
-
 
 # Django Admin Configuration
 LOGIN_URL = '/website/admin/login/'
