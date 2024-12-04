@@ -5,6 +5,11 @@
     "mode": "REQUIRED"
   },
   {
+    "name": "network",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
     "name": "latitude",
     "type": "FLOAT",
     "mode": "NULLABLE"
