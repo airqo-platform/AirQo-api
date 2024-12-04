@@ -509,7 +509,7 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        network: str,
+        network: str = "all",
         where_fields: dict = None,
         null_cols: list = None,
         columns: list = None,
@@ -536,17 +536,15 @@ class BigQueryApi:
             Exception: If an invalid column is provided in `where_fields` or `null_cols`,
                       or if the `query_type` is not supported.
         """
-        tenant = "airqo"
 
         null_cols = [] if null_cols is None else null_cols
         where_fields = {} if where_fields is None else where_fields
 
         columns = ", ".join(map(str, columns)) if columns else " * "
-        where_clause = (
-            f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' "
-        )
-        if tenant != Tenant.ALL:
-            where_clause = f" {where_clause} and tenant = '{str(tenant)}' or network = '{str(network)}' "
+        where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
+
+        if network:
+            where_clause += f"AND network = '{network}' "
 
         valid_cols = self.get_columns(table=table)
 
@@ -613,7 +611,7 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         table: str,
-        network: str,
+        network: str = None,
         dynamic_query: bool = False,
         columns: list = None,
         where_fields: dict = None,
@@ -649,7 +647,11 @@ class BigQueryApi:
             )
         else:
             query = self.dynamic_averaging_query(
-                table, start_date_time, end_date_time, time_granularity=time_granularity
+                table,
+                start_date_time,
+                end_date_time,
+                network=network,
+                time_granularity=time_granularity,
             )
 
         dataframe = self.client.query(query=query).result().to_dataframe()
@@ -669,6 +671,7 @@ class BigQueryApi:
         end_date_time: str,
         exclude_columns: list = None,
         group_by: list = None,
+        network: str = "all",
         time_granularity: str = "HOUR",
     ) -> str:
         """
@@ -728,11 +731,18 @@ class BigQueryApi:
             ]
         )
 
+        where_clause: str = (
+            f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
+        )
+
+        if network:
+            where_clause += f"AND network = '{network}' "
+
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
         group_by_clause = ", ".join(group_by + [time_granularity.lower()])
 
-        query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
+        query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
 

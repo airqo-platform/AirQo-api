@@ -59,7 +59,7 @@ class AirQoDataUtils:
             null_cols=["pm2_5_calibrated_value"],
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            tenant=Tenant.AIRQO,
+            network=str(Tenant.AIRQO),
         )
 
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
@@ -79,7 +79,7 @@ class AirQoDataUtils:
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            tenant=Tenant.AIRQO,
+            network=str(Tenant.AIRQO),
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
@@ -117,7 +117,10 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_aggregated_raw_data(
-        start_date_time: str, end_date_time: str, dynamic_query: bool = False
+        start_date_time: str,
+        end_date_time: str,
+        network: str = None,
+        dynamic_query: bool = False,
     ) -> pd.DataFrame:
         """
         Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
@@ -128,9 +131,7 @@ class AirQoDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            network=str(
-                Tenant.AIRQO
-            ),  # TODO Replace tenant implementation with network implementation
+            network=network,
             dynamic_query=dynamic_query,
         )
 

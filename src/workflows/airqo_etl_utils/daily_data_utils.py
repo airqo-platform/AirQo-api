@@ -44,7 +44,6 @@ class DailyDataUtils:
             table=bigquery_api.hourly_measurements_table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            tenant=Tenant.ALL,
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
@@ -57,7 +56,6 @@ class DailyDataUtils:
             table=bigquery_api.daily_measurements_table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            tenant=Tenant.ALL,
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
