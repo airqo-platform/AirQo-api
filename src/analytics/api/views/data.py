@@ -99,7 +99,10 @@ class DataExportResource(Resource):
                 json_data
             )
             if error_message:
-                return error_message, AirQoRequests.Status.HTTP_400_BAD_REQUEST
+                return (
+                    AirQoRequests.create_response(error_message, success=False),
+                    AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+                )
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
 
@@ -209,8 +212,9 @@ class DataExportResource(Resource):
         Raises:
             ValueError: If more than one or none of the filters are provided.
         """
-        error_message: str = ""
+        filter_type: str = None
         validated_data: List[str] = None
+        error_message: str = ""
 
         # TODO Lias with device registry to cleanup this makeshift implementation
         devices = ["devices", "device_ids", "device_names"]
@@ -227,9 +231,9 @@ class DataExportResource(Resource):
         ]
         provided_filters = [key for key in valid_filters if json_data.get(key)]
         if len(provided_filters) != 1:
-            raise ValueError(
-                "Specify exactly one of 'airqlouds', 'sites', 'device_names', or 'devices' in the request body."
-            )
+            error_message = "Specify exactly one of 'airqlouds', 'sites', 'device_names', or 'devices' in the request body."
+            return filter_type, validated_data, error_message
+
         filter_type = provided_filters[0]
         filter_value = json_data.get(filter_type)
 
@@ -246,7 +250,9 @@ class DataExportResource(Resource):
                 "sites" if filter_type in sites else "devices", []
             )
         else:
-            error_message = validated_value.get("message", "Validation failed")
+            error_message = validated_value.get(
+                "message", "Data filter validation failed"
+            )
 
         return filter_type, validated_data, error_message
 
