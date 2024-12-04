@@ -7,7 +7,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transaction-controller`
 );
-const transactionsUtil = require("@utils/transactions-util");
+const transactionsUtil = require("@utils/create-transaction");
 
 const transactions = {
   createCheckoutSession: async (req, res, next) => {
@@ -140,6 +140,11 @@ const transactions = {
       return;
     }
   },
+
+  listTransactions: async (req, res, next) => {},
+  updateTransaction: async (req, res, next) => {},
+  getTransactionStats: async (req, res, next) => {},
+  deleteTransaction: async (req, res, next) => {},
 };
 
 module.exports = transactions;
