@@ -758,19 +758,26 @@ class AirQoDataUtils:
                     AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
                         data
                     )
-
+        else:
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.dropna(subset=["timestamp"], inplace=True)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
         # TODO Find an appropriate place to put this
         if device_category == DeviceCategory.LOW_COST:
-            data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-            data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-            data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-            data["pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+            is_airqo_network = data["network"] == "airqo"
 
+            pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
+                axis=1
+            )
+            pm10_mean = data.loc[is_airqo_network, ["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+            data.loc[is_airqo_network, "pm2_5_raw_value"] = pm2_5_mean
+            data.loc[is_airqo_network, "pm2_5"] = pm2_5_mean
+            data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
+            data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
 
     @staticmethod
@@ -1033,7 +1040,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
+        devices = airqo_api.get_devices(network=str(Tenant.AIRQO))
         devices_history = pd.DataFrame()
         for device in devices:
             try:
