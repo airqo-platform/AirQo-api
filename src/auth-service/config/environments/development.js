@@ -31,5 +31,10 @@ const devConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  PADDLE_SUCCESS_REDIRECT_URL: process.env.DEV_PADDLE_SUCCESS_REDIRECT_URL,
+  PADDLE_CANCEL_REDIRECT_URL: process.env.DEV_PADDLE_CANCEL_REDIRECT_URL,
+  PADDLE_PUBLIC_KEY: process.env.DEV_PADDLE_PUBLIC_KEY,
+  PADDLE_SECRET_KEY: process.env.DEV_PADDLE_SECRET_KEY,
+  PADDLE_ENVIRONMENT: process.env.DEV_PADDLE_SECRET_KEY,
 };
 module.exports = devConfig;

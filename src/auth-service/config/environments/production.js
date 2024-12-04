@@ -31,5 +31,10 @@ const prodConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  PADDLE_SUCCESS_REDIRECT_URL: process.env.PROD_PADDLE_SUCCESS_REDIRECT_URL,
+  PADDLE_CANCEL_REDIRECT_URL: process.env.PROD_PADDLE_CANCEL_REDIRECT_URL,
+  PADDLE_PUBLIC_KEY: process.env.PROD_PADDLE_PUBLIC_KEY,
+  PADDLE_SECRET_KEY: process.env.PROD_PADDLE_SECRET_KEY,
+  PADDLE_ENVIRONMENT: process.env.PROD_PADDLE_SECRET_KEY,
 };
 module.exports = prodConfig;
