@@ -59,7 +59,7 @@ class AirQoDataUtils:
             null_cols=["pm2_5_calibrated_value"],
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            tenant=Tenant.AIRQO,
+            network=str(Tenant.AIRQO),
         )
 
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
@@ -79,7 +79,7 @@ class AirQoDataUtils:
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            tenant=Tenant.AIRQO,
+            network=str(Tenant.AIRQO),
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
@@ -117,7 +117,10 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_aggregated_raw_data(
-        start_date_time: str, end_date_time: str, dynamic_query: bool = False
+        start_date_time: str,
+        end_date_time: str,
+        network: str = None,
+        dynamic_query: bool = False,
     ) -> pd.DataFrame:
         """
         Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
@@ -128,9 +131,7 @@ class AirQoDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            network=str(
-                Tenant.AIRQO
-            ),  # TODO Replace tenant implementation with network implementation
+            network=network,
             dynamic_query=dynamic_query,
         )
 
@@ -757,19 +758,26 @@ class AirQoDataUtils:
                     AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
                         data
                     )
-
+        else:
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.dropna(subset=["timestamp"], inplace=True)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
         # TODO Find an appropriate place to put this
         if device_category == DeviceCategory.LOW_COST:
-            data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-            data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-            data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-            data["pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+            is_airqo_network = data["network"] == "airqo"
 
+            pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
+                axis=1
+            )
+            pm10_mean = data.loc[is_airqo_network, ["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+            data.loc[is_airqo_network, "pm2_5_raw_value"] = pm2_5_mean
+            data.loc[is_airqo_network, "pm2_5"] = pm2_5_mean
+            data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
+            data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
 
     @staticmethod
@@ -1032,7 +1040,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
+        devices = airqo_api.get_devices(network=str(Tenant.AIRQO))
         devices_history = pd.DataFrame()
         for device in devices:
             try:

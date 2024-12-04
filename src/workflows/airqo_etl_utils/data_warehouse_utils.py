@@ -33,7 +33,6 @@ class DataWarehouseUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=biq_query_api.bam_measurements_table,
-            tenant=Tenant.ALL,
         )
 
         if data.empty:
@@ -59,7 +58,6 @@ class DataWarehouseUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=biq_query_api.consolidated_data_table,
-            tenant=Tenant.ALL,
         )
 
     @staticmethod
@@ -83,7 +81,6 @@ class DataWarehouseUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=biq_query_api.hourly_measurements_table,
-            tenant=Tenant.ALL,
         )
 
         if data.empty:

@@ -5,6 +5,11 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "network",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "site_id",
     "type": "STRING",
     "mode": "NULLABLE"
