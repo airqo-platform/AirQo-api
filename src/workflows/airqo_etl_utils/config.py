@@ -287,6 +287,10 @@ class Config:
         "ts": "timestamp",
     }
 
+    DATA_RESOLUTION_MAPPING = {
+        "iqair": {"hourly": "instant", "raw": "instant", "current": "current"}
+    }
+
     AIRQO_DATA_COLUMN_NAME_MAPPING = {
         "pm2_5": "pm2_5",
         "s1_pm2_5": "pm2_5",

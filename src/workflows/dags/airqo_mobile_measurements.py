@@ -13,6 +13,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 )
 def airqo_mobile_devices_measurements():
     import pandas as pd
+    from airqo_etl_utils.constants import Frequency
 
     @task()
     def extract_raw_data(**kwargs):
@@ -21,7 +22,9 @@ def airqo_mobile_devices_measurements():
         dag_run = kwargs.get("dag_run")
         meta_data = AirQoDataUtils.flatten_meta_data(dag_run.conf["meta_data"])
 
-        return AirQoDataUtils.extract_mobile_low_cost_sensors_data(meta_data=meta_data)
+        return AirQoDataUtils.extract_mobile_low_cost_sensors_data(
+            meta_data, Frequency.HOURLY
+        )
 
     @task()
     def aggregate_raw_data(raw_data: pd.DataFrame):
