@@ -153,6 +153,7 @@ def airqo_historical_raw_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.LOW_COST,
+            resolution=Frequency.DAILY,
         )
 
     @task()
@@ -311,6 +312,7 @@ def airqo_realtime_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.LOW_COST,
+            resolution=Frequency.RAW_LOW_COST,
         )
 
     @task()
@@ -456,6 +458,7 @@ def airqo_realtime_measurements():
     merged_data = merge_data(
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
+    # TODO Should calibrated data be merge with non airqo data after calibration
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
