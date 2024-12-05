@@ -740,6 +740,8 @@ UserSchema.statics = {
         delete filter.category;
       }
       logObject("the filter being used", filter);
+      const totalCount = await this.countDocuments(filter).exec();
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -907,14 +909,15 @@ UserSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .sort({ createdAt: -1 })
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
+        .skip(skip ? parseInt(skip) : 0)
+        .limit(limit ? parseInt(limit) : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
       if (!isEmpty(response)) {
         return {
           success: true,
           message: "successfully retrieved the user details",
           data: response,
+          totalCount,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -922,6 +925,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
+          totalCount,
           status: httpStatus.OK,
         };
       }

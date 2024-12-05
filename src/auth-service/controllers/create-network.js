@@ -719,6 +719,7 @@ const createNetwork = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          total_assigned_users: result.totalCount,
           assigned_users: result.data,
         });
       } else if (result.success === false) {
@@ -770,6 +771,7 @@ const createNetwork = {
         return res.status(status).json({
           success: true,
           message: result.message,
+          total_available_users: result.totalCount,
           available_users: result.data,
         });
       } else if (result.success === false) {
