@@ -1021,7 +1021,7 @@ const createNetwork = {
   },
   listAvailableUsers: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, skip, limit } = request.query;
       const { net_id } = request.params;
       const network = await NetworkModel(tenant).findById(net_id);
       if (!network) {
@@ -1040,6 +1040,8 @@ const createNetwork = {
       let responseFromListAvailableUsers = await UserModel(tenant).list(
         {
           filter,
+          skip,
+          limit,
         },
         next
       );
@@ -1061,7 +1063,7 @@ const createNetwork = {
   },
   listAssignedUsers: async (request, next) => {
     try {
-      const { tenant } = request.query;
+      const { tenant, skip, limit } = request.query;
       const { net_id } = request.params;
 
       const network = await NetworkModel(tenant).findById(net_id);
@@ -1082,6 +1084,8 @@ const createNetwork = {
       let responseFromListAssignedUsers = await UserModel(tenant).list(
         {
           filter,
+          skip,
+          limit,
         },
         next
       );
