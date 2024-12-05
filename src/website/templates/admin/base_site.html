@@ -19,7 +19,4 @@ Website Admin Portal {% endblock %} {% block extrahead %} {{ block.super }}
 <h1 id="site-name">
   <a href="{% url 'admin:index' %}">AirQo Website Admin Portal</a>
 </h1>
-{% endblock %} {% block footer %} {{ block.super }}
-<!-- Include custom Dark Mode JavaScript -->
-<script src="{% static 'admin/js/admin_dark_mode.js' %}"></script>
-{% endblock %}
+{% endblock %} {% block footer %} {{ block.super }} {% endblock %}
