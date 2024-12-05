@@ -284,7 +284,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_mobile_low_cost_sensors_data(
-        meta_data: list,
+        meta_data: list, resolution: Frequency
     ) -> pd.DataFrame:
         data = pd.DataFrame()
 
@@ -294,6 +294,7 @@ class AirQoDataUtils:
                 start_date_time=value.get("start_date_time"),
                 end_date_time=value.get("end_date_time"),
                 device_numbers=[value.get("device_number")],
+                resolution=resolution,
                 device_category=DeviceCategory.LOW_COST,
             )
             if measurements.empty:
@@ -546,6 +547,7 @@ class AirQoDataUtils:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
+        resolution: Frequency = Frequency.RAW,
         device_numbers: list = None,
         remove_outliers: bool = True,
     ) -> pd.DataFrame:
@@ -636,7 +638,7 @@ class AirQoDataUtils:
                 mapping = config["mapping"][network]
                 try:
                     data = AirQoDataUtils.map_and_extract_data(
-                        mapping, data_source_api.iqair(device)
+                        mapping, data_source_api.iqair(device, resolution=resolution)
                     )
                 except Exception as e:
                     logger.exception(f"An error occured: {e} - device {device['name']}")
@@ -676,38 +678,35 @@ class AirQoDataUtils:
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         """
-        Resamples and avergages out the numeric type fields on an hourly basis.
+        Resamples and averages out the numeric type fields on an hourly basis.
 
         Args:
-            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted(numeric) data.
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
 
         Returns:
             A pandas DataFrame object containing hourly averages of data.
         """
+
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        averages_list: List[pd.DataFrame] = []
-        for _, device_group in data.groupby("device_number"):
-            site_id = device_group.iloc[0]["site_id"]
-            device_id = device_group.iloc[0]["device_id"]
-            device_number = device_group.iloc[0]["device_number"]
 
-            del device_group["site_id"]
-            del device_group["device_id"]
-            del device_group["device_number"]
-            try:
-                averages = device_group.resample("1H", on="timestamp").mean()
-            except ValueError as value_error:
-                logger.exception(f"Error: {value_error}")
-                logger.info(device_group)
-                continue
-            averages["timestamp"] = averages.index
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averages["device_number"] = device_number
-            averages_list.append(averages)
-        aggregated_data = pd.concat(averages_list, ignore_index=True)
+        group_metadata = (
+            data[["device_id", "site_id", "device_number", "network"]]
+            .drop_duplicates("device_id")
+            .set_index("device_id")
+        )
+        numeric_columns = data.select_dtypes(include=["number"]).columns
+        numeric_columns = numeric_columns.difference(["device_number"])
+        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
 
-        return aggregated_data
+        aggregated = (
+            data_for_aggregation.groupby("device_id")
+            .apply(lambda group: group.resample("1H", on="timestamp").mean())
+            .reset_index()
+        )
+
+        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+
+        return aggregated
 
     @staticmethod
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -1035,6 +1034,10 @@ class AirQoDataUtils:
             )
             del measurements[f"device_reading_{col}_col"]
 
+        numeric_columns = measurements.select_dtypes(include=["number"]).columns
+        numeric_columns = numeric_columns.difference(["device_number"])
+        numeric_counts = measurements[numeric_columns].notna().sum(axis=1)
+        measurements = measurements[numeric_counts >= 1]
         return measurements
 
     @staticmethod
@@ -1156,7 +1159,7 @@ class AirQoDataUtils:
             columns={"_id": "site_id"}
         )
         data = pd.merge(data, sites_df, on="site_id", how="left")
-        data.dropna(subset=["device_number", "timestamp"], inplace=True)
+        data.dropna(subset=["device_id", "timestamp"], inplace=True)
 
         columns_to_fill = [
             "s1_pm2_5",
