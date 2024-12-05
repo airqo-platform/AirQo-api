@@ -798,58 +798,6 @@ class AirQoApi:
             params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
             self.__request("devices/sites", params, site, "put")
 
-    def get_tenants(self, data_source: str) -> List[Dict[str, Any]]:
-        """
-        Retrieve tenants given a data source.
-
-        Args:
-            data_source: The source of the tenant's data.
-
-        Returns:
-            List[Dict[str, Any]]: A list of dictionaries with tenant details.
-
-            [
-                {
-                    "_id": str,
-                    "net_status": str,
-                    "net_email": str,
-                    "net_phoneNumber": int,
-                    "net_category": str,
-                    "net_name": str,
-                    "net_description": str,
-                    "net_website": str,
-                    "net_acronym": str,
-                    "net_api_key": str,
-                    "net_data_source": str,
-                    "createdAt": str,
-                    "net_users": List[Dict[str,Any]],
-                    "net_permissions": List[Dict[str,Any]],
-                    "net_roles": List[Dict[str,Any]],
-                    "net_groups": List[Dict[str,Any]],
-                    "net_departments": List[Dict[str,Any]],
-                    "network_id": str,
-                    "network": str,
-                    "data_source": str,
-                    "api_key": str"
-                },
-            ]
-        """
-        response = self.__request("users/networks")
-
-        return [
-            {
-                **network,
-                **{
-                    "network_id": network.get("_id", None),
-                    "network": network.get("net_name", None),
-                    "data_source": network.get("net_data_source", None),
-                    "api_key": network.get("net_api_key", None),
-                },
-            }
-            for network in response.get("networks", [])
-            if network.get("net_data_source") == str(data_source)
-        ]
-
     def __request(self, endpoint, params=None, body=None, method="get", base_url=None):
         """
         Executes API request and returns the response.
