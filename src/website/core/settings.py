@@ -1,3 +1,4 @@
+
 import os
 import sys
 from pathlib import Path
@@ -189,26 +190,25 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+
 if DEBUG:
     # Local file storage for development
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     MEDIA_URL = '/media/'
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     MEDIA_ROOT = BASE_DIR / 'assets'
+    print("DEBUG=True: Using local file storage for media.")
 else:
     # Cloudinary setup for production
-    CLOUDINARY_CLOUD_NAME = require_env_var('CLOUDINARY_CLOUD_NAME')
-    CLOUDINARY_API_KEY = require_env_var('CLOUDINARY_API_KEY')
-    CLOUDINARY_API_SECRET = require_env_var('CLOUDINARY_API_SECRET')
-
     CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
-        'API_KEY': CLOUDINARY_API_KEY,
-        'API_SECRET': CLOUDINARY_API_SECRET,
+        'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
+        'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
+        'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
         'SECURE': True,
         'TIMEOUT': 600,
     }
 
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    print("DEBUG=False: Using Cloudinary for media storage.")
 
 # ---------------------------------------------------------
 # Default Primary Key Field Type

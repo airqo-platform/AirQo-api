@@ -1,10 +1,16 @@
+
 from django.db import models
 from django.contrib.auth import get_user_model
 from django_quill.fields import QuillField
 from utils.models import BaseModel
-from utils.validators import validate_image, validate_file
+from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
+import logging
 
 User = get_user_model()
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 class Event(BaseModel):
@@ -59,19 +65,20 @@ class Event(BaseModel):
         blank=True,
     )
 
-    # Image fields: In DEBUG mode (local dev) these will be stored locally.
-    # In production mode (DEBUG=False), they will be uploaded to Cloudinary.
-    event_image = models.ImageField(
-        upload_to='website/uploads/events/images',
-        validators=[validate_image],
+    # Image fields using CloudinaryField
+    event_image = CloudinaryField(
+        'image',
+        folder='website/uploads/events/images',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
     )
-    background_image = models.ImageField(
-        upload_to='website/uploads/events/images',
-        validators=[validate_image],
+    background_image = CloudinaryField(
+        'image',
+        folder='website/uploads/events/images',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
     )
 
     location_name = models.CharField(max_length=100, null=True, blank=True)
@@ -84,6 +91,26 @@ class Event(BaseModel):
 
     def __str__(self):
         return self.title
+
+    def delete(self, *args, **kwargs):
+        # Delete files from Cloudinary
+        if self.event_image:
+            try:
+                destroy(self.event_image.public_id)
+                logger.info(
+                    f"Deleted event_image from Cloudinary: {self.event_image.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting event_image from Cloudinary: {e}")
+        if self.background_image:
+            try:
+                destroy(self.background_image.public_id)
+                logger.info(
+                    f"Deleted background_image from Cloudinary: {self.background_image.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting background_image from Cloudinary: {e}")
+        super().delete(*args, **kwargs)
 
 
 class Inquiry(BaseModel):
@@ -108,7 +135,6 @@ class Inquiry(BaseModel):
 
 class Program(BaseModel):
     date = models.DateField()
-    # Stored as plain text. If you prefer rich text, ensure data is consistent.
     program_details = models.TextField(default="No details available yet.")
     order = models.IntegerField(default=1)
     event = models.ForeignKey(
@@ -149,11 +175,12 @@ class Session(BaseModel):
 
 
 class PartnerLogo(BaseModel):
-    partner_logo = models.ImageField(
-        upload_to='website/uploads/events/logos/',
-        validators=[validate_image],
+    partner_logo = CloudinaryField(
+        'image',
+        folder='website/uploads/events/logos',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
     )
     name = models.CharField(max_length=70)
     order = models.IntegerField(default=1)
@@ -171,15 +198,27 @@ class PartnerLogo(BaseModel):
     def __str__(self):
         return f"Partner - {self.name}"
 
+    def delete(self, *args, **kwargs):
+        if self.partner_logo:
+            try:
+                destroy(self.partner_logo.public_id)
+                logger.info(
+                    f"Deleted partner_logo from Cloudinary: {self.partner_logo.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting partner_logo from Cloudinary: {e}")
+        super().delete(*args, **kwargs)
+
 
 class Resource(BaseModel):
     title = models.CharField(max_length=100)
     link = models.URLField(null=True, blank=True)
-    resource = models.FileField(
-        upload_to='website/uploads/events/files/',
-        validators=[validate_file],
+    resource = CloudinaryField(
+        'file',
+        folder='website/uploads/events/files',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
     )
     order = models.IntegerField(default=1)
     event = models.ForeignKey(
@@ -195,3 +234,14 @@ class Resource(BaseModel):
 
     def __str__(self):
         return f"Resource - {self.title}"
+
+    def delete(self, *args, **kwargs):
+        if self.resource:
+            try:
+                destroy(self.resource.public_id)
+                logger.info(
+                    f"Deleted resource from Cloudinary: {self.resource.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting resource from Cloudinary: {e}")
+        super().delete(*args, **kwargs)

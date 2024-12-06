@@ -1,8 +1,12 @@
+
 from django.contrib import admin
 import nested_admin
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from django.utils.html import format_html
+import logging
 
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # -------- Inline Classes --------
 
@@ -26,15 +30,28 @@ class PartnerLogoInline(nested_admin.NestedTabularInline):
 
     def preview_logo(self, obj):
         """Preview partner logo."""
-        if obj.partner_logo:
+        if obj.partner_logo and hasattr(obj.partner_logo, 'url'):
             try:
                 return format_html(
                     '<img src="{}" style="max-height: 100px; max-width: 150px;" alt="Partner Logo"/>',
                     obj.partner_logo.url
                 )
             except Exception as e:
-                return f"Error loading logo: {e}"
-        return "No logo uploaded"
+                logger.error(
+                    f"Error loading partner_logo for Partner '{obj.name}': {e}")
+                return "Error loading logo."
+        elif isinstance(obj.partner_logo, str) and obj.partner_logo:
+            # Handle cases where partner_logo is a string path
+            try:
+                return format_html(
+                    '<img src="{}" style="max-height: 100px; max-width: 150px;" alt="Partner Logo"/>',
+                    obj.partner_logo
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error loading partner_logo path for Partner '{obj.name}': {e}")
+                return "Error loading logo."
+        return "No logo uploaded."
 
     preview_logo.short_description = "Preview Logo"
 
@@ -48,12 +65,22 @@ class ResourceInline(nested_admin.NestedTabularInline):
 
     def download_link(self, obj):
         """Generate a download link for resources."""
-        if obj.resource:
+        if obj.resource and hasattr(obj.resource, 'url'):
             try:
                 return format_html('<a href="{}" target="_blank">Download</a>', obj.resource.url)
             except Exception as e:
-                return f"Error generating download link: {e}"
-        return "No resource uploaded"
+                logger.error(
+                    f"Error generating download link for Resource '{obj.title}': {e}")
+                return "Error generating link."
+        elif isinstance(obj.resource, str) and obj.resource:
+            # Handle cases where resource is a string path
+            try:
+                return format_html('<a href="{}" target="_blank">Download</a>', obj.resource)
+            except Exception as e:
+                logger.error(
+                    f"Error generating download link path for Resource '{obj.title}': {e}")
+                return "Error generating link."
+        return "No resource uploaded."
 
     download_link.short_description = "Resource Download Link"
 
@@ -80,7 +107,6 @@ class ProgramInline(nested_admin.NestedStackedInline):
 
 # -------- Event Admin --------
 
-
 @admin.register(Event)
 class EventAdmin(nested_admin.NestedModelAdmin):
     """Admin configuration for the Event model."""
@@ -104,7 +130,6 @@ class EventAdmin(nested_admin.NestedModelAdmin):
         PartnerLogoInline,
         ResourceInline
     ]
-
     fieldsets = (
         ("Basic Information", {
             "fields": ('title', 'title_subtext', 'start_date', 'end_date', 'start_time', 'end_time')
@@ -122,14 +147,27 @@ class EventAdmin(nested_admin.NestedModelAdmin):
 
     def preview_event_image(self, obj):
         """Preview event image."""
-        if obj.event_image:
+        if obj.event_image and hasattr(obj.event_image, 'url'):
             try:
                 return format_html(
                     '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Event Image"/>',
                     obj.event_image.url
                 )
             except Exception as e:
-                return f"Error loading image: {e}"
-        return "No image uploaded"
+                logger.error(
+                    f"Error loading event_image for Event '{obj.title}': {e}")
+                return "Error loading image."
+        elif isinstance(obj.event_image, str) and obj.event_image:
+            # Handle cases where event_image is a string path
+            try:
+                return format_html(
+                    '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Event Image"/>',
+                    obj.event_image
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error loading event_image path for Event '{obj.title}': {e}")
+                return "Error loading image."
+        return "No image uploaded."
 
     preview_event_image.short_description = "Event Image Preview"
