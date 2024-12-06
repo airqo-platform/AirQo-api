@@ -3,9 +3,50 @@ const log4js = require("log4js");
 module.exports = {
   generateDateFormatWithoutHrs,
 };
+const moment = require("moment");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
 const { HttpError } = require("@utils/errors");
+
+const ConvertDates = {
+  strToDate: (st, strFormat = "YYYY-MM-DDTHH:mm:ss.SSSSZ") => {
+    return moment(st, strFormat).toDate();
+  },
+
+  dateToStr: (date, strFormat = "YYYY-MM-DDTHH:mm:ss.SSSSZ") => {
+    return moment(date).format(strFormat);
+  },
+
+  formatDate: (date, strFormat = "YYYY-MM-DDTHH:mm:ss.SSSSZ") => {
+    return moment(date).format(strFormat);
+  },
+
+  convertGMTtoEAT: (gmtDatetime) => {
+    return moment(gmtDatetime)
+      .add(3, "hours")
+      .format("ddd, DD MMM YYYY HH:mm A");
+  },
+
+  convertToDate: (gmtDatetime) => {
+    return moment(gmtDatetime).format("YYYY-MM-DD");
+  },
+
+  validateDateTime: (value, dateFormat = "YYYY-MM-DDTHH:mm:ss.SSSSZ") => {
+    const parsedDate = moment(value, dateFormat, true);
+    if (!parsedDate.isValid()) {
+      throw new TypeError(`Cannot convert ${value} to datetime type`);
+    }
+    return parsedDate.toDate();
+  },
+
+  validateDate: (value) => {
+    const parsedDate = moment(value, "YYYY-MM-DD", true);
+    if (!parsedDate.isValid()) {
+      throw new TypeError(`Cannot convert ${value} to datetime type`);
+    }
+    return parsedDate.toDate();
+  },
+};
 
 function generateDateFormat(ISODate, next) {
   try {
@@ -261,4 +302,5 @@ module.exports = {
   addMinutes,
   formatDate,
   addHours,
+  ConvertDates,
 };
