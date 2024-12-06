@@ -159,12 +159,12 @@ class DataValidationUtils:
                         column_name=mapped_name, row_value=x
                     )
                 )
-        else:
-            data[col] = data[col].apply(
-                lambda x: DataValidationUtils.get_valid_value(
-                    column_name=mapped_name, row_value=x
+            else:
+                data[col] = data[col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
                 )
-            )
         return data
 
     @staticmethod
