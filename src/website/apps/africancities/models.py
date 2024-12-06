@@ -1,18 +1,17 @@
 from django.conf import settings
 from django.db import models
-from utils.fields import ConditionalImageField
+from cloudinary.models import CloudinaryField
 from utils.models import BaseModel
 
 
 class AfricanCountry(BaseModel):
     country_name = models.CharField(max_length=100)
-    country_flag = ConditionalImageField(
-        local_upload_to='countries/flags/',
-        cloudinary_folder='website/uploads/countries/flags',
+    country_flag = CloudinaryField(
+        folder='website/uploads/africancities/flags',
         null=True,
-        blank=True
+        blank=True,
+        resource_type='image'
     )
-
     order = models.IntegerField(default=1)
 
     class Meta:
@@ -21,19 +20,12 @@ class AfricanCountry(BaseModel):
     def __str__(self):
         return self.country_name
 
-    def get_country_flag_url(self, request=None):
+    def get_country_flag_url(self):
         """
-        Return the full URL for the country flag.
-        - For Cloudinary, return a secure HTTPS URL.
-        - For local development, return the absolute URL using request.build_absolute_uri.
+        Return the secure URL for the country flag.
         """
         if self.country_flag:
-            if not settings.DEBUG:
-                # Cloudinary secure URL
-                return self.country_flag.url  # Already provides secure URL by default
-            else:
-                # Local development, ensure full URL
-                return request.build_absolute_uri(self.country_flag.url) if request else self.country_flag.url
+            return self.country_flag.url  # Cloudinary already provides a secure URL
         return None
 
 
@@ -44,7 +36,7 @@ class City(BaseModel):
         AfricanCountry,
         null=True,
         related_name="city",
-        on_delete=models.deletion.SET_NULL,
+        on_delete=models.SET_NULL,
     )
 
     class Meta:
@@ -61,7 +53,7 @@ class Content(BaseModel):
         City,
         null=True,
         related_name="content",
-        on_delete=models.deletion.SET_NULL,
+        on_delete=models.SET_NULL,
     )
 
     class Meta:
@@ -79,7 +71,7 @@ class Description(BaseModel):
         null=True,
         blank=True,
         related_name="description",
-        on_delete=models.deletion.SET_NULL,
+        on_delete=models.SET_NULL,
     )
 
     class Meta:
@@ -90,19 +82,19 @@ class Description(BaseModel):
 
 
 class Image(BaseModel):
-    image = ConditionalImageField(
-        local_upload_to='content/images/',
-        cloudinary_folder='website/uploads/content/images',
+    image = CloudinaryField(
+        folder='website/uploads/africancities/images',
         null=True,
-        blank=True
+        blank=True,
+        resource_type='image'
     )
     order = models.IntegerField(default=1)
     content = models.ForeignKey(
-        'Content',
+        Content,
         null=True,
         blank=True,
         related_name="image",
-        on_delete=models.deletion.SET_NULL,
+        on_delete=models.SET_NULL,
     )
 
     class Meta:
@@ -111,17 +103,10 @@ class Image(BaseModel):
     def __str__(self):
         return f"Image-{self.id}"
 
-    def get_image_url(self, request=None):
+    def get_image_url(self):
         """
-        Return the full URL for the image.
-        - For Cloudinary, return a secure HTTPS URL.
-        - For local development, return the absolute URL using request.build_absolute_uri.
+        Return the secure URL for the image.
         """
         if self.image:
-            if not settings.DEBUG:
-                # Cloudinary secure URL
-                return self.image.url  # Cloudinary already provides secure URL
-            else:
-                # Local development, ensure full URL
-                return request.build_absolute_uri(self.image.url) if request else self.image.url
+            return self.image.url  # Cloudinary already provides a secure URL
         return None
