@@ -1,12 +1,26 @@
-from django.conf import settings
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import (
-    CleanAirResource, ForumEvent, Partner, Program, Session, Support,
-    Person, Engagement, Objective, ForumResource, ResourceFile, ResourceSession
-)
-from cloudinary.utils import cloudinary_url
 from nested_admin import NestedTabularInline, NestedModelAdmin
+from .models import (
+    CleanAirResource,
+    ForumEvent,
+    ForumResource,
+    Partner,
+    Person,
+    Program,
+    Objective,
+    Engagement,
+    Session,
+    Support,
+    ResourceFile,
+    ResourceSession,
+)
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+
+# Inline Classes
 
 
 class ObjectiveInline(NestedTabularInline):
@@ -20,13 +34,13 @@ class EngagementInline(NestedTabularInline):
     extra = 0
 
 
-class SessionInline(NestedTabularInline):
-    model = Session
+class SupportInline(NestedTabularInline):
+    model = Support
     extra = 0
 
 
-class SupportInline(NestedTabularInline):
-    model = Support
+class SessionInline(NestedTabularInline):
+    model = Session
     extra = 0
 
 
@@ -41,6 +55,13 @@ class ResourceSessionInline(NestedTabularInline):
     inlines = [ResourceFileInline]
 
 
+class ForumResourceInline(NestedTabularInline):
+    model = ForumResource
+    inlines = [ResourceSessionInline]
+    extra = 0
+
+
+# Admin Classes
 @admin.register(CleanAirResource)
 class CleanAirResourceAdmin(admin.ModelAdmin):
     list_display = ('resource_title', 'resource_category',
@@ -53,41 +74,50 @@ class CleanAirResourceAdmin(admin.ModelAdmin):
 
 @admin.register(ForumEvent)
 class ForumEventAdmin(NestedModelAdmin):
-    list_display = ('title', 'start_date', 'end_date', 'order')
+    list_display = ('title', 'start_date', 'end_date',
+                    'order', 'background_image_preview')
     list_filter = ('start_date', 'end_date')
     search_fields = ('title',)
     readonly_fields = ()
     list_per_page = 12
     inlines = [EngagementInline, SupportInline]
 
+    def background_image_preview(self, obj):
+        """Preview background image."""
+        if obj.background_image and hasattr(obj.background_image, 'url'):
+            try:
+                return format_html(
+                    '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Background Image"/>',
+                    obj.background_image.url
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error loading background_image for ForumEvent '{obj.title}': {e}")
+                return "Error loading image."
+        elif isinstance(obj.background_image, str) and obj.background_image:
+            # Handle cases where background_image is a string path
+            try:
+                return format_html(
+                    '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Background Image"/>',
+                    obj.background_image
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error loading background_image path for ForumEvent '{obj.title}': {e}")
+                return "Error loading image."
+        return "No image uploaded."
 
-@admin.register(Program)
-class ProgramAdmin(NestedModelAdmin):
-    list_display = ('title', 'forum_event',)
+    background_image_preview.short_description = 'Background Image'
+
+
+@admin.register(ForumResource)
+class ForumResourceAdmin(NestedModelAdmin):
+    inlines = [ResourceSessionInline]
+    list_display = ('resource_title', 'resource_authors',
+                    'order', 'forum_event')
+    search_fields = ('resource_title', 'resource_authors')
     list_filter = ('forum_event',)
-    search_fields = ('title', 'forum_event__title',)
     list_per_page = 12
-    inlines = [SessionInline]
-
-
-@admin.register(Person)
-class PersonAdmin(admin.ModelAdmin):
-    list_display = ('name', 'forum_event', 'category', 'image_preview', 'order')
-    list_filter = ('forum_event',)
-    search_fields = ('name', 'category', 'forum_event__title',)
-    list_per_page = 12
-
-    def image_preview(self, obj):
-        if obj.picture:
-            # Use Cloudinary URL if in production
-            if not settings.DEBUG:
-                url = cloudinary_url(obj.picture.public_id, secure=True)[0]
-            else:
-                url = obj.picture.url  # Use the local URL if in DEBUG mode
-            height = 100
-            return format_html('<img src="{}" height="{}" />', url, height)
-        return ""
-    image_preview.short_description = 'Picture'
 
 
 @admin.register(Partner)
@@ -99,22 +129,34 @@ class PartnerAdmin(admin.ModelAdmin):
 
     def logo_preview(self, obj):
         if obj.partner_logo:
-            # Use Cloudinary URL if in production
-            if not settings.DEBUG:
-                url = cloudinary_url(obj.partner_logo.public_id, secure=True)[0]
-            else:
-                url = obj.partner_logo.url  # Use the local URL if in DEBUG mode
+            url = obj.partner_logo.url
             height = 100
             return format_html('<img src="{}" height="{}" />', url, height)
         return ""
     logo_preview.short_description = 'Logo'
 
 
-
-@admin.register(ForumResource)
-class ForumResourceAdmin(NestedModelAdmin):
-    inlines = [ResourceSessionInline]
-    list_display = ('resource_title', 'resource_authors',
-                    'order', 'forum_event')
-    search_fields = ('resource_title', 'resource_authors')
+@admin.register(Person)
+class PersonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'forum_event', 'category',
+                    'image_preview', 'order')
     list_filter = ('forum_event',)
+    search_fields = ('name', 'category', 'forum_event__title',)
+    list_per_page = 12
+
+    def image_preview(self, obj):
+        if obj.picture:
+            url = obj.picture.url
+            height = 100
+            return format_html('<img src="{}" height="{}" />', url, height)
+        return ""
+    image_preview.short_description = 'Picture'
+
+
+@admin.register(Program)
+class ProgramAdmin(NestedModelAdmin):
+    list_display = ('title', 'forum_event',)
+    list_filter = ('forum_event',)
+    search_fields = ('title', 'forum_event__title',)
+    list_per_page = 12
+    inlines = [SessionInline]
