@@ -1,43 +1,66 @@
-# settings.py
-
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import dj_database_url
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# ---------------------------------------------------------
+# Load Environment Variables from .env
+# ---------------------------------------------------------
 load_dotenv()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# ---------------------------------------------------------
+# Base Directory and Python Path Adjustments
+# ---------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.append(str(BASE_DIR / 'apps'))  # Allow referencing apps directly
 
-# Add the apps directory to the Python path
-sys.path.append(str(BASE_DIR / 'apps'))
+# ---------------------------------------------------------
+# Helper Functions for Environment Variables
+# ---------------------------------------------------------
 
 
-def parse_env_list(env_var, default=""):
+def parse_env_list(env_var: str, default: str = "") -> list:
     """
-    Parses a comma-separated string from an environment variable and trims whitespace.
+    Parse a comma-separated string from an environment variable into a list.
+    Trims whitespace and ignores empty entries.
     """
     raw_value = os.getenv(env_var, default)
-    return [v.strip() for v in raw_value.split(',') if v.strip()]
+    return [item.strip() for item in raw_value.split(',') if item.strip()]
 
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("The SECRET_KEY environment variable is not set.")
+def get_env_bool(env_var: str, default: bool = False) -> bool:
+    """
+    Convert an environment variable to a boolean.
+    Accepts 'true', '1', 't' (case-insensitive) as True.
+    """
+    return os.getenv(env_var, str(default)).lower() in ['true', '1', 't']
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False').lower() in ['true', '1', 't']
+
+def require_env_var(env_var: str) -> str:
+    """
+    Ensure an environment variable is set. Raise an error if not set.
+    """
+    value = os.getenv(env_var)
+    if not value:
+        raise ValueError(f"The {env_var} environment variable is not set.")
+    return value
+
+
+# ---------------------------------------------------------
+# Core Settings
+# ---------------------------------------------------------
+SECRET_KEY = require_env_var('SECRET_KEY')
+DEBUG = get_env_bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
 
-# Application definition
+# ---------------------------------------------------------
+# Application Definitions
+# ---------------------------------------------------------
 INSTALLED_APPS = [
-    # Django default apps
+    # Django defaults
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -54,7 +77,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'nested_admin',
     'drf_yasg',
-    'django_quill',
+    'django_quill',  # Re-added django_quill
 
     # Custom apps
     'apps.externalteams',
@@ -72,6 +95,9 @@ INSTALLED_APPS = [
     'apps.team',
 ]
 
+# ---------------------------------------------------------
+# Middleware
+# ---------------------------------------------------------
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -84,20 +110,26 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CORS Configuration
+# ---------------------------------------------------------
+# CORS and CSRF Configuration
+# ---------------------------------------------------------
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
 CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
 CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
 
-# Only allow CSRF cookie over HTTPS in production
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 
-# Root URL configuration
+# ---------------------------------------------------------
+# URL and WSGI Configuration
+# ---------------------------------------------------------
 ROOT_URLCONF = 'core.urls'
+WSGI_APPLICATION = 'core.wsgi.application'
 
-# Template configuration
+# ---------------------------------------------------------
+# Templates Configuration
+# ---------------------------------------------------------
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -114,27 +146,25 @@ TEMPLATES = [
     },
 ]
 
-# WSGI Application
-WSGI_APPLICATION = 'core.wsgi.application'
+# ---------------------------------------------------------
+# Database Configuration
+# ---------------------------------------------------------
+DATABASE_URL = os.getenv('DATABASE_URL')
 
-# Database configuration
-if DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.sqlite3'),
-            'NAME': BASE_DIR / os.getenv('DATABASE_NAME', 'db.sqlite3'),
-        }
+DATABASES = {
+    'default': dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=600,
+        ssl_require=True
+    ) if DATABASE_URL else {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    DATABASE_URL = os.getenv('DATABASE_URL')
-    if not DATABASE_URL:
-        raise ValueError(
-            "The DATABASE_URL environment variable is not set in production.")
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=True)
-    }
+}
 
-# Password validation
+# ---------------------------------------------------------
+# Password Validation
+# ---------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -142,40 +172,33 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# ---------------------------------------------------------
 # Internationalization
+# ---------------------------------------------------------
 LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'en-us')
 TIME_ZONE = os.getenv('TIME_ZONE', 'UTC')
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# ---------------------------------------------------------
+# Static and Media Files
+# ---------------------------------------------------------
 STATIC_URL = '/website/static/'
-
-# Define where `collectstatic` will output collected static files
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# Additional locations for app-specific static files
 STATICFILES_DIRS = [BASE_DIR / 'static']
-
-# Use WhiteNoise for serving static files in production
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-
 if DEBUG:
-    # Local file storage for media
+    # Local file storage for development
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'assets'
 else:
-    # Validate Cloudinary settings for production
-    CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
-    CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY')
-    CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET')
-
-    if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
-        raise ValueError(
-            "Cloudinary environment variables are not fully set in production.")
+    # Cloudinary setup for production
+    CLOUDINARY_CLOUD_NAME = require_env_var('CLOUDINARY_CLOUD_NAME')
+    CLOUDINARY_API_KEY = require_env_var('CLOUDINARY_API_KEY')
+    CLOUDINARY_API_SECRET = require_env_var('CLOUDINARY_API_SECRET')
 
     CLOUDINARY_STORAGE = {
         'CLOUD_NAME': CLOUDINARY_CLOUD_NAME,
@@ -186,13 +209,15 @@ else:
     }
 
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    # MEDIA_URL = '/media/'  # Optional, Cloudinary handles media URLs
 
-
-# Default primary key field type
+# ---------------------------------------------------------
+# Default Primary Key Field Type
+# ---------------------------------------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django Rest Framework settings
+# ---------------------------------------------------------
+# Django REST Framework Configuration
+# ---------------------------------------------------------
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -203,48 +228,23 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Quill Editor Configuration
-QUILL_CONFIGS = {
-    'default': {
-        'theme': 'snow',
-        'modules': {
-            'toolbar': [
-                [{'header': [1, 2, 3, 4, 5, 6, False]}],
-                ['bold', 'italic', 'underline', 'strike'],
-                ['blockquote', 'code-block'],
-                [{'list': 'ordered'}, {'list': 'bullet'}],
-                [{'indent': '-1'}, {'indent': '+1'}],
-                [{'direction': 'rtl'}],
-                [{'size': ['small', False, 'large', 'huge']}],
-                [{'color': []}, {'background': []}],
-                [{'font': []}],
-                ['link', 'image', 'video'],
-                ['clean'],
-            ],
-        },
-        'placeholder': 'Start typing...',
-    },
-}
+# ---------------------------------------------------------
+# File Upload Limits
+# ---------------------------------------------------------
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
+FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
 
-# Custom upload handlers (if any, optional)
-# You can customize upload handlers here if needed
-
-# Debug logging
-if DEBUG:
-    print(f"Debug mode is: {DEBUG}")
-    print(f"Media files are stored in: {MEDIA_ROOT}")
-else:
-    print("Production mode is ON")
-
-# File upload size limit (e.g., 10MB)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
-
-# Django Admin Configuration
+# ---------------------------------------------------------
+# Admin and Authentication Settings
+# ---------------------------------------------------------
 LOGIN_URL = '/website/admin/login/'
 
+# ---------------------------------------------------------
+# Swagger / DRF-YASG Settings
+# ---------------------------------------------------------
 SWAGGER_SETTINGS = {
-    'LOGIN_URL': '/website/admin/login/',
+    'LOGIN_URL': LOGIN_URL,
     'LOGOUT_URL': '/website/admin/logout/',
     'USE_SESSION_AUTH': True,
     'SECURITY_DEFINITIONS': {
@@ -253,3 +253,12 @@ SWAGGER_SETTINGS = {
         }
     },
 }
+
+# ---------------------------------------------------------
+# Mode-Specific Logging
+# ---------------------------------------------------------
+if DEBUG:
+    print(f"Debug mode is: {DEBUG}")
+    print(f"Media files are stored in: {BASE_DIR / 'assets'}")
+else:
+    print("Production mode is ON")

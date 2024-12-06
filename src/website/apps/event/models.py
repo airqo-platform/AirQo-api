@@ -1,5 +1,3 @@
-# backend/apps/event/models.py
-
 from django.db import models
 from django.contrib.auth import get_user_model
 from django_quill.fields import QuillField
@@ -61,6 +59,8 @@ class Event(BaseModel):
         blank=True,
     )
 
+    # Image fields: In DEBUG mode (local dev) these will be stored locally.
+    # In production mode (DEBUG=False), they will be uploaded to Cloudinary.
     event_image = models.ImageField(
         upload_to='website/uploads/events/images',
         validators=[validate_image],
@@ -108,7 +108,8 @@ class Inquiry(BaseModel):
 
 class Program(BaseModel):
     date = models.DateField()
-    program_details = QuillField(default="No details available yet.")
+    # Stored as plain text. If you prefer rich text, ensure data is consistent.
+    program_details = models.TextField(default="No details available yet.")
     order = models.IntegerField(default=1)
     event = models.ForeignKey(
         Event,
@@ -130,7 +131,7 @@ class Session(BaseModel):
     end_time = models.TimeField()
     venue = models.CharField(max_length=80, null=True, blank=True)
     session_title = models.CharField(max_length=150)
-    session_details = QuillField(default="No details available yet.")
+    session_details = models.TextField(default="No details available yet.")
     order = models.IntegerField(default=1)
     program = models.ForeignKey(
         Program,

@@ -1,5 +1,3 @@
-# backend/apps/event/serializers.py
-
 from rest_framework import serializers
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from cloudinary.utils import cloudinary_url
@@ -46,7 +44,7 @@ class SessionSerializer(serializers.ModelSerializer):
             'start_time',
             'end_time',
             'venue',
-            'session_details',  # Keep session_details as QuillField
+            'session_details',  # Now TextField
             'order'
         ]
         ref_name = 'EventSessionSerializer'
@@ -59,7 +57,7 @@ class ProgramSerializer(serializers.ModelSerializer):
         model = Program
         fields = [
             'date',
-            'program_details',  # Keep program_details as QuillField
+            'program_details',  # Now TextField
             'order',
             'sessions'
         ]
@@ -126,7 +124,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'background_image_url',
             'location_name',
             'location_link',
-            'event_details',  # Keep event_details as QuillField
+            'event_details',  # Now TextField
             'order',
             'inquiries',
             'programs',

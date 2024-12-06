@@ -2,28 +2,7 @@ from django.contrib import admin
 import nested_admin
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from django.utils.html import format_html
-from django import forms
-from django_quill.fields import QuillFormField
 
-# -------- Custom Forms for Quill Integration --------
-
-
-class ProgramInlineForm(forms.ModelForm):
-    """Custom form for Program Inline with Quill editor."""
-    program_details = QuillFormField()
-
-    class Meta:
-        model = Program
-        fields = '__all__'
-
-
-class SessionInlineForm(forms.ModelForm):
-    """Custom form for Session Inline with Quill editor."""
-    session_details = QuillFormField()
-
-    class Meta:
-        model = Session
-        fields = '__all__'
 
 # -------- Inline Classes --------
 
@@ -47,11 +26,14 @@ class PartnerLogoInline(nested_admin.NestedTabularInline):
 
     def preview_logo(self, obj):
         """Preview partner logo."""
-        if obj.partner_logo and obj.partner_logo.url:
-            return format_html(
-                '<img src="{}" style="max-height: 100px; max-width: 150px;" alt="Partner Logo"/>',
-                obj.partner_logo.url
-            )
+        if obj.partner_logo:
+            try:
+                return format_html(
+                    '<img src="{}" style="max-height: 100px; max-width: 150px;" alt="Partner Logo"/>',
+                    obj.partner_logo.url
+                )
+            except Exception as e:
+                return f"Error loading logo: {e}"
         return "No logo uploaded"
 
     preview_logo.short_description = "Preview Logo"
@@ -66,17 +48,19 @@ class ResourceInline(nested_admin.NestedTabularInline):
 
     def download_link(self, obj):
         """Generate a download link for resources."""
-        if obj.resource and obj.resource.url:
-            return format_html('<a href="{}" target="_blank">Download</a>', obj.resource.url)
+        if obj.resource:
+            try:
+                return format_html('<a href="{}" target="_blank">Download</a>', obj.resource.url)
+            except Exception as e:
+                return f"Error generating download link: {e}"
         return "No resource uploaded"
 
     download_link.short_description = "Resource Download Link"
 
 
 class SessionInline(nested_admin.NestedTabularInline):
-    """Inline admin for sessions with Quill editor."""
+    """Inline admin for sessions."""
     model = Session
-    form = SessionInlineForm
     extra = 0
     fields = ('session_title', 'start_time', 'end_time',
               'venue', 'session_details', 'order')
@@ -87,12 +71,12 @@ class SessionInline(nested_admin.NestedTabularInline):
 class ProgramInline(nested_admin.NestedStackedInline):
     """Inline admin for programs with nested sessions."""
     model = Program
-    form = ProgramInlineForm
     extra = 0
     fields = ('date', 'program_details', 'order')
     sortable_field_name = 'order'
     ordering = ['order']
     inlines = [SessionInline]
+
 
 # -------- Event Admin --------
 
@@ -121,13 +105,31 @@ class EventAdmin(nested_admin.NestedModelAdmin):
         ResourceInline
     ]
 
+    fieldsets = (
+        ("Basic Information", {
+            "fields": ('title', 'title_subtext', 'start_date', 'end_date', 'start_time', 'end_time')
+        }),
+        ("Location", {
+            "fields": ('location_name', 'location_link')
+        }),
+        ("Details", {
+            "fields": ('event_details', 'registration_link', 'event_image', 'background_image')
+        }),
+        ("Categorization", {
+            "fields": ('website_category', 'event_category', 'event_tag', 'order')
+        }),
+    )
+
     def preview_event_image(self, obj):
         """Preview event image."""
-        if obj.event_image and obj.event_image.url:
-            return format_html(
-                '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Event Image"/>',
-                obj.event_image.url
-            )
+        if obj.event_image:
+            try:
+                return format_html(
+                    '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Event Image"/>',
+                    obj.event_image.url
+                )
+            except Exception as e:
+                return f"Error loading image: {e}"
         return "No image uploaded"
 
     preview_event_image.short_description = "Event Image Preview"
