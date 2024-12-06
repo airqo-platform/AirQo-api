@@ -1,6 +1,11 @@
 {% extends "admin/base_site.html" %} {% load static %} {% block title %} AirQo
 Website Admin Portal {% endblock %} {% block extrahead %} {{ block.super }}
 <link
+  rel="stylesheet"
+  type="text/css"
+  href="{% static 'admin/css/custom_quill.css' %}"
+/>
+<link
   href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"
   rel="stylesheet"
 />

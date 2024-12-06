@@ -72,6 +72,7 @@ class Event(BaseModel):
         null=True,
         blank=True,
         default=None,
+        resource_type='image'
     )
     background_image = CloudinaryField(
         'image',
@@ -79,6 +80,7 @@ class Event(BaseModel):
         null=True,
         blank=True,
         default=None,
+        resource_type='image'
     )
 
     location_name = models.CharField(max_length=100, null=True, blank=True)
@@ -181,6 +183,7 @@ class PartnerLogo(BaseModel):
         null=True,
         blank=True,
         default=None,
+        resource_type='image'
     )
     name = models.CharField(max_length=70)
     order = models.IntegerField(default=1)
@@ -219,6 +222,7 @@ class Resource(BaseModel):
         null=True,
         blank=True,
         default=None,
+        resource_type='raw'
     )
     order = models.IntegerField(default=1)
     event = models.ForeignKey(

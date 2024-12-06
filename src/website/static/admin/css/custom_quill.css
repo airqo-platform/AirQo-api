@@ -1,8 +1,9 @@
-/* backend/static/admin/css/custom_quill.css */
+.quill-container {
+  min-height: 200px;
+}
 
-/* Light mode styles (default) */
 .ql-container {
-  height: 300px;
+  min-height: 200px;
   background-color: #ffffff; /* Light mode background */
   color: #000000; /* Light mode text color */
 }

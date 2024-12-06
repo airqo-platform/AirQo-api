@@ -254,6 +254,32 @@ SWAGGER_SETTINGS = {
     },
 }
 
+QUILL_CONFIGS = {
+    'default': {
+        'theme': 'snow',
+        'modules': {
+            'toolbar': [
+                [{'header': [1, 2, 3, 4, 5, 6, False]}],
+                ['bold', 'italic', 'underline', 'strike',
+                    'blockquote', 'code-block'],
+                [{'list': 'ordered'}, {'list': 'bullet'},
+                    {'indent': '-1'}, {'indent': '+1'}],
+                [{'direction': 'rtl'}],
+                [{'size': ['small', False, 'large', 'huge']}],
+                [{'color': []}, {'background': []}],
+                [{'font': []}],
+                ['link', 'image', 'video'],
+                ['clean'],
+            ],
+            'clipboard': {'matchVisual': False},
+        },
+        'placeholder': 'Compose an epic...',
+        'readOnly': False,
+        'bounds': '#editor',
+        'scrollingContainer': '#scrolling-container',
+    },
+}
+
 # ---------------------------------------------------------
 # Mode-Specific Logging
 # ---------------------------------------------------------
