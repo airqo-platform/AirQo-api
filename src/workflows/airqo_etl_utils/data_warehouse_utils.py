@@ -45,7 +45,7 @@ class DataWarehouseUtils:
             },
             inplace=True,
         )
-        data.loc[:, "device_category"] = str(DeviceCategory.BAM)
+        data["device_category"] = str(DeviceCategory.BAM)
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
