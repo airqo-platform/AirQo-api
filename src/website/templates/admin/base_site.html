@@ -1,14 +1,8 @@
 {% extends "admin/base_site.html" %} {% load static %} {% block title %} AirQo
 Website Admin Portal {% endblock %} {% block extrahead %} {{ block.super }}
 <link
+  href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css"
   rel="stylesheet"
-  type="text/css"
-  href="{% static 'admin/css/custom_quill.css' %}"
-/>
-<link
-  rel="stylesheet"
-  type="text/css"
-  href="{% static 'admin/css/main.css' %}"
 />
 <link
   rel="icon"
@@ -19,4 +13,11 @@ Website Admin Portal {% endblock %} {% block extrahead %} {{ block.super }}
 <h1 id="site-name">
   <a href="{% url 'admin:index' %}">AirQo Website Admin Portal</a>
 </h1>
-{% endblock %} {% block footer %} {{ block.super }} {% endblock %}
+{% endblock %} {% block footer %} {{ block.super }}
+<script
+  src="https://code.jquery.com/jquery-3.7.1.min.js"
+  integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+  crossorigin="anonymous"
+></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+{% endblock %}
