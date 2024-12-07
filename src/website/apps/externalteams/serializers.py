@@ -15,8 +15,13 @@ class ExternalTeamMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ExternalTeamMember
-        fields = ['id', 'name', 'title', 'picture_url',
-                  'twitter', 'linked_in', 'order', 'descriptions']
+        fields = [
+            'id', 'name', 'title', 'picture_url',
+            'twitter', 'linked_in', 'order', 'descriptions'
+        ]
 
     def get_picture_url(self, obj):
-        return obj.get_picture_url()  # Handles secure URL or local URL based on the environment
+        """
+        Return the secure URL for the picture.
+        """
+        return obj.get_picture_url()  # Already handled in the model
