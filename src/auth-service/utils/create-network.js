@@ -1032,7 +1032,10 @@ const createNetwork = {
         );
       }
 
+      const usersFilter = generateFilter.users(request, next);
+
       const filter = {
+        ...usersFilter,
         "network_roles.network": { $ne: net_id },
         category: "networks",
       };
@@ -1076,7 +1079,10 @@ const createNetwork = {
         );
       }
 
+      const usersFilter = generateFilter.users(request, next);
+
       const filter = {
+        ...usersFilter,
         "network_roles.network": net_id,
         category: "networks",
       };

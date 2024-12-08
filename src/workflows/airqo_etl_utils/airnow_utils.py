@@ -52,7 +52,8 @@ class AirnowDataUtils:
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        tenants = AirQoApi().get_tenants(DataSource.AIRNOW)
+        # TODO Update if being used.
+        tenants = AirQoApi().get_networks(DataSource.AIRNOW)
         bam_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -65,11 +66,12 @@ class AirnowDataUtils:
             network_data = pd.DataFrame()
 
             for start, end in dates:
+                continue
                 query_data = AirnowDataUtils.query_bam_data(
                     api_key=network_api_key, start_date_time=start, end_date_time=end
                 )
                 network_data = pd.concat([network_data, query_data], ignore_index=True)
-
+            continue
             network_data["tenant"] = tenant["network"]
 
             bam_data = pd.concat([bam_data, network_data], ignore_index=True)

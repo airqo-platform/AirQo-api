@@ -34,24 +34,41 @@ class DeviceCategory(Enum):
 
 class Frequency(Enum):
     """
-    LOW_COST -> Raw data returned from the devices
+    RAW -> Raw current data returned from devices
+    RAW-LOW-COST -> Raw data returned from the low-cost devices
     HOURLY -> Aggregated hourly data
     DAILY -> Aggregated daily data
+    WEEKLY -> Aggregated weekly data
+    MONTHLY -> Aggregated monthly data
+    YEARLY -> Aggregated yearly data
+    HISTORICAL -> Raw data returned from the devices
     """
 
-    RAW = 1
+    RAW = 0
+    RAW_LOW_COST = 1
     HOURLY = 2
     DAILY = 3
+    WEEKLY = 4
+    MONTHLY = 5
+    YEARLY = 6
+    HISTORICAL = 7
 
     def __str__(self) -> str:
-        if self == self.RAW:
-            return "raw"
-        elif self == self.HOURLY:
-            return "hourly"
-        elif self == self.DAILY:
-            return "daily"
-        else:
-            return ""
+        match self:
+            case self.RAW | self.RAW_LOW_COST:
+                return "raw"
+            case self.HOURLY:
+                return "hourly"
+            case self.DAILY:
+                return "daily"
+            case self.WEEKLY:
+                return "weekly"
+            case self.MONTHLY:
+                return "monthly"
+            case self.YEARLY:
+                return "yearly"
+            case _:
+                return "historical"
 
 
 class Attachments(Enum):

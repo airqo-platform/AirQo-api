@@ -1,8 +1,7 @@
 import cloudinary
-from django.conf import settings
+from cloudinary.models import CloudinaryField
 from django.db import models
 from utils.models import BaseModel
-from utils.fields import ConditionalImageField
 
 
 class Press(BaseModel):
@@ -11,9 +10,9 @@ class Press(BaseModel):
     article_link = models.URLField(null=True, blank=True)
     date_published = models.DateField()
 
-    publisher_logo = ConditionalImageField(
-        local_upload_to='press/logos/',
-        cloudinary_folder='website/uploads/press/logos',
+    publisher_logo = CloudinaryField(
+        folder="website/uploads/press/logos",
+        resource_type="image",
         null=True,
         blank=True
     )
@@ -45,21 +44,18 @@ class Press(BaseModel):
     )
 
     class Meta:
-        ordering = ['order', '-id']
-        verbose_name = 'Press Article'
-        verbose_name_plural = 'Press Articles'
+        ordering = ["order", "-id"]
+        verbose_name = "Press Article"
+        verbose_name_plural = "Press Articles"
 
     def __str__(self):
         return self.article_title
 
     def delete(self, *args, **kwargs):
         """
-        Override the delete method to remove the associated Cloudinary file or local file
-        before deleting the Press article instance.
+        Override the delete method to remove the associated Cloudinary file before deleting the instance.
         """
         if self.publisher_logo:
-            public_id = self.publisher_logo.public_id
-            if public_id:
-                cloudinary.uploader.destroy(public_id)
-
+            cloudinary.uploader.destroy(
+                self.publisher_logo.public_id, invalidate=True)
         super().delete(*args, **kwargs)

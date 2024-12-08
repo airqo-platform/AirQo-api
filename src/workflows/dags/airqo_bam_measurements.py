@@ -21,6 +21,8 @@ from datetime import timedelta
     start_date=days_ago(1),
 )
 def airqo_bam_historical_measurements():
+    from airqo_etl_utils.constants import Frequency
+
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -30,6 +32,7 @@ def airqo_bam_historical_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
+            resolution=Frequency.HISTORICAL,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -76,6 +79,7 @@ airqo_bam_historical_measurements_dag = airqo_bam_historical_measurements()
 )
 def airqo_bam_realtime_measurements():
     import pandas as pd
+    from airqo_etl_utils.constants import Frequency
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
@@ -89,6 +93,7 @@ def airqo_bam_realtime_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
+            resolution=Frequency.RAW,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))

@@ -1,3 +1,5 @@
+# serializers.py
+
 from django.conf import settings
 from rest_framework import serializers
 from cloudinary.utils import cloudinary_url
@@ -9,6 +11,13 @@ from .models import (
 
 
 class CleanAirResourceSerializer(serializers.ModelSerializer):
+    resource_file_url = serializers.SerializerMethodField()
+
+    def get_resource_file_url(self, obj):
+        if obj.resource_file:
+            return obj.resource_file.url
+        return None
+
     class Meta:
         model = CleanAirResource
         fields = '__all__'
@@ -29,14 +38,11 @@ class EngagementSerializer(serializers.ModelSerializer):
 
 
 class PartnerSerializer(serializers.ModelSerializer):
-    partner_logo = serializers.SerializerMethodField()
+    partner_logo_url = serializers.SerializerMethodField()
 
-    def get_partner_logo(self, obj):
+    def get_partner_logo_url(self, obj):
         if obj.partner_logo:
-            if not settings.DEBUG:
-                return cloudinary_url(obj.partner_logo.public_id, secure=True)[0]
-            else:
-                return self.context['request'].build_absolute_uri(obj.partner_logo.url)
+            return obj.partner_logo.url
         return None
 
     class Meta:
@@ -67,14 +73,11 @@ class SupportSerializer(serializers.ModelSerializer):
 
 
 class PersonSerializer(serializers.ModelSerializer):
-    picture = serializers.SerializerMethodField()
+    picture_url = serializers.SerializerMethodField()
 
-    def get_picture(self, obj):
+    def get_picture_url(self, obj):
         if obj.picture:
-            if not settings.DEBUG:
-                return cloudinary_url(obj.picture.public_id, secure=True)[0]
-            else:
-                return self.context['request'].build_absolute_uri(obj.picture.url)
+            return obj.picture.url
         return None
 
     class Meta:
@@ -86,18 +89,9 @@ class ResourceFileSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
 
     def get_file_url(self, obj):
-        file_url = obj.file.url
-
-        # If the file is stored in Cloudinary, return the Cloudinary URL
-        if hasattr(obj.file, 'public_id'):
-            return cloudinary_url(obj.file.public_id, secure=not settings.DEBUG)[0]
-
-        # For all other URLs, return the stored URL as is
-        if file_url.startswith('http'):
-            return file_url
-
-        # Otherwise, assume it's a local file and construct the absolute URL
-        return self.context['request'].build_absolute_uri(file_url)
+        if obj.file:
+            return obj.file.url
+        return None
 
     class Meta:
         model = ResourceFile
@@ -122,19 +116,16 @@ class ForumResourceSerializer(serializers.ModelSerializer):
 
 class ForumEventSerializer(serializers.ModelSerializer):
     forum_resources = ForumResourceSerializer(many=True, read_only=True)
-    engagements = EngagementSerializer(read_only=True)
+    engagement = EngagementSerializer(read_only=True)
     partners = PartnerSerializer(many=True, read_only=True)
     supports = SupportSerializer(many=True, read_only=True)
     programs = CleanAirProgramSerializer(many=True, read_only=True)
     persons = PersonSerializer(many=True, read_only=True)
-    background_image = serializers.SerializerMethodField()
+    background_image_url = serializers.SerializerMethodField()
 
-    def get_background_image(self, obj):
+    def get_background_image_url(self, obj):
         if obj.background_image:
-            if not settings.DEBUG:
-                return cloudinary_url(obj.background_image.public_id, secure=True)[0]
-            else:
-                return self.context['request'].build_absolute_uri(obj.background_image.url)
+            return obj.background_image.url
         return None
 
     class Meta:
