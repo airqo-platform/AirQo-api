@@ -1,6 +1,7 @@
 const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
 const { logElement, logText, logObject } = require("@utils/log");
+const stringify = require("@utils/stringify");
 const generateFilter = require("@utils/generate-filter");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -10,6 +11,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transactions-util`
 );
 const { HttpError } = require("@utils/errors");
+const paddleClient = require("@config/paddle");
 
 const transactions = {
   /**
@@ -262,8 +264,31 @@ const transactions = {
    * @param {Object} sessionData - Checkout session configuration
    * @returns {Promise<Object>} Checkout session result
    */
-  createCheckoutSession: async (sessionData) => {
+  createCheckoutSession: async (request, sessionData) => {
     try {
+      const user = request.user;
+
+      const customerIdentification = sessionData.customerId;
+      /**
+       * create the customer indetification in
+       * case they are not provided
+       */
+      if (!customerIdentification) {
+        try {
+          const customer = await paddleClient.customers.create({
+            email: user.email,
+            name: user.firstName || user.lastName,
+          });
+          sessionData.customerId = customer.id;
+        } catch (error) {
+          logger.error(
+            `Unable to generate the transaction client on Paddle -- ${stringify(
+              error
+            )}`
+          );
+        }
+      }
+
       const checkoutSession = await paddleClient.checkouts.create(sessionData);
 
       return {
@@ -492,6 +517,298 @@ const transactions = {
     } catch (error) {
       logger.error("User identification failed", error);
       throw new Error("Could not identify or create user");
+    }
+  },
+
+  /**
+   * Create or manage a subscription transaction
+   * @param {Object} request - Express request object
+   * @param {Object} subscriptionData - Subscription details
+   */
+  createSubscriptionTransaction: async (request, subscriptionData) => {
+    try {
+      const user = request.user;
+
+      // Ensure customer exists in Paddle
+      let customerId = subscriptionData.customerId;
+      if (!customerId) {
+        try {
+          const customer = await paddleClient.customers.create({
+            email: user.email,
+            name: user.firstName || user.lastName,
+          });
+          customerId = customer.id;
+        } catch (error) {
+          logger.error(
+            `Unable to generate Paddle customer -- ${stringify(error)}`
+          );
+          return {
+            success: false,
+            message: "Failed to create Paddle customer",
+            errors: { message: error.message },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
+
+      // Prepare subscription transaction data
+      const transactionData = {
+        customerId: customerId,
+        items: subscriptionData.items || [],
+        currency: subscriptionData.currency || "USD",
+        description: subscriptionData.description || "Subscription Transaction",
+      };
+
+      // Create transaction
+      const subscriptionTransaction = await paddleClient.transactions.create(
+        transactionData
+      );
+
+      // Record transaction in local database
+      const transactionRecord = await TransactionModel("airqo").register({
+        paddle_transaction_id: subscriptionTransaction.id,
+        paddle_event_type: "transaction.completed",
+        user_id: user._id,
+        paddle_customer_id: customerId,
+        amount: subscriptionTransaction.total,
+        currency: transactionData.currency,
+        status: "completed",
+        payment_method: subscriptionTransaction.paymentMethod,
+        items: transactionData.items,
+        metadata: {
+          originalTransactionData: subscriptionTransaction,
+          subscriptionDetails: subscriptionData,
+        },
+      });
+
+      // Optionally update user subscription status
+      await UserModel("airqo").findByIdAndUpdate(user._id, {
+        $set: {
+          subscriptionStatus: "active",
+          currentSubscriptionId: subscriptionTransaction.id,
+        },
+      });
+
+      return {
+        success: true,
+        data: {
+          transactionId: subscriptionTransaction.id,
+          localTransactionId: transactionRecord.data._id,
+        },
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      logger.error("Subscription transaction creation failed", error);
+      return {
+        success: false,
+        message: "Failed to create subscription transaction",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Job to check and manage subscription statuses
+   */
+  checkSubscriptionStatuses: async () => {
+    try {
+      const batchSize = 100;
+      let skip = 0;
+
+      while (true) {
+        // Find users with active subscriptions
+        const users = await UserModel("airqo")
+          .find({
+            subscriptionStatus: "active",
+            isActive: true,
+          })
+          .limit(batchSize)
+          .skip(skip)
+          .select("_id email currentSubscriptionId")
+          .lean();
+
+        if (users.length === 0) break;
+
+        for (const user of users) {
+          try {
+            // Fetch subscription status from Paddle
+            const subscriptionStatus = await paddleClient.subscriptions.get(
+              user.currentSubscriptionId
+            );
+
+            // Update local user record based on Paddle subscription status
+            await UserModel("airqo").findByIdAndUpdate(user._id, {
+              $set: {
+                subscriptionStatus: subscriptionStatus.status,
+                lastSubscriptionCheck: new Date(),
+              },
+            });
+
+            // Log significant status changes or actions needed
+            if (subscriptionStatus.status === "past_due") {
+              // Send reminder email or notification
+              await mailer.sendSubscriptionReminderEmail({
+                email: user.email,
+                subscriptionId: user.currentSubscriptionId,
+              });
+            }
+          } catch (error) {
+            logger.error(
+              `Failed to check subscription for user ${
+                user.email
+              } --- ${stringify(error)}`
+            );
+          }
+        }
+
+        skip += batchSize;
+      }
+    } catch (error) {
+      logger.error(`Subscription status check error --- ${stringify(error)}`);
+    }
+  },
+
+  /**
+   * Cancel a user's subscription
+   * @param {String} subscriptionId - Paddle subscription ID
+   * @param {Object} user - User object
+   */
+  cancelSubscription: async (subscriptionId, user) => {
+    try {
+      // Cancel subscription in Paddle
+      const cancellationResult = await paddleClient.subscriptions.cancel(
+        subscriptionId
+      );
+
+      // Update local user record
+      await UserModel("airqo").findByIdAndUpdate(user._id, {
+        $set: {
+          subscriptionStatus: "cancelled",
+          subscriptionCancelledAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: "Subscription cancelled successfully",
+        data: cancellationResult,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error("Subscription cancellation failed", error);
+      return {
+        success: false,
+        message: "Failed to cancel subscription",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /**
+   * Enable automatic subscription renewal for a user
+   * @param {Object} request - Express request object
+   * @param {Object} renewalOptions - Options for automatic renewal
+   * @returns {Promise<Object>} Result of automatic renewal setup
+   */
+  optInForAutomaticRenewal: async (request, renewalOptions = {}) => {
+    try {
+      const user = request.user;
+
+      // Validate current subscription status
+      if (!user.currentSubscriptionId) {
+        return {
+          success: false,
+          message: "No active subscription found",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Default renewal options if not provided
+      const defaultRenewalOptions = {
+        billingCycle: "monthly",
+        currency: "USD",
+        priceId: process.env.DEFAULT_SUBSCRIPTION_PRICE_ID,
+      };
+
+      const finalRenewalOptions = {
+        ...defaultRenewalOptions,
+        ...renewalOptions,
+      };
+
+      // Calculate next billing date (30 days from now for monthly subscription)
+      const calculateNextBillingDate = () => {
+        const nextBillingDate = new Date();
+        nextBillingDate.setDate(nextBillingDate.getDate() + 30);
+        return nextBillingDate;
+      };
+
+      // Update user record with automatic renewal details
+      const updatedUser = await UserModel("airqo").findByIdAndUpdate(
+        user._id,
+        {
+          $set: {
+            automaticRenewal: true,
+            nextBillingDate: calculateNextBillingDate(),
+            currentPlanDetails: {
+              priceId: finalRenewalOptions.priceId,
+              currency: finalRenewalOptions.currency,
+              billingCycle: finalRenewalOptions.billingCycle,
+            },
+          },
+        },
+        { new: true } // Return the updated document
+      );
+
+      // Optional: Verify and update subscription in Paddle
+      try {
+        await paddleClient.subscriptions.update(user.currentSubscriptionId, {
+          priceId: finalRenewalOptions.priceId,
+          renewalCycle: finalRenewalOptions.billingCycle,
+        });
+      } catch (paddleUpdateError) {
+        logger.warn(
+          `Could not update Paddle subscription: ${stringify(
+            paddleUpdateError
+          )}`
+        );
+      }
+
+      // Send confirmation email or notification
+      try {
+        await emailService.sendAutomaticRenewalConfirmationEmail({
+          userId: user._id,
+          email: user.email,
+          nextBillingDate: calculateNextBillingDate(),
+          billingCycle: finalRenewalOptions.billingCycle,
+        });
+      } catch (emailError) {
+        logger.error(
+          `Failed to send automatic renewal confirmation email: ${stringify(
+            emailError
+          )}`
+        );
+      }
+
+      return {
+        success: true,
+        message: "Automatic renewal enabled successfully",
+        data: {
+          automaticRenewal: updatedUser.automaticRenewal,
+          nextBillingDate: updatedUser.nextBillingDate,
+          billingCycle: updatedUser.currentPlanDetails.billingCycle,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error("Automatic renewal setup failed", error);
+      return {
+        success: false,
+        message: "Failed to set up automatic renewal",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 };

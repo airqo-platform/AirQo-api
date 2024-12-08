@@ -29,7 +29,7 @@ const transactions = {
       const { amount, currency, customerId, items } =
         request.validatedtransaction;
 
-      const result = await transactionsUtil.createCheckoutSession({
+      const result = await transactionsUtil.createCheckoutSession(request, {
         items: items || [
           {
             price: await transactionsUtil.getDynamicPriceId(amount, currency),
@@ -85,6 +85,16 @@ const transactions = {
       );
       return;
     }
+  },
+
+  optInForAutomaticRenewal: async (req, res, next) => {
+    try {
+      const result = await transactionsUtil.optInForAutomaticRenewal(req, {
+        billingCycle: "monthly",
+        priceId: "custom_price_id",
+      });
+      res.status(result.status).json(result);
+    } catch (error) {}
   },
 
   handleWebhook: async (req, res, next) => {
@@ -145,6 +155,15 @@ const transactions = {
   updateTransaction: async (req, res, next) => {},
   getTransactionStats: async (req, res, next) => {},
   deleteTransaction: async (req, res, next) => {},
+
+  createSubscriptionTransaction: async (req, res, next) => {},
+  cancelSubscription: async (req, res, next) => {},
+  generateDynamicPrice: async (req, res, next) => {},
+
+  getSubscriptionStatus: async (req, res, next) => {},
+  manualSubscriptionRenewal: async (req, res, next) => {},
+  getExtendedTransactionHistory: async (req, res, next) => {},
+  generateFinancialReport: async (req, res, next) => {},
 };
 
 module.exports = transactions;
