@@ -37,6 +37,7 @@ const stageConfig = {
   PADDLE_PUBLIC_KEY: process.env.STAGE_PADDLE_PUBLIC_KEY,
   PADDLE_SECRET_KEY: process.env.STAGE_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.STAGE_PADDLE_SECRET_KEY,
+  PADDLE_API_KEY: process.env.STAGE_PADDLE_API_KEY,
 };
 
 module.exports = stageConfig;

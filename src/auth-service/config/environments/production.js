@@ -36,5 +36,6 @@ const prodConfig = {
   PADDLE_PUBLIC_KEY: process.env.PROD_PADDLE_PUBLIC_KEY,
   PADDLE_SECRET_KEY: process.env.PROD_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.PROD_PADDLE_SECRET_KEY,
+  PADDLE_API_KEY: process.env.PROD_PADDLE_API_KEY,
 };
 module.exports = prodConfig;
