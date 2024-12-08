@@ -11,7 +11,7 @@ coreapi==2.3.3
 coreschema==0.0.4
 distlib==0.3.9
 dj-database-url==2.3.0
-Django==5.1.4
+Django==4.2.8
 django-author==1.2.0
 django-cleanup==9.0.0
 django-clearcache==1.2.1
@@ -23,7 +23,6 @@ django-filter==24.3
 django-js-asset==2.2.0
 django-nested-admin==4.1.1
 django-quill-editor==0.1.42
-django-rest-swagger==2.2.0
 django-storages==1.14.4
 django-timezone==0.3
 djangorestframework==3.15.2
