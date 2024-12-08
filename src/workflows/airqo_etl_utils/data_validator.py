@@ -72,10 +72,10 @@ class DataValidationUtils:
                 data[col] = (
                     data[col]
                     .astype(str)
-                    .str.replace(r"[^\w\s\.\-:]", "", regex=True)
+                    .str.replace(r"[^\w\s\.\-+:]", "", regex=True)
                     .str.replace(r"(?<!\.\d{3})Z$", ".000Z", regex=True)
                 )  # Negative lookbehind to add missing milliseconds if needed
-                data[col] = pd.to_datetime(data[col], errors="coerce")
+                data[col] = pd.to_datetime(data[col], errors="coerce", utc=True)
 
         if integers:
             for col in integers:
@@ -142,7 +142,6 @@ class DataValidationUtils:
             dtype: list(set(columns) & set(data.columns))
             for dtype, columns in column_types.items()
         }
-
         data = DataValidationUtils.format_data_types(
             data=data,
             floats=filtered_columns[ColumnDataType.FLOAT],
@@ -151,15 +150,21 @@ class DataValidationUtils:
         )
 
         validated_columns = list(chain.from_iterable(filtered_columns.values()))
-
         for col in validated_columns:
-            is_airqo_network = data["network"] == "airqo"
             mapped_name = configuration.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-            data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
-                lambda x: DataValidationUtils.get_valid_value(
-                    column_name=mapped_name, row_value=x
+            if "network" in data.columns:
+                is_airqo_network = data["network"] == "airqo"
+                data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
                 )
-            )
+            else:
+                data[col] = data[col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
+                )
         return data
 
     @staticmethod
@@ -210,7 +215,7 @@ class DataValidationUtils:
 
         devices = AirQoDataUtils.get_devices(group_id=caller)
         devices = devices[
-            ["device_name", "site_id", "device_latitude", "device_longitude"]
+            ["device_name", "site_id", "device_latitude", "device_longitude", "network"]
         ]
 
         data = pd.merge(

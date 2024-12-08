@@ -12,48 +12,49 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 )
 def data_warehouse_consolidated_data():
     import pandas as pd
+    from datetime import timedelta
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_low_cost_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=4, kwargs=kwargs
+            days=4, **kwargs
         )
 
         return DataWarehouseUtils.extract_hourly_low_cost_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_bam_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, kwargs=kwargs
+            days=7, **kwargs
         )
 
         return DataWarehouseUtils.extract_hourly_bam_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, kwargs=kwargs
+            days=7, **kwargs
         )
 
         return DataWarehouseUtils.extract_hourly_weather_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task()
-    def extract_sites_info():
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def extract_sites_info(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
         return DataWarehouseUtils.extract_sites_meta_data()
@@ -69,7 +70,7 @@ def data_warehouse_consolidated_data():
             sites_info=sites_data,
         )
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils

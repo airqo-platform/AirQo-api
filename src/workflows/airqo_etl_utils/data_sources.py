@@ -99,7 +99,7 @@ class DataSourcesApis:
         return data, meta_data, data_available
 
     def iqair(
-        self, device: Dict[str, Any], resolution: str = "current"
+        self, device: Dict[str, Any], resolution: str = "instant"
     ) -> Union[List, Dict]:
         """
         Retrieve data from the IQAir API for a specific device and resolution.
@@ -123,7 +123,9 @@ class DataSourcesApis:
             requests.exceptions.RequestException: For issues with the HTTP request.
             Exception: For any other unexpected errors.
         """
-
+        resolution = configuration.DATA_RESOLUTION_MAPPING.get("iqair").get(
+            resolution, "instant"
+        )
         valid_resolutions = {"current", "instant", "hourly", "daily", "monthly"}
         historical_resolutions = {"instant", "hourly", "daily", "monthly"}
 

@@ -24,7 +24,6 @@ class WeatherDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.hourly_weather_table,
-            tenant=Tenant.ALL,
         )
         cols = bigquery_api.get_columns(table=bigquery_api.hourly_weather_table)
         return pd.DataFrame([], cols) if measurements.empty else measurements
@@ -79,7 +78,6 @@ class WeatherDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_weather_table,
-            tenant=Tenant.ALL,
         )
 
         return measurements
@@ -135,7 +133,6 @@ class WeatherDataUtils:
         data["value"] = pd.to_numeric(data["value"], errors="coerce", downcast="float")
         data["time"] = pd.to_datetime(data["time"], errors="coerce")
         # TODO Clean this up.
-        data["network"] = "airqo"
         parameter_mappings = {
             "te": "temperature",
             "rh": "humidity",

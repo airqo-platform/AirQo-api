@@ -1,5 +1,5 @@
 from django.db import models
-from utils.fields import ConditionalImageField
+from cloudinary.models import CloudinaryField
 from utils.models import BaseModel
 
 
@@ -8,9 +8,9 @@ class Member(BaseModel):
     title = models.CharField(max_length=100)
     about = models.TextField(blank=True)
 
-    picture = ConditionalImageField(
-        local_upload_to='members/pictures/',
-        cloudinary_folder='website/uploads/team/members',
+    picture = CloudinaryField(
+        folder="website/uploads/team/members",
+        resource_type="image",
         null=True,
         blank=True
     )
@@ -27,7 +27,7 @@ class Member(BaseModel):
 
     def get_picture_url(self):
         if self.picture:
-            return self.picture.url  # This handles both local and Cloudinary URLs
+            return self.picture.url  # CloudinaryField already handles secure URLs
         return None
 
 

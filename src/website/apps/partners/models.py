@@ -1,5 +1,5 @@
 from django.db import models
-from utils.fields import ConditionalImageField
+from cloudinary.models import CloudinaryField
 from utils.models import BaseModel
 
 
@@ -15,15 +15,17 @@ class Partner(BaseModel):
         FORUM = "ca-forum", "Clean air Policy Forum"
         PRIVATE = "ca-private-sector", "Clean air Private Sector"
 
-    partner_image = ConditionalImageField(
-        local_upload_to='partners/images/',
-        cloudinary_folder='website/uploads/partners/images',
-        null=True, blank=True
+    partner_image = CloudinaryField(
+        folder="website/uploads/partners/images",
+        resource_type="image",
+        null=True,
+        blank=True,
     )
-    partner_logo = ConditionalImageField(
-        local_upload_to='partners/logos/',
-        cloudinary_folder='website/uploads/partners/logos',
-        null=True, blank=True
+    partner_logo = CloudinaryField(
+        folder="website/uploads/partners/logos",
+        resource_type="image",
+        null=True,
+        blank=True,
     )
     partner_name = models.CharField(max_length=200)
     order = models.IntegerField(default=1)
@@ -32,7 +34,8 @@ class Partner(BaseModel):
         max_length=40,
         choices=RelationTypes.choices,
         default=RelationTypes.PARTNERSHIP,
-        null=True, blank=True
+        null=True,
+        blank=True,
     )
 
     class WebsiteCategory(models.TextChoices):
@@ -43,11 +46,12 @@ class Partner(BaseModel):
         max_length=40,
         choices=WebsiteCategory.choices,
         default=WebsiteCategory.AIRQO,
-        null=True, blank=True
+        null=True,
+        blank=True,
     )
 
     class Meta:
-        ordering = ['order', 'id']
+        ordering = ["order", "id"]
 
     def __str__(self):
         return f"Partner - {self.partner_name}"
@@ -65,7 +69,7 @@ class PartnerDescription(BaseModel):
     )
 
     class Meta:
-        ordering = ['order', 'id']
+        ordering = ["order", "id"]
 
     def __str__(self):
         return f"Description {self.id}"
