@@ -53,9 +53,11 @@ def require_env_var(env_var: str) -> str:
 # Core Settings
 # ---------------------------------------------------------
 SECRET_KEY = require_env_var('SECRET_KEY')
-DEBUG = get_env_bool('DEBUG', default=False)
+# DEBUG = get_env_bool('DEBUG', default=False)
+DEBUG = True
 
-ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
+# ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
+ALLOWED_HOSTS = ['*']
 
 # ---------------------------------------------------------
 # Application Definitions
@@ -114,7 +116,8 @@ MIDDLEWARE = [
 # ---------------------------------------------------------
 # CORS and CSRF Configuration
 # ---------------------------------------------------------
-CORS_ORIGIN_ALLOW_ALL = False
+# CORS_ORIGIN_ALLOW_ALL = False
+CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
 CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
 CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
@@ -231,9 +234,14 @@ REST_FRAMEWORK = {
 # ---------------------------------------------------------
 # File Upload Limits
 # ---------------------------------------------------------
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+# Define a constant for maximum upload size
+MAX_UPLOAD_SIZE_MB = 10  # Maximum upload size in MB
+MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024  # Convert to bytes
+
+# Apply the maximum upload size to Django settings
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
+
 
 # ---------------------------------------------------------
 # Admin and Authentication Settings
