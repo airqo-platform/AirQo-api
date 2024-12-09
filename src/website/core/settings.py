@@ -52,8 +52,7 @@ def require_env_var(env_var: str) -> str:
 # Core Settings
 # ---------------------------------------------------------
 SECRET_KEY = require_env_var('SECRET_KEY')
-# DEBUG = get_env_bool('DEBUG', default=False)
-DEBUG = True
+DEBUG = get_env_bool('DEBUG', default=False)
 
 # ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
 ALLOWED_HOSTS = ['*']
@@ -131,11 +130,57 @@ if DEBUG:
 else:
     # Restrict CORS origins in production
     CORS_ORIGIN_ALLOW_ALL = False
-    CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
-    CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
+    CORS_ALLOWED_ORIGINS = [
+        "https://staging-dot-airqo-frontend.appspot.com",
+        "https://staging.airqo.net",
+        "https://airqo.net",
+        "https://airqo.africa",
+        "https://airqo.org",
+        "https://airqo.mak.ac.ug",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "https://staging-platform.airqo.net",
+        "https://staging-analytics.airqo.net",
+        "https://analytics.airqo.net",
+        "https://platform.airqo.net",
+    ]
+    CORS_ORIGIN_REGEX_WHITELIST = [
+        # Matches subdomains under airqo.net, airqo.africa, airqo.org, airqo.io
+        r"^https://[a-zA-Z0-9_\-]+\.airqo\.(net|africa|org|io)$",
+        # Matches airqo.africa, airqo.org, and airqo.mak.ac.ug
+        r"^https://airqo\.(africa|org|mak\.ac\.ug)$",
+        # Matches staging-dot-airqo-frontend.appspot.com
+        r"^https://staging-dot-airqo-frontend\.appspot\.com$",
+        r"^https://staging-platform\.airqo\.net$",  # Matches staging-platform.airqo.net
+        # Matches staging-analytics.airqo.net
+        r"^https://staging-analytics\.airqo\.net$",
+        r"^https://analytics\.airqo\.net$",  # Matches analytics.airqo.net
+        r"^https://platform\.airqo\.net$",  # Matches platform.airqo.net
+        # Matches any subpath under https://platform.airqo.net/website/admin
+        r"^https://platform\.airqo\.net/website/admin.*$",
+        # Matches any subpath under https://staging-platform.airqo.net/website/admin
+        r"^https://staging-platform\.airqo\.net/website/admin.*$",
+    ]
 
     # Trust specific origins for CSRF protection in production
-    CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
+    # CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
+    CSRF_TRUSTED_ORIGINS = [
+        "https://staging-dot-airqo-frontend.appspot.com",
+        "https://staging.airqo.net",
+        "https://airqo.net",
+        "https://airqo.africa",
+        "https://airqo.org",
+        "https://airqo.mak.ac.ug",
+        "http://127.0.0.1:8000",
+        "http://localhost:3000",
+        "https://*.cloudshell.dev",
+        "https://staging-platform.airqo.net",
+        "https://staging-analytics.airqo.net",
+        "https://analytics.airqo.net",
+        "https://platform.airqo.net",
+        "https://website-trigger-3-website-preview-w7kzhvlewq-ew.a.run.app",
+    ]
+
 
 # Security settings
 CSRF_COOKIE_SECURE = not DEBUG
