@@ -1,4 +1,3 @@
-
 import os
 import sys
 from pathlib import Path
@@ -102,12 +101,12 @@ INSTALLED_APPS = [
 # Middleware
 # ---------------------------------------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Must be first
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -116,15 +115,29 @@ MIDDLEWARE = [
 # ---------------------------------------------------------
 # CORS and CSRF Configuration
 # ---------------------------------------------------------
-# CORS_ORIGIN_ALLOW_ALL = False
-CORS_ORIGIN_ALLOW_ALL = True
-# CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
-# CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
-# CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
-CSRF_TRUSTED_ORIGINS = ['*']
+if DEBUG:
+    # Allow all CORS origins during development
+    CORS_ORIGIN_ALLOW_ALL = True
+    CORS_ALLOWED_ORIGINS = []
+    CORS_ORIGIN_REGEX_WHITELIST = []
 
-# CSRF_COOKIE_SECURE = not DEBUG
-# SESSION_COOKIE_SECURE = not DEBUG
+    # Allow all CSRF origins during development
+    CSRF_TRUSTED_ORIGINS = []
+
+    # Optionally, you can add more relaxed settings
+    # For example, allow specific subdomains or ports if needed
+else:
+    # Restrict CORS origins in production
+    CORS_ORIGIN_ALLOW_ALL = False
+    CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
+    CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
+
+    # Trust specific origins for CSRF protection in production
+    CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
+
+# Security settings
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 
 # ---------------------------------------------------------
 # URL and WSGI Configuration
@@ -194,7 +207,6 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-
 if DEBUG:
     # Local file storage for development
     MEDIA_URL = '/media/'
@@ -243,7 +255,6 @@ MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024  # Convert to bytes
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
 FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
 
-
 # ---------------------------------------------------------
 # Admin and Authentication Settings
 # ---------------------------------------------------------
@@ -263,6 +274,9 @@ SWAGGER_SETTINGS = {
     },
 }
 
+# ---------------------------------------------------------
+# Quill Editor Configuration
+# ---------------------------------------------------------
 QUILL_CONFIGS = {
     'default': {
         'theme': 'snow',
