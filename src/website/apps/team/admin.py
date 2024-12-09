@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import Member, MemberBiography
 import nested_admin
+from django.utils.html import format_html
 
 
 class MemberBiographyInline(nested_admin.NestedTabularInline):
@@ -12,9 +13,7 @@ class MemberBiographyInline(nested_admin.NestedTabularInline):
 @admin.register(Member)
 class MemberAdmin(nested_admin.NestedModelAdmin):
     list_display = ("name", "title", "image_tag")
-    readonly_fields = (
-        "image_tag",
-    )
+    readonly_fields = ("image_tag",)
     fields = (
         "name",
         "title",
@@ -30,12 +29,10 @@ class MemberAdmin(nested_admin.NestedModelAdmin):
     inlines = (MemberBiographyInline,)
 
     def image_tag(self, obj):
-        width, height = 100, 200
-        from django.utils.html import escape, format_html
-
         if obj.picture:
             return format_html(
-                f'<img src="{escape(obj.get_picture_url())}" width="{width}" height="{height}" />'
+                '<img src="{}" width="100" height="200" style="object-fit: contain;" />',
+                obj.get_picture_url()
             )
         return "No Image"
 

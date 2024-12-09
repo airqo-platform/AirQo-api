@@ -31,11 +31,11 @@ class BoardMemberAdmin(nested_admin.NestedModelAdmin):
     inlines = (BoardMemberBiographyInline,)
 
     def image_tag(self, obj):
-        width, height = 100, 200
+        width, height = 150, 200
         from django.utils.html import format_html
 
         if obj.picture:
-            return format_html(f'<img src="{obj.get_picture_url()}" height="{height}" />')
+            return format_html(f'<img src="{obj.get_picture_url()}" height="{height}" width="{width}" />')
         return '-'
 
     image_tag.short_description = "Image Preview"
