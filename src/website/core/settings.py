@@ -122,7 +122,9 @@ if DEBUG:
     CORS_ORIGIN_REGEX_WHITELIST = []
 
     # Allow all CSRF origins during development
-    CSRF_TRUSTED_ORIGINS = []
+    CSRF_TRUSTED_ORIGINS = [
+        "https://website-trigger-3-website-preview-w7kzhvlewq-ew.a.run.app",
+    ]
 
     # Optionally, you can add more relaxed settings
     # For example, allow specific subdomains or ports if needed
