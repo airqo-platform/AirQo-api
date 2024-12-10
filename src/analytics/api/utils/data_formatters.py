@@ -328,7 +328,7 @@ def filter_non_private_sites(filter_type: str, sites: List[str]) -> Dict[str, An
         logger.exception(f"Error while filtering non private devices {rex}")
 
 
-def validate_network(self, network_name: str) -> bool:
+def validate_network(network_name: str) -> bool:
     """
     Validate if a given network name exists in the list of networks.
 
