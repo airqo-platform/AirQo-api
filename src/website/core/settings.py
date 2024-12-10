@@ -6,25 +6,24 @@ import dj_database_url
 from dotenv import load_dotenv
 
 # ---------------------------------------------------------
-# Load Environment Variables from .env
+# Load Environment Variables
 # ---------------------------------------------------------
 load_dotenv()
 
 # ---------------------------------------------------------
-# Base Directory and Python Path Adjustments
+# Base Directory & Python Path
 # ---------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.append(str(BASE_DIR / 'apps'))  # Allow referencing apps directly
+sys.path.append(str(BASE_DIR / 'apps'))
 
 # ---------------------------------------------------------
-# Helper Functions for Environment Variables
+# Environment Variable Helpers
 # ---------------------------------------------------------
 
 
 def parse_env_list(env_var: str, default: str = "") -> list:
     """
-    Parse a comma-separated string from an environment variable into a list.
-    Trims whitespace and ignores empty entries.
+    Convert a comma-separated list in an env var to a Python list.
     """
     raw_value = os.getenv(env_var, default)
     return [item.strip() for item in raw_value.split(',') if item.strip()]
@@ -32,15 +31,14 @@ def parse_env_list(env_var: str, default: str = "") -> list:
 
 def get_env_bool(env_var: str, default: bool = False) -> bool:
     """
-    Convert an environment variable to a boolean.
-    Accepts 'true', '1', 't' (case-insensitive) as True.
+    Convert an environment variable to boolean.
     """
-    return os.getenv(env_var, str(default)).lower() in ['true', '1', 't']
+    return os.getenv(env_var, str(default)).lower() in ['true', '1', 't', 'yes']
 
 
 def require_env_var(env_var: str) -> str:
     """
-    Ensure an environment variable is set. Raise an error if not set.
+    Ensure an environment variable is set. Raise ValueError if not.
     """
     value = os.getenv(env_var)
     if not value:
@@ -52,17 +50,15 @@ def require_env_var(env_var: str) -> str:
 # Core Settings
 # ---------------------------------------------------------
 SECRET_KEY = require_env_var('SECRET_KEY')
-# DEBUG = get_env_bool('DEBUG', default=False)
-DEBUG = True
+DEBUG = get_env_bool('DEBUG', default=False)
 
-# ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = parse_env_list('ALLOWED_HOSTS', default='localhost,127.0.0.1')
 
 # ---------------------------------------------------------
-# Application Definitions
+# Applications
 # ---------------------------------------------------------
 INSTALLED_APPS = [
-    # Django defaults
+    # Django Defaults
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -70,7 +66,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Third-party apps
+    # Third-party Apps
     'corsheaders',
     'cloudinary',
     'cloudinary_storage',
@@ -79,9 +75,9 @@ INSTALLED_APPS = [
     'django_extensions',
     'nested_admin',
     'drf_yasg',
-    'django_quill',  # Re-added django_quill
+    'django_quill',
 
-    # Custom apps
+    # Custom Apps
     'apps.externalteams',
     'apps.event',
     'apps.cleanair',
@@ -101,7 +97,7 @@ INSTALLED_APPS = [
 # Middleware
 # ---------------------------------------------------------
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Must be first
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -115,26 +111,15 @@ MIDDLEWARE = [
 # ---------------------------------------------------------
 # CORS and CSRF Configuration
 # ---------------------------------------------------------
-if DEBUG:
-    # Allow all CORS origins during development
-    CORS_ORIGIN_ALLOW_ALL = True
-    CORS_ALLOWED_ORIGINS = []
-    CORS_ORIGIN_REGEX_WHITELIST = []
+CORS_ALLOWED_ORIGINS = parse_env_list('CORS_ALLOWED_ORIGINS')
+CORS_ALLOWED_ORIGIN_REGEXES = parse_env_list('CORS_ORIGIN_REGEX_WHITELIST')
+CSRF_TRUSTED_ORIGINS = parse_env_list('CSRF_TRUSTED_ORIGINS')
 
-    # Allow all CSRF origins during development
-    CSRF_TRUSTED_ORIGINS = []
+# If no CORS settings provided, consider defaulting to empty lists
+CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS if CORS_ALLOWED_ORIGINS else []
+CORS_ALLOWED_ORIGIN_REGEXES = CORS_ALLOWED_ORIGIN_REGEXES if CORS_ALLOWED_ORIGIN_REGEXES else []
 
-    # Optionally, you can add more relaxed settings
-    # For example, allow specific subdomains or ports if needed
-else:
-    # Restrict CORS origins in production
-    CORS_ORIGIN_ALLOW_ALL = False
-    CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
-    CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
-    CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
-
-
-# Security settings
+# Security cookies
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 
@@ -167,17 +152,21 @@ TEMPLATES = [
 # Database Configuration
 # ---------------------------------------------------------
 DATABASE_URL = os.getenv('DATABASE_URL')
-
-DATABASES = {
-    'default': dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=600,
-        ssl_require=True
-    ) if DATABASE_URL else {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True
+        )
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # ---------------------------------------------------------
 # Password Validation
@@ -195,7 +184,6 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'en-us')
 TIME_ZONE = os.getenv('TIME_ZONE', 'UTC')
 USE_I18N = True
-USE_L10N = True
 USE_TZ = True
 
 # ---------------------------------------------------------
@@ -206,6 +194,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Cloudinary Configuration
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
@@ -213,7 +202,6 @@ CLOUDINARY_STORAGE = {
     'SECURE': True,
     'TIMEOUT': 600,
 }
-
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # ---------------------------------------------------------
@@ -281,12 +269,3 @@ QUILL_CONFIGS = {
         'scrollingContainer': '#scrolling-container',
     },
 }
-
-# ---------------------------------------------------------
-# Mode-Specific Logging
-# ---------------------------------------------------------
-if DEBUG:
-    print(f"Debug mode is: {DEBUG}")
-    print(f"Media files are stored in: {BASE_DIR / 'assets'}")
-else:
-    print("Production mode is ON")
