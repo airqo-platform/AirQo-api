@@ -486,6 +486,15 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the site_tags should not be empty"),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("airqlouds")
         .optional()
         .custom((value) => {
@@ -860,6 +869,15 @@ router.put(
         .withMessage(
           "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
         ),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
     ],
   ]),
   siteController.update

@@ -74,8 +74,8 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     serial_number: {
@@ -237,6 +237,20 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
+const checkDuplicates = (arr, fieldName) => {
+  const duplicateValues = arr.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    return new HttpError(
+      `Duplicate values found in ${fieldName} array.`,
+      httpStatus.BAD_REQUEST
+    );
+  }
+  return null;
+};
+
 deviceSchema.pre(
   [
     "update",
@@ -326,18 +340,16 @@ deviceSchema.pre(
           this.device_codes.push(this.serial_number);
         }
 
-        // Check for duplicate values in cohorts array
-        const duplicateValues = this.cohorts.filter(
-          (value, index, self) => self.indexOf(value) !== index
-        );
+        // Check for duplicates in cohorts
+        const cohortsDuplicateError = checkDuplicates(this.cohorts, "cohorts");
+        if (cohortsDuplicateError) {
+          return next(cohortsDuplicateError);
+        }
 
-        if (duplicateValues.length > 0) {
-          return next(
-            new HttpError(
-              "Duplicate values found in cohorts array.",
-              httpStatus.BAD_REQUEST
-            )
-          );
+        // Check for duplicates in groups
+        const groupsDuplicateError = checkDuplicates(this.groups, "groups");
+        if (groupsDuplicateError) {
+          return next(groupsDuplicateError);
         }
       }
 
@@ -371,28 +383,20 @@ deviceSchema.pre(
         updateData.access_code = access_code.toUpperCase();
       }
 
-      // Handle $addToSet for device_codes, previous_sites, and pictures
-      const addToSetUpdates = {};
-
-      if (updateData.device_codes) {
-        addToSetUpdates.device_codes = { $each: updateData.device_codes };
-        delete updateData.device_codes; // Remove from main update object
-      }
-
-      if (updateData.previous_sites) {
-        addToSetUpdates.previous_sites = { $each: updateData.previous_sites };
-        delete updateData.previous_sites; // Remove from main update object
-      }
-
-      if (updateData.pictures) {
-        addToSetUpdates.pictures = { $each: updateData.pictures };
-        delete updateData.pictures; // Remove from main update object
-      }
-
-      // If there are any $addToSet updates, merge them into the main update object
-      if (Object.keys(addToSetUpdates).length > 0) {
-        updateData.$addToSet = addToSetUpdates;
-      }
+      // Handle array fields using $addToSet
+      const arrayFieldsToAddToSet = [
+        "device_codes",
+        "previous_sites",
+        "groups",
+        "pictures",
+      ];
+      arrayFieldsToAddToSet.forEach((field) => {
+        if (updateData[field]) {
+          updateData.$addToSet = updateData.$addToSet || {};
+          updateData.$addToSet[field] = { $each: updateData[field] };
+          delete updateData[field];
+        }
+      });
 
       next();
     } catch (error) {
@@ -415,7 +419,7 @@ deviceSchema.methods = {
       alias: this.alias,
       mobility: this.mobility,
       network: this.network,
-      group: this.group,
+      groups: this.groups,
       api_code: this.api_code,
       serial_number: this.serial_number,
       authRequired: this.authRequired,

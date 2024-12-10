@@ -55,7 +55,7 @@ DEBUG = get_env_bool('DEBUG', default=False)
 ALLOWED_HOSTS = parse_env_list('ALLOWED_HOSTS', default='localhost,127.0.0.1')
 
 # ---------------------------------------------------------
-# Applications
+# Installed Apps
 # ---------------------------------------------------------
 INSTALLED_APPS = [
     # Django Defaults
@@ -115,9 +115,11 @@ CORS_ALLOWED_ORIGINS = parse_env_list('CORS_ALLOWED_ORIGINS')
 CORS_ALLOWED_ORIGIN_REGEXES = parse_env_list('CORS_ORIGIN_REGEX_WHITELIST')
 CSRF_TRUSTED_ORIGINS = parse_env_list('CSRF_TRUSTED_ORIGINS')
 
-# If no CORS settings provided, consider defaulting to empty lists
-CORS_ALLOWED_ORIGINS = CORS_ALLOWED_ORIGINS if CORS_ALLOWED_ORIGINS else []
-CORS_ALLOWED_ORIGIN_REGEXES = CORS_ALLOWED_ORIGIN_REGEXES if CORS_ALLOWED_ORIGIN_REGEXES else []
+# Ensure no trailing slashes and correct schemes
+CORS_ALLOWED_ORIGINS = [origin.rstrip('/') for origin in CORS_ALLOWED_ORIGINS]
+CORS_ALLOWED_ORIGIN_REGEXES = [regex.rstrip(
+    '/') for regex in CORS_ALLOWED_ORIGIN_REGEXES]
+CSRF_TRUSTED_ORIGINS = [origin.rstrip('/') for origin in CSRF_TRUSTED_ORIGINS]
 
 # Security cookies
 CSRF_COOKIE_SECURE = not DEBUG
@@ -268,4 +270,151 @@ QUILL_CONFIGS = {
         'bounds': '#editor',
         'scrollingContainer': '#scrolling-container',
     },
+}
+
+# ---------------------------------------------------------
+# File Upload Settings
+# ---------------------------------------------------------
+# Increase these values as needed to handle larger uploads
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
+
+# ---------------------------------------------------------
+# SSL and Proxy Settings (if behind a reverse proxy)
+# ---------------------------------------------------------
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+# ---------------------------------------------------------
+# Logging Configuration
+# ---------------------------------------------------------
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)  # Ensure log directory exists
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    # Formatters
+    'formatters': {
+        'verbose': {
+            'format': '[%(asctime)s] %(levelname)s %(name)s [%(filename)s:%(lineno)d] %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'simple': {
+            'format': '%(levelname)s %(message)s'
+        },
+    },
+    # Handlers
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+            'level': 'DEBUG' if DEBUG else 'INFO',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': LOG_DIR / 'django.log',
+            'formatter': 'verbose',
+            'level': 'INFO',
+        },
+        'error_file': {
+            'class': 'logging.FileHandler',
+            'filename': LOG_DIR / 'django_errors.log',
+            'formatter': 'verbose',
+            'level': 'ERROR',
+        },
+    },
+    # Loggers
+    'loggers': {
+        # Django Logs
+        'django': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        # Cloudinary Logs
+        'cloudinary': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        # Event App Logs
+        'apps.event': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # CleanAir App Logs
+        'apps.cleanair': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # AfricanCities App Logs
+        'apps.africancities': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Publications App Logs
+        'apps.publications': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Press App Logs
+        'apps.press': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Impact App Logs
+        'apps.impact': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # FAQs App Logs
+        'apps.faqs': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Highlights App Logs
+        'apps.highlights': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Career App Logs
+        'apps.career': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Partners App Logs
+        'apps.partners': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Board App Logs
+        'apps.board': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Team App Logs
+        'apps.team': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # ExternalTeams App Logs
+        'apps.externalteams': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    }
 }
