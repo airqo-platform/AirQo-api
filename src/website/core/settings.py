@@ -282,7 +282,6 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
 # ---------------------------------------------------------
 # SSL and Proxy Settings (if behind a reverse proxy)
 # ---------------------------------------------------------
-# Uncomment and configure if your Django app is behind a reverse proxy like Nginx
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 

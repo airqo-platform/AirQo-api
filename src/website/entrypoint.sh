@@ -25,9 +25,9 @@ echo "Ensuring log directory exists..."
 mkdir -p /app/logs
 
 # Start Gunicorn server to serve the Django application
-echo "Starting Gunicorn server..."
+echo "Starting Gunicorn server on port $PORT..."
 exec gunicorn core.wsgi:application \
-  --bind 0.0.0.0:8000 \
+  --bind 0.0.0.0:$PORT \
   --timeout 600 \
   --log-level info \
   --workers "${GUNICORN_WORKERS:-3}" \
