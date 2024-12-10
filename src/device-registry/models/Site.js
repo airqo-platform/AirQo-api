@@ -75,8 +75,8 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "network is required!"],
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     data_provider: {
@@ -364,6 +364,20 @@ const siteSchema = new Schema(
   }
 );
 
+const checkDuplicates = (arr, fieldName) => {
+  const duplicateValues = arr.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    return new HttpError(
+      `Duplicate values found in ${fieldName} array.`,
+      httpStatus.BAD_REQUEST
+    );
+  }
+  return null;
+};
+
 siteSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
   function(next) {
@@ -411,6 +425,7 @@ siteSchema.pre(
           "land_use",
           "site_codes",
           "airqlouds",
+          "groups",
           "grids",
         ];
         arrayFieldsToAddToSet.forEach((field) => {
@@ -442,12 +457,16 @@ siteSchema.pre(
         if (this[field]) this.site_codes.push(this[field]);
       });
 
-      // Check for duplicate grid values
-      const duplicateValues = this.grids.filter(
-        (value, index, self) => self.indexOf(value) !== index
-      );
-      if (duplicateValues.length > 0) {
-        return next(new Error("Duplicate values found in grids array."));
+      // Check for duplicates in grids
+      const gridsDuplicateError = checkDuplicates(this.grids, "grids");
+      if (gridsDuplicateError) {
+        return next(gridsDuplicateError);
+      }
+
+      // Check for duplicates in groups
+      const groupsDuplicateError = checkDuplicates(this.groups, "groups");
+      if (groupsDuplicateError) {
+        return next(groupsDuplicateError);
       }
     }
 
@@ -473,7 +492,7 @@ siteSchema.methods = {
       generated_name: this.generated_name,
       search_name: this.search_name,
       network: this.network,
-      group: this.group,
+      groups: this.groups,
       data_provider: this.data_provider,
       location_name: this.location_name,
       formatted_name: this.formatted_name,

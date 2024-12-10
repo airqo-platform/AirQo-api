@@ -195,6 +195,15 @@ router.post(
         .withMessage(
           "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("network")
         .trim()
         .optional()
@@ -371,6 +380,15 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("the description should not be empty if provided"),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("network")
         .optional()
         .notEmpty()
