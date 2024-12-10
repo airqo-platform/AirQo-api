@@ -344,6 +344,77 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
-        # Add other app loggers here if needed
+        # CleanAir App Logs
+        'apps.cleanair': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # AfricanCities App Logs
+        'apps.africancities': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Publications App Logs
+        'apps.publications': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Press App Logs
+        'apps.press': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Impact App Logs
+        'apps.impact': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # FAQs App Logs
+        'apps.faqs': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Highlights App Logs
+        'apps.highlights': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Career App Logs
+        'apps.career': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Partners App Logs
+        'apps.partners': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Board App Logs
+        'apps.board': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Team App Logs
+        'apps.team': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # ExternalTeams App Logs
+        'apps.externalteams': {
+            'handlers': ['console', 'file', 'error_file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
     }
 }
