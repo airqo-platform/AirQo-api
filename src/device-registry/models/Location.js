@@ -206,7 +206,7 @@ locationSchema.statics = {
         admin_level: 1,
         description: 1,
         network: 1,
-        group: 1,
+        groups: 1,
         metadata: 1,
       };
 
@@ -313,7 +313,7 @@ locationSchema.statics = {
           description: 1,
           admin_level: 1,
           network: 1,
-          group: 1,
+          groups: 1,
           isCustom: 1,
           metadata: 1,
         },
