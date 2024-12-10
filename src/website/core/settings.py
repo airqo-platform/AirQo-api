@@ -52,7 +52,8 @@ def require_env_var(env_var: str) -> str:
 # Core Settings
 # ---------------------------------------------------------
 SECRET_KEY = require_env_var('SECRET_KEY')
-DEBUG = get_env_bool('DEBUG', default=False)
+# DEBUG = get_env_bool('DEBUG', default=False)
+DEBUG = True
 
 # ALLOWED_HOSTS = parse_env_list("ALLOWED_HOSTS")
 ALLOWED_HOSTS = ['*']
@@ -121,65 +122,16 @@ if DEBUG:
     CORS_ORIGIN_REGEX_WHITELIST = []
 
     # Allow all CSRF origins during development
-    CSRF_TRUSTED_ORIGINS = [
-        "https://website-trigger-3-website-preview-w7kzhvlewq-ew.a.run.app",
-    ]
+    CSRF_TRUSTED_ORIGINS = []
 
     # Optionally, you can add more relaxed settings
     # For example, allow specific subdomains or ports if needed
 else:
     # Restrict CORS origins in production
     CORS_ORIGIN_ALLOW_ALL = False
-    CORS_ALLOWED_ORIGINS = [
-        "https://staging-dot-airqo-frontend.appspot.com",
-        "https://staging.airqo.net",
-        "https://airqo.net",
-        "https://airqo.africa",
-        "https://airqo.org",
-        "https://airqo.mak.ac.ug",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000",
-        "https://staging-platform.airqo.net",
-        "https://staging-analytics.airqo.net",
-        "https://analytics.airqo.net",
-        "https://platform.airqo.net",
-    ]
-    CORS_ORIGIN_REGEX_WHITELIST = [
-        # Matches subdomains under airqo.net, airqo.africa, airqo.org, airqo.io
-        r"^https://[a-zA-Z0-9_\-]+\.airqo\.(net|africa|org|io)$",
-        # Matches airqo.africa, airqo.org, and airqo.mak.ac.ug
-        r"^https://airqo\.(africa|org|mak\.ac\.ug)$",
-        # Matches staging-dot-airqo-frontend.appspot.com
-        r"^https://staging-dot-airqo-frontend\.appspot\.com$",
-        r"^https://staging-platform\.airqo\.net$",  # Matches staging-platform.airqo.net
-        # Matches staging-analytics.airqo.net
-        r"^https://staging-analytics\.airqo\.net$",
-        r"^https://analytics\.airqo\.net$",  # Matches analytics.airqo.net
-        r"^https://platform\.airqo\.net$",  # Matches platform.airqo.net
-        # Matches any subpath under https://platform.airqo.net/website/admin
-        r"^https://platform\.airqo\.net/website/admin.*$",
-        # Matches any subpath under https://staging-platform.airqo.net/website/admin
-        r"^https://staging-platform\.airqo\.net/website/admin.*$",
-    ]
-
-    # Trust specific origins for CSRF protection in production
-    # CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
-    CSRF_TRUSTED_ORIGINS = [
-        "https://staging-dot-airqo-frontend.appspot.com",
-        "https://staging.airqo.net",
-        "https://airqo.net",
-        "https://airqo.africa",
-        "https://airqo.org",
-        "https://airqo.mak.ac.ug",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000",
-        "https://*.cloudshell.dev",
-        "https://staging-platform.airqo.net",
-        "https://staging-analytics.airqo.net",
-        "https://analytics.airqo.net",
-        "https://platform.airqo.net",
-        "https://website-trigger-3-website-preview-w7kzhvlewq-ew.a.run.app",
-    ]
+    CORS_ALLOWED_ORIGINS = parse_env_list("CORS_ALLOWED_ORIGINS")
+    CORS_ORIGIN_REGEX_WHITELIST = parse_env_list("CORS_ORIGIN_REGEX_WHITELIST")
+    CSRF_TRUSTED_ORIGINS = parse_env_list("CSRF_TRUSTED_ORIGINS")
 
 
 # Security settings
@@ -254,24 +206,15 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-if DEBUG:
-    # Local file storage for development
-    MEDIA_URL = '/media/'
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-    MEDIA_ROOT = BASE_DIR / 'assets'
-    print("DEBUG=True: Using local file storage for media.")
-else:
-    # Cloudinary setup for production
-    CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
-        'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
-        'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
-        'SECURE': True,
-        'TIMEOUT': 600,
-    }
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': require_env_var('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': require_env_var('CLOUDINARY_API_KEY'),
+    'API_SECRET': require_env_var('CLOUDINARY_API_SECRET'),
+    'SECURE': True,
+    'TIMEOUT': 600,
+}
 
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    print("DEBUG=False: Using Cloudinary for media storage.")
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # ---------------------------------------------------------
 # Default Primary Key Field Type
@@ -290,17 +233,6 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
-
-# ---------------------------------------------------------
-# File Upload Limits
-# ---------------------------------------------------------
-# Define a constant for maximum upload size
-MAX_UPLOAD_SIZE_MB = 10  # Maximum upload size in MB
-MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024  # Convert to bytes
-
-# Apply the maximum upload size to Django settings
-DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
-FILE_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_SIZE
 
 # ---------------------------------------------------------
 # Admin and Authentication Settings
