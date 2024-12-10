@@ -128,6 +128,15 @@ router.put(
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("network")
         .optional()
         .notEmpty()
@@ -169,6 +178,15 @@ router.post(
         .trim()
         .optional()
         .notEmpty(),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("network")
         .trim()
         .exists()
