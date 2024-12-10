@@ -214,7 +214,7 @@ cohortSchema.statics.list = async function(
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
-      .groups({
+      .group({
         _id: "$_id",
         visibility: { $first: "$visibility" },
         cohort_tags: { $first: "$cohort_tags" },
