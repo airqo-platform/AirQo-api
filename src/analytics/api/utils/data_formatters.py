@@ -328,6 +328,31 @@ def filter_non_private_sites(filter_type: str, sites: List[str]) -> Dict[str, An
         logger.exception(f"Error while filtering non private devices {rex}")
 
 
+def validate_network(self, network_name: str) -> bool:
+    """
+    Validate if a given network name exists in the list of networks.
+
+    Args:
+        network_name (str): The name of the network to validate.
+
+    Returns:
+        bool: True if the network name exists, False otherwise.
+    """
+    if not network_name:
+        return False
+
+    endpoint: str = "/users/networks"
+    airqo_requests = AirQoRequests()
+    response = airqo_requests.request(endpoint=endpoint, method="get")
+
+    if response and "networks" in response:
+        networks = response["networks"]
+        # TODO Could add an active network filter
+        return any(network.get("net_name") == network_name for network in networks)
+
+    return False
+
+
 def filter_non_private_devices(filter_type: str, devices: List[str]) -> Dict[str, Any]:
     """
     FilterS out private device IDs from a provided array of device IDs.

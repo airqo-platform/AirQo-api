@@ -413,6 +413,7 @@ class EventsModel(BasePyMongoModel):
             frequency (str): Data frequency (e.g., 'raw', 'daily', 'hourly').
             pollutants (list): List of pollutants to include in the data.
             data_type (str): Type of data ('raw' or 'aggregated').
+            filter_columns(list)
             weather_fields (list): List of weather fields to retrieve.
 
         Returns:
@@ -1273,9 +1274,7 @@ class EventsModel(BasePyMongoModel):
         )
 
     @cache.memoize()
-    def get_d3_chart_events_v2(
-        self, sites, start_date, end_date, pollutant, frequency, tenant
-    ):
+    def get_d3_chart_events_v2(self, sites, start_date, end_date, pollutant, frequency):
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -1293,7 +1292,6 @@ class EventsModel(BasePyMongoModel):
           JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
           WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
           AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-          AND {self.BIGQUERY_EVENTS}.tenant = '{tenant}'
           AND `airqo-250220.metadata.sites`.id in UNNEST({sites})
         """
 
