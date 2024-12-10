@@ -126,6 +126,15 @@ const validateCreateDevice = [
         .isInt()
         .withMessage("the generation should be an integer")
         .toInt(),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("mountType")
         .optional()
         .notEmpty()
@@ -384,6 +393,15 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isActive must be Boolean"),
+  body("groups")
+    .optional()
+    .custom((value) => {
+      return Array.isArray(value);
+    })
+    .withMessage("the groups should be an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the groups should not be empty"),
   body("isRetired")
     .optional()
     .notEmpty()

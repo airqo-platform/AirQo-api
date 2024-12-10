@@ -1116,7 +1116,7 @@ const generateFilter = {
     // }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
@@ -1238,7 +1238,7 @@ const generateFilter = {
     }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
@@ -1370,7 +1370,7 @@ const generateFilter = {
     }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
@@ -1437,7 +1437,7 @@ const generateFilter = {
     }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
@@ -1500,7 +1500,7 @@ const generateFilter = {
     }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
@@ -1597,7 +1597,7 @@ const generateFilter = {
     }
   },
   locations: (req, next) => {
-    let { id, name, admin_level, summary, network } = {
+    let { id, name, admin_level, summary, network, group } = {
       ...req.query,
       ...req.params,
     };
@@ -1619,6 +1619,14 @@ const generateFilter = {
       filter.network = handlePredefinedValueMatch(
         network,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.NETWORK_PAIRS,
+        { matchCombinations: true }
+      );
+    }
+
+    if (group) {
+      filter.groups = handlePredefinedValueMatch(
+        group,
+        constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
       );
     }
@@ -1671,7 +1679,7 @@ const generateFilter = {
     }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
@@ -1759,7 +1767,7 @@ const generateFilter = {
     }
 
     if (group) {
-      filter.group = handlePredefinedValueMatch(
+      filter.groups = handlePredefinedValueMatch(
         group,
         constants.PREDEFINED_FILTER_VALUES.COMBINATIONS.GROUP_PAIRS,
         { matchCombinations: true }
