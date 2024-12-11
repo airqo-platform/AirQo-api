@@ -5,7 +5,10 @@ const { HttpError } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
-const logger = require("@utils/logger");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- network_uptime model`
+);
 
 const networkUptimeSchema = new Schema(
   {

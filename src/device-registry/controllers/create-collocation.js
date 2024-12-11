@@ -1,15 +1,21 @@
 const httpStatus = require("http-status");
 const { v4: uuidv4 } = require("uuid");
-const logger = require("@utils/logger");
-const { CollocationService } = require("@services/collocation");
-const { decodeUserToken } = require("@utils/auth");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-collocation controller`
+);
+const { CollocationService } = require("@utils/create-collocation");
 const {
   CollocationDefaults,
   CollocationBatchStatus,
   CollocationBatchResult,
-} = require("@models/collocation");
+} = require("@models/CollocationBatch");
 const { HttpError } = require("@utils/errors");
-const { handleResponse } = require("@utils/response");
+const handleResponse = (response) => {
+  response.res.status().json(response.result);
+};
+
 const moment = require("moment");
 
 const collocationController = {
@@ -30,7 +36,6 @@ const collocationController = {
       );
     }
   },
-
   saveCollocationBatch: async (req, res, next) => {
     try {
       const {
@@ -48,7 +53,7 @@ const collocationController = {
       } = req.body;
 
       const userToken = req.headers.authorization?.split(" ")[1] || "";
-      const userDetails = userToken ? decodeUserToken(userToken) : {};
+      const userDetails = {};
 
       const batch = {
         batchId: "", // will be set by service
@@ -87,19 +92,18 @@ const collocationController = {
       );
     }
   },
-
-  // Other methods following similar patterns for:
-  // - deleteCollocationBatch
-  // - resetCollocationBatch
-  // - getCollocationBatch
-  // - getCollocationSummary
-  // - getCollocationBatchData
-  // - getCollocationBatchResults
-  // - getCollocationDataCompleteness
-  // - getCollocationDataStatistics
-  // - getCollocationIntraSensorCorrelation
-
-  // Example of one more method to illustrate:
+  deleteCollocationBatch: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
+  resetCollocationBatch: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
+  getCollocationBatch: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
   getCollocationSummary: async (req, res, next) => {
     try {
       const collocationService = new CollocationService();
@@ -122,6 +126,26 @@ const collocationController = {
         )
       );
     }
+  },
+  getCollocationBatchData: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
+  getCollocationBatchResults: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
+  getCollocationDataCompleteness: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
+  getCollocationDataStatistics: async (req, res, next) => {
+    try {
+    } catch (error) {}
+  },
+  getCollocationIntraSensorCorrelation: async (req, res, next) => {
+    try {
+    } catch (error) {}
   },
 };
 

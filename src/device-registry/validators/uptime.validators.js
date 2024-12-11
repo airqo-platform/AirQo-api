@@ -1,4 +1,11 @@
-const { body, param, query, validationResult } = require("express-validator");
+const {
+  body,
+  param,
+  query,
+  validationResult,
+  oneOf,
+} = require("express-validator");
+
 const moment = require("moment");
 const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");

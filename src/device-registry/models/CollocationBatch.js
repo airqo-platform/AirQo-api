@@ -141,7 +141,7 @@ const collocationBatchSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
-    errors: {
+    issues: {
       type: [String],
       default: [],
     },
