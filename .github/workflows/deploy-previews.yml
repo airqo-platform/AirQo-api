@@ -1180,18 +1180,18 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/website/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} ./
+          cd website/
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy website-backend-nginix-website-preview \
-            --region=${REGION} \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-website-preview \
+            --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${REGISTRY_URL}/${PROJECT_ID}/pr-previews/website-pr-previews:${GITHUB_SHA} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} \
             --cpu=1000m \
             --memory=1024Mi \
             --allow-unauthenticated
@@ -1218,5 +1218,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'website changes in this PR available for preview [here](${needs.website.outputs.url})'
+              body: 'Website changes in this PR are available for preview [here](${{ needs.website.outputs.url }})'
             })

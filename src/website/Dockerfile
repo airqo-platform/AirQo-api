@@ -2,9 +2,10 @@
 FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
+# Set work directory
 WORKDIR /app
 
 # Install system dependencies
@@ -13,32 +14,36 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     nginx \
     supervisor \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the code
+# Copy project code
 COPY . .
 
-# Remove default Nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+# Remove default Nginx configuration if it exists
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Make sure we have a directory for static files (to serve them via Nginx)
-RUN mkdir -p /usr/share/nginx/html/static/
-
-# Add execute permission to entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Copy custom Nginx config
+# Copy custom Nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy supervisor config
+# Ensure staticfiles directory exists for Nginx
+RUN mkdir -p /usr/share/nginx/html/static/
+
+# Copy Supervisor configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Default port for Cloud Run is 8080, ensure Nginx listens on this port
-ENV PORT 8080
+# Make entrypoint.sh executable
+RUN chmod +x /app/entrypoint.sh
+
+# Set the PORT environment variable (Cloud Run uses 8080 by default)
+ENV PORT=8080
+
+# Expose the port
 EXPOSE 8080
 
+# Start the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]
