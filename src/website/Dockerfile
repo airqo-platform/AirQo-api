@@ -41,10 +41,10 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +x /app/entrypoint.sh
 
 # Set the PORT environment variable (Cloud Run uses 8080 by default)
-ENV PORT=8080
+ENV PORT=8000
 
 # Expose the port
-EXPOSE 8080
+EXPOSE 8000
 
 # Start the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]
