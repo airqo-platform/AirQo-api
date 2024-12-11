@@ -719,7 +719,7 @@ class AirQoApi:
             for cohort in response.get("cohorts", [])
         ]
 
-    def get_sites(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_sites(self, network: str = "all") -> List[Dict[str, Any]]:
         """
         Retrieve sites given a tenant.
 
@@ -766,10 +766,10 @@ class AirQoApi:
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network != "all":
+            query_params["network"] = network
 
         response = self.__request("devices/sites", query_params)
 
@@ -777,8 +777,6 @@ class AirQoApi:
             {
                 **site,
                 "site_id": site.get("_id", None),
-                "tenant": site.get("network", site.get("tenant", None)),
-                "location": site.get("location", None),
                 "approximate_latitude": site.get(
                     "approximate_latitude", site.get("latitude", None)
                 ),

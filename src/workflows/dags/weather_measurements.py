@@ -244,7 +244,7 @@ def openweathermap_data():
     def retrieve_sites():
         from airqo_etl_utils.airqo_api import AirQoApi
 
-        return AirQoApi().get_sites(tenant=Tenant.AIRQO)
+        return AirQoApi().get_sites(network="airqo")
 
     @task()
     def retrieve_weather_data(sites):

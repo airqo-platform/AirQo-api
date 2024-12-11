@@ -18,7 +18,7 @@ def create_forecast_tweets():
     def retrieve_sites():
         from airqo_etl_utils.airqo_api import AirQoApi
 
-        return AirQoApi().get_sites(tenant=Tenant.AIRQO)
+        return AirQoApi().get_sites(network="airqo")
 
     @task()
     def select_forecast_sites(sites):
