@@ -2,49 +2,30 @@
 FROM python:3.11-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# Set work directory
+# Set the working directory inside the container
 WORKDIR /app
 
-# Install system dependencies, including nginx, supervisor, and gettext for envsubst
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
-    nginx \
-    supervisor \
-    gettext \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
+# Copy requirements file and install dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project code
+# Copy the rest of the backend code into the container
 COPY . .
 
-# Remove default Nginx configuration if it exists
-RUN rm -f /etc/nginx/conf.d/default.conf
-
-# Copy custom Nginx configuration template
-COPY nginx.conf /etc/nginx/nginx.conf.template
-
-# Ensure staticfiles directory exists for Nginx
-RUN mkdir -p /usr/share/nginx/html/static/
-
-# Copy Supervisor configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Make entrypoint.sh executable
-RUN chmod +x /app/entrypoint.sh
-
-# Set the PORT environment variable (Cloud Run uses 8080 by default)
-ENV PORT=8000
-
-# Expose the port
+# Expose the port the Django app will run on
 EXPOSE 8000
 
-# Start the entrypoint script
+# Add execution permissions to entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Set the entrypoint for the container
 ENTRYPOINT ["/app/entrypoint.sh"]
