@@ -214,16 +214,31 @@ class DataValidationUtils:
         data.rename(columns={"device_id": "device_name"}, inplace=True)
 
         devices = AirQoDataUtils.get_devices(group_id=caller)
-        devices = devices[
-            ["device_name", "site_id", "device_latitude", "device_longitude", "network"]
-        ]
+        try:
+            devices = devices[
+                [
+                    "device_name",
+                    "site_id",
+                    "device_latitude",
+                    "device_longitude",
+                    "network",
+                ]
+            ]
 
-        data = pd.merge(
-            left=data,
-            right=devices,
-            on=["device_name", "site_id", "network"],
-            how="left",
-        )
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "network"],
+                how="left",
+            )
+        except KeyError as e:
+            logger.exception(
+                f"KeyError: The key(s) '{e.args}' are not available in the returned devices data."
+            )
+            return None
+        except Exception as e:
+            logger.exception(f"An error occured: {e}")
+            return None
         return data
 
     @staticmethod

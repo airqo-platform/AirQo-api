@@ -3,6 +3,7 @@ from airflow.utils.dates import days_ago
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from datetime import timedelta
 from airqo_etl_utils.config import configuration
+from airflow.exceptions import AirflowFailException
 
 
 # Historical Data DAG
@@ -51,6 +52,11 @@ def airnow_bam_historical_data():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
@@ -133,6 +139,12 @@ def airnow_bam_realtime_data():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data

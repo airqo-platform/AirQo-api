@@ -1,6 +1,7 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airflow.exceptions import AirflowFailException
 from airqo_etl_utils.config import configuration
 
 
@@ -55,6 +56,11 @@ def kcca_hourly_measurements():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
 
         MessageBrokerUtils.update_hourly_data_topic(data=data)
 
