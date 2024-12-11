@@ -17,8 +17,8 @@ const cohortSchema = new Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     name: {
@@ -81,7 +81,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_tags,
     cohort_codes,
     network,
-    group,
+    groups,
     visibility,
   } = this;
   return {
@@ -92,7 +92,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_tags,
     cohort_codes,
     network,
-    group,
+    groups,
   };
 };
 
@@ -160,8 +160,6 @@ cohortSchema.statics.register = async function(args, next) {
       response.errors = { message: error.message };
     }
 
-    return response;
-
     logger.error(`🐛🐛 Internal Server Error ${error.message}`);
     next(new HttpError(response.message, response.status, response.errors));
   }
@@ -196,12 +194,22 @@ cohortSchema.statics.list = async function(
         foreignField: "cohorts",
         as: "devices",
       })
-      .unwind("$devices")
-      .lookup({
-        from: "sites",
-        localField: "devices.site_id",
-        foreignField: "_id",
-        as: "devices.site",
+      .project({
+        _id: 1,
+        visibility: 1,
+        cohort_tags: 1,
+        cohort_codes: 1,
+        name: 1,
+        createdAt: 1,
+        network: 1,
+        groups: 1,
+        devices: {
+          $cond: {
+            if: { $eq: [{ $size: "$devices" }, 0] },
+            then: [],
+            else: "$devices",
+          },
+        },
       })
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
@@ -214,12 +222,11 @@ cohortSchema.statics.list = async function(
         name: { $first: "$name" },
         createdAt: { $first: "$createdAt" },
         network: { $first: "$network" },
-        group: { $first: "$group" },
-        numberOfDevices: { $sum: 1 },
-        devices: { $push: "$devices" },
+        groups: { $first: "$groups" },
+        devices: { $first: "$devices" },
       })
-      .skip(skip ? skip : 0)
-      .limit(limit ? limit : 1000)
+      .skip(skip ? parseInt(skip) : 0)
+      .limit(limit ? parseInt(limit) : 1000)
       .allowDiskUse(true);
 
     const cohorts = await pipeline.exec();
@@ -233,25 +240,29 @@ cohortSchema.statics.list = async function(
         name: cohort.name,
         network: cohort.network,
         createdAt: cohort.createdAt,
-        group: cohort.group,
-        numberOfDevices: cohort.numberOfDevices,
-        devices: cohort.devices.map((device) => ({
-          _id: device._id,
-          status: device.status,
-          name: device.name,
-          network: device.network,
-          group: device.group,
-          device_number: device.device_number,
-          description: device.description,
-          long_name: device.long_name,
-          createdAt: device.createdAt,
-          host_id: device.host_id,
-          site: device.site &&
-            device.site[0] && {
-              _id: device.site[0]._id,
-              name: device.site[0].name,
-            },
-        })),
+        groups: cohort.groups,
+        numberOfDevices: cohort.devices ? cohort.devices.length : 0,
+        devices: cohort.devices
+          ? cohort.devices
+              .filter((device) => Object.keys(device).length > 0)
+              .map((device) => ({
+                _id: device._id,
+                status: device.status,
+                name: device.name,
+                network: device.network,
+                groups: device.groups,
+                device_number: device.device_number,
+                description: device.description,
+                long_name: device.long_name,
+                createdAt: device.createdAt,
+                host_id: device.host_id,
+                site: device.site &&
+                  device.site[0] && {
+                    _id: device.site[0]._id,
+                    name: device.site[0].name,
+                  },
+              }))
+          : [],
       }))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 

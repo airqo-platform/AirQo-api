@@ -206,7 +206,6 @@ class D3ChartDataResource(Resource):
         return filter_type, validated_data, error_message
 
     def post(self):
-        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
 
@@ -219,20 +218,16 @@ class D3ChartDataResource(Resource):
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
 
-        sites = filter_non_private_sites("sites", json_data.get("sites", {})).get(
-            "sites", []
-        )
-
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutant = json_data["pollutant"]
         chart_type = json_data["chartType"]
 
-        events_model = EventsModel(tenant)
-        # data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+        events_model = EventsModel("airqo")
+
         data = events_model.get_d3_chart_events_v2(
-            filter_value, start_date, end_date, pollutant, frequency, tenant
+            filter_value, start_date, end_date, pollutant, frequency
         )
 
         if chart_type.lower() == "pie":

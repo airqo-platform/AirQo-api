@@ -40,8 +40,8 @@ const activitySchema = new Schema(
       type: String,
       trim: true,
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     activityType: { type: String, trim: true },
@@ -70,7 +70,7 @@ activitySchema.methods = {
       _id: this._id,
       device: this.device,
       network: this.network,
-      group: this.group,
+      groups: this.groups,
       date: this.date,
       description: this.description,
       activityType: this.activityType,

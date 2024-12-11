@@ -166,6 +166,7 @@ class DataExportResource(Resource):
                 data_frame.drop(
                     columns=[
                         "site_id",
+                        "timestamp",
                     ],
                     inplace=True,
                 )

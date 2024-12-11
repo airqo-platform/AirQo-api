@@ -413,6 +413,7 @@ class EventsModel(BasePyMongoModel):
             frequency (str): Data frequency (e.g., 'raw', 'daily', 'hourly').
             pollutants (list): List of pollutants to include in the data.
             data_type (str): Type of data ('raw' or 'aggregated').
+            filter_columns(list)
             weather_fields (list): List of weather fields to retrieve.
 
         Returns:
@@ -438,14 +439,11 @@ class EventsModel(BasePyMongoModel):
         weather_columns = []
         for pollutant in pollutants:
 
-            if pollutant == "raw":
-                key = pollutant
-            else:
-                key = f"{pollutant}_{data_type}"
-
+            key = f"{pollutant}_{data_type}"
             pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency, {}).get(
                 key, []
             )
+
             pollutant_columns.extend(
                 cls.get_columns(
                     cls,
@@ -459,6 +457,10 @@ class EventsModel(BasePyMongoModel):
 
             # TODO Clean up by use using `get_columns` helper method
             if pollutant in {"pm2_5", "pm10", "no2"}:
+                if data_type == "raw":
+                    # Add dummy column to fix union column number missmatch.
+                    bam_pollutant_columns.append("-1 as pm2_5")
+
                 if frequency in ["weekly", "monthly", "yearly"]:
                     bam_pollutant_columns.extend(
                         [f"ROUND(AVG({pollutant}), {decimal_places}) AS {key}_value"]
@@ -467,6 +469,7 @@ class EventsModel(BasePyMongoModel):
                     bam_pollutant_columns.extend(
                         [f"ROUND({pollutant}, {decimal_places}) AS {key}_value"]
                     )
+
         # TODO Fix query when weather data is included. Currently failing
         if weather_fields:
             for field in weather_fields:
@@ -536,11 +539,54 @@ class EventsModel(BasePyMongoModel):
             drop_columns.append("datetime")
             sorting_cols.append("datetime")
 
+        if data_type == "raw":
+            cls.simple_data_cleaning(dataframe)
+
         dataframe.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
         dataframe.sort_values(sorting_cols, ascending=True, inplace=True)
         dataframe["frequency"] = frequency
         dataframe = dataframe.replace(np.nan, None)
         return dataframe
+
+    @classmethod
+    def simple_data_cleaning(cls, data: pd.DataFrame) -> pd.DataFrame:
+        """
+         Perform data cleaning on a pandas DataFrame to handle specific conditions
+         related to "pm2_5" and "pm2_5_raw_value" columns.
+
+         The cleaning process includes:
+         1. Ensuring correct numeric data types for "pm2_5" and "pm2_5_raw_value".
+         2. Removing "pm2_5" values where "pm2_5_raw_value" has data.
+         3. Dropping the "pm2_5_raw_value" column if it has no data at all.
+         4. Retaining "pm2_5" values where "pm2_5_raw_value" has no data, and removing
+         "pm2_5" values where "pm2_5_raw_value" has data.
+         5. Dropping any column (including "pm2_5" and "pm2_5_raw_value") if it is
+        entirely empty.
+
+         Args:
+             cls: Class reference (used in classmethods).
+             data (pd.DataFrame): Input pandas DataFrame with "pm2_5" and
+                                 "pm2_5_raw_value" columns.
+
+         Returns:
+             pd.DataFrame: Cleaned DataFrame with updates applied in place.
+
+        """
+        data["pm2_5_raw_value"] = pd.to_numeric(
+            data["pm2_5_raw_value"], errors="coerce"
+        )
+        data["pm2_5"] = pd.to_numeric(data["pm2_5"], errors="coerce")
+
+        data.loc[~data["pm2_5_raw_value"].isna(), "pm2_5"] = np.nan
+
+        if data["pm2_5_raw_value"].isna().all():
+            data.drop(columns=["pm2_5_raw_value"], inplace=True)
+
+        data["pm2_5"] = data["pm2_5"].where(data["pm2_5_raw_value"].isna(), np.nan)
+
+        data.dropna(how="all", axis=1, inplace=True)
+
+        return data
 
     @classmethod
     def data_export_query(
@@ -1273,9 +1319,7 @@ class EventsModel(BasePyMongoModel):
         )
 
     @cache.memoize()
-    def get_d3_chart_events_v2(
-        self, sites, start_date, end_date, pollutant, frequency, tenant
-    ):
+    def get_d3_chart_events_v2(self, sites, start_date, end_date, pollutant, frequency):
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -1293,7 +1337,6 @@ class EventsModel(BasePyMongoModel):
           JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
           WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
           AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-          AND {self.BIGQUERY_EVENTS}.tenant = '{tenant}'
           AND `airqo-250220.metadata.sites`.id in UNNEST({sites})
         """
 

@@ -1,15 +1,12 @@
-
+import logging
 from django.db import models
 from django.contrib.auth import get_user_model
 from django_quill.fields import QuillField
 from utils.models import BaseModel
 from cloudinary.models import CloudinaryField
 from cloudinary.uploader import destroy
-import logging
 
 User = get_user_model()
-
-# Configure logger
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +62,6 @@ class Event(BaseModel):
         blank=True,
     )
 
-    # Image fields using CloudinaryField
     event_image = CloudinaryField(
         'image',
         folder='website/uploads/events/images',
@@ -94,8 +90,18 @@ class Event(BaseModel):
     def __str__(self):
         return self.title
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(f"Created new Event: ID={self.pk}, Title={self.title}")
+        else:
+            logger.info(f"Updated Event: ID={self.pk}, Title={self.title}")
+
     def delete(self, *args, **kwargs):
-        # Delete files from Cloudinary
+        logger.debug(
+            f"Attempting to delete Event: ID={self.pk}, Title={self.title}")
+        # Attempt to delete images from Cloudinary
         if self.event_image:
             try:
                 destroy(self.event_image.public_id)
@@ -112,7 +118,9 @@ class Event(BaseModel):
             except Exception as e:
                 logger.error(
                     f"Error deleting background_image from Cloudinary: {e}")
+
         super().delete(*args, **kwargs)
+        logger.info(f"Deleted Event: ID={self.pk}, Title={self.title}")
 
 
 class Inquiry(BaseModel):
@@ -134,6 +142,22 @@ class Inquiry(BaseModel):
     def __str__(self):
         return f"Inquiry - {self.inquiry}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+        else:
+            logger.info(
+                f"Updated Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+        super().delete(*args, **kwargs)
+        logger.info(f"Deleted Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+
 
 class Program(BaseModel):
     date = models.DateField()
@@ -152,6 +176,20 @@ class Program(BaseModel):
 
     def __str__(self):
         return f"Program - {self.date}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(f"Created new Program: ID={self.pk}, Date={self.date}")
+        else:
+            logger.info(f"Updated Program: ID={self.pk}, Date={self.date}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Program: ID={self.pk}, Date={self.date}")
+        super().delete(*args, **kwargs)
+        logger.info(f"Deleted Program: ID={self.pk}, Date={self.date}")
 
 
 class Session(BaseModel):
@@ -174,6 +212,23 @@ class Session(BaseModel):
 
     def __str__(self):
         return f"Session - {self.session_title}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new Session: ID={self.pk}, Title={self.session_title}")
+        else:
+            logger.info(
+                f"Updated Session: ID={self.pk}, Title={self.session_title}")
+
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Session: ID={self.pk}, Title={self.session_title}")
+        super().delete(*args, **kwargs)
+        logger.info(
+            f"Deleted Session: ID={self.pk}, Title={self.session_title}")
 
 
 class PartnerLogo(BaseModel):
@@ -201,7 +256,18 @@ class PartnerLogo(BaseModel):
     def __str__(self):
         return f"Partner - {self.name}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new PartnerLogo: ID={self.pk}, Name={self.name}")
+        else:
+            logger.info(f"Updated PartnerLogo: ID={self.pk}, Name={self.name}")
+
     def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete PartnerLogo: ID={self.pk}, Name={self.name}")
         if self.partner_logo:
             try:
                 destroy(self.partner_logo.public_id)
@@ -211,6 +277,7 @@ class PartnerLogo(BaseModel):
                 logger.error(
                     f"Error deleting partner_logo from Cloudinary: {e}")
         super().delete(*args, **kwargs)
+        logger.info(f"Deleted PartnerLogo: ID={self.pk}, Name={self.name}")
 
 
 class Resource(BaseModel):
@@ -239,13 +306,24 @@ class Resource(BaseModel):
     def __str__(self):
         return f"Resource - {self.title}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new Resource: ID={self.pk}, Title={self.title}")
+        else:
+            logger.info(f"Updated Resource: ID={self.pk}, Title={self.title}")
+
     def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Resource: ID={self.pk}, Title={self.title}")
         if self.resource:
             try:
                 destroy(self.resource.public_id)
                 logger.info(
                     f"Deleted resource from Cloudinary: {self.resource.public_id}")
             except Exception as e:
-                logger.error(
-                    f"Error deleting resource from Cloudinary: {e}")
+                logger.error(f"Error deleting resource from Cloudinary: {e}")
         super().delete(*args, **kwargs)
+        logger.info(f"Deleted Resource: ID={self.pk}, Title={self.title}")

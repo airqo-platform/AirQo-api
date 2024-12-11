@@ -43,8 +43,8 @@ const gridSchema = new Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     geoHash: {
@@ -121,7 +121,7 @@ gridSchema.methods.toJSON = function() {
     name,
     long_name,
     network,
-    group,
+    groups,
     visibility,
     description,
     grid_tags,
@@ -139,7 +139,7 @@ gridSchema.methods.toJSON = function() {
     description,
     grid_tags,
     network,
-    group,
+    groups,
     admin_level,
     grid_codes,
     centers,
