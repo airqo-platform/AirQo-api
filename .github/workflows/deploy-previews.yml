@@ -1180,8 +1180,8 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd website/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} .
+          cd src/website/
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} ./
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
@@ -1218,5 +1218,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Website changes in this PR are available for preview [here](${{ needs.website.outputs.url }})'
+              body: 'website changes in this PR available for preview [here](${{ needs.website.outputs.url }})'
             })
