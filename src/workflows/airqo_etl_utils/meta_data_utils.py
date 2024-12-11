@@ -119,8 +119,8 @@ class MetaDataUtils:
         return pd.DataFrame(merged_data)
 
     @staticmethod
-    def extract_sites_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        sites = AirQoApi().get_sites(tenant=tenant)
+    def extract_sites_from_api(network: str = "all") -> pd.DataFrame:
+        sites = AirQoApi().get_sites(network=network)
         dataframe = pd.json_normalize(sites)
         dataframe = dataframe[
             [
@@ -155,8 +155,8 @@ class MetaDataUtils:
         return dataframe
 
     @staticmethod
-    def extract_sites_meta_data_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        sites = AirQoApi().get_sites(tenant=tenant)
+    def extract_sites_meta_data_from_api(network: str = "all") -> pd.DataFrame:
+        sites = AirQoApi().get_sites(network=network)
         dataframe = pd.json_normalize(sites)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.sites_meta_data_table)
@@ -167,15 +167,15 @@ class MetaDataUtils:
         return dataframe
 
     @staticmethod
-    def update_nearest_weather_stations(tenant: Tenant) -> None:
+    def update_nearest_weather_stations(network: str) -> None:
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant=tenant)
+        sites = airqo_api.get_sites(network=network)
         sites_data = [
             {
                 "site_id": site.get("site_id", None),
-                "tenant": site.get("tenant", None),
-                "latitude": site.get("latitude", None),
-                "longitude": site.get("longitude", None),
+                "network": site.get("network", None),
+                "latitude": site.get("approximate_latitude", None),
+                "longitude": site.get("approximate_longitude", None),
             }
             for site in sites
         ]
@@ -184,7 +184,7 @@ class MetaDataUtils:
         updated_sites = [
             {
                 "site_id": site.get("site_id"),
-                "tenant": site.get("tenant"),
+                "network": site.get("network"),
                 "weather_stations": site.get("weather_stations"),
             }
             for site in updated_sites
@@ -192,16 +192,16 @@ class MetaDataUtils:
         airqo_api.update_sites(updated_sites)
 
     @staticmethod
-    def update_sites_distance_measures(tenant: Tenant) -> None:
+    def update_sites_distance_measures(network: str) -> None:
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant=tenant)
+        sites = airqo_api.get_sites(network=network)
         updated_sites = []
         for site in sites:
             record = {
                 "site_id": site.get("site_id", None),
-                "tenant": site.get("tenant", None),
-                "latitude": site.get("latitude", None),
-                "longitude": site.get("longitude", None),
+                "network": site.get("network", None),
+                "latitude": site.get("approximate_latitude", None),
+                "longitude": site.get("approximate_longitude", None),
             }
             meta_data = airqo_api.get_meta_data(
                 latitude=record.get("latitude"),
@@ -212,7 +212,7 @@ class MetaDataUtils:
                 updated_sites.append(
                     {
                         **meta_data,
-                        **{"site_id": record["site_id"], "tenant": record["tenant"]},
+                        **{"site_id": record["site_id"], "network": record["network"]},
                     }
                 )
 

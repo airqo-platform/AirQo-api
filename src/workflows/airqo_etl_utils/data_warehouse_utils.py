@@ -106,14 +106,14 @@ class DataWarehouseUtils:
         )
 
     @staticmethod
-    def extract_sites_meta_data(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+    def extract_sites_meta_data(network: str = "all") -> pd.DataFrame:
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant=tenant)
+        sites = airqo_api.get_sites(network=network)
         sites = pd.DataFrame(sites)
         sites.rename(
             columns={
-                "latitude": "site_latitude",
-                "longitude": "site_longitude",
+                "approximate_latitude": "site_latitude",
+                "approximate_longitude": "site_longitude",
                 "description": "site_description",
                 "altitude": "site_altitude",
                 "name": "site_name",
