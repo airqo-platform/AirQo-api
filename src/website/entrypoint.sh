@@ -9,5 +9,5 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-echo "Starting Gunicorn..."
-exec gunicorn core.wsgi:application --bind 0.0.0.0:8000 --timeout 600 --workers 3 --log-level info
+echo "Starting Supervisor (which runs Nginx + Gunicorn)..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

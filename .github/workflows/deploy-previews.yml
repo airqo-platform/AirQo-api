@@ -1186,17 +1186,14 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-website-preview \
-            --region=${{ secrets.REGION }} \
+          gcloud run deploy website-backend-nginix-website-preview \
+            --region=${REGION} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} \
-            --port=8080 \
+            --image=${REGISTRY_URL}/${PROJECT_ID}/pr-previews/website-pr-previews:${GITHUB_SHA} \
             --cpu=1000m \
             --memory=1024Mi \
-            --update-secrets=/etc/env/.env=sta-env-website-backend:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; /app/entrypoint.sh" \
             --allow-unauthenticated
 
       - name: Get preview service url
