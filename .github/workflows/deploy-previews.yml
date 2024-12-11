@@ -1189,7 +1189,7 @@ jobs:
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-website-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
-            --timeout=60 \
+            --timeout=300 \
             --concurrency=10 \
             --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/website-pr-previews:${{ github.sha }} \
             --cpu=1000m \

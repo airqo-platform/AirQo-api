@@ -8,12 +8,13 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies, including nginx, supervisor, and gettext for envsubst
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     nginx \
     supervisor \
+    gettext \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -27,8 +28,8 @@ COPY . .
 # Remove default Nginx configuration if it exists
 RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Copy custom Nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy custom Nginx configuration template
+COPY nginx.conf /etc/nginx/nginx.conf.template
 
 # Ensure staticfiles directory exists for Nginx
 RUN mkdir -p /usr/share/nginx/html/static/
