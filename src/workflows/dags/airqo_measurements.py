@@ -3,6 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
+from airflow.exceptions import AirflowFailException
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
@@ -112,6 +113,12 @@ def airqo_historical_hourly_measurements():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
@@ -398,6 +405,12 @@ def airqo_realtime_measurements():
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
@@ -443,6 +456,12 @@ def airqo_realtime_measurements():
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC, data=data

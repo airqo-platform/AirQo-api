@@ -832,7 +832,7 @@ class AirQoDataUtils:
         airqo_api = AirQoApi()
         sites: List[Dict[str, Any]] = []
 
-        for site in airqo_api.get_sites(tenant=Tenant.AIRQO):
+        for site in airqo_api.get_sites(network="airqo"):
             sites.extend(
                 [
                     {

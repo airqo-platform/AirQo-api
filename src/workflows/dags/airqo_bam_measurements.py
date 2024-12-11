@@ -10,6 +10,7 @@ from airqo_etl_utils.constants import DeviceCategory, DataType
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from datetime import timedelta
+from airflow.exceptions import AirflowFailException
 
 
 @dag(
@@ -152,6 +153,12 @@ def airqo_bam_realtime_measurements():
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC, data=data
