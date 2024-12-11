@@ -716,7 +716,7 @@ class BigQueryApi:
             "site_id",
             "timestamp",
         ]
-        group_by = group_by or ["device_number", "device_id", "site_id"]
+        group_by = group_by or ["device_number", "device_id", "site_id", "network"]
 
         numeric_columns = self.get_columns(
             table, [ColumnDataType.FLOAT, ColumnDataType.INTEGER]
