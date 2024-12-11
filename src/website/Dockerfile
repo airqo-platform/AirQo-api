@@ -5,7 +5,6 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Set the working directory inside the container
 WORKDIR /app
 
 # Install system dependencies
@@ -14,18 +13,17 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && apt-get clean
 
-# Copy requirements file and install dependencies
-COPY requirements.txt ./
+# Copy requirements and install
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the backend code into the container
+# Copy the rest of the code
 COPY . .
 
-# Expose the port the Django app will run on
+# Expose the port for Gunicorn
 EXPOSE 8000
 
-# Add execution permissions to entrypoint.sh
+# Add execute permission to entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Set the entrypoint for the container
 ENTRYPOINT ["/app/entrypoint.sh"]
