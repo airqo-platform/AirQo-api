@@ -17,8 +17,8 @@ const cohortSchema = new Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     name: {
@@ -81,7 +81,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_tags,
     cohort_codes,
     network,
-    group,
+    groups,
     visibility,
   } = this;
   return {
@@ -92,7 +92,7 @@ cohortSchema.methods.toJSON = function() {
     cohort_tags,
     cohort_codes,
     network,
-    group,
+    groups,
   };
 };
 
@@ -202,7 +202,7 @@ cohortSchema.statics.list = async function(
         name: 1,
         createdAt: 1,
         network: 1,
-        group: 1,
+        groups: 1,
         devices: {
           $cond: {
             if: { $eq: [{ $size: "$devices" }, 0] },
@@ -222,7 +222,7 @@ cohortSchema.statics.list = async function(
         name: { $first: "$name" },
         createdAt: { $first: "$createdAt" },
         network: { $first: "$network" },
-        group: { $first: "$group" },
+        groups: { $first: "$groups" },
         devices: { $first: "$devices" },
       })
       .skip(skip ? parseInt(skip) : 0)
@@ -240,7 +240,7 @@ cohortSchema.statics.list = async function(
         name: cohort.name,
         network: cohort.network,
         createdAt: cohort.createdAt,
-        group: cohort.group,
+        groups: cohort.groups,
         numberOfDevices: cohort.devices ? cohort.devices.length : 0,
         devices: cohort.devices
           ? cohort.devices
@@ -250,7 +250,7 @@ cohortSchema.statics.list = async function(
                 status: device.status,
                 name: device.name,
                 network: device.network,
-                group: device.group,
+                groups: device.groups,
                 device_number: device.device_number,
                 description: device.description,
                 long_name: device.long_name,
