@@ -49,8 +49,8 @@ def airnow_bam_historical_data():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
         )
         if not data:
             raise AirflowFailException(
@@ -136,8 +136,8 @@ def airnow_bam_realtime_data():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:

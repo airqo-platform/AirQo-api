@@ -110,8 +110,8 @@ def airqo_historical_hourly_measurements():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -402,8 +402,8 @@ def airqo_realtime_measurements():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -453,8 +453,8 @@ def airqo_realtime_measurements():
         )
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:

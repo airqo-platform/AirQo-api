@@ -188,8 +188,8 @@ class DataValidationUtils:
     @staticmethod
     def process_data_for_message_broker(
         data: pd.DataFrame,
-        topic: str,
         caller: str,
+        topic: str = None,
         frequency: Frequency = Frequency.HOURLY,
     ) -> pd.DataFrame:
         """

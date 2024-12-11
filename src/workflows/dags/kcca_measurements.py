@@ -53,8 +53,8 @@ def kcca_hourly_measurements():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id,
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
