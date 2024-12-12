@@ -759,8 +759,12 @@ const validateBulkUpdateDevices = [
     .exists()
     .withMessage("updateData must be provided in the request body")
     .bail()
-    .isObject()
-    .withMessage("updateData must be an object")
+    .custom((value) => {
+      if (typeof value !== "object" || Array.isArray(value) || value === null) {
+        throw new Error("updateData must be an object");
+      }
+      return true;
+    })
     .bail()
     .custom((value) => {
       if (Object.keys(value).length === 0) {

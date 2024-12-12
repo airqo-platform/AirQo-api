@@ -779,7 +779,7 @@ const createDevice = {
       return {
         ...responseFromBulkModifyDevices,
         metadata: {
-          totalDevicesUpdated: responseFromBulkModifyDevices.modifiedCount,
+          totalDevicesUpdated: responseFromBulkModifyDevices.data.modifiedCount,
           requestedDeviceIds: deviceIds,
           existingDeviceIds: Array.from(existingDeviceIds),
         },

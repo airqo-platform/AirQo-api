@@ -827,6 +827,7 @@ const device = {
           message: result.message,
           success: true,
           bulk_update_notes: result.data,
+          metadata: result.metadata,
         });
       } else if (result.success === false) {
         const status = result.status

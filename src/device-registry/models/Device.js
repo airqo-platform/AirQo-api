@@ -690,7 +690,7 @@ deviceSchema.statics = {
           message: "No devices were updated",
           data: {
             modifiedCount: 0,
-            matchedCount: bulkUpdateResult.matchedCount,
+            matchedCount: bulkUpdateResult.n,
           },
           status: httpStatus.NOT_FOUND,
         };
