@@ -149,7 +149,9 @@ function validateCategoryField(value) {
     return false;
   }
   value.tags.forEach((tag) => {
-    if (typeof tag !== "string" || tag.trim() === "") {
+    if (
+      !value.tags.every((tag) => typeof tag === "string" && tag.trim() !== "")
+    ) {
       return false;
     }
   });

@@ -847,13 +847,13 @@ siteSchema.statics = {
         };
       } else {
         return {
-          success: false,
+          success: true,
           message: "No sites were updated",
           data: {
             modifiedCount: 0,
             matchedCount: bulkUpdateResult.n,
           },
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
