@@ -123,11 +123,16 @@ function validateCategoryField(value) {
       return;
     }
     const numValue = parseFloat(value[field]);
-    if (isNaN(numValue)) {
+    if (Number.isNaN(numValue)) {
       isValid = false;
       return;
-    } else if (field === "latitude" || field === "longitude") {
+    } else if (field === "latitude") {
       if (Math.abs(numValue) > 90) {
+        isValid = false;
+        return;
+      }
+    } else if (field === "longitude") {
+      if (numValue < -180 || numValue > 180) {
         isValid = false;
         return;
       }

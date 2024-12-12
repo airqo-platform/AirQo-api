@@ -14,7 +14,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
 
 function sanitizeObject(obj, invalidKeys) {
   invalidKeys.forEach((key) => {
-    if (obj.hasOwnProperty(key)) {
+    if (Object.hasOwn(obj, key)) {
       delete obj[key];
     }
   });
