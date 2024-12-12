@@ -14,7 +14,6 @@ class MetaDataUtils:
         dataframe = pd.json_normalize(devices)
         dataframe = dataframe[
             [
-                "tenant",
                 "network",
                 "latitude",
                 "longitude",
@@ -25,8 +24,6 @@ class MetaDataUtils:
                 "description",
                 "device_manufacturer",
                 "device_category",
-                "approximate_latitude",
-                "approximate_longitude",
             ]
         ]
 
@@ -124,7 +121,7 @@ class MetaDataUtils:
         dataframe = pd.json_normalize(sites)
         dataframe = dataframe[
             [
-                "tenant",
+                "network",
                 "site_id",
                 "latitude",
                 "longitude",

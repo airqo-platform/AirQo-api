@@ -118,19 +118,41 @@ class BigQueryApi:
         float_columns=None,
         integer_columns=None,
     ) -> pd.DataFrame:
+        """
+        Validates and formats the data in the given DataFrame based on the schema of a specified table.
+
+        This function performs the following tasks:
+        1. Ensures the DataFrame contains the required columns as defined in the schema of the `table`.
+        2. Formats column data types (e.g., timestamp, float, integer) based on the table schema or provided arguments.
+        3. Removes duplicate rows, keeping the first occurrence.
+
+        Args:
+            self: Class instance, required for accessing schema-related methods.
+            dataframe (pd.DataFrame): The DataFrame to validate and format.
+            table (str): The name of the table whose schema is used for validation.
+            raise_exception (bool, optional): Whether to raise an exception if required columns are missing. Defaults to True.
+            date_time_columns (list, optional): List of columns to be formatted as datetime. If None, inferred from the schema.
+            float_columns (list, optional): List of columns to be formatted as float. If None, inferred from the schema.
+            integer_columns (list, optional): List of columns to be formatted as integer. If None, inferred from the schema.
+
+        Returns:
+            pd.DataFrame: A validated and formatted DataFrame with duplicates removed.
+
+        Raises:
+            Exception: If required columns are missing and `raise_exception` is set to True.
+        """
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
 
         if set(valid_cols).issubset(set(dataframe_cols)):
             dataframe = dataframe[valid_cols]
         else:
-            print(f"Required columns {valid_cols}")
-            print(f"Dataframe columns {dataframe_cols}")
-            print(
-                f"Difference between required and received {list(set(valid_cols) - set(dataframe_cols))}"
-            )
+            missing_cols = list(set(valid_cols) - set(dataframe_cols))
+            logger.warning(f"Required columns {valid_cols}")
+            logger.warning(f"Dataframe columns {dataframe_cols}")
+            logger.warning(f"Missing columns {missing_cols}")
             if raise_exception:
-                raise Exception("Invalid columns")
+                raise Exception(f"Invalid columns {missing_cols}")
 
         date_time_columns = (
             date_time_columns
@@ -245,7 +267,7 @@ class BigQueryApi:
     def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
         dataframe[id_column] = dataframe.apply(
             lambda row: BigQueryApi.device_unique_col(
-                tenant=row["tenant"],
+                network=row["network"],
                 device_number=row["device_number"],
                 device_id=row["device_id"],
             ),
@@ -254,8 +276,8 @@ class BigQueryApi:
         return dataframe
 
     @staticmethod
-    def device_unique_col(tenant: str, device_id: str, device_number: int):
-        return str(f"{tenant}:{device_id}:{device_number}").lower()
+    def device_unique_col(network: str, device_id: str, device_number: int):
+        return str(f"{network}:{device_id}:{device_number}").lower()
 
     def update_airqlouds(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
