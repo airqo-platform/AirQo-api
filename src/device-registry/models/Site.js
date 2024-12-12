@@ -12,6 +12,15 @@ const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
 
+function sanitizeObject(obj, invalidKeys) {
+  invalidKeys.forEach((key) => {
+    if (obj.hasOwnProperty(key)) {
+      delete obj[key];
+    }
+  });
+  return obj;
+}
+
 const categorySchema = new Schema(
   {
     area_name: { type: String },
@@ -795,6 +804,61 @@ siteSchema.statics = {
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
+    try {
+      const invalidKeys = [
+        "_id",
+        "longitude",
+        "latitude",
+        "lat_long",
+        "generated_name",
+      ];
+      const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Perform bulk update with additional options
+      const bulkUpdateResult = await this.updateMany(
+        filter,
+        { $set: sanitizedUpdate },
+        {
+          new: true,
+          runValidators: true,
+          ...opts,
+        }
+      );
+
+      if (bulkUpdateResult.nModified > 0) {
+        return {
+          success: true,
+          message: `Successfully modified ${bulkUpdateResult.nModified} sites`,
+          data: {
+            modifiedCount: bulkUpdateResult.nModified,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No sites were updated",
+          data: {
+            modifiedCount: 0,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      const stringifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`🐛🐛 Bulk Modify Sites Error -- ${stringifiedMessage}`);
       next(
         new HttpError(
           "Internal Server Error",
