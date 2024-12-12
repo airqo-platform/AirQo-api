@@ -129,7 +129,6 @@ class MetaDataUtils:
                 "approximate_latitude",
                 "approximate_longitude",
                 "name",
-                "location",
                 "search_name",
                 "location_name",
                 "description",
@@ -147,7 +146,7 @@ class MetaDataUtils:
             },
             inplace=True,
         )
-
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = DataValidationUtils.remove_outliers(dataframe)
 
         return dataframe

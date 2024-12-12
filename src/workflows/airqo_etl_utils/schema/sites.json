@@ -1,10 +1,5 @@
 [
   {
-    "name": "tenant",
-    "type": "STRING",
-    "mode": "REQUIRED"
-  },
-  {
     "name": "network",
     "type": "STRING",
     "mode": "REQUIRED"
@@ -40,11 +35,6 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "location",
-    "type": "STRING",
-    "mode": "NULLABLE"
-  },
-  {
     "name": "display_name",
     "type": "STRING",
     "mode": "NULLABLE"
@@ -76,7 +66,7 @@
   },
   {
     "name": "last_updated",
-    "type": "DATE",
+    "type": "TIMESTAMP",
     "mode": "NULLABLE"
   }
 ]
