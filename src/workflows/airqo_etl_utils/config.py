@@ -57,8 +57,10 @@ class Config:
 
     # Meta data
     BIGQUERY_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_TABLE")
+    BIGQUERY_DEVICES_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_DEVICES_TABLE")
     BIGQUERY_DEVICES_DATA_TABLE = os.getenv("BIGQUERY_DEVICES_DATA_TABLE")
     BIGQUERY_SITES_TABLE = os.getenv("BIGQUERY_SITES_TABLE")
+    BIGQUERY_SITES_SITES_TABLE = os.getenv("BIGQUERY_SITES_SITES_TABLE")
     BIGQUERY_SITES_META_DATA_TABLE = os.getenv("BIGQUERY_SITES_META_DATA_TABLE")
     BIGQUERY_AIRQLOUDS_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_TABLE")
     BIGQUERY_AIRQLOUDS_SITES_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_SITES_TABLE")
@@ -371,9 +373,11 @@ class Config:
         BIGQUERY_GRIDS_SITES_TABLE: "grids_sites.json",
         BIGQUERY_COHORTS_DEVICES_TABLE: "cohorts_devices.json",
         BIGQUERY_SITES_TABLE: "sites.json",
+        BIGQUERY_SITES_SITES_TABLE: "sites.json",
         BIGQUERY_SITES_META_DATA_TABLE: "sites_meta_data.json",
         SENSOR_POSITIONS_TABLE: "sensor_positions.json",
         BIGQUERY_DEVICES_TABLE: "devices.json",
+        BIGQUERY_DEVICES_DEVICES_TABLE: "devices.json",
         BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
         BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
         BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE: "airqo_mobile_measurements.json",
