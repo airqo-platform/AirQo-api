@@ -488,6 +488,89 @@ const createSite = {
       );
     }
   },
+  updateManySites: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { siteIds, updateData } = request.body;
+
+      // Find existing sites
+      const existingSites = await SiteModel(tenant)
+        .find({
+          _id: { $in: siteIds },
+        })
+        .select("_id");
+
+      // Create sets for comparison
+      const existingSiteIds = new Set(
+        existingSites.map((site) => site._id.toString())
+      );
+      const providedSiteIds = new Set(siteIds.map((id) => id.toString()));
+
+      // Identify non-existent site IDs
+      const nonExistentSiteIds = siteIds.filter(
+        (id) => !existingSiteIds.has(id.toString())
+      );
+
+      // If there are non-existent sites, prepare a detailed error
+      if (nonExistentSiteIds.length > 0) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "Some provided site IDs do not exist",
+            nonExistentSiteIds: nonExistentSiteIds,
+            existingSiteIds: Array.from(existingSiteIds),
+            totalProvidedSiteIds: siteIds.length,
+            existingSiteCount: existingSites.length,
+          })
+        );
+      }
+
+      // Prepare filter
+      const filter = {
+        _id: { $in: Array.from(providedSiteIds) },
+      };
+
+      // Additional filtering from generateFilter if needed
+      const additionalFilter = generateFilter.sites(request, next);
+      Object.assign(filter, additionalFilter);
+
+      // Optimize options for bulk update
+      const opts = {
+        new: true,
+        multi: true,
+        runValidators: true,
+        context: "query",
+      };
+
+      // Perform bulk update
+      const responseFromBulkModifySites = await SiteModel(tenant).bulkModify(
+        {
+          filter,
+          update: updateData,
+          opts,
+        },
+        next
+      );
+
+      // Attach additional metadata to the response
+      return {
+        ...responseFromBulkModifySites,
+        metadata: {
+          totalSitesUpdated: responseFromBulkModifySites.data.modifiedCount,
+          requestedSiteIds: Array.from(providedSiteIds),
+          existingSiteIds: Array.from(existingSiteIds),
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Bulk Update Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   sanitiseName: (name, next) => {
     try {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
