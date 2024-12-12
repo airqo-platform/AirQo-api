@@ -138,7 +138,7 @@ class AirQoApi:
         Retrieve devices given a network and device category.
 
         Args:
-            - network (str): An Enum that represents site ownership.
+            - network (str): A string that represents device manufaturer.
             - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
 
         Returns:

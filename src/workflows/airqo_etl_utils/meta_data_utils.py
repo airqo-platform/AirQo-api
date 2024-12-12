@@ -9,7 +9,7 @@ from .weather_data_utils import WeatherDataUtils
 
 class MetaDataUtils:
     @staticmethod
-    def extract_devices_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+    def extract_devices_from_api(network: str = "all") -> pd.DataFrame:
         devices = AirQoApi().get_devices()
         dataframe = pd.json_normalize(devices)
         dataframe = dataframe[
@@ -20,13 +20,12 @@ class MetaDataUtils:
                 "site_id",
                 "device_id",
                 "device_number",
-                "name",
                 "description",
                 "device_manufacturer",
                 "device_category",
             ]
         ]
-
+        dataframe["name"] = dataframe["device_id"]
         dataframe = DataValidationUtils.remove_outliers(dataframe)
 
         return dataframe
