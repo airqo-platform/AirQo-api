@@ -22,7 +22,7 @@
   {
     "name": "device_id",
     "type": "STRING",
-    "mode": "NULLABLE"
+    "mode": "REQUIRED"
   },
   {
     "name": "device_number",
@@ -52,6 +52,6 @@
   {
     "name": "last_updated",
     "type": "TIMESTAMP",
-    "mode": "NULLABLE"
+    "mode": "REQUIRED"
   }
 ]
