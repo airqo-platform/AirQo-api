@@ -647,6 +647,67 @@ deviceSchema.statics = {
       );
     }
   },
+  async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
+    try {
+      // Sanitize update object
+      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Handle special cases like access code generation
+      if (sanitizedUpdate.access_code) {
+        sanitizedUpdate.access_code = accessCodeGenerator
+          .generate({
+            length: 16,
+            excludeSimilarCharacters: true,
+          })
+          .toUpperCase();
+      }
+
+      // Perform bulk update with additional options
+      const bulkUpdateResult = await this.updateMany(
+        filter,
+        { $set: sanitizedUpdate },
+        {
+          new: true,
+          runValidators: true,
+          ...opts,
+        }
+      );
+
+      if (bulkUpdateResult.nModified > 0) {
+        return {
+          success: true,
+          message: `Successfully modified ${bulkUpdateResult.nModified} devices`,
+          data: {
+            modifiedCount: bulkUpdateResult.nModified,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No devices were updated",
+          data: {
+            modifiedCount: 0,
+            matchedCount: bulkUpdateResult.matchedCount,
+          },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      logObject("Bulk update error", error);
+      logger.error(`🐛🐛 Bulk Modify Error -- ${error.message}`);
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   async encryptKeys({ filter = {}, update = {} } = {}, next) {
     try {
       logObject("the filter", filter);
