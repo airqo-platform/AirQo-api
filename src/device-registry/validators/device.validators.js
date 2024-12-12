@@ -775,30 +775,12 @@ const validateBulkUpdateDevices = [
     .bail()
     .custom((value) => {
       const allowedFields = [
-        "visibility",
-        "long_name",
-        "mountType",
-        "powerType",
-        "isActive",
         "groups",
-        "isRetired",
         "mobility",
-        "nextMaintenance",
-        "isPrimaryInLocation",
-        "isUsedForCollocation",
         "owner",
-        "host_id",
-        "phoneNumber",
-        "height",
-        "elevation",
-        "writeKey",
-        "readKey",
-        "latitude",
-        "longitude",
         "description",
         "product_name",
         "device_manufacturer",
-        "device_codes",
         "category",
       ];
 
