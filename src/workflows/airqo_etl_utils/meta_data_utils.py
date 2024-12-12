@@ -5,11 +5,12 @@ from .bigquery_api import BigQueryApi
 from .constants import Tenant
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
+from datetime import datetime, timezone
 
 
 class MetaDataUtils:
     @staticmethod
-    def extract_devices_from_api(network: str = "all") -> pd.DataFrame:
+    def extract_devices_from_api() -> pd.DataFrame:
         devices = AirQoApi().get_devices()
         dataframe = pd.json_normalize(devices)
         dataframe = dataframe[
@@ -26,6 +27,7 @@ class MetaDataUtils:
             ]
         ]
         dataframe["name"] = dataframe["device_id"]
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = DataValidationUtils.remove_outliers(dataframe)
 
         return dataframe
