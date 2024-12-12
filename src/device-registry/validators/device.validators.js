@@ -720,6 +720,84 @@ const validateArrayBody = oneOf([
     .withMessage("the request body should be an array"),
 ]);
 
+const validateBulkUpdateDevices = [
+  body("deviceIds")
+    .exists()
+    .withMessage("deviceIds must be provided in the request body")
+    .bail()
+    .isArray()
+    .withMessage("deviceIds must be an array")
+    .bail()
+    .custom((value) => {
+      if (value.length === 0) {
+        throw new Error("deviceIds array cannot be empty");
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      const MAX_BULK_UPDATE_DEVICES = 30;
+      if (value.length > MAX_BULK_UPDATE_DEVICES) {
+        throw new Error(
+          `Cannot update more than ${MAX_BULK_UPDATE_DEVICES} devices in a single request`
+        );
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      const invalidIds = value.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      );
+      if (invalidIds.length > 0) {
+        throw new Error("All deviceIds must be valid MongoDB ObjectIds");
+      }
+      return true;
+    }),
+
+  body("updateData")
+    .exists()
+    .withMessage("updateData must be provided in the request body")
+    .bail()
+    .custom((value) => {
+      if (typeof value !== "object" || Array.isArray(value) || value === null) {
+        throw new Error("updateData must be an object");
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      if (Object.keys(value).length === 0) {
+        throw new Error("updateData cannot be an empty object");
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      const allowedFields = [
+        "groups",
+        "mobility",
+        "owner",
+        "description",
+        "product_name",
+        "device_manufacturer",
+        "category",
+      ];
+
+      const invalidFields = Object.keys(value).filter(
+        (field) => !allowedFields.includes(field)
+      );
+      if (invalidFields.length > 0) {
+        throw new Error(
+          `Invalid fields in updateData: ${invalidFields.join(", ")}`
+        );
+      }
+
+      return true;
+    }),
+  ...validateUpdateDevice,
+];
+
 module.exports = {
   validateTenant,
   validateDeviceIdentifier,
@@ -730,4 +808,5 @@ module.exports = {
   validateListDevices,
   validateDecryptKeys,
   validateDecryptManyKeys,
+  validateBulkUpdateDevices,
 };
