@@ -243,15 +243,38 @@ PreferenceSchema.pre(
         }
       };
 
-      // Define field categories
-      const singleIdFields = [
-        "user_id",
-        "group_id",
-        "airqloud_id",
-        "grid_id",
-        "cohort_id",
-        "network_id",
+      // Define selected array fields with subschemas
+      const selectedArrayFields = [
+        "selected_sites",
+        "selected_grids",
+        "selected_devices",
+        "selected_cohorts",
+        "selected_airqlouds",
       ];
+
+      // Process selected arrays to ensure uniqueness based on _id
+      selectedArrayFields.forEach((field) => {
+        if (updateData[field]) {
+          // Remove duplicates based on _id
+          const uniqueArray = updateData[field].filter(
+            (item, index, self) =>
+              index ===
+              self.findIndex(
+                (t) =>
+                  t._id && item._id && t._id.toString() === item._id.toString()
+              )
+          );
+
+          // Use $set to replace the existing array with unique entries
+          updateData.$set = updateData.$set || {};
+          updateData.$set[field] = uniqueArray;
+
+          // Optional: Remove the original field to prevent double processing
+          delete updateData[field];
+        }
+      });
+
+      // Repeat similar logic for array ID fields
       const arrayIdFields = [
         "airqloud_ids",
         "grid_ids",
@@ -261,187 +284,30 @@ PreferenceSchema.pre(
         "device_ids",
         "group_ids",
       ];
-      const selectedArrayFields = [
-        "selected_sites",
-        "selected_grids",
-        "selected_devices",
-        "selected_cohorts",
-        "selected_airqlouds",
-      ];
 
-      // Process single ID fields
-      singleIdFields.forEach((field) => {
-        if (updateData[field]) {
-          updateData[field] = processObjectId(updateData[field]);
-        }
-      });
-
-      // Validate user_id
-      if (!updateData.user_id) {
-        return next(new Error("user_id is required"));
-      }
-
-      // Set default values if not provided
-      const defaultFields = [
-        { field: "pollutant", default: "pm2_5" },
-        { field: "frequency", default: "hourly" },
-        { field: "chartType", default: "line" },
-        { field: "chartTitle", default: "Chart Title" },
-        { field: "chartSubTitle", default: "Chart SubTitle" },
-      ];
-
-      defaultFields.forEach(({ field, default: defaultValue }) => {
-        if (isNew && !updateData[field]) {
-          updateData[field] = defaultValue;
-        }
-      });
-
-      // Handle date fields
-      if (isNew) {
-        const currentDate = new Date();
-        updateData.startDate =
-          updateData.startDate || addWeeksToProvideDateTime(currentDate, -2);
-        updateData.endDate = updateData.endDate || currentDate;
-      }
-
-      // Validate and process period schema
-      if (updateData.period) {
-        const validPeriodFields = ["value", "label", "unitValue", "unit"];
-        const periodUpdate = {};
-
-        validPeriodFields.forEach((field) => {
-          if (updateData.period[field] !== undefined) {
-            periodUpdate[field] = updateData.period[field];
-          }
-        });
-
-        // Additional period validation
-        if (
-          periodUpdate.unitValue !== undefined &&
-          typeof periodUpdate.unitValue !== "number"
-        ) {
-          periodUpdate.unitValue = Number(periodUpdate.unitValue);
-        }
-
-        updateData.period = periodUpdate;
-      }
-
-      // Process and validate selected arrays with their specific schemas
-      const selectedArrayProcessors = {
-        selected_sites: (site) => {
-          const processedSite = { ...site };
-
-          // Validate and process ObjectIds
-          if (site._id) processedSite._id = processObjectId(site._id);
-          if (site.grid_id)
-            processedSite.grid_id = processObjectId(site.grid_id);
-
-          // Validate numeric fields
-          const numericFields = [
-            "latitude",
-            "longitude",
-            "approximate_latitude",
-            "approximate_longitude",
-          ];
-          numericFields.forEach((field) => {
-            if (processedSite[field] !== undefined) {
-              processedSite[field] = Number(processedSite[field]);
-            }
-          });
-
-          // Ensure createdAt is a valid date
-          processedSite.createdAt = site.createdAt || new Date();
-
-          // Validate string fields
-          const stringFields = [
-            "country",
-            "district",
-            "sub_county",
-            "parish",
-            "county",
-            "generated_name",
-            "name",
-            "city",
-            "formatted_name",
-            "region",
-            "search_name",
-          ];
-          stringFields.forEach((field) => {
-            if (processedSite[field]) {
-              processedSite[field] = String(processedSite[field]).trim();
-            }
-          });
-
-          // Ensure boolean fields
-          processedSite.isFeatured = !!site.isFeatured;
-
-          return processedSite;
-        },
-        selected_grids: (grid) => ({
-          _id: processObjectId(grid._id),
-          name: String(grid.name).trim(),
-          createdAt: grid.createdAt || new Date(),
-        }),
-        selected_cohorts: (cohort) => ({
-          _id: processObjectId(cohort._id),
-          name: String(cohort.name).trim(),
-          createdAt: cohort.createdAt || new Date(),
-        }),
-        selected_devices: (device) => ({
-          _id: processObjectId(device._id),
-          name: String(device.name).trim(),
-          createdAt: device.createdAt || new Date(),
-        }),
-        selected_airqlouds: (airqloud) => ({
-          _id: processObjectId(airqloud._id),
-          name: String(airqloud.name).trim(),
-          createdAt: airqloud.createdAt || new Date(),
-        }),
-      };
-
-      // Process selected arrays
-      selectedArrayFields.forEach((field) => {
-        if (updateData[field]) {
-          updateData[field] = updateData[field].map(
-            selectedArrayProcessors[field]
-          );
-
-          // Use $addToSet for selected arrays
-          updateData.$addToSet = {
-            ...updateData.$addToSet,
-            [field]: {
-              $each: updateData[field],
-            },
-          };
-          delete updateData[field];
-        }
-      });
-
-      // Process array ID fields
       arrayIdFields.forEach((field) => {
         if (updateData[field]) {
-          updateData.$addToSet = {
-            ...updateData.$addToSet,
-            [field]: {
-              $each: Array.isArray(updateData[field])
-                ? updateData[field].map(processObjectId)
-                : [processObjectId(updateData[field])],
-            },
-          };
+          // Ensure unique ObjectIds
+          const uniqueIds = [
+            ...new Set(
+              (Array.isArray(updateData[field])
+                ? updateData[field]
+                : [updateData[field]]
+              )
+                .map(processObjectId)
+                .filter(Boolean)
+                .map((id) => id.toString())
+            ),
+          ].map(processObjectId);
+
+          // Use $set to replace the existing array with unique entries
+          updateData.$set = updateData.$set || {};
+          updateData.$set[field] = uniqueIds;
+
+          // Remove the original field
           delete updateData[field];
         }
       });
-
-      // Optional: Add comprehensive logging
-      console.log(
-        `Preprocessing preference document: ${isNew ? "New" : "Update"}`,
-        {
-          user_id: updateData.user_id,
-          pollutant: updateData.pollutant,
-          startDate: updateData.startDate,
-          endDate: updateData.endDate,
-        }
-      );
 
       next();
     } catch (error) {
