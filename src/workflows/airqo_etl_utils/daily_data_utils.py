@@ -93,7 +93,7 @@ class DailyDataUtils:
         )
 
         bigquery_api.reload_data(
-            tenant=Tenant.ALL,
+            network="all",
             table=table,
             dataframe=data,
             start_date_time=start_date_time,
