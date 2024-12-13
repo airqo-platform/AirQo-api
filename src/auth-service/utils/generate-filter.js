@@ -312,15 +312,22 @@ const filter = {
   },
   preferences: (req, next) => {
     try {
-      let { user_id } = {
+      let { user_id, group_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
       };
+
       let filter = {};
+
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
+
+      if (group_id) {
+        filter["group_id"] = ObjectId(group_id);
+      }
+
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
