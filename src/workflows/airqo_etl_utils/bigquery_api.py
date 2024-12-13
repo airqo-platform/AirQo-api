@@ -604,14 +604,44 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        tenant: Tenant = Tenant.ALL,
+        network: str = "all",
         start_date_time: str = None,
         end_date_time: str = None,
         where_fields: dict = None,
         null_cols: list = None,
     ) -> None:
+        """
+        Reloads data into a specified table in BigQuery by:
+        1. Deleting existing records in the table based on the provided date range,
+        network, and optional filtering criteria.
+        2. Inserting new records from the provided DataFrame.
+
+        Args:
+            dataframe (pd.DataFrame): The data to be reloaded into the table.
+            table (str): The target table in BigQuery.
+            network (str, optional): The network filter to be applied. Defaults to "all".
+            start_date_time (str, optional): The start of the date range for deletion.
+                                            If None, inferred from the DataFrame's earliest timestamp.
+            end_date_time (str, optional): The end of the date range for deletion.
+                                        If None, inferred from the DataFrame's latest timestamp.
+            where_fields (dict, optional): Additional fields and values for filtering rows to delete.
+            null_cols (list, optional): Columns to filter on `NULL` values during deletion.
+
+        Returns:
+            None: The function performs operations directly on the BigQuery table.
+
+        Raises:
+            ValueError: If `timestamp` column is missing in the DataFrame.
+        """
+
         if start_date_time is None or end_date_time is None:
-            data = dataframe.copy()
+            if "timestamp" not in dataframe.columns:
+                raise ValueError(
+                    "The DataFrame must contain a 'timestamp' column to derive the date range."
+                )
+            data = (
+                dataframe.copy()
+            )  # Not sure why this dataframe is being copied. # Memory wastage?
             data["timestamp"] = pd.to_datetime(data["timestamp"])
             start_date_time = date_to_str(data["timestamp"].min())
             end_date_time = date_to_str(data["timestamp"].max())
@@ -619,7 +649,7 @@ class BigQueryApi:
         query = self.compose_query(
             QueryType.DELETE,
             table=table,
-            tenant=tenant,
+            network=network,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             where_fields=where_fields,

@@ -589,7 +589,7 @@ class EventsModel(BasePyMongoModel):
 
         data.loc[data["pm2_5_raw_value"] != 0, "pm2_5"] = np.nan
 
-        if (data["pm2_5_raw_value"] == 0).all():
+        if ((data["pm2_5_raw_value"] == 0) | (data["pm2_5_raw_value"].isna())).all():
             data.drop(columns=["pm2_5_raw_value"], inplace=True)
 
         zero_columns = data.loc[:, (data == 0).all()].columns
