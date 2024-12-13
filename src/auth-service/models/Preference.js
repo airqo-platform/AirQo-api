@@ -232,9 +232,14 @@ PreferenceSchema.pre(
 
       // Utility function to validate and process ObjectIds
       const processObjectId = (id) => {
-        return id instanceof mongoose.Types.ObjectId
-          ? id
-          : mongoose.Types.ObjectId(id);
+        if (!id) return null;
+        if (id instanceof mongoose.Types.ObjectId) return id;
+        try {
+          return mongoose.Types.ObjectId(id);
+        } catch (error) {
+          logger.error(`Invalid ObjectId: ${id}`);
+          throw new Error(`Invalid ObjectId: ${id}`);
+        }
       };
 
       // Comprehensive ID fields processing
