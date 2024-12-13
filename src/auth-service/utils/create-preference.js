@@ -385,8 +385,8 @@ const preferences = {
         };
       }
 
-      // const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
-      const update = body;
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
+
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
