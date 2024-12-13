@@ -54,13 +54,35 @@ const validateUserAndGroup = async (tenant, userId, groupId, next) => {
 const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   const update = { ...body };
 
+  // Utility function to remove duplicates based on _id
+  const removeDuplicates = (arr, idField = "_id") => {
+    return arr.filter(
+      (item, index, self) =>
+        index ===
+        self.findIndex(
+          (t) =>
+            t[idField] &&
+            item[idField] &&
+            t[idField].toString() === item[idField].toString()
+        )
+    );
+  };
+
   // Handle fields that should be added to set (array fields)
   fieldsToAddToSet.forEach((field) => {
     if (update[field]) {
-      update["$addToSet"] = update["$addToSet"] || {};
-      update["$addToSet"][field] = {
-        $each: Array.isArray(update[field]) ? update[field] : [update[field]],
-      };
+      const processedArray = Array.isArray(update[field])
+        ? update[field]
+        : [update[field]];
+
+      // Remove duplicates for specific fields
+      const uniqueArray =
+        field === "selected_sites"
+          ? removeDuplicates(processedArray)
+          : processedArray;
+
+      update["$set"] = update["$set"] || {};
+      update["$set"][field] = uniqueArray;
       delete update[field];
     }
   });
@@ -68,21 +90,30 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   // Handle fields that need special processing (with createdAt)
   fieldsToUpdate.forEach((field) => {
     if (update[field]) {
-      update[field] = update[field].map((item) => ({
+      // Process each item
+      const processedArray = update[field].map((item) => ({
         ...item,
         createdAt: item.createdAt || new Date(),
       }));
 
-      update["$addToSet"] = update["$addToSet"] || {};
-      update["$addToSet"][field] = { $each: update[field] };
+      // Remove duplicates for specific fields
+      const uniqueArray =
+        field === "selected_sites"
+          ? removeDuplicates(processedArray)
+          : processedArray;
+
+      update["$set"] = update["$set"] || {};
+      update["$set"][field] = uniqueArray;
       delete update[field];
     }
   });
 
-  // Remove simple ObjectId fields from being processed by $addToSet
+  // Process single ObjectId fields
   const singleObjectIdFields = ["user_id", "group_id"];
   singleObjectIdFields.forEach((field) => {
     if (update[field]) {
+      // Ensure single ObjectId fields are processed as-is
+      update[field] = update[field];
     }
   });
 
