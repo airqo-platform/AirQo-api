@@ -44,12 +44,57 @@ const preferences = {
       const { tenant } = query;
       logObject("the body", body);
       const user_id = body.user_id;
-      const user = await UserModel(tenant).findById(user_id).lean();
-      if (isEmpty(user_id) || isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "The provided User does not exist",
-            value: user_id,
+      const group_id = body.group_id;
+
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant).findById(user_id).lean();
+        if (isEmpty(user_id) || isEmpty(user)) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "The provided User does not exist",
+              value: user_id,
+            })
+          );
+        }
+      }
+
+      // Check if user belongs to the specified group
+      if (!isEmpty(group_id)) {
+        const userBelongsToGroup = user.group_roles.some(
+          (role) => role.group.toString() === group_id
+        );
+
+        if (!userBelongsToGroup) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "User does not belong to the specified group",
+            })
+          );
+        }
+      }
+
+      const filterResponse = generateFilter.preferences(request, next);
+      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: {
+            message:
+              "Unable to obtain the corresponding identifier associated with this preference --- please reach out to support@airqo.net",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      // Check if a preference already exists for this user and group
+      const existingPreference = await PreferenceModel(tenant).findOne(
+        filterResponse
+      );
+
+      if (existingPreference) {
+        return next(
+          new HttpError("Conflict", httpStatus.CONFLICT, {
+            message: "Preferences for this user and group already exist",
           })
         );
       }
@@ -138,6 +183,41 @@ const preferences = {
         body,
       } = request;
 
+      const user_id = body.user_id;
+      const group_id = body.group_id;
+
+      // Validate user exists and belongs to the group
+      if (!isEmpty(user_id)) {
+        const user = await UserModel(tenant).findById(user_id).lean();
+        if (isEmpty(user_id) || isEmpty(user)) {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: {
+              message: "The provided User does not exist",
+            },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
+      if (!isEmpty(group_id)) {
+        const userBelongsToGroup = user.group_roles.some(
+          (role) => role.group.toString() === group_id
+        );
+
+        if (!userBelongsToGroup) {
+          return {
+            success: false,
+            message: "Bad Request",
+            errors: {
+              message: "User does not belong to the specified group",
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
+
       const fieldsToUpdate = [
         "selected_sites",
         "selected_grids",
@@ -170,7 +250,7 @@ const preferences = {
         };
       }
 
-      const update = body;
+      const update = { ...body };
 
       fieldsToAddToSet.forEach((field) => {
         if (update[field]) {
