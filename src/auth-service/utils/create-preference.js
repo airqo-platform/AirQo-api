@@ -54,13 +54,18 @@ const validateUserAndGroup = async (tenant, userId, groupId, next) => {
 const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   const update = { ...body };
 
+  // Handle fields that should be added to set (array fields)
   fieldsToAddToSet.forEach((field) => {
     if (update[field]) {
-      update["$addToSet"] = { [field]: { $each: update[field] } };
+      update["$addToSet"] = update["$addToSet"] || {};
+      update["$addToSet"][field] = {
+        $each: Array.isArray(update[field]) ? update[field] : [update[field]],
+      };
       delete update[field];
     }
   });
 
+  // Handle fields that need special processing (with createdAt)
   fieldsToUpdate.forEach((field) => {
     if (update[field]) {
       update[field] = update[field].map((item) => ({
@@ -68,8 +73,18 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
         createdAt: item.createdAt || new Date(),
       }));
 
-      update["$addToSet"] = { [field]: { $each: update[field] } };
+      update["$addToSet"] = update["$addToSet"] || {};
+      update["$addToSet"][field] = { $each: update[field] };
       delete update[field];
+    }
+  });
+
+  // Remove simple ObjectId fields from being processed by $addToSet
+  const singleObjectIdFields = ["user_id", "group_id"];
+  singleObjectIdFields.forEach((field) => {
+    if (update[field]) {
+      // Keep the original value for simple ObjectId fields
+      update[field] = update[field];
     }
   });
 
@@ -169,7 +184,34 @@ const preferences = {
         body,
       } = request;
 
-      const filterResponse = generateFilter.preferences(request, next);
+      // Validate user and group
+      const validationError = await validateUserAndGroup(
+        tenant,
+        body.user_id,
+        body.group_id,
+        next
+      );
+      if (validationError) return;
+
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
+      const filter = generateFilter.preferences(request, next);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
         next(
           new HttpError(
@@ -183,21 +225,7 @@ const preferences = {
         );
       }
 
-      const PreferenceDetails = await PreferenceModel(tenant)
-        .findOne(filterResponse)
-        .select("_id")
-        .lean();
-
-      if (isEmpty(PreferenceDetails)) {
-        next(
-          new HttpError("Bad Request Errors", httpStatus.BAD_REQUEST, {
-            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
-          })
-        );
-      }
-
-      const filter = PreferenceDetails;
-      const update = body;
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       const modifyResponse = await PreferenceModel(tenant).modify(
         {
@@ -305,6 +333,33 @@ const preferences = {
         body,
       } = request;
 
+      // Validate user and group
+      const validationError = await validateUserAndGroup(
+        tenant,
+        body.user_id,
+        body.group_id,
+        next
+      );
+      if (validationError) return;
+
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
       logText("Replace the existing selected_ids....");
 
       const filterResponse = generateFilter.preferences(request, next);
@@ -320,7 +375,7 @@ const preferences = {
         };
       }
 
-      const update = body;
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(

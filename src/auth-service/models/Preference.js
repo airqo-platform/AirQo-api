@@ -234,6 +234,7 @@ PreferenceSchema.pre(
       const processObjectId = (id) => {
         if (!id) return null;
         if (id instanceof mongoose.Types.ObjectId) return id;
+        if (typeof id === "string" && id.trim() === "") return null;
         try {
           return mongoose.Types.ObjectId(id);
         } catch (error) {
@@ -242,29 +243,36 @@ PreferenceSchema.pre(
         }
       };
 
-      // Comprehensive ID fields processing
-      const idFieldsToProcess = [
-        "airqloud_id",
-        "airqloud_ids",
-        "grid_id",
-        "grid_ids",
-        "cohort_id",
-        "cohort_ids",
-        "network_id",
-        "network_ids",
+      // Define field categories
+      const singleIdFields = [
+        "user_id",
         "group_id",
-        "group_ids",
+        "airqloud_id",
+        "grid_id",
+        "cohort_id",
+        "network_id",
+      ];
+      const arrayIdFields = [
+        "airqloud_ids",
+        "grid_ids",
+        "cohort_ids",
+        "network_ids",
         "site_ids",
         "device_ids",
+        "group_ids",
+      ];
+      const selectedArrayFields = [
+        "selected_sites",
+        "selected_grids",
+        "selected_devices",
+        "selected_cohorts",
+        "selected_airqlouds",
       ];
 
-      idFieldsToProcess.forEach((field) => {
+      // Process single ID fields
+      singleIdFields.forEach((field) => {
         if (updateData[field]) {
-          if (Array.isArray(updateData[field])) {
-            updateData[field] = updateData[field].map(processObjectId);
-          } else {
-            updateData[field] = processObjectId(updateData[field]);
-          }
+          updateData[field] = processObjectId(updateData[field]);
         }
       });
 
@@ -272,7 +280,6 @@ PreferenceSchema.pre(
       if (!updateData.user_id) {
         return next(new Error("user_id is required"));
       }
-      updateData.user_id = processObjectId(updateData.user_id);
 
       // Set default values if not provided
       const defaultFields = [
@@ -393,29 +400,29 @@ PreferenceSchema.pre(
       };
 
       // Process selected arrays
-      Object.keys(selectedArrayProcessors).forEach((field) => {
+      selectedArrayFields.forEach((field) => {
         if (updateData[field]) {
           updateData[field] = updateData[field].map(
             selectedArrayProcessors[field]
           );
-        }
-      });
 
-      // Prepare $addToSet for array fields to prevent duplicates
-      const arrayFieldsToAddToSet = [
-        ...idFieldsToProcess,
-        "selected_sites",
-        "selected_grids",
-        "selected_devices",
-        "selected_cohorts",
-        "selected_airqlouds",
-      ];
-
-      arrayFieldsToAddToSet.forEach((field) => {
-        if (updateData[field]) {
+          // Use $addToSet for selected arrays
           updateData.$addToSet = updateData.$addToSet || {};
           updateData.$addToSet[field] = {
             $each: updateData[field],
+          };
+          delete updateData[field];
+        }
+      });
+
+      // Process array ID fields
+      arrayIdFields.forEach((field) => {
+        if (updateData[field]) {
+          updateData.$addToSet = updateData.$addToSet || {};
+          updateData.$addToSet[field] = {
+            $each: Array.isArray(updateData[field])
+              ? updateData[field].map(processObjectId)
+              : [processObjectId(updateData[field])],
           };
           delete updateData[field];
         }
