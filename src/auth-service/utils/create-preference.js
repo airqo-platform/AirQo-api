@@ -76,11 +76,7 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
         : [update[field]];
 
       // Remove duplicates for specific fields
-      const uniqueArray =
-        field === "selected_sites"
-          ? removeDuplicates(processedArray)
-          : processedArray;
-
+      const uniqueArray = removeDuplicates(processedArray);
       update["$set"] = update["$set"] || {};
       update["$set"][field] = uniqueArray;
       delete update[field];
@@ -97,10 +93,7 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
       }));
 
       // Remove duplicates for specific fields
-      const uniqueArray =
-        field === "selected_sites"
-          ? removeDuplicates(processedArray)
-          : processedArray;
+      const uniqueArray = removeDuplicates(processedArray);
 
       update["$set"] = update["$set"] || {};
       update["$set"][field] = uniqueArray;
@@ -393,6 +386,7 @@ const preferences = {
       }
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
+
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
