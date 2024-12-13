@@ -8,31 +8,47 @@ from airqo_etl_utils.data_validator import DataValidationUtils
 class DailyDataUtils:
     @staticmethod
     def average_data(data: pd.DataFrame) -> pd.DataFrame:
-        averaged_data = pd.DataFrame()
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        """
+        Averages data in a pandas DataFrame on a daily basis for each device,
+        grouped by network and device ID. The function resamples data
+        to compute daily averages for numerical columns.
 
-        for _, by_tenant in data.groupby("tenant"):
-            tenant = by_tenant.iloc[0]["tenant"]
-            del by_tenant["tenant"]
-            for _, by_device in by_tenant.groupby("device_id"):
-                site_id = by_device.iloc[0]["site_id"]
-                device_id = by_device.iloc[0]["device_id"]
-                device_number = by_device.iloc[0]["device_number"]
+        Args:
+            data (pd.DataFrame): A pandas DataFrame containing the following columns:
+                - "timestamp": Timestamps of the data.
+                - "network": The network the data belongs to.
+                - "device_id": Unique identifier for the device.
+                - "site_id": Unique identifier for the site associated with the device.
+                - "device_number": Device number.
 
-                del by_device["site_id"]
-                del by_device["device_id"]
-                del by_device["device_number"]
+        Returns:
+            pd.DataFrame: A DataFrame containing daily averages for each device,
+            including metadata columns such as "tenant", "device_id", "site_id",
+            and "device_number".
+        """
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
 
-                device_averages = by_device.resample("1D", on="timestamp").mean()
-                device_averages["timestamp"] = device_averages.index
-                device_averages["device_id"] = device_id
-                device_averages["site_id"] = site_id
-                device_averages["device_number"] = device_number
-                device_averages["tenant"] = tenant
+        averaged_data_list = []
 
-                averaged_data = pd.concat(
-                    [averaged_data, device_averages], ignore_index=True
-                )
+        for (network, device_id), group in data.groupby(["network", "device_id"]):
+            network = group["network"].iloc[0]
+            site_id = group["site_id"].iloc[0]
+            device_number = group["device_number"].iloc[0]
+
+            device_averages = (
+                group.resample("1D", on="timestamp")
+                .mean(numeric_only=True)
+                .reset_index()
+            )
+
+            device_averages["network"] = network
+            device_averages["device_id"] = device_id
+            device_averages["site_id"] = site_id
+            device_averages["device_number"] = device_number
+
+            averaged_data_list.append(device_averages)
+
+        averaged_data = pd.concat(averaged_data_list, ignore_index=True)
 
         return averaged_data
 
