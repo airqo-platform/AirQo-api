@@ -83,8 +83,6 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   const singleObjectIdFields = ["user_id", "group_id"];
   singleObjectIdFields.forEach((field) => {
     if (update[field]) {
-      // Keep the original value for simple ObjectId fields
-      update[field] = update[field];
     }
   });
 
@@ -126,13 +124,7 @@ const preferences = {
       logObject("the body", body);
 
       // Validate user and group
-      const validationError = await validateUserAndGroup(
-        tenant,
-        body.user_id,
-        body.group_id,
-        next
-      );
-      if (validationError) return;
+      await validateUserAndGroup(tenant, body.user_id, body.group_id, next);
 
       const filterResponse = generateFilter.preferences(request, next);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
@@ -185,13 +177,7 @@ const preferences = {
       } = request;
 
       // Validate user and group
-      const validationError = await validateUserAndGroup(
-        tenant,
-        body.user_id,
-        body.group_id,
-        next
-      );
-      if (validationError) return;
+      await validateUserAndGroup(tenant, body.user_id, body.group_id, next);
 
       const fieldsToUpdate = [
         "selected_sites",
@@ -212,7 +198,7 @@ const preferences = {
       ];
 
       const filter = generateFilter.preferences(request, next);
-      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+      if (isEmpty(filter) || isEmpty(filter.user_id)) {
         next(
           new HttpError(
             "Internal Server Error",

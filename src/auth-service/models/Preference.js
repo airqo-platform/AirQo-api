@@ -407,9 +407,11 @@ PreferenceSchema.pre(
           );
 
           // Use $addToSet for selected arrays
-          updateData.$addToSet = updateData.$addToSet || {};
-          updateData.$addToSet[field] = {
-            $each: updateData[field],
+          updateData.$addToSet = {
+            ...updateData.$addToSet,
+            [field]: {
+              $each: updateData[field],
+            },
           };
           delete updateData[field];
         }
@@ -418,11 +420,13 @@ PreferenceSchema.pre(
       // Process array ID fields
       arrayIdFields.forEach((field) => {
         if (updateData[field]) {
-          updateData.$addToSet = updateData.$addToSet || {};
-          updateData.$addToSet[field] = {
-            $each: Array.isArray(updateData[field])
-              ? updateData[field].map(processObjectId)
-              : [processObjectId(updateData[field])],
+          updateData.$addToSet = {
+            ...updateData.$addToSet,
+            [field]: {
+              $each: Array.isArray(updateData[field])
+                ? updateData[field].map(processObjectId)
+                : [processObjectId(updateData[field])],
+            },
           };
           delete updateData[field];
         }
