@@ -163,11 +163,14 @@ class DataExportResource(Resource):
                 )
             if minimum_output:
                 # Drop unnecessary columns
+                columns_to_drop = ["site_id"]
+                columns_to_drop.append("timestamp") if frequency in [
+                    "hourly",
+                    "daily",
+                ] else columns_to_drop
+                print(data_frame.columns.to_list())
                 data_frame.drop(
-                    columns=[
-                        "site_id",
-                        "timestamp",
-                    ],
+                    columns=columns_to_drop,
                     inplace=True,
                 )
 
