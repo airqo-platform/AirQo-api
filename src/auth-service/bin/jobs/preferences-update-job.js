@@ -186,7 +186,10 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
                 group_id: defaultGroupId,
               },
               {
-                $set: defaultPreferenceWithGroupId,
+                $set: {
+                  selected_sites: selectedSites,
+                  group_id: defaultGroupId,
+                },
               },
               {
                 new: true,
