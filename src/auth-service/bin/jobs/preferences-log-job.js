@@ -77,12 +77,16 @@ const logUserPreferences = async () => {
         100
       ).toFixed(2);
 
-      logger.info(
-        `💔💔 Total count of users without Customised Locations in the default group: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of processed users.`
-      );
+      if (totalCountWithoutSelectedSites > 0) {
+        logger.info(
+          `💔💔 Total count of users without Customised Locations in the default group: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of processed users.`
+        );
+      } else {
+        logger.info(`😎🎉✅ All users have Customised Locations.`);
+      }
     } else {
       logger.info(
-        `😎🎉✅ No users processed or all users have Customised Locations.`
+        `🤔🤔 No users processed or no users belong to the default group.`
       );
     }
   } catch (error) {
