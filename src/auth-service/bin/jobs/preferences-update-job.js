@@ -1,5 +1,6 @@
 const cron = require("node-cron");
 const UserModel = require("@models/User");
+const mongoose = require("mongoose");
 const PreferenceModel = require("@models/Preference");
 const SelectedSiteModel = require("@models/SelectedSite");
 const constants = require("@config/constants");
@@ -74,6 +75,9 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
       return;
     }
 
+    // Specify the group_id you want to use
+    const defaultGroupId = mongoose.Types.ObjectId("64f54e4621d9b90013925a08");
+
     while (true) {
       const users = await UserModel("airqo")
         .find()
@@ -89,7 +93,10 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
       // Fetch existing preferences for users in batch
       const userIds = users.map((user) => user._id);
       const preferences = await PreferenceModel("airqo")
-        .find({ user_id: { $in: userIds } })
+        .find({
+          user_id: { $in: userIds },
+          group_id: defaultGroupId,
+        })
         .select("_id user_id selected_sites")
         .lean();
 
@@ -103,14 +110,18 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
         const userIdStr = user._id.toString();
         const preference = preferencesMap.get(userIdStr);
 
+        // Prepare the default preference object with the specific group_id
+        const defaultPreferenceWithGroupId = {
+          ...defaultPreference,
+          user_id: user._id,
+          group_id: defaultGroupId,
+          selected_sites: selectedSites,
+        };
+
         if (!preference) {
           // No preference exists, create a new one
           await PreferenceModel("airqo")
-            .create({
-              ...defaultPreference,
-              user_id: user._id,
-              selected_sites: selectedSites,
-            })
+            .create(defaultPreferenceWithGroupId)
             .catch((error) => {
               logger.error(
                 `🐛🐛 Failed to create preference for user ${userIdStr}: ${stringify(
@@ -122,14 +133,18 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
           // Preference exists but selected_sites is empty, update it
           await PreferenceModel("airqo")
             .findOneAndUpdate(
-              { _id: preference._id },
               {
-                $set: {
-                  ...defaultPreference,
-                  selected_sites: selectedSites,
-                },
+                user_id: user._id,
+                group_id: defaultGroupId,
               },
-              { new: true }
+              {
+                $set: defaultPreferenceWithGroupId,
+              },
+              {
+                new: true,
+                upsert: true, // Add this to handle cases where the document might not exist
+                setDefaultsOnInsert: true, // Ensures default values are applied when upserting
+              }
             )
             .catch((error) => {
               logger.error(
