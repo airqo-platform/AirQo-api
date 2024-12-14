@@ -182,6 +182,22 @@ async function updateOfflineDevices(data) {
   );
 }
 
+// Helper function to update offline sites
+async function updateOfflineSites(data) {
+  const activeSiteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
+  const thresholdTime = moment()
+    .subtract(INACTIVE_THRESHOLD, "milliseconds")
+    .toDate();
+
+  await SiteModel("airqo").updateMany(
+    {
+      _id: { $nin: Array.from(activeSiteIds) },
+      lastActive: { $lt: thresholdTime },
+    },
+    { isOnline: false }
+  );
+}
+
 // Main function to fetch and store data
 async function fetchAndStoreDataIntoReadingsModel() {
   const batchProcessor = new BatchProcessor(50);
@@ -259,8 +275,8 @@ async function fetchAndStoreDataIntoReadingsModel() {
       );
     }
 
-    // Update offline devices
-    await updateOfflineDevices(data);
+    // Update offline devices and sites
+    await Promise.all([updateOfflineDevices(data), updateOfflineSites(data)]);
 
     logText("All data inserted successfully and offline devices updated");
   } catch (error) {
@@ -282,4 +298,5 @@ module.exports = {
   updateEntityStatus,
   isEntityActive,
   updateOfflineDevices,
+  updateOfflineSites,
 };
