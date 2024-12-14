@@ -112,11 +112,11 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
               selected_sites: selectedSites,
             })
             .catch((error) => {
-              // logger.error(
-              //   `🐛🐛 Failed to create preference for user ${userIdStr}: ${stringify(
-              //     error
-              //   )}`
-              // );
+              logger.error(
+                `🐛🐛 Failed to create preference for user ${userIdStr}: ${stringify(
+                  error
+                )}`
+              );
             });
         } else if (isEmpty(preference.selected_sites)) {
           // Preference exists but selected_sites is empty, update it
@@ -132,11 +132,11 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
               { new: true }
             )
             .catch((error) => {
-              // logger.error(
-              //   `🐛🐛 Failed to update preference for user ${userIdStr}: ${stringify(
-              //     error
-              //   )}`
-              // );
+              logger.error(
+                `🐛🐛 Failed to update preference for user ${userIdStr}: ${stringify(
+                  error
+                )}`
+              );
             });
         }
       }
