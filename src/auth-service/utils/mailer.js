@@ -284,6 +284,62 @@ const mailer = {
       );
     }
   },
+  yearEndEmail: async ({
+    email = "",
+    firstName = "",
+    lastName = "",
+    emailContent = "",
+    tenant = "airqo",
+  } = {}) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "Your AirQo 2024 Year in Review 🌍",
+        html: emailContent,
+        // Optional: add attachments if needed
+        // attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Year-end email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "Email not sent", emailResults: data },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
   requestToJoinGroupByEmail: async (
     {
       email,
