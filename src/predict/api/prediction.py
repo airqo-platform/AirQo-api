@@ -33,31 +33,31 @@ load_dotenv()
 AQI_RANGES = {
     "good": {
         "min": 0,
-        "max": 9.099,
+        "max": 9.1,
         "label": "Good"
     },
     "moderate": {
-        "min": 9.1,
+        "min": 9.101,
         "max": 35.49,
         "label": "Moderate"
     },
     "u4sg": {
-        "min": 35.5,
+        "min": 35.491,
         "max": 55.49,
         "label": "Unhealthy for Sensitive Groups"
     },
     "unhealthy": {
-        "min": 55.5,
+        "min": 55.491,
         "max": 125.49,
         "label": "Unhealthy"
     },
     "very_unhealthy": {
-        "min": 125.5,
+        "min": 125.491,
         "max": 225.49,
         "label": "Very Unhealthy"
     },
     "hazardous": {
-        "min": 225.5,
+        "min": 225.491,
         "max": None,
         "label": "Hazardous"
     }
