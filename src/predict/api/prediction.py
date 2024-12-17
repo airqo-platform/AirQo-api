@@ -34,32 +34,50 @@ AQI_RANGES = {
     "good": {
         "min": 0,
         "max": 9.1,
-        "label": "Good"
+        "label": "Good",
+        "aqi_category": "Good",
+        "aqi_color": "00e400",
+        "aqi_color_name": "Green"
     },
     "moderate": {
         "min": 9.101,
         "max": 35.49,
-        "label": "Moderate"
+        "label": "Moderate",
+        "aqi_category": "Moderate",
+        "aqi_color": "ffff00",
+        "aqi_color_name": "Yellow"
     },
     "u4sg": {
         "min": 35.491,
         "max": 55.49,
-        "label": "Unhealthy for Sensitive Groups"
+        "label": "Unhealthy for Sensitive Groups",
+        "aqi_category": "Unhealthy for Sensitive Groups",
+        "aqi_color": "ff7e00",
+        "aqi_color_name": "Orange"
     },
     "unhealthy": {
         "min": 55.491,
         "max": 125.49,
-        "label": "Unhealthy"
+        "label": "Unhealthy",
+        "aqi_category": "Unhealthy",
+        "aqi_color": "ff0000",
+        "aqi_color_name": "Red"
     },
     "very_unhealthy": {
         "min": 125.491,
         "max": 225.49,
-        "label": "Very Unhealthy"
+        "label": "Very Unhealthy",
+        "aqi_category": "Very Unhealthy",
+        "aqi_color": "8f3f97",
+        "aqi_color_name": "Purple"
     },
     "hazardous": {
         "min": 225.491,
         "max": None,
-        "label": "Hazardous"
+        "label": "Hazardous",
+        "aqi_category": "Hazardous",
+        "aqi_color": "7e0023",
+        "aqi_color_name": "Maroon"
     }
 }
 
@@ -77,13 +95,11 @@ def get_aqi_category(value):
         if range_info['max'] is None and value >= range_info['min']:
             return {
                 'category': category,
-                'label': range_info['label'],
                 **range_info
             }
         elif range_info['max'] is not None and range_info['min'] <= value <= range_info['max']:
             return {
                 'category': category,
-                'label': range_info['label'],
                 **range_info
             }
     return None
@@ -107,6 +123,24 @@ def enhance_forecast_response(result, language=''):
     
     # Add AQI ranges to the response
     result['aqi_ranges'] = AQI_RANGES
+    
+    # Enhance forecasts with AQI category, color, and color name
+    if 'forecasts' in result:
+        enhanced_forecasts = []
+        for forecast in result['forecasts']:
+            enhanced_forecast = forecast.copy()
+            aqi_category_details = get_aqi_category(forecast['pm2_5'])
+            
+            if aqi_category_details:
+                enhanced_forecast.update({
+                    'aqi_category': aqi_category_details['aqi_category'],
+                    'aqi_color': aqi_category_details['aqi_color'],
+                    'aqi_color_name': aqi_category_details['aqi_color_name']
+                })
+            
+            enhanced_forecasts.append(enhanced_forecast)
+        
+        result['forecasts'] = enhanced_forecasts
     
     return result
 
@@ -338,11 +372,16 @@ def search_predictions():
             pm2_5 = data["pm2_5"]
             
             # Use the new get_aqi_category function
-            aqi_category = get_aqi_category(pm2_5)
+            aqi_category_details = get_aqi_category(pm2_5)
             
-            data["aqi_category"] = aqi_category
-            data['aqi_ranges'] = AQI_RANGES
-            data["health_tips"] = list(
+            if aqi_category_details:
+                data.update({
+                    'aqi_category': aqi_category_details['aqi_category'],
+                    'aqi_color': aqi_category_details['aqi_color'],
+                    'aqi_color_name': aqi_category_details['aqi_color_name']
+                })
+
+            data['health_tips'] = list(
                 filter(
                     lambda x: x["aqi_category"]["max"]
                     >= pm2_5
