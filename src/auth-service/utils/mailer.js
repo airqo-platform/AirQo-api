@@ -306,10 +306,10 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Your AirQo 2024 Year in Review 🌍",
+        subject: "Your AirQo Analytics 2024 Year in Review 🌍",
         html: emailContent,
         // Optional: add attachments if needed
-        // attachments: attachments,
+        attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);

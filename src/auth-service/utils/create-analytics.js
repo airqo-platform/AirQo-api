@@ -1,6 +1,7 @@
 const constants = require("@config/constants");
 const { logObject, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
+const generateFilter = require("@utils/generate-filter");
 const { LogModel } = require("@models/log");
 const UserModel = require("@models/User");
 const stringify = require("@utils/stringify");
@@ -10,6 +11,423 @@ const logger = log4js.getLogger(
 );
 const { HttpError } = require("@utils/errors");
 const httpStatus = require("http-status");
+
+const routesWithService = [
+  {
+    method: "POST",
+    uriIncludes: [
+      "api/v2/analytics/data-download",
+      "api/v1/analytics/data-download",
+    ],
+    service: "data-export-download",
+    action: "Export Data",
+  },
+  {
+    method: "POST",
+    uriIncludes: [
+      "api/v1/analytics/data-export",
+      "api/v2/analytics/data-export",
+    ],
+    service: "data-export-scheduling",
+    action: "Schedule Data Download",
+  },
+  /**** Sites */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "Site Creation",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "View Sites",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "Site Update",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/sites"],
+    service: "site-registry",
+    action: "Site Deletion",
+  },
+
+  /**** Devices */
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "Device Deletion",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/soft?"],
+    service: "device-registry",
+    action: "Device SOFT Deletion",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "Device Update",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/soft?"],
+    service: "device-registry",
+    action: "Device SOFT Update",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "View Devices",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices?"],
+    service: "device-registry",
+    action: "Device Creation",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/soft?"],
+    service: "device-registry",
+    action: "Device SOFT Creation",
+  },
+  /**** Cohorts */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "View Cohorts",
+  },
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "Create Cohorts",
+  },
+
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "Update Cohort",
+  },
+
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/cohorts"],
+    service: "cohort-registry",
+    action: "Delete Cohort",
+  },
+
+  /**** Grids */
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "View Grids",
+  },
+
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "Update Grid",
+  },
+
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "Delete Grid",
+  },
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/grids"],
+    service: "grid-registry",
+    action: "Create Grid",
+  },
+
+  /**** AirQlouds */
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "View AirQlouds",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "AirQloud Creation",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "AirQloud Update",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/airqlouds"],
+    service: "airqloud-registry",
+    action: "AirQloud Deletion",
+  },
+
+  /**** Site Activities */
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/activities/maintain"],
+    service: "device-maintenance",
+    action: "Maintain Device",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/activities/recall"],
+    service: "device-recall",
+    action: "Recall Device",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/activities/deploy"],
+    service: "device-deployment",
+    action: "Deploy Device",
+  },
+
+  /**** Users */
+  {
+    method: "POST",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "Create User",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "View Users",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "Update User",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["api/v2/users", "api/v1/users"],
+    service: "auth",
+    action: "Delete User",
+  },
+
+  /****Incentives*/
+  {
+    method: "POST",
+    uriIncludes: [
+      "api/v1/incentives/transactions/accounts/payments",
+      "api/v2/incentives/transactions/accounts/payments",
+    ],
+    service: "incentives",
+    action: "Add Money to Organizational Account",
+  },
+  {
+    method: "POST",
+    uriIncludes: [
+      "api/v1/incentives/transactions/hosts",
+      "api/v2/incentives/transactions/hosts",
+    ],
+    service: "incentives",
+    action: "Send Money to Host",
+  },
+
+  /**** Calibrate */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v1/calibrate", "/api/v2/calibrate"],
+    service: "calibrate",
+    action: "calibrate device",
+  },
+
+  /**** Locate */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v1/locate", "/api/v2/locate"],
+    service: "locate",
+    action: "Identify Suitable Device Locations",
+  },
+
+  /**** Fault Detection */
+  {
+    method: "POST",
+    uriIncludes: ["/api/v1/predict-faults", "/api/v2/predict-faults"],
+    service: "fault-detection",
+    action: "Detect Faults",
+  },
+
+  /**** Readings... */
+  {
+    method: "GET",
+    uriIncludes: [
+      "/api/v2/devices/measurements",
+      "/api/v2/devices/events",
+      "/api/v2/devices/readings",
+    ],
+    service: "events-registry",
+    action: " Retrieve Measurements",
+  },
+
+  /**** Data Proxy */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/data"],
+    service: "data-mgt",
+    action: "Retrieve Data",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/data-proxy"],
+    service: "data-proxy",
+    action: "Retrieve Data",
+  },
+
+  /*****Analytics */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/analytics/dashboard/sites"],
+    service: "analytics",
+    action: "Retrieve Sites on Analytics Page",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/analytics/dashboard/historical/daily-averages"],
+    service: "analytics",
+    action: "Retrieve Daily Averages on Analytics Page",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/analytics/dashboard/exceedances-devices"],
+    service: "analytics",
+    action: "Retrieve Exceedances on Analytics Page",
+  },
+
+  /*****KYA lessons */
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Retrieve KYA lessons",
+  },
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Create KYA lesson",
+  },
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Update KYA lesson",
+  },
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/kya/lessons/users"],
+    service: "kya",
+    action: "Delete KYA lesson",
+  },
+  /*****KYA Quizzes */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/devices/kya/quizzes/users"],
+    service: "kya",
+    action: "Retrieve KYA quizzes",
+  },
+
+  {
+    method: "POST",
+    uriIncludes: ["/api/v2/devices/kya/quizzes"],
+    service: "kya",
+    action: "Create KYA quizzes",
+  },
+
+  {
+    method: "PUT",
+    uriIncludes: ["/api/v2/devices/kya/quizzes"],
+    service: "kya",
+    action: "Update KYA quiz",
+  },
+
+  {
+    method: "DELETE",
+    uriIncludes: ["/api/v2/devices/kya/quizzes"],
+    service: "kya",
+    action: "Delete KYA quiz",
+  },
+
+  /*****view */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/view/mobile-app/version-info"],
+    service: "mobile-version",
+    action: "View Mobile App Information",
+  },
+
+  /*****Predict */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/predict/daily-forecast"],
+    service: "predict",
+    action: "Retrieve Daily Forecasts",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/predict/hourly-forecast"],
+    service: "predict",
+    action: "Retrieve Hourly Forecasts",
+  },
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/predict/heatmap"],
+    service: "predict",
+    action: "Retrieve Heatmap",
+  },
+
+  /*****Device Monitoring */
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/monitor"],
+    service: "monitor",
+    action: "Retrieve Network Statistics Data",
+  },
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/meta-data"],
+    service: "meta-data",
+    action: "Retrieve Metadata",
+  },
+
+  {
+    method: "GET",
+    uriIncludes: ["/api/v2/network-uptime"],
+    service: "network-uptime",
+    action: "Retrieve Network Uptime Data",
+  },
+];
 
 // Helper functions to calculate additional metrics
 function calculateActivityDuration(firstActivity, lastActivity) {
@@ -235,6 +653,7 @@ const analytics = {
 
         try {
           const statsResponse = await analytics.enhancedGetUserStats(request);
+          logObject("statsResponse", statsResponse);
           const userStat = statsResponse.data[0]; // Assuming first match
 
           if (userStat) {
@@ -333,6 +752,7 @@ const analytics = {
     try {
       // Fetch user stats for provided emails
       const userStats = await analytics.fetchUserStats(emails, tenant);
+      logObject("userStats", userStats);
 
       if (userStats.length > 0) {
         const result = await analytics.sendEmailsInBatches(userStats);
