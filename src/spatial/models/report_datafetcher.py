@@ -158,7 +158,7 @@ class AirQualityReport:
             print(f"Error: {e}")
 
 
-    # Use non-LLM template text as report content
+    # Use non-LLM template text as report contents
     def generate_report_template_without_LLM(self, audience):
         prompt = self._generate_prompt(audience)
         report_content = prompt
