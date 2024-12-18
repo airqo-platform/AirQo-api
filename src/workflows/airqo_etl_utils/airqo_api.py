@@ -176,8 +176,9 @@ class AirQoApi:
                 },
             ]
         """
+        params: Dict = {}
         if device_category:
-            params = {"category": str(device_category)}
+            params["category"] = str(device_category)
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
@@ -221,8 +222,6 @@ class AirQoApi:
                 - List of networks (dictionaries) retrieved from the API.
                 - Optional error message if an exception occurs.
         """
-        params = {}
-
         params = {}
         networks: List[Dict[str, Any]] = []
         exception_message: Optional[str] = None
@@ -284,13 +283,14 @@ class AirQoApi:
         """
         devices: List[Dict[str, Any]] = []
         networks, error = self.get_networks()
+        params: Dict = {}
 
         if error:
             logger.error(f"Error while fetching networks: {error}")
             return devices
 
         if device_category:
-            params = {"category": str(device_category)}
+            params["category"] = str(device_category)
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = True
