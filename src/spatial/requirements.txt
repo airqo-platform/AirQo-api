@@ -25,7 +25,5 @@ gcsfs~=2024.9.0.post1
 joblib~=1.4.2
 lightgbm~=4.1.0 
 numpy
-datasets
 sentencepiece
-google-generativeai
-openai
+google-generativeai 

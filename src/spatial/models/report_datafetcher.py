@@ -1,5 +1,4 @@
 import requests
-import openai
 from configure import Config
 import google.generativeai as genai 
 import logging
@@ -79,7 +78,6 @@ class AirQualityReport:
 
         # Initialize models once in the constructor
         self.gemini_model = genai.GenerativeModel('gemini-pro')
-        openai.api_key = Config.OPENAI_API_KEY
 
     def _prepare_base_info(self):
         return (
@@ -158,19 +156,6 @@ class AirQualityReport:
             return self._prepare_customised_report_json(gemini_output)
         except Exception as e:
             print(f"Error: {e}")
-
-    def generate_report_with_openai(self, audience):
-        prompt = self._generate_prompt(audience)
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            openai_output = response.choices[0].message['content']
-            return self._prepare_report_json(openai_output)
-        except Exception as e:
-            print(f"Error: {e}")
-            return None
 
 
     # Use non-LLM template text as report content
