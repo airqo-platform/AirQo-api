@@ -54,22 +54,59 @@ const validateUserAndGroup = async (tenant, userId, groupId, next) => {
 const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   const update = { ...body };
 
+  // Utility function to remove duplicates based on _id
+  const removeDuplicates = (arr, idField = "_id") => {
+    return arr.filter(
+      (item, index, self) =>
+        index ===
+        self.findIndex(
+          (t) =>
+            t[idField] &&
+            item[idField] &&
+            t[idField].toString() === item[idField].toString()
+        )
+    );
+  };
+
+  // Handle fields that should be added to set (array fields)
   fieldsToAddToSet.forEach((field) => {
     if (update[field]) {
-      update["$addToSet"] = { [field]: { $each: update[field] } };
+      const processedArray = Array.isArray(update[field])
+        ? update[field]
+        : [update[field]];
+
+      // Remove duplicates for specific fields
+      const uniqueArray = removeDuplicates(processedArray);
+      update["$set"] = update["$set"] || {};
+      update["$set"][field] = uniqueArray;
       delete update[field];
     }
   });
 
+  // Handle fields that need special processing (with createdAt)
   fieldsToUpdate.forEach((field) => {
     if (update[field]) {
-      update[field] = update[field].map((item) => ({
+      // Process each item
+      const processedArray = update[field].map((item) => ({
         ...item,
         createdAt: item.createdAt || new Date(),
       }));
 
-      update["$addToSet"] = { [field]: { $each: update[field] } };
+      // Remove duplicates for specific fields
+      const uniqueArray = removeDuplicates(processedArray);
+
+      update["$set"] = update["$set"] || {};
+      update["$set"][field] = uniqueArray;
       delete update[field];
+    }
+  });
+
+  // Process single ObjectId fields
+  const singleObjectIdFields = ["user_id", "group_id"];
+  singleObjectIdFields.forEach((field) => {
+    if (update[field]) {
+      // Ensure single ObjectId fields are processed as-is
+      update[field] = update[field];
     }
   });
 
@@ -111,13 +148,7 @@ const preferences = {
       logObject("the body", body);
 
       // Validate user and group
-      const validationError = await validateUserAndGroup(
-        tenant,
-        body.user_id,
-        body.group_id,
-        next
-      );
-      if (validationError) return;
+      await validateUserAndGroup(tenant, body.user_id, body.group_id, next);
 
       const filterResponse = generateFilter.preferences(request, next);
       if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
@@ -169,8 +200,29 @@ const preferences = {
         body,
       } = request;
 
-      const filterResponse = generateFilter.preferences(request, next);
-      if (isEmpty(filterResponse) || isEmpty(filterResponse.user_id)) {
+      // Validate user and group
+      await validateUserAndGroup(tenant, body.user_id, body.group_id, next);
+
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
+      const filter = generateFilter.preferences(request, next);
+      if (isEmpty(filter) || isEmpty(filter.user_id)) {
         next(
           new HttpError(
             "Internal Server Error",
@@ -183,21 +235,7 @@ const preferences = {
         );
       }
 
-      const PreferenceDetails = await PreferenceModel(tenant)
-        .findOne(filterResponse)
-        .select("_id")
-        .lean();
-
-      if (isEmpty(PreferenceDetails)) {
-        next(
-          new HttpError("Bad Request Errors", httpStatus.BAD_REQUEST, {
-            message: `No existing preferences for the provided User ID: ${filterResponse.user_id.toString()}`,
-          })
-        );
-      }
-
-      const filter = PreferenceDetails;
-      const update = body;
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       const modifyResponse = await PreferenceModel(tenant).modify(
         {
@@ -305,6 +343,33 @@ const preferences = {
         body,
       } = request;
 
+      // Validate user and group
+      const validationError = await validateUserAndGroup(
+        tenant,
+        body.user_id,
+        body.group_id,
+        next
+      );
+      if (validationError) return;
+
+      const fieldsToUpdate = [
+        "selected_sites",
+        "selected_grids",
+        "selected_cohorts",
+        "selected_devices",
+        "selected_airqlouds",
+      ];
+
+      const fieldsToAddToSet = [
+        "airqloud_ids",
+        "device_ids",
+        "cohort_ids",
+        "grid_ids",
+        "site_ids",
+        "network_ids",
+        "group_ids",
+      ];
+
       logText("Replace the existing selected_ids....");
 
       const filterResponse = generateFilter.preferences(request, next);
@@ -320,7 +385,8 @@ const preferences = {
         };
       }
 
-      const update = body;
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
+
       const options = { upsert: true, new: true };
 
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
