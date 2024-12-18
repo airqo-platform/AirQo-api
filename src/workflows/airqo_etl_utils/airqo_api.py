@@ -132,7 +132,7 @@ class AirQoApi:
     def get_devices(
         self,
         network: Union[str, Any] = None,
-        device_category: DeviceCategory = DeviceCategory.NONE,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a network and device category.
@@ -176,7 +176,9 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"category": str(device_category)}
+        if device_category:
+            params = {"category": str(device_category)}
+
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
 
@@ -238,7 +240,7 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_category: DeviceCategory = DeviceCategory.LOW_COST
+        self, device_category: DeviceCategory = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
@@ -287,7 +289,9 @@ class AirQoApi:
             logger.error(f"Error while fetching networks: {error}")
             return devices
 
-        params = {"category": str(device_category)}
+        if device_category:
+            params = {"category": str(device_category)}
+
         if configuration.ENVIRONMENT == "production":
             params["active"] = True
 
