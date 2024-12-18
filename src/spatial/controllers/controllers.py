@@ -72,7 +72,7 @@ def get_satellite_prediction():
 def fetch_air_quality():
     return ReportView.generate_air_quality_report_with_gemini()
 
-@controller_bp.route("/air_quality_report_without_llm", methods=["POST"])
+@controller_bp.route("/rulebase_air_quality_report", methods=["POST"])
 def fetch_air_quality_without_llm():
     return ReportView.generate_air_quality_report_without_llm()
 

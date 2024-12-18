@@ -1,7 +1,5 @@
 import requests
 import openai
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import login
 from configure import Config
 import google.generativeai as genai 
 import logging
@@ -10,13 +8,6 @@ import logging
 # Configure API keys
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
 genai.configure(api_key=GOOGLE_API_KEY)
-hf_token = Config.HUGGING_FACE_TOKEN
-
-
-if hf_token:
-    login(hf_token)
-else:
-    print("Hugging Face token is missing. Set the 'HUGGING_FACE_TOKEN' environment variable.")
 
 class DataFetcher:
     @staticmethod
