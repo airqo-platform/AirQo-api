@@ -25,7 +25,6 @@ class Config:
         "BIGQUERY_SATELLITE_MODEL_PREDICTIONS"
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
-    HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 class ProductionConfig(Config):
     DEBUG = False
