@@ -132,7 +132,7 @@ class AirQoApi:
     def get_devices(
         self,
         network: Union[str, Any] = None,
-        device_category: DeviceCategory = DeviceCategory.NONE,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a network and device category.
@@ -176,7 +176,10 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"category": str(device_category)}
+        params: Dict = {}
+        if device_category:
+            params["category"] = str(device_category)
+
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
 
@@ -196,7 +199,7 @@ class AirQoApi:
                 "site_id": device.get("site", {}).get("_id", None),
                 "site_location": device.pop("site", {}).get("location_name", None),
                 "device_category": str(
-                    DeviceCategory.from_str(device.pop("category", None))
+                    DeviceCategory.category_from_str(device.pop("category", ""))
                 ),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
@@ -220,8 +223,6 @@ class AirQoApi:
                 - Optional error message if an exception occurs.
         """
         params = {}
-
-        params = {}
         networks: List[Dict[str, Any]] = []
         exception_message: Optional[str] = None
 
@@ -238,7 +239,7 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_category: DeviceCategory = DeviceCategory.LOW_COST
+        self, device_category: DeviceCategory = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
@@ -282,12 +283,15 @@ class AirQoApi:
         """
         devices: List[Dict[str, Any]] = []
         networks, error = self.get_networks()
+        params: Dict = {}
 
         if error:
             logger.error(f"Error while fetching networks: {error}")
             return devices
 
-        params = {"category": str(device_category)}
+        if device_category:
+            params["category"] = str(device_category)
+
         if configuration.ENVIRONMENT == "production":
             params["active"] = True
 
