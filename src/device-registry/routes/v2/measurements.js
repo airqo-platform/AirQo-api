@@ -15,12 +15,38 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const NetworkModel = require("@models/Network");
 const decimalPlaces = require("decimal-places");
+const cacheGenerator = require("@utils/cache-id-generator");
 const numeral = require("numeral");
 const rateLimit = require("express-rate-limit");
+const redis = require("@config/redis");
 const averagesLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
 });
+
+const cacheMiddleware = async (req, res, next) => {
+  try {
+    const cacheID = cacheGenerator.generateCacheID(req, next);
+
+    // Attach cache-related data to the request object
+    req.cacheID = cacheID;
+    req.cache = {
+      get: async () => await redis.get(cacheID),
+      set: async (data) => await redis.set(cacheID, JSON.stringify(data)),
+    };
+
+    // Check for cached data
+    const cachedData = await redis.get(cacheID);
+    if (cachedData) {
+      req.cachedData = JSON.parse(cachedData);
+    }
+
+    // Always call next() to proceed to the route handler
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
 
 // Define a custom function to check if a value is a valid ObjectId
 const isValidObjectId = (value) => {
@@ -111,6 +137,7 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 router.use(validatePagination);
+// router.use(cacheMiddleware);
 // router.use(addCategoryQueryParam);
 
 router.get(
