@@ -31,12 +31,14 @@ class AirQoApi:
         # TODO Findout if there is a bulk post api option greater than 5.
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
-            response = self.__request(
-                endpoint="devices/events",
-                params={"tenant": str(Tenant.AIRQO)},
-                method="post",
-                body=data,
-            )
+            if data:
+                network = data[0].get("network", "")
+                self.__request(
+                    endpoint="devices/events",
+                    params={"network": network},
+                    method="post",
+                    body=data,
+                )
 
     def get_maintenance_logs(
         self, tenant: str, device: str, activity_type: str = None
