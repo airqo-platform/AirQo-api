@@ -24,6 +24,10 @@ const minLength = [
 
 const noSpaces = /^\S*$/;
 
+const DEVICE_CONFIG = {
+  ALLOWED_CATEGORIES: ["bam", "lowcost", "gas"],
+};
+
 const accessCodeGenerator = require("generate-password");
 
 function sanitizeObject(obj, invalidKeys) {
@@ -265,6 +269,45 @@ deviceSchema.pre(
       // Determine if this is a new document or an update
       const isNew = this.isNew;
       const updateData = this.getUpdate ? this.getUpdate() : this;
+
+      // Handle category field for both new documents and updates
+      if (isNew) {
+        // For new documents
+        if ("category" in this) {
+          if (this.category === null) {
+            delete this.category;
+          } else if (
+            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(this.category)
+          ) {
+            return next(
+              new HttpError(
+                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                  ", "
+                )}`,
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
+        }
+      } else {
+        // For updates
+        if ("category" in updateData) {
+          if (updateData.category === null) {
+            delete updateData.category;
+          } else if (
+            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(updateData.category)
+          ) {
+            return next(
+              new HttpError(
+                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                  ", "
+                )}`,
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
+        }
+      }
 
       if (isNew) {
         // Set default network if not provided

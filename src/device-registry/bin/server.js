@@ -30,6 +30,7 @@ require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
+require("@bin/jobs/update-duplicate-site-fields-job");
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
