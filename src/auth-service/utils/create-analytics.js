@@ -11,6 +11,13 @@ const logger = log4js.getLogger(
 );
 const { HttpError } = require("@utils/errors");
 const httpStatus = require("http-status");
+const {
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+} = require("@utils/date");
 
 const routesWithService = [
   {
@@ -456,6 +463,8 @@ function generateYearEndEmail(userStats) {
   const {
     username,
     email,
+    firstName,
+    lastName,
     topServiceDescription,
     activityDuration,
     engagementTier,
@@ -646,8 +655,8 @@ const analytics = {
           query: {
             tenant,
             email,
-            startTime: "2024-01-01",
-            endTime: "2024-12-31",
+            startTime: new Date("2024-01-01"),
+            endTime: new Date("2024-12-31"),
           },
         };
 

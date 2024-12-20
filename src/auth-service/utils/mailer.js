@@ -309,7 +309,7 @@ const mailer = {
         subject: "Your AirQo Analytics 2024 Year in Review 🌍",
         html: emailContent,
         // Optional: add attachments if needed
-        attachments: attachments,
+        // attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);
