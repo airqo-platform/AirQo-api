@@ -250,10 +250,26 @@ class DataValidationUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame) -> list:
+        """
+        Processes a pandas DataFrame to structure data into a format suitable for API consumption.
+
+        The function:
+        1. Ensures all required columns are present in the DataFrame by filling missing ones.
+        2. Constructs a list of dictionaries for each row, with nested data structures for location,
+        pollutant values, and other metadata.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame containing raw device data.
+
+        Returns:
+            list: A list of dictionaries, each representing a structured data record ready for the API.
+
+        Raises:
+            Exception: Logs any errors encountered during row processing but does not halt execution.
+        """
         restructured_data = []
 
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data["timestamp"] = pd.to_datetime(data["timestamp"]).apply(date_to_str)
 
         bigquery_api = BigQueryApi()
         cols = bigquery_api.get_columns(bigquery_api.hourly_measurements_table)
@@ -267,8 +283,7 @@ class DataValidationUtils:
                     "device_id": row["mongo_id"],
                     "site_id": row["site_id"],
                     "device_number": row["device_number"],
-                    "tenant": str(Tenant.AIRQO),
-                    "network": row["tenant"],
+                    "network": row["network"],
                     "location": {
                         "latitude": {"value": row["latitude"]},
                         "longitude": {"value": row["longitude"]},
