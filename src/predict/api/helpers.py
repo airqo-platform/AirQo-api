@@ -10,6 +10,7 @@ from flask import request
 from google.cloud import bigquery
 from pymongo import errors
 from sqlalchemy import func
+from typing import Dict, List
 
 from app import cache
 from config import connect_mongo, Config
