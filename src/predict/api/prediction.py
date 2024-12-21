@@ -133,40 +133,40 @@ DEFAULT_HEALTH_TIPS = {
 }
 
 def handle_forecast_response(func: Callable) -> Callable:
-    """
-    Decorator to standardize forecast response handling and error management.
-    Reduces code duplication and centralizes error handling.
-    """
+    """ Decorator to standardize forecast response handling and error management. """
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             language = request.args.get("language", default="", type=str)
             result = func(*args, **kwargs)
-            
             if not result:
-                return jsonify({
-                    "message": "No forecasts are available.",
-                    "success": False,
-                }), 404
-                
+                return generate_error_response("No forecasts are available.", 404)
+
             # Process health tips in batches for better memory management
             enhanced_result = process_forecasts(result, language)
-            
             return jsonify({
                 "success": True,
-                "message": f"Forecasts successfully retrieved.",
+                "message": "Forecasts successfully retrieved.",
                 "forecasts": enhanced_result,
                 "aqi_ranges": AQI_RANGES
             }), 200
-            
         except Exception as e:
-            current_app.logger.error(f"Error processing forecast: {str(e)}", exc_info=True)
-            return jsonify({
-                "message": "An error occurred processing the forecast.",
-                "success": False
-            }), 500
-    
+            return handle_error(e)
+
     return wrapper
+
+def generate_error_response(message: str, status_code: int) -> tuple:
+    """ Generate a standardized error response. """
+    return jsonify({
+        "message": message,
+        "success": False,
+    }), status_code
+
+def handle_error(e: Exception) -> tuple:
+    """ Handle errors by logging and returning a standardized error response. """
+    current_app.logger.error(f"Error processing forecast: {str(e)}", exc_info=True)
+    return generate_error_response("An error occurred processing the forecast.", 500)
+
 
 def process_forecasts(
     result: Union[Dict, List], 
