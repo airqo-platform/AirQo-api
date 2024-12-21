@@ -221,7 +221,7 @@ def get_next_24hr_forecasts():
             "success": True,
             "message": "Forecasts successfully retrieved.",
             "forecasts": result['forecasts'],
-            **result.get("aqi_ranges", {})
+            "aqi_ranges": result.get("aqi_ranges", {})
         }
         
     else:
@@ -270,7 +270,7 @@ def get_next_1_week_forecasts():
             "success": True,
             "message": "Forecasts successfully retrieved.",
             "forecasts": result['forecasts'],
-            **result.get("aqi_ranges", {})
+            "aqi_ranges": result.get("aqi_ranges", {})
         }
 
     else:
@@ -297,7 +297,7 @@ def get_all_daily_forecasts():
             "success": True,
             "message": "All daily forecasts successfully retrieved.",
             "forecasts": result['forecasts'],
-            **result.get("aqi_ranges", {})
+            "aqi_ranges": result.get("aqi_ranges", {})
         }
     else:
         response = {
@@ -322,7 +322,7 @@ def get_all_hourly_forecasts():
             "success": True,
             "message": "All hourly forecasts successfully retrieved.",
             "forecasts": result['forecasts'],
-            **result.get("aqi_ranges", {})
+            "aqi_ranges": result.get("aqi_ranges", {})
         }
     else:
         response = {
