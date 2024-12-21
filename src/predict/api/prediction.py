@@ -270,16 +270,7 @@ def get_aqi_category(value):
 
 
 def enhance_forecast_response(result, language=''):
-    """
-    Enhanced forecast response with more resilient health tip handling.
-    
-    Args:
-        result (dict): Original forecast result
-        language (str): Language preference
-        
-    Returns:
-        dict: Enhanced forecast result
-    """
+    """ Enhanced forecast response with more resilient health tip handling. """
     enhanced_result = {}
     
     if 'forecasts' in result:
@@ -288,10 +279,12 @@ def enhance_forecast_response(result, language=''):
         # Try to get health tips from API first
         try:
             api_health_tips = get_health_tips(language=language)
+            if not isinstance(api_health_tips, list):  # Ensure it's a list
+                api_health_tips = []
         except Exception as e:
             current_app.logger.error(f"Error fetching API health tips: {str(e)}")
             api_health_tips = []
-        
+
         for forecast in result['forecasts']:
             enhanced_forecast = forecast.copy()
             pm2_5_value = forecast['pm2_5']
@@ -304,28 +297,24 @@ def enhance_forecast_response(result, language=''):
                     'aqi_color': aqi_category_details['aqi_color'],
                     'aqi_color_name': aqi_category_details['aqi_color_name']
                 })
-            
+
             # Try API health tips first
             health_tips = []
-            if api_health_tips:
+            if api_health_tips:  # Check if api_health_tips is not empty
                 health_tips = [
-                    tip for tip in api_health_tips
-                    if (tip['aqi_category']['max'] is None and pm2_5_value >= tip['aqi_category']['min']) or
-                    (tip['aqi_category']['max'] is not None and 
-                     tip['aqi_category']['min'] <= pm2_5_value <= tip['aqi_category']['max'])
+                    tip for tip in api_health_tips 
+                    if (tip['aqi_category']['max'] is None and pm2_5_value >= tip['aqi_category']['min']) or 
+                       (tip['aqi_category']['max'] is not None and tip['aqi_category']['min'] <= pm2_5_value <= tip['aqi_category']['max'])
                 ]
             
             # Fallback to static tips if no API tips available
             if not health_tips:
                 static_tips = get_static_health_tip(pm2_5_value)
-                health_tips = [
-                    {"title": tip["title"], "description": tip["description"]}
-                    for tip in static_tips.values()
-                ]
-            
+                health_tips = [{"title": tip["title"], "description": tip["description"]} for tip in static_tips.values()]
+
             enhanced_forecast['health_tips'] = health_tips
             enhanced_forecasts.append(enhanced_forecast)
-        
+
         # Reorder the response structure
         enhanced_result['forecasts'] = enhanced_forecasts
         
@@ -338,6 +327,7 @@ def enhance_forecast_response(result, language=''):
         enhanced_result['aqi_ranges'] = AQI_RANGES
     
     return enhanced_result
+
 
 
 ml_app = Blueprint("ml_app", __name__)
