@@ -3,6 +3,8 @@ import traceback
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 from flask import current_app
+from functools import wraps
+from typing import Dict, List, Optional, Union, Callable
 
 import routes
 from app import cache
@@ -25,6 +27,8 @@ from helpers import (
     read_faulty_devices,
     get_faults_cache_key,
     add_forecast_health_tips,
+    get_static_health_tip,
+    add_forecast_health_tips_cached
 )
 
 load_dotenv()
@@ -81,6 +85,159 @@ AQI_RANGES = {
     }
 }
 
+DEFAULT_HEALTH_TIPS = {
+    "good": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Air quality is good. Perfect for outdoor activities."
+        }
+    },
+    "moderate": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Air quality is acceptable. Unusually sensitive people should consider reducing prolonged outdoor exertion."
+        },
+        "sensitive": {
+            "title": "For Sensitive Groups",
+            "description": "Consider reducing prolonged outdoor activities if you experience symptoms."
+        }
+    },
+    "u4sg": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Reduce prolonged or heavy outdoor exertion. Take more breaks during outdoor activities."
+        },
+        "sensitive": {
+            "title": "For Sensitive Groups",
+            "description": "People with respiratory or heart conditions, elderly and children should limit outdoor exertion."
+        }
+    },
+    "unhealthy": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Avoid prolonged or heavy outdoor exertion. Move activities indoors or reschedule."
+        }
+    },
+    "very_unhealthy": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Avoid all outdoor activities. Stay indoors if possible."
+        }
+    },
+    "hazardous": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Stay indoors and keep activity levels low. Wear a mask if you must go outside."
+        }
+    }
+}
+
+def handle_forecast_response(func: Callable) -> Callable:
+    """
+    Decorator to standardize forecast response handling and error management.
+    Reduces code duplication and centralizes error handling.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            language = request.args.get("language", default="", type=str)
+            result = func(*args, **kwargs)
+            
+            if not result:
+                return jsonify({
+                    "message": "No forecasts are available.",
+                    "success": False,
+                }), 404
+                
+            # Process health tips in batches for better memory management
+            enhanced_result = process_forecasts(result, language)
+            
+            return jsonify({
+                "success": True,
+                "message": f"Forecasts successfully retrieved.",
+                "forecasts": enhanced_result,
+                "aqi_ranges": AQI_RANGES
+            }), 200
+            
+        except Exception as e:
+            current_app.logger.error(f"Error processing forecast: {str(e)}", exc_info=True)
+            return jsonify({
+                "message": "An error occurred processing the forecast.",
+                "success": False
+            }), 500
+    
+    return wrapper
+
+def process_forecasts(
+    result: Union[Dict, List], 
+    language: str, 
+    batch_size: int = 100
+) -> Dict:
+    """
+    Process forecasts in batches to optimize memory usage and improve performance.
+    
+    Args:
+        result: Forecast data to process
+        language: Language for health tips
+        batch_size: Number of forecasts to process in each batch
+        
+    Returns:
+        Dict: Processed forecast data with health tips
+    """
+    if isinstance(result, dict) and "forecasts" in result:
+        # Single site forecast
+        return process_single_site(result, language)
+    
+    # Multi-site forecast
+    return process_multiple_sites(result, language, batch_size)
+
+def process_single_site(result: Dict, language: str) -> Dict:
+    """Process a single site's forecasts efficiently."""
+    enhanced = enhance_forecast_response(result, language)
+    processed = add_forecast_health_tips({"default": enhanced["forecasts"]}, language)
+    enhanced["forecasts"] = processed["default"]
+    return enhanced
+
+def process_multiple_sites(
+    result: Dict, 
+    language: str, 
+    batch_size: int
+) -> Dict:
+    """
+    Process multiple sites' forecasts in batches for better performance.
+    Implements generator-based batch processing to reduce memory usage.
+    """
+    enhanced_result = {}
+    
+    # Pre-fetch health tips once to avoid multiple API calls
+    health_tips = get_health_tips(language)
+    
+    # Process sites in batches
+    sites = list(result.keys())
+    for i in range(0, len(sites), batch_size):
+        batch_sites = sites[i:i + batch_size]
+        batch_result = {
+            site_id: result[site_id] 
+            for site_id in batch_sites
+        }
+        
+        # Process batch
+        for site_id, forecasts in batch_result.items():
+            site_result = {"forecasts": forecasts}
+            enhanced_site = enhance_forecast_response(site_result, language)
+            enhanced_result[site_id] = enhanced_site["forecasts"]
+            
+        # Add health tips for the batch
+        enhanced_batch = add_forecast_health_tips_cached(
+            {site_id: enhanced_result[site_id] for site_id in batch_sites},
+            health_tips,
+            language
+        )
+        enhanced_result.update(enhanced_batch)
+    
+    return enhanced_result
+
+
 def get_aqi_category(value):
     """
     Determine the AQI category for a given value.
@@ -104,33 +261,36 @@ def get_aqi_category(value):
             }
     return None
 
+
 def enhance_forecast_response(result, language=''):
     """
-    Enhance forecast response with additional metadata.
+    Enhanced forecast response with more resilient health tip handling.
     
     Args:
-        result (dict): The original forecast result
-        language (str, optional): Language for health tips. Defaults to ''
-    
+        result (dict): Original forecast result
+        language (str): Language preference
+        
     Returns:
         dict: Enhanced forecast result
     """
-    # Add health tips if possible
-    try:
-        add_forecast_health_tips(result, language=language)
-    except Exception as e:
-        current_app.logger.error(f"Error adding health tips: {str(e)}")
+    enhanced_result = {}
     
-    # Add AQI ranges to the response
-    result['aqi_ranges'] = AQI_RANGES
-    
-    # Enhance forecasts with AQI category, color, and color name
     if 'forecasts' in result:
         enhanced_forecasts = []
+        
+        # Try to get health tips from API first
+        try:
+            api_health_tips = get_health_tips(language=language)
+        except Exception as e:
+            current_app.logger.error(f"Error fetching API health tips: {str(e)}")
+            api_health_tips = []
+        
         for forecast in result['forecasts']:
             enhanced_forecast = forecast.copy()
-            aqi_category_details = get_aqi_category(forecast['pm2_5'])
+            pm2_5_value = forecast['pm2_5']
             
+            # Add AQI category details
+            aqi_category_details = get_aqi_category(pm2_5_value)
             if aqi_category_details:
                 enhanced_forecast.update({
                     'aqi_category': aqi_category_details['aqi_category'],
@@ -138,78 +298,89 @@ def enhance_forecast_response(result, language=''):
                     'aqi_color_name': aqi_category_details['aqi_color_name']
                 })
             
+            # Try API health tips first
+            health_tips = []
+            if api_health_tips:
+                health_tips = [
+                    tip for tip in api_health_tips
+                    if (tip['aqi_category']['max'] is None and pm2_5_value >= tip['aqi_category']['min']) or
+                    (tip['aqi_category']['max'] is not None and 
+                     tip['aqi_category']['min'] <= pm2_5_value <= tip['aqi_category']['max'])
+                ]
+            
+            # Fallback to static tips if no API tips available
+            if not health_tips:
+                static_tips = get_static_health_tip(pm2_5_value)
+                health_tips = [
+                    {"title": tip["title"], "description": tip["description"]}
+                    for tip in static_tips.values()
+                ]
+            
+            enhanced_forecast['health_tips'] = health_tips
             enhanced_forecasts.append(enhanced_forecast)
         
-        result['forecasts'] = enhanced_forecasts
+        # Reorder the response structure
+        enhanced_result['forecasts'] = enhanced_forecasts
+        
+        # Copy other fields except aqi_ranges
+        for key, value in result.items():
+            if key not in ['forecasts', 'aqi_ranges']:
+                enhanced_result[key] = value
+        
+        # Add AQI ranges at the end
+        enhanced_result['aqi_ranges'] = AQI_RANGES
     
-    return result
+    return enhanced_result
+
 
 ml_app = Blueprint("ml_app", __name__)
 
 @ml_app.get(routes.route["fetch_faulty_devices"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
+    """Fetch faulty devices endpoint."""
     try:
         result = read_faulty_devices()
         if len(result) == 0:
-            return (
-                jsonify(
-                    {
-                        "message": "Error fetching faulty devices",
-                        "success": True,
-                        "data": None,
-                    }
-                ),
-                200,
-            )
-        return (
-            jsonify(
-                {
-                    "message": "Faulty devices found",
-                    "success": True,
-                    "data": result,
-                    "total": len(result),
-                }
-            ),
-            200,
-        )
+            return jsonify({
+                "message": "Error fetching faulty devices",
+                "success": True,
+                "data": None,
+            }), 200
+            
+        return jsonify({
+            "message": "Faulty devices found",
+            "success": True,
+            "data": result,
+            "total": len(result),
+        }), 200
+        
     except Exception as e:
         current_app.logger.error("Error: ", str(e))
-        return (
-            jsonify(
-                {"message": "Internal server error", "success": False, "data": None}
-            ),
-            500,
-        )
+        return jsonify({
+            "message": "Internal server error",
+            "success": False,
+            "data": None
+        }), 500
 
 @ml_app.route(routes.route["next_24hr_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=hourly_forecasts_cache_key)
 def get_next_24hr_forecasts():
-    """
-    Get forecasts for the next 24 hours from specified start time.
-    """
+    """Get forecasts for the next 24 hours from specified start time."""
     params = {
         name: request.args.get(name, default=None, type=str)
         for name in [
-            "site_id",
-            "site_name",
-            "parish",
-            "county",
-            "city",
-            "district",
-            "region",
+            "site_id", "site_name", "parish",
+            "county", "city", "district", "region"
         ]
     }
+    
     if not any(params.values()):
-        return (
-            jsonify(
-                {
-                    "message": "Please specify at least one query parameter",
-                    "success": False,
-                }
-            ),
-            400,
-        )
+        return jsonify({
+            "message": "Please specify at least one query parameter",
+            "success": False,
+        }), 400
+        
     language = request.args.get("language", default="", type=str)
     result = get_forecasts_1(**params, db_name="hourly_forecasts_1")
     
@@ -222,99 +393,39 @@ def get_next_24hr_forecasts():
             "success": False,
         }
     
-    data = jsonify(response)
-    return data, 200
+    return jsonify(response), 200
 
 @ml_app.route(routes.route["next_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=daily_forecasts_cache_key)
+@handle_forecast_response
 def get_next_1_week_forecasts():
-    """
-    Get forecasts for the next 1 week from specified start day.
-    """
+    """Get forecasts for the next 1 week from specified start day."""
     params = {
         name: request.args.get(name, default=None, type=str)
         for name in [
-            "device_id",
-            "site_id",
-            "site_name",
-            "parish",
-            "county",
-            "city",
-            "district",
-            "region",
+            "device_id", "site_id", "site_name", "parish",
+            "county", "city", "district", "region",
         ]
     }
+    
     if not any(params.values()):
-        return (
-            jsonify(
-                {
-                    "message": "Please specify at least one query parameter",
-                    "success": False,
-                }
-            ),
-            400,
-        )
-    language = request.args.get("language", default="", type=str)
-    result = get_forecasts_1(**params, db_name="daily_forecasts_1")
-    
-    if result:
-        result = enhance_forecast_response(result, language)
-        response = result
-    else:
-        response = {
-            "message": "forecasts for this site are not available",
-            "success": False,
-        }
-    
-    data = jsonify(response)
-    return data, 200
+        raise ValueError("Please specify at least one query parameter")
+        
+    return get_forecasts_1(**params, db_name="daily_forecasts_1")
 
 @ml_app.route(routes.route["all_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_daily_forecasts_cache_key)
+@handle_forecast_response
 def get_all_daily_forecasts():
-    """
-    Get all forecasts from the database.
-    """
-    language = request.args.get("language", default="", type=str)
-    result = get_forecasts_2(db_name="daily_forecasts_1", all_forecasts=True)
-    current_app.logger.info(f"result: result retriece", exc_info=True)
-    
-    if result:
-        result = enhance_forecast_response(result, language)
-        response = {
-            "success": True,
-            "message": "All daily forecasts successfully retrieved.",
-            "forecasts": result,
-        }
-    else:
-        response = {
-            "message": "No forecasts are available.",
-            "success": False,
-        }
-    return jsonify(response), 200
+    """Get all forecasts from the database."""
+    return get_forecasts_2(db_name="daily_forecasts_1", all_forecasts=True)
 
 @ml_app.route(routes.route["all_24hr_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_hourly_forecasts_cache_key)
+@handle_forecast_response
 def get_all_hourly_forecasts():
-    """
-    Get all forecasts from the database.
-    """
-    language = request.args.get("language", default="", type=str)
-    result = get_forecasts_2(db_name="hourly_forecasts_1", all_forecasts=True)
-    
-    if result:
-        result = enhance_forecast_response(result, language)
-        response = {
-            "success": True,
-            "message": "All hourly forecasts successfully retrieved.",
-            "forecasts": result,
-        }
-    else:
-        response = {
-            "message": "No forecasts are available.",
-            "success": False,
-        }
-    return jsonify(response), 200
+    """Get all hourly forecasts from the database."""
+    return get_forecasts_2(db_name="hourly_forecasts_1", all_forecasts=True)
 
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)

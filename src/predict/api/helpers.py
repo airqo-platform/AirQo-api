@@ -17,6 +17,104 @@ from config import connect_mongo, Config
 load_dotenv()
 db = connect_mongo()
 
+# Centralized AQI Ranges Configuration
+AQI_RANGES = {
+    "good": {
+        "min": 0,
+        "max": 9.1,
+        "label": "Good",
+        "aqi_category": "Good",
+        "aqi_color": "00e400",
+        "aqi_color_name": "Green"
+    },
+    "moderate": {
+        "min": 9.101,
+        "max": 35.49,
+        "label": "Moderate",
+        "aqi_category": "Moderate",
+        "aqi_color": "ffff00",
+        "aqi_color_name": "Yellow"
+    },
+    "u4sg": {
+        "min": 35.491,
+        "max": 55.49,
+        "label": "Unhealthy for Sensitive Groups",
+        "aqi_category": "Unhealthy for Sensitive Groups",
+        "aqi_color": "ff7e00",
+        "aqi_color_name": "Orange"
+    },
+    "unhealthy": {
+        "min": 55.491,
+        "max": 125.49,
+        "label": "Unhealthy",
+        "aqi_category": "Unhealthy",
+        "aqi_color": "ff0000",
+        "aqi_color_name": "Red"
+    },
+    "very_unhealthy": {
+        "min": 125.491,
+        "max": 225.49,
+        "label": "Very Unhealthy",
+        "aqi_category": "Very Unhealthy",
+        "aqi_color": "8f3f97",
+        "aqi_color_name": "Purple"
+    },
+    "hazardous": {
+        "min": 225.491,
+        "max": None,
+        "label": "Hazardous",
+        "aqi_category": "Hazardous",
+        "aqi_color": "7e0023",
+        "aqi_color_name": "Maroon"
+    }
+}
+
+DEFAULT_HEALTH_TIPS = {
+    "good": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Air quality is good. Perfect for outdoor activities."
+        }
+    },
+    "moderate": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Air quality is acceptable. Unusually sensitive people should consider reducing prolonged outdoor exertion."
+        },
+        "sensitive": {
+            "title": "For Sensitive Groups",
+            "description": "Consider reducing prolonged outdoor activities if you experience symptoms."
+        }
+    },
+    "u4sg": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Reduce prolonged or heavy outdoor exertion. Take more breaks during outdoor activities."
+        },
+        "sensitive": {
+            "title": "For Sensitive Groups",
+            "description": "People with respiratory or heart conditions, elderly and children should limit outdoor exertion."
+        }
+    },
+    "unhealthy": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Avoid prolonged or heavy outdoor exertion. Move activities indoors or reschedule."
+        }
+    },
+    "very_unhealthy": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Avoid all outdoor activities. Stay indoors if possible."
+        }
+    },
+    "hazardous": {
+        "everyone": {
+            "title": "For Everyone",
+            "description": "Stay indoors and keep activity levels low. Wear a mask if you must go outside."
+        }
+    }
+}
 
 def date_to_str(date: datetime):
     return date.isoformat()
@@ -101,27 +199,80 @@ def geo_coordinates_cache_key():
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_health_tips(language="") -> list[dict]:
-    params = {"language": language} if language else {}
+    """
+    Fetch health tips from the AirQo API with enhanced error handling and validation.
+    
+    Args:
+        language (str): Optional language code for localized tips
+        
+    Returns:
+        list[dict]: List of health tips or empty list on failure
+    """
+    # Validate language parameter
+    if language and not isinstance(language, str):
+        current_app.logger.warning(f"Invalid language parameter type: {type(language)}")
+        return []
+
+    # Build request parameters including the token
+    params = {"token": Config.AIRQO_API_AUTH_TOKEN}
+    if language:
+        params["language"] = language.strip()
+
     try:
+        # Make request with timeout
         response = requests.get(
-            f"{Config.AIRQO_BASE_URL}api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
-            timeout=10,
+            f"{Config.AIRQO_BASE_URL}api/v2/devices/tips",
             params=params,
+            timeout=10
         )
-        if response.status_code == 200:
-            result = response.json()
-            if "tips" in result:
-                return result["tips"]
-            else:
-                raise Exception("Invalid JSON response: no 'tips' key")
-        else:
-            raise Exception(f"Bad status code: {response.status_code}")
+        
+        # Raise for bad status
+        response.raise_for_status()
+        
+        # Parse response
+        result = response.json()
+        
+        # Validate response structure
+        if not isinstance(result, dict):
+            raise ValueError("Invalid response format: expected dictionary")
+            
+        if "tips" not in result:
+            raise ValueError("Invalid response format: missing 'tips' key")
+            
+        if not isinstance(result["tips"], list):
+            raise ValueError("Invalid response format: 'tips' must be a list")
+        
+        # Validate each tip has required fields
+        for tip in result["tips"]:
+            if not all(k in tip for k in ["title", "description", "aqi_category"]):
+                raise ValueError("Invalid tip format: missing required fields")
+            
+            if not all(k in tip["aqi_category"] for k in ["min", "max"]):
+                raise ValueError("Invalid AQI category format: missing min/max values")
+        
+        return result["tips"]
+        
+    except requests.Timeout:
+        current_app.logger.error("Timeout while fetching health tips", exc_info=True)
+        
+    except requests.RequestException as ex:
+        current_app.logger.error(
+            f"Failed to retrieve health tips: {str(ex)}", exc_info=True
+        )
+        
+    except (ValueError, KeyError, TypeError) as ex:
+        current_app.logger.error(
+            f"Invalid response format: {str(ex)}", exc_info=True
+        )
+        
     except Exception as ex:
         current_app.logger.error(
-            "Failed to retrieve health tips: %s", ex, exc_info=False
+            f"Unexpected error fetching health tips: {str(ex)}", exc_info=True
         )
-        cache.delete_memoized(get_health_tips)
-        return []
+    
+    # Clear cache on failure
+    cache.delete_memoized(get_health_tips)
+    return []
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
@@ -400,22 +551,109 @@ def read_faulty_devices():
         return devices
 
 
-def add_forecast_health_tips(results: dict, language: str = ""):
-    health_tips = get_health_tips(language=language)
-    if not health_tips:
-        return results
+def get_static_health_tip(pm2_5_value, aqi_ranges=AQI_RANGES):
+    """
+    Get static health tip based on PM2.5 value using AQI ranges.
+    
+    Args:
+        pm2_5_value (float): PM2.5 value to determine AQI category
+        aqi_ranges (dict): AQI range definitions
+        
+    Returns:
+        list: List of applicable health tips
+    """
+    for category, range_info in aqi_ranges.items():
+        if range_info['max'] is None and pm2_5_value >= range_info['min']:
+            return DEFAULT_HEALTH_TIPS.get(category, {})
+        elif range_info['max'] is not None and range_info['min'] <= pm2_5_value <= range_info['max']:
+            return DEFAULT_HEALTH_TIPS.get(category, {})
+    return {}
 
+def add_forecast_health_tips(results: dict, language: str = ""):
+    """
+    Enhanced version of add_forecast_health_tips with fallback mechanism.
+    
+    Args:
+        results (dict): Forecast results to enhance
+        language (str): Language preference
+        
+    Returns:
+        dict: Enhanced results with health tips
+    """
+    # Try to get API health tips
+    try:
+        api_health_tips = get_health_tips(language=language)
+    except Exception as e:
+        current_app.logger.error(f"Error fetching API health tips: {str(e)}")
+        api_health_tips = []
+    
     for site_id, forecasts in results.items():
         for forecast in forecasts:
-            forecast["health_tips"] = [
-                [
-                    tip
-                    for tip in health_tips
-                    if tip["aqi_category"]["max"]
-                    >= pm2_5_value
-                    >= tip["aqi_category"]["min"]
-                ]
-                for pm2_5_value in forecast["pm2_5"]
-            ]
+            health_tips = []
+            
+            for pm2_5_value in forecast.get("pm2_5", []):
+                tips_for_value = []
+                
+                # Try API health tips first
+                if api_health_tips:
+                    tips_for_value = [
+                        tip for tip in api_health_tips
+                        if (tip['aqi_category']['max'] is None and pm2_5_value >= tip['aqi_category']['min']) or
+                        (tip['aqi_category']['max'] is not None and 
+                         tip['aqi_category']['min'] <= pm2_5_value <= tip['aqi_category']['max'])
+                    ]
+                
+                # Fallback to static tips if no API tips available
+                if not tips_for_value:
+                    static_tips = get_static_health_tip(pm2_5_value)
+                    tips_for_value = [
+                        {"title": tip["title"], "description": tip["description"]}
+                        for tip in static_tips.values()
+                    ]
+                
+                health_tips.append(tips_for_value)
+            
+            forecast["health_tips"] = health_tips
+    
+    return results
 
+def add_forecast_health_tips_cached(
+    results: Dict, 
+    cached_health_tips: List, 
+    language: str
+) -> Dict:
+    """
+    Version of add_forecast_health_tips that uses pre-fetched health tips
+    to avoid multiple API calls.
+    """
+    for site_id, forecasts in results.items():
+        for forecast in forecasts:
+            health_tips = []
+            
+            for pm2_5_value in forecast.get("pm2_5", []):
+                tips_for_value = []
+                
+                # Use cached health tips
+                if cached_health_tips:
+                    tips_for_value = [
+                        tip for tip in cached_health_tips
+                        if (tip['aqi_category']['max'] is None and 
+                            pm2_5_value >= tip['aqi_category']['min']) or
+                        (tip['aqi_category']['max'] is not None and 
+                         tip['aqi_category']['min'] <= pm2_5_value <= 
+                         tip['aqi_category']['max'])
+                    ]
+                
+                # Fallback to static tips if needed
+                if not tips_for_value:
+                    static_tips = get_static_health_tip(pm2_5_value)
+                    tips_for_value = [
+                        {"title": tip["title"], "description": tip["description"]}
+                        for tip in static_tips.values()
+                    ]
+                
+                health_tips.append(tips_for_value)
+            
+            forecast["health_tips"] = health_tips
+    
     return results
