@@ -81,6 +81,16 @@ AQI_RANGES = {
     }
 }
 
+def sort_and_reorder_response(response):
+    if isinstance(response, dict):
+        # Reorder keys alphabetically except 'forecasts' which should come first
+        ordered_keys = sorted([k for k in response.keys() if k != 'forecasts']) + ['forecasts']
+        return {k: response[k] for k in ordered_keys}
+    elif isinstance(response, list):
+        return [sort_and_reorder_response(item) for item in response]
+    else:
+        return response
+
 def get_aqi_category(value):
     """
     Determine the AQI category for a given value.
@@ -229,8 +239,8 @@ def get_next_24hr_forecasts():
             "message": "No forecasts are available.",
             "success": False,
         }
-    
-    return jsonify(response), 200
+    sorted_and_reordered_response = sort_and_reorder_response(response)
+    return jsonify(sorted_and_reordered_response), 200
 
 @ml_app.route(routes.route["next_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=daily_forecasts_cache_key)
@@ -278,8 +288,8 @@ def get_next_1_week_forecasts():
             "message": "No forecasts are available.",
             "success": False,
         }
-    
-    return jsonify(response), 200
+    sorted_and_reordered_response = sort_and_reorder_response(response)
+    return jsonify(sorted_and_reordered_response), 200
 
 @ml_app.route(routes.route["all_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_daily_forecasts_cache_key)
@@ -305,7 +315,8 @@ def get_all_daily_forecasts():
             "success": False,
         }
     
-    return jsonify(response), 200
+    sorted_and_reordered_response = sort_and_reorder_response(response)
+    return jsonify(sorted_and_reordered_response), 200
 
 @ml_app.route(routes.route["all_24hr_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_hourly_forecasts_cache_key)
@@ -330,7 +341,8 @@ def get_all_hourly_forecasts():
             "success": False,
         }
     
-    return jsonify(response), 200
+    sorted_and_reordered_response = sort_and_reorder_response(response)
+    return jsonify(sorted_and_reordered_response), 200
 
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)
