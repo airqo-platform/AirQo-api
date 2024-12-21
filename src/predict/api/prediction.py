@@ -215,15 +215,22 @@ def get_next_24hr_forecasts():
     
     if result:
         result = enhance_forecast_response(result, language)
-        response = result
+        
+        # Restructure the response to put forecasts at the top level
+        response = {
+            "success": True,
+            "message": "Forecasts successfully retrieved.",
+            "forecasts": result['forecasts'],
+            **result.get("aqi_ranges", {})
+        }
+        
     else:
         response = {
-            "message": "forecasts for this site are not available",
+            "message": "No forecasts are available.",
             "success": False,
         }
     
-    data = jsonify(response)
-    return data, 200
+    return jsonify(response), 200
 
 @ml_app.route(routes.route["next_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=daily_forecasts_cache_key)
@@ -259,15 +266,20 @@ def get_next_1_week_forecasts():
     
     if result:
         result = enhance_forecast_response(result, language)
-        response = result
+        response = {
+            "success": True,
+            "message": "Forecasts successfully retrieved.",
+            "forecasts": result['forecasts'],
+            **result.get("aqi_ranges", {})
+        }
+
     else:
         response = {
-            "message": "forecasts for this site are not available",
+            "message": "No forecasts are available.",
             "success": False,
         }
     
-    data = jsonify(response)
-    return data, 200
+    return jsonify(response), 200
 
 @ml_app.route(routes.route["all_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=all_daily_forecasts_cache_key)
@@ -284,13 +296,15 @@ def get_all_daily_forecasts():
         response = {
             "success": True,
             "message": "All daily forecasts successfully retrieved.",
-            "forecasts": result,
+            "forecasts": result['forecasts'],
+            **result.get("aqi_ranges", {})
         }
     else:
         response = {
             "message": "No forecasts are available.",
             "success": False,
         }
+    
     return jsonify(response), 200
 
 @ml_app.route(routes.route["all_24hr_forecasts"], methods=["GET"])
@@ -307,13 +321,15 @@ def get_all_hourly_forecasts():
         response = {
             "success": True,
             "message": "All hourly forecasts successfully retrieved.",
-            "forecasts": result,
+            "forecasts": result['forecasts'],
+            **result.get("aqi_ranges", {})
         }
     else:
         response = {
             "message": "No forecasts are available.",
             "success": False,
         }
+    
     return jsonify(response), 200
 
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
