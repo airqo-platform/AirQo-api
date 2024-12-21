@@ -164,8 +164,15 @@ def generate_error_response(message: str, status_code: int) -> tuple:
 
 def handle_error(e: Exception) -> tuple:
     """ Handle errors by logging and returning a standardized error response. """
+    # Log the error with detailed information
     current_app.logger.error(f"Error processing forecast: {str(e)}", exc_info=True)
-    return generate_error_response("An error occurred processing the forecast.", 500)
+    
+    # Return a detailed error response including the exception message
+    return jsonify({
+        "message": "An error occurred processing the forecast.",
+        "error": str(e),  # Include the exception message for debugging
+        "success": False,
+    }), 500
 
 
 def process_forecasts(
