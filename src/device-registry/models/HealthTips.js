@@ -197,54 +197,7 @@ tipsSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = { new: true } } = {}, next) {
     try {
-      logObject("the filter in the model", filter);
-      logObject("the update in the model", update);
-      logObject("the opts in the model", opts);
-      let modifiedUpdateBody = Object.assign({}, update);
-      if (modifiedUpdateBody._id) {
-        delete modifiedUpdateBody._id;
-      }
-
-      delete modifiedUpdateBody.aqi_category;
-
-      switch (update.aqi_category) {
-        case "good":
-          modifiedUpdateBody.aqi_category = { min: 0, max: 12.09 };
-          break;
-        case "moderate":
-          modifiedUpdateBody.aqi_category = { min: 12.1, max: 35.49 };
-          break;
-        case "u4sg":
-          modifiedUpdateBody.aqi_category = { min: 35.5, max: 55.49 };
-          break;
-        case "unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 55.5, max: 150.49 };
-          break;
-        case "very_unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 150.5, max: 250.49 };
-          break;
-        case "hazardous":
-          modifiedUpdateBody.aqi_category = { min: 250.5, max: 500 };
-          break;
-        default:
-      }
-
-      let options = opts;
-      let keys = {};
-      const setProjection = (object) => {
-        Object.keys(object).forEach((element) => {
-          keys[element] = 1;
-        });
-        return keys;
-      };
-      logObject("the new modifiedUpdateBody", modifiedUpdateBody);
-
-      const updatedTip = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdateBody,
-        options
-      );
-      logObject("updatedTip", updatedTip);
+      const updatedTip = await this.findOneAndUpdate(filter, update, opts);
       if (!isEmpty(updatedTip)) {
         return {
           success: true,

@@ -4,13 +4,12 @@ import pandas as pd
 
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
-from .constants import Tenant, DataSource, DeviceCategory, Frequency
+from .constants import DataSource, DeviceCategory, Frequency
 from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
 
-import json
-
+from .config import configuration
 import logging
 
 logger = logging.getLogger(__name__)
@@ -52,29 +51,58 @@ class AirnowDataUtils:
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        # TODO Update if being used.
-        tenants = AirQoApi().get_networks(DataSource.AIRNOW)
+        """
+        Extracts BAM (Beta Attenuation Monitor) data from AirNow API for the given date range.
+
+        This function fetches device information for the BAM network, queries data for each device over the specified date range,
+        and compiles it into a pandas DataFrame.
+
+        Args:
+            start_date_time (str): Start of the date range in ISO 8601 format (e.g., "2024-11-01T00:00:00Z").
+            end_date_time (str): End of the date range in ISO 8601 format (e.g., "2024-11-07T23:59:59Z").
+
+        Returns:
+            pd.DataFrame: A DataFrame containing BAM data for all devices within the specified date range,
+                        including a `network` column indicating the device network.
+
+        Raises:
+            ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
+        """
+        devices = AirQoApi().get_devices_by_network(DeviceCategory.BAM)
         bam_data = pd.DataFrame()
+
+        if not devices:
+            raise ValueError("No devices found for the BAM network.")
+
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             data_source=DataSource.AIRNOW,
         )
 
-        for tenant in tenants:
-            network_api_key = tenant["api_key"]
-            network_data = pd.DataFrame()
+        if not dates:
+            raise ValueError("Invalid or empty date range provided.")
 
+        api_key = configuration.US_EMBASSY_API_KEY
+
+        all_device_data = []
+        for device in devices:
+            device_data = []
             for start, end in dates:
-                continue
                 query_data = AirnowDataUtils.query_bam_data(
-                    api_key=network_api_key, start_date_time=start, end_date_time=end
+                    api_key=api_key, start_date_time=start, end_date_time=end
                 )
-                network_data = pd.concat([network_data, query_data], ignore_index=True)
-            continue
-            network_data["tenant"] = tenant["network"]
+                if not query_data.empty:
+                    device_data.append(query_data)
+            if device_data:
+                device_df = pd.concat(device_data, ignore_index=True)
+                device_df["network"] = device["network"]
+                all_device_data.append(device_df)
 
-            bam_data = pd.concat([bam_data, network_data], ignore_index=True)
+        if not all_device_data:
+            raise ValueError("No BAM data found for the specified date range.")
+
+        bam_data = pd.concat(all_device_data, ignore_index=True)
 
         return bam_data
 
@@ -119,14 +147,14 @@ class AirnowDataUtils:
                 if parameter_col_name in pollutant_value:
                     pollutant_value[parameter_col_name] = row["Value"]
 
-                if row["tenant"] != device_details.get("tenant"):
-                    logger.exception(f"Tenant mismatch for device ID {device_id}")
+                if row["network"] != device_details.get("network"):
+                    logger.exception(f"Network mismatch for device ID {device_id}")
                     continue
 
                 air_now_data.append(
                     {
                         "timestamp": row["UTC"],
-                        "tenant": row["tenant"],
+                        "network": row["network"],
                         "site_id": device_details.get("site_id"),
                         "device_id": device_details.get("device_id"),
                         "mongo_id": device_details.get("mongo_id"),
