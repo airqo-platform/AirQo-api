@@ -715,11 +715,21 @@ const analytics = {
   },
   sendEmailsInBatches: async (userStats, batchSize = 100) => {
     try {
+      let emailsSent = 0;
+      let lowEngagementCount = 0;
+
       for (let i = 0; i < userStats.length; i += batchSize) {
         const batch = userStats.slice(i, i + batchSize);
-        const emailPromises = batch.map((userStat) => {
+        const emailPromises = batch
+          .filter((userStat) => {
+            if (userStat.engagementTier === "Low Engagement") {
+              lowEngagementCount++;
+              return false;
+            }
+            return true;
+          })
+          .map((userStat) => {
           const { email, username } = userStat;
-
           const emailContent = generateYearEndEmail(userStat);
 
           return mailer
@@ -727,6 +737,7 @@ const analytics = {
               email,
               firstName: username.split(" ")[0],
               lastName: username.split(" ")[1] || "",
+                userStat,
               emailContent,
             })
             .then((response) => {
@@ -736,6 +747,8 @@ const analytics = {
                     response
                   )}`
                 );
+                } else {
+                  emailsSent++;
               }
               return response;
             });
@@ -746,7 +759,10 @@ const analytics = {
 
       return {
         success: true,
-        message: `Sent year-end emails to ${userStats.length} users`,
+        message:
+          lowEngagementCount > 0
+            ? `Sent year-end emails to ${emailsSent} users. Skipped ${lowEngagementCount} users with low engagement.`
+            : `Sent year-end emails to ${emailsSent} users`,
       };
     } catch (error) {
       logger.error(`🐛🐛 Error in sendEmailsInBatches: ${stringify(error)}`);
@@ -757,9 +773,12 @@ const analytics = {
       );
     }
   },
-  sendYearEndEmails: async (emails, tenant = "airqo") => {
+  sendYearEndEmails: async (request) => {
     try {
-      // Fetch user stats for provided emails
+      const { body, query } = request;
+      const { emails } = body;
+      const { tenant } = query;
+
       const userStats = await analytics.fetchUserStats(emails, tenant);
       logObject("userStats", userStats);
 

@@ -1,5 +1,5 @@
 const transporter = require("@config/mailer");
-const { logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
@@ -290,6 +290,7 @@ const mailer = {
     lastName = "",
     emailContent = "",
     tenant = "airqo",
+    userStat = {},
   } = {}) => {
     try {
       const checkResult = await SubscriptionModel(
@@ -301,15 +302,14 @@ const mailer = {
       }
 
       const mailOptions = {
+        to: email,
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        to: `${email}`,
         subject: "Your AirQo Analytics 2024 Year in Review 🌍",
-        html: emailContent,
-        // Optional: add attachments if needed
-        // attachments: attachments,
+        html: msgs.yearEndSummary(userStat),
+        attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);

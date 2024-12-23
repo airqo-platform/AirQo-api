@@ -9,8 +9,11 @@ router.post(
   "/send",
   validateTenant(),
   body("emails")
+    .exists()
+    .withMessage("the emails array field must be provided in the request body")
+    .bail()
     .isArray()
-    .withMessage("Emails must be provided as an array")
+    .withMessage("emails must be provided as an array")
     .bail(),
   createAnalyticsController.send
 );
