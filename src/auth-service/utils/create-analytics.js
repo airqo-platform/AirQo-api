@@ -452,11 +452,54 @@ function calculateActivityDuration(firstActivity, lastActivity) {
   };
 }
 
-function calculateEngagementTier(count) {
-  if (count < 10) return "Low Engagement";
-  if (count < 50) return "Moderate Engagement";
-  if (count < 100) return "High Engagement";
-  return "Super User";
+function calculateEngagementTier(stats) {
+  const {
+    count = 0,
+    uniqueServices = [],
+    uniqueEndpoints = [],
+    activityDuration = { totalDays: 0, totalMonths: 0 },
+  } = stats;
+
+  logObject("stats being used to calculate Engagement Tier ", stats);
+
+  // Calculate average actions per day
+  const actionsPerDay =
+    activityDuration.totalDays > 0 ? count / activityDuration.totalDays : count;
+
+  logObject("actionsPerDay", actionsPerDay);
+
+  // Calculate service diversity score (0-1)
+  const serviceDiversity = uniqueServices.length / routesWithService.length;
+
+  logObject("serviceDiversity", serviceDiversity);
+
+  // Calculate duration score (0-1)
+  // Assuming 12 months is the maximum for a perfect score
+  const durationScore = Math.min(activityDuration.totalMonths / 12, 1);
+
+  logObject("durationScore", durationScore);
+
+  // Weighted engagement score (0-100)
+  const engagementScore =
+    durationScore * 60 + // Weight for duration (60%)
+    actionsPerDay * 16 + // Weight frequency of actions (16%)
+    serviceDiversity * 12 + // Weight service diversity (12%)
+    Math.min(uniqueEndpoints.length / 10, 1) * 12; // Weight endpoint diversity (12%)
+
+  logObject("engagementScore components", {
+    durationComponent: durationScore * 60,
+    actionsComponent: actionsPerDay * 16,
+    serviceComponent: serviceDiversity * 12,
+    endpointComponent: Math.min(uniqueEndpoints.length / 10, 1) * 12,
+  });
+  logObject("final engagementScore", engagementScore);
+
+  // Adjusted thresholds with more granular tiers
+  if (engagementScore >= 80) return "Elite User";
+  if (engagementScore >= 65) return "Super User";
+  if (engagementScore >= 45) return "High Engagement";
+  if (engagementScore >= 25) return "Moderate Engagement";
+  return "Low Engagement";
 }
 
 function generateYearEndEmail(userStats) {
@@ -505,8 +548,20 @@ ${mostUsedEndpoints
 Thank you for being an incredible part of our community!
 
 Best wishes,
-The AirQo Team
+The AirQo Analytics Team
   `;
+}
+
+function capitalizeWord(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function formatServiceName(serviceName) {
+  // Handle null, undefined or empty strings
+  if (!serviceName) return "";
+
+  // Replace hyphens with spaces and split into words
+  return serviceName.split("-").map(capitalizeWord).join(" ");
 }
 
 const analytics = {
@@ -523,13 +578,57 @@ const analytics = {
             service: { $first: "$meta.service" },
             username: { $first: "$meta.username" },
             count: { $sum: 1 },
-            uniqueServices: { $addToSet: "$meta.service" },
-            uniqueEndpoints: { $addToSet: "$meta.endpoint" },
+            // Filter out unknown and none from unique services
+            uniqueServices: {
+              $addToSet: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ["$meta.service", "unknown"] },
+                      { $ne: ["$meta.service", "none"] },
+                      { $ne: ["$meta.service", null] },
+                      { $ne: ["$meta.service", ""] },
+                    ],
+                  },
+                  then: "$meta.service",
+                  else: "$$REMOVE",
+                },
+              },
+            },
+            uniqueEndpoints: {
+              $addToSet: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ["$meta.endpoint", "unknown"] },
+                      { $ne: ["$meta.endpoint", "none"] },
+                      { $ne: ["$meta.endpoint", null] },
+                      { $ne: ["$meta.endpoint", ""] },
+                    ],
+                  },
+                  then: "$meta.endpoint",
+                  else: "$$REMOVE",
+                },
+              },
+            },
             firstActivity: { $min: "$timestamp" },
             lastActivity: { $max: "$timestamp" },
             actions: {
               $push: {
-                service: "$meta.service",
+                service: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ["$meta.service", "unknown"] },
+                        { $ne: ["$meta.service", "none"] },
+                        { $ne: ["$meta.service", null] },
+                        { $ne: ["$meta.service", ""] },
+                      ],
+                    },
+                    then: "$meta.service",
+                    else: "$$REMOVE",
+                  },
+                },
                 endpoint: "$meta.endpoint",
                 timestamp: "$timestamp",
               },
@@ -548,29 +647,38 @@ const analytics = {
             uniqueEndpoints: 1,
             firstActivity: 1,
             lastActivity: 1,
+            // Modified topServices calculation to exclude unknown/none
             topServices: {
               $sortArray: {
                 input: {
-                  $map: {
+                  $filter: {
                     input: {
-                      $setIntersection: [
-                        "$uniqueServices",
-                        routesWithService.map((route) => route.service),
-                      ],
-                    },
-                    as: "service",
-                    in: {
-                      service: "$$service",
-                      count: {
-                        $size: {
-                          $filter: {
-                            input: "$actions",
-                            as: "action",
-                            cond: { $eq: ["$$action.service", "$$service"] },
+                      $map: {
+                        input: {
+                          $setIntersection: [
+                            "$uniqueServices",
+                            routesWithService.map((route) => route.service),
+                          ],
+                        },
+                        as: "service",
+                        in: {
+                          service: "$$service",
+                          count: {
+                            $size: {
+                              $filter: {
+                                input: "$actions",
+                                as: "action",
+                                cond: {
+                                  $eq: ["$$action.service", "$$service"],
+                                },
+                              },
+                            },
                           },
                         },
                       },
                     },
+                    as: "serviceStats",
+                    cond: { $gt: ["$$serviceStats.count", 0] },
                   },
                 },
                 sortBy: { count: -1 },
@@ -579,21 +687,29 @@ const analytics = {
             mostUsedEndpoints: {
               $sortArray: {
                 input: {
-                  $map: {
-                    input: "$uniqueEndpoints",
-                    as: "endpoint",
-                    in: {
-                      endpoint: "$$endpoint",
-                      count: {
-                        $size: {
-                          $filter: {
-                            input: "$actions",
-                            as: "action",
-                            cond: { $eq: ["$$action.endpoint", "$$endpoint"] },
+                  $filter: {
+                    input: {
+                      $map: {
+                        input: "$uniqueEndpoints",
+                        as: "endpoint",
+                        in: {
+                          endpoint: "$$endpoint",
+                          count: {
+                            $size: {
+                              $filter: {
+                                input: "$actions",
+                                as: "action",
+                                cond: {
+                                  $eq: ["$$action.endpoint", "$$endpoint"],
+                                },
+                              },
+                            },
                           },
                         },
                       },
                     },
+                    as: "endpointStats",
+                    cond: { $gt: ["$$endpointStats.count", 0] },
                   },
                 },
                 sortBy: { count: -1 },
@@ -608,25 +724,48 @@ const analytics = {
 
       const getUserStatsResponse = await LogModel(tenant).aggregate(pipeline);
 
+      logObject("getUserStatsResponse", getUserStatsResponse);
+
       // Enrich the data with more context
       const enrichedStats = getUserStatsResponse.map((stat) => {
-        // Find the most used service context from routesWithService
-        const topServiceDetails = stat.topServices[0]
-          ? routesWithService.find(
-              (route) => route.service === stat.topServices[0].service
-            )
-          : null;
+        // Find the most used valid service
+        const validTopServices = stat.topServices.filter(
+          (service) =>
+            service &&
+            service.service &&
+            service.service !== "unknown" &&
+            service.service !== "none"
+        );
+
+        const topServiceDetails =
+          validTopServices.length > 0
+            ? routesWithService.find(
+                (route) => route.service === validTopServices[0].service
+              )
+            : null;
+
+        logObject("validTopServices", validTopServices);
+        logObject("topServiceDetails", topServiceDetails);
 
         return {
           ...stat,
           topServiceDescription: topServiceDetails
-            ? `Most used service: ${topServiceDetails.service} (${topServiceDetails.action})`
+            ? `Most used service: ${formatServiceName(
+                topServiceDetails.service
+              )} (${formatServiceName(topServiceDetails.action)}) Used ${
+                validTopServices[0].count
+              } times`
             : "No primary service identified",
+          // Format service names in topServices array
+          topServices: stat.topServices.map((service) => ({
+            ...service,
+            service: formatServiceName(service.service),
+          })),
           activityDuration: calculateActivityDuration(
             stat.firstActivity,
             stat.lastActivity
           ),
-          engagementTier: calculateEngagementTier(stat.count),
+          engagementTier: calculateEngagementTier(stat),
         };
       });
 
@@ -664,6 +803,7 @@ const analytics = {
           const statsResponse = await analytics.enhancedGetUserStats(request);
           logObject("statsResponse", statsResponse);
           const userStat = statsResponse.data[0]; // Assuming first match
+          logObject("userStat", userStat);
 
           if (userStat) {
             // Calculate activity duration
@@ -679,14 +819,25 @@ const analytics = {
                   0
                 )
               : 0;
-            const engagementTier = calculateEngagementTier(totalServiceCount);
+
+            logObject("object used for second tier calculation", {
+              count: totalServiceCount,
+              uniqueServices: userStat.uniqueServices,
+              uniqueEndpoints: userStat.uniqueEndpoints,
+              activityDuration,
+            });
+            const engagementTier = calculateEngagementTier({
+              count: totalServiceCount,
+              uniqueServices: userStat.uniqueServices,
+              uniqueEndpoints: userStat.uniqueEndpoints,
+              activityDuration,
+            });
 
             // Augment user stats with these calculated values
             return {
               ...userStat,
               activityDuration,
               engagementTier,
-              // Ensure required fields exist
               topServiceDescription:
                 userStat.topServiceDescription || "No top service",
               topServices: userStat.topServices || [],
@@ -729,30 +880,30 @@ const analytics = {
             return true;
           })
           .map((userStat) => {
-          const { email, username } = userStat;
-          const emailContent = generateYearEndEmail(userStat);
+            const { email, username } = userStat;
+            const emailContent = generateYearEndEmail(userStat);
 
-          return mailer
-            .yearEndEmail({
-              email,
-              firstName: username.split(" ")[0],
-              lastName: username.split(" ")[1] || "",
+            return mailer
+              .yearEndEmail({
+                email,
+                firstName: username.split(" ")[0],
+                lastName: username.split(" ")[1] || "",
                 userStat,
-              emailContent,
-            })
-            .then((response) => {
-              if (response && response.success === false) {
-                logger.error(
-                  `🐛🐛 Error sending year-end email to ${email}: ${stringify(
-                    response
-                  )}`
-                );
+                emailContent,
+              })
+              .then((response) => {
+                if (response && response.success === false) {
+                  logger.error(
+                    `🐛🐛 Error sending year-end email to ${email}: ${stringify(
+                      response
+                    )}`
+                  );
                 } else {
                   emailsSent++;
-              }
-              return response;
-            });
-        });
+                }
+                return response;
+              });
+          });
 
         await Promise.all(emailPromises);
       }
