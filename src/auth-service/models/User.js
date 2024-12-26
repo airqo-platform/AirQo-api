@@ -141,7 +141,7 @@ const UserSchema = new Schema(
           validator: function (value) {
             return value.length <= ORGANISATIONS_LIMIT;
           },
-          message: "Too many networks. Maximum limit: 6.",
+          message: `Too many networks. Maximum limit: ${ORGANISATIONS_LIMIT}`,
         },
       ],
     },
@@ -169,7 +169,7 @@ const UserSchema = new Schema(
           validator: function (value) {
             return value.length <= ORGANISATIONS_LIMIT;
           },
-          message: "Too many groups. Maximum limit: 6.",
+          message: `Too many groups. Maximum limit: ${ORGANISATIONS_LIMIT}`,
         },
       ],
     },

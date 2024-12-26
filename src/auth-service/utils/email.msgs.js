@@ -242,7 +242,7 @@ module.exports = {
         
         <p style="margin-top: 24px;">Thank you for being an incredible part of our community!</p>
         
-        <p>Best wishes,<br/>The AirQo Team</p>
+        <p>Best wishes,<br/>The AirQo Analytics Team</p>
         
         <p style="margin-top: 24px;">
           Please visit our website to learn more about us. <a href="https://airqo.net/" style="color: #0066CC;">AirQo</a>

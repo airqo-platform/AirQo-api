@@ -502,56 +502,6 @@ function calculateEngagementTier(stats) {
   return "Low Engagement";
 }
 
-function generateYearEndEmail(userStats) {
-  const {
-    username,
-    email,
-    firstName,
-    lastName,
-    topServiceDescription,
-    activityDuration,
-    engagementTier,
-    topServices,
-    mostUsedEndpoints,
-  } = userStats;
-
-  return `
-Dear ${username},
-
-Congratulations on an amazing year with AirQo!
-
-🌟 Your 2024 Highlights 🌟
-
-Engagement Level: ${engagementTier}
-Activity Duration: ${activityDuration.description}
-
-Top Service: ${topServiceDescription}
-
-Most Used Services:
-${topServices
-  .slice(0, 3)
-  .map(
-    (service, index) =>
-      `${index + 1}. ${service.service} (Used ${service.count} times)`
-  )
-  .join("\n")}
-
-Most Visited Endpoints:
-${mostUsedEndpoints
-  .slice(0, 3)
-  .map(
-    (endpoint, index) =>
-      `${index + 1}. ${endpoint.endpoint} (Accessed ${endpoint.count} times)`
-  )
-  .join("\n")}
-
-Thank you for being an incredible part of our community!
-
-Best wishes,
-The AirQo Analytics Team
-  `;
-}
-
 function capitalizeWord(word) {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
@@ -787,15 +737,22 @@ const analytics = {
       return;
     }
   },
-  fetchUserStats: async (emails, tenant = "airqo") => {
+  fetchUserStats: async ({
+    emails,
+    year = new Date().getFullYear(),
+    tenant = "airqo",
+  } = {}) => {
     try {
+      const startDate = new Date(`${year}-01-01`);
+      const endDate = new Date(`${year}-12-31`);
+
       const statsPromises = emails.map(async (email) => {
         const request = {
           query: {
             tenant,
             email,
-            startTime: new Date("2024-01-01"),
-            endTime: new Date("2024-12-31"),
+            startTime: startDate,
+            endTime: endDate,
           },
         };
 
@@ -806,9 +763,9 @@ const analytics = {
           logObject("userStat", userStat);
 
           if (userStat) {
-            // Calculate activity duration
+            // Calculate activity duration using the year-specific dates
             const activityDuration = calculateActivityDuration(
-              userStat.firstActivity || new Date("2024-01-01"),
+              userStat.firstActivity || startDate,
               userStat.lastActivity || new Date()
             );
 
@@ -881,7 +838,6 @@ const analytics = {
           })
           .map((userStat) => {
             const { email, username } = userStat;
-            const emailContent = generateYearEndEmail(userStat);
 
             return mailer
               .yearEndEmail({
@@ -889,7 +845,6 @@ const analytics = {
                 firstName: username.split(" ")[0],
                 lastName: username.split(" ")[1] || "",
                 userStat,
-                emailContent,
               })
               .then((response) => {
                 if (response && response.success === false) {
@@ -930,7 +885,7 @@ const analytics = {
       const { emails } = body;
       const { tenant } = query;
 
-      const userStats = await analytics.fetchUserStats(emails, tenant);
+      const userStats = await analytics.fetchUserStats({ emails, tenant });
       logObject("userStats", userStats);
 
       if (userStats.length > 0) {
