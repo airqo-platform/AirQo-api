@@ -288,7 +288,6 @@ const mailer = {
     email = "",
     firstName = "",
     lastName = "",
-    emailContent = "",
     tenant = "airqo",
     userStat = {},
   } = {}) => {
