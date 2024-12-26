@@ -29,19 +29,18 @@ const analytics = {
       const result = await createAnalyticsUtil.sendYearEndEmails(request);
 
       if (result.success) {
-        res.status(httpStatus.OK).json({
+        res.status(result.status || httpStatus.OK).json({
           success: true,
           message: result.message,
         });
       } else {
-        res.status(httpStatus.NO_CONTENT).json({
+        res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: result.message,
         });
       }
     } catch (error) {
       logger.error(`🐛🐛 Year-End Email Controller Error: ${error.message}`);
-
       next(
         new HttpError(
           "Internal Server Error",
