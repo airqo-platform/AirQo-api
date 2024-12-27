@@ -14,8 +14,25 @@ router.post(
     .bail()
     .isArray()
     .withMessage("emails must be provided as an array")
-    .bail(),
+    .bail()
+    .notEmpty()
+    .withMessage("the provided emails array cannot be empty"),
   createAnalyticsController.send
+);
+
+router.post(
+  "/retrieve",
+  validateTenant(),
+  body("emails")
+    .exists()
+    .withMessage("the emails array field must be provided in the request body")
+    .bail()
+    .isArray()
+    .withMessage("emails must be provided as an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the provided emails array cannot be empty"),
+  createAnalyticsController.fetchUserStats
 );
 
 module.exports = router;
