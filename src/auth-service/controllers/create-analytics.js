@@ -40,7 +40,53 @@ const analytics = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Year-End Email Controller Error: ${error.message}`);
+      logger.error(`🐛🐛 Year-End Email Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  fetchUserStats: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const { body, query } = req;
+      const { emails } = body;
+      const { year } = query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+
+      const request = {
+        emails,
+        year,
+        tenant: isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant,
+      };
+
+      const result = await createAnalyticsUtil.fetchUserStats(request);
+
+      if (result) {
+        res.status(result.status || httpStatus.OK).json({
+          success: true,
+          message: result.message || "Successfully retrieved the User Stats",
+          stats: result,
+        });
+      } else {
+        res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: result.message || "No Stats Available for this User",
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 fetchUserStats Error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
