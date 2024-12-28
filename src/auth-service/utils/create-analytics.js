@@ -437,14 +437,39 @@ const routesWithService = [
 ];
 
 // Helper functions to calculate additional metrics
-function calculateActivityDuration(firstActivity, lastActivity) {
-  const duration = new Date(lastActivity) - new Date(firstActivity);
+function calculateActivityDuration(
+  firstActivity,
+  lastActivity,
+  yearStart,
+  yearEnd
+) {
+  // Ensure we're working with Date objects
+  const start = new Date(firstActivity);
+  const end = new Date(lastActivity);
+  const yearStartDate = new Date(yearStart);
+  const yearEndDate = new Date(yearEnd);
+
+  // Use the year boundaries if dates fall outside
+  const effectiveStart = start < yearStartDate ? yearStartDate : start;
+  const effectiveEnd = end > yearEndDate ? yearEndDate : end;
+
+  // Calculate duration
+  const duration = effectiveEnd - effectiveStart;
   const days = Math.floor(duration / (1000 * 60 * 60 * 24));
-  const months = Math.floor(days / 30);
+
+  // Calculate months more accurately
+  const months = Math.floor(
+    (effectiveEnd.getFullYear() - effectiveStart.getFullYear()) * 12 +
+      (effectiveEnd.getMonth() - effectiveStart.getMonth())
+  );
 
   return {
     totalDays: days,
     totalMonths: months,
+    yearStart: yearStartDate,
+    yearEnd: yearEndDate,
+    actualStart: effectiveStart,
+    actualEnd: effectiveEnd,
     description:
       months > 0
         ? `Active for ${months} month${months !== 1 ? "s" : ""}`
@@ -520,14 +545,25 @@ function formatServiceName(serviceName) {
 const analytics = {
   enhancedGetUserStats: async (request, next) => {
     try {
-      const { tenant, limit = 1000, skip = 0 } = request.query;
+      const {
+        tenant,
+        limit = 1000,
+        skip = 0,
+        startTime,
+        endTime,
+      } = request.query;
       const filter = {
         ...generateFilter.logs(request, next),
         timestamp: {
-          $gte: request.query.startTime,
-          $lte: request.query.endTime,
+          $gte: startTime,
+          $lte: endTime,
         },
       };
+
+      logger.info(`Applied filter: ${stringify(filter)}`);
+      logger.info(
+        `Start Date: ${request.query.startTime}, End Date: ${request.query.endTime}`
+      );
 
       const pipeline = [
         { $match: filter },
@@ -721,8 +757,10 @@ const analytics = {
             service: formatServiceName(service.service),
           })),
           activityDuration: calculateActivityDuration(
-            stat.firstActivity,
-            stat.lastActivity
+            stat.firstActivity || startTime,
+            stat.lastActivity || endTime,
+            startTime,
+            endTime
           ),
           engagementTier: calculateEngagementTier(stat),
         };
@@ -746,12 +784,133 @@ const analytics = {
       return;
     }
   },
+  validateEnvironmentData: async ({
+    tenant,
+    year = new Date().getFullYear(),
+  } = {}) => {
+    try {
+      logger.info(
+        `Running data validation for environment: ${constants.ENVIRONMENT}`
+      );
+      logger.info(`Server timezone: ${process.env.TZ || "default"}`);
+
+      const startDate = new Date(`${year}-01-01`);
+      const endDate = new Date(`${year}-12-31`);
+
+      // Check data distribution across months
+      const monthlyDistribution = await LogModel(tenant).aggregate([
+        {
+          $match: {
+            timestamp: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: "$timestamp" },
+              month: { $month: "$timestamp" },
+            },
+            count: { $sum: 1 },
+            uniqueUsers: { $addToSet: "$meta.email" },
+            uniqueEndpoints: { $addToSet: "$meta.endpoint" },
+            uniqueServices: { $addToSet: "$meta.service" },
+          },
+        },
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]);
+
+      logger.info(
+        `Monthly data distribution for ${year}:`,
+        stringify(
+          monthlyDistribution.map((month) => ({
+            year: month._id.year,
+            month: month._id.month,
+            totalLogs: month.count,
+            uniqueUsers: month.uniqueUsers.length,
+            uniqueEndpoints: month.uniqueEndpoints.length,
+            uniqueServices: month.uniqueServices.length,
+          }))
+        )
+      );
+
+      // Validate date ranges for a sample of users
+      const userSample = await LogModel(tenant).aggregate([
+        {
+          $match: {
+            timestamp: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$meta.email",
+            firstActivity: { $min: "$timestamp" },
+            lastActivity: { $max: "$timestamp" },
+            totalActions: { $sum: 1 },
+          },
+        },
+        {
+          $match: {
+            totalActions: { $gt: 100 }, // Only check active users
+          },
+        },
+        { $limit: 10 }, // Sample size
+      ]);
+
+      logger.info(
+        `User activity ranges sample:`,
+        stringify(
+          userSample.map((user) => ({
+            email: user._id,
+            firstActivity: user.firstActivity,
+            lastActivity: user.lastActivity,
+            totalActions: user.totalActions,
+            durationInDays: Math.ceil(
+              (new Date(user.lastActivity) - new Date(user.firstActivity)) /
+                (1000 * 60 * 60 * 24)
+            ),
+          }))
+        )
+      );
+
+      return {
+        success: true,
+        message: "Environment data validation completed",
+        data: {
+          monthlyDistribution,
+          userSample,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Error in validateEnvironmentData: ${stringify(error)}`
+      );
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
+  },
   fetchUserStats: async ({
     emails,
     year = new Date().getFullYear(),
     tenant = "airqo",
   } = {}) => {
     try {
+      await analytics.validateEnvironmentData({ tenant, year });
+
       const startDate = new Date(`${year}-01-01`);
       const endDate = new Date(`${year}-12-31`);
 
@@ -775,8 +934,18 @@ const analytics = {
             // Calculate activity duration using the year-specific dates
             const activityDuration = calculateActivityDuration(
               userStat.firstActivity || startDate,
-              userStat.lastActivity || new Date()
+              userStat.lastActivity || endDate, // Use year end instead of current date
+              startDate,
+              endDate
             );
+
+            logObject("Activity duration calculation", {
+              firstActivity: userStat.firstActivity,
+              lastActivity: userStat.lastActivity,
+              startDate,
+              endDate,
+              calculatedDuration: activityDuration,
+            });
 
             // Calculate engagement tier based on total service usage
             const totalServiceCount = userStat.topServices
