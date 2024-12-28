@@ -463,13 +463,16 @@ function calculateEngagementTier(stats) {
   logObject("stats being used to calculate Engagement Tier ", stats);
 
   // Calculate average actions per day
-  const actionsPerDay =
-    activityDuration.totalDays > 0 ? count / activityDuration.totalDays : count;
+  const actionsPerDay = count / Math.max(activityDuration.totalDays, 1);
 
   logObject("actionsPerDay", actionsPerDay);
 
   // Calculate service diversity score (0-1)
-  const serviceDiversity = uniqueServices.length / routesWithService.length;
+  const activeServices = routesWithService.filter((route) =>
+    uniqueServices.includes(route.service)
+  ).length;
+  const serviceDiversity =
+    activeServices / Math.min(routesWithService.length, 20);
 
   logObject("serviceDiversity", serviceDiversity);
 
@@ -481,10 +484,10 @@ function calculateEngagementTier(stats) {
 
   // Weighted engagement score (0-100)
   const engagementScore =
-    durationScore * 60 + // Weight for duration (60%)
-    actionsPerDay * 16 + // Weight frequency of actions (16%)
-    serviceDiversity * 12 + // Weight service diversity (12%)
-    Math.min(uniqueEndpoints.length / 10, 1) * 12; // Weight endpoint diversity (12%)
+    durationScore * 40 + // Weight for duration (60%)
+    actionsPerDay * 30 + // Weight frequency of actions (16%)
+    serviceDiversity * 15 + // Weight service diversity (12%)
+    Math.min(uniqueEndpoints.length / 5, 1) * 15; // Weight endpoint diversity (15%)
 
   logObject("engagementScore components", {
     durationComponent: durationScore * 60,
@@ -518,7 +521,13 @@ const analytics = {
   enhancedGetUserStats: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
-      const filter = generateFilter.logs(request, next);
+      const filter = {
+        ...generateFilter.logs(request, next),
+        timestamp: {
+          $gte: request.query.startTime,
+          $lte: request.query.endTime,
+        },
+      };
 
       const pipeline = [
         { $match: filter },
