@@ -521,6 +521,12 @@ function formatServiceName(serviceName) {
 const analytics = {
   enhancedGetUserStats: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "enhancedGetUserStats temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: "enhancedGetUserStats temporarily disabled" },
+      };
       const {
         tenant,
         limit = 1000,
@@ -646,6 +652,12 @@ const analytics = {
     year = new Date().getFullYear(),
   } = {}) => {
     try {
+      return {
+        success: false,
+        message: " validateEnvironmentData temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: " validateEnvironmentData temporarily disabled" },
+      };
       logger.info(
         `Running data validation for environment: ${constants.ENVIRONMENT}`
       );
@@ -771,6 +783,12 @@ const analytics = {
     timeWindowDays = 90, // Process data in 90-day windows
   } = {}) => {
     try {
+      return {
+        success: false,
+        message: "fetchUserStats temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: "fetchUserStats temporarily disabled" },
+      };
       const startDate = new Date(`${year}-01-01`);
       const endDate = new Date(`${year}-12-31`);
       const enrichedStats = [];
@@ -940,6 +958,12 @@ const analytics = {
   },
   sendEmailsInBatches: async (userStats, batchSize = 100) => {
     try {
+      return {
+        success: false,
+        message: "sendEmailsInBatches temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: "sendEmailsInBatches temporarily disabled" },
+      };
       let emailsSent = 0;
       let lowEngagementCount = 0;
 
@@ -998,6 +1022,12 @@ const analytics = {
   },
   sendYearEndEmails: async (request) => {
     try {
+      return {
+        success: false,
+        message: "sendYearEndEmails temporarily disabled",
+        status: httpStatus.NOT_IMPLEMENTED,
+        errors: { message: "sendYearEndEmails temporarily disabled" },
+      };
       const { body, query } = request;
       const { emails } = body;
       const { tenant } = query;
