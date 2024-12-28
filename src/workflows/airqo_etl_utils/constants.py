@@ -23,13 +23,28 @@ class DeviceCategory(Enum):
             return "lowcost"
 
     @staticmethod
-    def from_str(string: str):
-        if string.lower() == str(DeviceCategory.BAM):
+    def category_from_str(category: str):
+        """
+        Converts a string representation of a device category into the corresponding `DeviceCategory` enumeration.
+
+        Args:
+            category (str): The string representation of a device category.
+                            Possible values include "bam", "low_cost_gas", or others.
+
+        Returns:
+            DeviceCategory: The corresponding `DeviceCategory` enumeration value.
+                            Defaults to `DeviceCategory.LOW_COST` if the category does not match "bam" or "low_cost_gas".
+            None: If the input `category` is `None` or an empty string.
+        """
+        if not category:
+            return None
+
+        category = category.lower()
+        if category == str(DeviceCategory.BAM).lower():
             return DeviceCategory.BAM
-        elif string.lower() == str(DeviceCategory.LOW_COST_GAS):
+        elif category == str(DeviceCategory.LOW_COST_GAS).lower():
             return DeviceCategory.LOW_COST_GAS
-        else:
-            return DeviceCategory.LOW_COST
+        return DeviceCategory.LOW_COST
 
 
 class Frequency(Enum):

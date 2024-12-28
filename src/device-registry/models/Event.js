@@ -26,12 +26,12 @@ const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
 const AQI_RANGES = {
-  good: { min: 0, max: 9.0 },
-  moderate: { min: 9.1, max: 35.4 },
-  u4sg: { min: 35.5, max: 55.4 },
-  unhealthy: { min: 55.5, max: 125.4 },
-  very_unhealthy: { min: 125.5, max: 225.4 },
-  hazardous: { min: 225.5, max: null },
+  good: { min: 0, max: 9.1 },
+  moderate: { min: 9.101, max: 35.49 },
+  u4sg: { min: 35.491, max: 55.49 },
+  unhealthy: { min: 55.491, max: 125.49 },
+  very_unhealthy: { min: 125.491, max: 225.49 },
+  hazardous: { min: 225.491, max: null },
 };
 
 const valueSchema = new Schema({

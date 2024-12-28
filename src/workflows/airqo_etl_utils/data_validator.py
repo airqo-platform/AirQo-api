@@ -188,8 +188,8 @@ class DataValidationUtils:
     @staticmethod
     def process_data_for_message_broker(
         data: pd.DataFrame,
-        topic: str,
         caller: str,
+        topic: str = None,
         frequency: Frequency = Frequency.HOURLY,
     ) -> pd.DataFrame:
         """
@@ -214,16 +214,31 @@ class DataValidationUtils:
         data.rename(columns={"device_id": "device_name"}, inplace=True)
 
         devices = AirQoDataUtils.get_devices(group_id=caller)
-        devices = devices[
-            ["device_name", "site_id", "device_latitude", "device_longitude", "network"]
-        ]
+        try:
+            devices = devices[
+                [
+                    "device_name",
+                    "site_id",
+                    "device_latitude",
+                    "device_longitude",
+                    "network",
+                ]
+            ]
 
-        data = pd.merge(
-            left=data,
-            right=devices,
-            on=["device_name", "site_id", "network"],
-            how="left",
-        )
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "network"],
+                how="left",
+            )
+        except KeyError as e:
+            logger.exception(
+                f"KeyError: The key(s) '{e.args}' are not available in the returned devices data."
+            )
+            return None
+        except Exception as e:
+            logger.exception(f"An error occured: {e}")
+            return None
         return data
 
     @staticmethod
@@ -235,10 +250,26 @@ class DataValidationUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame) -> list:
+        """
+        Processes a pandas DataFrame to structure data into a format suitable for API consumption.
+
+        The function:
+        1. Ensures all required columns are present in the DataFrame by filling missing ones.
+        2. Constructs a list of dictionaries for each row, with nested data structures for location,
+        pollutant values, and other metadata.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame containing raw device data.
+
+        Returns:
+            list: A list of dictionaries, each representing a structured data record ready for the API.
+
+        Raises:
+            Exception: Logs any errors encountered during row processing but does not halt execution.
+        """
         restructured_data = []
 
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data["timestamp"] = pd.to_datetime(data["timestamp"]).apply(date_to_str)
 
         bigquery_api = BigQueryApi()
         cols = bigquery_api.get_columns(bigquery_api.hourly_measurements_table)
@@ -252,8 +283,7 @@ class DataValidationUtils:
                     "device_id": row["mongo_id"],
                     "site_id": row["site_id"],
                     "device_number": row["device_number"],
-                    "tenant": str(Tenant.AIRQO),
-                    "network": row["tenant"],
+                    "network": row["network"],
                     "location": {
                         "latitude": {"value": row["latitude"]},
                         "longitude": {"value": row["longitude"]},

@@ -1,5 +1,5 @@
 const transporter = require("@config/mailer");
-const { logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
@@ -282,6 +282,61 @@ const mailer = {
           { message: error.message }
         )
       );
+    }
+  },
+  yearEndEmail: async ({
+    email = "",
+    firstName = "",
+    lastName = "",
+    tenant = "airqo",
+    userStat = {},
+  } = {}) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        to: email,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        subject: "Your AirQo Analytics 2024 Year in Review 🌍",
+        html: msgs.yearEndSummary(userStat),
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Year-end email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "Email not sent", emailResults: data },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   requestToJoinGroupByEmail: async (

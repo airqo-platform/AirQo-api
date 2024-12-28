@@ -46,7 +46,7 @@ def update_big_query_airqlouds_sites_and_devices():
         big_query_api = BigQueryApi()
         big_query_api.update_sites_and_devices(
             dataframe=data,
-            table=big_query_api.sites_table,
+            table=big_query_api.sites_sites_table,
             component="sites",
         )
 
@@ -75,7 +75,7 @@ def update_big_query_airqlouds_sites_and_devices():
         big_query_api = BigQueryApi()
         big_query_api.update_sites_and_devices(
             dataframe=data,
-            table=big_query_api.devices_table,
+            table=big_query_api.devices_devices_table,
             component="devices",
         )
 
@@ -211,9 +211,8 @@ def meta_data_update_microservice_sites_meta_data():
     @task()
     def update_nearest_weather_stations() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
-        from airqo_etl_utils.constants import Tenant
 
-        MetaDataUtils.update_nearest_weather_stations(tenant=Tenant.ALL)
+        MetaDataUtils.update_nearest_weather_stations(network="all")
 
     @task()
     def update_distance_measures() -> None:

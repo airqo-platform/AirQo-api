@@ -31,12 +31,14 @@ class AirQoApi:
         # TODO Findout if there is a bulk post api option greater than 5.
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
-            response = self.__request(
-                endpoint="devices/events",
-                params={"tenant": str(Tenant.AIRQO)},
-                method="post",
-                body=data,
-            )
+            if data:
+                network = data[0].get("network", "")
+                self.__request(
+                    endpoint="devices/events",
+                    params={"network": network},
+                    method="post",
+                    body=data,
+                )
 
     def get_maintenance_logs(
         self, tenant: str, device: str, activity_type: str = None
@@ -132,13 +134,13 @@ class AirQoApi:
     def get_devices(
         self,
         network: Union[str, Any] = None,
-        device_category: DeviceCategory = DeviceCategory.NONE,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices given a network and device category.
 
         Args:
-            - network (str): An Enum that represents site ownership.
+            - network (str): A string that represents device manufaturer.
             - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
 
         Returns:
@@ -176,7 +178,10 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"category": str(device_category)}
+        params: Dict = {}
+        if device_category:
+            params["category"] = str(device_category)
+
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
 
@@ -196,7 +201,7 @@ class AirQoApi:
                 "site_id": device.get("site", {}).get("_id", None),
                 "site_location": device.pop("site", {}).get("location_name", None),
                 "device_category": str(
-                    DeviceCategory.from_str(device.pop("category", None))
+                    DeviceCategory.category_from_str(device.pop("category", ""))
                 ),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
@@ -220,8 +225,6 @@ class AirQoApi:
                 - Optional error message if an exception occurs.
         """
         params = {}
-
-        params = {}
         networks: List[Dict[str, Any]] = []
         exception_message: Optional[str] = None
 
@@ -238,7 +241,7 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_category: DeviceCategory = DeviceCategory.LOW_COST
+        self, device_category: DeviceCategory = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
@@ -282,12 +285,15 @@ class AirQoApi:
         """
         devices: List[Dict[str, Any]] = []
         networks, error = self.get_networks()
+        params: Dict = {}
 
         if error:
             logger.error(f"Error while fetching networks: {error}")
             return devices
 
-        params = {"category": str(device_category)}
+        if device_category:
+            params["category"] = str(device_category)
+
         if configuration.ENVIRONMENT == "production":
             params["active"] = True
 
@@ -719,7 +725,7 @@ class AirQoApi:
             for cohort in response.get("cohorts", [])
         ]
 
-    def get_sites(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_sites(self, network: str = "all") -> List[Dict[str, Any]]:
         """
         Retrieve sites given a tenant.
 
@@ -766,10 +772,10 @@ class AirQoApi:
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network != "all":
+            query_params["network"] = network
 
         response = self.__request("devices/sites", query_params)
 
@@ -777,8 +783,6 @@ class AirQoApi:
             {
                 **site,
                 "site_id": site.get("_id", None),
-                "tenant": site.get("network", site.get("tenant", None)),
-                "location": site.get("location", None),
                 "approximate_latitude": site.get(
                     "approximate_latitude", site.get("latitude", None)
                 ),

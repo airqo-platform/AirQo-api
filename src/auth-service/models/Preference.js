@@ -182,7 +182,6 @@ const PreferenceSchema = new mongoose.Schema(
       type: ObjectId,
       required: [true, "user_id is required"],
       ref: "user",
-      unique: true,
     },
     site_ids: [
       {
@@ -213,48 +212,110 @@ PreferenceSchema.plugin(uniqueValidator, {
   message: `{VALUE} should be unique!`,
 });
 
-PreferenceSchema.pre("save", function (next) {
-  const fieldsToUpdate = [
-    "selected_sites",
-    "selected_grids",
-    "selected_cohorts",
-    "selected_devices",
-    "selected_airqlouds",
-  ];
+PreferenceSchema.index({ user_id: 1, group_id: 1 }, { unique: true });
 
-  const currentDate = new Date();
+PreferenceSchema.pre(
+  [
+    "save",
+    "create",
+    "update",
+    "findByIdAndUpdate",
+    "updateMany",
+    "updateOne",
+    "findOneAndUpdate",
+  ],
+  async function (next) {
+    try {
+      // Determine if this is a new document or an update
+      const isNew = this.isNew;
+      const updateData = this.getUpdate ? this.getUpdate() : this;
 
-  fieldsToUpdate.forEach((field) => {
-    if (this[field]) {
-      this[field] = Array.from(
-        new Set(
-          this[field].map((item) => ({
-            ...item,
-            createdAt: item.createdAt || currentDate,
-          }))
-        )
-      );
+      // Utility function to validate and process ObjectIds
+      const processObjectId = (id) => {
+        if (!id) return null;
+        if (id instanceof mongoose.Types.ObjectId) return id;
+        if (typeof id === "string" && id.trim() === "") return null;
+        try {
+          return mongoose.Types.ObjectId(id);
+        } catch (error) {
+          logger.error(`Invalid ObjectId: ${id}`);
+          throw new Error(`Invalid ObjectId: ${id}`);
+        }
+      };
+
+      // Define selected array fields with subschemas
+      const selectedArrayFields = [
+        "selected_sites",
+        "selected_grids",
+        "selected_devices",
+        "selected_cohorts",
+        "selected_airqlouds",
+      ];
+
+      // Process selected arrays to ensure uniqueness based on _id
+      selectedArrayFields.forEach((field) => {
+        if (updateData[field]) {
+          // Remove duplicates based on _id
+          const uniqueArray = updateData[field].filter(
+            (item, index, self) =>
+              index ===
+              self.findIndex(
+                (t) =>
+                  t._id && item._id && t._id.toString() === item._id.toString()
+              )
+          );
+
+          // Use $set to replace the existing array with unique entries
+          updateData.$set = updateData.$set || {};
+          updateData.$set[field] = uniqueArray;
+
+          // Optional: Remove the original field to prevent double processing
+          delete updateData[field];
+        }
+      });
+
+      // Repeat similar logic for array ID fields
+      const arrayIdFields = [
+        "airqloud_ids",
+        "grid_ids",
+        "cohort_ids",
+        "network_ids",
+        "site_ids",
+        "device_ids",
+        "group_ids",
+      ];
+
+      arrayIdFields.forEach((field) => {
+        if (updateData[field]) {
+          // Ensure unique ObjectIds
+          const uniqueIds = [
+            ...new Set(
+              (Array.isArray(updateData[field])
+                ? updateData[field]
+                : [updateData[field]]
+              )
+                .map(processObjectId)
+                .filter(Boolean)
+                .map((id) => id.toString())
+            ),
+          ].map(processObjectId);
+
+          // Use $set to replace the existing array with unique entries
+          updateData.$set = updateData.$set || {};
+          updateData.$set[field] = uniqueIds;
+
+          // Remove the original field
+          delete updateData[field];
+        }
+      });
+
+      next();
+    } catch (error) {
+      console.error("Error in Preference pre-hook:", error);
+      return next(error);
     }
-  });
-
-  const fieldsToAddToSet = [
-    "airqloud_ids",
-    "device_ids",
-    "cohort_ids",
-    "grid_ids",
-    "site_ids",
-    "network_ids",
-    "group_ids",
-  ];
-
-  fieldsToAddToSet.forEach((field) => {
-    if (this[field]) {
-      this[field] = Array.from(new Set(this[field].map((id) => id.toString())));
-    }
-  });
-
-  return next();
-});
+  }
+);
 
 PreferenceSchema.methods = {
   toJSON() {

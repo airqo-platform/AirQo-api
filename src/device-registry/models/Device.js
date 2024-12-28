@@ -24,6 +24,10 @@ const minLength = [
 
 const noSpaces = /^\S*$/;
 
+const DEVICE_CONFIG = {
+  ALLOWED_CATEGORIES: ["bam", "lowcost", "gas"],
+};
+
 const accessCodeGenerator = require("generate-password");
 
 function sanitizeObject(obj, invalidKeys) {
@@ -74,8 +78,8 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     serial_number: {
@@ -237,6 +241,20 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
+const checkDuplicates = (arr, fieldName) => {
+  const duplicateValues = arr.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    return new HttpError(
+      `Duplicate values found in ${fieldName} array.`,
+      httpStatus.BAD_REQUEST
+    );
+  }
+  return null;
+};
+
 deviceSchema.pre(
   [
     "update",
@@ -251,6 +269,45 @@ deviceSchema.pre(
       // Determine if this is a new document or an update
       const isNew = this.isNew;
       const updateData = this.getUpdate ? this.getUpdate() : this;
+
+      // Handle category field for both new documents and updates
+      if (isNew) {
+        // For new documents
+        if ("category" in this) {
+          if (this.category === null) {
+            delete this.category;
+          } else if (
+            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(this.category)
+          ) {
+            return next(
+              new HttpError(
+                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                  ", "
+                )}`,
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
+        }
+      } else {
+        // For updates
+        if ("category" in updateData) {
+          if (updateData.category === null) {
+            delete updateData.category;
+          } else if (
+            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(updateData.category)
+          ) {
+            return next(
+              new HttpError(
+                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                  ", "
+                )}`,
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
+        }
+      }
 
       if (isNew) {
         // Set default network if not provided
@@ -326,18 +383,16 @@ deviceSchema.pre(
           this.device_codes.push(this.serial_number);
         }
 
-        // Check for duplicate values in cohorts array
-        const duplicateValues = this.cohorts.filter(
-          (value, index, self) => self.indexOf(value) !== index
-        );
+        // Check for duplicates in cohorts
+        const cohortsDuplicateError = checkDuplicates(this.cohorts, "cohorts");
+        if (cohortsDuplicateError) {
+          return next(cohortsDuplicateError);
+        }
 
-        if (duplicateValues.length > 0) {
-          return next(
-            new HttpError(
-              "Duplicate values found in cohorts array.",
-              httpStatus.BAD_REQUEST
-            )
-          );
+        // Check for duplicates in groups
+        const groupsDuplicateError = checkDuplicates(this.groups, "groups");
+        if (groupsDuplicateError) {
+          return next(groupsDuplicateError);
         }
       }
 
@@ -371,28 +426,20 @@ deviceSchema.pre(
         updateData.access_code = access_code.toUpperCase();
       }
 
-      // Handle $addToSet for device_codes, previous_sites, and pictures
-      const addToSetUpdates = {};
-
-      if (updateData.device_codes) {
-        addToSetUpdates.device_codes = { $each: updateData.device_codes };
-        delete updateData.device_codes; // Remove from main update object
-      }
-
-      if (updateData.previous_sites) {
-        addToSetUpdates.previous_sites = { $each: updateData.previous_sites };
-        delete updateData.previous_sites; // Remove from main update object
-      }
-
-      if (updateData.pictures) {
-        addToSetUpdates.pictures = { $each: updateData.pictures };
-        delete updateData.pictures; // Remove from main update object
-      }
-
-      // If there are any $addToSet updates, merge them into the main update object
-      if (Object.keys(addToSetUpdates).length > 0) {
-        updateData.$addToSet = addToSetUpdates;
-      }
+      // Handle array fields using $addToSet
+      const arrayFieldsToAddToSet = [
+        "device_codes",
+        "previous_sites",
+        "groups",
+        "pictures",
+      ];
+      arrayFieldsToAddToSet.forEach((field) => {
+        if (updateData[field]) {
+          updateData.$addToSet = updateData.$addToSet || {};
+          updateData.$addToSet[field] = { $each: updateData[field] };
+          delete updateData[field];
+        }
+      });
 
       next();
     } catch (error) {
@@ -415,7 +462,7 @@ deviceSchema.methods = {
       alias: this.alias,
       mobility: this.mobility,
       network: this.network,
-      group: this.group,
+      groups: this.groups,
       api_code: this.api_code,
       serial_number: this.serial_number,
       authRequired: this.authRequired,
@@ -639,6 +686,67 @@ deviceSchema.statics = {
           {
             message: error.message,
           }
+        )
+      );
+    }
+  },
+  async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
+    try {
+      // Sanitize update object
+      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Handle special cases like access code generation
+      if (sanitizedUpdate.access_code) {
+        sanitizedUpdate.access_code = accessCodeGenerator
+          .generate({
+            length: 16,
+            excludeSimilarCharacters: true,
+          })
+          .toUpperCase();
+      }
+
+      // Perform bulk update with additional options
+      const bulkUpdateResult = await this.updateMany(
+        filter,
+        { $set: sanitizedUpdate },
+        {
+          new: true,
+          runValidators: true,
+          ...opts,
+        }
+      );
+
+      if (bulkUpdateResult.nModified > 0) {
+        return {
+          success: true,
+          message: `Successfully modified ${bulkUpdateResult.nModified} devices`,
+          data: {
+            modifiedCount: bulkUpdateResult.nModified,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No devices were updated",
+          data: {
+            modifiedCount: 0,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      logObject("Bulk update error", error);
+      logger.error(`🐛🐛 Bulk Modify Error -- ${error.message}`);
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
         )
       );
     }

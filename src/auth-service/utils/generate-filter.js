@@ -13,6 +13,7 @@ const { HttpError } = require("@utils/errors");
 const {
   addMonthsToProvideDateTime,
   monthsInfront,
+  addMonthsToProvidedDate,
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
@@ -312,15 +313,22 @@ const filter = {
   },
   preferences: (req, next) => {
     try {
-      let { user_id } = {
+      let { user_id, group_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
       };
+
       let filter = {};
+
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
+
+      if (group_id) {
+        filter["group_id"] = ObjectId(group_id);
+      }
+
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -781,6 +789,7 @@ const filter = {
       const { service, startTime, endTime, email } = req.query;
       const today = monthsInfront(0, next);
       const oneWeekBack = addDays(-7, next);
+      logObject("the req.query in the logs filter", req.query);
 
       let filter = {
         timestamp: {
@@ -803,11 +812,13 @@ const filter = {
             next
           );
         } else {
-          delete filter["timestamp"];
+          filter["timestamp"]["$lte"] = addMonthsToProvidedDate(
+            startTime,
+            1,
+            next
+          );
         }
-      }
-
-      if (endTime && isEmpty(startTime)) {
+      } else if (endTime && isEmpty(startTime)) {
         logText("startTime absent and endTime is present");
         if (isTimeEmpty(endTime) === false) {
           filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
@@ -816,25 +827,16 @@ const filter = {
             next
           );
         } else {
-          delete filter["timestamp"];
+          filter["timestamp"]["$lte"] = addMonthsToProvidedDate(
+            endTime,
+            -1,
+            next
+          );
         }
-      }
-
-      if (endTime && startTime) {
+      } else if (endTime && startTime) {
         logText("startTime present and endTime is also present");
-        let months = getDifferenceInMonths(startTime, endTime);
-        logElement("the number of months", months);
-        if (months > 1) {
-          if (isTimeEmpty(endTime) === false) {
-            filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
-              endTime,
-              -1,
-              next
-            );
-          } else {
-            delete filter["timestamp"];
-          }
-        }
+        filter["timestamp"]["$lte"] = new Date(endTime);
+        filter["timestamp"]["$gte"] = new Date(startTime);
       }
 
       if (email) {

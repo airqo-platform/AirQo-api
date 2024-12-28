@@ -12,6 +12,7 @@ const {
   validateDecryptManyKeys,
   validateListDevices,
   validateArrayBody,
+  validateBulkUpdateDevices,
 } = require("@validators/device.validators");
 
 router.use(headers);
@@ -125,4 +126,11 @@ router.get(
   deviceController.generateQRCode
 );
 
+// New Bulk Update Devices route
+router.put(
+  "/bulk",
+  validateTenant,
+  validateBulkUpdateDevices,
+  deviceController.updateManyDevicesOnPlatform
+);
 module.exports = router;

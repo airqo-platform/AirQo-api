@@ -349,6 +349,53 @@ router.get(
   ]),
   createGroupController.listSummary
 );
+
+router.put(
+  "/:grp_id/set-manager/:user_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("grp_id")
+        .exists()
+        .withMessage("the group ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the group ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("user_id")
+        .exists()
+        .withMessage("the user ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createGroupController.setManager
+);
+
 router.get(
   "/:grp_id/assigned-users",
   oneOf([
@@ -506,11 +553,11 @@ router.delete(
     [
       param("grp_id")
         .exists()
-        .withMessage("the network ID is missing in request")
+        .withMessage("the group ID is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the group ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -551,11 +598,11 @@ router.delete(
     [
       param("grp_id")
         .exists()
-        .withMessage("the network ID is missing in request")
+        .withMessage("the group ID is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the group ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
