@@ -828,7 +828,7 @@ const analytics = {
       ]);
 
       logger.info(
-        `Monthly data distribution for ${year}:`,
+        `📈📈 Monthly data distribution for ${year}:`,
         stringify(
           monthlyDistribution.map((month) => ({
             year: month._id.year,
@@ -866,22 +866,6 @@ const analytics = {
         },
         { $limit: 10 }, // Sample size
       ]);
-
-      logger.info(
-        `User activity ranges sample:`,
-        stringify(
-          userSample.map((user) => ({
-            email: user._id,
-            firstActivity: user.firstActivity,
-            lastActivity: user.lastActivity,
-            totalActions: user.totalActions,
-            durationInDays: Math.ceil(
-              (new Date(user.lastActivity) - new Date(user.firstActivity)) /
-                (1000 * 60 * 60 * 24)
-            ),
-          }))
-        )
-      );
 
       return {
         success: true,
