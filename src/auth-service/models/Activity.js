@@ -134,8 +134,8 @@ activitySchema.statics = {
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filter", filter);
-      const inclusionProjection = constants.GROUPS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.GROUPS_EXCLUSION_PROJECTION(
+      const inclusionProjection = constants.ACTIVITIES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.ACTIVITIES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
 

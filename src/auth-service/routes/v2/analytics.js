@@ -17,6 +17,26 @@ const {
   emailValidators,
 } = require("@validators/analytics.validators");
 
+router.get(
+  "/activities",
+  validateTenant(),
+  createAnalyticsController.listActivities
+);
+
+router.get("/logs", validateTenant(), createAnalyticsController.listLogs);
+
+router.get(
+  "/user-stats",
+  validateTenant(),
+  createAnalyticsController.getUserStats
+);
+
+router.get(
+  "/statistics",
+  validateTenant(),
+  createAnalyticsController.listStatistics
+);
+
 // User Engagement Routes
 router.get(
   "/:email/engagement",

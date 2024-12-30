@@ -2525,6 +2525,53 @@ const analytics = {
       );
     }
   },
+  listActivities: async (request, next) => {
+    try {
+      const { tenant, limit = 1000, skip = 0 } = request.query;
+      const filter = generateFilter.activities(request, next);
+      const responseFromListActivities = await ActivityModel(tenant).list(
+        {
+          filter,
+          limit,
+          skip,
+        },
+        next
+      );
+      if (responseFromListActivities.success === true) {
+        return {
+          success: true,
+          message: responseFromListActivities.message,
+          data: responseFromListActivities.data,
+          status: responseFromListActivities.status
+            ? responseFromListActivities.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListActivities.success === false) {
+        const errorObject = responseFromListActivities.errors
+          ? responseFromListActivities.errors
+          : { message: "Internal Server Error" };
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: responseFromListActivities.message,
+              ...errorObject,
+            }
+          )
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getUserStats: async (request, next) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
