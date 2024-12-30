@@ -20,28 +20,24 @@ resources:
       cpu: 125m
       memory: 500Mi
     limits:
-      cpu: 1000m
       memory: 1500Mi
   scheduler:
     requests:
       cpu: 125m
       memory: 500Mi
     limits:
-      cpu: 2000m
       memory: 2000Mi
   celery:
     requests:
       cpu: 125m
       memory: 500Mi
     limits:
-      cpu: 2000m
       memory: 2000Mi
   redis:
     requests:
       cpu: 50m
       memory: 125Mi
     limits:
-      cpu: 1000m
       memory: 2000Mi
 volumeMounts:
   - name: config-volume
