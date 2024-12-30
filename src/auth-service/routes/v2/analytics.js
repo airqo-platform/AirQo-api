@@ -35,4 +35,9 @@ router.post(
   createAnalyticsController.fetchUserStats
 );
 
+router.get(
+  "/validate-environment",
+  createAnalyticsController.validateEnvironment
+);
+
 module.exports = router;

@@ -96,6 +96,37 @@ const analytics = {
       );
     }
   },
+
+  validateEnvironment: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const { body, query } = req;
+      const { year } = query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+
+      const validation = await createAnalyticsUtil.validateEnvironmentData({
+        tenant: isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant,
+        year,
+      });
+      res.json(validation);
+    } catch (error) {
+      logger.error(`🐛🐛 validateEnvironment Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = analytics;

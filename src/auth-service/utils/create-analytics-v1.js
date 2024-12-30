@@ -477,32 +477,56 @@ function calculateActivityDuration(
   };
 }
 
-// Helper function for calculating engagement score
-function calculateEngagementScore({
-  totalActions,
-  uniqueServices,
-  uniqueEndpoints,
-  activityDays,
-}) {
-  // Use at least 30 days as denominator
-  const actionsPerDay = totalActions / Math.max(activityDays, 30);
+function calculateEngagementTier(stats) {
+  const {
+    count = 0,
+    uniqueServices = [],
+    uniqueEndpoints = [],
+    activityDuration = { totalDays: 0, totalMonths: 0 },
+  } = stats;
 
+  logObject("stats being used to calculate Engagement Tier ", stats);
+
+  // Calculate average actions per day
+  const actionsPerDay = count / Math.max(activityDuration.totalDays, 1);
+
+  logObject("actionsPerDay", actionsPerDay);
+
+  // Calculate service diversity score (0-1)
+  const activeServices = routesWithService.filter((route) =>
+    uniqueServices.includes(route.service)
+  ).length;
   const serviceDiversity =
-    uniqueServices / Math.min(routesWithService.length, 20);
-  const endpointDiversity = Math.min(uniqueEndpoints / 10, 1);
+    activeServices / Math.min(routesWithService.length, 20);
 
-  return (
-    (actionsPerDay * 0.4 + serviceDiversity * 0.3 + endpointDiversity * 0.3) *
-    100
-  );
-}
+  logObject("serviceDiversity", serviceDiversity);
 
-// Simplified engagement tier calculation
-function calculateEngagementTier(score) {
-  if (score >= 80) return "Elite User";
-  if (score >= 65) return "Super User";
-  if (score >= 45) return "High Engagement";
-  if (score >= 25) return "Moderate Engagement";
+  // Calculate duration score (0-1)
+  // Assuming 12 months is the maximum for a perfect score
+  const durationScore = Math.min(activityDuration.totalMonths / 12, 1);
+
+  logObject("durationScore", durationScore);
+
+  // Weighted engagement score (0-100)
+  const engagementScore =
+    durationScore * 40 + // Weight for duration (60%)
+    actionsPerDay * 30 + // Weight frequency of actions (16%)
+    serviceDiversity * 15 + // Weight service diversity (12%)
+    Math.min(uniqueEndpoints.length / 5, 1) * 15; // Weight endpoint diversity (15%)
+
+  logObject("engagementScore components", {
+    durationComponent: durationScore * 60,
+    actionsComponent: actionsPerDay * 16,
+    serviceComponent: serviceDiversity * 12,
+    endpointComponent: Math.min(uniqueEndpoints.length / 10, 1) * 12,
+  });
+  logObject("final engagementScore", engagementScore);
+
+  // Adjusted thresholds with more granular tiers
+  if (engagementScore >= 80) return "Elite User";
+  if (engagementScore >= 65) return "Super User";
+  if (engagementScore >= 45) return "High Engagement";
+  if (engagementScore >= 25) return "Moderate Engagement";
   return "Low Engagement";
 }
 
@@ -521,12 +545,6 @@ function formatServiceName(serviceName) {
 const analytics = {
   enhancedGetUserStats: async (request, next) => {
     try {
-      return {
-        success: false,
-        message: "enhancedGetUserStats temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "enhancedGetUserStats temporarily disabled" },
-      };
       const {
         tenant,
         limit = 1000,
@@ -534,114 +552,233 @@ const analytics = {
         startTime,
         endTime,
       } = request.query;
-
       const filter = {
         ...generateFilter.logs(request, next),
         timestamp: {
-          $gte: new Date(startTime),
-          $lte: new Date(endTime),
+          $gte: startTime,
+          $lte: endTime,
         },
-        "meta.service": { $nin: ["unknown", "none", "", null] },
       };
 
       logger.info(`Applied filter: ${stringify(filter)}`);
+      logger.info(
+        `Start Date: ${request.query.startTime}, End Date: ${request.query.endTime}`
+      );
 
       const pipeline = [
         { $match: filter },
         {
-          $facet: {
-            paginatedResults: [
-              {
-                $group: {
-                  _id: "$meta.email",
-                  username: { $first: "$meta.username" },
-                  totalCount: { $sum: 1 },
-                  uniqueServices: { $addToSet: "$meta.service" },
-                  uniqueEndpoints: { $addToSet: "$meta.endpoint" },
-                  firstActivity: { $min: "$timestamp" },
-                  lastActivity: { $max: "$timestamp" },
-                  // Efficient service usage tracking
-                  serviceUsage: {
-                    $push: {
-                      service: "$meta.service",
-                      endpoint: "$meta.endpoint",
-                    },
+          $group: {
+            _id: { email: "$meta.email", endpoint: "$meta.endpoint" },
+            service: { $first: "$meta.service" },
+            username: { $first: "$meta.username" },
+            count: { $sum: 1 },
+            // Filter out unknown and none from unique services
+            uniqueServices: {
+              $addToSet: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ["$meta.service", "unknown"] },
+                      { $ne: ["$meta.service", "none"] },
+                      { $ne: ["$meta.service", null] },
+                      { $ne: ["$meta.service", ""] },
+                    ],
                   },
+                  then: "$meta.service",
+                  else: "$$REMOVE",
                 },
               },
-              { $sort: { totalCount: -1 } },
-              { $skip: skip },
-              { $limit: limit },
-            ],
-            totalCount: [
-              { $group: { _id: "$meta.email" } },
-              { $count: "total" },
-            ],
+            },
+            uniqueEndpoints: {
+              $addToSet: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ["$meta.endpoint", "unknown"] },
+                      { $ne: ["$meta.endpoint", "none"] },
+                      { $ne: ["$meta.endpoint", null] },
+                      { $ne: ["$meta.endpoint", ""] },
+                    ],
+                  },
+                  then: "$meta.endpoint",
+                  else: "$$REMOVE",
+                },
+              },
+            },
+            firstActivity: { $min: "$timestamp" },
+            lastActivity: { $max: "$timestamp" },
+            actions: {
+              $push: {
+                service: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ["$meta.service", "unknown"] },
+                        { $ne: ["$meta.service", "none"] },
+                        { $ne: ["$meta.service", null] },
+                        { $ne: ["$meta.service", ""] },
+                      ],
+                    },
+                    then: "$meta.service",
+                    else: "$$REMOVE",
+                  },
+                },
+                endpoint: "$meta.endpoint",
+                timestamp: "$timestamp",
+              },
+            },
           },
         },
+        {
+          $project: {
+            _id: 0,
+            email: "$_id.email",
+            endpoint: "$_id.endpoint",
+            count: 1,
+            service: "$service",
+            username: "$username",
+            uniqueServices: 1,
+            uniqueEndpoints: 1,
+            firstActivity: 1,
+            lastActivity: 1,
+            // Modified topServices calculation to exclude unknown/none
+            topServices: {
+              $sortArray: {
+                input: {
+                  $filter: {
+                    input: {
+                      $map: {
+                        input: {
+                          $setIntersection: [
+                            "$uniqueServices",
+                            routesWithService.map((route) => route.service),
+                          ],
+                        },
+                        as: "service",
+                        in: {
+                          service: "$$service",
+                          count: {
+                            $size: {
+                              $filter: {
+                                input: "$actions",
+                                as: "action",
+                                cond: {
+                                  $eq: ["$$action.service", "$$service"],
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    as: "serviceStats",
+                    cond: { $gt: ["$$serviceStats.count", 0] },
+                  },
+                },
+                sortBy: { count: -1 },
+              },
+            },
+            mostUsedEndpoints: {
+              $sortArray: {
+                input: {
+                  $filter: {
+                    input: {
+                      $map: {
+                        input: "$uniqueEndpoints",
+                        as: "endpoint",
+                        in: {
+                          endpoint: "$$endpoint",
+                          count: {
+                            $size: {
+                              $filter: {
+                                input: "$actions",
+                                as: "action",
+                                cond: {
+                                  $eq: ["$$action.endpoint", "$$endpoint"],
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    as: "endpointStats",
+                    cond: { $gt: ["$$endpointStats.count", 0] },
+                  },
+                },
+                sortBy: { count: -1 },
+              },
+            },
+          },
+        },
+        { $sort: { count: -1 } },
+        { $skip: skip },
+        { $limit: limit },
       ];
 
-      const [results] = await LogModel(tenant)
-        .aggregate(pipeline)
-        .allowDiskUse(true);
+      const getUserStatsResponse = await LogModel(tenant).aggregate(pipeline);
 
-      const enrichedStats = results.paginatedResults.map((stat) => {
-        // Calculate service statistics
-        const serviceStats = stat.serviceUsage.reduce((acc, curr) => {
-          const { service } = curr;
-          acc[service] = (acc[service] || 0) + 1;
-          return acc;
-        }, {});
+      logObject("getUserStatsResponse", getUserStatsResponse);
 
-        const topServices = Object.entries(serviceStats)
-          .map(([service, count]) => ({
-            service: formatServiceName(service),
-            count,
-          }))
-          .sort((a, b) => b.count - a.count);
-
-        const activityDuration = calculateActivityDuration(
-          stat.firstActivity,
-          stat.lastActivity,
-          new Date(startTime),
-          new Date(endTime)
+      // Enrich the data with more context
+      const enrichedStats = getUserStatsResponse.map((stat) => {
+        // Find the most used valid service
+        const validTopServices = stat.topServices.filter(
+          (service) =>
+            service &&
+            service.service &&
+            service.service !== "unknown" &&
+            service.service !== "none"
         );
 
+        const topServiceDetails =
+          validTopServices.length > 0
+            ? routesWithService.find(
+                (route) => route.service === validTopServices[0].service
+              )
+            : null;
+
+        logObject("validTopServices", validTopServices);
+        logObject("topServiceDetails", topServiceDetails);
+
         return {
-          email: stat._id,
-          username: stat.username,
-          count: stat.totalCount,
-          uniqueServices: stat.uniqueServices,
-          uniqueEndpoints: stat.uniqueEndpoints,
-          firstActivity: stat.firstActivity,
-          lastActivity: stat.lastActivity,
-          topServices,
-          activityDuration,
-          engagementTier: calculateEngagementTier({
-            count: stat.totalCount,
-            uniqueServices: stat.uniqueServices,
-            uniqueEndpoints: stat.uniqueEndpoints,
-            activityDuration,
-          }),
+          ...stat,
+          topServiceDescription: topServiceDetails
+            ? `Most used service: ${formatServiceName(
+                topServiceDetails.service
+              )} (${formatServiceName(topServiceDetails.action)}) Used ${
+                validTopServices[0].count
+              } times`
+            : "No primary service identified",
+          // Format service names in topServices array
+          topServices: stat.topServices.map((service) => ({
+            ...service,
+            service: formatServiceName(service.service),
+          })),
+          activityDuration: calculateActivityDuration(
+            stat.firstActivity || startTime,
+            stat.lastActivity || endTime,
+            startTime,
+            endTime
+          ),
+          engagementTier: calculateEngagementTier(stat),
         };
       });
 
       return {
         success: true,
-        message: "Successfully retrieved user statistics",
+        message: "Successfully retrieved the user statistics",
         data: enrichedStats,
-        total: results.totalCount[0]?.total || 0,
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
+          { message: error.message }
         )
       );
       return;
@@ -652,20 +789,16 @@ const analytics = {
     year = new Date().getFullYear(),
   } = {}) => {
     try {
-      return {
-        success: false,
-        message: " validateEnvironmentData temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: " validateEnvironmentData temporarily disabled" },
-      };
       logger.info(
         `Running data validation for environment: ${constants.ENVIRONMENT}`
       );
+      logger.info(`Server timezone: ${process.env.TZ || "default"}`);
 
       const startDate = new Date(`${year}-01-01`);
       const endDate = new Date(`${year}-12-31`);
 
-      const pipeline = [
+      // Check data distribution across months
+      const monthlyDistribution = await LogModel(tenant).aggregate([
         {
           $match: {
             timestamp: {
@@ -675,280 +808,174 @@ const analytics = {
           },
         },
         {
-          $facet: {
-            monthlyDistribution: [
-              {
-                $group: {
-                  _id: {
-                    year: { $year: "$timestamp" },
-                    month: { $month: "$timestamp" },
-                  },
-                  count: { $sum: 1 },
-                  uniqueUsers: { $addToSet: "$meta.email" },
-                  uniqueEndpoints: { $addToSet: "$meta.endpoint" },
-                  uniqueServices: { $addToSet: "$meta.service" },
-                },
-              },
-              { $sort: { "_id.year": 1, "_id.month": 1 } },
-            ],
-            userSample: [
-              {
-                $group: {
-                  _id: "$meta.email",
-                  firstActivity: { $min: "$timestamp" },
-                  lastActivity: { $max: "$timestamp" },
-                  totalActions: { $sum: 1 },
-                },
-              },
-              { $match: { totalActions: { $gt: 100 } } },
-              { $limit: 10 },
-            ],
-            systemMetrics: [
-              {
-                $group: {
-                  _id: null,
-                  totalLogs: { $sum: 1 },
-                  avgLogsPerDay: {
-                    $avg: {
-                      $sum: 1,
-                    },
-                  },
-                  uniqueServices: { $addToSet: "$meta.service" },
-                  uniqueEndpoints: { $addToSet: "$meta.endpoint" },
-                },
-              },
-            ],
+          $group: {
+            _id: {
+              year: { $year: "$timestamp" },
+              month: { $month: "$timestamp" },
+            },
+            count: { $sum: 1 },
+            uniqueUsers: { $addToSet: "$meta.email" },
+            uniqueEndpoints: { $addToSet: "$meta.endpoint" },
+            uniqueServices: { $addToSet: "$meta.service" },
           },
         },
-      ];
+        {
+          $sort: {
+            "_id.year": 1,
+            "_id.month": 1,
+          },
+        },
+      ]);
 
-      const [results] = await LogModel(tenant)
-        .aggregate(pipeline)
-        .allowDiskUse(true);
-
-      // Enrich the monthly distribution with percentage changes
-      const enrichedDistribution = results.monthlyDistribution.map(
-        (month, index, arr) => {
-          const prevMonth = index > 0 ? arr[index - 1] : null;
-          return {
+      logger.info(
+        `📈📈 Monthly data distribution for ${year}:`,
+        stringify(
+          monthlyDistribution.map((month) => ({
             year: month._id.year,
             month: month._id.month,
             totalLogs: month.count,
             uniqueUsers: month.uniqueUsers.length,
             uniqueEndpoints: month.uniqueEndpoints.length,
             uniqueServices: month.uniqueServices.length,
-            percentageChange: prevMonth
-              ? (
-                  ((month.count - prevMonth.count) / prevMonth.count) *
-                  100
-                ).toFixed(2)
-              : null,
-          };
-        }
+          }))
+        )
       );
+
+      // Validate date ranges for a sample of users
+      const userSample = await LogModel(tenant).aggregate([
+        {
+          $match: {
+            timestamp: {
+              $gte: startDate,
+              $lte: endDate,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$meta.email",
+            firstActivity: { $min: "$timestamp" },
+            lastActivity: { $max: "$timestamp" },
+            totalActions: { $sum: 1 },
+          },
+        },
+        {
+          $match: {
+            totalActions: { $gt: 100 }, // Only check active users
+          },
+        },
+        { $limit: 10 }, // Sample size
+      ]);
 
       return {
         success: true,
         message: "Environment data validation completed",
         data: {
-          monthlyDistribution: enrichedDistribution,
-          userSample: results.userSample,
-          systemMetrics: results.systemMetrics[0],
-          timeframe: {
-            startDate,
-            endDate,
-            totalDays: Math.floor(
-              (endDate - startDate) / (1000 * 60 * 60 * 24)
-            ),
-          },
+          monthlyDistribution,
+          userSample,
         },
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Error in validateEnvironmentData: ${stringify(error)}`);
+      logger.error(
+        `🐛🐛 Error in validateEnvironmentData: ${stringify(error)}`
+      );
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        {
-          message: error.message,
-        }
+        { message: error.message }
       );
     }
   },
   fetchUserStats: async ({
-    emails = [],
+    emails,
     year = new Date().getFullYear(),
     tenant = "airqo",
-    chunkSize = 5,
-    timeWindowDays = 90, // Process data in 90-day windows
   } = {}) => {
     try {
-      return {
-        success: false,
-        message: "fetchUserStats temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "fetchUserStats temporarily disabled" },
-      };
+      await analytics.validateEnvironmentData({ tenant, year });
+
       const startDate = new Date(`${year}-01-01`);
       const endDate = new Date(`${year}-12-31`);
-      const enrichedStats = [];
 
-      // Process users in chunks to avoid memory overload
-      for (let i = 0; i < emails.length; i += chunkSize) {
-        const emailChunk = emails.slice(i, i + chunkSize);
-
-        // Break the year into smaller time windows
-        const timeWindows = [];
-        let currentStart = new Date(startDate);
-
-        while (currentStart < endDate) {
-          const windowEnd = new Date(currentStart);
-          windowEnd.setDate(windowEnd.getDate() + timeWindowDays);
-          const actualEnd = windowEnd > endDate ? endDate : windowEnd;
-
-          timeWindows.push({
-            start: new Date(currentStart),
-            end: new Date(actualEnd),
-          });
-
-          currentStart = new Date(actualEnd);
-        }
-
-        // Process each time window for the current user chunk
-        const userStatsPromises = timeWindows.map(async (window) => {
-          const pipeline = [
-            {
-              $match: {
-                timestamp: {
-                  $gte: window.start,
-                  $lte: window.end,
-                },
-                "meta.email": { $in: emailChunk },
-                "meta.service": { $nin: ["unknown", "none", "", null] },
-              },
-            },
-            {
-              $group: {
-                _id: "$meta.email",
-                totalCount: { $sum: 1 },
-                username: { $first: "$meta.username" },
-                firstActivity: { $min: "$timestamp" },
-                lastActivity: { $max: "$timestamp" },
-                uniqueServices: { $addToSet: "$meta.service" },
-                uniqueEndpoints: { $addToSet: "$meta.endpoint" },
-                serviceUsage: {
-                  $push: {
-                    service: "$meta.service",
-                  },
-                },
-              },
-            },
-          ];
-
-          return LogModel(tenant).aggregate(pipeline).allowDiskUse(true).exec();
-        });
-
-        // Wait for all time windows to complete for current user chunk
-        const windowResults = await Promise.all(userStatsPromises);
-
-        // Merge results for each user across time windows
-        const mergedUserStats = emailChunk.reduce((acc, email) => {
-          acc[email] = {
+      const statsPromises = emails.map(async (email) => {
+        const request = {
+          query: {
+            tenant,
             email,
-            totalCount: 0,
-            username: "",
-            firstActivity: null,
-            lastActivity: null,
-            uniqueServices: new Set(),
-            uniqueEndpoints: new Set(),
-            serviceUsage: new Map(),
-          };
-          return acc;
-        }, {});
+            startTime: startDate,
+            endTime: endDate,
+          },
+        };
 
-        // Combine stats from all time windows
-        windowResults.flat().forEach((stat) => {
-          if (!stat || !stat._id) return;
+        try {
+          const statsResponse = await analytics.enhancedGetUserStats(request);
+          logObject("statsResponse", statsResponse);
+          const userStat = statsResponse.data[0]; // Assuming first match
+          logObject("userStat", userStat);
 
-          const userStats = mergedUserStats[stat._id];
-          if (!userStats) return;
+          if (userStat) {
+            // Calculate activity duration using the year-specific dates
+            const activityDuration = calculateActivityDuration(
+              userStat.firstActivity || startDate,
+              userStat.lastActivity || endDate, // Use year end instead of current date
+              startDate,
+              endDate
+            );
 
-          userStats.totalCount += stat.totalCount;
-          userStats.username = stat.username;
+            logObject("Activity duration calculation", {
+              firstActivity: userStat.firstActivity,
+              lastActivity: userStat.lastActivity,
+              startDate,
+              endDate,
+              calculatedDuration: activityDuration,
+            });
 
-          if (
-            !userStats.firstActivity ||
-            stat.firstActivity < userStats.firstActivity
-          ) {
-            userStats.firstActivity = stat.firstActivity;
+            // Calculate engagement tier based on total service usage
+            const totalServiceCount = userStat.topServices
+              ? userStat.topServices.reduce(
+                  (sum, service) => sum + (service.count || 0),
+                  0
+                )
+              : 0;
+
+            logObject("object used for second tier calculation", {
+              count: totalServiceCount,
+              uniqueServices: userStat.uniqueServices,
+              uniqueEndpoints: userStat.uniqueEndpoints,
+              activityDuration,
+            });
+            const engagementTier = calculateEngagementTier({
+              count: totalServiceCount,
+              uniqueServices: userStat.uniqueServices,
+              uniqueEndpoints: userStat.uniqueEndpoints,
+              activityDuration,
+            });
+
+            // Augment user stats with these calculated values
+            return {
+              ...userStat,
+              activityDuration,
+              engagementTier,
+              topServiceDescription:
+                userStat.topServiceDescription || "No top service",
+              topServices: userStat.topServices || [],
+              mostUsedEndpoints: userStat.mostUsedEndpoints || [],
+            };
           }
-          if (
-            !userStats.lastActivity ||
-            stat.lastActivity > userStats.lastActivity
-          ) {
-            userStats.lastActivity = stat.lastActivity;
-          }
 
-          stat.uniqueServices.forEach((s) => userStats.uniqueServices.add(s));
-          stat.uniqueEndpoints.forEach((e) => userStats.uniqueEndpoints.add(e));
-
-          // Update service usage counts
-          stat.serviceUsage.forEach((usage) => {
-            const current = userStats.serviceUsage.get(usage.service) || 0;
-            userStats.serviceUsage.set(usage.service, current + 1);
-          });
-        });
-
-        // Convert merged stats to final format
-        Object.values(mergedUserStats).forEach((stat) => {
-          if (stat.totalCount === 0) return; // Skip users with no activity
-
-          const topServices = Array.from(stat.serviceUsage.entries())
-            .map(([service, count]) => ({
-              service: formatServiceName(service),
-              count,
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
-
-          const activityDays = Math.floor(
-            (stat.lastActivity - stat.firstActivity) / (1000 * 60 * 60 * 24)
+          return null;
+        } catch (error) {
+          logger.error(
+            `Error fetching stats for ${email}: ${stringify(error)}`
           );
-
-          const engagementScore = calculateEngagementScore({
-            totalActions: stat.totalCount,
-            uniqueServices: stat.uniqueServices.size,
-            uniqueEndpoints: stat.uniqueEndpoints.size,
-            activityDays: activityDays || 1,
-          });
-
-          enrichedStats.push({
-            email: stat.email,
-            username: stat.username,
-            totalActions: stat.totalCount,
-            firstActivity: stat.firstActivity,
-            lastActivity: stat.lastActivity,
-            uniqueServices: Array.from(stat.uniqueServices),
-            uniqueEndpoints: Array.from(stat.uniqueEndpoints),
-            topServices,
-            activityDuration: {
-              totalDays: activityDays,
-              totalMonths: Math.floor(activityDays / 30),
-              description: `Active for ${Math.floor(activityDays / 30)} months`,
-            },
-            engagementTier: calculateEngagementTier(engagementScore),
-          });
-        });
-
-        // Add a small delay between chunks to prevent overwhelming the server
-        if (i + chunkSize < emails.length) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return null;
         }
-      }
+      });
 
-      return enrichedStats;
+      return (await Promise.all(statsPromises)).filter((stat) => stat !== null);
     } catch (error) {
-      logger.error(`Error in fetchUserStats: ${stringify(error)}`);
+      logger.error(`🐛🐛 Error in fetchUserStats: ${stringify(error)}`);
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
@@ -958,12 +985,6 @@ const analytics = {
   },
   sendEmailsInBatches: async (userStats, batchSize = 100) => {
     try {
-      return {
-        success: false,
-        message: "sendEmailsInBatches temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "sendEmailsInBatches temporarily disabled" },
-      };
       let emailsSent = 0;
       let lowEngagementCount = 0;
 
@@ -1022,12 +1043,6 @@ const analytics = {
   },
   sendYearEndEmails: async (request) => {
     try {
-      return {
-        success: false,
-        message: "sendYearEndEmails temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "sendYearEndEmails temporarily disabled" },
-      };
       const { body, query } = request;
       const { emails } = body;
       const { tenant } = query;
