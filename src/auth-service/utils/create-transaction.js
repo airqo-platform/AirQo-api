@@ -21,6 +21,7 @@ const transactions = {
    */
   list: async (request, next) => {
     try {
+      logText("We are in the transactions listing now");
       const {
         query: { tenant },
       } = request;
@@ -38,6 +39,7 @@ const transactions = {
         },
         next
       );
+      logObject("listResponse", listResponse);
 
       return listResponse;
     } catch (error) {
@@ -267,30 +269,45 @@ const transactions = {
   createCheckoutSession: async (request, sessionData) => {
     try {
       const user = request.user;
+      logObject("the user", user);
+      const customerIdentification = sessionData.customer_id;
 
-      const customerIdentification = sessionData.customerId;
-      /**
-       * create the customer indetification in
-       * case they are not provided
-       */
+      logObject("user.email", user.email);
+      logObject("user.firstName", user.firstName);
+      logObject("user.lastName", user.lastName);
+
       if (!customerIdentification) {
         try {
           const customer = await paddleClient.customers.create({
             email: user.email,
             name: user.firstName || user.lastName,
           });
-          sessionData.customerId = customer.id;
+          sessionData.customer_id = customer.id; // Changed from customerId
         } catch (error) {
           logger.error(
             `Unable to generate the transaction client on Paddle -- ${stringify(
               error
             )}`
           );
+          throw error; // Add this to prevent continuing with invalid customer
         }
       }
 
-      const checkoutSession = await paddleClient.checkouts.create(sessionData);
+      // Ensure required fields are present
+      if (
+        !sessionData.settings.success_url ||
+        !sessionData.settings.cancel_url
+      ) {
+        throw new Error("success_url and cancel_url are required in settings");
+      }
 
+      if (!sessionData.items || !sessionData.items.length) {
+        throw new Error("items array with at least one item is required");
+      }
+
+      const checkoutSession = await paddleClient.transactions.create(
+        sessionData
+      );
       return {
         success: true,
         data: {
@@ -300,6 +317,7 @@ const transactions = {
         status: httpStatus.CREATED,
       };
     } catch (error) {
+      logObject("zi error", error);
       logger.error("Checkout session creation failed", error);
       return {
         success: false,
@@ -319,7 +337,7 @@ const transactions = {
   getDynamicPriceId: async (amount, currency) => {
     try {
       const price = await paddleClient.prices.create({
-        product_id: process.env.PADDLE_PRODUCT_ID,
+        product_id: constants.PADDLE_PRODUCT_ID,
         currency,
         unit_price: amount,
       });
@@ -446,7 +464,7 @@ const transactions = {
       const event = paddleClient.webhooks.unmarshal(
         body,
         signature,
-        process.env.PADDLE_WEBHOOK_SECRET
+        constants.PADDLE_WEBHOOK_SECRET
       );
 
       switch (event.type) {
@@ -729,7 +747,7 @@ const transactions = {
       const defaultRenewalOptions = {
         billingCycle: "monthly",
         currency: "USD",
-        priceId: process.env.DEFAULT_SUBSCRIPTION_PRICE_ID,
+        priceId: constants.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID,
       };
 
       const finalRenewalOptions = {

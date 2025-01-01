@@ -4,6 +4,7 @@ const validateTransaction = require("@middleware/validateTransaction");
 const validateTenant = require("@middleware/validateTenant");
 const router = express.Router();
 const validatePagination = require("@middleware/validatePagination");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -21,6 +22,8 @@ router.post(
   "/checkout",
   validateTenant(),
   validateTransaction,
+  setJWTAuth,
+  authJWT,
   TransactionController.createCheckoutSession
 );
 
@@ -36,24 +39,32 @@ router.get("/list", validateTenant(), TransactionController.listTransactions);
 router.patch(
   "/update",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.updateTransaction
 );
 
 router.get(
   "/stats",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.getTransactionStats
 );
 
 router.delete(
   "/delete",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.deleteTransaction
 );
 
 router.post(
   "/enable-auto-renewal",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.optInForAutomaticRenewal
 );
 
@@ -61,6 +72,8 @@ router.post(
 router.post(
   "/subscribe",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.createSubscriptionTransaction
 );
 
@@ -68,6 +81,8 @@ router.post(
 router.post(
   "/cancel-subscription",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.cancelSubscription
 );
 
@@ -75,6 +90,8 @@ router.post(
 router.post(
   "/generate-price",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.generateDynamicPrice
 );
 
@@ -82,6 +99,8 @@ router.post(
 router.get(
   "/subscription-status",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.getSubscriptionStatus
 );
 
@@ -89,6 +108,8 @@ router.get(
 router.post(
   "/renew-subscription",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.manualSubscriptionRenewal
 );
 
@@ -96,6 +117,8 @@ router.post(
 router.get(
   "/transaction-history",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.getExtendedTransactionHistory
 );
 
@@ -103,6 +126,8 @@ router.get(
 router.get(
   "/financial-report",
   validateTenant(),
+  setJWTAuth,
+  authJWT,
   TransactionController.generateFinancialReport
 );
 
