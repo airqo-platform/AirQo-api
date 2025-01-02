@@ -47,7 +47,12 @@ const analytics = {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
-          new HttpError("bad request errors", httpStatus.BAD_req, res, errors)
+          new HttpError(
+            "bad request errors",
+            httpStatus.BAD_REQUEST,
+            res,
+            errors
+          )
         );
         return;
       }
