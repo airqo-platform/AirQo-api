@@ -269,9 +269,7 @@ const transactions = {
   createCheckoutSession: async (request, sessionData) => {
     try {
       const user = request.user;
-      logObject("the user", user);
       const customerIdentification = sessionData.customer_id;
-
       logObject("user.email", user.email);
       logObject("user.firstName", user.firstName);
       logObject("user.lastName", user.lastName);
@@ -317,8 +315,15 @@ const transactions = {
         status: httpStatus.CREATED,
       };
     } catch (error) {
-      logObject("zi error", error);
-      logger.error("Checkout session creation failed", error);
+      logger.error(
+        "Checkout session creation failed",
+        stringify({
+          message: error.message,
+          type: error.type,
+          code: error.code,
+          detail: error.detail,
+        })
+      );
       return {
         success: false,
         message: "Failed to create payment session",
