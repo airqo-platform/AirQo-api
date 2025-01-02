@@ -1,11 +1,11 @@
 const express = require("express");
 const TransactionController = require("@controllers/create-transaction");
-const validateTransaction = require("@middleware/validateTransaction");
-const validateTenant = require("@middleware/validateTenant");
-const router = express.Router();
-const validatePagination = require("@middleware/validatePagination");
+const transactionValidations = require("@validators/transactions.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 
+const router = express.Router();
+
+// CORS headers middleware
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header(
@@ -15,117 +15,130 @@ const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
   next();
 };
-router.use(headers);
-router.use(validatePagination(100, 1000));
 
+router.use(headers);
+router.use(transactionValidations.pagination(100, 1000));
+
+// Checkout Session
 router.post(
   "/checkout",
-  validateTenant(),
-  validateTransaction,
+  transactionValidations.checkout,
   setJWTAuth,
   authJWT,
   TransactionController.createCheckoutSession
 );
 
+// Webhook Handling
 router.post(
   "/webhook",
-  validateTenant(),
+  transactionValidations.tenantOperation,
   express.raw({ type: "application/json" }),
   TransactionController.handleWebhook
 );
 
-router.get("/list", validateTenant(), TransactionController.listTransactions);
+// List Transactions
+router.get(
+  "/list",
+  transactionValidations.tenantOperation,
+  setJWTAuth,
+  authJWT,
+  TransactionController.listTransactions
+);
 
+// Update Transaction
 router.patch(
-  "/update",
-  validateTenant(),
+  "/:id/update",
+  transactionValidations.idOperation,
   setJWTAuth,
   authJWT,
   TransactionController.updateTransaction
 );
 
+// Get Transaction Stats
 router.get(
   "/stats",
-  validateTenant(),
+  transactionValidations.tenantOperation,
   setJWTAuth,
   authJWT,
   TransactionController.getTransactionStats
 );
 
+// Delete Transaction
 router.delete(
-  "/delete",
-  validateTenant(),
+  "/:id/delete",
+  transactionValidations.idOperation,
   setJWTAuth,
   authJWT,
   TransactionController.deleteTransaction
 );
 
+// Enable Auto-Renewal
 router.post(
-  "/enable-auto-renewal",
-  validateTenant(),
+  "/:id/enable-auto-renew",
+  transactionValidations.idOperation,
   setJWTAuth,
   authJWT,
   TransactionController.optInForAutomaticRenewal
 );
 
-// Route for creating a subscription transaction
+// Create Subscription Transaction
 router.post(
-  "/subscribe",
-  validateTenant(),
+  "/create-subscription",
+  transactionValidations.subscription,
   setJWTAuth,
   authJWT,
   TransactionController.createSubscriptionTransaction
 );
 
-// Route for cancelling a user's subscription
+// Cancel Subscription
 router.post(
-  "/cancel-subscription",
-  validateTenant(),
+  "/:id/cancel-subscription",
+  transactionValidations.idOperation,
   setJWTAuth,
   authJWT,
   TransactionController.cancelSubscription
 );
 
-// Route for generating a dynamic price for flexible donations
+// Generate Dynamic Price
 router.post(
-  "/generate-price",
-  validateTenant(),
+  "/pricing/generate",
+  transactionValidations.dynamicPrice,
   setJWTAuth,
   authJWT,
   TransactionController.generateDynamicPrice
 );
 
-// Route for retrieving user's subscription status
+// Get Subscription Status
 router.get(
-  "/subscription-status",
-  validateTenant(),
+  "/:id/subscription-status",
+  transactionValidations.idOperation,
   setJWTAuth,
   authJWT,
   TransactionController.getSubscriptionStatus
 );
 
-// Route for handling subscription renewals manually
+// Manual Subscription Renewal
 router.post(
-  "/renew-subscription",
-  validateTenant(),
+  "/:id/renew-subscription",
+  transactionValidations.idOperation,
   setJWTAuth,
   authJWT,
   TransactionController.manualSubscriptionRenewal
 );
 
-// Route for retrieving transaction history with advanced filtering
+// Extended Transaction History
 router.get(
   "/transaction-history",
-  validateTenant(),
+  transactionValidations.history,
   setJWTAuth,
   authJWT,
   TransactionController.getExtendedTransactionHistory
 );
 
-// Route for generating financial reports
+// Generate Financial Report
 router.get(
-  "/financial-report",
-  validateTenant(),
+  "/reports/financial-report",
+  transactionValidations.tenantOperation,
   setJWTAuth,
   authJWT,
   TransactionController.generateFinancialReport
