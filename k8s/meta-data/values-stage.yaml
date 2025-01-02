@@ -8,13 +8,12 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-meta-data-api
     sitesConsumer: eu.gcr.io/airqo-250220/airqo-stage-meta-data-sites-consumer
-  tag: stage-38af6de7-1730309744
+  tag: stage-6ffb3fe6-1735572850
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 400m
     memory: 700Mi
   requests:
     cpu: 50m

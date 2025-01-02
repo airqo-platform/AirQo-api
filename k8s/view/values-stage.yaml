@@ -13,7 +13,6 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 100m
       memory: 1000Mi
     requests:
       cpu: 5m
