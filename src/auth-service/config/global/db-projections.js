@@ -732,6 +732,126 @@ const dbProjections = {
     }
     return projection;
   },
+  ACTIVITIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    email: 1,
+    username: 1,
+    tenant: 1,
+    dailyStats: 1,
+    overallStats: 1,
+    createdAt: 1,
+    totalMonthlyActions: {
+      $cond: {
+        if: { $isArray: "$monthlyStats" },
+        then: { $sum: "$monthlyStats.totalActions" },
+        else: 0,
+      },
+    },
+    // Calculate average engagement score across all months
+    averageEngagement: {
+      $cond: {
+        if: { $isArray: "$monthlyStats" },
+        then: {
+          $avg: "$monthlyStats.engagementScore",
+        },
+        else: 0,
+      },
+    },
+    // Get the most recent monthly stats
+    currentMonthStats: {
+      $arrayElemAt: [
+        {
+          $filter: {
+            input: "$monthlyStats",
+            as: "month",
+            cond: {
+              $and: [
+                { $eq: ["$$month.year", { $year: new Date() }] },
+                { $eq: ["$$month.month", { $month: new Date() }] },
+              ],
+            },
+          },
+        },
+        0,
+      ],
+    },
+    // Get today's stats
+    todayStats: {
+      $arrayElemAt: [
+        {
+          $filter: {
+            input: "$dailyStats",
+            as: "day",
+            cond: {
+              $eq: [
+                { $dateToString: { format: "%Y-%m-%d", date: "$$day.date" } },
+                { $dateToString: { format: "%Y-%m-%d", date: new Date() } },
+              ],
+            },
+          },
+        },
+        0,
+      ],
+    },
+  },
+  ACTIVITIES_EXCLUSION_PROJECTION: function (category) {
+    const initialProjection = {
+      __v: 0,
+      "dailyStats.__v": 0,
+      "monthlyStats.__v": 0,
+      // Exclude specific fields from dailyStats when not needed
+      "dailyStats.endpoints._id": 0,
+      "dailyStats.services._id": 0,
+      // Exclude specific fields from monthlyStats when not needed
+      "monthlyStats.topServices._id": 0,
+      lastProcessedLog: 0,
+    };
+
+    let projection = Object.assign({}, initialProjection);
+
+    switch (category) {
+      case "summary":
+        // For summary view, exclude detailed stats
+        projection = Object.assign({}, projection, {
+          dailyStats: 0,
+          monthlyStats: 0,
+          lastProcessedLog: 0,
+        });
+        break;
+
+      case "daily":
+        // For daily view, exclude monthly stats
+        projection = Object.assign({}, projection, {
+          monthlyStats: 0,
+          lastProcessedLog: 0,
+        });
+        break;
+
+      case "monthly":
+        // For monthly view, exclude daily stats
+        projection = Object.assign({}, projection, {
+          dailyStats: 0,
+          lastProcessedLog: 0,
+        });
+        break;
+
+      case "minimal":
+        // For minimal view, only show essential fields
+        projection = {
+          dailyStats: 0,
+          monthlyStats: 0,
+          lastProcessedLog: 0,
+          createdAt: 0,
+          updatedAt: 0,
+          __v: 0,
+        };
+        break;
+
+      // Default case keeps all fields except those in initialProjection
+    }
+
+    return projection;
+  },
   LOCATION_HISTORIES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,
