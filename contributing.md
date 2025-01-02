@@ -27,6 +27,8 @@ To get an overview of each microservice, read the respective microservice README
 - [meta-data](/src/meta-data/README.md)
 - [Predict](/src/predict/README.md)
 - [View](/src/view/README.md)
+
+
 Here are some resources to help you get started with open source contributions:
 
 - [How to Contribute to Open Source](https://opensource.guide/how-to-contribute/)
