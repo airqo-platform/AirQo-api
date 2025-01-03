@@ -2992,9 +2992,12 @@ eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
       {
         $match: {
           "values.time": { $gte: twoWeeksAgo, $lte: now },
-          "values.pm2_5.value": { $exists: true, $ne: null },
-          // Basic range check for PM2.5 (0-1000 µg/m³ as reasonable limits)
-          "values.pm2_5.value": { $gte: 0, $lte: 1000 },
+          "values.pm2_5.value": {
+            $exists: true,
+            $ne: null,
+            $gte: 0,
+            $lte: 1000,
+          },
         },
       },
 
