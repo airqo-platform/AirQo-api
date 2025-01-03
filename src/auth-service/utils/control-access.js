@@ -39,6 +39,8 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+const MAX_REQUESTS = 6;
+
 const getDay = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -521,6 +523,25 @@ const isIPBlacklistedHelper = async (
 const isIPBlacklisted = (...args) =>
   trampoline(() => isIPBlacklistedHelper(...args));
 
+const getRequestLogs = async (token) => {
+  try {
+  } catch (error) {}
+};
+
+const checkRateLimit = async (token) => {
+  const currentTime = Date.now();
+
+  // Fetch request logs from database or cache where we store request timestamps per token
+  const requestLogs = await getRequestLogs(token);
+
+  // Filter logs to count requests in the last minute
+  const recentRequests = requestLogs.filter(
+    (log) => log.timestamp > currentTime - 1 * 60 * 1000
+  );
+
+  return recentRequests.length >= MAX_REQUESTS; //
+};
+
 const controlAccess = {
   sample: async (request, next) => {
     try {
@@ -832,11 +853,15 @@ const controlAccess = {
         .findOne({ token })
         .select("client_id token");
 
+      const isRateLimited = await checkRateLimit(token);
+
       if (isEmpty(accessToken)) {
         return createUnauthorizedResponse();
       } else if (isEmpty(ip)) {
         logText(`🚨🚨 Token is being accessed without an IP address`);
         logger.error(`🚨🚨 Token is being accessed without an IP address`);
+        return createUnauthorizedResponse();
+      } else if (isRateLimited) {
         return createUnauthorizedResponse();
       } else {
         const client = await ClientModel("airqo")
