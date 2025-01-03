@@ -349,7 +349,7 @@ class AirQualityService {
 
       // Set cache if successful
       if (responseFromListEvents.success) {
-        await this.trySetCache(responseFromListEvents.data, params, next);
+        await this.trySetCache(responseFromListEvents.data, request, next);
 
         return {
           success: true,
@@ -406,10 +406,10 @@ class AirQualityService {
     }
   }
 
-  async tryGetCache(params, next) {
+  async tryGetCache(request, next) {
     try {
       return await Promise.race([
-        createEvent.getCache(params, next),
+        createEvent.getCache(request, next),
         this.getCacheTimeout(),
       ]);
     } catch (error) {
@@ -418,10 +418,10 @@ class AirQualityService {
     }
   }
 
-  async trySetCache(data, params, next) {
+  async trySetCache(data, request, next) {
     try {
       const result = await Promise.race([
-        createEvent.setCache(data, params, next),
+        createEvent.setCache(data, request, next),
         this.getCacheTimeout(),
       ]);
 
