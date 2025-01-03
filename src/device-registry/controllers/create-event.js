@@ -1267,6 +1267,8 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.averages = "events";
       request.query.brief = "yes";
+      request.query.quality_checks = "no";
+
       const { cohort_id, grid_id } = { ...req.query, ...req.params };
 
       let locationErrors = 0;
@@ -1351,6 +1353,8 @@ const createEvent = {
       request.query.metadata = "site_id";
       request.query.averages = "events";
       request.query.brief = "yes";
+      request.query.quality_checks = "yes";
+
       const { cohort_id, grid_id } = { ...req.query, ...req.params };
 
       let locationErrors = 0;

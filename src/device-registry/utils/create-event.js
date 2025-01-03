@@ -325,13 +325,13 @@ class AirQualityService {
     this.EventModel = EventModel(tenant);
   }
 
-  async getAirQualityData(params, next, version = "v1") {
-    const { language, site_id } = params;
+  async getAirQualityData(request, next, version = "v1") {
+    const { language, site_id } = { ...request.query, ...request.params };
     let responseFromListEvents;
 
     try {
       // Try to get from cache first
-      const cacheResult = await this.tryGetCache(params, next);
+      const cacheResult = await this.tryGetCache(request, next);
       if (cacheResult.success) {
         return cacheResult.data;
       }
@@ -1061,25 +1061,12 @@ const createEvent = {
 
   listAverages: async (request, next) => {
     const service = new AirQualityService(request.query.tenant);
-    return service.getAirQualityData(
-      {
-        ...request.query,
-        ...request.params,
-      },
-      next
-    );
+    return service.getAirQualityData(request, next);
   },
 
   listAveragesV2: async (request, next) => {
     const service = new AirQualityService(request.query.tenant);
-    return service.getAirQualityData(
-      {
-        ...request.query,
-        ...request.params,
-      },
-      next,
-      "v2"
-    );
+    return service.getAirQualityData(request, next, "v2");
   },
   view: async (request, next) => {
     try {
@@ -2400,6 +2387,7 @@ const createEvent = {
         averages,
         threshold,
         pollutant,
+        quality_checks,
       } = { ...request.query, ...request.params };
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
@@ -2433,6 +2421,7 @@ const createEvent = {
       _${averages ? averages : "noAverages"}
       _${threshold ? threshold : "noThreshold"}
       _${pollutant ? pollutant : "noPollutant"}
+      _${quality_checks ? quality_checks : "noQualityChecks"}
       `;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
