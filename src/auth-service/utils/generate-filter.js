@@ -149,6 +149,81 @@ const filter = {
       );
     }
   },
+  transactions: (req, next) => {
+    try {
+      const {
+        paddle_transaction_id,
+        paddle_event_type,
+        user_id,
+        paddle_customer_id,
+        amount,
+        currency,
+        payment_method,
+        status,
+        description,
+        metadata,
+        donation_campaign_id,
+      } = { ...req.query, ...req.params };
+
+      let filter = {};
+
+      if (paddle_transaction_id) {
+        filter["paddle_transaction_id"] = paddle_transaction_id;
+      }
+
+      if (paddle_event_type) {
+        filter["paddle_event_type"] = paddle_event_type;
+      }
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+
+      if (paddle_customer_id) {
+        filter["paddle_customer_id"] = paddle_customer_id;
+      }
+
+      if (amount) {
+        filter["amount"] = amount;
+      }
+
+      if (currency) {
+        filter["currency"] = currency;
+      }
+
+      if (payment_method) {
+        filter["payment_method"] = payment_method;
+      }
+
+      if (status) {
+        filter["status"] = status;
+      }
+
+      if (description) {
+        filter["description"] = description;
+      }
+
+      if (metadata) {
+        filter["metadata"] = metadata;
+      }
+
+      if (donation_campaign_id) {
+        filter["donation_campaign_id"] = ObjectId(donation_campaign_id);
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   candidates: (req, next) => {
     try {
       let { category, id, email_address, email, network_id } = {
