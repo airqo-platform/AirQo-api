@@ -84,8 +84,15 @@ GroupSchema.pre(
     let updates = this.getUpdate ? this.getUpdate() : this;
 
     try {
-      // Validation only for new documents
+      // Get all actual fields being updated from both root and $set
+      const actualUpdates = {
+        ...(updates || {}),
+        ...(updates.$set || {}),
+      };
+
+      // Profile picture validation for both new documents and updates
       if (isNew) {
+        // Validation for new documents
         if (
           this.grp_profile_picture &&
           !validateProfilePicture(this.grp_profile_picture)
@@ -96,7 +103,17 @@ GroupSchema.pre(
             })
           );
         }
+      } else if (actualUpdates.grp_profile_picture) {
+        // Validation for updates
+        if (!validateProfilePicture(actualUpdates.grp_profile_picture)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
       }
+
       return next();
     } catch (error) {
       return next(error);

@@ -169,15 +169,29 @@ NetworkSchema.pre(
       handleArrayFieldUpdates("net_departments");
       handleArrayFieldUpdates("net_permissions");
 
-      // Validation for new documents
+      // Get all actual fields being updated from both root and $set
+      const actualUpdates = {
+        ...(updates || {}),
+        ...(updates.$set || {}),
+      };
+
+      // Profile picture validation for both new documents and updates
       if (isNew) {
-        // Required field validations are handled by schema
-        // Set default status if not provided
+        // Validation for new documents
         this.net_status = this.net_status || "inactive";
         if (
           this.net_profile_picture &&
           !validateProfilePicture(this.net_profile_picture)
         ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+      } else if (actualUpdates.net_profile_picture) {
+        // Validation for updates
+        if (!validateProfilePicture(actualUpdates.net_profile_picture)) {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid profile picture URL",
