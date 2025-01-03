@@ -25,6 +25,7 @@ require("@bin/jobs/incomplete-profile-job");
 require("@bin/jobs/preferences-log-job");
 require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/update-user-activities-job");
+require("@bin/jobs/profile-picture-update-job");
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
