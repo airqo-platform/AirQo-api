@@ -8,7 +8,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-meta-data-api
     sitesConsumer: eu.gcr.io/airqo-250220/airqo-meta-data-sites-consumer
-  tag: prod-c1d1fce6-1735895602
+  tag: prod-b1c7ea69-1735899837
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
