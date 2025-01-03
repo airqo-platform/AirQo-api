@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+mongoose.set("debug", false);
 const constants = require("./constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- config-database`);
@@ -9,7 +10,6 @@ const options = {
   useFindAndModify: false,
   autoIndex: true,
   useCreateIndex: true,
-  debug: false,
   poolSize: 20,
   bufferMaxEntries: 0,
   connectTimeoutMS: 1200000,
