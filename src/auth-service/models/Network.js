@@ -112,6 +112,7 @@ const NetworkSchema = new Schema(
     net_profile_picture: {
       type: String,
       maxLength: 200,
+      default: constants.DEFAULT_ORGANISATION_PROFILE_PICTURE,
       validate: {
         validator: function (v) {
           const urlRegex =
@@ -179,7 +180,11 @@ NetworkSchema.pre(
       if (isNew) {
         // Validation for new documents
         this.net_status = this.net_status || "inactive";
-        if (
+
+        if (!this.net_profile_picture) {
+          this.net_profile_picture =
+            constants.DEFAULT_ORGANISATION_PROFILE_PICTURE;
+        } else if (
           this.net_profile_picture &&
           !validateProfilePicture(this.net_profile_picture)
         ) {

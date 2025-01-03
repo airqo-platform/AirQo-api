@@ -54,6 +54,7 @@ const GroupSchema = new Schema(
     grp_profile_picture: {
       type: String,
       maxLength: 200,
+      default: constants.DEFAULT_ORGANISATION_PROFILE_PICTURE,
       validate: {
         validator: function (v) {
           const urlRegex =
@@ -93,7 +94,11 @@ GroupSchema.pre(
       // Profile picture validation for both new documents and updates
       if (isNew) {
         // Validation for new documents
-        if (
+
+        if (!this.grp_profile_picture) {
+          this.grp_profile_picture =
+            constants.DEFAULT_ORGANISATION_PROFILE_PICTURE;
+        } else if (
           this.grp_profile_picture &&
           !validateProfilePicture(this.grp_profile_picture)
         ) {
