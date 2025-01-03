@@ -453,6 +453,17 @@ UserSchema.pre(
           ...(updates.$set || {}),
         };
 
+        // Profile picture validation for updates
+        if (actualUpdates.profilePicture) {
+          if (!validateProfilePicture(actualUpdates.profilePicture)) {
+            return next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "Invalid profile picture URL",
+              })
+            );
+          }
+        }
+
         // Conditional validations for updates
         // Only validate fields that are present in the update
         fieldsToValidate.forEach((field) => {

@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
+const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
-const { logObject } = require("@utils/log");
+const { logObject, logText, logElement } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
@@ -10,6 +11,23 @@ const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- group-model`);
+
+function validateProfilePicture(grp_profile_picture) {
+  const urlRegex =
+    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+  if (!urlRegex.test(grp_profile_picture)) {
+    logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
+    return false;
+  }
+  if (grp_profile_picture.length > 200) {
+    logText("longer than 200 chars");
+    logger.error(
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+    );
+    return false;
+  }
+  return true;
+}
 
 const GroupSchema = new Schema(
   {
@@ -33,6 +51,19 @@ const GroupSchema = new Schema(
     grp_country: { type: String },
     grp_timezone: { type: String },
     grp_image: { type: String },
+    grp_profile_picture: {
+      type: String,
+      maxLength: 200,
+      validate: {
+        validator: function (v) {
+          const urlRegex =
+            /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+          return urlRegex.test(v);
+        },
+        message:
+          "Profile picture URL must be a valid URL & must not exceed 200 characters.",
+      },
+    },
   },
   {
     timestamps: true,
@@ -44,6 +75,51 @@ GroupSchema.plugin(uniqueValidator, {
 });
 
 GroupSchema.index({ grp_title: 1 }, { unique: true });
+
+GroupSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  async function (next) {
+    // Determine if this is a new document or an update
+    const isNew = this.isNew;
+    let updates = this.getUpdate ? this.getUpdate() : this;
+
+    try {
+      // Get all actual fields being updated from both root and $set
+      const actualUpdates = {
+        ...(updates || {}),
+        ...(updates.$set || {}),
+      };
+
+      // Profile picture validation for both new documents and updates
+      if (isNew) {
+        // Validation for new documents
+        if (
+          this.grp_profile_picture &&
+          !validateProfilePicture(this.grp_profile_picture)
+        ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+      } else if (actualUpdates.grp_profile_picture) {
+        // Validation for updates
+        if (!validateProfilePicture(actualUpdates.grp_profile_picture)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+      }
+
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
 
 GroupSchema.methods = {
   toJSON() {
@@ -59,6 +135,7 @@ GroupSchema.methods = {
       grp_manager_firstname: this.grp_manager_firstname,
       grp_manager_lastname: this.grp_manager_lastname,
       grp_website: this.grp_website,
+      grp_profile_picture: this.grp_profile_picture,
       grp_industry: this.grp_industry,
       grp_country: this.grp_country,
       grp_timezone: this.grp_timezone,
