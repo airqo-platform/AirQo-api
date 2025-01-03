@@ -1,86 +1,115 @@
 const mongoose = require("mongoose");
-mongoose.set("useNewUrlParser", true);
-mongoose.set("useFindAndModify", false);
-mongoose.set("useCreateIndex", true);
-mongoose.set("debug", false);
 const constants = require("./constants");
-const URI = constants.MONGO_URI;
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- confi-database`);
-const { HttpError } = require("@utils/errors");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- config-database`);
 
 const options = {
-  useCreateIndex: true,
   useNewUrlParser: true,
-  useFindAndModify: false,
   useUnifiedTopology: true,
   autoIndex: true,
-  poolSize: 10,
+  poolSize: 20,
   bufferMaxEntries: 0,
-  connectTimeoutMS: 1200000,
-  socketTimeoutMS: 600000,
-  serverSelectionTimeoutMS: 3600000,
-  dbName: constants.DB_NAME,
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 45000,
+  serverSelectionTimeoutMS: 30000,
+  keepAlive: true,
+  keepAliveInitialDelay: 300000,
+  maxPoolSize: 50,
+  minPoolSize: 10,
+  maxIdleTimeMS: 60000,
+  writeConcern: {
+    w: "majority",
+    j: true,
+    wtimeout: 30000,
+  },
 };
 
-const connect = () => mongoose.createConnection(URI, options);
+const connectionMap = new Map();
+
+const connect = (dbName = constants.DB_NAME) => {
+  const URI = constants.MONGO_URI;
+  return mongoose.createConnection(URI, { ...options, dbName });
+};
+
+const handleConnection = (db, dbName) => {
+  db.on("connected", () => {
+    // logger.info(`Connected to database: ${dbName}`);
+  });
+
+  db.on("error", (err) => {
+    // logger.error(`Database connection error for ${dbName}: ${err.message}`);
+    setTimeout(() => reconnect(dbName), 5000);
+  });
+
+  db.on("disconnected", () => {
+    // logger.warn(`Database disconnected: ${dbName}`);
+    setTimeout(() => reconnect(dbName), 5000);
+  });
+
+  return db;
+};
+
+const reconnect = async (dbName) => {
+  try {
+    const existingConn = connectionMap.get(dbName);
+    if (existingConn && existingConn.readyState !== 1) {
+      const db = connect(dbName);
+      handleConnection(db, dbName);
+      connectionMap.set(dbName, db);
+    }
+  } catch (error) {
+    // logger.error(`Reconnection failed for ${dbName}: ${error.message}`);
+  }
+};
 
 const connectToMongoDB = () => {
   try {
     const db = connect();
-    db.on("open", () => {});
+    handleConnection(db, constants.DB_NAME);
+    connectionMap.set(constants.DB_NAME, db);
 
-    db.on("error", (err) => {
-      // process.exit(0);
-    });
-
-    db.on("disconnection", (err) => {});
-
-    process.on("unlimitedRejection", (reason, p) => {
-      console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
-      // process.exit(0);
-      // db.close(() => {
-      //   process.exit(0);
-      // });
+    process.on("unhandledRejection", (reason, promise) => {
+      // logger.error("Unhandled Rejection:", reason);
     });
 
     process.on("uncaughtException", (err) => {
-      console.error("There was an uncaught error", err);
-      // process.exit(1);
+      // logger.error("Uncaught Exception:", err);
     });
 
     return db;
   } catch (error) {
-    // logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    // logger.error(`Database initialization error: ${error.message}`);
+    throw error;
   }
 };
 
-const mongodb = connectToMongoDB();
+const getTenantDB = (tenantId, modelName, schema) => {
+  try {
+    const dbName = `${constants.DB_NAME}_${tenantId}`;
+    let db = connectionMap.get(dbName);
 
-/****
- * creating a new mongoDB connection by switching tenant
- * using this to create a new connection based on tenant ID
- */
-function getTenantDB(tenantId, modelName, schema) {
-  const dbName = `${constants.DB_NAME}_${tenantId}`;
-  if (mongodb) {
-    const db = mongodb.useDb(dbName, { useCache: true });
-    db.model(modelName, schema);
+    if (!db || db.readyState !== 1) {
+      db = connect(dbName);
+      handleConnection(db, dbName);
+      connectionMap.set(dbName, db);
+    }
+
+    if (!db.models[modelName]) {
+      db.model(modelName, schema);
+    }
+
     return db;
+  } catch (error) {
+    // logger.error(`Error getting tenant DB: ${error.message}`);
+    throw error;
   }
-}
+};
 
-/****
-   * return model as per tenant
-  we shall use this to create the model
-  afterwards, we can be able to use this model to carry out any kinds of CRUD
-   */
-function getModelByTenant(tenantId, modelName, schema) {
-  // console.log("tenantId: ", tenantId);
-  // console.log("modelName: ", modelName);
-  // console.log("schema: ", schema);
+const getModelByTenant = (tenantId, modelName, schema) => {
   const tenantDb = getTenantDB(tenantId, modelName, schema);
   return tenantDb.model(modelName);
-}
+};
+
+const mongodb = connectToMongoDB();
 
 module.exports = { getModelByTenant, getTenantDB, connectToMongoDB };
