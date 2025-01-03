@@ -12,6 +12,15 @@ const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
 
+function sanitizeObject(obj, invalidKeys) {
+  invalidKeys.forEach((key) => {
+    if (Object.hasOwn(obj, key)) {
+      delete obj[key];
+    }
+  });
+  return obj;
+}
+
 const categorySchema = new Schema(
   {
     area_name: { type: String },
@@ -384,6 +393,31 @@ siteSchema.pre(
     if (this.getUpdate) {
       const updates = this.getUpdate();
       if (updates) {
+        // Handle data_provider update based on groups
+        const hasExplicitDataProvider =
+          updates.data_provider || (updates.$set && updates.$set.data_provider);
+
+        // Check for groups in different possible update operations
+        const groupsUpdate =
+          updates.groups ||
+          (updates.$set && updates.$set.groups) ||
+          (updates.$addToSet &&
+            updates.$addToSet.groups &&
+            updates.$addToSet.groups.$each) ||
+          (updates.$push && updates.$push.groups && updates.$push.groups.$each);
+
+        // Update data_provider if groups are being updated and no explicit data_provider is provided
+        if (groupsUpdate && !hasExplicitDataProvider) {
+          const groupsArray = Array.isArray(groupsUpdate)
+            ? groupsUpdate
+            : groupsUpdate.$each
+            ? groupsUpdate.$each
+            : [groupsUpdate];
+
+          if (groupsArray.length > 0) {
+            updates.data_provider = groupsArray[0]; // Direct assignment instead of using $set
+          }
+        }
         // Prevent modification of restricted fields
         const restrictedFields = [
           "latitude",
@@ -795,6 +829,61 @@ siteSchema.statics = {
     } catch (error) {
       const stingifiedMessage = JSON.stringify(error ? error : "");
       logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
+    try {
+      const invalidKeys = [
+        "_id",
+        "longitude",
+        "latitude",
+        "lat_long",
+        "generated_name",
+      ];
+      const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Perform bulk update with additional options
+      const bulkUpdateResult = await this.updateMany(
+        filter,
+        { $set: sanitizedUpdate },
+        {
+          new: true,
+          runValidators: true,
+          ...opts,
+        }
+      );
+
+      if (bulkUpdateResult.nModified > 0) {
+        return {
+          success: true,
+          message: `Successfully modified ${bulkUpdateResult.nModified} sites`,
+          data: {
+            modifiedCount: bulkUpdateResult.nModified,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No sites were updated",
+          data: {
+            modifiedCount: 0,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      const stringifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`🐛🐛 Bulk Modify Sites Error -- ${stringifiedMessage}`);
       next(
         new HttpError(
           "Internal Server Error",

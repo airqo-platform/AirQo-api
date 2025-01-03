@@ -731,7 +731,7 @@ const createNetwork = {
       const network = await NetworkModel(tenant).findById(net_id).lean();
 
       if (isEmpty(user)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "User not found",
           })
@@ -739,7 +739,7 @@ const createNetwork = {
       }
 
       if (isEmpty(network)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Network not found",
           })
@@ -750,17 +750,20 @@ const createNetwork = {
         network.net_manager &&
         network.net_manager.toString() === user_id.toString()
       ) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `User ${user_id.toString()} is already the network manager`,
           })
         );
       }
 
-      if (
-        !user.networks.map((id) => id.toString()).includes(net_id.toString())
-      ) {
-        next(
+      // Updated check to use network_roles array
+      const userNetworkIds = user.network_roles.map((networkRole) =>
+        networkRole.network.toString()
+      );
+
+      if (!userNetworkIds.includes(net_id.toString())) {
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Network ${net_id.toString()} is not part of User's networks, not authorized to manage this network`,
           })
@@ -781,7 +784,7 @@ const createNetwork = {
           data: updatedNetwork,
         };
       } else {
-        next(
+        return next(
           new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
             message: "No network record was updated",
           })
@@ -789,7 +792,7 @@ const createNetwork = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,

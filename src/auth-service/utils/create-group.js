@@ -1095,6 +1095,86 @@ const createGroup = {
       );
     }
   },
+  setManager: async (request, next) => {
+    try {
+      const { grp_id, user_id } = request.params;
+      const { tenant } = request.query;
+      const user = await UserModel(tenant).findById(user_id).lean();
+      const group = await GroupModel(tenant).findById(grp_id).lean();
+
+      if (isEmpty(user)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      if (isEmpty(group)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Group not found",
+          })
+        );
+      }
+
+      if (
+        group.grp_manager &&
+        group.grp_manager.toString() === user_id.toString()
+      ) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `User ${user_id.toString()} is already the group manager`,
+          })
+        );
+      }
+
+      logObject("the user object", user);
+      // Updated check to use group_roles array
+      const userGroupIds = user.group_roles.map((groupRole) =>
+        groupRole.group.toString()
+      );
+
+      if (!userGroupIds.includes(grp_id.toString())) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Group ${grp_id.toString()} is not part of User's groups, not authorized to manage this group`,
+          })
+        );
+      }
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { grp_manager: user_id },
+        { new: true }
+      );
+
+      if (!isEmpty(updatedGroup)) {
+        return {
+          success: true,
+          message: "User assigned to Group successfully",
+          status: httpStatus.OK,
+          data: updatedGroup,
+        };
+      } else {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "No group record was updated",
+          })
+        );
+      }
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createGroup;

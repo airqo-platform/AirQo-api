@@ -24,6 +24,10 @@ const minLength = [
 
 const noSpaces = /^\S*$/;
 
+const DEVICE_CONFIG = {
+  ALLOWED_CATEGORIES: ["bam", "lowcost", "gas"],
+};
+
 const accessCodeGenerator = require("generate-password");
 
 function sanitizeObject(obj, invalidKeys) {
@@ -265,6 +269,45 @@ deviceSchema.pre(
       // Determine if this is a new document or an update
       const isNew = this.isNew;
       const updateData = this.getUpdate ? this.getUpdate() : this;
+
+      // Handle category field for both new documents and updates
+      if (isNew) {
+        // For new documents
+        if ("category" in this) {
+          if (this.category === null) {
+            delete this.category;
+          } else if (
+            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(this.category)
+          ) {
+            return next(
+              new HttpError(
+                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                  ", "
+                )}`,
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
+        }
+      } else {
+        // For updates
+        if ("category" in updateData) {
+          if (updateData.category === null) {
+            delete updateData.category;
+          } else if (
+            !DEVICE_CONFIG.ALLOWED_CATEGORIES.includes(updateData.category)
+          ) {
+            return next(
+              new HttpError(
+                `Invalid category. Must be one of: ${DEVICE_CONFIG.ALLOWED_CATEGORIES.join(
+                  ", "
+                )}`,
+                httpStatus.BAD_REQUEST
+              )
+            );
+          }
+        }
+      }
 
       if (isNew) {
         // Set default network if not provided
@@ -643,6 +686,67 @@ deviceSchema.statics = {
           {
             message: error.message,
           }
+        )
+      );
+    }
+  },
+  async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
+    try {
+      // Sanitize update object
+      const invalidKeys = ["name", "_id", "writeKey", "readKey"];
+      const sanitizedUpdate = sanitizeObject(update, invalidKeys);
+
+      // Handle special cases like access code generation
+      if (sanitizedUpdate.access_code) {
+        sanitizedUpdate.access_code = accessCodeGenerator
+          .generate({
+            length: 16,
+            excludeSimilarCharacters: true,
+          })
+          .toUpperCase();
+      }
+
+      // Perform bulk update with additional options
+      const bulkUpdateResult = await this.updateMany(
+        filter,
+        { $set: sanitizedUpdate },
+        {
+          new: true,
+          runValidators: true,
+          ...opts,
+        }
+      );
+
+      if (bulkUpdateResult.nModified > 0) {
+        return {
+          success: true,
+          message: `Successfully modified ${bulkUpdateResult.nModified} devices`,
+          data: {
+            modifiedCount: bulkUpdateResult.nModified,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "No devices were updated",
+          data: {
+            modifiedCount: 0,
+            matchedCount: bulkUpdateResult.n,
+          },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      logObject("Bulk update error", error);
+      logger.error(`🐛🐛 Bulk Modify Error -- ${error.message}`);
+
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
         )
       );
     }

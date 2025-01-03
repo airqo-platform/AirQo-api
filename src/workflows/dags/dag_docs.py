@@ -74,3 +74,45 @@ Data Destinations:
 - Kafka - devices-topic
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+daily_measurements_clean_up_doc = """
+### AirQo daily measurements data clean up
+#### Purpose
+Clean daily devices measurements in bigquery by removing duplicates.
+#### Notes
+
+
+Data sources:
+- BigQuery: daily_device_measurements
+Data Destinations:
+- BigQuery: daily_device_measurements
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+daily_devices_measurements_realtime_doc = """
+### AirQo daily measurements data clean up
+#### Purpose
+Aggregate daily device measurements using hourly devices measurements stored in bigquery
+#### Notes
+
+
+Data sources:
+- BigQuery: daily_device_measurements
+Data Destinations:
+- BigQuery: daily_device_measurements
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+daily_devices_measurements_historical_doc = """
+### AirQo daily measurements data clean up - historical
+#### Purpose
+Aggregate daily device measurements using hourly devices measurements stored in bigquery going back a couple of days.
+#### Notes
+
+
+Data sources:
+- BigQuery: daily_device_measurements
+Data Destinations:
+- BigQuery: daily_device_measurements
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""

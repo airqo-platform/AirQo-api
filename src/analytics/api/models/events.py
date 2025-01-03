@@ -27,7 +27,9 @@ class EventsModel(BasePyMongoModel):
     BIGQUERY_COHORTS = f"`{CONFIGURATIONS.BIGQUERY_COHORTS}`"
     BIGQUERY_COHORTS_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_COHORTS_DEVICES}`"
     BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES}`"
+    BIGQUERY_SITES_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES_SITES}`"
     BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES}`"
+    BIGQUERY_DEVICES_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES_DEVICES}`"
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
 
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
@@ -51,28 +53,30 @@ class EventsModel(BasePyMongoModel):
         """
         self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
         self.sites_table = self.BIGQUERY_SITES
+        self.sites_sites_table = self.BIGQUERY_SITES_SITES
         self.airqlouds_sites_table = self.BIGQUERY_AIRQLOUDS_SITES
         self.devices_table = self.BIGQUERY_DEVICES
+        self.devices_devices_table = self.BIGQUERY_DEVICES_DEVICES
         self.airqlouds_table = self.BIGQUERY_AIRQLOUDS
         super().__init__(tenant, collection_name="events")
 
     @property
     def device_info_query(self):
-        """Generates a device information query including site_id, tenant, and approximate location details."""
+        """Generates a device information query including site_id, network, and approximate location details."""
         return (
-            f"{self.devices_table}.site_id AS site_id, "
-            f"{self.devices_table}.tenant AS tenant "
+            f"{self.devices_devices_table}.site_id AS site_id, "
+            f"{self.devices_devices_table}.network AS network "
         )
 
     @property
     def device_info_query_airqloud(self):
         """Generates a device information query specifically for airqlouds, excluding the site_id."""
-        return f"{self.devices_table}.tenant AS tenant "
+        return f"{self.devices_devices_table}.network AS network "
 
     @property
     def site_info_query(self):
         """Generates a site information query to retrieve site name and approximate location details."""
-        return f"{self.sites_table}.name AS site_name "
+        return f"{self.sites_sites_table}.name AS site_name "
 
     @property
     def airqloud_info_query(self):
@@ -92,8 +96,8 @@ class EventsModel(BasePyMongoModel):
         """
         return (
             f"SELECT {self.device_info_query}, data.* "
-            f"FROM {self.devices_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.device_name = {self.devices_table}.device_id "
+            f"FROM {self.devices_devices_table} "
+            f"RIGHT JOIN ({data_query}) data ON data.device_name = {self.devices_devices_table}.device_id "
             f"{filter_clause}"
         )
 
@@ -110,8 +114,8 @@ class EventsModel(BasePyMongoModel):
         """
         return (
             f"SELECT {self.device_info_query_airqloud}, data.* "
-            f"FROM {self.devices_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.devices_table}.site_id "
+            f"FROM {self.devices_devices_table} "
+            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.devices_devices_table}.site_id "
             f"{filter_clause}"
         )
 
@@ -127,8 +131,8 @@ class EventsModel(BasePyMongoModel):
         """
         return (
             f"SELECT {self.site_info_query}, data.* "
-            f"FROM {self.sites_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.sites_table}.id "
+            f"FROM {self.sites_sites_table} "
+            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.sites_sites_table}.id "
         )
 
     def add_airqloud_join(self, data_query):
@@ -194,11 +198,11 @@ class EventsModel(BasePyMongoModel):
                 including BAM data if applicable.
         """
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
+            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_devices_table}.name AS device_name "
             f"FROM {data_table} "
-            f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {data_table}.device_id "
+            f"JOIN {self.devices_devices_table} ON {self.devices_devices_table}.device_id = {data_table}.device_id "
             f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-            f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
+            f"AND {self.devices_devices_table}.device_id IN UNNEST(@filter_value) "
         )
         if frequency in ["weekly", "monthly", "yearly"]:
             query += " GROUP BY ALL"
@@ -206,11 +210,11 @@ class EventsModel(BasePyMongoModel):
         query = self.add_site_join(query)
         if frequency in ["hourly", "weekly", "monthly", "yearly"]:
             bam_query = (
-                f"{bam_pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
+                f"{bam_pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_devices_table}.name AS device_name "
                 f"FROM {self.BIGQUERY_BAM_DATA} "
-                f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {self.BIGQUERY_BAM_DATA}.device_id "
+                f"JOIN {self.devices_devices_table} ON {self.devices_devices_table}.device_id = {self.BIGQUERY_BAM_DATA}.device_id "
                 f"WHERE {self.BIGQUERY_BAM_DATA}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-                f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
+                f"AND {self.devices_devices_table}.device_id IN UNNEST(@filter_value) "
             )
             if frequency in ["weekly", "monthly", "yearly"]:
                 bam_query += " GROUP BY ALL"
@@ -247,9 +251,9 @@ class EventsModel(BasePyMongoModel):
         query = (
             f"{pollutants_query}, {time_grouping}, {self.site_info_query}, {data_table}.device_id AS device_name "
             f"FROM {data_table} "
-            f"JOIN {self.sites_table} ON {self.sites_table}.id = {data_table}.site_id "
+            f"JOIN {self.sites_sites_table} ON {self.sites_sites_table}.id = {data_table}.site_id "
             f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-            f"AND {self.sites_table}.id IN UNNEST(@filter_value) "
+            f"AND {self.sites_sites_table}.id IN UNNEST(@filter_value) "
         )
         if frequency in ["weekly", "monthly", "yearly"]:
             query += " GROUP BY ALL"
@@ -538,7 +542,7 @@ class EventsModel(BasePyMongoModel):
         else:
             drop_columns.append("datetime")
             sorting_cols.append("datetime")
-
+        dataframe.to_csv("raw_data50.csv")
         if data_type == "raw":
             cls.simple_data_cleaning(dataframe)
 
@@ -551,39 +555,45 @@ class EventsModel(BasePyMongoModel):
     @classmethod
     def simple_data_cleaning(cls, data: pd.DataFrame) -> pd.DataFrame:
         """
-         Perform data cleaning on a pandas DataFrame to handle specific conditions
-         related to "pm2_5" and "pm2_5_raw_value" columns.
+        Perform data cleaning on a pandas DataFrame to handle specific conditions
+        related to "pm2_5" and "pm2_5_raw_value" columns.
 
-         The cleaning process includes:
-         1. Ensuring correct numeric data types for "pm2_5" and "pm2_5_raw_value".
-         2. Removing "pm2_5" values where "pm2_5_raw_value" has data.
-         3. Dropping the "pm2_5_raw_value" column if it has no data at all.
-         4. Retaining "pm2_5" values where "pm2_5_raw_value" has no data, and removing
-         "pm2_5" values where "pm2_5_raw_value" has data.
-         5. Dropping any column (including "pm2_5" and "pm2_5_raw_value") if it is
-        entirely empty.
+        The cleaning process includes:
+        1. Ensuring correct numeric data types for "pm2_5" and "pm2_5_raw_value".
+        2. Removing "pm2_5" values where "pm2_5_raw_value" values are not 0s.
+        3. Dropping the "pm2_5_raw_value" column if all its values are 0s.
+        4. Retaining "pm2_5" values where "pm2_5_raw_value" values are all 0s.
+        5. Dropping any column (including "pm2_5" and "pm2_5_raw_value") if all values are 0s.
 
-         Args:
-             cls: Class reference (used in classmethods).
-             data (pd.DataFrame): Input pandas DataFrame with "pm2_5" and
-                                 "pm2_5_raw_value" columns.
+        Args:
+            cls: Class reference (used in classmethods).
+            data (pd.DataFrame): Input pandas DataFrame with "pm2_5" and
+                                "pm2_5_raw_value" columns.
 
-         Returns:
-             pd.DataFrame: Cleaned DataFrame with updates applied in place.
+        Returns:
+            pd.DataFrame: Cleaned DataFrame with updates applied in place.
 
+        Raises:
+            ValueError: If "pm2_5" or "pm2_5_raw_value" columns are missing.
         """
-        data["pm2_5_raw_value"] = pd.to_numeric(
-            data["pm2_5_raw_value"], errors="coerce"
+        required_columns = ["pm2_5", "pm2_5_raw_value"]
+
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+
+        numeric_columns = ["pm2_5", "pm2_5_raw_value"]
+        data[numeric_columns] = data[numeric_columns].apply(
+            pd.to_numeric, errors="coerce"
         )
-        data["pm2_5"] = pd.to_numeric(data["pm2_5"], errors="coerce")
 
-        data.loc[~data["pm2_5_raw_value"].isna(), "pm2_5"] = np.nan
+        data.loc[data["pm2_5_raw_value"] != 0, "pm2_5"] = np.nan
 
-        if data["pm2_5_raw_value"].isna().all():
+        if ((data["pm2_5_raw_value"] == 0) | (data["pm2_5_raw_value"].isna())).all():
             data.drop(columns=["pm2_5_raw_value"], inplace=True)
 
-        data["pm2_5"] = data["pm2_5"].where(data["pm2_5_raw_value"].isna(), np.nan)
-
+        zero_columns = data.loc[:, (data == 0).all()].columns
+        data.drop(columns=zero_columns, inplace=True)
         data.dropna(how="all", axis=1, inplace=True)
 
         return data

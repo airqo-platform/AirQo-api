@@ -1131,7 +1131,7 @@ router.get(
 );
 
 router.get(
-  "/analytics",
+  "/user-stats",
   oneOf([
     query("tenant")
       .optional()

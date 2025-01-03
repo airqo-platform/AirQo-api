@@ -554,7 +554,6 @@ class AirQoDataUtils:
         numeric_columns = data.select_dtypes(include=["number"]).columns
         numeric_columns = numeric_columns.difference(["device_number"])
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-
         aggregated = (
             data_for_aggregation.groupby("device_id")
             .apply(lambda group: group.resample("1H", on="timestamp").mean())
@@ -744,20 +743,19 @@ class AirQoDataUtils:
         devices = airqo_api.get_devices()
 
         device_lookup = {
-            device["device_number"]: device
-            for device in devices
-            if device.get("device_number")
+            device["device_id"]: device for device in devices if device.get("device_id")
         }
 
         for _, row in data.iterrows():
             try:
                 device_number = row["device_number"]
+                device_id = row["device_id"]
 
                 # Get device details from the lookup dictionary
-                device_details = device_lookup.get(device_number)
+                device_details = device_lookup.get(device_id)
                 if not device_details:
                     logger.exception(
-                        f"Device number {device_number} not found in device list."
+                        f"Device number {device_id} not found in device list."
                     )
                     continue
 
@@ -766,7 +764,7 @@ class AirQoDataUtils:
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
                     "device_number": device_number,
-                    "tenant": str(Tenant.AIRQO),
+                    "network": device_details["network"],
                     "location": {
                         "latitude": {"value": row["latitude"]},
                         "longitude": {"value": row["longitude"]},
@@ -832,7 +830,7 @@ class AirQoDataUtils:
         airqo_api = AirQoApi()
         sites: List[Dict[str, Any]] = []
 
-        for site in airqo_api.get_sites(tenant=Tenant.AIRQO):
+        for site in airqo_api.get_sites(network="airqo"):
             sites.extend(
                 [
                     {
@@ -894,7 +892,8 @@ class AirQoDataUtils:
         numeric_columns = measurements.select_dtypes(include=["number"]).columns
         numeric_columns = numeric_columns.difference(["device_number"])
         numeric_counts = measurements[numeric_columns].notna().sum(axis=1)
-        measurements = measurements[numeric_counts >= 1]
+        # Raws with more than 1 numeric values
+        measurements = measurements[numeric_counts > 1]
         return measurements
 
     @staticmethod
@@ -1012,12 +1011,10 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         sites = AirQoApi().get_sites()
-        sites_df = pd.DataFrame(sites, columns=["_id", "city"]).rename(
-            columns={"_id": "site_id"}
-        )
+        sites_df = pd.DataFrame(sites, columns=["site_id", "city"])
+
         data = pd.merge(data, sites_df, on="site_id", how="left")
         data.dropna(subset=["device_id", "timestamp"], inplace=True)
-
         columns_to_fill = [
             "s1_pm2_5",
             "s1_pm10",
@@ -1027,9 +1024,9 @@ class AirQoDataUtils:
             "humidity",
         ]
 
-        data[columns_to_fill] = data[columns_to_fill].fillna(0)
         # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
         # May have to rewrite entire pipeline flow
+        data[columns_to_fill] = data[columns_to_fill].fillna(0)
 
         # additional input columns for calibration
         data["avg_pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
@@ -1052,9 +1049,12 @@ class AirQoDataUtils:
             "pm2_5_pm10_mod",
         ]
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
-        data.dropna(subset=input_variables, inplace=True)
 
-        grouped_df = data.groupby("city", dropna=False)
+        # Explicitly filter data to calibrate.
+        to_calibrate = data["network"] == "airqo"
+        data_to_calibrate = data.loc[to_calibrate]
+        data_to_calibrate.dropna(subset=input_variables, inplace=True)
+        grouped_df = data_to_calibrate.groupby("city", dropna=False)
 
         rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
@@ -1071,6 +1071,8 @@ class AirQoDataUtils:
             ),
         )
         for city, group in grouped_df:
+            # What was the intention of this?
+            # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
             if str(city).lower() in [c.value.lower() for c in CityModel]:
                 try:
                     rf_model = GCSUtils.get_trained_model_from_gcs(
@@ -1087,6 +1089,7 @@ class AirQoDataUtils:
                     )
                 except Exception as ex:
                     logger.exception(f"Error getting model: {ex}")
+                    continue
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 
@@ -1100,15 +1103,20 @@ class AirQoDataUtils:
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
         if "pm2_5_calibrated_value" in data.columns:
-            data["pm2_5"] = data["pm2_5_calibrated_value"]
+            data.loc[to_calibrate, "pm2_5"] = data.loc[
+                to_calibrate, "pm2_5_calibrated_value"
+            ]
         else:
-            data["pm2_5_calibrated_value"] = None
-            data["pm2_5"] = None
+            data.loc[to_calibrate, "pm2_5_calibrated_value"] = None
+            data.loc[to_calibrate, "pm2_5"] = None
         if "pm10_calibrated_value" in data.columns:
-            data["pm10"] = data["pm10_calibrated_value"]
+            data.loc[to_calibrate, "pm10"] = data.loc[
+                to_calibrate, "pm10_calibrated_value"
+            ]
         else:
-            data["pm10_calibrated_value"] = None
-            data["pm10"] = None
+            data.loc[to_calibrate, "pm10_calibrated_value"] = None
+            data.loc[to_calibrate, "pm10"] = None
+
         data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
         data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
 

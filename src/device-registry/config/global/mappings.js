@@ -38,11 +38,15 @@ const mappings = {
     NETWORKS: ["metone", "usembassy"],
     COMBINATIONS: {
       NETWORK_PAIRS: [
-        ["metone", "usembassy", "us_embassy"],
+        ["metone", "usembassy", "us_embassy", "us-embassy"],
         ["kcca", "clarity"],
         ["urbanbetter", "airbeam", "urban_better"],
       ],
-      GROUP_PAIRS: [["metone", "usembassy"], ["kcca", "clarity"]],
+      GROUP_PAIRS: [
+        ["us-embassy", "usembassy", "us_embassy"],
+        ["kcca", "kampala"],
+        ["urbanbetter", "urban_better", "urban-better"],
+      ],
       STATUS_PAIRS: [
         ["active", "enabled", "running"],
         ["inactive", "disabled"],

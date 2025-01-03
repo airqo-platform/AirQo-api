@@ -46,6 +46,7 @@ class BigQueryApi:
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.sites_sites_table = configuration.BIGQUERY_SITES_SITES_TABLE
         self.airqlouds_table = configuration.BIGQUERY_AIRQLOUDS_TABLE
         self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
         self.grids_table = configuration.BIGQUERY_GRIDS_TABLE
@@ -54,6 +55,7 @@ class BigQueryApi:
         self.cohorts_devices_table = configuration.BIGQUERY_COHORTS_DEVICES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.devices_devices_table = configuration.BIGQUERY_DEVICES_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
         self.openweathermap_table = configuration.BIGQUERY_OPENWEATHERMAP_TABLE
         self.satellite_data_table = configuration.BIGQUERY_SATELLITE_DATA_TABLE
@@ -118,19 +120,41 @@ class BigQueryApi:
         float_columns=None,
         integer_columns=None,
     ) -> pd.DataFrame:
+        """
+        Validates and formats the data in the given DataFrame based on the schema of a specified table.
+
+        This function performs the following tasks:
+        1. Ensures the DataFrame contains the required columns as defined in the schema of the `table`.
+        2. Formats column data types (e.g., timestamp, float, integer) based on the table schema or provided arguments.
+        3. Removes duplicate rows, keeping the first occurrence.
+
+        Args:
+            self: Class instance, required for accessing schema-related methods.
+            dataframe (pd.DataFrame): The DataFrame to validate and format.
+            table (str): The name of the table whose schema is used for validation.
+            raise_exception (bool, optional): Whether to raise an exception if required columns are missing. Defaults to True.
+            date_time_columns (list, optional): List of columns to be formatted as datetime. If None, inferred from the schema.
+            float_columns (list, optional): List of columns to be formatted as float. If None, inferred from the schema.
+            integer_columns (list, optional): List of columns to be formatted as integer. If None, inferred from the schema.
+
+        Returns:
+            pd.DataFrame: A validated and formatted DataFrame with duplicates removed.
+
+        Raises:
+            Exception: If required columns are missing and `raise_exception` is set to True.
+        """
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
 
         if set(valid_cols).issubset(set(dataframe_cols)):
             dataframe = dataframe[valid_cols]
         else:
-            print(f"Required columns {valid_cols}")
-            print(f"Dataframe columns {dataframe_cols}")
-            print(
-                f"Difference between required and received {list(set(valid_cols) - set(dataframe_cols))}"
-            )
+            missing_cols = list(set(valid_cols) - set(dataframe_cols))
+            logger.warning(f"Required columns {valid_cols}")
+            logger.warning(f"Dataframe columns {dataframe_cols}")
+            logger.warning(f"Missing columns {missing_cols}")
             if raise_exception:
-                raise Exception("Invalid columns")
+                raise Exception(f"Invalid columns {missing_cols}")
 
         date_time_columns = (
             date_time_columns
@@ -245,7 +269,7 @@ class BigQueryApi:
     def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
         dataframe[id_column] = dataframe.apply(
             lambda row: BigQueryApi.device_unique_col(
-                tenant=row["tenant"],
+                network=row["network"],
                 device_number=row["device_number"],
                 device_id=row["device_id"],
             ),
@@ -254,8 +278,8 @@ class BigQueryApi:
         return dataframe
 
     @staticmethod
-    def device_unique_col(tenant: str, device_id: str, device_number: int):
-        return str(f"{tenant}:{device_id}:{device_number}").lower()
+    def device_unique_col(network: str, device_id: str, device_number: int):
+        return str(f"{network}:{device_id}:{device_number}").lower()
 
     def update_airqlouds(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
@@ -580,14 +604,44 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        tenant: Tenant = Tenant.ALL,
+        network: str = "all",
         start_date_time: str = None,
         end_date_time: str = None,
         where_fields: dict = None,
         null_cols: list = None,
     ) -> None:
+        """
+        Reloads data into a specified table in BigQuery by:
+        1. Deleting existing records in the table based on the provided date range,
+        network, and optional filtering criteria.
+        2. Inserting new records from the provided DataFrame.
+
+        Args:
+            dataframe (pd.DataFrame): The data to be reloaded into the table.
+            table (str): The target table in BigQuery.
+            network (str, optional): The network filter to be applied. Defaults to "all".
+            start_date_time (str, optional): The start of the date range for deletion.
+                                            If None, inferred from the DataFrame's earliest timestamp.
+            end_date_time (str, optional): The end of the date range for deletion.
+                                        If None, inferred from the DataFrame's latest timestamp.
+            where_fields (dict, optional): Additional fields and values for filtering rows to delete.
+            null_cols (list, optional): Columns to filter on `NULL` values during deletion.
+
+        Returns:
+            None: The function performs operations directly on the BigQuery table.
+
+        Raises:
+            ValueError: If `timestamp` column is missing in the DataFrame.
+        """
+
         if start_date_time is None or end_date_time is None:
-            data = dataframe.copy()
+            if "timestamp" not in dataframe.columns:
+                raise ValueError(
+                    "The DataFrame must contain a 'timestamp' column to derive the date range."
+                )
+            data = (
+                dataframe.copy()
+            )  # Not sure why this dataframe is being copied. # Memory wastage?
             data["timestamp"] = pd.to_datetime(data["timestamp"])
             start_date_time = date_to_str(data["timestamp"].min())
             end_date_time = date_to_str(data["timestamp"].max())
@@ -595,7 +649,7 @@ class BigQueryApi:
         query = self.compose_query(
             QueryType.DELETE,
             table=table,
-            tenant=tenant,
+            network=network,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             where_fields=where_fields,
@@ -716,7 +770,7 @@ class BigQueryApi:
             "site_id",
             "timestamp",
         ]
-        group_by = group_by or ["device_number", "device_id", "site_id"]
+        group_by = group_by or ["device_number", "device_id", "site_id", "network"]
 
         numeric_columns = self.get_columns(
             table, [ColumnDataType.FLOAT, ColumnDataType.INTEGER]

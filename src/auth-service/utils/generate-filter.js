@@ -13,6 +13,7 @@ const { HttpError } = require("@utils/errors");
 const {
   addMonthsToProvideDateTime,
   monthsInfront,
+  addMonthsToProvidedDate,
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
@@ -312,15 +313,22 @@ const filter = {
   },
   preferences: (req, next) => {
     try {
-      let { user_id } = {
+      let { user_id, group_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
       };
+
       let filter = {};
+
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
+
+      if (group_id) {
+        filter["group_id"] = ObjectId(group_id);
+      }
+
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -781,6 +789,7 @@ const filter = {
       const { service, startTime, endTime, email } = req.query;
       const today = monthsInfront(0, next);
       const oneWeekBack = addDays(-7, next);
+      logObject("the req.query in the logs filter", req.query);
 
       let filter = {
         timestamp: {
@@ -803,11 +812,13 @@ const filter = {
             next
           );
         } else {
-          delete filter["timestamp"];
+          filter["timestamp"]["$lte"] = addMonthsToProvidedDate(
+            startTime,
+            1,
+            next
+          );
         }
-      }
-
-      if (endTime && isEmpty(startTime)) {
+      } else if (endTime && isEmpty(startTime)) {
         logText("startTime absent and endTime is present");
         if (isTimeEmpty(endTime) === false) {
           filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
@@ -816,30 +827,117 @@ const filter = {
             next
           );
         } else {
-          delete filter["timestamp"];
+          filter["timestamp"]["$lte"] = addMonthsToProvidedDate(
+            endTime,
+            -1,
+            next
+          );
         }
-      }
-
-      if (endTime && startTime) {
+      } else if (endTime && startTime) {
         logText("startTime present and endTime is also present");
-        let months = getDifferenceInMonths(startTime, endTime);
-        logElement("the number of months", months);
-        if (months > 1) {
-          if (isTimeEmpty(endTime) === false) {
-            filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
-              endTime,
-              -1,
-              next
-            );
-          } else {
-            delete filter["timestamp"];
-          }
-        }
+        filter["timestamp"]["$lte"] = new Date(endTime);
+        filter["timestamp"]["$gte"] = new Date(startTime);
       }
 
       if (email) {
         logText("email present ");
         filter["meta.email"] = email;
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  activities: (req, next) => {
+    try {
+      const { service, startTime, endTime, email, tenant } = req.query;
+      const today = monthsInfront(0, next);
+      const oneWeekBack = addDays(-7, next);
+
+      logObject("the req.query in the activity filter", req.query);
+
+      // Base filter
+      let filter = {};
+
+      // Handle required tenant field
+      if (!tenant) {
+        throw new Error("Tenant is required");
+      }
+      filter.tenant = tenant;
+
+      // Handle email filtering
+      if (email) {
+        logText("email present");
+        filter.email = email;
+      }
+
+      // Date range handling for dailyStats
+      let dateFilter = {};
+      if (startTime && !endTime) {
+        logText("startTime present and endTime is missing");
+        if (!isTimeEmpty(startTime)) {
+          dateFilter.$gte = addMonthsToProvideDateTime(startTime, 1, next);
+        } else {
+          dateFilter.$gte = addMonthsToProvidedDate(startTime, 1, next);
+        }
+      } else if (endTime && !startTime) {
+        logText("startTime absent and endTime is present");
+        if (!isTimeEmpty(endTime)) {
+          dateFilter.$lte = addMonthsToProvideDateTime(endTime, -1, next);
+        } else {
+          dateFilter.$lte = addMonthsToProvidedDate(endTime, -1, next);
+        }
+      } else if (endTime && startTime) {
+        logText("startTime present and endTime is also present");
+        dateFilter.$lte = new Date(endTime);
+        dateFilter.$gte = new Date(startTime);
+      } else {
+        // Default to one week range
+        dateFilter.$gte = oneWeekBack;
+        dateFilter.$lte = today;
+      }
+
+      // Apply date filter to dailyStats
+      if (Object.keys(dateFilter).length > 0) {
+        filter["dailyStats"] = {
+          $elemMatch: {
+            date: dateFilter,
+          },
+        };
+      }
+
+      // Service filtering
+      if (service) {
+        logText("service present");
+        // Add service filter to the dailyStats elemMatch
+        if (filter.dailyStats && filter.dailyStats.$elemMatch) {
+          filter.dailyStats.$elemMatch["services"] = {
+            $elemMatch: { name: service },
+          };
+        } else {
+          filter.dailyStats = {
+            $elemMatch: {
+              services: {
+                $elemMatch: { name: service },
+              },
+            },
+          };
+        }
+
+        // Also check monthly stats for the service
+        filter["monthlyStats"] = {
+          $elemMatch: {
+            uniqueServices: service,
+          },
+        };
       }
 
       return filter;
