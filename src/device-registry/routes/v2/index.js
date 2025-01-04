@@ -8,6 +8,7 @@ router.use("/devices", require("@routes/v2/devices"));
 router.use("/events", require("@routes/v2/events"));
 router.use("/readings", require("@routes/v2/readings"));
 router.use("/uptime", require("@routes/v2/uptime"));
+router.use("/feeds", require("@routes/v2/feeds"));
 router.use("/collocations", require("@routes/v2/collocations"));
 router.use("/measurements", require("@routes/v2/measurements"));
 router.use("/signals", require("@routes/v2/signals"));

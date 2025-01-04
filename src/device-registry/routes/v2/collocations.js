@@ -12,7 +12,7 @@ router.get("/export-collection", collocationController.exportCollocationData);
 
 // Create Collocation Batch Route
 router.post(
-  "",
+  "/",
   validateCollocationBatch,
   collocationController.saveCollocationBatch
 );
@@ -34,7 +34,7 @@ router.patch(
 
 // Get Collocation Batch Route
 router.get(
-  "",
+  "/",
   validateCollocationParams,
   collocationController.getCollocationBatch
 );

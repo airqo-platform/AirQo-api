@@ -29,7 +29,7 @@ const deviceStatusSchema = new Schema(
           {
             device_id: { type: Schema.Types.ObjectId, ref: "device" },
             name: String,
-            channelID: String,
+            serial_number: String,
             elapsed_time: Number,
             elapsed_time_readable: String,
             latitude: Number,
@@ -44,7 +44,7 @@ const deviceStatusSchema = new Schema(
           {
             device_id: { type: Schema.Types.ObjectId, ref: "device" },
             name: String,
-            channelID: String,
+            serial_number: String,
             elapsed_time: Number,
             elapsed_time_readable: String,
             latitude: Number,
