@@ -251,7 +251,16 @@ UserSchema.pre(
   async function (next) {
     // Determine if this is a new document or an update
     const isNew = this.isNew;
-    let updates = this.getUpdate ? this.getUpdate() : this;
+
+    // Safely get updates object, accounting for different mongoose operations
+    let updates = {};
+    if (this.getUpdate) {
+      updates = this.getUpdate();
+    } else if (!isNew) {
+      updates = this.toObject();
+    } else {
+      updates = this;
+    }
 
     try {
       // Helper function to handle role updates
@@ -267,20 +276,27 @@ UserSchema.pre(
         let newRoles = [];
         const existingRoles = doc[fieldName] || [];
 
-        // Handle $set operations
-        if (updates && updates.$set && updates.$set[fieldName]) {
-          newRoles = updates.$set[fieldName];
-        }
-        // Handle $push operations
-        else if (updates.$push && updates.$push[fieldName]) {
-          const pushValue = updates.$push[fieldName];
-          const newRole = pushValue.$each ? pushValue.$each[0] : pushValue;
-          newRoles = [...existingRoles, newRole];
-        }
-        // Handle $addToSet operations
-        else if (updates.$addToSet && updates.$addToSet[fieldName]) {
-          const newRole = updates.$addToSet[fieldName];
-          newRoles = [...existingRoles, newRole];
+        // Safely check update operations
+        if (updates) {
+          // Handle $set operations
+          if (updates.$set && updates.$set[fieldName]) {
+            newRoles = updates.$set[fieldName];
+          }
+          // Handle $push operations
+          else if (updates.$push && updates.$push[fieldName]) {
+            const pushValue = updates.$push[fieldName];
+            const newRole = pushValue.$each ? pushValue.$each[0] : pushValue;
+            newRoles = [...existingRoles, newRole];
+          }
+          // Handle $addToSet operations
+          else if (updates.$addToSet && updates.$addToSet[fieldName]) {
+            const newRole = updates.$addToSet[fieldName];
+            newRoles = [...existingRoles, newRole];
+          }
+          // Handle direct field updates
+          else if (updates[fieldName]) {
+            newRoles = updates[fieldName];
+          }
         }
 
         if (newRoles.length > 0) {
@@ -306,14 +322,16 @@ UserSchema.pre(
           // Convert Map values back to array
           const finalRoles = Array.from(uniqueRoles.values());
 
-          // Clear all update operators for this field
-          if (updates && updates.$set) delete updates.$set[fieldName];
-          if (updates.$push) delete updates.$push[fieldName];
-          if (updates.$addToSet) delete updates.$addToSet[fieldName];
+          // Safely clear update operators
+          if (updates) {
+            if (updates.$set) delete updates.$set[fieldName];
+            if (updates.$push) delete updates.$push[fieldName];
+            if (updates.$addToSet) delete updates.$addToSet[fieldName];
 
-          // Set the final filtered array
-          updates.$set = updates.$set || {};
-          updates.$set[fieldName] = finalRoles;
+            // Set the final filtered array
+            updates.$set = updates.$set || {};
+            updates.$set[fieldName] = finalRoles;
+          }
         }
       };
 
