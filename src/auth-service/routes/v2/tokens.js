@@ -119,7 +119,7 @@ router.get(
   "/:token/verify",
   validateTenant,
   validateTokenParam,
-  // rateLimitMiddleware,
+  rateLimitMiddleware,
   createTokenController.verify
 );
 
