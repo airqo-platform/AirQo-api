@@ -94,6 +94,18 @@ function formatDate(dateTime) {
   return new Date(dateTime).toISOString();
 }
 
+const isDate = (date) => {
+  try {
+    return date.includes("-") || date.includes("/");
+  } catch (error) {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+    };
+  }
+};
+
 function generateDateFormatWithoutHrs(ISODate, next) {
   try {
     let date = new Date(ISODate);
@@ -303,4 +315,5 @@ module.exports = {
   formatDate,
   addHours,
   ConvertDates,
+  isDate,
 };
