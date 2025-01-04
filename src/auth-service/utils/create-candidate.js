@@ -19,6 +19,15 @@ const { HttpError } = require("@utils/errors");
 const createCandidate = {
   create: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message:
+            "Please contact support@airqo.net, Candidates are deprecated",
+        },
+      };
       const { firstName, lastName, email, tenant, network_id } = {
         ...request.body,
         ...request.query,
@@ -127,6 +136,15 @@ const createCandidate = {
   },
   list: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message:
+            "Please contact support@airqo.net, Candidates are deprecated",
+        },
+      };
       const { tenant, limit, skip } = {
         ...request.body,
         ...request.query,
@@ -157,6 +175,15 @@ const createCandidate = {
   },
   update: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message:
+            "Please contact support@airqo.net, Candidates are deprecated",
+        },
+      };
       const { query, body } = request;
       const filter = generateFilter.candidates(request, next);
       const update = body;
@@ -184,6 +211,15 @@ const createCandidate = {
   },
   confirm: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message:
+            "Please contact support@airqo.net, Candidates are deprecated",
+        },
+      };
       const { tenant, firstName, lastName, email, network_id } = {
         ...request.body,
         ...request.query,
@@ -330,6 +366,15 @@ const createCandidate = {
   },
   delete: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message:
+            "Please contact support@airqo.net, Candidates are deprecated",
+        },
+      };
       const { tenant } = { ...request.query };
       const filter = generateFilter.candidates(request, next);
       const responseFromRemoveCandidate = await CandidateModel(
