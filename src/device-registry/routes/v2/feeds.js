@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const transformController = require("@controllers/transform");
+const transformController = require("@controllers/create-feed");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const headers = (req, res, next) => {
