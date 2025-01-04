@@ -5,10 +5,10 @@ const logger = log4js.getLogger(
 );
 const cron = require("node-cron");
 const moment = require("moment-timezone");
-const axios = require("axios");
 const math = require("mathjs");
 const DeviceModel = require("@models/Device");
 const DeviceStatusModel = require("@models/DeviceStatus");
+const createFeedUtil = require("@utils/create-feed");
 
 const TIMEZONE = moment.tz.guess();
 const BATCH_SIZE = 50;
@@ -25,30 +25,43 @@ const convertSecondsToReadableFormat = (secondsToConvert) => {
   return `${days} days ${hours} hours ${minutes} minutes ${seconds} seconds`;
 };
 
+const getDeviceLastFeed = async (channelID) => {
+  try {
+    const api_key = await createFeedUtil.getAPIKey(channelID);
+    const request = { channel: channelID, api_key };
+    const thingspeakData = await createFeedUtil.fetchThingspeakData(request);
+    const { status, data } = createFeedUtil.handleThingspeakResponse(
+      thingspeakData
+    );
+
+    if (status === 200) {
+      return data;
+    }
+    return null;
+  } catch (error) {
+    logger.error(
+      `Error getting last feed for channel ${channelID}: ${error.message}`
+    );
+    return null;
+  }
+};
+
 const processDeviceBatch = async (devices) => {
   const metrics = {
     online: { count: 0, devices: [] },
     offline: { count: 0, devices: [] },
   };
 
-  const BASE_API_URL =
-    process.env.DATA_MANAGER_BASE_URL ||
-    "https://data-manager-dot-airqo-250220.uc.r.appspot.com/api/v2/data/";
-
   await Promise.all(
     devices.map(async (device) => {
       try {
         if (!device.channelID) return;
 
-        const response = await axios.get(
-          `${BASE_API_URL}feeds/recent/${device.channelID}`,
-          { timeout: 5000 }
-        );
+        const lastFeed = await getDeviceLastFeed(device.channelID);
 
-        if (response.status === 200) {
-          const result = response.data;
+        if (lastFeed) {
           const currentDateTime = new Date();
-          const lastFeedDateTime = new Date(result.created_at);
+          const lastFeedDateTime = new Date(lastFeed.created_at);
 
           const timeDifferenceHours =
             (currentDateTime - lastFeedDateTime) / 3600000;
@@ -91,13 +104,11 @@ const deviceStatusHourlyCheck = async () => {
     const startTime = Date.now();
     logger.info("Starting hourly device status check...");
 
-    // Get total active devices count
     const totalActiveDevices = await DeviceModel("airqo").countDocuments({
       locationID: { $ne: "" },
       isActive: true,
     });
 
-    // Process devices in batches
     let processedCount = 0;
     const finalMetrics = {
       online: { count: 0, devices: [] },
@@ -116,7 +127,6 @@ const deviceStatusHourlyCheck = async () => {
 
       const batchMetrics = await processDeviceBatch(devices);
 
-      // Merge batch metrics
       ["online", "offline"].forEach((status) => {
         finalMetrics[status].devices.push(...batchMetrics[status].devices);
         finalMetrics[status].count += batchMetrics[status].count;
@@ -126,7 +136,6 @@ const deviceStatusHourlyCheck = async () => {
       logger.info(`Processed ${processedCount}/${totalActiveDevices} devices`);
     }
 
-    // Calculate percentages
     const total = finalMetrics.online.count + finalMetrics.offline.count;
     finalMetrics.online.percentage = math.floor(
       (finalMetrics.online.count / total) * 100
@@ -135,7 +144,6 @@ const deviceStatusHourlyCheck = async () => {
       (finalMetrics.offline.count / total) * 100
     );
 
-    // Create and save status record
     const deviceStatusRecord = new DeviceStatusModel({
       created_at: new Date(),
       total_active_device_count: total,
@@ -158,10 +166,8 @@ const deviceStatusHourlyCheck = async () => {
   }
 };
 
-// Log that the job is starting
 logger.info("Device status hourly check job is now running.....");
 
-// Schedule the job to run every hour
 cron.schedule("0 * * * *", deviceStatusHourlyCheck, {
   scheduled: true,
   timezone: TIMEZONE,
