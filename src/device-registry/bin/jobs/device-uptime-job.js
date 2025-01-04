@@ -1,24 +1,28 @@
+// deviceUptimeJob.js
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/device-uptime-job`
 );
-const mongoose = require("mongoose");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const axios = require("axios");
+const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
+const NetworkUptimeModel = require("@models/NetworkUptime");
 
 const TIMEZONE = moment.tz.guess();
+const BATCH_SIZE = 50;
 
 const getDeviceRecords = async (tenant, channelId, deviceName, isActive) => {
   try {
-    // Assuming you have a similar endpoint to fetch sensor readings
     const response = await axios.get(`${process.env.DEVICE_READINGS_URL}`, {
       params: {
         tenant,
         channel_id: channelId,
         device_name: deviceName,
       },
+      timeout: 5000, // Add timeout to prevent hanging requests
     });
 
     const {
@@ -39,7 +43,6 @@ const getDeviceRecords = async (tenant, channelId, deviceName, isActive) => {
       uptime,
       downtime,
       created_at: new Date(createdAt),
-      is_active: isActive,
     };
   } catch (error) {
     logger.error(
@@ -49,95 +52,120 @@ const getDeviceRecords = async (tenant, channelId, deviceName, isActive) => {
   }
 };
 
+const processDeviceBatch = async (devices, tenant) => {
+  const deviceRecords = [];
+  let activeDeviceCount = 0;
+  let totalUptime = 0;
+
+  const batchPromises = devices.map(async (device) => {
+    if (device.isActive) {
+      activeDeviceCount++;
+    }
+
+    const channelId = device.device_number;
+    const deviceName = device.name;
+
+    if (!channelId || !deviceName) {
+      logger.warn(`Missing channel ID or name for device: ${device._id}`);
+      return null;
+    }
+
+    const record = await getDeviceRecords(
+      tenant,
+      channelId,
+      deviceName,
+      device.isActive
+    );
+
+    if (record && device.isActive) {
+      totalUptime += record.uptime || 0;
+    }
+
+    return record;
+  });
+
+  const results = await Promise.all(batchPromises);
+  const validRecords = results.filter((record) => record !== null);
+
+  return {
+    records: validRecords,
+    activeCount: activeDeviceCount,
+    totalUptime: totalUptime,
+  };
+};
+
 const saveDeviceUptime = async (tenant) => {
   try {
-    // Connect to device registry database
-    const deviceRegistryDB = mongoose.connection.useDb(
-      `${tenant}_device_registry`
-    );
-    const deviceMonitoringDB = mongoose.connection.useDb(
-      `${tenant}_device_monitoring`
-    );
+    const startTime = Date.now();
+    logger.info(`Starting device uptime check for ${tenant}...`);
 
-    // Fetch all devices
-    const devices = await deviceRegistryDB
-      .collection("devices")
-      .find({})
-      .toArray();
+    // Get total device count
+    const totalDevices = await DeviceModel(tenant).countDocuments({
+      network: "airqo",
+      category: { $not: /^bam$/i },
+    });
 
-    const records = [];
-    let activeDeviceCount = 0;
+    let processedCount = 0;
+    let totalActiveDevices = 0;
+    let networkTotalUptime = 0;
+    const allRecords = [];
 
-    // Process devices concurrently
-    const devicePromises = devices
-      .filter(
-        (device) =>
-          device.network === "airqo" &&
-          String(device.category).toLowerCase() !== "bam"
-      )
-      .map(async (device) => {
-        // Count active devices
-        if (device.isActive) {
-          activeDeviceCount++;
-        }
+    // Process devices in batches
+    while (processedCount < totalDevices) {
+      const devices = await DeviceModel(tenant)
+        .find({
+          network: "airqo",
+          category: { $not: /^bam$/i },
+        })
+        .skip(processedCount)
+        .limit(BATCH_SIZE)
+        .lean();
 
-        const channelId = device.device_number;
-        const deviceName = device.name;
+      const { records, activeCount, totalUptime } = await processDeviceBatch(
+        devices,
+        tenant
+      );
 
-        // Skip devices without channel ID or name
-        if (!channelId || !deviceName) {
-          logger.warn(`Device could not be processed: ${deviceName}`);
-          return null;
-        }
+      allRecords.push(...records);
+      totalActiveDevices += activeCount;
+      networkTotalUptime += totalUptime;
+      processedCount += devices.length;
 
-        // Get device records
-        return getDeviceRecords(tenant, channelId, deviceName, device.isActive);
-      });
-
-    // Wait for all device processing to complete
-    const processedRecords = await Promise.all(devicePromises);
-
-    // Filter out null records
-    const validRecords = processedRecords.filter((record) => record !== null);
+      logger.info(`Processed ${processedCount}/${totalDevices} devices`);
+    }
 
     // Calculate network uptime
-    let networkUptime = 0.0;
-    if (validRecords.length > 0) {
-      networkUptime =
-        validRecords
-          .filter((record) => record.is_active)
-          .reduce((sum, record) => sum + (record.uptime || 0), 0) /
-        activeDeviceCount;
+    const networkUptime =
+      totalActiveDevices > 0 ? networkTotalUptime / totalActiveDevices : 0;
+
+    // Save device uptime records in bulk
+    if (allRecords.length > 0) {
+      await DeviceUptimeModel.insertMany(allRecords, { ordered: false });
     }
 
-    // Save device uptime records
-    if (validRecords.length > 0) {
-      await deviceMonitoringDB
-        .collection("device_uptime")
-        .insertMany(validRecords);
-    }
-
-    // Prepare and save network uptime record
-    const networkUptimeRecord = {
+    // Save network uptime record
+    const networkUptimeRecord = new NetworkUptimeModel({
       network_name: tenant,
       uptime: networkUptime,
       created_at: new Date(),
-    };
+    });
 
-    await deviceMonitoringDB
-      .collection("network_uptime")
-      .insertOne(networkUptimeRecord);
+    await networkUptimeRecord.save();
 
-    logger.info(
-      `Device uptime job completed for ${tenant}. Network Uptime: ${networkUptime}`
-    );
+    const duration = (Date.now() - startTime) / 1000;
+    logger.info(`
+      Device uptime check completed for ${tenant} in ${duration}s
+      Total Devices: ${totalDevices}
+      Active Devices: ${totalActiveDevices}
+      Network Uptime: ${networkUptime.toFixed(2)}%
+      Records Processed: ${allRecords.length}
+    `);
   } catch (error) {
     logger.error(`Error in device uptime job: ${error.message}`);
     logger.error(`Stack trace: ${error.stack}`);
   }
 };
 
-// Run the job for 'airqo' tenant
 const runDeviceUptimeCheck = async () => {
   await saveDeviceUptime("airqo");
 };

@@ -6,33 +6,23 @@ const logger = log4js.getLogger(
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const { BigQuery } = require("@google-cloud/bigquery");
-const { MongoClient } = require("mongodb");
+const DeviceModel = require("@models/Device");
+const DeviceUptimeModel = require("@models/DeviceUptime");
+const NetworkUptimeModel = require("@models/NetworkUptime");
+const { logText, logObject } = require("@utils/log");
 
 const TIMEZONE = moment.tz.guess();
-const MONGO_URI = process.env.MONGO_URI;
-const DATABASE_NAME = "airqo_netmanager_airqo";
 
 class NetworkUptimeAnalysis {
   constructor() {
     this.bigquery = new BigQuery();
-    this.mongoClient = new MongoClient(MONGO_URI);
   }
 
-  async connectToMongoDB() {
-    await this.mongoClient.connect();
-    return this.mongoClient.db(DATABASE_NAME);
-  }
-
-  async getAllDevices() {
-    const db = await this.connectToMongoDB();
-    const devices = await db
-      .collection("devices")
-      .find({
-        locationID: { $ne: "" },
-        isActive: true,
-      })
-      .toArray();
-    return devices;
+  async getAllActiveDevices() {
+    return DeviceModel("airqo").find({
+      locationID: { $ne: "" },
+      isActive: true,
+    });
   }
 
   async getRawChannelData(channelId, hours = 24) {
@@ -64,160 +54,139 @@ class NetworkUptimeAnalysis {
   }
 
   calculateDeviceUptime(expectedTotalRecords, actualValidRecords) {
-    let deviceUptimePercentage =
-      Math.round((actualValidRecords / expectedTotalRecords) * 100 * 100) / 100;
-    let deviceDowntimePercentage =
+    const deviceUptimePercentage = Math.min(
+      Math.round((actualValidRecords / expectedTotalRecords) * 100 * 100) / 100,
+      100
+    );
+    const deviceDowntimePercentage = Math.max(
       Math.round(
         ((expectedTotalRecords - actualValidRecords) / expectedTotalRecords) *
           100 *
           100
-      ) / 100;
-
-    // Ensure percentages are within 0-100 range
-    deviceUptimePercentage = Math.min(deviceUptimePercentage, 100);
-    deviceDowntimePercentage = Math.max(deviceDowntimePercentage, 0);
+      ) / 100,
+      0
+    );
 
     return [deviceUptimePercentage, deviceDowntimePercentage];
   }
 
-  async computeUptimeForAllDevices() {
-    const timePeriods = [
-      { label: "twenty_four_hours", specifiedHours: 24 },
-      { label: "seven_days", specifiedHours: 168 },
-      { label: "twenty_eight_days", specifiedHours: 672 },
-      { label: "twelve_months", specifiedHours: 0 },
-      { label: "all_time", specifiedHours: 0 },
-    ];
+  async processDeviceData(device, specifiedHours) {
+    const adjustedHours =
+      device.mobility === "Mobile"
+        ? Math.floor(specifiedHours / 2)
+        : specifiedHours;
 
-    const networkUptimeRecords = {};
+    try {
+      const rawData = await this.getRawChannelData(
+        device.channelID,
+        adjustedHours
+      );
+      const validRecords = rawData.filter(
+        (row) => row.s1_pm2_5 > 0 && row.s1_pm2_5 <= 500.4
+      );
+      const validRecordsCount = validRecords.length;
 
-    for (const timePeriod of timePeriods) {
-      let specifiedHours = timePeriod.specifiedHours;
+      const [uptimePercentage, downtimePercentage] = this.calculateDeviceUptime(
+        adjustedHours,
+        validRecordsCount
+      );
 
-      // Adjust hours for specific time periods
-      if (timePeriod.label === "twelve_months") {
-        const today = new Date();
-        const twelveMonthsAgo = new Date(
-          today.getFullYear() - 1,
-          today.getMonth(),
-          today.getDate()
-        );
-        specifiedHours = Math.ceil(
-          (today - twelveMonthsAgo) / (1000 * 60 * 60)
-        );
-      }
+      // Calculate average PM2.5 readings
+      const avgSensorOnePM25 =
+        validRecords.reduce((sum, row) => sum + row.s1_pm2_5, 0) /
+          validRecordsCount || 0;
+      const avgSensorTwoPM25 =
+        validRecords.reduce((sum, row) => sum + row.s2_pm2_5, 0) /
+          validRecordsCount || 0;
+      const avgBatteryVoltage =
+        validRecords.reduce((sum, row) => sum + row.battery_voltage, 0) /
+          validRecordsCount || 0;
 
-      if (timePeriod.label === "all_time") {
-        specifiedHours = 365 * 24; // Approximate one year
-      }
-
-      const devices = await this.getAllDevices();
-      const deviceUptimeRecords = [];
-      const allDevicesUptimeSeries = [];
-
-      for (const device of devices) {
-        const channelId = device.channelID;
-        const mobility = device.mobility;
-        const deviceId = device._id;
-        const deviceName = device.name;
-
-        // Adjust hours for mobile devices
-        let adjustedHours =
-          mobility === "Mobile"
-            ? Math.floor(specifiedHours / 2)
-            : specifiedHours;
-
-        try {
-          const rawData = await this.getRawChannelData(
-            channelId,
-            adjustedHours
-          );
-          const validRecordsCount = rawData.filter(
-            (row) => row.s1_pm2_5 > 0 && row.s1_pm2_5 <= 500.4
-          ).length;
-
-          const [
-            deviceUptimePercentage,
-            deviceDowntimePercentage,
-          ] = this.calculateDeviceUptime(adjustedHours, validRecordsCount);
-
-          allDevicesUptimeSeries.push(deviceUptimePercentage);
-
-          const deviceUptimeRecord = {
-            device_uptime_in_percentage: deviceUptimePercentage,
-            device_downtime_in_percentage: deviceDowntimePercentage,
-            created_at: new Date(),
-            device_channel_id: channelId,
-            specified_time_in_hours: adjustedHours,
-            device_name: deviceName,
-            device_id: deviceId,
-          };
-
-          deviceUptimeRecords.push(deviceUptimeRecord);
-        } catch (error) {
-          logger.error(
-            `Error processing device ${deviceName}: ${error.message}`
-          );
-        }
-      }
-
-      const averageUptimePercentage =
-        Math.round(
-          (allDevicesUptimeSeries.reduce((a, b) => a + b, 0) /
-            allDevicesUptimeSeries.length) *
-            100
-        ) / 100;
-
-      const entireNetworkUptimeRecord = {
-        average_uptime_for_entire_network_in_percentage: averageUptimePercentage,
-        device_uptime_records: deviceUptimeRecords,
+      // Create device uptime record
+      const deviceUptimeData = {
         created_at: new Date(),
-        specified_time_in_hours: specifiedHours,
+        device_name: device.name,
+        uptime: uptimePercentage,
+        downtime: downtimePercentage,
+        battery_voltage: avgBatteryVoltage,
+        channel_id: device.channelID,
+        sensor_one_pm2_5: avgSensorOnePM25,
+        sensor_two_pm2_5: avgSensorTwoPM25,
       };
 
-      networkUptimeRecords[timePeriod.label] = entireNetworkUptimeRecord;
-
-      logger.info(
-        `Average uptime for ${timePeriod.label}: ${averageUptimePercentage}%`
-      );
+      await DeviceUptimeModel("airqo").create(deviceUptimeData);
+      return uptimePercentage;
+    } catch (error) {
+      logger.error(`Error processing device ${device.name}: ${error.message}`);
+      return null;
     }
-
-    await this.saveNetworkUptimeAnalysisResults(networkUptimeRecords);
   }
 
-  async saveNetworkUptimeAnalysisResults(data) {
-    const db = await this.connectToMongoDB();
-    try {
-      await db.collection("network_uptime_analysis_results").insertOne(data);
-      logger.info("Network uptime analysis results saved successfully");
-    } catch (error) {
-      logger.error(`Error saving network uptime results: ${error.message}`);
-    } finally {
-      await this.mongoClient.close();
-    }
+  async computeNetworkUptime(timePeriod) {
+    const devices = await this.getAllActiveDevices();
+    const uptimeResults = await Promise.all(
+      devices.map((device) =>
+        this.processDeviceData(device, timePeriod.specifiedHours)
+      )
+    );
+
+    // Filter out null results and calculate average
+    const validUptimes = uptimeResults.filter((result) => result !== null);
+    const averageUptime =
+      validUptimes.length > 0
+        ? Math.round(
+            (validUptimes.reduce((a, b) => a + b, 0) / validUptimes.length) *
+              100
+          ) / 100
+        : 0;
+
+    // Save network uptime record
+    await NetworkUptimeModel("airqo").create({
+      created_at: new Date(),
+      network_name: "airqo",
+      uptime: averageUptime,
+    });
+
+    return averageUptime;
   }
 
   async runJob() {
     try {
       logger.info("Starting network uptime analysis job...");
-      await this.computeUptimeForAllDevices();
+      logText("Starting network uptime analysis...");
+
+      const timePeriods = [
+        { label: "24_hours", specifiedHours: 24 },
+        { label: "7_days", specifiedHours: 168 },
+        { label: "28_days", specifiedHours: 672 },
+      ];
+
+      for (const period of timePeriods) {
+        const averageUptime = await this.computeNetworkUptime(period);
+        logObject(`Network uptime for ${period.label}`, averageUptime);
+        logger.info(`Average uptime for ${period.label}: ${averageUptime}%`);
+      }
+
       logger.info("Network uptime analysis job completed successfully");
+      logText("Network uptime analysis completed successfully");
     } catch (error) {
       logger.error(`Network uptime analysis job failed: ${error.message}`);
+      logText(`Error in network uptime analysis: ${error.message}`);
     }
   }
 }
 
-// Job setup
+// Create job instance
 const networkUptimeJob = new NetworkUptimeAnalysis();
 
-// Run every 24 hours
-const schedule = "0 0 * * *"; // At midnight every day
+// Run daily at midnight
+const schedule = "0 0 * * *";
 cron.schedule(schedule, () => networkUptimeJob.runJob(), {
   scheduled: true,
   timezone: TIMEZONE,
 });
 
 logger.info("Network uptime analysis job is now running.....");
+logText("Network uptime analysis job is now running.....");
 
 module.exports = networkUptimeJob;
