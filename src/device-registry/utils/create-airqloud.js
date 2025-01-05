@@ -203,6 +203,14 @@ const createAirqloud = {
   },
   retrieveCoordinates: async (request, entity, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       let entityInstance = {};
       if (entity === "location") {
         entityInstance = createLocationUtil;
@@ -264,6 +272,14 @@ const createAirqloud = {
   },
   create: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       const { body, query } = request;
       const { tenant } = query;
       const { location_id } = body;
@@ -358,6 +374,14 @@ const createAirqloud = {
   },
   update: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       let { query, body } = request;
       let { tenant } = query;
 
@@ -385,6 +409,14 @@ const createAirqloud = {
   },
   delete: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       let { query } = request;
       let { tenant } = query;
       let filter = generateFilter.airqlouds(request, next);
@@ -409,6 +441,14 @@ const createAirqloud = {
   },
   refresh: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       const { query, body } = request;
       const { tenant, id, name, admin_level } = query;
 
@@ -490,6 +530,14 @@ const createAirqloud = {
   },
   calculateGeographicalCenter: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       const { body, query } = request;
       const { coordinates } = body;
       const { id } = query;
@@ -547,6 +595,14 @@ const createAirqloud = {
   },
   findSites: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       const { query, body } = request;
       const { id, tenant, name, admin_level } = query;
       let filter = {};
@@ -658,6 +714,14 @@ const createAirqloud = {
   },
   list: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "Deprecated Functionality",
+        status: httpStatus.GONE,
+        errors: {
+          message: "Please use Grids or Cohorts, AirQlouds are deprecated",
+        },
+      };
       const { tenant, limit, skip, path } = request.query;
       const filter = generateFilter.airqlouds(request, next);
       if (!isEmpty(path)) {
