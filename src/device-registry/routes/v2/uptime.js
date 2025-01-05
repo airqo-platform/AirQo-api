@@ -8,10 +8,11 @@ const {
   validateDeviceBatteryQueries,
 } = require("@validators/uptime.validators");
 
+// Apply common middleware
 router.use(headers);
 router.use(validatePagination);
 
-// Get device status route
+// Base routes with consistent naming and validation
 router.get(
   "/status",
   validateTenant,
@@ -19,7 +20,13 @@ router.get(
   uptimeController.getDeviceStatus
 );
 
-// Get network uptime route
+// router.post(
+//   "/status",
+//   validateTenant,
+//   validateUptimeBody,
+//   uptimeController.createDeviceStatus
+// );
+
 router.get(
   "/network",
   validateTenant,
@@ -27,7 +34,6 @@ router.get(
   uptimeController.getNetworkUptime
 );
 
-// Get device uptime route
 router.get(
   "/device",
   validateTenant,
@@ -35,7 +41,6 @@ router.get(
   uptimeController.getDeviceUptime
 );
 
-// Get device battery route
 router.get(
   "/battery",
   validateTenant,
@@ -43,12 +48,20 @@ router.get(
   uptimeController.getDeviceBattery
 );
 
-// Get device uptime leaderboard route
 router.get(
   "/leaderboard",
   validateTenant,
   validateUptimeQueries,
   uptimeController.getDeviceUptimeLeaderboard
 );
+
+// Health check endpoint (matching Python implementation)
+router.get("/health", (req, res) => {
+  console.info("health status OK");
+  return res.status(200).json({
+    message: "App status - OK.",
+    success: true,
+  });
+});
 
 module.exports = router;

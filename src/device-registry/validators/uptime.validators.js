@@ -5,32 +5,33 @@ const {
   validationResult,
   oneOf,
 } = require("express-validator");
-
 const moment = require("moment");
 const httpStatus = require("http-status");
 const { HttpError } = require("@utils/errors");
 const constants = require("@config/constants");
 
-// Middleware to check validation results
+// Enhanced error handling with structured response
 const checkValidationResults = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    const extractedErrors = errors.array().map((err) => ({
-      [err.path]: err.msg,
-    }));
+    const errorMap = {};
+    errors.array().forEach((err) => {
+      errorMap[err.path] = err.msg;
+    });
 
     return next(
       new HttpError(
-        "Validation failed",
+        "Some errors occurred while processing this request",
         httpStatus.BAD_REQUEST,
-        extractedErrors
+        { errors: errorMap }
       )
     );
   }
   next();
 };
 
-const validateTenant = oneOf([
+// Enhanced tenant validation
+const validateTenant = [
   query("tenant")
     .optional()
     .notEmpty()
@@ -40,31 +41,34 @@ const validateTenant = oneOf([
     .toLowerCase()
     .isIn(constants.NETWORKS)
     .withMessage("the tenant value is not among the expected ones"),
-]);
+  checkValidationResults,
+];
 
-// Common date validation function
+// Improved date validation with ISO format check
 const validateDateRange = (startDateField, endDateField) => [
   query(startDateField)
-    .notEmpty()
+    .exists()
     .withMessage(`${startDateField} is required`)
+    .notEmpty()
+    .withMessage(`${startDateField} cannot be empty`)
     .custom((value) => {
-      // Validate ISO 8601 date format
       if (!moment(value, moment.ISO_8601, true).isValid()) {
         throw new Error(
-          `${startDateField} must be a valid ISO 8601 datetime string`
+          `Please provide a valid ISO formatted datetime string (YYYY-MM-DDTHH:mm:ss.sssZ)`
         );
       }
       return true;
     }),
 
   query(endDateField)
-    .notEmpty()
+    .exists()
     .withMessage(`${endDateField} is required`)
+    .notEmpty()
+    .withMessage(`${endDateField} cannot be empty`)
     .custom((value) => {
-      // Validate ISO 8601 date format
       if (!moment(value, moment.ISO_8601, true).isValid()) {
         throw new Error(
-          `${endDateField} must be a valid ISO 8601 datetime string`
+          `Please provide a valid ISO formatted datetime string (YYYY-MM-DDTHH:mm:ss.sssZ)`
         );
       }
       return true;
@@ -72,87 +76,111 @@ const validateDateRange = (startDateField, endDateField) => [
     .custom((value, { req }) => {
       const startDate = moment(req.query[startDateField]);
       const endDate = moment(value);
-
-      // Ensure end date is after start date
       if (endDate.isSameOrBefore(startDate)) {
-        throw new Error(`${endDateField} must be after start date`);
+        throw new Error(`${endDateField} must be after ${startDateField}`);
       }
       return true;
     }),
 ];
 
-// Uptime queries validation middleware
+// Enhanced uptime queries validation
 const validateUptimeQueries = [
-  // Tenant validation
-  query("tenant")
-    .optional()
-    .trim()
-    .isString()
-    .withMessage("Tenant must be a string"),
-
-  // Date range validation
   ...validateDateRange("startDate", "endDate"),
 
-  // Optional devices query for device uptime
   query("devices")
     .optional()
     .custom((value) => {
-      // If provided, ensure it's a comma-separated string or array
-      if (typeof value === "string") {
-        const devices = value.split(",").map((device) => device.trim());
-        if (devices.some((device) => device === "")) {
+      if (value) {
+        const devices = Array.isArray(value) ? value : value.split(",");
+        if (devices.some((device) => !device.trim())) {
           throw new Error("Devices list cannot contain empty values");
         }
       }
       return true;
     }),
 
-  // Device name validation
   query("device_name")
     .optional()
     .trim()
     .isString()
     .withMessage("Device name must be a string"),
 
-  // Optional limit validation
   query("limit")
     .optional()
     .isInt({ min: 0 })
     .withMessage("Limit must be a non-negative integer")
     .toInt(),
 
-  // Middleware to check validation results
   checkValidationResults,
 ];
 
-// Device battery queries validation middleware
+// New POST request body validation for uptime
+const validateUptimeBody = [
+  body("startDateTime")
+    .exists()
+    .withMessage("startDateTime is required")
+    .isISO8601()
+    .withMessage("startDateTime must be a valid ISO datetime"),
+
+  body("endDateTime")
+    .exists()
+    .withMessage("endDateTime is required")
+    .isISO8601()
+    .withMessage("endDateTime must be a valid ISO datetime")
+    .custom((value, { req }) => {
+      if (moment(value).isSameOrBefore(req.body.startDateTime)) {
+        throw new Error("endDateTime must be after startDateTime");
+      }
+      return true;
+    }),
+
+  body("airqloud")
+    .optional()
+    .isString(),
+  body("cohort")
+    .optional()
+    .isString(),
+  body("grid")
+    .optional()
+    .isString(),
+  body("threshold")
+    .optional()
+    .isInt(),
+  body("site")
+    .optional()
+    .isString(),
+  body("devices")
+    .optional()
+    .isArray(),
+
+  checkValidationResults,
+];
+
+// Enhanced device battery queries validation
 const validateDeviceBatteryQueries = [
-  // Device name validation
   query("deviceName")
+    .exists()
+    .withMessage("deviceName is required")
     .notEmpty()
-    .withMessage("Device name is required")
+    .withMessage("deviceName cannot be empty")
     .trim()
     .isString()
-    .withMessage("Device name must be a string"),
+    .withMessage("deviceName must be a string"),
 
-  // Date range validation
   ...validateDateRange("startDate", "endDate"),
 
-  // Optional minutes average validation
   query("minutesAverage")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("Minutes average must be a positive integer")
+    .withMessage("minutesAverage must be a positive integer")
     .toInt(),
 
-  // Optional rounding validation
   query("rounding")
     .optional()
     .isInt({ min: 0, max: 10 })
-    .withMessage("Rounding must be an integer between 0 and 10")
+    .withMessage("rounding must be an integer between 0 and 10")
     .toInt(),
 
-  // Middleware to check validation results
   checkValidationResults,
 ];
 
@@ -160,4 +188,5 @@ module.exports = {
   validateUptimeQueries,
   validateDeviceBatteryQueries,
   validateTenant,
+  validateUptimeBody,
 };
