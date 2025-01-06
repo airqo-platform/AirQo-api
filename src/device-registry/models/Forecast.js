@@ -92,6 +92,9 @@ forecastSchema.methods = {
   },
 };
 
+forecastSchema.index({ device_id: 1 });
+forecastSchema.index({ day: 1 });
+
 forecastSchema.statics = {
   async register(args, next) {
     try {
@@ -99,8 +102,8 @@ forecastSchema.statics = {
 
       if (!isEmpty(createdForecast)) {
         let data = createdForecast._doc;
-        delete data.__v;
-        delete data.updatedAt;
+        data.__v = undefined;
+        data.updatedAt = undefined;
         return {
           success: true,
           data,
