@@ -7,13 +7,13 @@ const { oneOf } = require("express-validator");
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-  if (isNaN(limit) || limit < 1) {
+  if (Number.isNaN(limit) || limit < 1) {
     limit = 1000;
   }
   if (limit > 2000) {
     limit = 2000;
   }
-  if (isNaN(skip) || skip < 0) {
+  if (Number.isNaN(skip) || skip < 0) {
     req.query.skip = 0;
   }
   req.query.limit = limit;
