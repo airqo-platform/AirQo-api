@@ -150,9 +150,9 @@ const consumeHourlyMeasurements = async (messageData) => {
     );
 
     if (responseFromInsertMeasurements.success === false) {
-      logger.error("KAFKA: failed to store the measurements");
+      console.log("KAFKA: failed to store the measurements");
     } else if (responseFromInsertMeasurements.success === true) {
-      logger.info("KAFKA: successfully stored the measurements");
+      console.log("KAFKA: successfully stored the measurements");
     }
   } catch (error) {
     logger.error(`🐛🐛 KAFKA: error message --- ${error.message}`);
