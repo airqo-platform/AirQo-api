@@ -255,7 +255,7 @@ UserSchema.pre(
     // Safely get updates object, accounting for different mongoose operations
     let updates = {};
     if (this.getUpdate) {
-      updates = this.getUpdate();
+      updates = this.getUpdate() || {};
     } else if (!isNew) {
       updates = this.toObject();
     } else {
@@ -276,27 +276,38 @@ UserSchema.pre(
         let newRoles = [];
         const existingRoles = doc[fieldName] || [];
 
-        // Safely check update operations
-        if (updates) {
-          // Handle $set operations
-          if (updates.$set && updates.$set[fieldName]) {
-            newRoles = updates.$set[fieldName];
+        // Initialize update operators safely
+        updates.$set = updates.$set || {};
+        updates.$push = updates.$push || {};
+        updates.$addToSet = updates.$addToSet || {};
+
+        // Handle update operations in order of precedence
+        if (updates.$set && updates.$set[fieldName]) {
+          // $set takes precedence as it's a direct override
+          newRoles = updates.$set[fieldName];
+        } else if (updates.$push && updates.$push[fieldName]) {
+          // Safely handle $push with potential $each operator
+          const pushValue = updates.$push[fieldName];
+          if (pushValue) {
+            if (pushValue.$each && Array.isArray(pushValue.$each)) {
+              newRoles = [...existingRoles, ...pushValue.$each];
+            } else {
+              newRoles = [...existingRoles, pushValue];
+            }
           }
-          // Handle $push operations
-          else if (updates.$push && updates.$push[fieldName]) {
-            const pushValue = updates.$push[fieldName];
-            const newRole = pushValue.$each ? pushValue.$each[0] : pushValue;
-            newRoles = [...existingRoles, newRole];
+        } else if (updates.$addToSet && updates.$addToSet[fieldName]) {
+          // Safely handle $addToSet
+          const addToSetValue = updates.$addToSet[fieldName];
+          if (addToSetValue) {
+            if (addToSetValue.$each && Array.isArray(addToSetValue.$each)) {
+              newRoles = [...existingRoles, ...addToSetValue.$each];
+            } else {
+              newRoles = [...existingRoles, addToSetValue];
+            }
           }
-          // Handle $addToSet operations
-          else if (updates.$addToSet && updates.$addToSet[fieldName]) {
-            const newRole = updates.$addToSet[fieldName];
-            newRoles = [...existingRoles, newRole];
-          }
-          // Handle direct field updates
-          else if (updates[fieldName]) {
-            newRoles = updates[fieldName];
-          }
+        } else if (updates[fieldName]) {
+          // Direct field update
+          newRoles = updates[fieldName];
         }
 
         if (newRoles.length > 0) {
@@ -322,16 +333,11 @@ UserSchema.pre(
           // Convert Map values back to array
           const finalRoles = Array.from(uniqueRoles.values());
 
-          // Safely clear update operators
-          if (updates) {
-            if (updates.$set) delete updates.$set[fieldName];
-            if (updates.$push) delete updates.$push[fieldName];
-            if (updates.$addToSet) delete updates.$addToSet[fieldName];
-
-            // Set the final filtered array
-            updates.$set = updates.$set || {};
-            updates.$set[fieldName] = finalRoles;
-          }
+          // Set the final filtered array using $set and clean up other operators
+          updates.$set[fieldName] = finalRoles;
+          delete updates.$push[fieldName];
+          delete updates.$addToSet[fieldName];
+          delete updates[fieldName]; // Clean up direct field update if any
         }
       };
 
