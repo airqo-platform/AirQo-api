@@ -255,7 +255,7 @@ UserSchema.pre(
     // Safely get updates object, accounting for different mongoose operations
     let updates = {};
     if (this.getUpdate) {
-      updates = this.getUpdate();
+      updates = this.getUpdate() || {};
     } else if (!isNew) {
       updates = this.toObject();
     } else {
@@ -278,10 +278,14 @@ UserSchema.pre(
 
         // Safely check update operations
         if (updates) {
+          // Initialize $set if it doesn't exist
+          updates.$set = updates.$set || {};
+
           // Handle $set operations
-          if (updates.$set && updates.$set[fieldName]) {
+          if (updates.$set[fieldName]) {
             newRoles = updates.$set[fieldName];
           }
+
           // Handle $push operations
           else if (updates.$push && updates.$push[fieldName]) {
             const pushValue = updates.$push[fieldName];
@@ -322,16 +326,12 @@ UserSchema.pre(
           // Convert Map values back to array
           const finalRoles = Array.from(uniqueRoles.values());
 
-          // Safely clear update operators
-          if (updates) {
-            if (updates.$set) delete updates.$set[fieldName];
-            if (updates.$push) delete updates.$push[fieldName];
-            if (updates.$addToSet) delete updates.$addToSet[fieldName];
+          // Set the final filtered array
+          updates.$set[fieldName] = finalRoles;
 
-            // Set the final filtered array
-            updates.$set = updates.$set || {};
-            updates.$set[fieldName] = finalRoles;
-          }
+          // Clean up other update operators for this field
+          if (updates.$push) delete updates.$push[fieldName];
+          if (updates.$addToSet) delete updates.$addToSet[fieldName];
         }
       };
 
