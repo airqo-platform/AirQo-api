@@ -8,161 +8,100 @@ const logger = log4js.getLogger(
 const forecastUtil = require("@utils/create-forecast");
 const isEmpty = require("is-empty");
 
+const handleError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: error.message,
+    })
+  );
+};
+
+const validateRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return false;
+  }
+  return true;
+};
+
+const getTenantFromRequest = (req) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  return isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
+};
+
+const sendResponse = (res, result) => {
+  if (result.success === true) {
+    const status = result.status || httpStatus.OK;
+    res.status(status).json({
+      success: true,
+      message: result.message,
+      [result.dataKey || "forecast"]: result.data || [],
+    });
+  } else {
+    const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+    res.status(status).json({
+      success: false,
+      message: result.message,
+      errors: result.errors || { message: "" },
+    });
+  }
+};
+
+const handleControllerAction = async (
+  req,
+  res,
+  next,
+  utilFunction,
+  dataKey
+) => {
+  try {
+    if (!validateRequest(req, next)) return;
+
+    const request = req;
+    request.query.tenant = getTenantFromRequest(req);
+
+    const result = await utilFunction(request, next);
+
+    if (isEmpty(result) || res.headersSent) return;
+
+    result.dataKey = dataKey;
+    sendResponse(res, result);
+  } catch (error) {
+    handleError(error, next);
+  }
+};
+
 const forecastController = {
   create: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await forecastUtil.create(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          forecast: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      forecastUtil.create,
+      "forecast"
+    );
   },
 
   listByDevice: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await forecastUtil.listByDevice(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          forecasts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      forecastUtil.listByDevice,
+      "forecasts"
+    );
   },
 
   listBySite: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await forecastUtil.listBySite(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          forecasts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      forecastUtil.listBySite,
+      "forecasts"
+    );
   },
 };
 

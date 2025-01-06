@@ -12,7 +12,6 @@ const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
 const stringify = require("@utils/stringify");
-const moment = require("moment");
 
 // Existing measurement schema
 const eventSchema = Joi.object({
