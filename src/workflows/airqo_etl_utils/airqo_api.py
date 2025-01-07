@@ -26,8 +26,8 @@ class AirQoApi:
 
     def save_events(self, measurements: List) -> None:
         #  Temporarily disabling usage of the API to store measurements.
-        if "staging" in self.AIRQO_BASE_URL_V2.lower():
-            return
+        # if "staging" in self.AIRQO_BASE_URL_V2.lower():
+        #     return
         # TODO Findout if there is a bulk post api option greater than 5.
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
@@ -41,7 +41,7 @@ class AirQoApi:
                 )
 
     def get_maintenance_logs(
-        self, tenant: str, device: str, activity_type: str = None
+        self, network: str, device: str, activity_type: str = None
     ) -> List:
         """
         Retrieve devices given a tenant and device category.
@@ -70,7 +70,7 @@ class AirQoApi:
             ]
         """
         # Why is tenant still a parameter when it is being overriden.
-        params = {"tenant": str(Tenant.AIRQO), "device": device}
+        params = {"network": network, "device": device}
 
         if activity_type:
             params["activity_type"] = activity_type
@@ -241,12 +241,14 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_category: DeviceCategory = None
+        self, device_network: str = None, device_category: DeviceCategory = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
 
-        Args: device_category (DeviceCategory, optional): The category of devices to retrieve. Defaults to `DeviceCategory.LOW_COST`.
+        Args:
+            network (str): This defines the network or manufacture of the device(s) to retrieve. Defaults to `None`. If not passed, devices from all networks are returned.
+            device_category (DeviceCategory, optional): The category of devices to retrieve. Defaults to `None`. If not passed, devices from all categories are returned.
 
         Returns:
             List[Dict[str, Any]]: A List of dictionaries containing the details of the devices. The dictionary has the following structure.
@@ -284,12 +286,15 @@ class AirQoApi:
             ]
         """
         devices: List[Dict[str, Any]] = []
-        networks, error = self.get_networks()
+        networks: List[str] = []
         params: Dict = {}
-
-        if error:
-            logger.error(f"Error while fetching networks: {error}")
-            return devices
+        if device_network:
+            networks.append({"net_name": device_network})
+        else:
+            networks, error = self.get_networks()
+            if error:
+                logger.error(f"Error while fetching networks: {error}")
+                return devices
 
         if device_category:
             params["category"] = str(device_category)
