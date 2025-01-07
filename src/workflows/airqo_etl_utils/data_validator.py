@@ -81,16 +81,15 @@ class DataValidationUtils:
             for col in integers:
                 data[col] = (
                     data[col]
-                    .fillna(
-                        ""
-                    )  # Replace NaNs with empty strings to avoid errors during string operations
-                    .astype(str)  # Ensure the column is a string
-                    .str.replace(
-                        r"[^\d]", "", regex=True
-                    )  # Remove non-numeric characters
-                    .str.strip()  # Strip leading/trailing whitespace
-                    .replace("", -1)  # Replace empty strings with -1
-                    .astype(np.int64)  # Convert to integer
+                    .fillna("")  # Replace NaN with empty strings
+                    .astype(str)  # Convert to string
+                    .str.strip()  # Remove leading/trailing whitespace
+                    .replace("", np.nan)  # Replace empty strings with NaN for clarity
+                    .apply(
+                        lambda x: pd.to_numeric(x, errors="coerce")
+                    )  # Convert to numeric
+                    .fillna(-1)  # Replace NaN with -1 for invalid/missing values
+                    .astype(np.int64)  # Convert to integer type
                 )
 
         return data
@@ -275,6 +274,16 @@ class DataValidationUtils:
         cols = bigquery_api.get_columns(bigquery_api.hourly_measurements_table)
         cols.append("battery")
         data = DataValidationUtils.fill_missing_columns(data, cols=cols)
+        data["device_number"] = (
+            data["device_number"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .replace("", np.nan)
+            .apply(lambda x: pd.to_numeric(x, errors="coerce"))
+            .fillna(-1)
+            .astype(np.int64)
+        )
 
         for _, row in data.iterrows():
             try:
