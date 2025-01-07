@@ -8,7 +8,7 @@ from .bigquery_api import BigQueryApi
 from .config import configuration
 from .constants import (
     DeviceCategory,
-    Tenant,
+    DeviceNetwork,
     Frequency,
     DataSource,
     DataType,
@@ -59,7 +59,7 @@ class AirQoDataUtils:
             null_cols=["pm2_5_calibrated_value"],
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            network=str(Tenant.AIRQO),
+            network=DeviceNetwork.AIRQO,
         )
 
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
@@ -79,7 +79,7 @@ class AirQoDataUtils:
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            network=str(Tenant.AIRQO),
+            network=DeviceNetwork.AIRQO,
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
@@ -392,7 +392,7 @@ class AirQoDataUtils:
     @staticmethod
     def restructure_airqo_mobile_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["tenant"] = "airqo"
+        data["network"] = "airqo"
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(
             table=big_query_api.airqo_mobile_measurements_table
@@ -404,12 +404,13 @@ class AirQoDataUtils:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
+        device_network: DeviceNetwork = None,
         resolution: Frequency = Frequency.RAW,
         device_numbers: list = None,
         remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
-        Extracts sensor measurements from AirQo devices recorded between specified date and time ranges.
+        Extracts sensor measurements from network devices recorded between specified date and time ranges.
 
         Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
         Optionally filters data by specific device numbers and removes outliers if requested.
@@ -425,7 +426,9 @@ class AirQoDataUtils:
         airqo_api = AirQoApi()
         data_source_api = DataSourcesApis()
 
-        devices = airqo_api.get_devices_by_network(device_category=device_category)
+        devices = airqo_api.get_devices_by_network(
+            device_network=device_network, device_category=device_category
+        )
         if not devices:
             logger.exception(
                 "Failed to fetch devices. Please check if devices are deployed"
@@ -571,7 +574,7 @@ class AirQoDataUtils:
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["tenant"] = str(Tenant.AIRQO)
+        data["network"] = DeviceNetwork.AIRQO
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
@@ -899,12 +902,12 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(network=str(Tenant.AIRQO))
+        devices = airqo_api.get_devices(network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
         for device in devices:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
-                    tenant="airqo",
+                    network="airqo",
                     device=device.get("name", None),
                     activity_type="deployment",
                 )
