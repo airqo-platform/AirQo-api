@@ -274,6 +274,8 @@ class DataValidationUtils:
         cols = bigquery_api.get_columns(bigquery_api.hourly_measurements_table)
         cols.append("battery")
         data = DataValidationUtils.fill_missing_columns(data, cols=cols)
+
+        # TODO Use DataValidation.format_data_types() to convert cleanup multipe columns.
         data["device_number"] = (
             data["device_number"]
             .fillna("")
