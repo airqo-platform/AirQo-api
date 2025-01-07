@@ -173,6 +173,85 @@ module.exports = {
 </tr>`;
     return constants.EMAIL_BODY({ email, content, name });
   },
+  yearEndSummary: ({
+    username = "",
+    email = "",
+    engagementTier = "",
+    activityDuration = {},
+    topServiceDescription = "",
+    topServices = [],
+    mostUsedEndpoints = [],
+  } = {}) => {
+    const content = `<tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        
+        <p>Congratulations on an amazing year with AirQo Analytics! 🎉</p>
+        
+        ${
+          engagementTier ||
+          activityDuration.description ||
+          topServiceDescription
+            ? `
+          <div style="margin: 24px 0;">
+            <h2 style="color: #344054; font-size: 20px; font-weight: 600; margin-bottom: 16px;">
+              🌟 Your 2024 Highlights 🌟
+            </h2>
+            
+            ${
+              engagementTier
+                ? `<p><strong>Engagement Level:</strong> ${engagementTier}</p>`
+                : ""
+            }
+            ${
+              activityDuration.description
+                ? `<p><strong>Activity Duration:</strong> ${activityDuration.description}</p>`
+                : ""
+            }
+            
+            ${
+              topServiceDescription
+                ? `<p style="margin-top: 16px;"><strong>Top Service:</strong> ${topServiceDescription}</p>`
+                : ""
+            }
+          </div>`
+            : ""
+        }
+        
+        ${
+          topServices && topServices.length > 0
+            ? `
+          <div style="margin: 24px 0;">
+            <h3 style="color: #344054; font-size: 18px; font-weight: 600; margin-bottom: 12px;">
+              Most Used Services:
+            </h3>
+            ${topServices
+              .slice(0, 3)
+              .map(
+                (service, index) => `
+                  <p style="margin: 8px 0;">
+                    ${index + 1}. <strong>${service.service}</strong> (Used ${
+                  service.count
+                } times)
+                  </p>
+                `
+              )
+              .join("")}
+          </div>`
+            : ""
+        }
+        
+        <p style="margin-top: 24px;">Thank you for being an incredible part of our community!</p>
+        
+        <p>Best wishes,<br/>The AirQo Analytics Team</p>
+        
+        <p style="margin-top: 24px;">
+          Please visit our website to learn more about us. <a href="https://airqo.net/" style="color: #0066CC;">AirQo</a>
+        </p>
+      </td>
+    </tr>`;
+
+    return constants.EMAIL_BODY({ email, content, name: username });
+  },
   afterClientActivation: ({ name = "", email, client_id = "" } = {}) => {
     const content = `<tr>
                           <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">

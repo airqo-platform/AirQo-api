@@ -320,6 +320,135 @@ async function processEvents(events, next) {
   return determineResponse(nAdded, eventsAdded, eventsRejected, errors);
 }
 
+class AirQualityService {
+  constructor(tenant) {
+    this.EventModel = EventModel(tenant);
+  }
+
+  async getAirQualityData(request, next, version = "v1") {
+    const { language, site_id } = { ...request.query, ...request.params };
+    let responseFromListEvents;
+
+    try {
+      // Try to get from cache first
+      const cacheResult = await this.tryGetCache(request, next);
+      if (cacheResult.success) {
+        return cacheResult.data;
+      }
+
+      // Get data based on version
+      responseFromListEvents =
+        version === "v2"
+          ? await this.EventModel.v2_getAirQualityAverages(site_id, next)
+          : await this.EventModel.getAirQualityAverages(site_id, next);
+
+      // Handle translation if needed (only for v1 as v2 doesn't include health tips)
+      if (version === "v1") {
+        await this.translateHealthTips(responseFromListEvents, language, next);
+      }
+
+      // Set cache if successful
+      if (responseFromListEvents.success) {
+        await this.trySetCache(responseFromListEvents.data, request, next);
+
+        return {
+          success: true,
+          message: isEmpty(responseFromListEvents.data)
+            ? "no measurements for this search"
+            : responseFromListEvents.message,
+          data: responseFromListEvents.data,
+          status: responseFromListEvents.status || "",
+          isCache: false,
+        };
+      }
+
+      logger.error(
+        `Unable to retrieve events --- ${JSON.stringify(
+          responseFromListEvents.errors
+        )}`
+      );
+      return {
+        success: false,
+        message: responseFromListEvents.message,
+        errors: responseFromListEvents.errors || { message: "" },
+        status: responseFromListEvents.status || "",
+        isCache: false,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  }
+
+  async translateHealthTips(response, language, next) {
+    if (
+      language !== undefined &&
+      !isEmpty(response) &&
+      response.success === true &&
+      !isEmpty(response.data)
+    ) {
+      const data = response.data;
+      for (const event of data) {
+        const translatedHealthTips = await translateUtil.translateTips(
+          { healthTips: event.health_tips, targetLanguage: language },
+          next
+        );
+        if (translatedHealthTips.success === true) {
+          event.health_tips = translatedHealthTips.data;
+        }
+      }
+    }
+  }
+
+  async tryGetCache(request, next) {
+    try {
+      return await Promise.race([
+        createEvent.getCache(request, next),
+        this.getCacheTimeout(),
+      ]);
+    } catch (error) {
+      logger.error(`🐛🐛 Cache Get Error -- ${JSON.stringify(error)}`);
+      return { success: false };
+    }
+  }
+
+  async trySetCache(data, request, next) {
+    try {
+      const result = await Promise.race([
+        createEvent.setCache(data, request, next),
+        this.getCacheTimeout(),
+      ]);
+
+      if (!result.success) {
+        logger.error(
+          `🐛🐛 Cache Set Error -- ${JSON.stringify(
+            result.errors || "Unknown error"
+          )}`
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Cache Set Error -- ${JSON.stringify(error)}`);
+    }
+  }
+
+  getCacheTimeout() {
+    return new Promise((resolve) =>
+      setTimeout(resolve, 60000, {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Cache timeout" },
+      })
+    );
+  }
+}
+
 const createEvent = {
   getMeasurementsFromBigQuery: async (req, next) => {
     try {
@@ -807,7 +936,7 @@ const createEvent = {
       );
     }
   },
-  listAverages: async (request, next) => {
+  listAveragesV1: async (request, next) => {
     try {
       let missingDataMessage = "";
       const { language, site_id, tenant } = {
@@ -928,6 +1057,16 @@ const createEvent = {
         )
       );
     }
+  },
+
+  listAverages: async (request, next) => {
+    const service = new AirQualityService(request.query.tenant);
+    return service.getAirQualityData(request, next);
+  },
+
+  listAveragesV2: async (request, next) => {
+    const service = new AirQualityService(request.query.tenant);
+    return service.getAirQualityData(request, next, "v2");
   },
   view: async (request, next) => {
     try {
@@ -2248,6 +2387,7 @@ const createEvent = {
         averages,
         threshold,
         pollutant,
+        quality_checks,
       } = { ...request.query, ...request.params };
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
@@ -2281,6 +2421,7 @@ const createEvent = {
       _${averages ? averages : "noAverages"}
       _${threshold ? threshold : "noThreshold"}
       _${pollutant ? pollutant : "noPollutant"}
+      _${quality_checks ? quality_checks : "noQualityChecks"}
       `;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

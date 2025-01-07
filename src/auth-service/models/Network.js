@@ -13,6 +13,23 @@ const logger = require("log4js").getLogger(
 );
 const { HttpError } = require("@utils/errors");
 
+function validateProfilePicture(net_profile_picture) {
+  const urlRegex =
+    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+  if (!urlRegex.test(net_profile_picture)) {
+    logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
+    return false;
+  }
+  if (net_profile_picture.length > 200) {
+    logText("longer than 200 chars");
+    logger.error(
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+    );
+    return false;
+  }
+  return true;
+}
+
 const NetworkSchema = new Schema(
   {
     net_email: {
@@ -92,6 +109,20 @@ const NetworkSchema = new Schema(
         ref: "permission",
       },
     ],
+    net_profile_picture: {
+      type: String,
+      maxLength: 200,
+      default: constants.DEFAULT_ORGANISATION_PROFILE_PICTURE,
+      validate: {
+        validator: function (v) {
+          const urlRegex =
+            /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+          return urlRegex.test(v);
+        },
+        message:
+          "Profile picture URL must be a valid URL & must not exceed 200 characters.",
+      },
+    },
   },
   {
     timestamps: true,
@@ -139,12 +170,39 @@ NetworkSchema.pre(
       handleArrayFieldUpdates("net_departments");
       handleArrayFieldUpdates("net_permissions");
 
-      // Validation for new documents
-      if (isNew) {
-        // Required field validations are handled by schema
+      // Get all actual fields being updated from both root and $set
+      const actualUpdates = {
+        ...(updates || {}),
+        ...(updates.$set || {}),
+      };
 
-        // Set default status if not provided
+      // Profile picture validation for both new documents and updates
+      if (isNew) {
+        // Validation for new documents
         this.net_status = this.net_status || "inactive";
+
+        if (!this.net_profile_picture) {
+          this.net_profile_picture =
+            constants.DEFAULT_ORGANISATION_PROFILE_PICTURE;
+        } else if (
+          this.net_profile_picture &&
+          !validateProfilePicture(this.net_profile_picture)
+        ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+      } else if (actualUpdates.net_profile_picture) {
+        // Validation for updates
+        if (!validateProfilePicture(actualUpdates.net_profile_picture)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
       }
 
       // Unique field handling
@@ -208,6 +266,7 @@ NetworkSchema.methods = {
       _id: this._id,
       net_email: this.net_email,
       net_website: this.net_website,
+      net_profile_picture: this.net_profile_picture,
       net_category: this.net_category,
       net_status: this.net_status,
       net_phoneNumber: this.net_phoneNumber,

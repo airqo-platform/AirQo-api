@@ -141,7 +141,7 @@ const UserSchema = new Schema(
           validator: function (value) {
             return value.length <= ORGANISATIONS_LIMIT;
           },
-          message: "Too many networks. Maximum limit: 6.",
+          message: `Too many networks. Maximum limit: ${ORGANISATIONS_LIMIT}`,
         },
       ],
     },
@@ -169,7 +169,7 @@ const UserSchema = new Schema(
           validator: function (value) {
             return value.length <= ORGANISATIONS_LIMIT;
           },
-          message: "Too many groups. Maximum limit: 6.",
+          message: `Too many groups. Maximum limit: ${ORGANISATIONS_LIMIT}`,
         },
       ],
     },
@@ -251,7 +251,16 @@ UserSchema.pre(
   async function (next) {
     // Determine if this is a new document or an update
     const isNew = this.isNew;
-    let updates = this.getUpdate ? this.getUpdate() : this;
+
+    // Safely get updates object, accounting for different mongoose operations
+    let updates = {};
+    if (this.getUpdate) {
+      updates = this.getUpdate() || {};
+    } else if (!isNew) {
+      updates = this.toObject();
+    } else {
+      updates = this;
+    }
 
     try {
       // Helper function to handle role updates
@@ -267,20 +276,38 @@ UserSchema.pre(
         let newRoles = [];
         const existingRoles = doc[fieldName] || [];
 
-        // Handle $set operations
+        // Initialize update operators safely
+        updates.$set = updates.$set || {};
+        updates.$push = updates.$push || {};
+        updates.$addToSet = updates.$addToSet || {};
+
+        // Handle update operations in order of precedence
         if (updates.$set && updates.$set[fieldName]) {
+          // $set takes precedence as it's a direct override
           newRoles = updates.$set[fieldName];
-        }
-        // Handle $push operations
-        else if (updates.$push && updates.$push[fieldName]) {
+        } else if (updates.$push && updates.$push[fieldName]) {
+          // Safely handle $push with potential $each operator
           const pushValue = updates.$push[fieldName];
-          const newRole = pushValue.$each ? pushValue.$each[0] : pushValue;
-          newRoles = [...existingRoles, newRole];
-        }
-        // Handle $addToSet operations
-        else if (updates.$addToSet && updates.$addToSet[fieldName]) {
-          const newRole = updates.$addToSet[fieldName];
-          newRoles = [...existingRoles, newRole];
+          if (pushValue) {
+            if (pushValue.$each && Array.isArray(pushValue.$each)) {
+              newRoles = [...existingRoles, ...pushValue.$each];
+            } else {
+              newRoles = [...existingRoles, pushValue];
+            }
+          }
+        } else if (updates.$addToSet && updates.$addToSet[fieldName]) {
+          // Safely handle $addToSet
+          const addToSetValue = updates.$addToSet[fieldName];
+          if (addToSetValue) {
+            if (addToSetValue.$each && Array.isArray(addToSetValue.$each)) {
+              newRoles = [...existingRoles, ...addToSetValue.$each];
+            } else {
+              newRoles = [...existingRoles, addToSetValue];
+            }
+          }
+        } else if (updates[fieldName]) {
+          // Direct field update
+          newRoles = updates[fieldName];
         }
 
         if (newRoles.length > 0) {
@@ -306,14 +333,11 @@ UserSchema.pre(
           // Convert Map values back to array
           const finalRoles = Array.from(uniqueRoles.values());
 
-          // Clear all update operators for this field
-          if (updates.$set) delete updates.$set[fieldName];
-          if (updates.$push) delete updates.$push[fieldName];
-          if (updates.$addToSet) delete updates.$addToSet[fieldName];
-
-          // Set the final filtered array
-          updates.$set = updates.$set || {};
+          // Set the final filtered array using $set and clean up other operators
           updates.$set[fieldName] = finalRoles;
+          delete updates.$push[fieldName];
+          delete updates.$addToSet[fieldName];
+          delete updates[fieldName]; // Clean up direct field update if any
         }
       };
 
@@ -334,10 +358,10 @@ UserSchema.pre(
         if (isNew) {
           this.password = bcrypt.hashSync(passwordToHash, saltRounds);
         } else {
-          if (updates.password) {
+          if (updates && updates.password) {
             updates.password = bcrypt.hashSync(passwordToHash, saltRounds);
           }
-          if (updates.$set && updates.$set.password) {
+          if (updates && updates.$set && updates.$set.password) {
             updates.$set.password = bcrypt.hashSync(passwordToHash, saltRounds);
           }
         }
@@ -453,6 +477,17 @@ UserSchema.pre(
           ...(updates.$set || {}),
         };
 
+        // Profile picture validation for updates
+        if (actualUpdates.profilePicture) {
+          if (!validateProfilePicture(actualUpdates.profilePicture)) {
+            return next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "Invalid profile picture URL",
+              })
+            );
+          }
+        }
+
         // Conditional validations for updates
         // Only validate fields that are present in the update
         fieldsToValidate.forEach((field) => {
@@ -472,7 +507,7 @@ UserSchema.pre(
         const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
         immutableFields.forEach((field) => {
           if (updates[field]) delete updates[field];
-          if (updates.$set && updates.$set[field]) {
+          if (updates && updates.$set && updates.$set[field]) {
             return next(
               new HttpError(
                 "Modification Not Allowed",
@@ -481,7 +516,7 @@ UserSchema.pre(
               )
             );
           }
-          if (updates.$set) delete updates.$set[field];
+          if (updates && updates.$set) delete updates.$set[field];
           if (updates.$push) delete updates.$push[field];
         });
 
@@ -510,7 +545,7 @@ UserSchema.pre(
         // Conditional permissions validation
         if (updates.permissions) {
           const uniquePermissions = [...new Set(updates.permissions)];
-          if (updates.$set) {
+          if (updates && updates.$set) {
             updates.$set.permissions = uniquePermissions;
           } else {
             updates.permissions = uniquePermissions;
@@ -518,7 +553,7 @@ UserSchema.pre(
         }
 
         // Conditional default values for updates
-        if (updates.$set) {
+        if (updates && updates.$set) {
           updates.$set.verified = updates.$set.verified ?? false;
           updates.$set.analyticsVersion = updates.$set.analyticsVersion ?? 2;
         } else {

@@ -5,13 +5,15 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer`
 );
 const { logObject } = require("@utils/log");
-const createEvent = require("@utils/create-event");
+const createEventUtil = require("@utils/create-event");
+const createForecastUtil = require("@utils/create-forecast");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
 const stringify = require("@utils/stringify");
 
+// Existing measurement schema
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
   s2_pm10: Joi.number().optional(),
@@ -62,6 +64,39 @@ const eventSchema = Joi.object({
   intakehumidity: Joi.number().optional(),
 }).unknown(true);
 
+// Forecast validation schemas
+const forecastMeasurementsSchema = Joi.object({
+  timestamp: Joi.date()
+    .iso()
+    .required(),
+  horizon: Joi.number().required(),
+  measurements: Joi.object({
+    pm2_5: Joi.number().required(),
+    pm10: Joi.number().required(),
+    confidence: Joi.object({
+      pm2_5_lower: Joi.number().required(),
+      pm2_5_upper: Joi.number().required(),
+      pm10_lower: Joi.number().required(),
+      pm10_upper: Joi.number().required(),
+    }).required(),
+  }).required(),
+});
+
+const forecastSchema = Joi.object({
+  type: Joi.string()
+    .valid("forecast")
+    .required(),
+  created_at: Joi.date()
+    .iso()
+    .required(),
+  model_version: Joi.string().required(),
+  device_id: Joi.string().required(),
+  site_id: Joi.string().required(),
+  forecasts: Joi.array()
+    .items(forecastMeasurementsSchema)
+    .required(),
+});
+
 const eventsSchema = Joi.array().items(eventSchema);
 
 const consumeHourlyMeasurements = async (messageData) => {
@@ -103,13 +138,16 @@ const consumeHourlyMeasurements = async (messageData) => {
           timestamp,
         };
       });
+      logger.error(`Validation errors: ${stringify(errorDetails)}`);
     }
 
     const request = {
       body: cleanedMeasurements,
     };
 
-    const responseFromInsertMeasurements = await createEvent.create(request);
+    const responseFromInsertMeasurements = await createEventUtil.create(
+      request
+    );
 
     if (responseFromInsertMeasurements.success === false) {
       console.log("KAFKA: failed to store the measurements");
@@ -119,6 +157,106 @@ const consumeHourlyMeasurements = async (messageData) => {
   } catch (error) {
     logger.error(`🐛🐛 KAFKA: error message --- ${error.message}`);
     logger.error(`🐛🐛 KAFKA: full error object --- ${stringify(error)}`);
+  }
+};
+
+// Transform the incoming forecast message to match the expected format
+const transformForecastData = (forecastData) => {
+  const {
+    forecasts,
+    created_at,
+    model_version,
+    device_id,
+    site_id,
+  } = forecastData;
+
+  // Transform the forecasts into the expected format
+  const values = forecasts.map((forecast) => ({
+    time: forecast.timestamp,
+    forecast_horizon: forecast.horizon,
+    pm2_5: {
+      value: forecast.measurements.pm2_5,
+      confidence_lower: forecast.measurements.confidence.pm2_5_lower,
+      confidence_upper: forecast.measurements.confidence.pm2_5_upper,
+    },
+    pm10: {
+      value: forecast.measurements.pm10,
+      confidence_lower: forecast.measurements.confidence.pm10_lower,
+      confidence_upper: forecast.measurements.confidence.pm10_upper,
+    },
+  }));
+
+  return {
+    device_id,
+    site_id,
+    forecast_created_at: created_at,
+    model_version,
+    values,
+  };
+};
+
+// New function to handle forecast messages
+const consumeForecasts = async (messageData) => {
+  try {
+    if (isEmpty(messageData)) {
+      logger.error(
+        `KAFKA: forecast message is undefined --- ${stringify(messageData)}`
+      );
+      return;
+    }
+
+    const repairedJSONString = jsonrepair(messageData);
+    const forecastData = JSON.parse(repairedJSONString);
+
+    // Validate the incoming forecast data against our schema
+    const options = {
+      abortEarly: false,
+    };
+
+    const { error, value } = forecastSchema.validate(forecastData, options);
+
+    if (error) {
+      const errorDetails = error.details.map((detail) => ({
+        message: detail.message,
+        key: detail.context.key,
+        path: detail.path.join("."),
+      }));
+      logger.error(`Forecast validation errors: ${stringify(errorDetails)}`);
+      return;
+    }
+
+    // Transform the validated data to match the expected format for createForecastUtil
+    const transformedData = transformForecastData(forecastData);
+
+    // Create the request object expected by createForecastUtil.create
+    const request = {
+      body: transformedData,
+      query: {
+        tenant: constants.DEFAULT_TENANT,
+      },
+    };
+
+    // Store the forecast using createForecastUtil
+    const response = await createForecastUtil.create(request, (error) => {
+      if (error) {
+        logger.error(`KAFKA: forecast creation error --- ${stringify(error)}`);
+        throw error;
+      }
+    });
+
+    if (response.success === false) {
+      logger.error(`KAFKA: failed to store forecasts --- ${response.message}`);
+    } else if (response.success === true) {
+      logger.info(
+        `KAFKA: successfully stored forecasts --- ${response.message}`
+      );
+      logger.info(`KAFKA: stored ${response.data.length} forecast days`);
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 KAFKA: forecast error message --- ${error.message}`);
+    logger.error(
+      `🐛🐛 KAFKA: forecast full error object --- ${stringify(error)}`
+    );
   }
 };
 
@@ -137,19 +275,20 @@ const kafkaConsumer = async () => {
 
     // Define topic-to-operation function mapping
     const topicOperations = {
-      ["hourly-measurements-topic"]: consumeHourlyMeasurements,
+      "hourly-measurements-topic": consumeHourlyMeasurements,
+      "airqo.forecasts": consumeForecasts,
     };
 
     await consumer.connect();
 
-    // First, subscribe to all topics
+    // Subscribe to all topics
     await Promise.all(
       Object.keys(topicOperations).map((topic) =>
         consumer.subscribe({ topic, fromBeginning: false })
       )
     );
 
-    // Then, start consuming messages
+    // Start consuming messages
     await consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
         try {
