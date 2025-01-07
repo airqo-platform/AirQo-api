@@ -161,7 +161,7 @@ class AirnowDataUtils:
                         "timestamp": row["UTC"],
                         "network": row["network"],
                         "site_id": device_details.get("site_id"),
-                        "device_id": device_details.get("device_id"),
+                        "device_id": device_details.get("name"),
                         "mongo_id": device_details.get("_id"),
                         "device_number": device_details.get("device_number"),
                         "frequency": str(Frequency.HOURLY),
