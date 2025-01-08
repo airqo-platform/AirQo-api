@@ -66,20 +66,39 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_data_from_bigquery(
-        start_date_time, end_date_time, frequency: Frequency
+        start_date_time,
+        end_date_time,
+        frequency: Frequency,
+        device_network: DeviceNetwork = None,
     ) -> pd.DataFrame:
+        """
+        Extracts data from BigQuery within a specified time range and frequency,
+        with an optional filter for the device network. The data is cleaned to remove outliers.
+
+        Args:
+            start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
+            end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
+            frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
+            device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
+
+        Raises:
+            ValueError: If the frequency is unsupported or no table is associated with it.
+        """
         bigquery_api = BigQueryApi()
-        if frequency == Frequency.RAW:
-            table = bigquery_api.raw_measurements_table
-        elif frequency == Frequency.HOURLY:
-            table = bigquery_api.hourly_measurements_table
-        else:
-            table = ""
+
+        table = {
+            Frequency.RAW: bigquery_api.raw_measurements_table,
+            Frequency.HOURLY: bigquery_api.hourly_measurements_table,
+        }.get(frequency, "")
+
         raw_data = bigquery_api.query_data(
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            network=DeviceNetwork.AIRQO,
+            network=device_network,
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
