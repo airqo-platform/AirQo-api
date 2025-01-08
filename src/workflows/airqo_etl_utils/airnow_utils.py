@@ -4,7 +4,7 @@ import pandas as pd
 
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
-from .constants import DataSource, DeviceCategory, Frequency
+from .constants import DataSource, DeviceCategory, Frequency, DeviceNetwork
 from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
@@ -68,7 +68,9 @@ class AirnowDataUtils:
         Raises:
             ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
         """
-        devices = AirQoApi().get_devices_by_network(DeviceCategory.BAM)
+        devices = AirQoApi().get_devices_by_network(
+            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
+        )
         bam_data = pd.DataFrame()
 
         if not devices:
@@ -119,7 +121,12 @@ class AirnowDataUtils:
         """
         air_now_data = []
 
-        devices = AirQoApi().get_devices(device_category=DeviceCategory.BAM)
+        devices = AirQoApi().get_devices_by_network(
+            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
+        )
+
+        # Initialize pollutant values (note: pm10 and no2 are not always present)
+        pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
 
         # Precompute device mapping for faster lookup
         device_mapping = {}
@@ -129,16 +136,14 @@ class AirnowDataUtils:
 
         for _, row in data.iterrows():
             try:
-                device_id = str(row["FullAQSCode"])
+                # Temp external device id
+                device_id_ = str(row["FullAQSCode"])
 
                 # Lookup device details based on FullAQSCode
-                device_details = device_mapping.get(device_id)
+                device_details = device_mapping.get(device_id_)
                 if not device_details:
-                    logger.exception(f"Device with ID {device_id} not found")
+                    logger.exception(f"Device with ID {device_id_} not found")
                     continue
-
-                # Initialize pollutant values (note: pm10 and no2 are not always present)
-                pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
 
                 # Get the corresponding pollutant value for the current parameter
                 parameter_col_name = AirnowDataUtils.parameter_column_name(
@@ -148,7 +153,7 @@ class AirnowDataUtils:
                     pollutant_value[parameter_col_name] = row["Value"]
 
                 if row["network"] != device_details.get("network"):
-                    logger.exception(f"Network mismatch for device ID {device_id}")
+                    logger.exception(f"Network mismatch for device ID {device_id_}")
                     continue
 
                 air_now_data.append(
@@ -156,8 +161,8 @@ class AirnowDataUtils:
                         "timestamp": row["UTC"],
                         "network": row["network"],
                         "site_id": device_details.get("site_id"),
-                        "device_id": device_details.get("device_id"),
-                        "mongo_id": device_details.get("mongo_id"),
+                        "device_id": device_details.get("name"),
+                        "mongo_id": device_details.get("_id"),
                         "device_number": device_details.get("device_number"),
                         "frequency": str(Frequency.HOURLY),
                         "latitude": row["Latitude"],
