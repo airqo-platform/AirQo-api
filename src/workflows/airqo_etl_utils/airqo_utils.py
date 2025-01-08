@@ -86,34 +86,79 @@ class AirQoDataUtils:
 
     @staticmethod
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        cols = data.columns.to_list()
-        cols.remove("timestamp")
-        cols.remove("device_number")
-        data.dropna(subset=cols, how="all", inplace=True)
+        """
+        Removes duplicate rows from a pandas DataFrame based on 'device_id' and 'timestamp'
+        while ensuring missing values are filled and non-duplicated data is retained.
+
+        Steps:
+        1. Drops rows where all non-essential columns (except 'timestamp', 'device_id', and 'device_number') are NaN.
+        2. Drops rows where 'site_id' is NaN (assumed to be non-deployed devices).
+        3. Identifies duplicate rows based on 'device_id' and 'timestamp'.
+        4. Fills missing values for duplicates within each 'site_id' group using forward and backward filling.
+        5. Retains only the first occurrence of duplicates.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame containing 'timestamp', 'device_id', and 'site_id' columns.
+
+        Returns:
+            pd.DataFrame: A cleaned DataFrame with duplicates handled and missing values filled.
+        """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        non_essential_cols = [
+            col
+            for col in data.columns
+            if col not in ["timestamp", "device_id", "device_number", "site_id"]
+        ]
+        data.dropna(subset=non_essential_cols, how="all", inplace=True)
+
+        # Drop rows where 'site_id' is NaN (non-deployed devices)
+        data.dropna(subset=["site_id"], inplace=True)
+
         data["duplicated"] = data.duplicated(
-            keep=False, subset=["device_number", "timestamp"]
+            keep=False, subset=["device_id", "timestamp"]
         )
 
-        if True not in data["duplicated"].values:
+        if not data["duplicated"].any():
+            data.drop(columns=["duplicated"], inplace=True)
             return data
 
-        duplicated_data = data.loc[data["duplicated"]]
-        not_duplicated_data = data.loc[~data["duplicated"]]
+        duplicates = data[data["duplicated"]].copy()
+        non_duplicates = data[~data["duplicated"]].copy()
 
-        for _, by_device_number in duplicated_data.groupby(by="device_number"):
-            for _, by_timestamp in by_device_number.groupby(by="timestamp"):
-                by_timestamp = by_timestamp.copy()
-                by_timestamp.fillna(inplace=True, method="ffill")
-                by_timestamp.fillna(inplace=True, method="bfill")
-                by_timestamp.drop_duplicates(
-                    subset=["device_number", "timestamp"], inplace=True, keep="first"
-                )
-                not_duplicated_data = pd.concat(
-                    [not_duplicated_data, by_timestamp], ignore_index=True
-                )
+        columns_to_fill = [
+            col
+            for col in duplicates.columns
+            if col
+            not in [
+                "device_number",
+                "device_id",
+                "timestamp",
+                "latitude",
+                "longitude",
+                "network",
+                "site_id",
+            ]
+        ]
 
-        return not_duplicated_data
+        # Fill missing values within each 'site_id' group
+        filled_duplicates = []
+        for _, group in duplicates.groupby("site_id"):
+            group = group.sort_values(by=["device_id", "timestamp"])
+            group[columns_to_fill] = (
+                group[columns_to_fill].fillna(method="ffill").fillna(method="bfill")
+            )
+            group = group.drop_duplicates(
+                subset=["device_id", "timestamp"], keep="first"
+            )
+            filled_duplicates.append(group)
+
+        duplicates = pd.concat(filled_duplicates, ignore_index=True)
+        cleaned_data = pd.concat([non_duplicates, duplicates], ignore_index=True)
+
+        cleaned_data.drop(columns=["duplicated"], inplace=True)
+
+        return cleaned_data
 
     @staticmethod
     def extract_aggregated_raw_data(
