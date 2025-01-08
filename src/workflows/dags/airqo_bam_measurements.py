@@ -6,11 +6,11 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.utils.dates import days_ago
 import pandas as pd
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
-from airqo_etl_utils.constants import DeviceCategory, DataType
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from datetime import timedelta
 from airflow.exceptions import AirflowFailException
+from airqo_etl_utils.constants import Frequency, DeviceNetwork, DeviceCategory, DataType
 
 
 @dag(
@@ -22,8 +22,6 @@ from airflow.exceptions import AirflowFailException
     start_date=days_ago(1),
 )
 def airqo_bam_historical_measurements():
-    from airqo_etl_utils.constants import Frequency
-
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -33,6 +31,7 @@ def airqo_bam_historical_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
+            device_network=DeviceNetwork.AIRQO,
             resolution=Frequency.HISTORICAL,
         )
 
@@ -80,13 +79,11 @@ airqo_bam_historical_measurements_dag = airqo_bam_historical_measurements()
 )
 def airqo_bam_realtime_measurements():
     import pandas as pd
-    from airqo_etl_utils.constants import Frequency
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.constants import DeviceCategory
 
         start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
 
@@ -94,13 +91,13 @@ def airqo_bam_realtime_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
+            device_network=DeviceNetwork.AIRQO,
             resolution=Frequency.RAW,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_unclean_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = AirQoDataUtils.format_data_for_bigquery(
@@ -121,7 +118,6 @@ def airqo_bam_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = AirQoDataUtils.format_data_for_bigquery(
@@ -137,9 +133,7 @@ def airqo_bam_realtime_measurements():
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.constants import DeviceCategory
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
         from datetime import datetime
 
         now = datetime.now()
