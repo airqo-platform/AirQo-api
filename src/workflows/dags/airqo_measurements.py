@@ -215,7 +215,7 @@ def airqo_historical_raw_measurements():
 def airqo_cleanup_measurements():
     import pandas as pd
 
-    @task(provide_context=True)
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
@@ -229,7 +229,7 @@ def airqo_cleanup_measurements():
             frequency=Frequency.RAW,
         )
 
-    @task(provide_context=True)
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
@@ -255,7 +255,7 @@ def airqo_cleanup_measurements():
 
         return AirQoDataUtils.remove_duplicates(data=data)
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -264,7 +264,7 @@ def airqo_cleanup_measurements():
             dataframe=data, table=big_query_api.raw_measurements_table
         )
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_hourly_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
