@@ -221,7 +221,7 @@ def airqo_cleanup_measurements():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=14, **kwargs
+            days=1, **kwargs
         )
         return AirQoDataUtils.extract_data_from_bigquery(
             start_date_time=start_date_time,
@@ -235,7 +235,7 @@ def airqo_cleanup_measurements():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=14, **kwargs
+            days=1, **kwargs
         )
         return AirQoDataUtils.extract_data_from_bigquery(
             start_date_time=start_date_time,
