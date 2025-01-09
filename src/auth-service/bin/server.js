@@ -18,6 +18,7 @@ const passport = require("passport");
 const { HttpError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
+const rateLimit = require("express-rate-limit");
 const options = { mongooseConnection: mongoose.connection };
 require("@bin/jobs/active-status-job");
 require("@bin/jobs/token-expiration-job");
@@ -77,6 +78,13 @@ app.use(
 
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
+
+const transactionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: "Too many transaction requests, please try again later",
+});
+app.use("/api/v2/users/transactions", transactionLimiter);
 
 // app.use("/api/v1/users", require("@routes/v1"));
 app.use("/api/v2/users", require("@routes/v2"));
