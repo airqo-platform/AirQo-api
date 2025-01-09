@@ -47,6 +47,32 @@ class DeviceCategory(Enum):
         return DeviceCategory.LOW_COST
 
 
+class DeviceNetwork(Enum):
+    """
+    METONE -> Us embassy
+    AIRQO -> Airqo
+    URBANBETTER -> Urban Better
+    IQAIR -> Iqair
+    """
+
+    METONE = 1
+    AIRQO = 2
+    URBANBETTER = 3
+    IQAIR = 4
+
+    def __str__(self):
+        if self == self.METONE:
+            return "metone"
+        elif self == self.AIRQO:
+            return "airqo"
+        elif self == self.URBANBETTER:
+            return "airbeam"
+        elif self == self.IQAIR:
+            return "iqair"
+        else:
+            raise LookupError("Invalid network supplied")
+
+
 class Frequency(Enum):
     """
     RAW -> Raw current data returned from devices

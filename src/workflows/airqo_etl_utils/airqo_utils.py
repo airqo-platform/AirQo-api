@@ -8,7 +8,7 @@ from .bigquery_api import BigQueryApi
 from .config import configuration
 from .constants import (
     DeviceCategory,
-    Tenant,
+    DeviceNetwork,
     Frequency,
     DataSource,
     DataType,
@@ -59,61 +59,125 @@ class AirQoDataUtils:
             null_cols=["pm2_5_calibrated_value"],
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            network=str(Tenant.AIRQO),
+            network=DeviceNetwork.AIRQO,
         )
 
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
 
     @staticmethod
     def extract_data_from_bigquery(
-        start_date_time, end_date_time, frequency: Frequency
+        start_date_time,
+        end_date_time,
+        frequency: Frequency,
+        device_network: DeviceNetwork = None,
     ) -> pd.DataFrame:
+        """
+        Extracts data from BigQuery within a specified time range and frequency,
+        with an optional filter for the device network. The data is cleaned to remove outliers.
+
+        Args:
+            start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
+            end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
+            frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
+            device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
+
+        Raises:
+            ValueError: If the frequency is unsupported or no table is associated with it.
+        """
         bigquery_api = BigQueryApi()
-        if frequency == Frequency.RAW:
-            table = bigquery_api.raw_measurements_table
-        elif frequency == Frequency.HOURLY:
-            table = bigquery_api.hourly_measurements_table
-        else:
-            table = ""
+
+        table = {
+            Frequency.RAW: bigquery_api.raw_measurements_table,
+            Frequency.HOURLY: bigquery_api.hourly_measurements_table,
+        }.get(frequency, "")
+
         raw_data = bigquery_api.query_data(
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            network=str(Tenant.AIRQO),
+            network=device_network,
         )
 
         return DataValidationUtils.remove_outliers(raw_data)
 
     @staticmethod
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        cols = data.columns.to_list()
-        cols.remove("timestamp")
-        cols.remove("device_number")
-        data.dropna(subset=cols, how="all", inplace=True)
+        """
+        Removes duplicate rows from a pandas DataFrame based on 'device_id' and 'timestamp'
+        while ensuring missing values are filled and non-duplicated data is retained.
+
+        Steps:
+        1. Drops rows where all non-essential columns (except 'timestamp', 'device_id', and 'device_number') are NaN.
+        2. Drops rows where 'site_id' is NaN (assumed to be non-deployed devices).
+        3. Identifies duplicate rows based on 'device_id' and 'timestamp'.
+        4. Fills missing values for duplicates within each 'site_id' group using forward and backward filling.
+        5. Retains only the first occurrence of duplicates.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame containing 'timestamp', 'device_id', and 'site_id' columns.
+
+        Returns:
+            pd.DataFrame: A cleaned DataFrame with duplicates handled and missing values filled.
+        """
         data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        non_essential_cols = [
+            col
+            for col in data.columns
+            if col not in ["timestamp", "device_id", "device_number", "site_id"]
+        ]
+        data.dropna(subset=non_essential_cols, how="all", inplace=True)
+
+        # Drop rows where 'site_id' is NaN (non-deployed devices)
+        data.dropna(subset=["site_id"], inplace=True)
+
         data["duplicated"] = data.duplicated(
-            keep=False, subset=["device_number", "timestamp"]
+            keep=False, subset=["device_id", "timestamp"]
         )
 
-        if True not in data["duplicated"].values:
+        if not data["duplicated"].any():
+            data.drop(columns=["duplicated"], inplace=True)
             return data
 
-        duplicated_data = data.loc[data["duplicated"]]
-        not_duplicated_data = data.loc[~data["duplicated"]]
+        duplicates = data[data["duplicated"]].copy()
+        non_duplicates = data[~data["duplicated"]].copy()
 
-        for _, by_device_number in duplicated_data.groupby(by="device_number"):
-            for _, by_timestamp in by_device_number.groupby(by="timestamp"):
-                by_timestamp = by_timestamp.copy()
-                by_timestamp.fillna(inplace=True, method="ffill")
-                by_timestamp.fillna(inplace=True, method="bfill")
-                by_timestamp.drop_duplicates(
-                    subset=["device_number", "timestamp"], inplace=True, keep="first"
-                )
-                not_duplicated_data = pd.concat(
-                    [not_duplicated_data, by_timestamp], ignore_index=True
-                )
+        columns_to_fill = [
+            col
+            for col in duplicates.columns
+            if col
+            not in [
+                "device_number",
+                "device_id",
+                "timestamp",
+                "latitude",
+                "longitude",
+                "network",
+                "site_id",
+            ]
+        ]
 
-        return not_duplicated_data
+        # Fill missing values within each 'site_id' group
+        filled_duplicates = []
+        for _, group in duplicates.groupby("site_id"):
+            group = group.sort_values(by=["device_id", "timestamp"])
+            group[columns_to_fill] = (
+                group[columns_to_fill].fillna(method="ffill").fillna(method="bfill")
+            )
+            group = group.drop_duplicates(
+                subset=["device_id", "timestamp"], keep="first"
+            )
+            filled_duplicates.append(group)
+
+        duplicates = pd.concat(filled_duplicates, ignore_index=True)
+        cleaned_data = pd.concat([non_duplicates, duplicates], ignore_index=True)
+
+        cleaned_data.drop(columns=["duplicated"], inplace=True)
+
+        return cleaned_data
 
     @staticmethod
     def extract_aggregated_raw_data(
@@ -392,7 +456,7 @@ class AirQoDataUtils:
     @staticmethod
     def restructure_airqo_mobile_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["tenant"] = "airqo"
+        data["network"] = "airqo"
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(
             table=big_query_api.airqo_mobile_measurements_table
@@ -404,12 +468,13 @@ class AirQoDataUtils:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
+        device_network: DeviceNetwork = None,
         resolution: Frequency = Frequency.RAW,
         device_numbers: list = None,
         remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
-        Extracts sensor measurements from AirQo devices recorded between specified date and time ranges.
+        Extracts sensor measurements from network devices recorded between specified date and time ranges.
 
         Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
         Optionally filters data by specific device numbers and removes outliers if requested.
@@ -425,7 +490,9 @@ class AirQoDataUtils:
         airqo_api = AirQoApi()
         data_source_api = DataSourcesApis()
 
-        devices = airqo_api.get_devices_by_network(device_category=device_category)
+        devices = airqo_api.get_devices_by_network(
+            device_network=device_network, device_category=device_category
+        )
         if not devices:
             logger.exception(
                 "Failed to fetch devices. Please check if devices are deployed"
@@ -571,7 +638,7 @@ class AirQoDataUtils:
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["tenant"] = str(Tenant.AIRQO)
+        data["network"] = DeviceNetwork.AIRQO
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
@@ -899,12 +966,12 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(network=str(Tenant.AIRQO))
+        devices = airqo_api.get_devices(network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
         for device in devices:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
-                    tenant="airqo",
+                    network="airqo",
                     device=device.get("name", None),
                     activity_type="deployment",
                 )
