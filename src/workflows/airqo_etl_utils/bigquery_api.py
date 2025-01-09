@@ -567,7 +567,7 @@ class BigQueryApi:
         columns = ", ".join(map(str, columns)) if columns else " * "
         where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
 
-        if network:
+        if network and network != "all":
             where_clause += f"AND network = '{network}' "
 
         valid_cols = self.get_columns(table=table)
