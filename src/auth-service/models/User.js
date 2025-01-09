@@ -234,6 +234,37 @@ const UserSchema = new Schema(
     },
     google_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
+    subscriptionStatus: {
+      type: String,
+      enum: ["inactive", "active", "past_due", "cancelled"],
+      default: "inactive",
+    },
+    currentSubscriptionId: {
+      type: String,
+    },
+    lastSubscriptionCheck: {
+      type: Date,
+    },
+    subscriptionCancelledAt: {
+      type: Date,
+    },
+    automaticRenewal: {
+      type: Boolean,
+      default: false,
+    },
+    nextBillingDate: {
+      type: Date,
+    },
+    lastRenewalDate: {
+      type: Date,
+    },
+    currentPlanDetails: {
+      type: {
+        priceId: String,
+        currency: String,
+        billingCycle: String, // 'monthly', 'annual', etc.
+      },
+    },
   },
   { timestamps: true }
 );
