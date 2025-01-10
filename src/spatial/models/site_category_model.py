@@ -7,10 +7,13 @@ api = overpy.Overpass()
 
 class SiteCategoryModel:
     def __init__(self, category=None):
+        # Initialize the class with an optional category
         self.category = category
 
     def categorize_site_osm(self, latitude, longitude):
+        # Define search radii for querying OSM data
         search_radii = [50, 100, 250]
+        # Define categories with corresponding OSM tags
         categories = {
             "Urban Background": ["residential", "urban"],
             "Urban Commercial": ["commercial", "retail", "industrial"],
@@ -33,6 +36,7 @@ class SiteCategoryModel:
         }
 
         # Priority list of categories to check in case of unknown
+        # Priority order of categories for determining the site type
         priority_categories = [
             "Major Highway",
             "Urban Commercial",
@@ -41,17 +45,20 @@ class SiteCategoryModel:
             "Residential Road",
             "Water Body",
         ]
-
+        # Initialize variables to track the nearest categorization
         nearest_categorization = None
         nearest_distance = float("inf")
         nearest_area_name = None
+        # Variables to store additional information about the area
         landuse_info = None
         natural_info = None
         waterway_info = None
         highway_info = None
+        # For debugging purposes, collect information about the query process
         debug_info = []
-
+        # Loop through each search radius to query OSM data
         for radius in search_radii:
+        # Define the Overpass API query for multiple tags around the location
             query = f"""
             [out:json];
             (
@@ -72,12 +79,15 @@ class SiteCategoryModel:
             """
 
             try:
+                # Query the Overpass API
                 result = api.query(query)
             except Exception as e:
+                # Add error information to debug info if the query fails
                 debug_info.append(f"Error querying OSM: {e}")
                 continue
-
+            # Loop through results (ways) returned by the query
             for way in result.ways:
+            # Extract tags and relevant information from each way
                 tags = way.tags
                 landuse = tags.get("landuse", "unknown")
                 natural = tags.get("natural", "unknown")
@@ -87,7 +97,7 @@ class SiteCategoryModel:
                 center_lon = way.center_lon
                 area_name = tags.get("name", "Unnamed")
 
-                # Append debug information
+                # Append debug information for the current way
                 debug_info.append(f"Found OSM data:")
                 debug_info.append(f"  Landuse: {landuse}")
                 debug_info.append(f"  Natural: {natural}")
@@ -95,7 +105,7 @@ class SiteCategoryModel:
                 debug_info.append(f"  Highway: {highway}")
                 debug_info.append(f"  Location: ({center_lat}, {center_lon})")
                 debug_info.append(f"  Area Name: {area_name}")
-
+                # Calculate the distance from the query point to the OSM way center
                 if center_lat and center_lon:
                     distance = geodesic(
                         (latitude, longitude), (center_lat, center_lon)
@@ -114,7 +124,7 @@ class SiteCategoryModel:
                             debug_info,
                         )
 
-                    # Check for major highways within 50m
+                    # Check for major highways within 50 m
                     if distance < 50 and highway in categories["Major Highway"]:
                         return (
                             "Urban Commercial",
@@ -128,6 +138,7 @@ class SiteCategoryModel:
                         )
 
                     # Update nearest_categorization based on landuse and highway tags
+                    # Update the nearest categorization based on tags and distance
                     for category in priority_categories:
                         if category == "Urban Background" and (
                             landuse in categories["Urban Background"]
@@ -183,7 +194,7 @@ class SiteCategoryModel:
                                 waterway_info = waterway
                                 highway_info = highway
 
-        # Fallback if no categorization found but area name is available
+        # Fallback if no categorization was found, but area name is available
         if nearest_categorization is None and nearest_area_name:
             if "forest" in nearest_area_name.lower():
                 return (
