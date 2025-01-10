@@ -23,7 +23,7 @@ def cleanup_measurements():
     @task(
         provide_context=True,
         retries=3,
-        retry_delay=timedelta(minutes=5),
+        retry_delay=timedelta(minutes=10),
     )
     def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.date import DateUtils
@@ -38,7 +38,7 @@ def cleanup_measurements():
             end_date_time=end_date_time,
         )
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=10))
     def cleanup_and_load(data: pd.DataFrame):
         from airqo_etl_utils.daily_data_utils import DailyDataUtils
 
