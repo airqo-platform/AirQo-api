@@ -275,7 +275,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
     {
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
+      callbackURL: `${constants.PLATFORM_BASE_URL}/api/v2/users/auth/google/callback`,
     },
     async (accessToken, refreshToken, profile, cb) => {
       logObject("Google profile Object", profile._json);
