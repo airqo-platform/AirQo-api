@@ -53,30 +53,6 @@ class DailyDataUtils:
         return averaged_data
 
     @staticmethod
-    def query_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
-        bigquery_api = BigQueryApi()
-
-        raw_data = bigquery_api.query_data(
-            table=bigquery_api.hourly_measurements_table,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-        )
-
-        return DataValidationUtils.remove_outliers(raw_data)
-
-    @staticmethod
-    def query_daily_data(start_date_time, end_date_time) -> pd.DataFrame:
-        bigquery_api = BigQueryApi()
-
-        raw_data = bigquery_api.query_data(
-            table=bigquery_api.daily_measurements_table,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-        )
-
-        return DataValidationUtils.remove_outliers(raw_data)
-
-    @staticmethod
     def cleanup_and_reload(
         data: pd.DataFrame, start_date_time=None, end_date_time=None
     ):
@@ -91,7 +67,6 @@ class DailyDataUtils:
             dataframe=data,
             table=table,
         )
-
         bigquery_api.reload_data(
             network="all",
             table=table,

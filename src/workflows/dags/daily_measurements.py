@@ -2,12 +2,14 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.daily_data_utils import DailyDataUtils
+from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from datetime import timedelta
 from dag_docs import (
     daily_measurements_clean_up_doc,
     daily_devices_measurements_realtime_doc,
     daily_devices_measurements_historical_doc,
 )
+from airqo_etl_utils.constants import Frequency
 
 
 @dag(
@@ -32,9 +34,10 @@ def cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
-        return DailyDataUtils.query_daily_data(
+        return AirQoDataUtils.extract_data_from_bigquery(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            frequency=Frequency.DAILY,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=10))
@@ -65,10 +68,10 @@ def realtime_daily_measurements():
         end_date_time = datetime.strftime(
             datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
         )
-
-        return DailyDataUtils.query_hourly_data(
+        return AirQoDataUtils.extract_data_from_bigquery(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
         )
 
     @task()
@@ -102,9 +105,10 @@ def historical_daily_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=7, **kwargs
         )
-        return DailyDataUtils.query_hourly_data(
+        return AirQoDataUtils.extract_data_from_bigquery(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
         )
 
     @task()
