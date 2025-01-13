@@ -92,6 +92,7 @@ class AirQoDataUtils:
         table = {
             Frequency.RAW: bigquery_api.raw_measurements_table,
             Frequency.HOURLY: bigquery_api.hourly_measurements_table,
+            Frequency.DAILY: bigquery_api.daily_measurements_table,
         }.get(frequency, "")
 
         raw_data = bigquery_api.query_data(
