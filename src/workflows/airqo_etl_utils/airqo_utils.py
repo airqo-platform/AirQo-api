@@ -188,7 +188,20 @@ class AirQoDataUtils:
         dynamic_query: bool = False,
     ) -> pd.DataFrame:
         """
-        Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
+        Retrieves PM2.5 sensor data from BigQuery.
+
+        Parameters:
+        - start_date_time (str): The start of the time range for the data retrieval, in ISO format.
+        - end_date_time (str): The end of the time range for the data retrieval, in ISO format.
+        - network (str, optional): The network to filter the data by. Defaults to None.
+        - dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
+
+        Returns:
+        - pd.DataFrame: A DataFrame containing the retrieved data. If no data is found, an empty DataFrame is returned.
+
+        Notes:
+        - Averaged data includes only numeric columns and is grouped by `device_number`, `device_id`, and `site_id`.
+        - Raw data includes all available columns without any aggregation.
         """
         bigquery_api = BigQueryApi()
 
