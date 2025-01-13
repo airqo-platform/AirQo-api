@@ -789,7 +789,7 @@ class BigQueryApi:
             f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
         )
 
-        if network:
+        if network and network != "all":
             where_clause += f"AND network = '{network}' "
 
         # Include time granularity in both SELECT and GROUP BY
