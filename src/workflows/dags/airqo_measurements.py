@@ -15,7 +15,7 @@ from task_docs import (
     send_raw_measurements_to_bigquery_doc,
     extract_raw_airqo_gaseous_data_doc,
 )
-from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency
+from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
 from datetime import timedelta
 import logging
 
@@ -224,6 +224,7 @@ def airqo_cleanup_measurements():
             days=1, **kwargs
         )
         return AirQoDataUtils.extract_data_from_bigquery(
+            DataType.RAW,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.RAW,
@@ -238,6 +239,7 @@ def airqo_cleanup_measurements():
             days=1, **kwargs
         )
         return AirQoDataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
