@@ -66,8 +66,9 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_data_from_bigquery(
-        start_date_time,
-        end_date_time,
+        datatype: str,
+        start_date_time: str,
+        end_date_time: str,
         frequency: Frequency,
         device_network: DeviceNetwork = None,
     ) -> pd.DataFrame:
@@ -76,6 +77,7 @@ class AirQoDataUtils:
         with an optional filter for the device network. The data is cleaned to remove outliers.
 
         Args:
+            datatype(str): The type of data to extract determined by the source data asset.
             start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
             end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
             frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
@@ -88,12 +90,26 @@ class AirQoDataUtils:
             ValueError: If the frequency is unsupported or no table is associated with it.
         """
         bigquery_api = BigQueryApi()
+        table: str = None
 
-        table = {
-            Frequency.RAW: bigquery_api.raw_measurements_table,
-            Frequency.HOURLY: bigquery_api.hourly_measurements_table,
-            Frequency.DAILY: bigquery_api.daily_measurements_table,
-        }.get(frequency, "")
+        source = {
+            "raw": {
+                Frequency.RAW: bigquery_api.raw_measurements_table,
+            },
+            "averaged": {
+                Frequency.HOURLY: bigquery_api.hourly_measurements_table,
+                Frequency.DAILY: bigquery_api.daily_measurements_table,
+            },
+            "consolidated": {
+                Frequency.HOURLY: bigquery_api.consolidated_data_table,
+            },
+        }.get(datatype, None)
+
+        if source:
+            table = source.get(frequency, "")
+
+        if not table:
+            raise ValueError("No table information provided.")
 
         raw_data = bigquery_api.query_data(
             table=table,
