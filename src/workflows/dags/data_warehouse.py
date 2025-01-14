@@ -1,6 +1,9 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from datetime import timedelta
+from airqo_etl_utils.constants import Frequency, DataType
 
 
 @dag(
@@ -102,15 +105,19 @@ def data_warehouse_consolidated_data():
 
 @dag(
     "Cleanup-Consolidated-Data",
-    schedule="0 0 * * */4 ",
+    schedule="0 4 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["consolidated data", "cleanup"],
+    tags=["consolidated data", "cleanup", "daily"],
 )
 def data_warehouse_cleanup_consolidated_data():
     import pandas as pd
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def extract_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
@@ -118,7 +125,6 @@ def data_warehouse_cleanup_consolidated_data():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=5, kwargs=kwargs
         )
-
         return DataWarehouseUtils.extract_data_from_big_query(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -127,9 +133,12 @@ def data_warehouse_cleanup_consolidated_data():
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        return DataWarehouseUtils.remove_duplicates(data=data)
+        return AirQoDataUtils.remove_duplicates(data=data)
 
-    @task()
+    @task(
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -266,7 +275,7 @@ def data_warehouse_historical_cleanup_consolidated_data():
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        return DataWarehouseUtils.remove_duplicates(data=data)
+        return AirQoDataUtils.remove_duplicates(data=data)
 
     @task()
     def load(data: pd.DataFrame):

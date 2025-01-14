@@ -61,14 +61,6 @@ class DataWarehouseUtils:
         )
 
     @staticmethod
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        return data.drop_duplicates(
-            subset=["network", "timestamp", "device_number", "device_id"],
-            keep="first",
-        )
-
-    @staticmethod
     def extract_hourly_low_cost_data(
         start_date_time: str,
         end_date_time: str,
