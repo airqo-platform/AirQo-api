@@ -6,12 +6,16 @@ class DeviceCategory(Enum):
     """
     LOW_COST -> Reference monitors
     BAM -> Low cost sensors
-    GAS -> GASEOUS sensors
+    GAS -> Gaseous sensors
+    WEATHER -> Weather sensors
+    GENERAL -> All the sensors
     """
 
     LOW_COST = 1
     BAM = 2
     LOW_COST_GAS = 3
+    WEATHER = 4
+    GENERAL = 5
     NONE = 20
 
     def __str__(self):
@@ -19,8 +23,12 @@ class DeviceCategory(Enum):
             return "bam"
         elif self == self.LOW_COST_GAS:
             return "gas"
-        else:
+        elif self == self.LOW_COST:
             return "lowcost"
+        elif self == self.WEATHER:
+            return "weather"
+        else:
+            return "general"
 
     @staticmethod
     def category_from_str(category: str):
@@ -92,7 +100,7 @@ class DataType(Enum):
         elif self == self.CONSOLIDATED:
             return "consolidated"
         else:
-            raise LookupError("Invalid network supplied")
+            raise LookupError("Invalid data type supplied")
 
 
 # class DataType(Enum):
