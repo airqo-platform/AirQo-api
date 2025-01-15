@@ -71,6 +71,8 @@ class AirQoDataUtils:
         end_date_time: str,
         frequency: Frequency,
         device_network: DeviceNetwork = None,
+        dynamic_query: bool = False,
+        remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
@@ -82,6 +84,8 @@ class AirQoDataUtils:
             end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
             frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
+            dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
+            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
@@ -116,9 +120,13 @@ class AirQoDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             network=device_network,
+            dynamic_query=dynamic_query,
         )
 
-        return DataValidationUtils.remove_outliers(raw_data)
+        if remove_outliers:
+            raw_data = DataValidationUtils.remove_outliers(raw_data)
+
+        return raw_data
 
     @staticmethod
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
