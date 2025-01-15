@@ -47,22 +47,40 @@ spec:
       type: ephemeral
     resources:
       requests:
-        memory: "2Gi"
-        cpu: "500m"
+        memory: "500Mi"
+        cpu: "100m"
       limits:
-        memory: "4Gi"
-        cpu: "1000m"
+        memory: "2Gi"
+        cpu: "600m"
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: role
+                  operator: In
+                  values:
+                    - high-mem
   zookeeper:
     replicas: 3
     storage:
       type: ephemeral
     resources:
       requests:
-        memory: "1Gi"
-        cpu: "250m"
+        memory: "500Mi"
+        cpu: "50m"
       limits:
-        memory: "2Gi"
-        cpu: "500m"
+        memory: "1Gi"
+        cpu: "150m"
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: role
+                  operator: In
+                  values:
+                    - high-mem
     jvmOptions:
       javaSystemProperties:
         - name: zookeeper.ssl.hostnameVerification

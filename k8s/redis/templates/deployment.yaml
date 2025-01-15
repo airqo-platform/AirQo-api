@@ -29,13 +29,12 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 10
-              preference:
-                matchExpressions:
-                  - key: node-type
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
                     operator: In
                     values:
-                      - general-purpose
+                      - high-mem
       containers:
         - env:
             - name: GET_HOSTS_FROM
@@ -47,10 +46,9 @@ spec:
             - containerPort: 6379
           resources:
             requests:
-              # Average usage was 0.001 vCPU and 10Mi over the last 30 days
+              cpu: 1m
+              memory: 5Mi
+            limits:
               cpu: 50m
               memory: 100Mi
-            limits:
-              cpu: 250m
-              memory: 2000Mi
       restartPolicy: Always

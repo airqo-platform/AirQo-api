@@ -12,11 +12,20 @@ fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 50m
-    memory: 100Mi
-  requests:
     cpu: 5m
-    memory: 70Mi
+    memory: 200Mi
+  requests:
+    cpu: 1m
+    memory: 100Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
 ingress:
   enabled: false
 service:
