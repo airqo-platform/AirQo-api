@@ -8,7 +8,7 @@ from urllib3.util.retry import Retry
 from typing import List, Dict, Any, Union, Generator, Tuple, Optional
 
 from .config import configuration
-from .constants import DeviceCategory, Tenant
+from .constants import DeviceCategory
 from .utils import Utils
 import logging
 

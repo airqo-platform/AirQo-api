@@ -19,6 +19,7 @@ from .date import date_to_str
 from .ml_utils import GCSUtils
 from .data_sources import DataSourcesApis
 from .utils import Utils
+from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any, Optional, Union
 from .airqo_gx_expectations import AirQoGxExpectations
@@ -107,6 +108,7 @@ class AirQoDataUtils:
             "consolidated": {
                 Frequency.HOURLY: bigquery_api.consolidated_data_table,
             },
+            "weather": {Frequency.HOURLY: bigquery_api.hourly_weather_table},
         }.get(datatype, None)
 
         if source:
@@ -203,78 +205,6 @@ class AirQoDataUtils:
         cleaned_data.drop(columns=["duplicated"], inplace=True)
 
         return cleaned_data
-
-    @staticmethod
-    def extract_aggregated_raw_data(
-        start_date_time: str,
-        end_date_time: str,
-        network: str = None,
-        dynamic_query: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Retrieves PM2.5 sensor data from BigQuery.
-
-        Parameters:
-        - start_date_time (str): The start of the time range for the data retrieval, in ISO format.
-        - end_date_time (str): The end of the time range for the data retrieval, in ISO format.
-        - network (str, optional): The network to filter the data by. Defaults to None.
-        - dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-
-        Returns:
-        - pd.DataFrame: A DataFrame containing the retrieved data. If no data is found, an empty DataFrame is returned.
-
-        Notes:
-        - Averaged data includes only numeric columns and is grouped by `device_number`, `device_id`, and `site_id`.
-        - Raw data includes all available columns without any aggregation.
-        """
-        bigquery_api = BigQueryApi()
-
-        measurements = bigquery_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=bigquery_api.raw_measurements_table,
-            network=network,
-            dynamic_query=dynamic_query,
-        )
-
-        if measurements.empty:
-            return pd.DataFrame([])
-
-        return measurements
-
-    @staticmethod
-    def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
-        """
-        Maps thingspeak field8 data to airqo custom mapping. Mappings are defined in the config file.
-
-        Args:
-            device_category(DeviceCategory): Type/category of device
-            field_8(str): Comma separated string
-
-        returns:
-            Pandas Series object of mapped fields to their appropriate values.
-        """
-        values: List[str] = field_8.split(",") if field_8 else ""
-        series = pd.Series(dtype=float)
-
-        match device_category:
-            case DeviceCategory.BAM:
-                mappings = configuration.AIRQO_BAM_CONFIG
-            case DeviceCategory.LOW_COST_GAS:
-                mappings = configuration.AIRQO_LOW_COST_GAS_CONFIG
-            case DeviceCategory.LOW_COST:
-                mappings = configuration.AIRQO_LOW_COST_CONFIG
-            case _:
-                logger.exception("A valid device category must be provided")
-
-        for key, value in mappings.items():
-            try:
-                series[value] = values[key]
-            except Exception as ex:
-                logger.exception(f"An error occurred: {ex}")
-                series[value] = None
-
-        return series
 
     @staticmethod
     def map_and_extract_data(
@@ -423,8 +353,8 @@ class AirQoDataUtils:
             if raw_data.empty:
                 continue
 
-            raw_data = WeatherDataUtils.transform_raw_data(raw_data)
-            aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
+            raw_data = DataUtils.transform_weather_data(raw_data)
+            aggregated_data = DataUtils.aggregate_weather_data(raw_data)
             aggregated_data["timestamp"] = pd.to_datetime(aggregated_data["timestamp"])
 
             for _, row in station_data.iterrows():
