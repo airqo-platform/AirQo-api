@@ -19,6 +19,7 @@ router.use("/clients", require("@routes/v2/clients"));
 router.use("/scopes", require("@routes/v2/scopes"));
 router.use("/departments", require("@routes/v2/departments"));
 router.use("/transactions", require("@routes/v2/transactions"));
+router.use("/campaigns", require("@routes/v2/campaign.routes"));
 router.use("/groups", require("@routes/v2/groups"));
 router.use("/locationHistory", require("@routes/v2/locationHistory"));
 router.use("/searchHistory", require("@routes/v2/searchHistory"));
