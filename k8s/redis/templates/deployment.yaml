@@ -34,7 +34,7 @@ spec:
                   - key: role
                     operator: In
                     values:
-                      - high-mem
+                      - high-cpu
       containers:
         - env:
             - name: GET_HOSTS_FROM
@@ -46,9 +46,9 @@ spec:
             - containerPort: 6379
           resources:
             requests:
-              cpu: 1m
-              memory: 5Mi
-            limits:
-              cpu: 50m
+              cpu: 100m
               memory: 100Mi
+            limits:
+              cpu: 500m
+              memory: 500Mi
       restartPolicy: Always
