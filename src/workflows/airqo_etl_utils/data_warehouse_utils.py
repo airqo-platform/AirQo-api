@@ -5,9 +5,11 @@ from .airqo_utils import AirQoDataUtils
 
 # from .app_insights_utils import AirQoAppUtils
 from .bigquery_api import BigQueryApi
-from .constants import Tenant, DeviceCategory
+from .constants import DeviceCategory, DeviceNetwork
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
+from .constants import DataType, Frequency
+from .datautils import DataUtils
 
 
 class DataWarehouseUtils:
@@ -28,15 +30,17 @@ class DataWarehouseUtils:
         end_date_time: str,
     ) -> pd.DataFrame:
         biq_query_api = BigQueryApi()
-        columns = biq_query_api.get_columns(table=biq_query_api.bam_measurements_table)
-        data = biq_query_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=biq_query_api.bam_measurements_table,
+        columns = biq_query_api.get_columns(
+            table=biq_query_api.bam_hourly_measurements_table
         )
 
-        if data.empty:
-            data = pd.DataFrame(data=[], columns=columns)
+        data = DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.BAM,
+        )
 
         data.rename(
             columns={
@@ -93,8 +97,11 @@ class DataWarehouseUtils:
     def extract_hourly_weather_data(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
-        return WeatherDataUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return WeatherDataUtils.extract_weather_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
         )
 
     @staticmethod
@@ -136,10 +143,10 @@ class DataWarehouseUtils:
         low_cost_data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         bam_data.loc[:, "device_category"] = str(DeviceCategory.BAM)
 
-        airqo_data = low_cost_data.loc[low_cost_data["network"] == str(Tenant.AIRQO)]
+        airqo_data = low_cost_data.loc[low_cost_data["network"] == DeviceNetwork.AIRQO]
 
         non_airqo_data = low_cost_data.loc[
-            low_cost_data["network"] != str(Tenant.AIRQO)
+            low_cost_data["network"] != DeviceNetwork.AIRQO
         ]
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
             airqo_data=airqo_data, weather_data=weather_data
