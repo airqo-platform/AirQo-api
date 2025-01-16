@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
-  tag: stage-017dbe44-1736801443
+  tag: stage-847c727a-1737046297
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -31,8 +31,8 @@ resources:
       memory: 1800Mi
   celery:
     requests:
-       cpu: 125m
-       memory: 500Mi
+      cpu: 125m
+      memory: 500Mi
     limits:
       cpu: 2500m
       memory: 2000Mi
