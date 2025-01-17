@@ -238,11 +238,12 @@ def airqo_cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=1, **kwargs
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
             DataType.RAW,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.RAW,
+            device_category=DeviceCategory.GENERAL,
         )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
@@ -253,11 +254,12 @@ def airqo_cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=1, **kwargs
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.GENERAL,
         )
 
     @task()
