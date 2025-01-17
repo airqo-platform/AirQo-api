@@ -143,15 +143,25 @@ def weather_data_cleanup_measurements():
 
     @task()
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        return DataUtils.remove_duplicates_weather(data=data)
+        exclude_cols = [data.station_code.name]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.station_code.name,
+            group_col=data.station_code.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task()
     def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        return DataUtils.remove_duplicates_weather(data=data)
+        exclude_cols = [data.station_code.name]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.station_code.name,
+            group_col=data.station_code.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):

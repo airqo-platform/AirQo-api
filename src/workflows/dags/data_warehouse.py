@@ -4,6 +4,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from datetime import timedelta
 from airqo_etl_utils.constants import Frequency, DataType
+from airqo_etl_utils.datautils import DataUtils
 
 
 @dag(
@@ -133,7 +134,20 @@ def data_warehouse_cleanup_consolidated_data():
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        return AirQoDataUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
+        # return AirQoDataUtils.remove_duplicates(data=data)
 
     @task(
         retries=3,
@@ -273,9 +287,19 @@ def data_warehouse_historical_cleanup_consolidated_data():
 
     @task()
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-
-        return AirQoDataUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task()
     def load(data: pd.DataFrame):
