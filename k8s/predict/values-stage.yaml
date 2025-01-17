@@ -7,7 +7,7 @@ images:
     predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
     predictPlaces: eu.gcr.io/airqo-250220/stage-airqo-predict-places-air-quality
-  tag: stage-83f5bbab-1734470136
+  tag: stage-847c727a-1737046297
 api:
   name: airqo-stage-prediction-api
   label: prediction-api
@@ -16,19 +16,20 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      memory: 200Mi
+      cpu: 50m
+      memory: 300Mi
     requests:
       cpu: 5m
-      memory: 130Mi
-jobs:
-  predictPlaces:
-    name: stage-airqo-predict-places-air-quality
-    configmap: env-predict-places-air-quality-staging
-    schedule: 0 * * * *
-    resources:
-      limits:
-        cpu: 2500m
-        memory: 4000Mi
+      memory: 150Mi
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - moderate-usage
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -47,4 +48,4 @@ service:
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  targetMemoryUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 85

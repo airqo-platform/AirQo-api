@@ -10,25 +10,25 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
-  tag: stage-017dbe44-1736801443
+  tag: stage-847c727a-1737046297
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   webserver:
     requests:
-      cpu: 125m
-      memory: 500Mi
+      cpu: 50m
+      memory: 1000Mi
     limits:
-      cpu: 1000m
+      cpu: 100m
       memory: 1500Mi
   scheduler:
     requests:
-      cpu: 125m
-      memory: 500Mi
+      cpu: 1500m
+      memory: 1000Mi
     limits:
-      cpu: 1000m
-      memory: 2000Mi
+      cpu: 3000m
+      memory: 1800Mi
   celery:
     requests:
       cpu: 125m
@@ -38,11 +38,20 @@ resources:
       memory: 2000Mi
   redis:
     requests:
-      cpu: 50m
-      memory: 125Mi
+      cpu: 5m
+      memory: 10Mi
     limits:
-      cpu: 1000m
-      memory: 2000Mi
+      cpu: 50m
+      memory: 50Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-cpu
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -71,5 +80,5 @@ service:
       protocol: TCP
 autoscaling:
   minReplicas: 1
-  maxReplicas: 2
-  targetCPUUtilizationPercentage: 80
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 85

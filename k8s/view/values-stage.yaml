@@ -4,7 +4,7 @@ namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-view-api
-  tag: stage-38af6de7-1730309744
+  tag: stage-847c727a-1737046297
 api:
   name: airqo-stage-view-api
   label: view-api
@@ -13,10 +13,20 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      memory: 1000Mi
+      cpu: 20m
+      memory: 420Mi
     requests:
       cpu: 5m
-      memory: 420Mi
+      memory: 300Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
 ingress:
   enabled: false
 service:
