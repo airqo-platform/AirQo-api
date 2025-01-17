@@ -30,7 +30,9 @@ class BigQueryApi:
         )
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
-        self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
+        self.bam_hourly_measurements_table = (
+            configuration.BIGQUERY_HOURLY_BAM_EVENTS_TABLE
+        )
         self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
         self.sensor_positions_table = configuration.SENSOR_POSITIONS_TABLE
         self.unclean_mobile_raw_measurements_table = (
@@ -708,15 +710,22 @@ class BigQueryApi:
                 time_granularity=time_granularity,
             )
 
-        dataframe = self.client.query(query=query).result().to_dataframe()
+        measurements = self.client.query(query=query).result().to_dataframe()
 
-        if dataframe.empty:
-            return pd.DataFrame()
+        expected_columns = self.get_columns(table=table)
+        if measurements.empty:
+            return (
+                pd.DataFrame(columns=expected_columns)
+                if measurements.empty
+                else measurements
+            )
 
-        dataframe.rename(columns={time_granularity.lower(): "timestamp"}, inplace=True)
-        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+        measurements.rename(
+            columns={time_granularity.lower(): "timestamp"}, inplace=True
+        )
+        measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
 
-        return dataframe.drop_duplicates(keep="first")
+        return measurements
 
     def dynamic_averaging_query(
         self,

@@ -7,8 +7,9 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import DataSource, Tenant
+from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .data_validator import DataValidationUtils
+from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from .tahmo_api import TahmoApi
 from .utils import Utils
@@ -17,16 +18,44 @@ import numpy as np
 
 class WeatherDataUtils:
     @staticmethod
-    def extract_hourly_weather_data(start_date_time, end_date_time) -> pd.DataFrame:
-        bigquery_api = BigQueryApi()
+    def extract_weather_data(
+        data_type: DataType,
+        start_date_time: str,
+        end_date_time: str,
+        frequency: Frequency,
+        remove_outliers: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Extracts hourly weather data from BigQuery for a specified time range.
 
-        measurements = bigquery_api.query_data(
+        The function queries weather data from BigQuery using the hourly frequency and ensures that the returned DataFrame contains the expected columns based on the schema of the `hourly_weather_table`. If no data is found, an empty DataFrame with the correct schema is returned.
+
+        Args:
+            start_date_time(str): The start of the time range in ISO 8601 format.
+            end_date_time(str): The end of the time range in ISO 8601 format.
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing the extracted weather data or an empty DataFrame with the expected schema if no data is found.
+        """
+        measurements = DataUtils.extract_data_from_bigquery(
+            data_type,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            table=bigquery_api.hourly_weather_table,
+            frequency=frequency,
+            device_category=DeviceCategory.WEATHER,
+            remove_outliers=remove_outliers,
         )
-        cols = bigquery_api.get_columns(table=bigquery_api.hourly_weather_table)
-        return pd.DataFrame([], cols) if measurements.empty else measurements
+
+        bigquery_api = BigQueryApi()
+
+        expected_columns = bigquery_api.get_columns(
+            table=bigquery_api.hourly_weather_table
+        )
+        return (
+            pd.DataFrame(columns=expected_columns)
+            if measurements.empty
+            else measurements
+        )
 
     @staticmethod
     def get_nearest_weather_stations(records: list) -> list:
@@ -72,17 +101,6 @@ class WeatherDataUtils:
         return pd.DataFrame(data)
 
     @staticmethod
-    def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
-        bigquery_api = BigQueryApi()
-        measurements = bigquery_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=bigquery_api.raw_weather_table,
-        )
-
-        return measurements
-
-    @staticmethod
     def query_raw_data_from_tahmo(
         start_date_time, end_date_time, station_codes: list = None
     ) -> pd.DataFrame:
@@ -116,136 +134,6 @@ class WeatherDataUtils:
         )
 
         return measurements
-
-    @staticmethod
-    def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
-        raw_data = WeatherDataUtils.query_raw_data_from_tahmo(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
-        cleaned_data = WeatherDataUtils.transform_raw_data(raw_data)
-        return WeatherDataUtils.aggregate_data(cleaned_data)
-
-    @staticmethod
-    def transform_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-        if data.empty:
-            return data
-
-        data["value"] = pd.to_numeric(data["value"], errors="coerce", downcast="float")
-        data["time"] = pd.to_datetime(data["time"], errors="coerce")
-        # TODO Clean this up.
-        parameter_mappings = {
-            "te": "temperature",
-            "rh": "humidity",
-            "ws": "wind_speed",
-            "ap": "atmospheric_pressure",
-            "ra": "radiation",
-            "vp": "vapor_pressure",
-            "wg": "wind_gusts",
-            "pr": "precipitation",
-            "wd": "wind_direction",
-        }
-        weather_data = []
-        station_groups = data.groupby("station")
-        for _, station_group in station_groups:
-            station = station_group.iloc[0]["station"]
-            time_groups = station_group.groupby("time")
-
-            for _, time_group in time_groups:
-                timestamp = time_group.iloc[0]["time"]
-                timestamp_data = {"timestamp": timestamp, "station_code": station}
-
-                for _, row in time_group.iterrows():
-                    if row["variable"] in parameter_mappings.keys():
-                        parameter = parameter_mappings[row["variable"]]
-                        value = row["value"]
-                        if parameter == "humidity":
-                            value = value * 100
-
-                        timestamp_data[parameter] = value
-
-                weather_data.append(timestamp_data)
-
-        weather_data = pd.DataFrame(weather_data)
-
-        cols = [value for value in parameter_mappings.values()]
-
-        weather_data = Utils.populate_missing_columns(data=weather_data, columns=cols)
-
-        return DataValidationUtils.remove_outliers(weather_data)
-
-    @staticmethod
-    def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
-        if data.empty:
-            return data
-
-        data = data.dropna(subset=["timestamp"])
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        aggregated_data = pd.DataFrame()
-
-        station_groups = data.groupby("station_code")
-
-        for _, station_group in station_groups:
-            station_group.index = station_group["timestamp"]
-            station_group = station_group.sort_index(axis=0)
-
-            averaging_data = station_group.copy()
-            averaging_data.drop(columns=["precipitation"], inplace=True)
-            numeric_cols = averaging_data.select_dtypes(include=[np.number]).columns
-            averages = averaging_data.resample("H")[numeric_cols].mean()
-            averages.reset_index(drop=True, inplace=True)
-
-            summing_data = station_group.copy()[["precipitation"]]
-            sums = pd.DataFrame(summing_data.resample("H").sum())
-            sums["timestamp"] = sums.index
-            sums.reset_index(drop=True, inplace=True)
-
-            merged_data = pd.concat([averages, sums], axis=1)
-            merged_data["station_code"] = station_group.iloc[0]["station_code"]
-
-            aggregated_data = pd.concat(
-                [aggregated_data, merged_data], ignore_index=True, axis=0
-            )
-
-        return aggregated_data
-
-    @staticmethod
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        cols = data.columns.to_list()
-        cols.remove("timestamp")
-        cols.remove("station_code")
-        data.dropna(subset=cols, how="all", inplace=True)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        data["duplicated"] = data.duplicated(
-            keep=False, subset=["station_code", "timestamp"]
-        )
-
-        if True not in data["duplicated"].values:
-            return data
-
-        duplicated_data = data.loc[data["duplicated"]]
-        not_duplicated_data = data.loc[~data["duplicated"]]
-
-        for _, by_station in duplicated_data.groupby(by="station_code"):
-            for _, by_timestamp in by_station.groupby(by="timestamp"):
-                by_timestamp = by_timestamp.copy()
-                by_timestamp.fillna(inplace=True, method="ffill")
-                by_timestamp.fillna(inplace=True, method="bfill")
-                by_timestamp.drop_duplicates(
-                    subset=["station_code", "timestamp"], inplace=True, keep="first"
-                )
-                not_duplicated_data = pd.concat(
-                    [not_duplicated_data, by_timestamp], ignore_index=True
-                )
-
-        return not_duplicated_data
-
-    @staticmethod
-    def transform_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        bigquery = BigQueryApi()
-        cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
-
-        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def fetch_openweathermap_data_for_sites(sites):

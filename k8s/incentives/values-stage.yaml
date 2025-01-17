@@ -6,16 +6,26 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-incentives-api
-  tag: stage-6ffb3fe6-1735572850
+  tag: stage-847c727a-1737046297
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    memory: 500Mi
-  requests:
     cpu: 100m
-    memory: 250Mi
+    memory: 1000Mi
+  requests:
+    cpu: 10m
+    memory: 500Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
 ingress:
   enabled: false
 service:

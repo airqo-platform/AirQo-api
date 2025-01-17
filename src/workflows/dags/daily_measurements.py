@@ -9,7 +9,7 @@ from dag_docs import (
     daily_devices_measurements_realtime_doc,
     daily_devices_measurements_historical_doc,
 )
-from airqo_etl_utils.constants import Frequency
+from airqo_etl_utils.constants import Frequency, DataType
 
 
 @dag(
@@ -35,6 +35,7 @@ def cleanup_measurements():
             days=14, **kwargs
         )
         return AirQoDataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.DAILY,
@@ -69,6 +70,7 @@ def realtime_daily_measurements():
             datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
         )
         return AirQoDataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
@@ -106,6 +108,7 @@ def historical_daily_measurements():
             historical=True, days=7, **kwargs
         )
         return AirQoDataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
