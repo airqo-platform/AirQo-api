@@ -51,7 +51,6 @@ app.use(
   })
 ); // session setup
 
-app.use(fileUpload());
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {
@@ -75,7 +74,19 @@ app.use(
     parameterLimit: 50000,
   })
 );
-
+// app.use(fileUpload());
+app.use(
+  fileUpload({
+    createParentPath: true,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max file size
+    },
+    useTempFiles: true,
+    tempFileDir: "/tmp/",
+    debug: isDev,
+    abortOnLimit: true,
+  })
+);
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -152,6 +163,18 @@ app.use(function (err, req, res, next) {
         success: false,
         message: err.message,
         errors: { message: err.message },
+      });
+    } else if (err.code && err.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({
+        success: false,
+        message: "File too large",
+        errors: { message: "File size cannot be larger than 50MB" },
+      });
+    } else if (err.code && err.code === "ENOENT") {
+      res.status(400).json({
+        success: false,
+        message: "File upload error",
+        errors: { message: "Unable to find the uploaded file" },
       });
     } else {
       logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
