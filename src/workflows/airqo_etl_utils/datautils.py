@@ -122,114 +122,6 @@ class DataUtils:
         return raw_data
 
     @staticmethod
-    def remove_duplicates_air(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Removes duplicate rows from a pandas DataFrame based on 'device_id' and 'timestamp'
-        while ensuring missing values are filled and non-duplicated data is retained.
-
-        Steps:
-        1. Drops rows where all non-essential columns (except 'timestamp', 'device_id', and 'device_number') are NaN.
-        2. Drops rows where 'site_id' is NaN (assumed to be non-deployed devices).
-        3. Identifies duplicate rows based on 'device_id' and 'timestamp'.
-        4. Fills missing values for duplicates within each 'site_id' group using forward and backward filling.
-        5. Retains only the first occurrence of duplicates.
-
-        Args:
-            data (pd.DataFrame): The input DataFrame containing 'timestamp', 'device_id', and 'site_id' columns.
-
-        Returns:
-            pd.DataFrame: A cleaned DataFrame with duplicates handled and missing values filled.
-        """
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        non_essential_cols = [
-            col
-            for col in data.columns
-            if col not in ["timestamp", "device_id", "device_number", "site_id"]
-        ]
-        data.dropna(subset=non_essential_cols, how="all", inplace=True)
-
-        # Drop rows where 'site_id' is NaN (non-deployed devices)
-        data.dropna(subset=["site_id"], inplace=True)
-
-        data["duplicated"] = data.duplicated(
-            keep=False, subset=["device_id", "timestamp"]
-        )
-
-        if not data["duplicated"].any():
-            data.drop(columns=["duplicated"], inplace=True)
-            return data
-
-        duplicates = data[data["duplicated"]].copy()
-        non_duplicates = data[~data["duplicated"]].copy()
-
-        columns_to_fill = [
-            col
-            for col in duplicates.columns
-            if col
-            not in [
-                "device_number",
-                "device_id",
-                "timestamp",
-                "latitude",
-                "longitude",
-                "network",
-                "site_id",
-            ]
-        ]
-
-        # Fill missing values within each 'site_id' group
-        filled_duplicates = []
-        for _, group in duplicates.groupby("site_id"):
-            group = group.sort_values(by=["device_id", "timestamp"])
-            group[columns_to_fill] = (
-                group[columns_to_fill].fillna(method="ffill").fillna(method="bfill")
-            )
-            group = group.drop_duplicates(
-                subset=["device_id", "timestamp"], keep="first"
-            )
-            filled_duplicates.append(group)
-
-        duplicates = pd.concat(filled_duplicates, ignore_index=True)
-        cleaned_data = pd.concat([non_duplicates, duplicates], ignore_index=True)
-
-        cleaned_data.drop(columns=["duplicated"], inplace=True)
-
-        return cleaned_data
-
-    @staticmethod
-    def remove_duplicates_weather(data: pd.DataFrame) -> pd.DataFrame:
-        cols = data.columns.to_list()
-        cols.remove("timestamp")
-        cols.remove("station_code")
-        data.dropna(subset=cols, how="all", inplace=True)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        data["duplicated"] = data.duplicated(
-            keep=False, subset=["station_code", "timestamp"]
-        )
-
-        if True not in data["duplicated"].values:
-            return data
-
-        duplicated_data = data.loc[data["duplicated"]]
-        not_duplicated_data = data.loc[~data["duplicated"]]
-
-        for _, by_station in duplicated_data.groupby(by="station_code"):
-            for _, by_timestamp in by_station.groupby(by="timestamp"):
-                by_timestamp = by_timestamp.copy()
-                by_timestamp.fillna(inplace=True, method="ffill")
-                by_timestamp.fillna(inplace=True, method="bfill")
-                by_timestamp.drop_duplicates(
-                    subset=["station_code", "timestamp"], inplace=True, keep="first"
-                )
-                not_duplicated_data = pd.concat(
-                    [not_duplicated_data, by_timestamp], ignore_index=True
-                )
-
-        return not_duplicated_data
-
-    @staticmethod
     def remove_duplicates(
         data: pd.DataFrame,
         timestamp_col: str,
@@ -260,7 +152,11 @@ class DataUtils:
         data[timestamp_col] = pd.to_datetime(data[timestamp_col])
 
         exclude_cols = exclude_cols or []
-        essential_cols = [timestamp_col, id_col, group_col]
+        essential_cols = (
+            [timestamp_col, id_col]
+            if id_col == group_col
+            else [timestamp_col, id_col, group_col]
+        )
         non_essential_cols = [
             col for col in data.columns if col not in essential_cols + exclude_cols
         ]
@@ -289,7 +185,7 @@ class DataUtils:
 
         filled_duplicates = []
         for _, group in duplicates.groupby(group_col):
-            group = group.sort_values(by=[id_col, timestamp_col])
+            group = group.sort_values(by=[timestamp_col, id_col])
             group[columns_to_fill] = (
                 group[columns_to_fill].fillna(method="ffill").fillna(method="bfill")
             )
