@@ -2,7 +2,7 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .constants import Tenant
+from .constants import DeviceNetwork
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
 from datetime import datetime, timezone
@@ -33,8 +33,8 @@ class MetaDataUtils:
         return dataframe
 
     @staticmethod
-    def extract_airqlouds_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        airqlouds = AirQoApi().get_airqlouds(tenant=tenant)
+    def extract_airqlouds_from_api(network: DeviceNetwork = None) -> pd.DataFrame:
+        airqlouds = AirQoApi().get_airqlouds(network=network)
         airqlouds = [
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
             for airqloud in airqlouds
@@ -43,8 +43,8 @@ class MetaDataUtils:
         return pd.DataFrame(airqlouds)
 
     @staticmethod
-    def extract_grids_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        grids = AirQoApi().get_grids(tenant=tenant)
+    def extract_grids_from_api(network: DeviceNetwork = None) -> pd.DataFrame:
+        grids = AirQoApi().get_grids(network=network)
         grids = [
             {**grid, **{"sites": ",".join(map(str, grid.get("sites", [""])))}}
             for grid in grids
@@ -53,8 +53,8 @@ class MetaDataUtils:
         return pd.DataFrame(grids)
 
     @staticmethod
-    def extract_cohorts_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        cohorts = AirQoApi().get_cohorts(tenant=tenant)
+    def extract_cohorts_from_api(network: DeviceNetwork = None) -> pd.DataFrame:
+        cohorts = AirQoApi().get_cohorts(network=network)
         cohorts = [
             {**cohort, **{"devices": ",".join(map(str, cohort.get("devices", [""])))}}
             for cohort in cohorts
@@ -71,7 +71,7 @@ class MetaDataUtils:
             merged_data.extend(
                 [
                     {
-                        **{"airqloud_id": row["id"], "tenant": row["tenant"]},
+                        **{"airqloud_id": row["id"], "network": row["network"]},
                         **{"site_id": site},
                     }
                     for site in row["sites"].split(",")
@@ -89,7 +89,7 @@ class MetaDataUtils:
             merged_data.extend(
                 [
                     {
-                        **{"grid_id": row["id"], "tenant": row["tenant"]},
+                        **{"grid_id": row["id"], "network": row["network"]},
                         **{"site_id": site},
                     }
                     for site in row["sites"].split(",")
@@ -107,7 +107,7 @@ class MetaDataUtils:
             merged_data.extend(
                 [
                     {
-                        **{"cohort_id": row["id"], "tenant": row["tenant"]},
+                        **{"cohort_id": row["id"], "network": row["network"]},
                         **{"device_id": device},
                     }
                     for device in row["devices"].split(",")
@@ -117,7 +117,7 @@ class MetaDataUtils:
         return pd.DataFrame(merged_data)
 
     @staticmethod
-    def extract_sites_from_api(network: str = "all") -> pd.DataFrame:
+    def extract_sites_from_api(network: DeviceNetwork = None) -> pd.DataFrame:
         sites = AirQoApi().get_sites(network=network)
         dataframe = pd.json_normalize(sites)
         dataframe = dataframe[
@@ -152,7 +152,7 @@ class MetaDataUtils:
         return dataframe
 
     @staticmethod
-    def extract_sites_meta_data_from_api(network: str = "all") -> pd.DataFrame:
+    def extract_sites_meta_data_from_api(network: DeviceNetwork = None) -> pd.DataFrame:
         sites = AirQoApi().get_sites(network=network)
         dataframe = pd.json_normalize(sites)
         big_query_api = BigQueryApi()
@@ -164,7 +164,7 @@ class MetaDataUtils:
         return dataframe
 
     @staticmethod
-    def update_nearest_weather_stations(network: str) -> None:
+    def update_nearest_weather_stations(network: DeviceNetwork = None) -> None:
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites(network=network)
         sites_data = [
@@ -189,7 +189,7 @@ class MetaDataUtils:
         airqo_api.update_sites(updated_sites)
 
     @staticmethod
-    def update_sites_distance_measures(network: str) -> None:
+    def update_sites_distance_measures(network: DeviceNetwork = None) -> None:
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites(network=network)
         updated_sites = []
@@ -216,17 +216,17 @@ class MetaDataUtils:
         airqo_api.update_sites(updated_sites)
 
     @staticmethod
-    def refresh_airqlouds(tenant: Tenant) -> None:
+    def refresh_airqlouds(network: DeviceNetwork) -> None:
         airqo_api = AirQoApi()
-        airqlouds = airqo_api.get_airqlouds(tenant=tenant)
+        airqlouds = airqo_api.get_airqlouds(network=network)
 
         for airqloud in airqlouds:
             airqo_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
 
     @staticmethod
-    def refresh_grids(tenant: Tenant) -> None:
+    def refresh_grids(network: DeviceNetwork) -> None:
         airqo_api = AirQoApi()
-        grids = airqo_api.get_grids(tenant=tenant)
+        grids = airqo_api.get_grids(network=network)
 
         for grid in grids:
             airqo_api.refresh_grid(grid_id=grid.get("id"))

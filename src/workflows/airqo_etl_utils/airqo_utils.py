@@ -19,6 +19,7 @@ from .date import date_to_str
 from .ml_utils import GCSUtils
 from .data_sources import DataSourcesApis
 from .utils import Utils
+from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any, Optional, Union
 from .airqo_gx_expectations import AirQoGxExpectations
@@ -66,20 +67,26 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_data_from_bigquery(
-        start_date_time,
-        end_date_time,
+        datatype: str,
+        start_date_time: str,
+        end_date_time: str,
         frequency: Frequency,
         device_network: DeviceNetwork = None,
+        dynamic_query: bool = False,
+        remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
         with an optional filter for the device network. The data is cleaned to remove outliers.
 
         Args:
+            datatype(str): The type of data to extract determined by the source data asset.
             start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
             end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
             frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
+            dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
+            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
@@ -88,169 +95,40 @@ class AirQoDataUtils:
             ValueError: If the frequency is unsupported or no table is associated with it.
         """
         bigquery_api = BigQueryApi()
+        table: str = None
 
-        table = {
-            Frequency.RAW: bigquery_api.raw_measurements_table,
-            Frequency.HOURLY: bigquery_api.hourly_measurements_table,
-            Frequency.DAILY: bigquery_api.daily_measurements_table,
-        }.get(frequency, "")
+        source = {
+            "raw": {
+                Frequency.RAW: bigquery_api.raw_measurements_table,
+            },
+            "averaged": {
+                Frequency.HOURLY: bigquery_api.hourly_measurements_table,
+                Frequency.DAILY: bigquery_api.daily_measurements_table,
+            },
+            "consolidated": {
+                Frequency.HOURLY: bigquery_api.consolidated_data_table,
+            },
+            "weather": {Frequency.HOURLY: bigquery_api.hourly_weather_table},
+        }.get(datatype, None)
+
+        if source:
+            table = source.get(frequency, "")
+
+        if not table:
+            raise ValueError("No table information provided.")
 
         raw_data = bigquery_api.query_data(
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             network=device_network,
-        )
-
-        return DataValidationUtils.remove_outliers(raw_data)
-
-    @staticmethod
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Removes duplicate rows from a pandas DataFrame based on 'device_id' and 'timestamp'
-        while ensuring missing values are filled and non-duplicated data is retained.
-
-        Steps:
-        1. Drops rows where all non-essential columns (except 'timestamp', 'device_id', and 'device_number') are NaN.
-        2. Drops rows where 'site_id' is NaN (assumed to be non-deployed devices).
-        3. Identifies duplicate rows based on 'device_id' and 'timestamp'.
-        4. Fills missing values for duplicates within each 'site_id' group using forward and backward filling.
-        5. Retains only the first occurrence of duplicates.
-
-        Args:
-            data (pd.DataFrame): The input DataFrame containing 'timestamp', 'device_id', and 'site_id' columns.
-
-        Returns:
-            pd.DataFrame: A cleaned DataFrame with duplicates handled and missing values filled.
-        """
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        non_essential_cols = [
-            col
-            for col in data.columns
-            if col not in ["timestamp", "device_id", "device_number", "site_id"]
-        ]
-        data.dropna(subset=non_essential_cols, how="all", inplace=True)
-
-        # Drop rows where 'site_id' is NaN (non-deployed devices)
-        data.dropna(subset=["site_id"], inplace=True)
-
-        data["duplicated"] = data.duplicated(
-            keep=False, subset=["device_id", "timestamp"]
-        )
-
-        if not data["duplicated"].any():
-            data.drop(columns=["duplicated"], inplace=True)
-            return data
-
-        duplicates = data[data["duplicated"]].copy()
-        non_duplicates = data[~data["duplicated"]].copy()
-
-        columns_to_fill = [
-            col
-            for col in duplicates.columns
-            if col
-            not in [
-                "device_number",
-                "device_id",
-                "timestamp",
-                "latitude",
-                "longitude",
-                "network",
-                "site_id",
-            ]
-        ]
-
-        # Fill missing values within each 'site_id' group
-        filled_duplicates = []
-        for _, group in duplicates.groupby("site_id"):
-            group = group.sort_values(by=["device_id", "timestamp"])
-            group[columns_to_fill] = (
-                group[columns_to_fill].fillna(method="ffill").fillna(method="bfill")
-            )
-            group = group.drop_duplicates(
-                subset=["device_id", "timestamp"], keep="first"
-            )
-            filled_duplicates.append(group)
-
-        duplicates = pd.concat(filled_duplicates, ignore_index=True)
-        cleaned_data = pd.concat([non_duplicates, duplicates], ignore_index=True)
-
-        cleaned_data.drop(columns=["duplicated"], inplace=True)
-
-        return cleaned_data
-
-    @staticmethod
-    def extract_aggregated_raw_data(
-        start_date_time: str,
-        end_date_time: str,
-        network: str = None,
-        dynamic_query: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Retrieves PM2.5 sensor data from BigQuery.
-
-        Parameters:
-        - start_date_time (str): The start of the time range for the data retrieval, in ISO format.
-        - end_date_time (str): The end of the time range for the data retrieval, in ISO format.
-        - network (str, optional): The network to filter the data by. Defaults to None.
-        - dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-
-        Returns:
-        - pd.DataFrame: A DataFrame containing the retrieved data. If no data is found, an empty DataFrame is returned.
-
-        Notes:
-        - Averaged data includes only numeric columns and is grouped by `device_number`, `device_id`, and `site_id`.
-        - Raw data includes all available columns without any aggregation.
-        """
-        bigquery_api = BigQueryApi()
-
-        measurements = bigquery_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=bigquery_api.raw_measurements_table,
-            network=network,
             dynamic_query=dynamic_query,
         )
 
-        if measurements.empty:
-            return pd.DataFrame([])
+        if remove_outliers:
+            raw_data = DataValidationUtils.remove_outliers(raw_data)
 
-        return measurements
-
-    @staticmethod
-    def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
-        """
-        Maps thingspeak field8 data to airqo custom mapping. Mappings are defined in the config file.
-
-        Args:
-            device_category(DeviceCategory): Type/category of device
-            field_8(str): Comma separated string
-
-        returns:
-            Pandas Series object of mapped fields to their appropriate values.
-        """
-        values: List[str] = field_8.split(",") if field_8 else ""
-        series = pd.Series(dtype=float)
-
-        match device_category:
-            case DeviceCategory.BAM:
-                mappings = configuration.AIRQO_BAM_CONFIG
-            case DeviceCategory.LOW_COST_GAS:
-                mappings = configuration.AIRQO_LOW_COST_GAS_CONFIG
-            case DeviceCategory.LOW_COST:
-                mappings = configuration.AIRQO_LOW_COST_CONFIG
-            case _:
-                logger.exception("A valid device category must be provided")
-
-        for key, value in mappings.items():
-            try:
-                series[value] = values[key]
-            except Exception as ex:
-                logger.exception(f"An error occurred: {ex}")
-                series[value] = None
-
-        return series
+        return raw_data
 
     @staticmethod
     def map_and_extract_data(
@@ -399,8 +277,8 @@ class AirQoDataUtils:
             if raw_data.empty:
                 continue
 
-            raw_data = WeatherDataUtils.transform_raw_data(raw_data)
-            aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
+            raw_data = DataUtils.transform_weather_data(raw_data)
+            aggregated_data = DataUtils.aggregate_weather_data(raw_data)
             aggregated_data["timestamp"] = pd.to_datetime(aggregated_data["timestamp"])
 
             for _, row in station_data.iterrows():

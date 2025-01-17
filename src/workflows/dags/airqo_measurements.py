@@ -3,6 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.exceptions import AirflowFailException
+from airqo_etl_utils.datautils import DataUtils
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
@@ -14,8 +15,9 @@ from task_docs import (
     clean_data_raw_data_doc,
     send_raw_measurements_to_bigquery_doc,
     extract_raw_airqo_gaseous_data_doc,
+    extract_historical_device_measurements_doc,
 )
-from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency
+from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
 from datetime import timedelta
 import logging
 
@@ -35,16 +37,36 @@ def airqo_historical_hourly_measurements():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
     from airqo_etl_utils.date import DateUtils
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(
+        doc_md=extract_historical_device_measurements_doc,
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def extract_device_measurements(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=3, **kwargs
         )
-        return AirQoDataUtils.extract_aggregated_raw_data(
+
+        raw_hourly_data = AirQoDataUtils.extract_data_from_bigquery(
+            DataType.RAW,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            network="airqo",
+            frequency=Frequency.RAW,
             dynamic_query=True,
+        )
+        exclude_cols = [
+            raw_hourly_data.device_number.name,
+            raw_hourly_data.latitude.name,
+            raw_hourly_data.longitude.name,
+            raw_hourly_data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            raw_hourly_data,
+            timestamp_col=raw_hourly_data.timestamp.name,
+            id_col=raw_hourly_data.device_id.name,
+            group_col=raw_hourly_data.site_id.name,
+            exclude_cols=exclude_cols,
         )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
@@ -55,8 +77,12 @@ def airqo_historical_hourly_measurements():
             historical=True, **kwargs
         )
 
-        return WeatherDataUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return WeatherDataUtils.extract_weather_data(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
         )
 
     @task()
@@ -223,10 +249,12 @@ def airqo_cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=1, **kwargs
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
+            DataType.RAW,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.RAW,
+            device_category=DeviceCategory.GENERAL,
         )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
@@ -237,23 +265,49 @@ def airqo_cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=1, **kwargs
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.GENERAL,
         )
 
     @task()
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task()
     def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
@@ -354,9 +408,15 @@ def airqo_realtime_measurements():
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        return WeatherDataUtils.extract_hourly_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        weather_data = WeatherDataUtils.extract_weather_data(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
         )
+        transformed_weather_data = DataUtils.transform_weather_data(weather_data)
+        return DataUtils.aggregate_weather_data(transformed_weather_data)
 
     @task()
     def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):

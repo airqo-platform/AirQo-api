@@ -26,3 +26,10 @@ Send the clean raw data measurements to Big Query
 ####Notes
 
 """
+
+extract_historical_device_measurements_doc = """
+#### Purpose
+Extracts raw data from bigquery using a dynamic query that averages and groups data by `device_number`, `device_id`, `site_id`, `network` as well as the hourly time granuality.
+#### Notes
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""

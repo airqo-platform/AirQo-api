@@ -6,12 +6,16 @@ class DeviceCategory(Enum):
     """
     LOW_COST -> Reference monitors
     BAM -> Low cost sensors
-    GAS -> GASEOUS sensors
+    GAS -> Gaseous sensors
+    WEATHER -> Weather sensors
+    GENERAL -> All the sensors
     """
 
     LOW_COST = 1
     BAM = 2
     LOW_COST_GAS = 3
+    WEATHER = 4
+    GENERAL = 5
     NONE = 20
 
     def __str__(self):
@@ -19,8 +23,12 @@ class DeviceCategory(Enum):
             return "bam"
         elif self == self.LOW_COST_GAS:
             return "gas"
-        else:
+        elif self == self.LOW_COST:
             return "lowcost"
+        elif self == self.WEATHER:
+            return "weather"
+        else:
+            return "general"
 
     @staticmethod
     def category_from_str(category: str):
@@ -71,6 +79,39 @@ class DeviceNetwork(Enum):
             return "iqair"
         else:
             raise LookupError("Invalid network supplied")
+
+
+class DataType(Enum):
+    """
+    RAW -> Raw/unprocessed data.(raw_data table).
+    AVERAGED -> Processed(averaged), duplicates dropped.(averaged_data table)
+    CONSOLIDATED -> Air quality data merged for both lowcost(hourly) and bam data(hourly), weather data as well as site data.(datawarehouse table)
+    """
+
+    RAW = 1
+    AVERAGED = 2
+    CONSOLIDATED = 3
+
+    def __str__(self):
+        if self == self.RAW:
+            return "raw"
+        elif self == self.AVERAGED:
+            return "averaged"
+        elif self == self.CONSOLIDATED:
+            return "consolidated"
+        else:
+            raise LookupError("Invalid data type supplied")
+
+
+# class DataType(Enum):
+# UNCLEAN_BAM_DATA = 0
+# CLEAN_BAM_DATA = 1
+# UNCLEAN_LOW_COST_DATA = 2
+# CLEAN_LOW_COST_DATA = 3
+# # TODO investigate numbering
+# AGGREGATED_LOW_COST_DATA = 3
+# UNCLEAN_LOW_COST_GASEOUS_DATA = 5
+# CLEAN_LOW_COST_GASEOUS_DATA = 6
 
 
 class Frequency(Enum):
@@ -359,17 +400,6 @@ class Pollutant(Enum):
             return "no2"
         else:
             return ""
-
-
-class DataType(Enum):
-    UNCLEAN_BAM_DATA = 0
-    CLEAN_BAM_DATA = 1
-    UNCLEAN_LOW_COST_DATA = 2
-    CLEAN_LOW_COST_DATA = 3
-    # TODO investigate numbering
-    AGGREGATED_LOW_COST_DATA = 3
-    UNCLEAN_LOW_COST_GASEOUS_DATA = 5
-    CLEAN_LOW_COST_GASEOUS_DATA = 6
 
 
 class CityModel(Enum):
