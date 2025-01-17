@@ -97,7 +97,7 @@ class DataUtils:
                     Frequency.HOURLY: bigquery_api.consolidated_data_table,
                 }
             },
-        }.get(str(datatype), None)
+        }.get(datatype, None)
 
         if not device_category:
             device_category = DeviceCategory.GENERAL
