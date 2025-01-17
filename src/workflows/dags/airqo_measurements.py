@@ -55,8 +55,19 @@ def airqo_historical_hourly_measurements():
             frequency=Frequency.RAW,
             dynamic_query=True,
         )
-
-        return AirQoDataUtils.remove_duplicates(raw_hourly_data)
+        exclude_cols = [
+            raw_hourly_data.device_number.name,
+            raw_hourly_data.latitude.name,
+            raw_hourly_data.longitude.name,
+            raw_hourly_data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            raw_hourly_data,
+            timestamp_col=raw_hourly_data.timestamp.name,
+            id_col=raw_hourly_data.device_id.name,
+            group_col=raw_hourly_data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_weather_data(**kwargs):
@@ -266,13 +277,37 @@ def airqo_cleanup_measurements():
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task()
     def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
