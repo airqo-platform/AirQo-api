@@ -219,21 +219,21 @@ def meta_data_update_microservice_sites_meta_data():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
         from airqo_etl_utils.constants import Tenant
 
-        MetaDataUtils.update_sites_distance_measures(tenant=Tenant.ALL)
+        MetaDataUtils.update_sites_distance_measures()
 
     @task()
     def refresh_airqlouds() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
         from airqo_etl_utils.constants import Tenant
 
-        MetaDataUtils.refresh_airqlouds(tenant=Tenant.ALL)
+        MetaDataUtils.refresh_airqlouds()
 
     @task()
     def refresh_grids() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
         from airqo_etl_utils.constants import Tenant
 
-        MetaDataUtils.refresh_grids(tenant=Tenant.ALL)
+        MetaDataUtils.refresh_grids()
 
     update_nearest_weather_stations()
     update_distance_measures()
