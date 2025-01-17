@@ -8,7 +8,7 @@ from urllib3.util.retry import Retry
 from typing import List, Dict, Any, Union, Generator, Tuple, Optional
 
 from .config import configuration
-from .constants import DeviceCategory
+from .constants import DeviceCategory, DeviceNetwork
 from .utils import Utils
 import logging
 
@@ -44,10 +44,10 @@ class AirQoApi:
         self, network: str, device: str, activity_type: str = None
     ) -> List:
         """
-        Retrieve devices given a tenant and device category.
+        Retrieve devices given a network and device category.
 
         Args:
-            - tenant: An Enum that represents site ownership.
+            - network: An Enum that represents site ownership.
             - device: The name of the device.
             - activity_type: Defines if the activity logged is a maintenance or deployment activity. If not supplied returns all activities for the given device.
 
@@ -69,7 +69,6 @@ class AirQoApi:
                 }
             ]
         """
-        # Why is tenant still a parameter when it is being overriden.
         params = {"network": network, "device": device}
 
         if activity_type:
@@ -502,7 +501,7 @@ class AirQoApi:
 
     def refresh_airqloud(self, airqloud_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
+        query_params = {"network": DeviceNetwork.AIRQO, "id": airqloud_id}
 
         try:
             self.__request(
@@ -513,7 +512,7 @@ class AirQoApi:
 
     def refresh_grid(self, grid_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO}
 
         try:
             response = self.__request(
@@ -524,12 +523,12 @@ class AirQoApi:
         except Exception:
             logger.exception()
 
-    def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_airqlouds(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve airqlouds given tenant. An airqloud is a logical group of devices or sites. It can be a grid or a cohort.
+        Retrieve airqlouds given network. An airqloud is a logical group of devices or sites. It can be a grid or a cohort.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents grid/cohort ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to None if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the airqloud details.
@@ -537,22 +536,22 @@ class AirQoApi:
                 {
                     "id": str,
                     "name": str,
-                    "tenant": str, #Can be null/None
+                    "network": str, #Can be null/None
                     "sites": List[str] #List of site ids.
                 }
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network
         response = self.__request("devices/airqlouds/dashboard", query_params)
 
         return [
             {
                 "id": airqloud.get("_id", None),
                 "name": airqloud.get("name", None),
-                "tenant": airqloud.get("network", airqloud.get("tenant", None)),
+                "network": airqloud.get("network"),
                 "sites": [site["_id"] for site in airqloud.get("sites", [])],
             }
             for airqloud in response.get("airqlouds", [])
@@ -560,7 +559,7 @@ class AirQoApi:
 
     def get_favorites(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no favorites exist","favorites":[]} for ids passed.
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": str(DeviceNetwork.AIRQO)}
 
         response = self.__request(f"users/favorites/users/{user_id}", query_params)
 
@@ -582,7 +581,7 @@ class AirQoApi:
 
     def get_location_history(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no Location Histories exist","location_histories":[]} for ids passed
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO}
 
         response = self.__request(
             f"users/locationHistory/users/{user_id}", query_params
@@ -606,7 +605,7 @@ class AirQoApi:
 
     def get_search_history(self, user_id: str) -> List:
         # TODO Check if this is working. Currently returns {"success":true,"message":"no Search Histories exist","search_histories":[]} for all ids.
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO}
 
         response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
 
@@ -652,7 +651,7 @@ class AirQoApi:
             float: pm2_5 value of the given site.
         """
         try:
-            query_params = {"tenant": str(Tenant.AIRQO), "site_id": site_id}
+            query_params = {"network": DeviceNetwork.AIRQO, "site_id": site_id}
 
             response = self.__request("devices/measurements", query_params)
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
@@ -662,12 +661,12 @@ class AirQoApi:
             logger.exception()
             return None
 
-    def get_grids(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_grids(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve grids given a tenant. A grid is a group of sites which are 'usually' in the same geographical boundary.
+        Retrieve grids given a network. A grid is a group of sites which are 'usually' in the same geographical boundary.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents grid/cohort ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to None if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the grid details.
@@ -675,33 +674,33 @@ class AirQoApi:
                 {
                     "id": str,
                     "name": str,
-                    "tenant": str,
+                    "network": str,
                     "sites": List[str]
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network
         response = self.__request("devices/grids/summary", query_params)
 
         return [
             {
                 "id": grid.get("_id", None),
                 "name": grid.get("name", None),
-                "tenant": "airqo",
+                "network": "airqo",
                 "sites": [site["_id"] for site in grid.get("sites", [])],
             }
             for grid in response.get("grids", [])
         ]
 
-    def get_cohorts(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_cohorts(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve cohorts given a tenant. A cohort is a group of devices put together based on various criteria.
+        Retrieve cohorts given a network. A cohort is a group of devices put together based on various criteria.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents grid/cohort ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to `None` if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the cohort details.
@@ -709,33 +708,33 @@ class AirQoApi:
                 {
                     "id": str,
                     "name": str,
-                    "tenant": str,
+                    "network": str,
                     "devices": List[str]
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network
         response = self.__request("devices/cohorts", query_params)
 
         return [
             {
                 "id": cohort.get("_id", None),
                 "name": cohort.get("name", None),
-                "tenant": "airqo",
+                "network": "airqo",
                 "devices": [device["_id"] for device in cohort.get("devices", [])],
             }
             for cohort in response.get("cohorts", [])
         ]
 
-    def get_sites(self, network: str = "all") -> List[Dict[str, Any]]:
+    def get_sites(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve sites given a tenant.
+        Retrieve sites given a network.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents site ownership. Defaults to `None` if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A List of dictionaries containing the details of the sites. The dictionary has the following structure.
@@ -777,9 +776,9 @@ class AirQoApi:
                 },
             ]
         """
-        query_params = {}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO}
 
-        if network != "all":
+        if network:
             query_params["network"] = network
 
         response = self.__request("devices/sites", query_params)
@@ -804,7 +803,7 @@ class AirQoApi:
         # TODO Update doc string.
         for i in updated_sites:
             site = dict(i)
-            params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
+            params = {"network": DeviceNetwork.AIRQO, "id": site.pop("site_id")}
             self.__request("devices/sites", params, site, "put")
 
     def __request(self, endpoint, params=None, body=None, method="get", base_url=None):

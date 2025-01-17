@@ -9,7 +9,7 @@ from .bigquery_api import BigQueryApi
 from .config import configuration
 from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .data_validator import DataValidationUtils
-from datautils import DataUtils
+from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from .tahmo_api import TahmoApi
 from .utils import Utils
