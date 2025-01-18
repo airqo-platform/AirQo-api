@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
+import logging
 
+from .config import configuration
 from .bigquery_api import BigQueryApi
 from .constants import (
     DeviceCategory,
@@ -13,6 +15,8 @@ from .constants import (
 from .utils import Utils
 from .data_validator import DataValidationUtils
 from typing import List, Dict, Any, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 
 class DataUtils:
@@ -70,40 +74,17 @@ class DataUtils:
         bigquery_api = BigQueryApi()
         table: str = None
 
-        source = {
-            DataType.RAW: {
-                DeviceCategory.GENERAL: {
-                    Frequency.RAW: bigquery_api.raw_measurements_table,
-                },
-                DeviceCategory.BAM: {
-                    Frequency.RAW: bigquery_api.raw_bam_measurements_table
-                },
-                DeviceCategory.WEATHER: {Frequency.RAW: bigquery_api.raw_weather_table},
-            },
-            DataType.AVERAGED: {
-                DeviceCategory.GENERAL: {
-                    Frequency.HOURLY: bigquery_api.hourly_measurements_table,
-                    Frequency.DAILY: bigquery_api.daily_measurements_table,
-                },
-                DeviceCategory.BAM: {
-                    Frequency.HOURLY: bigquery_api.bam_hourly_measurements_table
-                },
-                DeviceCategory.WEATHER: {
-                    Frequency.RAW: bigquery_api.hourly_weather_table
-                },
-            },
-            DataType.CONSOLIDATED: {
-                DeviceCategory.GENERAL: {
-                    Frequency.HOURLY: bigquery_api.consolidated_data_table,
-                }
-            },
-        }.get(datatype, None)
-
         if not device_category:
             device_category = DeviceCategory.GENERAL
-
-        if source:
+        try:
+            source = configuration.DataSource.get(datatype)
             table = source.get(device_category).get(frequency)
+        except KeyError as e:
+            logger.exception(
+                f"Invalid combination: {datatype}, {device_category}, {frequency}"
+            )
+        except Exception as e:
+            logger.exception("An unexpected error occurred during column retrieval")
 
         if not table:
             raise ValueError("No table information provided.")
@@ -120,6 +101,43 @@ class DataUtils:
             raw_data = DataValidationUtils.remove_outliers(raw_data)
 
         return raw_data
+
+    def format_data_for_bigquery(
+        data: pd.DataFrame,
+        datatype: DataType,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+    ) -> pd.DataFrame:
+        """
+        Formats a pandas DataFrame for BigQuery by ensuring all required columns are present
+        and the timestamp column is correctly parsed to datetime.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame to be formatted.
+            data_type (DataType): The type of data (e.g., raw, averaged or processed).
+            device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
+            frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
+
+        Returns:
+            pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
+
+        Raises:
+            KeyError: If the combination of data_type, device_category, and frequency is invalid.
+            Exception: For unexpected errors during column retrieval or data processing.
+        """
+        data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
+
+        try:
+            datasource = configuration.DataSource
+            cols = datasource.get(datatype).get(device_category).get(frequency)
+        except KeyError as e:
+            logger.exception(
+                f"Invalid combination: {datatype}, {device_category}, {frequency}"
+            )
+        except Exception as e:
+            logger.exception("An unexpected error occurred during column retrieval")
+
+        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def remove_duplicates(
