@@ -66,71 +66,6 @@ class AirQoDataUtils:
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
 
     @staticmethod
-    def extract_data_from_bigquery(
-        datatype: str,
-        start_date_time: str,
-        end_date_time: str,
-        frequency: Frequency,
-        device_network: DeviceNetwork = None,
-        dynamic_query: bool = False,
-        remove_outliers: bool = True,
-    ) -> pd.DataFrame:
-        """
-        Extracts data from BigQuery within a specified time range and frequency,
-        with an optional filter for the device network. The data is cleaned to remove outliers.
-
-        Args:
-            datatype(str): The type of data to extract determined by the source data asset.
-            start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
-            end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
-            frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
-            device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
-            dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
-
-        Returns:
-            pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
-
-        Raises:
-            ValueError: If the frequency is unsupported or no table is associated with it.
-        """
-        bigquery_api = BigQueryApi()
-        table: str = None
-
-        source = {
-            "raw": {
-                Frequency.RAW: bigquery_api.raw_measurements_table,
-            },
-            "averaged": {
-                Frequency.HOURLY: bigquery_api.hourly_measurements_table,
-                Frequency.DAILY: bigquery_api.daily_measurements_table,
-            },
-            "consolidated": {
-                Frequency.HOURLY: bigquery_api.consolidated_data_table,
-            },
-            "weather": {Frequency.HOURLY: bigquery_api.hourly_weather_table},
-        }.get(datatype, None)
-
-        if source:
-            table = source.get(frequency, "")
-
-        if not table:
-            raise ValueError("No table information provided.")
-
-        raw_data = bigquery_api.query_data(
-            table=table,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            network=device_network,
-            dynamic_query=dynamic_query,
-        )
-
-        if remove_outliers:
-            raw_data = DataValidationUtils.remove_outliers(raw_data)
-
-        return raw_data
-
-    @staticmethod
     def map_and_extract_data(
         data_mapping: Dict[str, Union[str, Dict[str, List[str]]]],
         data: Union[List[Any], Dict[str, Any]],
@@ -535,7 +470,7 @@ class AirQoDataUtils:
 
         big_query_api = BigQueryApi()
         required_cols = big_query_api.get_columns(
-            table=big_query_api.bam_measurements_table
+            table=big_query_api.bam_hourly_measurements_table
         )
 
         data = Utils.populate_missing_columns(data=data, columns=required_cols)
@@ -593,52 +528,6 @@ class AirQoDataUtils:
             data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
             data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
-
-    @staticmethod
-    def format_data_for_bigquery(
-        data: pd.DataFrame, data_type: DataType
-    ) -> pd.DataFrame:
-        # Currently only used for BAM device measurements
-        data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
-
-        big_query_api = BigQueryApi()
-        if data_type == DataType.UNCLEAN_BAM_DATA:
-            cols = big_query_api.get_columns(
-                table=big_query_api.raw_bam_measurements_table
-            )
-        elif data_type == DataType.CLEAN_BAM_DATA:
-            cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
-        elif data_type == DataType.UNCLEAN_LOW_COST_DATA:
-            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        elif data_type == DataType.CLEAN_LOW_COST_DATA:
-            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        elif data_type == DataType.AGGREGATED_LOW_COST_DATA:
-            cols = big_query_api.get_columns(
-                table=big_query_api.hourly_measurements_table
-            )
-        else:
-            raise Exception("invalid data type")
-        return Utils.populate_missing_columns(data=data, columns=cols)
-
-    @staticmethod
-    def process_raw_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Makes neccessary conversions, adds missing columns and sets them to `None`
-        """
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
-
-    @staticmethod
-    def process_aggregated_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Makes neccessary conversions, adds missing columns and sets them to `None`
-        """
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.hourly_measurements_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def process_latest_data(
