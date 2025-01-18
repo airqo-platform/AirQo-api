@@ -3,13 +3,14 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.daily_data_utils import DailyDataUtils
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.datautils import DataUtils
 from datetime import timedelta
 from dag_docs import (
     daily_measurements_clean_up_doc,
     daily_devices_measurements_realtime_doc,
     daily_devices_measurements_historical_doc,
 )
-from airqo_etl_utils.constants import Frequency, DataType
+from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 
 
 @dag(
@@ -34,10 +35,11 @@ def cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=DeviceCategory.GENERAL,
             frequency=Frequency.DAILY,
         )
 
@@ -69,10 +71,11 @@ def realtime_daily_measurements():
         end_date_time = datetime.strftime(
             datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=DeviceCategory.GENERAL,
             frequency=Frequency.HOURLY,
         )
 
@@ -107,10 +110,11 @@ def historical_daily_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=7, **kwargs
         )
-        return AirQoDataUtils.extract_data_from_bigquery(
+        return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=DeviceCategory.GENERAL,
             frequency=Frequency.HOURLY,
         )
 

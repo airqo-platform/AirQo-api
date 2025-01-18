@@ -2644,6 +2644,68 @@ const mailer = {
       return;
     }
   },
+  sendPollutionAlert: async ({
+    email = "",
+    firstName = "",
+    lastName = "",
+    subject = "",
+    content = "",
+    tenant = "airqo",
+  } = {}) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({
+        email,
+        type: "email",
+      });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: subject,
+        html: `${constants.EMAIL_BODY({
+          email,
+          content,
+          name: `${firstName} ${lastName}`.trim(),
+        })}`,
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "email not sent", emailResults: data },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
 };
 
 module.exports = mailer;

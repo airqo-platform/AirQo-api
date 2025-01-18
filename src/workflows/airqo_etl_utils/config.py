@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from .constants import DataType, DeviceCategory, Frequency
 import pymongo as pm
 import tweepy
 import urllib3
@@ -384,6 +385,28 @@ class Config:
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         "all": None,
+    }
+    DataSource = {
+        DataType.RAW: {
+            DeviceCategory.GENERAL: {
+                Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
+            },
+            DeviceCategory.BAM: {Frequency.RAW: BIGQUERY_RAW_BAM_DATA_TABLE},
+            DeviceCategory.WEATHER: {Frequency.RAW: BIGQUERY_RAW_WEATHER_TABLE},
+        },
+        DataType.AVERAGED: {
+            DeviceCategory.GENERAL: {
+                Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
+                Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
+            },
+            DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
+            DeviceCategory.WEATHER: {Frequency.RAW: BIGQUERY_HOURLY_WEATHER_TABLE},
+        },
+        DataType.CONSOLIDATED: {
+            DeviceCategory.GENERAL: {
+                Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
+            }
+        },
     }
 
     # Data unit tests
