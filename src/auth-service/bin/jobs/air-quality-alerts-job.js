@@ -13,7 +13,7 @@ const {
   msgs,
   emailTemplates,
   generateFilter,
-  responseHandler,
+  handleResponse,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");

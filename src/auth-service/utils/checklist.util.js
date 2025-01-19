@@ -8,7 +8,7 @@ const {
   msgs,
   emailTemplates,
   generateFilter,
-  responseHandler,
+  handleResponse,
 } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
