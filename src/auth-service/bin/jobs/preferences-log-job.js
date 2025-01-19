@@ -15,7 +15,7 @@ const {
   msgs,
   emailTemplates,
   generateFilter,
-  responseHandler,
+  handleResponse,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 
