@@ -31,6 +31,7 @@ const prodConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  API_TOKEN: process.env.PROD_API_TOKEN,
   PADDLE_SUCCESS_REDIRECT_URL: process.env.PROD_PADDLE_SUCCESS_REDIRECT_URL,
   PADDLE_CANCEL_REDIRECT_URL: process.env.PROD_PADDLE_CANCEL_REDIRECT_URL,
   PADDLE_PUBLIC_KEY: process.env.PROD_PADDLE_PUBLIC_KEY,

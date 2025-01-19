@@ -16,8 +16,8 @@ const logger = log4js.getLogger(
 // Configuration
 const PM25_THRESHOLD = 55.49; // Threshold for "Unhealthy" air quality
 const BATCH_SIZE = 100;
-const API_TOKEN = process.env.API_TOKEN;
-const BASE_URL = process.env.BASE_URL;
+const API_TOKEN = constants.API_TOKEN;
+const BASE_URL = constants.PLATFORM_BASE_URL;
 
 // Utility function to chunk site IDs for API calls
 const chunkArray = (array, size) => {
