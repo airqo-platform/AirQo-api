@@ -42,7 +42,7 @@ const client = {
         const ip_addresses = update.ip_addresses || [];
         if (!isEmpty(ip)) {
           try {
-            const res = await WhitelistedIPModel("sti").updateOne(
+            const res = await WhitelistedIPModel("airqo").updateOne(
               { ip },
               { ip },
               {
@@ -354,7 +354,7 @@ const client = {
         const ip_addresses = modifiedBody.ip_addresses || [];
         if (!isEmpty(ip)) {
           try {
-            const res = await WhitelistedIPModel("sti").updateOne(
+            const res = await WhitelistedIPModel("airqo").updateOne(
               { ip },
               { ip },
               {

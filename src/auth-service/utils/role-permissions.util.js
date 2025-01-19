@@ -43,7 +43,7 @@ const isGroupRoleOrNetworkRole = (role) => {
 };
 const findAssociatedIdForRole = async ({
   role_id,
-  tenant = "sti",
+  tenant = "airqo",
   roles,
 } = {}) => {
   for (const role of roles) {
@@ -67,7 +67,7 @@ const findAssociatedIdForRole = async ({
 const isAssignedUserSuperAdmin = async ({
   associatedId,
   roles = [],
-  tenant = "sti",
+  tenant = "airqo",
 }) => {
   for (const role of roles) {
     if (
