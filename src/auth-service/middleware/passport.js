@@ -143,7 +143,10 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           };
           try {
             const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
+              await createUserUtil.verificationReminder(
+                verificationRequest,
+                next
+              );
             if (verificationEmailResponse.success === false) {
               logger.error(
                 `Internal Server Error --- ${stringify(
