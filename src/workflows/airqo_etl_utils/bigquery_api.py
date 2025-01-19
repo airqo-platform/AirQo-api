@@ -645,8 +645,11 @@ class BigQueryApi:
                 dataframe.copy()
             )  # Not sure why this dataframe is being copied. # Memory wastage?
             data["timestamp"] = pd.to_datetime(data["timestamp"])
-            start_date_time = date_to_str(data["timestamp"].min())
-            end_date_time = date_to_str(data["timestamp"].max())
+            try:
+                start_date_time = date_to_str(data["timestamp"].min())
+                end_date_time = date_to_str(data["timestamp"].max())
+            except Exception as e:
+                logger.exception(f"Time conversion error {e}")
 
         query = self.compose_query(
             QueryType.DELETE,

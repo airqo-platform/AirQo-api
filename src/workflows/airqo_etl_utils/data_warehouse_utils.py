@@ -29,10 +29,6 @@ class DataWarehouseUtils:
         start_date_time: str,
         end_date_time: str,
     ) -> pd.DataFrame:
-        biq_query_api = BigQueryApi()
-        columns = biq_query_api.get_columns(
-            table=biq_query_api.bam_hourly_measurements_table
-        )
 
         data = DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
@@ -53,34 +49,17 @@ class DataWarehouseUtils:
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
-    def extract_data_from_big_query(
-        start_date_time: str,
-        end_date_time: str,
-    ) -> pd.DataFrame:
-        biq_query_api = BigQueryApi()
-        return biq_query_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=biq_query_api.consolidated_data_table,
-        )
-
-    @staticmethod
     def extract_hourly_low_cost_data(
         start_date_time: str,
         end_date_time: str,
     ) -> pd.DataFrame:
-        biq_query_api = BigQueryApi()
-        columns = biq_query_api.get_columns(
-            table=biq_query_api.hourly_measurements_table
-        )
-        data = biq_query_api.query_data(
+        data = DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            table=biq_query_api.hourly_measurements_table,
+            frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.GENERAL,
         )
-
-        if data.empty:
-            data = pd.DataFrame(data=[], columns=columns)
 
         data.rename(
             columns={
@@ -105,7 +84,7 @@ class DataWarehouseUtils:
         )
 
     @staticmethod
-    def extract_sites_meta_data(network: str = "all") -> pd.DataFrame:
+    def extract_sites_meta_data(network: DeviceNetwork = None) -> pd.DataFrame:
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites(network=network)
         sites = pd.DataFrame(sites)
