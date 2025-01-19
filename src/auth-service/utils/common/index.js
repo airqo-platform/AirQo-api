@@ -21,7 +21,7 @@ const msgs = require("./email.msgs");
 const emailTemplates = require("./email.templates");
 const generateFilter = require("./generate-filter");
 const winstonLogger = require("./log-winston");
-const responseHandler = require("./responseHandler");
+const handleResponse = require("./responseHandler");
 
 module.exports = {
   winstonLogger,
@@ -45,5 +45,5 @@ module.exports = {
   msgs,
   emailTemplates,
   generateFilter,
-  responseHandler,
+  handleResponse,
 };
