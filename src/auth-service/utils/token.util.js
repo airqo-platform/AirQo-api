@@ -93,7 +93,7 @@ let blacklistQueue = async.queue(async (task, callback) => {
 
 let unknownIPQueue = async.queue(async (task, callback) => {
   let { ip, token, name, client_id, endpoint, day } = task;
-  await UnknownIPModel("sti")
+  await UnknownIPModel("airqo")
     .findOne({
       ip,
       "ipCounts.day": day,
@@ -118,14 +118,14 @@ let unknownIPQueue = async.queue(async (task, callback) => {
           runValidators: true,
         };
 
-        await UnknownIPModel("sti")
+        await UnknownIPModel("airqo")
           .findOneAndUpdate({ ip }, update, options)
           .then(() => {
             logText(`stored the unknown IP ${ip} which had a day field`);
             callback();
           });
       } else {
-        await UnknownIPModel("sti")
+        await UnknownIPModel("airqo")
           .create({
             ip,
             tokens: [token],
@@ -144,7 +144,7 @@ let unknownIPQueue = async.queue(async (task, callback) => {
 
 let ipPrefixQueue = async.queue(async (task, callback) => {
   let { prefix, day } = task;
-  await IPPrefixModel("sti")
+  await IPPrefixModel("airqo")
     .findOne({ prefix, "prefixCounts.day": day })
     .then(async (checkDoc) => {
       if (checkDoc) {
@@ -160,14 +160,14 @@ let ipPrefixQueue = async.queue(async (task, callback) => {
           runValidators: true,
         };
 
-        await IPPrefixModel("sti")
+        await IPPrefixModel("airqo")
           .findOneAndUpdate({ prefix }, update, options)
           .then(() => {
             logText(`incremented the count of IP prefix ${prefix}`);
             callback();
           });
       } else {
-        await IPPrefixModel("sti")
+        await IPPrefixModel("airqo")
           .create({
             prefix,
             prefixCounts: [{ day, count: 1 }],
@@ -228,12 +228,12 @@ const isIPBlacklistedHelper = async (
       accessToken,
       blacklistedIpPrefixesData,
     ] = await Promise.all([
-      BlacklistedIPModel("sti").findOne({ ip }),
-      WhitelistedIPModel("sti").findOne({ ip }),
-      AccessTokenModel("sti")
+      BlacklistedIPModel("airqo").findOne({ ip }),
+      WhitelistedIPModel("airqo").findOne({ ip }),
+      AccessTokenModel("airqo")
         .findOne(accessTokenFilter)
         .select("name token client_id expiredEmailSent"),
-      BlacklistedIPPrefixModel("sti").find().select("prefix").lean(),
+      BlacklistedIPPrefixModel("airqo").find().select("prefix").lean(),
     ]);
 
     const {
@@ -253,7 +253,7 @@ const isIPBlacklistedHelper = async (
     if (!accessToken) {
       try {
         const filter = filteredAccessToken;
-        const listTokenReponse = await AccessTokenModel("sti").list(
+        const listTokenReponse = await AccessTokenModel("airqo").list(
           { filter },
           next
         );
@@ -301,7 +301,7 @@ const isIPBlacklistedHelper = async (
                 );
               } else {
                 // Update the expiredEmailSent field to true after sending the email
-                await AccessTokenModel("sti").updateOne(
+                await AccessTokenModel("airqo").updateOne(
                   { token },
                   { $set: { expiredEmailSent: true } }
                 );
@@ -325,7 +325,7 @@ const isIPBlacklistedHelper = async (
       );
       try {
         const filter = { token };
-        const listTokenReponse = await AccessTokenModel("sti").list(
+        const listTokenReponse = await AccessTokenModel("airqo").list(
           { filter },
           next
         );
@@ -679,7 +679,7 @@ const token = {
       const { token } = {
         ...request.params,
       };
-      const accessToken = await AccessTokenModel("sti")
+      const accessToken = await AccessTokenModel("airqo")
         .findOne({ token })
         .select("client_id token");
 
@@ -690,7 +690,7 @@ const token = {
         logger.error(`🚨🚨 Token is being accessed without an IP address`);
         return createUnauthorizedResponse();
       } else {
-        const client = await ClientModel("sti")
+        const client = await ClientModel("airqo")
           .findById(accessToken.client_id)
           .select("isActive");
         logObject("client.isActive", client.isActive);
