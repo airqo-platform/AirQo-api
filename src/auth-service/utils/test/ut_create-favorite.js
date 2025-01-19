@@ -6,7 +6,7 @@ const favorites = require("@utils/create-favorite");
 const { getModelByTenant } = require("@config/database");
 const FavoriteSchema = require("@models/Favorite");
 const UserSchema = require("@models/User");
-const generateFilter = require("@utils/generate-filter");
+const { generateFilter } = require("@utils/common");
 
 describe("favorites", () => {
   describe("sample method", () => {

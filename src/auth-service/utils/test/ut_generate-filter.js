@@ -9,7 +9,7 @@ const sinon = require("sinon");
 chai.use(chaiHttp);
 const CandidateModel = require("@models/Candidate");
 const UserModel = require("@models/User");
-const generateFilterUtil = require("@utils/generate-filter");
+const { generateFilter } = require("@utils/common");
 
 const stubValue = {
   _id: faker.datatype.uuid(),
@@ -22,7 +22,7 @@ describe("generate-filter util", function () {
   describe("filter search_histories", () => {
     it("should return an empty filter when no query or params provided", () => {
       const req = {};
-      const result = generateFilterUtil.search_histories(req);
+      const result = generateFilter.search_histories(req);
 
       expect(result).to.deep.equal({});
     });
@@ -33,7 +33,7 @@ describe("generate-filter util", function () {
           id: "1234567890abcdef12345678",
         },
       };
-      const result = generateFilterUtil.search_histories(req);
+      const result = generateFilter.search_histories(req);
 
       expect(result).to.deep.equal({
         _id: "1234567890abcdef12345678",
@@ -46,7 +46,7 @@ describe("generate-filter util", function () {
           search_history_id: "abcdef123456789012345678",
         },
       };
-      const result = generateFilterUtil.search_histories(req);
+      const result = generateFilter.search_histories(req);
 
       expect(result).to.deep.equal({
         _id: "abcdef123456789012345678",
@@ -59,7 +59,7 @@ describe("generate-filter util", function () {
           firebase_user_id: "test_firebase_user_id",
         },
       };
-      const result = generateFilterUtil.search_histories(req);
+      const result = generateFilter.search_histories(req);
 
       expect(result).to.deep.equal({
         firebase_user_id: "test_firebase_user_id",
@@ -75,7 +75,7 @@ describe("generate-filter util", function () {
           search_history_id: "abcdef123456789012345678",
         },
       };
-      const result = generateFilterUtil.search_histories(req);
+      const result = generateFilter.search_histories(req);
 
       expect(result).to.deep.equal({
         _id: "abcdef123456789012345678",
@@ -88,7 +88,7 @@ describe("generate-filter util", function () {
         .stub(CandidateModel(stubValue.tenant), "create")
         .returns(stubValue);
 
-      const site = await generateFilterUtil.createSite(
+      const site = await generateFilter.createSite(
         stubValue.tenant,
         stubValue.latitude,
         stubValue.longitude,
@@ -112,7 +112,7 @@ describe("generate-filter util", function () {
 
       let filter = { lat_long: stubValue.lat_long };
 
-      const site = await generateFilterUtil.getSite(stubValue.tenant, filter);
+      const site = await generateFilter.getSite(stubValue.tenant, filter);
       expect(stub.calledOnce).to.be.true;
       expect(site._id).to.equal(stubValue._id);
       expect(site.name).to.equal(stubValue.name);
@@ -131,7 +131,7 @@ describe("generate-filter util", function () {
       let body = stubValue;
       delete body.lat_long;
 
-      const updatedSite = await generateFilterUtil.updateSite(
+      const updatedSite = await generateFilter.updateSite(
         stubValue.tenant,
         stubValue.lat_long,
         body
@@ -162,7 +162,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the networks function with the mocked request object
-      const result = generateFilterUtil.networks(req);
+      const result = generateFilter.networks(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -190,7 +190,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the networks function with the mocked request object
-      const result = generateFilterUtil.networks(req);
+      const result = generateFilter.networks(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -215,7 +215,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the inquiry function with the mocked request object
-      const result = generateFilterUtil.inquiry(req);
+      const result = generateFilter.inquiry(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -238,7 +238,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the inquiry function with the mocked request object
-      const result = generateFilterUtil.inquiry(req);
+      const result = generateFilter.inquiry(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -266,7 +266,7 @@ describe("generate-filter util", function () {
         },
       };
 
-      const filter = generateFilterUtil.roles(req);
+      const filter = generateFilter.roles(req);
 
       expect(filter).to.deep.equal({
         _id: "role_id",
@@ -291,7 +291,7 @@ describe("generate-filter util", function () {
         },
       };
 
-      const filter = generateFilterUtil.roles(req);
+      const filter = generateFilter.roles(req);
 
       expect(filter).to.deep.equal({
         _id: "role_id_param",
@@ -305,7 +305,7 @@ describe("generate-filter util", function () {
         params: {},
       };
 
-      const filter = generateFilterUtil.roles(req);
+      const filter = generateFilter.roles(req);
 
       expect(filter).to.deep.equal({});
     });
@@ -326,7 +326,7 @@ describe("generate-filter util", function () {
       // Import your module after stubbing the logger to ensure the stub is used
       const { roles } = require("./yourUtilityModule");
 
-      const filter = generateFilterUtil.roles(req);
+      const filter = generateFilter.roles(req);
 
       expect(filter).to.deep.equal({
         success: false,
@@ -361,7 +361,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the permissions function with the mocked request object
-      const result = generateFilterUtil.permissions(req);
+      const result = generateFilter.permissions(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -379,7 +379,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the permissions function with the mocked request object
-      const result = generateFilterUtil.permissions(req);
+      const result = generateFilter.permissions(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -406,7 +406,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the tokens function with the mocked request object
-      const result = generateFilterUtil.tokens(req);
+      const result = generateFilter.tokens(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -426,7 +426,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the tokens function with the mocked request object
-      const result = generateFilterUtil.tokens(req);
+      const result = generateFilter.tokens(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -453,7 +453,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the clients function with the mocked request object
-      const result = generateFilterUtil.clients(req);
+      const result = generateFilter.clients(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -475,7 +475,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the clients function with the mocked request object
-      const result = generateFilterUtil.clients(req);
+      const result = generateFilter.clients(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -501,7 +501,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the scopes function with the mocked request object
-      const result = generateFilterUtil.scopes(req);
+      const result = generateFilter.scopes(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -519,7 +519,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the scopes function with the mocked request object
-      const result = generateFilterUtil.scopes(req);
+      const result = generateFilter.scopes(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -546,7 +546,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the departments function with the mocked request object
-      const result = generateFilterUtil.departments(req);
+      const result = generateFilter.departments(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -565,7 +565,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the departments function with the mocked request object
-      const result = generateFilterUtil.departments(req);
+      const result = generateFilter.departments(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -589,7 +589,7 @@ describe("generate-filter util", function () {
         },
       };
 
-      const filter = generateFilterUtil.groups(req);
+      const filter = generateFilter.groups(req);
 
       expect(filter).to.deep.equal({
         _id: "group_id",
@@ -605,7 +605,7 @@ describe("generate-filter util", function () {
         params: {},
       };
 
-      const filter = generateFilterUtil.groups(req);
+      const filter = generateFilter.groups(req);
 
       expect(filter).to.deep.equal({});
     });
@@ -626,7 +626,7 @@ describe("generate-filter util", function () {
       // Import your module after stubbing the logger to ensure the stub is used
       const { groups } = require("./yourUtilityModule");
 
-      const filter = generateFilterUtil.groups(req);
+      const filter = generateFilter.groups(req);
 
       expect(filter).to.deep.equal({
         success: false,
@@ -658,7 +658,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the logs function with the mocked request object
-      const result = generateFilterUtil.logs(req);
+      const result = generateFilter.logs(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -680,7 +680,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the logs function with the mocked request object
-      const result = generateFilterUtil.logs(req);
+      const result = generateFilter.logs(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -699,7 +699,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the logs function with the mocked request object
-      const result = generateFilterUtil.logs(req);
+      const result = generateFilter.logs(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -718,7 +718,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the logs function with the mocked request object
-      const result = generateFilterUtil.logs(req);
+      const result = generateFilter.logs(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -733,7 +733,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the logs function with the mocked request object
-      const result = generateFilterUtil.logs(req);
+      const result = generateFilter.logs(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -757,7 +757,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the favorites function with the mocked request object
-      const result = generateFilterUtil.favorites(req);
+      const result = generateFilter.favorites(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -775,7 +775,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the favorites function with the mocked request object
-      const result = generateFilterUtil.favorites(req);
+      const result = generateFilter.favorites(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -793,7 +793,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the favorites function with the mocked request object
-      const result = generateFilterUtil.favorites(req);
+      const result = generateFilter.favorites(req);
 
       // Assert the expected output
       expect(result).to.deep.equal({
@@ -809,7 +809,7 @@ describe("generate-filter util", function () {
       };
 
       // Call the favorites function with the mocked request object
-      const result = generateFilterUtil.favorites(req);
+      const result = generateFilter.favorites(req);
 
       // Assert the expected error response
       expect(result).to.deep.equal({
@@ -831,7 +831,7 @@ describe("generate-filter util", function () {
       };
       req.query.user_id = "user123";
 
-      const filter = generateFilterUtil.preferences(req);
+      const filter = generateFilter.preferences(req);
 
       expect(filter).to.deep.equal({ user_id: "user123" });
     });
@@ -845,7 +845,7 @@ describe("generate-filter util", function () {
       req.params.grid_id = "grid123";
       req.query.cohort_id = "cohort456";
 
-      const filter = generateFilterUtil.preferences(req);
+      const filter = generateFilter.preferences(req);
 
       expect(filter).to.deep.equal({
         grid_id: "grid123",
@@ -867,7 +867,7 @@ describe("generate-filter util", function () {
       };
       req.query.invalid_param = "invalid_value";
 
-      const filter = generateFilterUtil.preferences(req, logger);
+      const filter = generateFilter.preferences(req, logger);
 
       expect(filter).to.deep.equal({
         success: false,
@@ -892,7 +892,7 @@ describe("generate-filter util", function () {
       };
       req.query.user_id = "user123";
 
-      const filter = generateFilterUtil.checklists(req);
+      const filter = generateFilter.checklists(req);
 
       expect(filter).to.deep.equal({ user_id: "user123" });
     });
@@ -905,7 +905,7 @@ describe("generate-filter util", function () {
       };
       req.params.id = "checklist123";
 
-      const filter = generateFilterUtil.checklists(req);
+      const filter = generateFilter.checklists(req);
 
       expect(filter).to.deep.equal({ _id: "checklist123" });
     });
@@ -919,7 +919,7 @@ describe("generate-filter util", function () {
       req.query.user_id = "user123";
       req.params.id = "checklist123";
 
-      const filter = generateFilterUtil.checklists(req);
+      const filter = generateFilter.checklists(req);
 
       expect(filter).to.deep.equal({ user_id: "user123", _id: "checklist123" });
     });
@@ -938,7 +938,7 @@ describe("generate-filter util", function () {
       };
       req.query.invalid_param = "invalid_value";
 
-      const filter = generateFilterUtil.checklists(req, logger);
+      const filter = generateFilter.checklists(req, logger);
 
       expect(filter).to.deep.equal({
         success: false,

@@ -1,12 +1,18 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logElement, logText } = require("@utils/log");
+
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const { getModelByTenant } = require("@config/database");
 const moment = require("moment-timezone");
 

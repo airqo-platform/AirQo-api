@@ -1,6 +1,6 @@
 const constants = require("@config/constants");
 const { Paddle, Environment } = require("@paddle/paddle-node-sdk");
-const { logObject } = require("@utils/log");
+const { logObject } = require("@utils/shared");
 
 logObject("API Key Configuration", {
   length: constants.PADDLE_API_KEY?.length || 0,

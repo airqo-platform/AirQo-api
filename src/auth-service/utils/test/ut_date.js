@@ -1,11 +1,27 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
-const utils = require("@utils/date");
+const {
+  generateDateFormat,
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime,
+  addWeeksToProvideDateTime,
+  addDaysToProvideDateTime,
+  getDifferenceInWeeks,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+  addMinutes,
+  formatDate,
+  addHours,
+  monthsFromNow,
+} = require("@date/common");
 
 describe("monthsFromNow", () => {
   it("should return the current date for invalid input", () => {
-    const result = utils.monthsFromNow("invalid");
+    const result = monthsFromNow("invalid");
     const currentDate = new Date();
     expect(result).to.be.instanceOf(Date);
     expect(result.getFullYear()).to.equal(currentDate.getFullYear());
@@ -15,7 +31,7 @@ describe("monthsFromNow", () => {
 
   it("should return a date 'n' months from now", () => {
     const numMonths = 3;
-    const result = utils.monthsFromNow(numMonths);
+    const result = monthsFromNow(numMonths);
     const currentDate = new Date();
     const expectedMonth = currentDate.getMonth() + numMonths;
     currentDate.setMonth(expectedMonth);
@@ -30,7 +46,7 @@ describe("monthsFromNow", () => {
 
   it("should return the last day of the month if the calculated month is invalid", () => {
     const numMonths = 14; // 14 months from now is equivalent to 2 months from now
-    const result = utils.monthsFromNow(numMonths);
+    const result = monthsFromNow(numMonths);
     const currentDate = new Date();
     const expectedMonth = currentDate.getMonth() + numMonths;
     currentDate.setMonth(expectedMonth);
@@ -44,19 +60,19 @@ describe("monthsFromNow", () => {
 
 describe("isTimeEmpty", () => {
   it("should return true for an invalid date", () => {
-    const result = utils.isTimeEmpty("invalid");
+    const result = isTimeEmpty("invalid");
     expect(result).to.be.true;
   });
 
   it("should return false for a valid date with non-empty time", () => {
     const dateTime = "2023-07-25T12:34:56.789Z";
-    const result = utils.isTimeEmpty(dateTime);
+    const result = isTimeEmpty(dateTime);
     expect(result).to.be.false;
   });
 
   it("should return true for a valid date with empty time", () => {
     const dateOnly = "2023-07-25";
-    const result = utils.isTimeEmpty(dateOnly);
+    const result = isTimeEmpty(dateOnly);
     expect(result).to.be.true;
   });
 });
@@ -64,21 +80,21 @@ describe("isTimeEmpty", () => {
 describe("formatDate", () => {
   it("should return a formatted date string for a valid date", () => {
     const dateTime = "2023-07-25T12:34:56.789Z";
-    const result = utils.formatDate(dateTime);
+    const result = formatDate(dateTime);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-07-25T12:34:56.789Z");
   });
 
   it("should return a formatted date string for a valid date with empty time", () => {
     const dateOnly = "2023-07-25";
-    const result = utils.formatDate(dateOnly);
+    const result = formatDate(dateOnly);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-07-25T00:00:00.000Z");
   });
 
   it("should return 'Invalid Date' for an invalid date", () => {
     const invalidDate = "invalid";
-    const result = utils.formatDate(invalidDate);
+    const result = formatDate(invalidDate);
     expect(result).to.be.a("string");
     expect(result).to.equal("Invalid Date");
   });
@@ -87,21 +103,21 @@ describe("formatDate", () => {
 describe("generateDateFormatWithoutHrs", () => {
   it("should return a formatted date string without hours for a valid date", () => {
     const ISODate = "2023-07-25T12:34:56.789Z";
-    const result = utils.generateDateFormatWithoutHrs(ISODate);
+    const result = generateDateFormatWithoutHrs(ISODate);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-07-25");
   });
 
   it("should return a formatted date string without hours for a valid date with single-digit day and month", () => {
     const ISODate = "2023-07-05T00:00:00.000Z";
-    const result = utils.generateDateFormatWithoutHrs(ISODate);
+    const result = generateDateFormatWithoutHrs(ISODate);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-07-05");
   });
 
   it("should return 'Invalid Date' for an invalid date", () => {
     const invalidDate = "invalid";
-    const result = utils.generateDateFormatWithoutHrs(invalidDate);
+    const result = generateDateFormatWithoutHrs(invalidDate);
     expect(result).to.be.a("string");
     expect(result).to.equal("Invalid Date");
   });
@@ -111,7 +127,7 @@ describe("addMonthsToProvidedDate", () => {
   it("should add the specified number of months to the provided date", () => {
     const date = "2023-07-25";
     const number = 3;
-    const result = utils.addMonthsToProvidedDate(date, number);
+    const result = addMonthsToProvidedDate(date, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-10-25");
   });
@@ -119,7 +135,7 @@ describe("addMonthsToProvidedDate", () => {
   it("should handle single-digit months correctly", () => {
     const date = "2023-07-25";
     const number = 8;
-    const result = utils.addMonthsToProvidedDate(date, number);
+    const result = addMonthsToProvidedDate(date, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("2024-03-25");
   });
@@ -127,7 +143,7 @@ describe("addMonthsToProvidedDate", () => {
   it("should handle cases where the new month has single-digit representation", () => {
     const date = "2023-11-05";
     const number = 2;
-    const result = utils.addMonthsToProvidedDate(date, number);
+    const result = addMonthsToProvidedDate(date, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("2024-01-05");
   });
@@ -135,7 +151,7 @@ describe("addMonthsToProvidedDate", () => {
   it("should handle cases where the new month exceeds 12", () => {
     const date = "2023-10-31";
     const number = 5;
-    const result = utils.addMonthsToProvidedDate(date, number);
+    const result = addMonthsToProvidedDate(date, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("2024-03-31");
   });
@@ -143,7 +159,7 @@ describe("addMonthsToProvidedDate", () => {
   it("should handle cases where the provided date is at the end of the month", () => {
     const date = "2023-07-31";
     const number = 2;
-    const result = utils.addMonthsToProvidedDate(date, number);
+    const result = addMonthsToProvidedDate(date, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-09-30");
   });
@@ -151,7 +167,7 @@ describe("addMonthsToProvidedDate", () => {
   it("should handle cases with negative number of months", () => {
     const date = "2023-12-25";
     const number = -2;
-    const result = utils.addMonthsToProvidedDate(date, number);
+    const result = addMonthsToProvidedDate(date, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("2023-10-25");
   });
@@ -159,20 +175,20 @@ describe("addMonthsToProvidedDate", () => {
   it("should return 'Invalid Date' for an invalid date", () => {
     const invalidDate = "invalid";
     const number = 2;
-    const result = utils.addMonthsToProvidedDate(invalidDate, number);
+    const result = addMonthsToProvidedDate(invalidDate, number);
     expect(result).to.be.a("string");
     expect(result).to.equal("Invalid Date");
   });
 });
 
 describe("addMonthsToProvideDateTime", () => {
-  const originalIsTimeEmpty = utils.isTimeEmpty;
-  const originalAddMonthsToProvidedDate = utils.addMonthsToProvidedDate;
+  const originalIsTimeEmpty = isTimeEmpty;
+  const originalAddMonthsToProvidedDate = addMonthsToProvidedDate;
 
   beforeEach(() => {
     // Stub the isTimeEmpty and addMonthsToProvidedDate functions
-    sinon.stub(utils, "isTimeEmpty");
-    sinon.stub(utils, "addMonthsToProvidedDate");
+    sinon.stub(date, "isTimeEmpty");
+    sinon.stub(date, "addMonthsToProvidedDate");
   });
 
   afterEach(() => {
@@ -184,8 +200,8 @@ describe("addMonthsToProvideDateTime", () => {
     const dateTime = "2023-07-25T10:30:00Z";
     const number = 3;
     const expectedDate = new Date("2023-10-25T10:30:00Z");
-    utils.isTimeEmpty.returns(false);
-    const result = utils.addMonthsToProvideDateTime(dateTime, number);
+    isTimeEmpty.returns(false);
+    const result = addMonthsToProvideDateTime(dateTime, number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedDate.toISOString());
   });
@@ -194,21 +210,20 @@ describe("addMonthsToProvideDateTime", () => {
     const dateTime = "2023-07-25";
     const number = 3;
     const expectedDate = "2023-10-25";
-    utils.isTimeEmpty.returns(true);
-    utils.addMonthsToProvidedDate.returns(expectedDate);
-    const result = utils.addMonthsToProvideDateTime(dateTime, number);
+    isTimeEmpty.returns(true);
+    addMonthsToProvidedDate.returns(expectedDate);
+    const result = addMonthsToProvideDateTime(dateTime, number);
     expect(result).to.be.a("string");
     expect(result).to.equal(expectedDate);
-    expect(
-      utils.addMonthsToProvidedDate.calledOnceWithExactly(dateTime, number)
-    ).to.be.true;
+    expect(addMonthsToProvidedDate.calledOnceWithExactly(dateTime, number)).to
+      .be.true;
   });
 
   it("should return 'Invalid Date' if the provided date is invalid", () => {
     const invalidDateTime = "invalid";
     const number = 3;
-    utils.isTimeEmpty.returns(false);
-    const result = utils.addMonthsToProvideDateTime(invalidDateTime, number);
+    isTimeEmpty.returns(false);
+    const result = addMonthsToProvideDateTime(invalidDateTime, number);
     expect(result).to.equal("Invalid Date");
   });
 });
@@ -222,7 +237,7 @@ describe("monthsInfront", () => {
     if (expectedDate.getMonth() !== (currentDate.getMonth() + number) % 12) {
       expectedDate.setDate(0);
     }
-    const result = utils.monthsInfront(number);
+    const result = monthsInfront(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedDate.toISOString());
   });
@@ -235,7 +250,7 @@ describe("monthsInfront", () => {
     if (expectedDate.getMonth() !== (currentDate.getMonth() + number) % 12) {
       expectedDate.setDate(0);
     }
-    const result = utils.monthsInfront(number);
+    const result = monthsInfront(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedDate.toISOString());
   });
@@ -246,7 +261,7 @@ describe("addDays", () => {
     const currentDate = new Date();
     const expectedDate = new Date(currentDate);
     expectedDate.setDate(currentDate.getDate() + number);
-    const result = utils.addDays(number);
+    const result = addDays(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedDate.toISOString());
   });
@@ -256,7 +271,7 @@ describe("addDays", () => {
     const currentDate = new Date();
     const expectedDate = new Date(currentDate);
     expectedDate.setDate(currentDate.getDate() + number);
-    const result = utils.addDays(number);
+    const result = addDays(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedDate.toISOString());
   });
@@ -269,7 +284,7 @@ describe("addHours", () => {
     const expectedTime = new Date(
       currentTime.getTime() + number * 60 * 60 * 1000
     );
-    const result = utils.addHours(number);
+    const result = addHours(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedTime.toISOString());
   });
@@ -280,7 +295,7 @@ describe("addHours", () => {
     const expectedTime = new Date(
       currentTime.getTime() + number * 60 * 60 * 1000
     );
-    const result = utils.addHours(number);
+    const result = addHours(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedTime.toISOString());
   });
@@ -291,7 +306,7 @@ describe("addMinutes", () => {
     const number = 30;
     const currentTime = new Date();
     const expectedTime = new Date(currentTime.getTime() + number * 60 * 1000);
-    const result = utils.addMinutes(number);
+    const result = addMinutes(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedTime.toISOString());
   });
@@ -300,7 +315,7 @@ describe("addMinutes", () => {
     const number = -30;
     const currentTime = new Date();
     const expectedTime = new Date(currentTime.getTime() + number * 60 * 1000);
-    const result = utils.addMinutes(number);
+    const result = addMinutes(number);
     expect(result).to.be.a("Date");
     expect(result.toISOString()).to.equal(expectedTime.toISOString());
   });
@@ -311,7 +326,7 @@ describe("getDifferenceInMonths", () => {
     const d1 = "2023-01-15"; // January 15, 2023
     const d2 = "2023-04-30"; // April 30, 2023
     const expectedMonths = 3;
-    const result = utils.getDifferenceInMonths(d1, d2);
+    const result = getDifferenceInMonths(d1, d2);
     expect(result).to.equal(expectedMonths);
   });
 
@@ -319,7 +334,7 @@ describe("getDifferenceInMonths", () => {
     const d1 = "2023-04-30"; // April 30, 2023
     const d2 = "2023-01-15"; // January 15, 2023
     const expectedMonths = 3;
-    const result = utils.getDifferenceInMonths(d1, d2);
+    const result = getDifferenceInMonths(d1, d2);
     expect(result).to.equal(expectedMonths);
   });
 
@@ -327,7 +342,7 @@ describe("getDifferenceInMonths", () => {
     const d1 = "2023-05-10"; // May 10, 2023
     const d2 = "2023-05-10"; // May 10, 2023
     const expectedMonths = 0;
-    const result = utils.getDifferenceInMonths(d1, d2);
+    const result = getDifferenceInMonths(d1, d2);
     expect(result).to.equal(expectedMonths);
   });
 });
@@ -336,28 +351,28 @@ describe("threeMonthsFromNow", () => {
   it("should return the correct date three months from the provided date", () => {
     const providedDate = "2023-07-15"; // July 15, 2023
     const expectedDate = "2023-10-15"; // October 15, 2023
-    const result = utils.threeMonthsFromNow(providedDate);
+    const result = threeMonthsFromNow(providedDate);
     expect(result.toISOString().slice(0, 10)).to.equal(expectedDate);
   });
 
   it("should return the correct date three months from the last day of the month", () => {
     const providedDate = "2023-05-31"; // May 31, 2023 (last day of the month)
     const expectedDate = "2023-08-31"; // August 31, 2023 (last day of the month)
-    const result = utils.threeMonthsFromNow(providedDate);
+    const result = threeMonthsFromNow(providedDate);
     expect(result.toISOString().slice(0, 10)).to.equal(expectedDate);
   });
 
   it("should return the correct date three months from the last day of February (leap year)", () => {
     const providedDate = "2024-02-29"; // February 29, 2024 (last day of February in a leap year)
     const expectedDate = "2024-05-29"; // May 29, 2024
-    const result = utils.threeMonthsFromNow(providedDate);
+    const result = threeMonthsFromNow(providedDate);
     expect(result.toISOString().slice(0, 10)).to.equal(expectedDate);
   });
 
   it("should return the correct date three months from the last day of February (non-leap year)", () => {
     const providedDate = "2023-02-28"; // February 28, 2023 (last day of February in a non-leap year)
     const expectedDate = "2023-05-28"; // May 28, 2023
-    const result = utils.threeMonthsFromNow(providedDate);
+    const result = threeMonthsFromNow(providedDate);
     expect(result.toISOString().slice(0, 10)).to.equal(expectedDate);
   });
 });

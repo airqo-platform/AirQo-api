@@ -3,7 +3,7 @@ const chai = require("chai");
 const { expect } = chai;
 const sinon = require("sinon");
 const httpStatus = require("http-status");
-const generateFilter = require("@utils/generate-filter");
+const { generateFilter } = require("@utils/common");
 const PreferenceModel = require("@models/Preference");
 const chaiHttp = require("chai-http");
 chai.use(chaiHttp);

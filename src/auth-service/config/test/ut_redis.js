@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const Redis = require("ioredis");
 const constants = require("@config/constants");
-const { logElement } = require("@utils/log");
+const { logElement } = require("@utils/shared");
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
 
@@ -20,7 +20,7 @@ describe("client1 Redis instance", () => {
       quit: sinon.stub().resolves("OK"),
     });
 
-    // Stub the logElement function from '@utils/log' module
+    // Stub the logElement function from 'log' module
     sinon.stub(logElement);
   });
 

@@ -2,7 +2,7 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const validateSelectedSites = require("@middleware/validateSelectedSites");
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 
 describe("validateSelectedSites Middleware", () => {
   let req, res, next;

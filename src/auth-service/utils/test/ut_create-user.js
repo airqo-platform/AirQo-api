@@ -3,8 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const bcrypt = require("bcrypt");
-// const generateFilter = require("@utils/generate-filter");
-const mailer = require("@utils/mailer");
+const { mailer, generateFilter } = require("@utils/common");
 const redis = require("redis");
 const moment = require("moment-timezone");
 const { ObjectId } = require("mongoose").Types;
@@ -2912,7 +2911,8 @@ describe("create-user-util", function () {
       };
       const modelStub = sinon.stub(UserModel, "findOne").resolves(false);
       const registerStub = sinon.stub(UserModel, "register").resolves({
-        success: true, data: {
+        success: true,
+        data: {
           email: "test@example.com",
           phoneNumber: "1234567890",
           firebase_uid: "firebase_uid",
@@ -2935,12 +2935,11 @@ describe("create-user-util", function () {
           firstName: "John",
           lastName: "Doe",
         },
-        syncOperation: "Created"
+        syncOperation: "Created",
       });
     });
 
     it("should update the user when the user exists locally", async () => {
-
       const request = {
         body: {
           email: "test@example.com",
@@ -2960,10 +2959,13 @@ describe("create-user-util", function () {
         firstName: "Alice",
         lastName: "Smith",
       };
-      const modelStub = sinon.stub(UserModel.statics, "findOne").resolves(existingUser);
+      const modelStub = sinon
+        .stub(UserModel.statics, "findOne")
+        .resolves(existingUser);
       const modifyStub = sinon.stub(UserModel.statics, "modify").resolves(true);
       const listStub = sinon.stub(UserModel.statics, "list").resolves({
-        success: true, data: {
+        success: true,
+        data: {
           email: "test@example.com",
           phoneNumber: "1234567890",
           firstName: "John",
@@ -2971,16 +2973,11 @@ describe("create-user-util", function () {
         },
       });
 
-
-
       const result = await createUser.syncAnalyticsAndMobile(request);
 
       expect(result.success).to.be.true;
       expect(result.syncOperation).to.equal("Updated");
       expect(result.user).to.deep.equal(existingUser);
     });
-
   });
-
-
 });

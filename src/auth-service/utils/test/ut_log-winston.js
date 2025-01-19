@@ -4,7 +4,8 @@ const sinon = require("sinon");
 const { expect } = chai;
 const winston = require("winston");
 const { MongoDB } = require("winston-mongodb");
-const { LogDB, LogModel, winstonLogger } = require("@utils/log-winston");
+const { winstonLogger } = require("@utils/common");
+const { LogDB, LogModel } = require("@models/log");
 
 describe("winstonLogger", () => {
   afterEach(() => {

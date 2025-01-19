@@ -6,7 +6,7 @@ const httpStatus = require("http-status");
 const createGroup = require("@utils/create-group");
 const GroupModel = require("@models/Group");
 const UserModel = require("@models/User");
-const generateFilter = require("@utils/generate-filter");
+const { generateFilter } = require("@utils/common");
 
 describe("createGroup Module", () => {
   describe("removeUniqueConstraint", () => {

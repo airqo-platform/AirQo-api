@@ -1,5 +1,11 @@
 const { isMongoId } = require("validator");
-const { logText, logObject } = require("@utils/log");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const isEmpty = require("is-empty");
 
 const validateSelectedSites = (requiredFields, allowId = false) => {
