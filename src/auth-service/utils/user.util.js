@@ -586,6 +586,36 @@ const createUserModule = {
       );
     }
   },
+  getDetailedUserInfo: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { tenant } = query;
+      const { user_id } = params;
+
+      const filter = { _id: user_id };
+      const responseFromListUser = await UserModel(tenant).list(
+        {
+          filter,
+          limit: 1,
+          skip: 0,
+        },
+        next
+      );
+
+      return responseFromListUser;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   update: async (request, next) => {
     try {
       const { query, body, params } = request;

@@ -1177,6 +1177,80 @@ const createUser = {
       return;
     }
   },
+  loginWithDetails: async (req, res, next) => {
+    logText("..................................");
+    logText("user login with details......");
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      if (req.auth.success === true) {
+        const user = await req.user.toAuthJSON();
+        const currentDate = new Date();
+
+        // Update last login and active status
+        await UserModel("airqo").findByIdAndUpdate(user._id, {
+          lastLogin: currentDate,
+          isActive: true,
+        });
+
+        // Get detailed user information
+        const detailedUserRequest = {
+          query: {
+            tenant: request.query.tenant,
+          },
+          params: {
+            user_id: user._id,
+          },
+        };
+
+        const userDetails = await userUtil.getDetailedUserInfo(
+          detailedUserRequest,
+          next
+        );
+
+        if (userDetails.success === true) {
+          return res.status(httpStatus.OK).json({
+            ...user,
+            details: userDetails.data[0],
+          });
+        } else {
+          throw new HttpError(
+            "Failed to fetch user details",
+            httpStatus.INTERNAL_SERVER_ERROR
+          );
+        }
+      } else {
+        if (req.auth.error) {
+          throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
+        }
+        throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
   logout: async (req, res, next) => {
     try {
       logText("..................................");
