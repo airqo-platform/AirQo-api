@@ -12,6 +12,10 @@ router.use("/requests", require("@routes/v2/requests"));
 router.use("/defaults", require("@routes/v2/defaults"));
 router.use("/checklist", require("@routes/v2/checklist"));
 router.use("/preferences", require("@routes/v2/preferences"));
+router.use(
+  "/notification-preferences",
+  require("@routes/v2/notification-preferences.routes")
+);
 router.use("/maintenances", require("@routes/v2/maintenance"));
 router.use("/types", require("@routes/v2/types"));
 router.use("/tokens", require("@routes/v2/tokens"));
