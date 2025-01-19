@@ -400,7 +400,7 @@ class Config:
                 Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
             },
             DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
-            DeviceCategory.WEATHER: {Frequency.RAW: BIGQUERY_HOURLY_WEATHER_TABLE},
+            DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},
         },
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {

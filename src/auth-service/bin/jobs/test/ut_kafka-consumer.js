@@ -5,8 +5,7 @@ const kafkaConsumer = require("@bin/jobs/kafka-consumer");
 
 // Mock the required modules/functions
 const constants = require("@config/constants");
-const mailer = require("@utils/mailer");
-const emailTemplates = require("@utils/email.templates");
+const { mailer, stringify, emailTemplates } = require("@utils/common");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 

@@ -1,4 +1,3 @@
-const { HttpError } = require("@utils/errors");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
@@ -6,8 +5,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- notification-preferences-util`
 );
-const generateFilter = require("@utils/generate-filter");
-const { logObject } = require("@utils/log");
+const { generateFilter } = require("@utils/common");
+const {
+  logObject,
+
+  HttpError,
+} = require("@utils/shared");
 const NotificationPreferenceModel = require("@models/NotificationPreference");
 // const { validateUser } = require("@utils/validateUser");
 

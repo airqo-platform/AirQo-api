@@ -46,16 +46,7 @@ class WeatherDataUtils:
             remove_outliers=remove_outliers,
         )
 
-        bigquery_api = BigQueryApi()
-
-        expected_columns = bigquery_api.get_columns(
-            table=bigquery_api.hourly_weather_table
-        )
-        return (
-            pd.DataFrame(columns=expected_columns)
-            if measurements.empty
-            else measurements
-        )
+        return measurements
 
     @staticmethod
     def get_nearest_weather_stations(records: list) -> list:

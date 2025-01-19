@@ -1,13 +1,18 @@
 const httpStatus = require("http-status");
 const AccessTokenModel = require("@models/AccessToken");
 const mongoose = require("mongoose").set("debug", true);
-const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- middleware/check-scope`
 );
-const { HttpError, extractErrorsFromRequest } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const checkScope = (requiredScope) => {
   return async (req, res, next) => {

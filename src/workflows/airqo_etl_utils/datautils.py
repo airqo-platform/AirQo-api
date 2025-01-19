@@ -125,17 +125,21 @@ class DataUtils:
             KeyError: If the combination of data_type, device_category, and frequency is invalid.
             Exception: For unexpected errors during column retrieval or data processing.
         """
+        bigquery = BigQueryApi()
         data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
 
         try:
             datasource = configuration.DataSource
-            cols = datasource.get(datatype).get(device_category).get(frequency)
-        except KeyError as e:
+            table = datasource.get(datatype).get(device_category).get(frequency)
+            cols = bigquery.get_columns(table=table)
+        except KeyError:
             logger.exception(
                 f"Invalid combination: {datatype}, {device_category}, {frequency}"
             )
         except Exception as e:
-            logger.exception("An unexpected error occurred during column retrieval")
+            logger.exception(
+                f"An unexpected error occurred during column retrieval: {e}"
+            )
 
         return Utils.populate_missing_columns(data=data, columns=cols)
 
