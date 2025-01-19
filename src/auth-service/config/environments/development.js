@@ -31,6 +31,7 @@ const devConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  API_TOKEN: process.env.DEV_API_TOKEN,
   PADDLE_SUCCESS_REDIRECT_URL: process.env.DEV_PADDLE_SUCCESS_REDIRECT_URL,
   PADDLE_CANCEL_REDIRECT_URL: process.env.DEV_PADDLE_CANCEL_REDIRECT_URL,
   PADDLE_PUBLIC_KEY: process.env.DEV_PADDLE_PUBLIC_KEY,
