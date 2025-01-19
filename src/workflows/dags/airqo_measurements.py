@@ -438,13 +438,11 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.calibrate_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
+    def send_hourly_measurements_to_api(data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        data = AirQoDataUtils.process_data_for_api(
-            airqo_data, frequency=Frequency.HOURLY
-        )
+        data = AirQoDataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=data)
@@ -475,7 +473,7 @@ def airqo_realtime_measurements():
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_hourly_measurements_to_bigquery(airqo_data: pd.DataFrame):
+    def send_hourly_measurements_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
@@ -489,12 +487,12 @@ def airqo_realtime_measurements():
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
+    def send_raw_measurements_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
-            airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
+            data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
