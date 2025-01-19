@@ -4,7 +4,6 @@ const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
-const { logObject, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
@@ -15,9 +14,9 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
 const validUserTypes = ["user", "guest"];
-const { HttpError } = require("@utils/errors");
-const mailer = require("@utils/mailer");
+const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 
 function oneMonthFromNow() {
   var d = new Date();

@@ -4,7 +4,7 @@ const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const stringify = require("@utils/stringify");
+const { mailer, stringify } = require("@utils/common");
 const httpStatus = require("http-status");
 
 const logger = log4js.getLogger(

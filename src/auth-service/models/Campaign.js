@@ -1,14 +1,19 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const constants = require("@config/constants");
-const { logObject } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- campaign-model`);
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const CampaignSchema = new Schema(
   {

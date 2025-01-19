@@ -4,7 +4,8 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- user-activity-job`
 );
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
+
 const { LogModel } = require("@models/log");
 const ActivityModel = require("@models/Activity");
 

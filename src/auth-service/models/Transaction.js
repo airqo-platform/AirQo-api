@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const constants = require("@config/constants");
-const { logObject } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -10,7 +9,13 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- transactions-model`
 );
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const TransactionSchema = new Schema(
   {

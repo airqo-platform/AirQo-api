@@ -7,7 +7,16 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preferences-log-job`
 );
-const stringify = require("@utils/stringify");
+const {
+  winstonLogger,
+  mailer,
+  stringify,
+  date,
+  msgs,
+  emailTemplates,
+  generateFilter,
+  responseHandler,
+} = require("@utils/common");
 const isEmpty = require("is-empty");
 
 const logUserPreferences = async () => {

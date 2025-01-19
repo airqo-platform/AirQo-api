@@ -4,10 +4,10 @@ const TransactionModel = require("@models/Transaction");
 const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const stringify = require("@utils/stringify");
+
 const httpStatus = require("http-status");
 const cron = require("node-cron");
-const mailer = require("@utils/mailer");
+const { mailer, stringify } = require("@utils/common");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- subscription-renewal-utils`
