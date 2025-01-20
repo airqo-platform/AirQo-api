@@ -21,8 +21,7 @@ const processString = (inputString) => {
   return uppercasedString;
 };
 
-// const imagePath = path.join(__dirname, "../../../config/images");
-const imagePath = path.join(process.cwd(), "config/images");
+const imagePath = path.join(__dirname, "../../../config/images");
 
 let attachments = [
   {
