@@ -17,15 +17,18 @@ resources:
   requests:
     cpu: 10m
     memory: 180Mi
+nodeSelector:
+  role: high-cpu
 affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: role
-                operator: In
-                values:
-                  - high-cpu
+        - preference:
+            matchExpressions:
+            - key: role
+              operator: In
+              values:
+              - high-cpu
+          weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

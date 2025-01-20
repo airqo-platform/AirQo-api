@@ -21,15 +21,18 @@ api:
     requests:
       cpu: 5m
       memory: 150Mi
+  nodeSelector:
+    role: moderate-usage
   affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
+        - preference:
+            matchExpressions:
               - key: role
                 operator: In
                 values:
                   - moderate-usage
+          weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

@@ -18,15 +18,18 @@ api:
     requests:
       cpu: 5m
       memory: 300Mi
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-        - matchExpressions:
+  nodeSelector:
+    role: high-mem
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - preference:
+            matchExpressions:
             - key: role
               operator: In
               values:
-                - high-mem
+              - high-mem
+          weight: 1
 ingress:
   enabled: false
 service:

@@ -20,12 +20,15 @@ resources:
 affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: role
-                operator: In
-                values:
-                  - control-plane
+        - preference:
+            matchExpressions:
+            - key: role
+              operator: In
+              values:
+              - control-plane
+          weight: 1
+nodeSelector:
+  role: control-plane
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
