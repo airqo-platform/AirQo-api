@@ -1,11 +1,10 @@
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 
-exports.handleResponse = (res, result, successDataKey = "data") => {
+const handleResponse = (res, result, successDataKey = "data") => {
   if (isEmpty(result) || res.headersSent) {
     return;
   }
-
   const status =
     result.status ||
     (result.success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
@@ -24,3 +23,5 @@ exports.handleResponse = (res, result, successDataKey = "data") => {
     });
   }
 };
+
+module.exports = handleResponse;
