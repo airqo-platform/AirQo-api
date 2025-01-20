@@ -137,8 +137,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           );
           return;
         } else if (user.analyticsVersion === 3 && user.verified === false) {
+          const tenantValue = tenant || "airqo";
           const verificationRequest = {
-            tenant: "airqo",
+            tenant: tenantValue,
             email: user.email,
           };
           try {
@@ -147,10 +148,13 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                 verificationRequest,
                 next
               );
-            if (verificationEmailResponse.success === false) {
+            if (
+              !verificationEmailResponse ||
+              verificationEmailResponse.success === false
+            ) {
               logger.error(
                 `Internal Server Error --- ${stringify(
-                  verificationEmailResponse
+                  verificationEmailResponse || "No Response"
                 )}`
               );
             }
@@ -229,12 +233,23 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           return;
         } else if (user.analyticsVersion === 3 && user.verified === false) {
           try {
+            const tenantValue = tenant || "airqo";
+            const verificationRequest = {
+              tenant: tenantValue,
+              email: user.email,
+            };
             const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
-            if (verificationEmailResponse.success === false) {
+              await createUserUtil.verificationReminder(
+                verificationRequest,
+                next
+              );
+            if (
+              !verificationEmailResponse ||
+              verificationEmailResponse.success === false
+            ) {
               logger.error(
                 `Internal Server Error --- ${stringify(
-                  verificationEmailResponse
+                  verificationEmailResponse || "No Response"
                 )}`
               );
             }
