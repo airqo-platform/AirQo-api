@@ -1,5 +1,10 @@
-const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const { logObject } = require("@utils/log");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const constants = require("@config/constants");
 const { isEmpty } = require("lodash");
 const httpStatus = require("http-status");

@@ -15,7 +15,13 @@ const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
 const passport = require("passport");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const rateLimit = require("express-rate-limit");
@@ -33,9 +39,8 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/server script`
 );
-const { logText, logObject } = require("@utils/log");
 const fileUpload = require("express-fileupload");
-const stringify = require("@utils/stringify");
+const { stringify } = require("@utils/common");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");

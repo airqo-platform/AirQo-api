@@ -1,14 +1,18 @@
 const CampaignModel = require("@models/Campaign");
 const TransactionModel = require("@models/Transaction");
-const { logElement, logText, logObject } = require("@utils/log");
-const stringify = require("@utils/stringify");
-const generateFilter = require("@utils/generate-filter");
+const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- campaigns-util`);
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const campaigns = {
   /**

@@ -3,7 +3,6 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
 const validator = require("validator");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
@@ -11,7 +10,13 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- network-model`
 );
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 function validateProfilePicture(net_profile_picture) {
   const urlRegex =

@@ -4,11 +4,12 @@ const GroupModel = require("@models/Group");
 const mongoose = require("mongoose");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
+
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/profile-picture-update-job`
 );
-const stringify = require("@utils/stringify");
+const { stringify } = require("@utils/common");
 const isEmpty = require("is-empty");
 
 // Configuration

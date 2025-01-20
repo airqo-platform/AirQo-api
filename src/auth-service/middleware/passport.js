@@ -1,21 +1,24 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const createUserUtil = require("@utils/create-user");
+const createUserUtil = require("@utils/user.util");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
-const winstonLogger = require("@utils/log-winston");
-const { logElement, logText, logObject } = require("@utils/log");
+const { mailer, stringify, winstonLogger } = require("@utils/common");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
-const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const mailer = require("@utils/mailer");
-const stringify = require("@utils/stringify");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
@@ -140,7 +143,10 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           };
           try {
             const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
+              await createUserUtil.verificationReminder(
+                verificationRequest,
+                next
+              );
             if (verificationEmailResponse.success === false) {
               logger.error(
                 `Internal Server Error --- ${stringify(

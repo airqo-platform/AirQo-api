@@ -5,11 +5,13 @@ const PreferenceModel = require("@models/Preference");
 const SelectedSiteModel = require("@models/SelectedSite");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const { logText, logObject } = require("@utils/log");
+const { logObject } = require("@utils/shared");
+
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preference-update-job`
 );
-const stringify = require("@utils/stringify");
+const { stringify } = require("@utils/common");
+
 const isEmpty = require("is-empty");
 const BATCH_SIZE = 100;
 
