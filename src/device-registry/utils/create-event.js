@@ -336,11 +336,22 @@ class AirQualityService {
         return cacheResult.data;
       }
 
-      // Get data based on version
-      responseFromListEvents =
-        version === "v2"
-          ? await this.EventModel.v2_getAirQualityAverages(site_id, next)
-          : await this.EventModel.getAirQualityAverages(site_id, next);
+      const versionedFunctions = {
+        v2: this.EventModel.v2_getAirQualityAverages,
+        v3: this.EventModel.v3_getAirQualityAverages,
+        // Add more versions as needed
+      };
+
+      const defaultFunction = this.EventModel.getAirQualityAverages;
+
+      const getAveragesFunction =
+        versionedFunctions[version] || defaultFunction;
+
+      responseFromListEvents = await getAveragesFunction.call(
+        this.EventModel,
+        site_id,
+        next
+      ); // Use .call to preserve 'this' context
 
       // Handle translation if needed (only for v1 as v2 doesn't include health tips)
       if (version === "v1") {
@@ -1067,6 +1078,10 @@ const createEvent = {
   listAveragesV2: async (request, next) => {
     const service = new AirQualityService(request.query.tenant);
     return service.getAirQualityData(request, next, "v2");
+  },
+  listAveragesV3: async (request, next) => {
+    const service = new AirQualityService(request.query.tenant);
+    return service.getAirQualityData(request, next, "v3");
   },
   view: async (request, next) => {
     try {
