@@ -1,21 +1,24 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const createUserUtil = require("@utils/create-user");
+const createUserUtil = require("@utils/user.util");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
-const winstonLogger = require("@utils/log-winston");
-const { logElement, logText, logObject } = require("@utils/log");
+const { mailer, stringify, winstonLogger } = require("@utils/common");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
-const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
-const mailer = require("@utils/mailer");
-const stringify = require("@utils/stringify");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- passport-middleware`
@@ -134,17 +137,24 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           );
           return;
         } else if (user.analyticsVersion === 3 && user.verified === false) {
+          const tenantValue = tenant || "airqo";
           const verificationRequest = {
-            tenant: "airqo",
+            tenant: tenantValue,
             email: user.email,
           };
           try {
             const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
-            if (verificationEmailResponse.success === false) {
+              await createUserUtil.verificationReminder(
+                verificationRequest,
+                next
+              );
+            if (
+              !verificationEmailResponse ||
+              verificationEmailResponse.success === false
+            ) {
               logger.error(
                 `Internal Server Error --- ${stringify(
-                  verificationEmailResponse
+                  verificationEmailResponse || "No Response"
                 )}`
               );
             }
@@ -223,12 +233,23 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           return;
         } else if (user.analyticsVersion === 3 && user.verified === false) {
           try {
+            const tenantValue = tenant || "airqo";
+            const verificationRequest = {
+              tenant: tenantValue,
+              email: user.email,
+            };
             const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
-            if (verificationEmailResponse.success === false) {
+              await createUserUtil.verificationReminder(
+                verificationRequest,
+                next
+              );
+            if (
+              !verificationEmailResponse ||
+              verificationEmailResponse.success === false
+            ) {
               logger.error(
                 `Internal Server Error --- ${stringify(
-                  verificationEmailResponse
+                  verificationEmailResponse || "No Response"
                 )}`
               );
             }
@@ -275,7 +296,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
     {
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
+      callbackURL: `${constants.PLATFORM_BASE_URL}/api/v2/users/auth/google/callback`,
     },
     async (accessToken, refreshToken, profile, cb) => {
       logObject("Google profile Object", profile._json);

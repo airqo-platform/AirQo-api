@@ -4,7 +4,6 @@ const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
-const { logObject, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
@@ -15,9 +14,9 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
 const validUserTypes = ["user", "guest"];
-const { HttpError } = require("@utils/errors");
-const mailer = require("@utils/mailer");
+const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -234,6 +233,37 @@ const UserSchema = new Schema(
     },
     google_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
+    subscriptionStatus: {
+      type: String,
+      enum: ["inactive", "active", "past_due", "cancelled"],
+      default: "inactive",
+    },
+    currentSubscriptionId: {
+      type: String,
+    },
+    lastSubscriptionCheck: {
+      type: Date,
+    },
+    subscriptionCancelledAt: {
+      type: Date,
+    },
+    automaticRenewal: {
+      type: Boolean,
+      default: false,
+    },
+    nextBillingDate: {
+      type: Date,
+    },
+    lastRenewalDate: {
+      type: Date,
+    },
+    currentPlanDetails: {
+      type: {
+        priceId: String,
+        currency: String,
+        billingCycle: String, // 'monthly', 'annual', etc.
+      },
+    },
   },
   { timestamps: true }
 );
@@ -755,7 +785,10 @@ UserSchema.statics = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -966,7 +999,10 @@ UserSchema.statics = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1008,6 +1044,9 @@ UserSchema.statics = {
       );
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      if (error instanceof HttpError) {
+        return next(error);
+      }
       return next(
         new HttpError(
           "Internal Server Error",
@@ -1047,7 +1086,10 @@ UserSchema.statics = {
     } catch (error) {
       logObject("the models error", error);
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,

@@ -1,5 +1,5 @@
 const constants = require("./constants");
-const { logElement } = require("@utils/log");
+const { logElement } = require("@utils/shared");
 const Redis = require("ioredis");
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;

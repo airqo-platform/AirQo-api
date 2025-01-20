@@ -102,7 +102,7 @@ class AirnowDataUtils:
                 all_device_data.append(device_df)
 
         if not all_device_data:
-            raise ValueError("No BAM data found for the specified date range.")
+            logger.info("No BAM data found for the specified date range.")
 
         bam_data = pd.concat(all_device_data, ignore_index=True)
 

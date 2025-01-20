@@ -5,9 +5,11 @@ from .airqo_utils import AirQoDataUtils
 
 # from .app_insights_utils import AirQoAppUtils
 from .bigquery_api import BigQueryApi
-from .constants import Tenant, DeviceCategory
+from .constants import DeviceCategory, DeviceNetwork
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
+from .constants import DataType, Frequency
+from .datautils import DataUtils
 
 
 class DataWarehouseUtils:
@@ -27,16 +29,14 @@ class DataWarehouseUtils:
         start_date_time: str,
         end_date_time: str,
     ) -> pd.DataFrame:
-        biq_query_api = BigQueryApi()
-        columns = biq_query_api.get_columns(table=biq_query_api.bam_measurements_table)
-        data = biq_query_api.query_data(
+
+        data = DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            table=biq_query_api.bam_measurements_table,
+            frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.BAM,
         )
-
-        if data.empty:
-            data = pd.DataFrame(data=[], columns=columns)
 
         data.rename(
             columns={
@@ -49,42 +49,17 @@ class DataWarehouseUtils:
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
-    def extract_data_from_big_query(
-        start_date_time: str,
-        end_date_time: str,
-    ) -> pd.DataFrame:
-        biq_query_api = BigQueryApi()
-        return biq_query_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=biq_query_api.consolidated_data_table,
-        )
-
-    @staticmethod
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        return data.drop_duplicates(
-            subset=["network", "timestamp", "device_number", "device_id"],
-            keep="first",
-        )
-
-    @staticmethod
     def extract_hourly_low_cost_data(
         start_date_time: str,
         end_date_time: str,
     ) -> pd.DataFrame:
-        biq_query_api = BigQueryApi()
-        columns = biq_query_api.get_columns(
-            table=biq_query_api.hourly_measurements_table
-        )
-        data = biq_query_api.query_data(
+        data = DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            table=biq_query_api.hourly_measurements_table,
+            frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.GENERAL,
         )
-
-        if data.empty:
-            data = pd.DataFrame(data=[], columns=columns)
 
         data.rename(
             columns={
@@ -101,12 +76,15 @@ class DataWarehouseUtils:
     def extract_hourly_weather_data(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
-        return WeatherDataUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return WeatherDataUtils.extract_weather_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
         )
 
     @staticmethod
-    def extract_sites_meta_data(network: str = "all") -> pd.DataFrame:
+    def extract_sites_meta_data(network: DeviceNetwork = None) -> pd.DataFrame:
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites(network=network)
         sites = pd.DataFrame(sites)
@@ -144,10 +122,10 @@ class DataWarehouseUtils:
         low_cost_data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         bam_data.loc[:, "device_category"] = str(DeviceCategory.BAM)
 
-        airqo_data = low_cost_data.loc[low_cost_data["network"] == str(Tenant.AIRQO)]
+        airqo_data = low_cost_data.loc[low_cost_data["network"] == DeviceNetwork.AIRQO]
 
         non_airqo_data = low_cost_data.loc[
-            low_cost_data["network"] != str(Tenant.AIRQO)
+            low_cost_data["network"] != DeviceNetwork.AIRQO
         ]
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
             airqo_data=airqo_data, weather_data=weather_data

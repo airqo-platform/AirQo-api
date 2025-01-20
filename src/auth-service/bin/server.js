@@ -15,9 +15,16 @@ const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
 const passport = require("passport");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
+const rateLimit = require("express-rate-limit");
 const options = { mongooseConnection: mongoose.connection };
 require("@bin/jobs/active-status-job");
 require("@bin/jobs/token-expiration-job");
@@ -32,9 +39,8 @@ const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/server script`
 );
-const { logText, logObject } = require("@utils/log");
 const fileUpload = require("express-fileupload");
-const stringify = require("@utils/stringify");
+const { stringify } = require("@utils/common");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -50,7 +56,6 @@ app.use(
   })
 ); // session setup
 
-app.use(fileUpload());
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {
@@ -74,9 +79,28 @@ app.use(
     parameterLimit: 50000,
   })
 );
-
+// app.use(fileUpload());
+app.use(
+  fileUpload({
+    createParentPath: true,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB max file size
+    },
+    useTempFiles: true,
+    tempFileDir: "/tmp/",
+    debug: isDev,
+    abortOnLimit: true,
+  })
+);
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
+
+const transactionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: "Too many transaction requests, please try again later",
+});
+app.use("/api/v2/users/transactions", transactionLimiter);
 
 // app.use("/api/v1/users", require("@routes/v1"));
 app.use("/api/v2/users", require("@routes/v2"));
@@ -144,6 +168,18 @@ app.use(function (err, req, res, next) {
         success: false,
         message: err.message,
         errors: { message: err.message },
+      });
+    } else if (err.code && err.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({
+        success: false,
+        message: "File too large",
+        errors: { message: "File size cannot be larger than 50MB" },
+      });
+    } else if (err.code && err.code === "ENOENT") {
+      res.status(400).json({
+        success: false,
+        message: "File upload error",
+        errors: { message: "Unable to find the uploaded file" },
       });
     } else {
       logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);

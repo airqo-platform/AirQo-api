@@ -1,6 +1,10 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+from datetime import timedelta
+from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
+from airqo_etl_utils.datautils import DataUtils
 
 
 @dag(
@@ -49,11 +53,22 @@ def data_warehouse_consolidated_data():
             days=7, **kwargs
         )
 
-        return DataWarehouseUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        data = DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.BAM,
+        )
+        return WeatherDataUtils.extract_weather_data(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_sites_info(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
@@ -70,7 +85,7 @@ def data_warehouse_consolidated_data():
             sites_info=sites_data,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
@@ -102,15 +117,19 @@ def data_warehouse_consolidated_data():
 
 @dag(
     "Cleanup-Consolidated-Data",
-    schedule="0 0 * * */4 ",
+    schedule="0 4 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["consolidated data", "cleanup"],
+    tags=["consolidated data", "cleanup", "daily"],
 )
 def data_warehouse_cleanup_consolidated_data():
     import pandas as pd
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def extract_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
@@ -118,18 +137,36 @@ def data_warehouse_cleanup_consolidated_data():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=5, kwargs=kwargs
         )
-
-        return DataWarehouseUtils.extract_data_from_big_query(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return DataUtils.extract_data_from_bigquery(
+            DataType.CONSOLIDATED,
+            start_date_time,
+            end_date_time,
+            Frequency.HOURLY,
+            DeviceCategory.GENERAL,
         )
 
     @task()
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        return DataWarehouseUtils.remove_duplicates(data=data)
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
-    @task()
+    @task(
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -153,7 +190,11 @@ def data_warehouse_cleanup_consolidated_data():
 def data_warehouse_historical_consolidated_data():
     import pandas as pd
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=10),
+    )
     def extract_hourly_low_cost_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
@@ -166,7 +207,11 @@ def data_warehouse_historical_consolidated_data():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def extract_hourly_bam_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
@@ -179,7 +224,11 @@ def data_warehouse_historical_consolidated_data():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def extract_hourly_weather_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
@@ -192,7 +241,10 @@ def data_warehouse_historical_consolidated_data():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-    @task()
+    @task(
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def extract_sites_info():
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
@@ -209,7 +261,10 @@ def data_warehouse_historical_consolidated_data():
             sites_info=sites_data,
         )
 
-    @task()
+    @task(
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
@@ -249,26 +304,47 @@ def data_warehouse_historical_consolidated_data():
 def data_warehouse_historical_cleanup_consolidated_data():
     import pandas as pd
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=10),
+    )
     def extract_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, **kwargs
         )
 
-        return DataWarehouseUtils.extract_data_from_big_query(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return DataUtils.extract_data_from_bigquery(
+            DataType.CONSOLIDATED,
+            start_date_time,
+            end_date_time,
+            Frequency.HOURLY,
+            DeviceCategory.GENERAL,
         )
 
     @task()
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        exclude_cols = [
+            data.device_number.name,
+            data.latitude.name,
+            data.longitude.name,
+            data.network.name,
+        ]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.device_id.name,
+            group_col=data.site_id.name,
+            exclude_cols=exclude_cols,
+        )
 
-        return DataWarehouseUtils.remove_duplicates(data=data)
-
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=10),
+    )
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 

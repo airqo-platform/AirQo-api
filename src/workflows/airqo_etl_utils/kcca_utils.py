@@ -5,7 +5,7 @@ import requests
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import Tenant, DataSource, Frequency, DeviceCategory
+from .constants import DataSource, Frequency, DeviceCategory, DeviceNetwork
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
@@ -31,8 +31,7 @@ class KccaUtils:
                 return []
             return results.json()
         except Exception as ex:
-            traceback.print_exc()
-            print(ex)
+            logger.exception(ex)
             return []
 
     @staticmethod
@@ -132,7 +131,7 @@ class KccaUtils:
 
     @staticmethod
     def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
-        data.loc[:, "tenant"] = str(Tenant.KCCA)
+        data.loc[:, "network"] = str(DeviceNetwork.KCCA)
         data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         return data
 
@@ -156,8 +155,7 @@ class KccaUtils:
             row_data = {
                 "frequency": str(Frequency.HOURLY),
                 "time": row.get("timestamp", None),
-                "network": str(Tenant.KCCA),
-                "tenant": str(Tenant.AIRQO),
+                "network": DeviceNetwork.AIRQO,
                 "site_id": row.get("site_id", None),
                 "device_id": device_details.get("_id", None),
                 "device": device_details.get("name", None),

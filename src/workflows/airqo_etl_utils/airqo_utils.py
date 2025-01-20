@@ -19,6 +19,7 @@ from .date import date_to_str
 from .ml_utils import GCSUtils
 from .data_sources import DataSourcesApis
 from .utils import Utils
+from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any, Optional, Union
 from .airqo_gx_expectations import AirQoGxExpectations
@@ -63,116 +64,6 @@ class AirQoDataUtils:
         )
 
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
-
-    @staticmethod
-    def extract_data_from_bigquery(
-        start_date_time, end_date_time, frequency: Frequency
-    ) -> pd.DataFrame:
-        bigquery_api = BigQueryApi()
-        if frequency == Frequency.RAW:
-            table = bigquery_api.raw_measurements_table
-        elif frequency == Frequency.HOURLY:
-            table = bigquery_api.hourly_measurements_table
-        else:
-            table = ""
-        raw_data = bigquery_api.query_data(
-            table=table,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            network=DeviceNetwork.AIRQO,
-        )
-
-        return DataValidationUtils.remove_outliers(raw_data)
-
-    @staticmethod
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        cols = data.columns.to_list()
-        cols.remove("timestamp")
-        cols.remove("device_number")
-        data.dropna(subset=cols, how="all", inplace=True)
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["duplicated"] = data.duplicated(
-            keep=False, subset=["device_number", "timestamp"]
-        )
-
-        if True not in data["duplicated"].values:
-            return data
-
-        duplicated_data = data.loc[data["duplicated"]]
-        not_duplicated_data = data.loc[~data["duplicated"]]
-
-        for _, by_device_number in duplicated_data.groupby(by="device_number"):
-            for _, by_timestamp in by_device_number.groupby(by="timestamp"):
-                by_timestamp = by_timestamp.copy()
-                by_timestamp.fillna(inplace=True, method="ffill")
-                by_timestamp.fillna(inplace=True, method="bfill")
-                by_timestamp.drop_duplicates(
-                    subset=["device_number", "timestamp"], inplace=True, keep="first"
-                )
-                not_duplicated_data = pd.concat(
-                    [not_duplicated_data, by_timestamp], ignore_index=True
-                )
-
-        return not_duplicated_data
-
-    @staticmethod
-    def extract_aggregated_raw_data(
-        start_date_time: str,
-        end_date_time: str,
-        network: str = None,
-        dynamic_query: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Retrieves raw pm2.5 sensor data from bigquery and computes averages for the numeric columns grouped by device_number, device_id and site_id
-        """
-        bigquery_api = BigQueryApi()
-
-        measurements = bigquery_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            table=bigquery_api.raw_measurements_table,
-            network=network,
-            dynamic_query=dynamic_query,
-        )
-
-        if measurements.empty:
-            return pd.DataFrame([])
-
-        return measurements
-
-    @staticmethod
-    def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
-        """
-        Maps thingspeak field8 data to airqo custom mapping. Mappings are defined in the config file.
-
-        Args:
-            device_category(DeviceCategory): Type/category of device
-            field_8(str): Comma separated string
-
-        returns:
-            Pandas Series object of mapped fields to their appropriate values.
-        """
-        values: List[str] = field_8.split(",") if field_8 else ""
-        series = pd.Series(dtype=float)
-
-        match device_category:
-            case DeviceCategory.BAM:
-                mappings = configuration.AIRQO_BAM_CONFIG
-            case DeviceCategory.LOW_COST_GAS:
-                mappings = configuration.AIRQO_LOW_COST_GAS_CONFIG
-            case DeviceCategory.LOW_COST:
-                mappings = configuration.AIRQO_LOW_COST_CONFIG
-            case _:
-                logger.exception("A valid device category must be provided")
-
-        for key, value in mappings.items():
-            try:
-                series[value] = values[key]
-            except Exception as ex:
-                logger.exception(f"An error occurred: {ex}")
-                series[value] = None
-
-        return series
 
     @staticmethod
     def map_and_extract_data(
@@ -321,8 +212,8 @@ class AirQoDataUtils:
             if raw_data.empty:
                 continue
 
-            raw_data = WeatherDataUtils.transform_raw_data(raw_data)
-            aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
+            raw_data = DataUtils.transform_weather_data(raw_data)
+            aggregated_data = DataUtils.aggregate_weather_data(raw_data)
             aggregated_data["timestamp"] = pd.to_datetime(aggregated_data["timestamp"])
 
             for _, row in station_data.iterrows():
@@ -579,7 +470,7 @@ class AirQoDataUtils:
 
         big_query_api = BigQueryApi()
         required_cols = big_query_api.get_columns(
-            table=big_query_api.bam_measurements_table
+            table=big_query_api.bam_hourly_measurements_table
         )
 
         data = Utils.populate_missing_columns(data=data, columns=required_cols)
@@ -637,52 +528,6 @@ class AirQoDataUtils:
             data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
             data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
-
-    @staticmethod
-    def format_data_for_bigquery(
-        data: pd.DataFrame, data_type: DataType
-    ) -> pd.DataFrame:
-        # Currently only used for BAM device measurements
-        data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
-
-        big_query_api = BigQueryApi()
-        if data_type == DataType.UNCLEAN_BAM_DATA:
-            cols = big_query_api.get_columns(
-                table=big_query_api.raw_bam_measurements_table
-            )
-        elif data_type == DataType.CLEAN_BAM_DATA:
-            cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
-        elif data_type == DataType.UNCLEAN_LOW_COST_DATA:
-            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        elif data_type == DataType.CLEAN_LOW_COST_DATA:
-            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        elif data_type == DataType.AGGREGATED_LOW_COST_DATA:
-            cols = big_query_api.get_columns(
-                table=big_query_api.hourly_measurements_table
-            )
-        else:
-            raise Exception("invalid data type")
-        return Utils.populate_missing_columns(data=data, columns=cols)
-
-    @staticmethod
-    def process_raw_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Makes neccessary conversions, adds missing columns and sets them to `None`
-        """
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
-
-    @staticmethod
-    def process_aggregated_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Makes neccessary conversions, adds missing columns and sets them to `None`
-        """
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.hourly_measurements_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def process_latest_data(
