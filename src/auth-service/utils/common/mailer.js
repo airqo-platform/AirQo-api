@@ -20,7 +20,10 @@ const processString = (inputString) => {
   const uppercasedString = stringWithSpaces.toUpperCase();
   return uppercasedString;
 };
-const imagePath = path.join(__dirname, "../../config/images");
+
+// const imagePath = path.join(__dirname, "../../../config/images");
+const imagePath = path.join(process.cwd(), "config/images");
+
 let attachments = [
   {
     filename: "airqoLogo.png",
