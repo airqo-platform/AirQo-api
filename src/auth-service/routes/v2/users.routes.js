@@ -113,6 +113,32 @@ router.post(
   createUserController.login
 );
 
+router.post(
+  "/login-with-details",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("userName").exists().withMessage("the userName must be provided"),
+      body("password").exists().withMessage("the password must be provided"),
+    ],
+  ]),
+  setLocalAuth,
+  authLocal,
+  createUserController.loginWithDetails
+);
+
 router.get(
   "/logout",
   oneOf([
