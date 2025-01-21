@@ -8,7 +8,7 @@ const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
-const generateFilter = require("@utils/generate-filter");
+const { generateFilter } = require("@utils/common");
 const {
   fetchAndStoreDataIntoReadingsModel,
   isEntityActive,

@@ -6,7 +6,7 @@ const logger = log4js.getLogger(
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const axios = require("axios");
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 const DeviceModel = require("@models/Device");
 const DeviceStatusModel = require("@models/DeviceStatus");
 

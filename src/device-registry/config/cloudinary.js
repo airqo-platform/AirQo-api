@@ -1,4 +1,4 @@
-const { logElement, logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 const cloudinary = require("cloudinary").v2;
 
 cloudinary.config({
