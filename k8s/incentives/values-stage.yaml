@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-incentives-api
-  tag: stage-6ffb3fe6-1735572850
+  tag: stage-db46fe65-1737478850
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -20,16 +20,15 @@ resources:
 nodeSelector:
   role: high-mem
 affinity:
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-       - preference:
-           matchExpressions:
-           - key: role
-             operator: In
-             values:
-             - high-mem
-         weight: 1
-        
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
+        weight: 1
 ingress:
   enabled: false
 service:
