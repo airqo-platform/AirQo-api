@@ -1,8 +1,8 @@
 [
   {
-    "name": "tenant",
+    "name": "network",
     "type": "STRING",
-    "mode": "NULLABLE"
+    "mode": "REQUIRED"
   },
   {
     "name": "airqloud_id",
