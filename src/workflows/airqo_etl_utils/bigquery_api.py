@@ -8,7 +8,7 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 
 from .config import configuration
-from .constants import JobAction, ColumnDataType, Tenant, QueryType
+from .constants import JobAction, ColumnDataType, DeviceNetwork, QueryType
 from .date import date_to_str
 from .utils import Utils
 
@@ -280,13 +280,13 @@ class BigQueryApi:
         return dataframe
 
     @staticmethod
-    def device_unique_col(network: str, device_id: str, device_number: int):
-        return str(f"{network}:{device_id}:{device_number}").lower()
+    def device_unique_col(network: DeviceNetwork, device_id: str, device_number: int):
+        return str(f"{str(network)}:{device_id}:{device_number}").lower()
 
     def update_airqlouds(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.airqlouds_table
-        unique_cols = ["id", "tenant"]
+        unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(
@@ -308,7 +308,7 @@ class BigQueryApi:
     def update_grids(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.grids_table
-        unique_cols = ["id", "tenant"]
+        unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(
@@ -330,7 +330,7 @@ class BigQueryApi:
     def update_cohorts(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.cohorts_table
-        unique_cols = ["id", "tenant"]
+        unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(
@@ -535,7 +535,7 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        network: str = "all",
+        network: DeviceNetwork = None,
         where_fields: dict = None,
         null_cols: list = None,
         columns: list = None,
@@ -549,11 +549,11 @@ class BigQueryApi:
             table (str): The BigQuery table to query.
             start_date_time (str): The start datetime for filtering records.
             end_date_time (str): The end datetime for filtering records.
-            network (str): The network or ownership information (e.g., to filter data).
-            where_fields (dict): Optional dictionary of fields to filter on.
-            null_cols (list): Optional list of columns to check for null values.
-            columns (list): Optional list of columns to select. If None, selects all.
-            exclude_columns (list): List of columns to exclude from aggregation if dynamically selecting numeric columns.
+            network (DeviceNetwork, optional): The network or ownership information (e.g., to filter data).
+            where_fields (dict, optional):  Dictionary of fields to filter on.
+            null_cols (list, optional):  List of columns to check for null values.
+            columns (list, optional):  List of columns to select. If None, selects all.
+            exclude_columns (list, optional): List of columns to exclude from aggregation if dynamically selecting numeric columns.
 
         Returns:
             str: The composed SQL query as a string.
@@ -569,8 +569,8 @@ class BigQueryApi:
         columns = ", ".join(map(str, columns)) if columns else " * "
         where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
 
-        if network and network != "all":
-            where_clause += f"AND network = '{network}' "
+        if network:
+            where_clause += f"AND network = '{str(network)}' "
 
         valid_cols = self.get_columns(table=table)
 
@@ -606,7 +606,7 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        network: str = "all",
+        network: DeviceNetwork = None,
         start_date_time: str = None,
         end_date_time: str = None,
         where_fields: dict = None,
@@ -621,7 +621,7 @@ class BigQueryApi:
         Args:
             dataframe (pd.DataFrame): The data to be reloaded into the table.
             table (str): The target table in BigQuery.
-            network (str, optional): The network filter to be applied. Defaults to "all".
+            network (DeviceNetwork, optional): The network filter to be applied. Defaults to "all".
             start_date_time (str, optional): The start of the date range for deletion.
                                             If None, inferred from the DataFrame's earliest timestamp.
             end_date_time (str, optional): The end of the date range for deletion.
@@ -670,7 +670,7 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         table: str,
-        network: str = None,
+        network: DeviceNetwork = None,
         dynamic_query: bool = False,
         columns: list = None,
         where_fields: dict = None,
@@ -684,11 +684,11 @@ class BigQueryApi:
             start_date_time (str): The start datetime for the data query in ISO format.
             end_date_time (str): The end datetime for the data query in ISO format.
             table (str): The name of the table from which to retrieve the data.
-            network(str): An Enum representing the site ownership. Defaults to `ALL` if not supplied, representing all networks.
-            dynamic_query (bool): A boolean value to signal bypassing the automatic query composition to a more dynamic averaging approach.
-            columns (list, optional): A list of column names to include in the query. If None, all columns are included. Defaults to None.
-            where_fields (dict, optional): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value. Defaults to None.
-            null_cols (list, optional): A list of columns to filter out null values for. Defaults to None.
+            network(DeviceNetwork, optional): An Enum representing the site ownership. Defaults to `ALL` if not supplied, representing all networks.
+            dynamic_query(bool, optional): A boolean value to signal bypassing the automatic query composition to a more dynamic averaging approach.
+            columns(list, optional): A list of column names to include in the query. If None, all columns are included. Defaults to None.
+            where_fields(dict, optional): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value. Defaults to None.
+            null_cols(list, optional): A list of columns to filter out null values for. Defaults to None.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the queried data, with duplicates removed and timestamps converted to `datetime` format. If no data is retrieved, an empty DataFrame is returned.
@@ -737,7 +737,7 @@ class BigQueryApi:
         end_date_time: str,
         exclude_columns: list = None,
         group_by: list = None,
-        network: str = "all",
+        network: DeviceNetwork = None,
         time_granularity: str = "HOUR",
     ) -> str:
         """
@@ -801,8 +801,8 @@ class BigQueryApi:
             f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
         )
 
-        if network and network != "all":
-            where_clause += f"AND network = '{network}' "
+        if network:
+            where_clause += f"AND network = '{str(network)}' "
 
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
@@ -812,27 +812,27 @@ class BigQueryApi:
 
         return query
 
-    def query_devices(self, tenant: Tenant) -> pd.DataFrame:
-        if tenant == Tenant.ALL:
+    def query_devices(self, network: DeviceNetwork = None) -> pd.DataFrame:
+        if not network:
             query = f"""
               SELECT * FROM `{self.devices_table}`
           """
         else:
             query = f"""
-                SELECT * FROM `{self.devices_table}` WHERE tenant = '{str(tenant)}'
+                SELECT * FROM `{self.devices_table}` WHERE network = '{str(network)}'
             """
 
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")
 
-    def query_sites(self, tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        if tenant == Tenant.ALL:
+    def query_sites(self, network: DeviceNetwork = None) -> pd.DataFrame:
+        if not network:
             query = f"""
               SELECT * FROM `{self.sites_table}`
           """
         else:
             query = f"""
-                SELECT * FROM `{self.sites_table}` WHERE tenant = '{str(tenant)}'
+                SELECT * FROM `{self.sites_table}` WHERE network = '{str(network)}'
             """
 
         dataframe = self.client.query(query=query).result().to_dataframe()
