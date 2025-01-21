@@ -2,7 +2,7 @@
   {
     "name": "tenant",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "airqloud_id",

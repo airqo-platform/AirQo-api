@@ -2,6 +2,11 @@
   {
     "name": "tenant",
     "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "network",
+    "type": "STRING",
     "mode": "REQUIRED"
   },
   {
