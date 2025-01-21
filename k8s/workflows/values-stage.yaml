@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
-  tag: stage-8e0596be-1737465510
+  tag: stage-db46fe65-1737478850
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -43,17 +43,17 @@ resources:
     limits:
       cpu: 50m
       memory: 50Mi
-nodeSelector: 
+nodeSelector:
   role: high-cpu
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
       - preference:
           matchExpressions:
-          - key: role
-            operator: In
-            values:
-            - high-cpu
+            - key: role
+              operator: In
+              values:
+                - high-cpu
         weight: 1
 volumeMounts:
   - name: config-volume
