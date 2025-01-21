@@ -8,7 +8,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-meta-data-api
     sitesConsumer: eu.gcr.io/airqo-250220/airqo-stage-meta-data-sites-consumer
-  tag: stage-847c727a-1737046297
+  tag: stage-db46fe65-1737478850
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -26,10 +26,10 @@ affinity:
     preferredDuringSchedulingIgnoredDuringExecution:
       - preference:
           matchExpressions:
-          - key: role
-            operator: In
-            values:
-            - high-mem
+            - key: role
+              operator: In
+              values:
+                - high-mem
         weight: 1
 volumeMounts:
   - name: config-volume
