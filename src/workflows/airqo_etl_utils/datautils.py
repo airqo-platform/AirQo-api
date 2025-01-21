@@ -84,7 +84,9 @@ class DataUtils:
                 f"Invalid combination: {datatype}, {device_category}, {frequency}"
             )
         except Exception as e:
-            logger.exception("An unexpected error occurred during column retrieval")
+            logger.exception(
+                f"An unexpected error occurred during column retrieval: {e}"
+            )
 
         if not table:
             raise ValueError("No table information provided.")
