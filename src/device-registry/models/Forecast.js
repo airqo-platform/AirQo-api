@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logObject } = require("@utils/log");
+const { logObject, HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");

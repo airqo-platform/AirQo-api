@@ -3,7 +3,7 @@ const { Schema } = mongoose;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
-const { HttpError } = require("@utils/errors");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- collocation-batch-model`

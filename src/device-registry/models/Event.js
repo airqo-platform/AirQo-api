@@ -8,13 +8,13 @@ and following up on its deployment. :)
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logText } = require("@utils/log");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`
 );

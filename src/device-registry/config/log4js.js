@@ -1,4 +1,4 @@
-const { logElement } = require("@utils/log");
+const { logObject, logText, logElement } = require("@utils/shared");
 const constants = require("./constants");
 
 const log4js = {

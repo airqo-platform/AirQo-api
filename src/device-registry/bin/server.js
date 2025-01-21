@@ -13,7 +13,6 @@ connectToMongoDB();
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
-const { HttpError, BadRequestError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
@@ -21,8 +20,13 @@ const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
-const { logText, logObject } = require("@utils/log");
-const stringify = require("@utils/stringify");
+const {
+  logObject,
+  logText,
+  BadRequestError,
+  HttpError,
+} = require("@utils/shared");
+const { stringify } = require("@utils/common");
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/v2.1-store-readings-job");
 require("@bin/jobs/v2-check-network-status-job");

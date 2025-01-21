@@ -1,5 +1,5 @@
 const { isValidObjectId } = require("mongoose");
-const { BadRequestError } = require("@utils/errors");
+const { BadRequestError } = require("@utils/shared");
 
 const validateOptionalObjectId = (field) => {
   return (req, res, next) => {
