@@ -1,78 +1,148 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/v2-check-network-status-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/check-active-statuses-job`
 );
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
-const { logText } = require("@utils/log");
-const moment = require("moment-timezone");
-const TIMEZONE = moment.tz.guess();
-const UPTIME_THRESHOLD = 35;
+const moment = require("moment-timezone"); // Keep using Moment.js
+const ACTIVE_STATUS_THRESHOLD = process.env.ACTIVE_STATUS_THRESHOLD || 0;
+const { logText, logObject } = require("@utils/log");
 
-const checkNetworkStatus = async () => {
-  try {
-    const result = await DeviceModel("airqo").aggregate([
-      {
-        $match: {
-          status: "deployed", // Only consider deployed devices
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalDevices: { $sum: 1 },
-          offlineDevicesCount: {
-            $sum: {
-              $cond: [{ $eq: ["$isOnline", false] }, 1, 0],
-            },
+const TIMEZONE = moment.tz.guess();
+const MAX_RETRIES = 3; // Maximum retry attempts
+const RETRY_DELAY = 5000; // Delay between retries in milliseconds
+
+const checkActiveStatuses = async () => {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Check for Deployed devices with incorrect statuses
+      const activeIncorrectStatusCount = await DeviceModel("airqo").countDocuments({
+        isActive: true,
+        status: { $ne: "deployed" },
+      });
+
+      const activeMissingStatusCount = await DeviceModel("airqo").countDocuments({
+        isActive: true,
+        $or: [
+          { status: { $exists: false } },
+          { status: null },
+          { status: "" }
+        ],
+      });
+
+      const activeIncorrectStatusResult = await DeviceModel("airqo").aggregate([
+        {
+          $match: {
+            isActive: true,
+            status: { $ne: "deployed" },
           },
         },
-      },
-    ]);
+        {
+          $group: {
+            _id: "$name",
+          },
+        },
+      ]);
 
-    if (result.length === 0 || result[0].totalDevices === 0) {
-      logText("No deployed devices found");
-      logger.info("No deployed devices found.");
-      return;
+      const activeMissingStatusResult = await DeviceModel("airqo").aggregate([
+        {
+          $match: {
+            isActive: true,
+            $or: [
+              { status: { $exists: false } },
+              { status: null },
+              { status: "" }
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: "$name",
+          },
+        },
+      ]);
+
+      const activeIncorrectStatusUniqueNames = activeIncorrectStatusResult.map(
+        (doc) => doc._id
+      );
+      const activeMissingStatusUniqueNames = activeMissingStatusResult.map(
+        (doc) => doc._id
+      );
+
+      logObject("activeIncorrectStatusCount", activeIncorrectStatusCount);
+      logObject("activeMissingStatusCount", activeMissingStatusCount);
+      const totalActiveDevices = await DeviceModel("airqo").countDocuments({
+        isActive: true,
+      });
+
+      // Check for zero active devices to prevent division by zero
+      if (totalActiveDevices === 0) {
+        logText("No active devices found. Skipping percentage calculations.");
+        logger.warn("No active devices found. Skipping percentage calculations.");
+        return; // Exit the function if no active devices
+      }
+
+      const percentageActiveIncorrectStatus =
+        (activeIncorrectStatusCount / totalActiveDevices) * 100;
+      const percentageActiveMissingStatus =
+        (activeMissingStatusCount / totalActiveDevices) * 100;
+
+      logObject(
+        "percentageActiveIncorrectStatus",
+        percentageActiveIncorrectStatus
+      );
+      logObject("percentageActiveMissingStatus", percentageActiveMissingStatus);
+
+      if (
+        percentageActiveIncorrectStatus > ACTIVE_STATUS_THRESHOLD ||
+        percentageActiveMissingStatus > ACTIVE_STATUS_THRESHOLD
+      ) {
+        logText(
+          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        );
+        logger.info(
+          `⁉️ Deployed devices with incorrect statuses (${activeIncorrectStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveIncorrectStatus.toFixed(2)}%`
+        );
+
+        logText(
+          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+        );
+        logger.info(
+          `⁉️ Deployed devices missing status (${activeMissingStatusUniqueNames.join(
+            ", "
+          )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
+        );
+      }
+      break; // Exit loop if successful
+    } catch (error) {
+      logText(`🐛🐛 Error checking active statuses (Attempt ${attempt}): ${error.message}`);
+      logger.error(`🐛🐛 Error checking active statuses (Attempt ${attempt}): ${error.message}`);
+      logger.error(`🐛🐛 Stack trace: ${error.stack}`);
+
+      if (attempt < MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY)); // Wait before retrying
+      } else {
+        logText("Maximum retry attempts reached. Job failed.");
+        logger.error("Maximum retry attempts reached. Job failed.");
+      }
     }
-
-    const { totalDevices, offlineDevicesCount } = result[0];
-    const offlinePercentage = (offlineDevicesCount / totalDevices) * 100;
-
-    if (offlinePercentage > UPTIME_THRESHOLD) {
-      logText(
-        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are offline: ${offlinePercentage.toFixed(
-          2
-        )}%`
-      );
-      logger.warn(
-        `⚠️💔😥 More than ${UPTIME_THRESHOLD}% of deployed devices are offline: ${offlinePercentage.toFixed(
-          2
-        )}%`
-      );
-    } else {
-      logText(
-        `✅ Network status is acceptable for deployed devices: ${offlinePercentage.toFixed(
-          2
-        )}% offline`
-      );
-      logger.info(
-        `✅ Network status is acceptable for deployed devices: ${offlinePercentage.toFixed(
-          2
-        )}% offline`
-      );
-    }
-  } catch (error) {
-    logText(`🐛🐛 Error checking network status: ${error.message}`);
-    logger.error(`🐛🐛 Error checking network status: ${error.message}`);
-    logger.error(`🐛🐛 Stack trace: ${error.stack}`);
   }
 };
 
-logText("Network status job is now running.....");
-const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
-cron.schedule(schedule, checkNetworkStatus, {
+// Schedule job with timezone configuration
+logText("Active statuses job is now running.....");
+const schedule = '30 */2 * * *'; // At minute 30 of every 2nd hour
+cron.schedule(schedule, () => {
+  const currentTime = moment.tz(TIMEZONE).format('YYYY-MM-DD HH:mm:ss');
+  logger.info(`Running job at ${currentTime}`);
+  checkActiveStatuses();
+}, {
   scheduled: true,
-  timezone: TIMEZONE,
 });
