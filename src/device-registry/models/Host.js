@@ -1,13 +1,12 @@
 // this collection will pick its data from subscribing to a Kafka topic
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
-const { logObject } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
-const { extractErrorsFromRequest, HttpError } = require("@utils/errors");
+const { logObject, HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- host-model`);
 const successResponse = {

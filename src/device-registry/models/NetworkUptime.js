@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { logObject, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");

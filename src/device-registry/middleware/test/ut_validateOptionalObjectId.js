@@ -2,7 +2,7 @@ require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const { BadRequestError } = require("@utils/errors");
+const { BadRequestError } = require("@utils/shared");
 const validateOptionalObjectId = require("@middleware/validateOptionalObjectId");
 
 describe("validateOptionalObjectId", () => {

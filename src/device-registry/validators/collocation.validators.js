@@ -1,6 +1,6 @@
 const { body, query, validationResult } = require("express-validator");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { HttpError } = require("@utils/shared");
 const CollocationBatchModel = require("@models/CollocationBatch");
 
 const validateErrorMiddleware = (req, res, next) => {

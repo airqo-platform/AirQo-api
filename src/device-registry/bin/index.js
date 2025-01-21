@@ -9,7 +9,7 @@ const constants = require("@config/constants");
 const log4jsConfiguration = require("@config/log4js");
 log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/index`);
-const stringify = require("@utils/stringify");
+const { stringify } = require("@utils/common");
 
 try {
   require("fs").mkdirSync("./log");

@@ -1,6 +1,6 @@
 const redis = require("redis");
 const constants = require("./constants");
-const { logElement } = require("@utils/log");
+const { logObject, logText, logElement } = require("@utils/shared");
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
 logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));

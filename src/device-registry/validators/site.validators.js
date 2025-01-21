@@ -3,7 +3,7 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const decimalPlaces = require("decimal-places");
-const createSiteUtil = require("@utils/create-site");
+const createSiteUtil = require("@utils/site.util");
 
 // Utility Functions
 const validateDecimalPlaces = (
