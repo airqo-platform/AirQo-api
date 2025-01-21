@@ -53,6 +53,7 @@ def airqo_historical_hourly_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.RAW,
+            device_category=DeviceCategory.GENERAL,
             dynamic_query=True,
         )
 
