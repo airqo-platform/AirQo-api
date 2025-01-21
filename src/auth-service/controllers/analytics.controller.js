@@ -164,7 +164,7 @@ const analytics = {
         return;
       }
 
-      res.json(validation).status(validation.status);
+      res.status(validation.status).json(validation);
     } catch (error) {
       logger.error(`🐛🐛 validateEnvironment Error: ${error.message}`);
       next(
