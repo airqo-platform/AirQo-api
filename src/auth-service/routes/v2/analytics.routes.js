@@ -1,149 +1,126 @@
+// analytics.routes.js
 const express = require("express");
 const router = express.Router();
 const createAnalyticsController = require("@controllers/analytics.controller");
-const validateTenant = require("@middleware/validateTenant");
-const {
-  userEngagementValidators,
-  activityValidators,
-  cohortValidators,
-  predictiveValidators,
-  serviceAdoptionValidators,
-  benchmarkValidators,
-  topUsersValidators,
-  aggregateValidators,
-  retentionValidators,
-  healthScoreValidators,
-  behaviorValidators,
-  emailValidators,
-} = require("@validators/analytics.validators");
+const analyticsValidations = require("@validators/analytics.validators");
+
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
+  next();
+};
+
+router.use(headers);
 
 router.get(
   "/activities",
-  validateTenant(),
+  analyticsValidations.tenant,
   createAnalyticsController.listActivities
 );
 
-router.get("/logs", validateTenant(), createAnalyticsController.listLogs);
+router.get(
+  "/logs",
+  analyticsValidations.tenant,
+  createAnalyticsController.listLogs
+);
 
 router.get(
   "/user-stats",
-  validateTenant(),
+  analyticsValidations.tenant,
   createAnalyticsController.getUserStats
 );
 
 router.get(
   "/statistics",
-  validateTenant(),
+  analyticsValidations.tenant,
   createAnalyticsController.listStatistics
 );
 
-// User Engagement Routes
 router.get(
   "/:email/engagement",
-  validateTenant(),
-  userEngagementValidators.getEngagement,
+  analyticsValidations.userEngagementValidators.getEngagement,
   createAnalyticsController.getUserEngagement
 );
 
 router.get(
   "/:email/engagement/metrics",
-  validateTenant(),
-  userEngagementValidators.getMetrics,
+  analyticsValidations.userEngagementValidators.getMetrics,
   createAnalyticsController.getEngagementMetrics
 );
 
-// Activity Analysis Routes
 router.get(
   "/:email/activity-report",
-  validateTenant(),
-  activityValidators.getReport,
+  analyticsValidations.activityValidators.getReport,
   createAnalyticsController.getActivityReport
 );
 
-// Cohort Analysis Routes
 router.get(
   "/cohorts",
-  validateTenant(),
-  cohortValidators.getAnalysis,
+  analyticsValidations.cohortValidators.getAnalysis,
   createAnalyticsController.getCohortAnalysis
 );
 
-// Predictive Analytics Routes
 router.get(
   "/:email/predictions",
-  validateTenant(),
-  predictiveValidators.getPredictions,
+  analyticsValidations.predictiveValidators.getPredictions,
   createAnalyticsController.getPredictiveAnalytics
 );
 
-// Service Adoption Routes
 router.get(
   "/:email/service-adoption",
-  validateTenant(),
-  serviceAdoptionValidators.getAdoption,
+  analyticsValidations.serviceAdoptionValidators.getAdoption,
   createAnalyticsController.getServiceAdoption
 );
 
-// Benchmark Routes
 router.get(
   "/benchmarks",
-  validateTenant(),
-  benchmarkValidators.getBenchmarks,
+  analyticsValidations.benchmarkValidators.getBenchmarks,
   createAnalyticsController.getBenchmarks
 );
 
-// Top Users Routes
 router.get(
   "/top-users",
-  validateTenant(),
-  topUsersValidators.getTopUsers,
+  analyticsValidations.topUsersValidators.getTopUsers,
   createAnalyticsController.getTopUsers
 );
 
-// Aggregated Analytics Routes
 router.get(
   "/aggregate",
-  validateTenant(),
-  aggregateValidators.getAggregated,
+  analyticsValidations.aggregateValidators.getAggregated,
   createAnalyticsController.getAggregatedAnalytics
 );
 
-// Retention Analysis Routes
 router.get(
   "/retention",
-  validateTenant(),
-  retentionValidators.getRetention,
+  analyticsValidations.retentionValidators.getRetention,
   createAnalyticsController.getRetentionAnalysis
 );
 
-// Health Score Routes
 router.get(
   "/:email/health-score",
-  validateTenant(),
-  healthScoreValidators.getHealthScore,
+  analyticsValidations.healthScoreValidators.getHealthScore,
   createAnalyticsController.getEngagementHealth
 );
 
-// Behavior Pattern Routes
 router.get(
   "/:email/behavior",
-  validateTenant(),
-  behaviorValidators.getBehavior,
+  analyticsValidations.behaviorValidators.getBehavior,
   createAnalyticsController.getBehaviorPatterns
 );
 
-// Existing Email Routes
 router.post(
   "/send",
-  validateTenant(),
-  emailValidators.sendEmails,
+  analyticsValidations.emailValidators.sendEmails,
   createAnalyticsController.send
 );
 
 router.post(
   "/retrieve",
-  validateTenant(),
-  emailValidators.retrieveStats,
+  analyticsValidations.emailValidators.retrieveStats,
   createAnalyticsController.fetchUserStats
 );
 

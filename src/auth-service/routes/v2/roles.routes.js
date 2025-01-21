@@ -1,20 +1,9 @@
+// roles.routes.js
 const express = require("express");
 const router = express.Router();
 const createRoleController = require("@controllers/role.controller");
-const { check, oneOf, query, body, param } = require("express-validator");
-
+const roleValidations = require("@validators/roles.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
-
-const validatePagination = (req, res, next) => {
-  const limit = parseInt(req.query.limit, 10);
-  const skip = parseInt(req.query.skip, 10);
-  req.query.limit = Number.isNaN(limit) || limit < 1 ? 100 : limit;
-  req.query.skip = Number.isNaN(skip) || skip < 0 ? 0 : skip;
-  next();
-};
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -26,47 +15,11 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
-router.use(validatePagination);
+router.use(roleValidations.pagination);
 
 router.get(
   "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-      query("network_id")
-        .optional()
-        .notEmpty()
-        .withMessage("network_id must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("network_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      query("group_id")
-        .optional()
-        .notEmpty()
-        .withMessage("group_id must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("groups_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.list,
   setJWTAuth,
   authJWT,
   createRoleController.list
@@ -74,19 +27,7 @@ router.get(
 
 router.get(
   "/summary",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
+  roleValidations.listSummary,
   setJWTAuth,
   authJWT,
   createRoleController.listSummary
@@ -94,99 +35,7 @@ router.get(
 
 router.post(
   "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    body("network_id")
-      .exists()
-      .withMessage(
-        "the organisation identifier is missing in request, consider using the network_id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    body("group_id")
-      .exists()
-      .withMessage(
-        "the organisation identifier is missing in request, consider using the group_id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("group_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-
-  oneOf([
-    [
-      body("role_code")
-        .optional()
-        .notEmpty()
-        .withMessage("role_code should not be empty IF provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the role_code must not be empty")
-        .bail()
-        .trim()
-        .escape()
-        .customSanitizer((value) => {
-          return value.replace(/ /g, "_").toUpperCase();
-        }),
-      body("role_name")
-        .exists()
-        .withMessage("role_name is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the role_name must not be empty")
-        .bail()
-        .trim()
-        .escape()
-        .customSanitizer((value) => {
-          return value.replace(/ /g, "_").toUpperCase();
-        }),
-      body("role_status")
-        .optional()
-        .notEmpty()
-        .withMessage("role_status must not be empty if provided")
-        .bail()
-        .isIn(["ACTIVE", "INACTIVE"])
-        .withMessage(
-          "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
-        )
-        .trim(),
-      body("role_permission")
-        .optional()
-        .notEmpty()
-        .withMessage("role_permission must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role_permission must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.create,
   setJWTAuth,
   authJWT,
   createRoleController.create
@@ -194,95 +43,7 @@ router.post(
 
 router.put(
   "/:role_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  oneOf([
-    [
-      body("role_status")
-        .optional()
-        .notEmpty()
-        .withMessage("the role_status should not be empty if provided")
-        .bail()
-        .toUpperCase()
-        .isIn(["ACTIVE", "INACTIVE"])
-        .withMessage(
-          "the status value is not among the expected ones which include: ACTIVE, INACTIVE"
-        )
-        .trim(),
-      body("role_name")
-        .not()
-        .isEmpty()
-        .withMessage("the role_name should not be provided when updating")
-        .trim(),
-      body("role_code")
-        .not()
-        .isEmpty()
-        .withMessage("the role_code should not be provided when updating")
-        .trim(),
-      body("network_id")
-        .optional()
-        .notEmpty()
-        .withMessage("network_id must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("network_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("group_id")
-        .optional()
-        .notEmpty()
-        .withMessage("group_id must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("group_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("role_permission")
-        .optional()
-        .notEmpty()
-        .withMessage("role_permission must not be empty if provided")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role_permission must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.update,
   setJWTAuth,
   authJWT,
   createRoleController.update
@@ -290,34 +51,7 @@ router.put(
 
 router.delete(
   "/:role_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.deleteRole,
   setJWTAuth,
   authJWT,
   createRoleController.delete
@@ -325,34 +59,7 @@ router.delete(
 
 router.get(
   "/:role_id/users",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.listUsersWithRole,
   setJWTAuth,
   authJWT,
   createRoleController.listUsersWithRole
@@ -360,34 +67,7 @@ router.get(
 
 router.get(
   "/:role_id/available_users",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.listAvailableUsersForRole,
   setJWTAuth,
   authJWT,
   createRoleController.listAvailableUsersForRole
@@ -395,96 +75,15 @@ router.get(
 
 router.post(
   "/:role_id/users",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("user_ids")
-        .exists()
-        .withMessage("the user_ids are missing in the request body")
-        .bail()
-        .notEmpty()
-        .withMessage("the user_ids should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the user_ids should be an array"),
-      body("user_ids.*")
-        .isMongoId()
-        .withMessage("user_id provided must be an object ID"),
-    ],
-  ]),
+  roleValidations.assignManyUsersToRole,
   setJWTAuth,
   authJWT,
   createRoleController.assignManyUsersToRole
 );
+
 router.post(
   "/:role_id/user",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("user")
-        .exists()
-        .withMessage("the user ID is missing in the request body")
-        .bail()
-        .notEmpty()
-        .withMessage("the user ID cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the user ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.assignUserToRole,
   setJWTAuth,
   authJWT,
   createRoleController.assignUserToRole
@@ -492,45 +91,7 @@ router.post(
 
 router.put(
   "/:role_id/user/:user_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      param("user_id")
-        .exists()
-        .withMessage("the user ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the user ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.assignUserToRolePut,
   setJWTAuth,
   authJWT,
   createRoleController.assignUserToRole
@@ -538,93 +99,15 @@ router.put(
 
 router.delete(
   "/:role_id/users",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-    oneOf([
-      [
-        param("role_id")
-          .exists()
-          .withMessage("the role ID param is missing in the request")
-          .bail()
-          .trim()
-          .isMongoId()
-          .withMessage("the role ID must be an object ID")
-          .bail()
-          .customSanitizer((value) => {
-            return ObjectId(value);
-          }),
-        body("user_ids")
-          .exists()
-          .withMessage("the user_ids are missing in the request body")
-          .bail()
-          .notEmpty()
-          .withMessage("the user_ids should not be empty")
-          .bail()
-          .custom((value) => {
-            return Array.isArray(value);
-          })
-          .withMessage("the user_ids should be an array"),
-        body("user_ids.*")
-          .isMongoId()
-          .withMessage("user_id provided must be an object ID"),
-      ],
-    ]),
-  ]),
+  roleValidations.unAssignManyUsersFromRole,
   setJWTAuth,
   authJWT,
   createRoleController.unAssignManyUsersFromRole
 );
+
 router.delete(
   "/:role_id/user/:user_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-    oneOf([
-      [
-        param("role_id")
-          .exists()
-          .withMessage("the role ID param is missing in the request")
-          .bail()
-          .trim()
-          .isMongoId()
-          .withMessage("the role ID must be an object ID")
-          .bail()
-          .customSanitizer((value) => {
-            return ObjectId(value);
-          }),
-        param("user_id")
-          .exists()
-          .withMessage("the user ID param is missing in the request")
-          .bail()
-          .trim()
-          .isMongoId()
-          .withMessage("the user ID must be an object ID")
-          .bail()
-          .customSanitizer((value) => {
-            return ObjectId(value);
-          }),
-      ],
-    ]),
-  ]),
+  roleValidations.unAssignUserFromRole,
   setJWTAuth,
   authJWT,
   createRoleController.unAssignUserFromRole
@@ -632,35 +115,7 @@ router.delete(
 
 router.get(
   "/:role_id/permissions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-
+  roleValidations.listPermissionsForRole,
   setJWTAuth,
   authJWT,
   createRoleController.listPermissionsForRole
@@ -668,34 +123,7 @@ router.get(
 
 router.get(
   "/:role_id/available_permissions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.listAvailablePermissionsForRole,
   setJWTAuth,
   authJWT,
   createRoleController.listAvailablePermissionsForRole
@@ -703,48 +131,7 @@ router.get(
 
 router.post(
   "/:role_id/permissions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("permissions")
-        .exists()
-        .withMessage("the permissions is missing in the request body")
-        .bail()
-        .notEmpty()
-        .withMessage("the permissions should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the permissions should be an array"),
-      body("permissions.*")
-        .isMongoId()
-        .withMessage("the permission provided must be an object ID"),
-    ],
-  ]),
+  roleValidations.assignPermissionToRole,
   setJWTAuth,
   authJWT,
   createRoleController.assignPermissionToRole
@@ -752,51 +139,7 @@ router.post(
 
 router.delete(
   "/:role_id/permissions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .notEmpty()
-        .withMessage("the role ID param cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("permission_ids")
-        .exists()
-        .withMessage("the permission_ids are missing in the request body")
-        .bail()
-        .notEmpty()
-        .withMessage("the permission_ids should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the permission_ids should be an array"),
-      body("permission_ids.*")
-        .isMongoId()
-        .withMessage("Every permission_id provided must be an object ID"),
-    ],
-  ]),
+  roleValidations.unAssignManyPermissionsFromRole,
   setJWTAuth,
   authJWT,
   createRoleController.unAssignManyPermissionsFromRole
@@ -804,51 +147,7 @@ router.delete(
 
 router.put(
   "/:role_id/permissions",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .notEmpty()
-        .withMessage("the role ID param cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("permission_ids")
-        .exists()
-        .withMessage("the permission_ids are missing in the request body")
-        .bail()
-        .notEmpty()
-        .withMessage("the permission_ids should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the permission_ids should be an array"),
-      body("permission_ids.*")
-        .isMongoId()
-        .withMessage("Every permission_id provided must be an object ID"),
-    ],
-  ]),
+  roleValidations.updateRolePermissions,
   setJWTAuth,
   authJWT,
   createRoleController.updateRolePermissions
@@ -856,44 +155,7 @@ router.put(
 
 router.delete(
   "/:role_id/permissions/:permission_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      param("permission_id")
-        .exists()
-        .withMessage("the permission ID param is missing in the request")
-        .bail()
-        .notEmpty()
-        .withMessage("the permission ID param cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the permission ID must be an object ID"),
-    ],
-  ]),
+  roleValidations.unAssignPermissionFromRole,
   setJWTAuth,
   authJWT,
   createRoleController.unAssignPermissionFromRole
@@ -901,35 +163,7 @@ router.delete(
 
 router.get(
   "/:role_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
+  roleValidations.getRoleById,
   setJWTAuth,
   authJWT,
   createRoleController.list

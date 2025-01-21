@@ -1,6 +1,18 @@
 const { query, body, param, oneOf } = require("express-validator");
 const constants = require("@config/constants");
 
+const validateTenant = oneOf([
+  query("tenant")
+    .optional()
+    .notEmpty()
+    .withMessage("tenant should not be empty if provided")
+    .trim()
+    .toLowerCase()
+    .bail()
+    .isIn(["kcca", "airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
+]);
+
 const validateTimeframe = query("timeframe")
   .optional()
   .isIn(["last7days", "last30days", "last90days", "custom"])
@@ -154,6 +166,7 @@ const emailValidators = {
 };
 
 module.exports = {
+  tenant: validateTenant,
   userEngagementValidators,
   activityValidators,
   cohortValidators,
