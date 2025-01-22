@@ -108,5 +108,10 @@
     "name": "parish",
     "type": "STRING",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "last_updated",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]
