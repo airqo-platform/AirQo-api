@@ -228,7 +228,93 @@ const filter = {
       );
     }
   },
+  campaigns: (req, next) => {
+    try {
+      const {
+        title,
+        description,
+        created_by,
+        target_amount,
+        current_amount,
+        currency,
+        start_date,
+        end_date,
+        status,
+        is_public,
+        category,
+        tags,
+      } = { ...req.query, ...req.params, ...req.body }; // Include req.body
 
+      let filter = {};
+
+      if (title) {
+        filter.title = { $regex: title, $options: "i" }; // Case-insensitive search
+      }
+
+      if (description) {
+        filter.description = { $regex: description, $options: "i" };
+      }
+
+      if (created_by) {
+        filter.created_by = ObjectId(created_by);
+      }
+
+      if (target_amount) {
+        filter.target_amount = target_amount;
+      }
+
+      if (current_amount) {
+        filter.current_amount = current_amount;
+      }
+
+      if (currency) {
+        filter.currency = currency.toUpperCase(); // Ensure consistent case
+      }
+
+      if (start_date) {
+        filter.start_date = { $gte: new Date(start_date) }; // Greater than or equal
+      }
+
+      if (end_date) {
+        filter.end_date = { $lte: new Date(end_date) }; // Less than or equal
+      }
+
+      if (status) {
+        filter.status = status;
+      }
+
+      if (is_public !== undefined) {
+        // Handle boolean values correctly
+        filter.is_public = is_public;
+      }
+
+      if (category) {
+        filter.category = category;
+      }
+
+      if (tags) {
+        // Check if tags are provided
+        if (Array.isArray(tags)) {
+          //If an array of tags is provided
+          filter.tags = { $all: tags }; // Match all tags in the array
+        } else if (typeof tags === "string") {
+          //If a single tag string is provided
+          filter.tags = tags; // Match the single tag
+        }
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   candidates: (req, next) => {
     try {
       let { category, id, email_address, email, network_id } = {
