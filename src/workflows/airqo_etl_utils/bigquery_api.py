@@ -309,7 +309,7 @@ class BigQueryApi:
         unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -331,7 +331,7 @@ class BigQueryApi:
         unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -353,7 +353,7 @@ class BigQueryApi:
             table = self.airqlouds_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -375,7 +375,7 @@ class BigQueryApi:
             table = self.grids_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -396,7 +396,7 @@ class BigQueryApi:
             table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
