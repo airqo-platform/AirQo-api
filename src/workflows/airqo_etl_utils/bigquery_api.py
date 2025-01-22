@@ -309,6 +309,7 @@ class BigQueryApi:
         unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -320,7 +321,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -331,6 +331,7 @@ class BigQueryApi:
         unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -342,7 +343,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
 
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
@@ -353,6 +353,7 @@ class BigQueryApi:
             table = self.airqlouds_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -374,6 +375,7 @@ class BigQueryApi:
             table = self.grids_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -385,7 +387,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(inplace=True, keep="first")
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -395,6 +396,7 @@ class BigQueryApi:
             table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -406,7 +408,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(inplace=True, keep="first")
-        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
