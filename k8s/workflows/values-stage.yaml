@@ -43,18 +43,17 @@ resources:
     limits:
       cpu: 50m
       memory: 50Mi
-nodeSelector:
-  role: high-cpu
 affinity:
   nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - preference:
-          matchExpressions:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
             - key: role
               operator: In
               values:
                 - high-cpu
-        weight: 1
+                - high-mem
+
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
