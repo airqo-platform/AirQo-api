@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 import pandas as pd
@@ -320,7 +320,7 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -342,6 +342,7 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
 
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
@@ -384,7 +385,7 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(inplace=True, keep="first")
-
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -405,7 +406,7 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(inplace=True, keep="first")
-
+        up_to_date_data["last_updated"] = datetime.now(timezone.utc)
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
