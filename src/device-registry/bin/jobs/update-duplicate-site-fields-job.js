@@ -5,7 +5,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/update-duplicate-site-fields-job`
 );
 const SitesModel = require("@models/Site");
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 
 // Fields to check and update duplicates
 const FIELDS_TO_UPDATE = ["name", "search_name", "description"];

@@ -6,11 +6,11 @@ app:
 initContainer:
   image:
     repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
-    tag: stage-847c727a-1737046297
+    tag: stage-db46fe65-1737478850
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api
-  tag: stage-847c727a-1737046297
+  tag: stage-db46fe65-1737478850
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -21,15 +21,18 @@ resources:
   requests:
     cpu: 10m
     memory: 20Mi
+nodeSelector:
+  role: high-mem
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-        - matchExpressions:
+      - preference:
+          matchExpressions:
             - key: role
               operator: In
               values:
                 - high-mem
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

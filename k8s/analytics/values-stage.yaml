@@ -8,7 +8,7 @@ images:
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-847c727a-1737046297
+  tag: stage-db46fe65-1737478850
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
@@ -22,18 +22,32 @@ api:
     requests:
       cpu: 10m
       memory: 250Mi
+  nodeSelector:
+    role: moderate-usage
   affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
+        - preference:
+            matchExpressions:
               - key: role
                 operator: In
                 values:
                   - moderate-usage
-  volumeMounts:
-    - name: config-volume
-      mountPath: /etc/config
+          weight: 1
+jobs:
+  reports:
+    name: stage-analytics-report
+    configmap: env-analytics-report-staging
+  devicesSummaryJob:
+    name: stage-analytics-devices-summary
+    configmap: env-analytics-staging
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 4000Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
 volumes:
   - name: config-volume
     configMap:

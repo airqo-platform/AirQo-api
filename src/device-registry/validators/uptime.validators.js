@@ -7,7 +7,7 @@ const {
 } = require("express-validator");
 const moment = require("moment");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 
 // Enhanced error handling with structured response

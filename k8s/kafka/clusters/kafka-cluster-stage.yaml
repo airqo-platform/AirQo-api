@@ -52,15 +52,19 @@ spec:
       limits:
         memory: "2Gi"
         cpu: "600m"
+    nodeSelector:
+      role: high-mem
     affinity:
       nodeAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: role
-                  operator: In
-                  values:
-                    - high-mem
+          - preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - high-mem
+            weight: 1
+              
   zookeeper:
     replicas: 3
     storage:
@@ -72,15 +76,18 @@ spec:
       limits:
         memory: "1Gi"
         cpu: "150m"
+    nodeSelector:
+      role: high-mem
     affinity:
       nodeAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: role
-                  operator: In
-                  values:
-                    - high-mem
+          - preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - high-mem
+            weight: 1
     jvmOptions:
       javaSystemProperties:
         - name: zookeeper.ssl.hostnameVerification

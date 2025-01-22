@@ -9,7 +9,7 @@ const { BigQuery } = require("@google-cloud/bigquery");
 const DeviceModel = require("@models/Device");
 const DeviceUptimeModel = require("@models/DeviceUptime");
 const NetworkUptimeModel = require("@models/NetworkUptime");
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 
 const TIMEZONE = moment.tz.guess();
 

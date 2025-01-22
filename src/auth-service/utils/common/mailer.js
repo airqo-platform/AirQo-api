@@ -21,12 +21,13 @@ const processString = (inputString) => {
   return uppercasedString;
 };
 
-const imagePath = path.join(__dirname, "/config/images");
+const projectRoot = path.join(__dirname, "..", "..", ".."); // Go three levels up
+const imagePath = path.join(projectRoot, "config", "images");
 
 let attachments = [
   {
     filename: "airqoLogo.png",
-    path: imagePath + "/airqoLogo.png",
+    path: path.join(imagePath, "airqoLogo.png"),
     cid: "AirQoEmailLogo",
     contentDisposition: "inline",
   },

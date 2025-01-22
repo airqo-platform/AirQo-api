@@ -26,23 +26,14 @@ spec:
       labels:
         app: {{ .Values.app.label }}
     spec:
+      nodeSelector:
+        {{- if .Values.nodeSelector }}
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+        {{- end }}
       affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 10
-              preference:
-                matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                      - high-memory
-            - weight: 1
-              preference:
-                matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                      - general-purpose
+        {{- if .Values.affinity }}
+        {{- toYaml .Values.affinity | nindent 8 }}
+        {{- end }}
       initContainers:
         - name: calibrate-pickle
           image: "{{ .Values.initContainer.image.repository }}:{{ .Values.initContainer.image.tag }}"
