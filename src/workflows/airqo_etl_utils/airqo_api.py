@@ -494,8 +494,8 @@ class AirQoApi:
                 )
 
                 meta_data[key] = float(response["data"])
-            except Exception as ex:
-                logger.exception()
+            except Exception as e:
+                logger.exception(f"Failed to fetch location meta data: {e}")
 
         return meta_data
 

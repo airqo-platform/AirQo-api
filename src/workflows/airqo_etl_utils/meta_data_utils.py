@@ -34,6 +34,7 @@ class MetaDataUtils:
 
     @staticmethod
     def extract_airqlouds_from_api(network: DeviceNetwork = None) -> pd.DataFrame:
+        # Airclouds are deprecated.
         airqlouds = AirQoApi().get_airqlouds(network=network)
         airqlouds = [
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
