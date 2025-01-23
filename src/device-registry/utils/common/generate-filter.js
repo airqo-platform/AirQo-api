@@ -1210,7 +1210,6 @@ const generateFilter = {
       parish,
       site_id,
       category,
-      site_category,
       path,
       site_codes,
       _id,
@@ -1261,11 +1260,7 @@ const generateFilter = {
     }
 
     if (category) {
-      filter["category"] = category;
-    }
-
-    if (site_category) {
-      filter["site_category"] = site_category;
+      filter["site_category.category"] = category;
     }
 
     if (!isEmpty(path) && path === "public" && isEmpty(site_id)) {
