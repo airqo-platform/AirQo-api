@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 import pandas as pd
@@ -47,8 +47,7 @@ class BigQueryApi:
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
-        self.sites_table = configuration.BIGQUERY_SITES_TABLE
-        self.sites_sites_table = configuration.BIGQUERY_SITES_SITES_TABLE
+        self.sites_table = configuration.BIGQUERY_SITES_SITES_TABLE
         self.airqlouds_table = configuration.BIGQUERY_AIRQLOUDS_TABLE
         self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
         self.grids_table = configuration.BIGQUERY_GRIDS_TABLE
@@ -56,8 +55,7 @@ class BigQueryApi:
         self.grids_sites_table = configuration.BIGQUERY_GRIDS_SITES_TABLE
         self.cohorts_devices_table = configuration.BIGQUERY_COHORTS_DEVICES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
-        self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
-        self.devices_devices_table = configuration.BIGQUERY_DEVICES_DEVICES_TABLE
+        self.devices_table = configuration.BIGQUERY_DEVICES_DEVICES_TABLE
         self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
         self.openweathermap_table = configuration.BIGQUERY_OPENWEATHERMAP_TABLE
         self.satellite_data_table = configuration.BIGQUERY_SATELLITE_DATA_TABLE
@@ -311,6 +309,7 @@ class BigQueryApi:
         unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -322,7 +321,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -333,6 +331,7 @@ class BigQueryApi:
         unique_cols = ["id", "network"]
 
         dataframe.reset_index(drop=True, inplace=True)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -354,6 +353,7 @@ class BigQueryApi:
             table = self.airqlouds_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -375,6 +375,7 @@ class BigQueryApi:
             table = self.grids_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -386,7 +387,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(inplace=True, keep="first")
-
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
@@ -396,6 +396,7 @@ class BigQueryApi:
             table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
+        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -407,7 +408,6 @@ class BigQueryApi:
 
         up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
         up_to_date_data.drop_duplicates(inplace=True, keep="first")
-
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
