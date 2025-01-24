@@ -21,7 +21,8 @@ const processString = (inputString) => {
   return uppercasedString;
 };
 
-const projectRoot = path.join(__dirname, "..", "..", ".."); // Go three levels up
+const projectRoot = path.join(__dirname, "..", ".."); // Go two levels up
+// const projectRoot = "/usr/src/app";
 const imagePath = path.join(projectRoot, "config", "images");
 
 let attachments = [
@@ -788,7 +789,6 @@ const mailer = {
 
       const subscribedBccEmails = subscribedEmails.join(",");
       // bcc: subscribedBccEmails,
-      const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
       mailOptions = {
@@ -912,8 +912,6 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
-
-      const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
       mailOptions = {
@@ -1324,7 +1322,6 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,

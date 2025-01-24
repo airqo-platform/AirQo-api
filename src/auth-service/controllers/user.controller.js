@@ -12,9 +12,7 @@ const tokenUtil = require("@utils/token.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const UserModel = require("@models/User");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-user-controller`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user controller`);
 
 function handleResponse({
   result,
