@@ -1130,6 +1130,29 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+function authenticateJWT(req, res, next) {
+  try {
+    if (req.body && req.body.user_id) {
+      logText("Skipping setJWTAuth due to user_id in request body.");
+      next();
+      return;
+    }
+
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+
+    setJWTStrategy("airqo", req, res, next);
+
+    passport.authenticate("jwt", { session: false })(req, res, next); //Authenticate
+  } catch (e) {
+    logger.error(`the error in authenticateJWT is: ${e.message}`);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+  }
+}
+
 module.exports = {
   setLocalAuth,
   setJWTAuth,
@@ -1140,4 +1163,5 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  authenticateJWT,
 };
