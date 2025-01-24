@@ -21,8 +21,8 @@ const processString = (inputString) => {
   return uppercasedString;
 };
 
-// const projectRoot = path.join(__dirname, "..", "..", ".."); // Go three levels up
-const projectRoot = "/usr/src/app";
+const projectRoot = path.join(__dirname, "..", ".."); // Go two levels up
+// const projectRoot = "/usr/src/app";
 const imagePath = path.join(projectRoot, "config", "images");
 
 let attachments = [
