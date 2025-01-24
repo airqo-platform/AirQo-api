@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createPreferenceController = require("@controllers/preference.controller");
 const preferenceValidations = require("@validators/preferences.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { authenticateJWT } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -15,7 +15,7 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
-router.use(preferenceValidations.pagination);
+router.use(preferenceValidations.pagination(100, 1000));
 
 router.post(
   "/upsert",
@@ -46,46 +46,41 @@ router.get("/", preferenceValidations.list, createPreferenceController.list);
 router.delete(
   "/:user_id",
   preferenceValidations.deletePreference,
-  setJWTAuth,
-  authJWT,
+  authenticateJWT,
   createPreferenceController.delete
 );
 
 router.get(
   "/selected-sites",
-  preferenceValidations.listSelectedSites,
+  preferenceValidations.getSelectedSites,
   createPreferenceController.listSelectedSites
 );
 
 router.post(
   "/selected-sites",
   preferenceValidations.addSelectedSites,
-  setJWTAuth,
-  authJWT,
+  authenticateJWT,
   createPreferenceController.addSelectedSites
 );
 
 router.put(
   "/selected-sites/:site_id",
   preferenceValidations.updateSelectedSite,
-  setJWTAuth,
-  authJWT,
+  authenticateJWT,
   createPreferenceController.updateSelectedSite
 );
 
 router.delete(
   "/selected-sites/:site_id",
   preferenceValidations.deleteSelectedSite,
-  setJWTAuth,
-  authJWT,
+  authenticateJWT,
   createPreferenceController.deleteSelectedSite
 );
 
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
-  setJWTAuth,
-  authJWT,
+  authenticateJWT,
   createPreferenceController.list
 );
 
