@@ -789,7 +789,6 @@ const mailer = {
 
       const subscribedBccEmails = subscribedEmails.join(",");
       // bcc: subscribedBccEmails,
-      const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
       mailOptions = {
@@ -913,8 +912,6 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
-
-      const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
       mailOptions = {
@@ -1325,7 +1322,6 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
