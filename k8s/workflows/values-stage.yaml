@@ -17,14 +17,14 @@ podAnnotations: {}
 resources:
   webserver:
     requests:
-      cpu: 50m
+      cpu: 125m
       memory: 1000Mi
     limits:
-      cpu: 100m
+      cpu: 500m
       memory: 1500Mi
   scheduler:
     requests:
-      cpu: 1500m
+      cpu: 500m
       memory: 1000Mi
     limits:
       cpu: 3000m
@@ -41,7 +41,7 @@ resources:
       cpu: 5m
       memory: 10Mi
     limits:
-      cpu: 50m
+      cpu: 100m
       memory: 50Mi
 affinity:
   nodeAffinity:
