@@ -13,5 +13,10 @@
     "name": "site_id",
     "type": "STRING",
     "mode": "REQUIRED"
+  },
+  {
+    "name": "last_updated",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]
