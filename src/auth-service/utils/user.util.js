@@ -26,7 +26,7 @@ const redisSetAsync = util.promisify(redis.set).bind(redis);
 const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user util`);
 const { logObject, logText, HttpError } = require("@utils/shared");
 
 const {
