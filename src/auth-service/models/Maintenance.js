@@ -11,13 +11,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- maintenances-model`
 );
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { HttpError } = require("@utils/shared");
 const moment = require("moment-timezone");
 const timeZone = moment.tz.guess();
 const maxLimit = 100;
