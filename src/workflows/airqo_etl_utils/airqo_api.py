@@ -799,11 +799,27 @@ class AirQoApi:
             for site in response.get("sites", [])
         ]
 
-    def update_sites(self, updated_sites):
-        # TODO Update doc string.
-        for i in updated_sites:
-            site = dict(i)
-            params = {"network": DeviceNetwork.AIRQO, "id": site.pop("site_id")}
+    def update_sites(self, updated_sites: List[Dict[str, Any]]) -> None:
+        """
+        Updates site information for a list of sites in the system.
+
+        Args:
+            updated_sites (list): A list of dictionaries, where each dictionary contains the details of a site to be updated. Each dictionary must have a "site_id" key.
+
+        Returns:
+            None: The function performs the update operations but does not return anything.
+
+        Raises:
+            KeyError: If a site dictionary does not contain the 'site_id' key.
+        """
+        for site_data in updated_sites:
+            site = dict(site_data)
+
+            site_id = site.pop("site_id", None)
+            if site_id is None:
+                raise KeyError("Each site dictionary must contain a 'site_id' key.")
+            params = {"network": DeviceNetwork.AIRQO, "id": site_id}
+
             self.__request("devices/sites", params, site, "put")
 
     def __request(self, endpoint, params=None, body=None, method="get", base_url=None):
