@@ -73,7 +73,11 @@ const commonValidations = {
       .withMessage("id must be an object ID")
       .bail()
       .customSanitizer((value) => {
-        return ObjectId(value);
+        try {
+          return ObjectId(value);
+        } catch (error) {
+          throw new Error("Invalid ObjectId format");
+        }
       });
   },
 
@@ -149,7 +153,11 @@ const commonValidations = {
       .withMessage("location_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
-        return ObjectId(value);
+        try {
+          return ObjectId(value);
+        } catch (error) {
+          throw new Error("Invalid ObjectId format");
+        }
       }),
   ],
 

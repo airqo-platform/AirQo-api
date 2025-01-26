@@ -17,7 +17,7 @@ const validateCoordinate = (coordinate) => {
   const [longitude, latitude] = coordinate;
   if (
     typeof latitude !== "number" ||
-    isNaN(latitude) ||
+    Number.isNaN(latitude) ||
     latitude < -90 ||
     latitude > 90
   ) {
@@ -26,7 +26,7 @@ const validateCoordinate = (coordinate) => {
   }
   if (
     typeof longitude !== "number" ||
-    isNaN(longitude) ||
+    Number.isNaN(longitude) ||
     longitude < -180 ||
     longitude > 180
   ) {

@@ -421,7 +421,7 @@ const validateBulkUpdateSites = [
       const MAX_BULK_UPDATE_SITES = 30;
       if (value.length > MAX_BULK_UPDATE_SITES) {
         throw new Error(
-          `Cannot update more than ${MAX_BULK_UPDATE_SITES} devices in a single request`
+          `Cannot update more than ${MAX_BULK_UPDATE_SITES} sites in a single request`
         );
       }
       return true;

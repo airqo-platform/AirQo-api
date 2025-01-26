@@ -2,20 +2,11 @@
 const express = require("express");
 const router = express.Router();
 const eventController = require("@controllers/event.controller");
-const eventValidations = require("@validators/events.validators"); // Import the validators
-
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
+const eventValidations = require("@validators/events.validators");
+const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(eventValidations.pagination());
+router.use(pagination());
 
 router.get(
   "/running",

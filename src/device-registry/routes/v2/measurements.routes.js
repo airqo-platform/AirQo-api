@@ -3,23 +3,10 @@ const express = require("express");
 const router = express.Router();
 const eventController = require("@controllers/event.controller");
 const measurementsValidations = require("@validators/measurements.validators");
-
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  if (req.method === "OPTIONS") {
-    res.sendStatus(200);
-  } else {
-    next();
-  }
-};
+const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(measurementsValidations.pagination());
+router.use(pagination());
 
 router.get("/", measurementsValidations.listMeasurements, eventController.list);
 

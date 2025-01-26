@@ -16,47 +16,10 @@ const {
   validateNearestSite,
   validateBulkUpdateSites,
 } = require("@validators/site.validators");
-
-const validatePagination = (req, res, next) => {
-  let limit = parseInt(req.query.limit, 10);
-  const skip = parseInt(req.query.skip, 10);
-  if (isNaN(limit) || limit < 1) {
-    limit = 1000;
-  }
-  if (limit > 2000) {
-    limit = 2000;
-  }
-  if (isNaN(skip) || skip < 0) {
-    req.query.skip = 0;
-  }
-  req.query.limit = limit;
-
-  next();
-};
-
-const headers = (req, res, next) => {
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    "https://analytics.airqo.net, https://staging-analytics.airqo.net",
-    "https://platform.airqo.net",
-    "https://staging-platform.airqo.net"
-  );
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  // Check if the request method is OPTIONS (preflight request)
-  if (req.method === "OPTIONS") {
-    res.sendStatus(200); // Respond with a 200 status for preflight requests
-  } else {
-    next(); // Continue to the next middleware for non-preflight requests
-  }
-};
+const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(validatePagination);
+router.use(pagination());
 
 /****************************** create sites use-case *************** */
 router.get("/", validateTenant, validateSiteQueryParams, siteController.list);

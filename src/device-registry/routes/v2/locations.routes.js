@@ -3,18 +3,10 @@ const express = require("express");
 const router = express.Router();
 const locationController = require("@controllers/location.controller");
 const locationValidations = require("@validators/locations.validators");
+const { headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
 router.use(headers);
-router.use(locationValidations.pagination());
+router.use(pagination());
 
 router.post(
   "/",

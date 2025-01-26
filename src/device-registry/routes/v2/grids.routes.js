@@ -5,18 +5,10 @@ const createGridController = require("@controllers/grid.controller");
 const gridsValidations = require("@validators/grids.validators");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
+const { headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
 router.use(headers);
-router.use(gridsValidations.pagination());
+router.use(pagination());
 
 router.post("/", gridsValidations.createGrid, createGridController.create);
 

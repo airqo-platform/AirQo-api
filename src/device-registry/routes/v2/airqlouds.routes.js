@@ -3,19 +3,10 @@ const express = require("express");
 const router = express.Router();
 const airqloudController = require("@controllers/airqloud.controller");
 const airqloudValidations = require("@validators/airqlouds.validators");
-
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
+const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(airqloudValidations.pagination()); // Apply pagination middleware
+router.use(pagination()); // Apply pagination middleware
 
 router.post(
   "/",

@@ -7,18 +7,10 @@ const cohortController = require("@controllers/cohort.controller");
 const gridController = require("@controllers/grid.controller");
 const deviceController = require("@controllers/device.controller");
 const metadataValidations = require("@validators/metadata.validators");
+const { headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
 router.use(headers);
-router.use(metadataValidations.pagination());
+router.use(pagination());
 router.use(metadataValidations.addCategoryQueryParam);
 
 router.get("/sites", metadataValidations.listSites, siteController.list);

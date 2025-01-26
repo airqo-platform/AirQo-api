@@ -3,19 +3,10 @@ const express = require("express");
 const router = express.Router();
 const activityController = require("@controllers/activity.controller");
 const activitiesValidations = require("@validators/activities.validators");
-
-const headers = (req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
+const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(activitiesValidations.pagination());
+router.use(pagination());
 
 router.post(
   "/recall",

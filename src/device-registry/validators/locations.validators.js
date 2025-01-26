@@ -15,6 +15,16 @@ const createAirQloudUtil = require("@utils/airqloud.util");
 const isEmpty = require("is-empty");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(
+      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+    );
+  }
+  next();
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -32,13 +42,13 @@ const commonValidations = {
     return (req, res, next) => {
       let limit = parseInt(req.query.limit, 10);
       const skip = parseInt(req.query.skip, 10);
-      if (isNaN(limit) || limit < 1) {
+      if (Number.isNaN(limit) || limit < 1) {
         limit = defaultLimit;
       }
       if (limit > maxLimit) {
         limit = maxLimit;
       }
-      if (isNaN(skip) || skip < 0) {
+      if (Number.isNaN(skip) || skip < 0) {
         req.query.skip = 0;
       }
       req.query.limit = limit;
@@ -296,19 +306,7 @@ const locationValidations = {
     ...commonValidations.adminLevelBody,
     ...commonValidations.locationTags,
     ...commonValidations.isCustom,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listLocations: [
@@ -318,19 +316,7 @@ const locationValidations = {
       commonValidations.name,
       commonValidations.adminLevel,
     ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   updateLocation: [
@@ -344,37 +330,13 @@ const locationValidations = {
     ...commonValidations.isCustom,
     ...commonValidations.locationOptional,
     ...commonValidations.locationTags,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   deleteLocation: [
     ...commonValidations.tenant,
     commonValidations.validObjectId("id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 };
 

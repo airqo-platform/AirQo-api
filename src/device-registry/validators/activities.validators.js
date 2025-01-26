@@ -56,7 +56,7 @@ const commonValidations = {
       let limit = parseInt(req.query.limit, 10);
       const skip = parseInt(req.query.skip, 10);
 
-      if (isNaN(limit) || limit < 1) {
+      if (Number.isNaN(limit) || limit < 1) {
         limit = defaultLimit;
       }
       if (limit > maxLimit) {
@@ -64,7 +64,7 @@ const commonValidations = {
       }
       req.query.limit = limit;
 
-      if (isNaN(skip) || skip < 0) {
+      if (Number.isNaN(skip) || skip < 0) {
         req.query.skip = 0;
       }
 

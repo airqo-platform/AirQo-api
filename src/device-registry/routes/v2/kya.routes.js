@@ -3,19 +3,10 @@ const express = require("express");
 const router = express.Router();
 const knowYourAirController = require("@controllers/know-your-air.controller");
 const kyaValidations = require("@validators/kya.validators");
-
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
+const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(kyaValidations.pagination());
+router.use(pagination());
 
 router.get(
   "/lessons",
