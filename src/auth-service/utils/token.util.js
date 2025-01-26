@@ -25,6 +25,7 @@ const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-util`);
+const apiUsageLogger = log4js.getLogger("api-usage-logger");
 const async = require("async");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -415,6 +416,56 @@ const isIPBlacklistedHelper = async (
 const isIPBlacklisted = (...args) =>
   trampoline(() => isIPBlacklistedHelper(...args));
 
+//Create async queue for handling API Usage logs
+const apiUsageQueue = async.queue(async (task, callback) => {
+  try {
+    const {
+      timestamp,
+      token,
+      client_id,
+      endpoint,
+      ip_address,
+      user_agent,
+      response_code,
+      latency,
+    } = task;
+
+    const logPayload = {
+      timestamp,
+      token,
+      client_id,
+      endpoint,
+      ip_address,
+      user_agent,
+      response_code,
+      latency,
+    };
+
+    logger.info(JSON.stringify(logPayload)); // Log the structured data
+    callback();
+  } catch (error) {
+    logger.error(
+      `🐛🐛 API Usage Queue Internal Server Error --- ${error.message}`
+    );
+  }
+}, 1); // Adjust concurrency as needed
+
+const logAPIUsage = async (logData) => {
+  try {
+    // Asynchronous Logging using a queue (recommended)
+    apiUsageQueue.push(logData);
+  } catch (error) {
+    // Handle logging errors gracefully
+    logger.error(`Error logging API usage: ${error.message}`); // Ensure 'logger' is defined
+  }
+};
+
+const calculateLatency = (startTime, endTime = process.hrtime.bigint()) => {
+  const nanoseconds = Number(endTime - startTime);
+  const milliseconds = nanoseconds / 1000000;
+  return milliseconds;
+};
+
 const token = {
   verifyEmail: async (request, next) => {
     try {
@@ -672,6 +723,7 @@ const token = {
   verifyToken: async (request, next) => {
     try {
       logText("I have just entered the verifyToken() function");
+      const startTime = process.hrtime.bigint(); // Start measuring latency
       const ip =
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
@@ -715,6 +767,30 @@ const token = {
             clientOriginalIp: ip,
             endpoint: endpoint ? endpoint : "unknown",
           });
+
+          const endTime = process.hrtime.bigint();
+          const latency = calculateLatency(startTime, endTime);
+
+          await AccessTokenModel("airqo").updateOne(
+            { token },
+            { $set: { last_used_at: new Date(), last_ip_address: ip } }
+          );
+          const logPayload = {
+            timestamp: new Date().toISOString(),
+            token: accessToken.token,
+            client_id: accessToken.client_id,
+            endpoint,
+            ip_address: ip,
+            user_agent: request.headers["user-agent"],
+            response_code: 200,
+            latency: latency,
+          };
+
+          if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
+          }
+          await logAPIUsage(logPayload);
+          apiUsageLogger.info(stringify(logPayload)); // Log to stdout (for BigQuery)
+
           return createValidTokenResponse();
         }
       }
