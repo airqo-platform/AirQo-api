@@ -275,7 +275,7 @@ router.post(
 );
 
 router.delete(
-  "/quizzess/:quiz_id/unassign-many-questions",
+  "/quizzes/:quiz_id/unassign-many-questions",
   kyaValidations.removeManyQuestionsFromQuiz,
   knowYourAirController.removeManyQuestionsFromQuiz
 );
@@ -287,7 +287,7 @@ router.post(
 );
 
 router.delete(
-  "/quizzess/:question_id/unassign-many-answers",
+  "/quizzes/:question_id/unassign-many-answers",
   kyaValidations.removeManyAnswersFromQuestion,
   knowYourAirController.removeManyAnswersFromQuestion
 );

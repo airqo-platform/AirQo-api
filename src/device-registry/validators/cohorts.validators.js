@@ -115,7 +115,7 @@ const commonValidations = {
     body("network")
       .optional()
       .notEmpty()
-      .withMessage("the description should not be empty if provided")
+      .withMessage("the network should not be empty if provided")
       .bail()
       .toLowerCase()
       .custom(validateNetwork)

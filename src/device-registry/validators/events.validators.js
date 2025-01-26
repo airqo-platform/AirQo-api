@@ -13,6 +13,16 @@ const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(
+      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+    );
+  }
+  next();
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -483,19 +493,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listRunningDevices: [
@@ -515,19 +513,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listGoodEvents: [
@@ -547,19 +533,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listModerateEvents: [
@@ -579,19 +553,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listU4sgEvents: [
@@ -611,19 +573,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listUnhealthyEvents: [
@@ -643,19 +593,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listVeryUnhealthyEvents: [
@@ -675,19 +613,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listHazardousEvents: [
@@ -707,55 +633,19 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   addEvents: [
     ...commonValidations.tenant,
     ...commonValidations.addEventBody,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   transformEvents: [
     ...commonValidations.tenant,
     ...commonValidations.transformEventBody,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listRecentEvents: [
     ...commonValidations.tenant,
@@ -774,19 +664,7 @@ const eventsValidations = {
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listAllEvents: [
     ...commonValidations.tenant,
@@ -806,19 +684,7 @@ const eventsValidations = {
     ...commonValidations.metadata,
     ...commonValidations.test,
     ...commonValidations.language,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   transmitMultipleSensorValues: [
     ...commonValidations.tenant,
@@ -828,19 +694,7 @@ const eventsValidations = {
       query("device_number").exists(),
     ]),
     ...commonValidations.transmitSingleBody,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   bulkTransmitMultipleSensorValues: [
@@ -854,36 +708,12 @@ const eventsValidations = {
       .isArray()
       .withMessage("the request body should be an array"),
     ...commonValidations.transmitBulkBody,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   deleteValuesOnPlatform: [
     ...commonValidations.tenant,
     commonValidations.deviceIdentifier,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 };
 

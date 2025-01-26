@@ -51,8 +51,7 @@ const commonValidations = {
     next();
   },
 
-  conflictingParamHandler: (param1, param2, res) => {
-    // Function to handle conflicting params
+  conflictingParamHandler: (param1, param2, req, res) => {
     const { [param1]: value1, [param2]: value2 } = req.query;
     if (value1 && value2) {
       return res.status(400).json({
@@ -439,6 +438,7 @@ const measurementsValidations = {
       let conflict = commonValidations.conflictingParamHandler(
         "cohort_id",
         "grid_id",
+        req,
         res
       );
       if (conflict) {
@@ -448,6 +448,7 @@ const measurementsValidations = {
       conflict = commonValidations.conflictingParamHandler(
         "device_id",
         "site_id",
+        req,
         res
       );
       if (conflict) {
@@ -484,6 +485,7 @@ const measurementsValidations = {
       let conflict = commonValidations.conflictingParamHandler(
         "cohort_id",
         "grid_id",
+        req,
         res
       );
       if (conflict) {
@@ -492,6 +494,7 @@ const measurementsValidations = {
       conflict = commonValidations.conflictingParamHandler(
         "device_id",
         "site_id",
+        req,
         res
       );
       if (conflict) {

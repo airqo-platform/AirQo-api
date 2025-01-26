@@ -590,7 +590,7 @@ const photoValidations = {
       .trim(),
     body("path")
       .exists()
-      .withMessage("resource_type is missing in request")
+      .withMessage("path is missing in request")
       .trim(),
     body("device_name")
       .exists()

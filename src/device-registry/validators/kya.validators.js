@@ -221,15 +221,6 @@ const commonValidations = {
       }),
   ],
 
-  notEmptyBody: [
-    body()
-      .notEmpty()
-      .custom((value) => {
-        return !isEmpty(value);
-      })
-      .withMessage("the request body should not be empty"),
-  ],
-
   userIdBody: [
     body("user_id")
       .exists()
