@@ -283,7 +283,7 @@ const isIPBlacklistedHelper = async (
 
             if (!expiredEmailSent) {
               logger.info(
-                `🚨🚨 An Innovation Hub Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
+                `🚨🚨 An AirQo API Access Token is expired -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- EMAIL: ${email} -- FIRST_NAME: ${firstName} -- LAST_NAME: ${lastName}`
               );
               const emailResponse = await mailer.expiredToken(
                 {
@@ -321,7 +321,7 @@ const isIPBlacklistedHelper = async (
       return true;
     } else if (blacklistedIP) {
       logger.info(
-        `🚨🚨 An Innovation Hub Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
+        `🚨🚨 An AirQo API Access Token is compromised -- TOKEN: ${token} -- TOKEN_DESCRIPTION: ${name} -- CLIENT_IP: ${ip} `
       );
       try {
         const filter = { token };
