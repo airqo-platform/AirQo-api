@@ -176,6 +176,33 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.success = true;
         req.auth.message = "successful login";
         req.auth.status = httpStatus.OK;
+
+        const currentDate = new Date();
+
+        try {
+          await UserModel(tenant.toLowerCase())
+            .findOneAndUpdate(
+              { _id: user._id },
+              {
+                $set: { lastLogin: currentDate, isActive: true },
+                $inc: { loginCount: 1 },
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { $set: { verified: true } }
+                  : {}),
+              },
+              {
+                new: true,
+                upsert: false,
+                runValidators: true,
+              }
+            )
+            .then(() => {})
+            .catch((error) => {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            });
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+        }
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -270,6 +297,33 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+
+        const currentDate = new Date();
+
+        try {
+          await UserModel(tenant.toLowerCase())
+            .findOneAndUpdate(
+              { _id: user._id },
+              {
+                $set: { lastLogin: currentDate, isActive: true },
+                $inc: { loginCount: 1 },
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { $set: { verified: true } }
+                  : {}),
+              },
+              {
+                new: true,
+                upsert: false,
+                runValidators: true,
+              }
+            )
+            .then(() => {})
+            .catch((error) => {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            });
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+        }
 
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
