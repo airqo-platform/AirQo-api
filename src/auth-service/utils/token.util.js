@@ -771,10 +771,14 @@ const token = {
           const endTime = process.hrtime.bigint();
           const latency = calculateLatency(startTime, endTime);
 
-          await AccessTokenModel("airqo").updateOne(
-            { token },
-            { $set: { last_used_at: new Date(), last_ip_address: ip } }
-          );
+          try {
+            await AccessTokenModel("airqo").updateOne(
+              { token },
+              { $set: { last_used_at: new Date(), last_ip_address: ip } }
+            );
+          } catch (updateError) {
+            logger.error(`Error updating AccessToken: ${updateError.message}`);
+          }
           const logPayload = {
             timestamp: new Date().toISOString(),
             token: accessToken.token,
@@ -786,10 +790,12 @@ const token = {
             latency: latency,
           };
 
-          if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
+          try {
+            await logAPIUsage(logPayload);
+            apiUsageLogger.info(stringify(logPayload));
+          } catch (loggingError) {
+            logger.error(`Error logging API Usage: ${loggingError.message}`);
           }
-          await logAPIUsage(logPayload);
-          apiUsageLogger.info(stringify(logPayload)); // Log to stdout (for BigQuery)
 
           return createValidTokenResponse();
         }
