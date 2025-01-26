@@ -441,19 +441,25 @@ const apiUsageQueue = async.queue(async (task, callback) => {
       latency,
     };
 
-    logger.info(JSON.stringify(logPayload)); // Log the structured data
+    apiUsageLogger.info(stringify(logPayload));
     callback();
   } catch (error) {
     logger.error(
       `🐛🐛 API Usage Queue Internal Server Error --- ${error.message}`
     );
+    callback(error);
   }
 }, 1); // Adjust concurrency as needed
 
 const logAPIUsage = async (logData) => {
   try {
-    // Asynchronous Logging using a queue (recommended)
-    apiUsageQueue.push(logData);
+    // Asynchronous Logging using a queue
+    apiUsageQueue.push(logData, (err) => {
+      // Provide a callback to handle potential queue errors
+      if (err) {
+        logger.error(`Error pushing to apiUsageQueue: ${err.message}`);
+      }
+    });
   } catch (error) {
     // Handle logging errors gracefully
     logger.error(`Error logging API usage: ${error.message}`); // Ensure 'logger' is defined
@@ -782,7 +788,7 @@ const token = {
           const logPayload = {
             timestamp: new Date().toISOString(),
             token: accessToken.token,
-            client_id: accessToken.client_id,
+            client_id: accessToken.client_id.toString(),
             endpoint,
             ip_address: ip,
             user_agent: request.headers["user-agent"],
@@ -792,7 +798,6 @@ const token = {
 
           try {
             await logAPIUsage(logPayload);
-            apiUsageLogger.info(stringify(logPayload));
           } catch (loggingError) {
             logger.error(`Error logging API Usage: ${loggingError.message}`);
           }
