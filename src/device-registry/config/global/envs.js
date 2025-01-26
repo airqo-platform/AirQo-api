@@ -96,5 +96,6 @@ const envs = {
   EXPECTED_RECORDS_PER_HOUR: process.env.EXPECTED_RECORDS_PER_HOUR || 30,
   INTER_CORRELATION_PARAMETER:
     process.env.INTER_CORRELATION_PARAMETER || "pm2_5",
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
 };
 module.exports = envs;
