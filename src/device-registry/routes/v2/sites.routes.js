@@ -14,7 +14,7 @@ const {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
-  validateBulkUpdateDevices,
+  validateBulkUpdateSites,
 } = require("@validators/site.validators");
 
 const validatePagination = (req, res, next) => {
@@ -106,5 +106,5 @@ router.get(
   siteController.createApproximateCoordinates
 );
 router.get("/nearest", validateNearestSite, siteController.findNearestSite);
-router.put("/bulk", validateBulkUpdateDevices, siteController.updateManySites);
+router.put("/bulk", validateBulkUpdateSites, siteController.updateManySites);
 module.exports = router;

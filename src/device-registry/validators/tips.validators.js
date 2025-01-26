@@ -3,6 +3,8 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
+const { HttpError } = require("@utils/shared");
+const httpStatus = require("http-status");
 
 const commonValidations = {
   tenant: [
@@ -16,6 +18,25 @@ const commonValidations = {
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
+  pagination: (defaultLimit = 1000, maxLimit = 2000) => {
+    // Add pagination here
+    return (req, res, next) => {
+      let limit = parseInt(req.query.limit, 10);
+      const skip = parseInt(req.query.skip, 10);
+      if (isNaN(limit) || limit < 1) {
+        limit = defaultLimit;
+      }
+      if (limit > maxLimit) {
+        limit = maxLimit;
+      }
+      if (isNaN(skip) || skip < 0) {
+        req.query.skip = 0;
+      }
+      req.query.limit = limit;
+      req.query.skip = skip;
+      next();
+    };
+  },
   id: [
     query("id")
       .exists()
@@ -96,11 +117,37 @@ const healthTipValidations = {
         }
         return true;
       }),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
   ],
   list: [
     ...commonValidations.tenant,
     ...commonValidations.optionalId,
     ...commonValidations.language,
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
   ],
   update: [
     ...commonValidations.tenant,
@@ -155,8 +202,45 @@ const healthTipValidations = {
         }
         return true;
       }),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
   ],
-  delete: [...commonValidations.tenant, ...commonValidations.id],
+  delete: [
+    ...commonValidations.tenant,
+    ...commonValidations.id,
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
+  ],
 };
 
-module.exports = healthTipValidations;
+const tipsValidations = {
+  createTip: oneOf([healthTipValidations.create]),
+  listTips: oneOf([healthTipValidations.list]),
+  updateTip: oneOf([healthTipValidations.update]),
+  deleteTip: oneOf([healthTipValidations.delete]),
+  pagination: commonValidations.pagination,
+};
+
+module.exports = tipsValidations;

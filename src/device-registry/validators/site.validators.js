@@ -401,7 +401,7 @@ const validateNearestSite = [
   ]),
 ];
 
-const validateBulkUpdateDevices = [
+const validateBulkUpdateSites = [
   createTenantValidation({ isOptional: true }),
   body("siteIds")
     .exists()
@@ -485,6 +485,6 @@ module.exports = {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
-  validateBulkUpdateDevices,
+  validateBulkUpdateSites,
   validateCategoryField,
 };
