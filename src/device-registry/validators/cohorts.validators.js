@@ -13,6 +13,16 @@ const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(
+      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+    );
+  }
+  next();
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -29,13 +39,13 @@ const commonValidations = {
     return (req, res, next) => {
       let limit = parseInt(req.query.limit, 10);
       const skip = parseInt(req.query.skip, 10);
-      if (isNaN(limit) || limit < 1) {
+      if (Number.isNaN(limit) || limit < 1) {
         limit = defaultLimit;
       }
       if (limit > maxLimit) {
         limit = maxLimit;
       }
-      if (isNaN(skip) || skip < 0) {
+      if (Number.isNaN(skip) || skip < 0) {
         req.query.skip = 0;
       }
       req.query.limit = limit;
@@ -194,19 +204,7 @@ const cohortValidations = {
   deleteCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   updateCohort: [
@@ -217,19 +215,7 @@ const cohortValidations = {
     ...commonValidations.visibility,
     ...commonValidations.groups,
     ...commonValidations.networkOptional,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   createCohort: [
@@ -238,128 +224,41 @@ const cohortValidations = {
     ...commonValidations.description,
     ...commonValidations.groups,
     ...commonValidations.network,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listCohorts: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listCohortsSummary: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listCohortsDashboard: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   assignOneDeviceToCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
     commonValidations.paramObjectId("device_id"),
-
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listAssignedDevices: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listAvailableDevices: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   assignManyDevicesToCohort: [
@@ -377,20 +276,7 @@ const cohortValidations = {
     body("device_ids.*")
       .isMongoId()
       .withMessage("device_id provided must be an object ID"),
-
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   unAssignManyDevicesFromCohort: [
     ...commonValidations.tenant,
@@ -407,39 +293,14 @@ const cohortValidations = {
     body("device_ids.*")
       .isMongoId()
       .withMessage("device_id provided must be an object ID"),
-
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   unAssignOneDeviceFromCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
     commonValidations.paramObjectId("device_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   filterNonPrivateDevices: [
@@ -458,162 +319,50 @@ const cohortValidations = {
       return true;
     }),
     commonValidations.deviceIdentifiers,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   createNetwork: [
     ...commonValidations.tenant,
     ...commonValidations.name,
     ...commonValidations.description,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   updateNetwork: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("net_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   deleteNetwork: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("net_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
-  listNetworks: [
-    ...commonValidations.tenant,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
-  ],
+  listNetworks: [...commonValidations.tenant, handleValidationErrors],
 
   getNetwork: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("net_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   getSiteAndDeviceIds: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   verifyCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   getCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 };
 

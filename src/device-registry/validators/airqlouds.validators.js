@@ -14,6 +14,16 @@ const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(
+      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+    );
+  }
+  next();
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -30,13 +40,13 @@ const commonValidations = {
     return (req, res, next) => {
       let limit = parseInt(req.query.limit, 10);
       const skip = parseInt(req.query.skip, 10);
-      if (isNaN(limit) || limit < 1) {
+      if (Number.isNaN(limit) || limit < 1) {
         limit = defaultLimit;
       }
       if (limit > maxLimit) {
         limit = maxLimit;
       }
-      if (isNaN(skip) || skip < 0) {
+      if (Number.isNaN(skip) || skip < 0) {
         req.query.skip = 0;
       }
       req.query.limit = limit;
@@ -242,36 +252,12 @@ const airqloudValidations = {
     ...commonValidations.adminLevel,
     ...commonValidations.airqloudTags,
     ...commonValidations.sites,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   refreshAirqloud: [
     ...commonValidations.tenant,
     oneOf([commonValidations.validObjectId("id"), commonValidations.name]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listAirqlouds: [
     ...commonValidations.tenant,
@@ -280,19 +266,7 @@ const airqloudValidations = {
       commonValidations.name,
       commonValidations.adminLevel,
     ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listAirqloudsSummary: [
@@ -302,19 +276,7 @@ const airqloudValidations = {
       commonValidations.name,
       commonValidations.adminLevel,
     ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listAirqloudsDashboard: [
@@ -324,19 +286,7 @@ const airqloudValidations = {
       commonValidations.name,
       commonValidations.adminLevel,
     ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   getAirqloudSites: [
@@ -346,19 +296,7 @@ const airqloudValidations = {
       commonValidations.name,
       commonValidations.adminLevel,
     ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   updateAirqloud: [
     ...commonValidations.tenant,
@@ -373,36 +311,12 @@ const airqloudValidations = {
     ...commonValidations.isCustom,
     ...commonValidations.location,
     ...commonValidations.airqloudTags,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   deleteAirqloud: [
     ...commonValidations.tenant,
     commonValidations.validObjectId("id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   getAirqloudCenter: [
     ...commonValidations.tenant,
@@ -412,19 +326,7 @@ const airqloudValidations = {
       ...commonValidations.coordinates,
       commonValidations.adminLevel,
     ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listCombinedAirqloudsSummary: [
@@ -435,19 +337,7 @@ const airqloudValidations = {
       .bail()
       .notEmpty()
       .withMessage("the network ID cannot be empty"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listGroupAirqloudsSummary: [
     ...commonValidations.tenant,
@@ -457,19 +347,7 @@ const airqloudValidations = {
       .bail()
       .notEmpty()
       .withMessage("the group ID cannot be empty"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   listCombinedAirqlouds: [
     ...commonValidations.tenant,
@@ -479,19 +357,7 @@ const airqloudValidations = {
       .bail()
       .notEmpty()
       .withMessage("the network should not be empty"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 
   listGroupAirqlouds: [
@@ -502,19 +368,7 @@ const airqloudValidations = {
       .bail()
       .notEmpty()
       .withMessage("the group should not be empty"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 };
 
