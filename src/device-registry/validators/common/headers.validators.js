@@ -1,5 +1,8 @@
 const constants = require("@config/constants");
-const allowedOrigins = constants.ALLOWED_ORIGINS?.split(",") || ["*"];
+const allowedOrigins =
+  constants.ALLOWED_ORIGINS && constants.ALLOWED_ORIGINS.trim() !== ""
+    ? constants.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+    : ["*"];
 
 const headers = (req, res, next) => {
   // const origin = req.get("Origin");
