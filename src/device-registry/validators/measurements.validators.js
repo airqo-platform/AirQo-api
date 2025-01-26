@@ -36,6 +36,51 @@ const commonValidations = {
       .withMessage("the tenant value is not among the expected ones"),
   ],
 
+  errorHandler: (req, res, next) => {
+    // Unified error handler
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(
+        new HttpError(
+          "Validation Error",
+          httpStatus.BAD_REQUEST,
+          errors.mapped()
+        )
+      );
+    }
+    next();
+  },
+
+  conflictingParamHandler: (param1, param2, res) => {
+    // Function to handle conflicting params
+    const { [param1]: value1, [param2]: value2 } = req.query;
+    if (value1 && value2) {
+      return res.status(400).json({
+        success: false,
+        message: "Bad Request Error",
+        errors: {
+          message: `You cannot provide both ${param1} and ${param2}`,
+        },
+      });
+    }
+    return false; // Indicate no conflict
+  },
+
+  paramErrorChecker: (req, res, next) => {
+    //Checks for errors and calls next if no errors are found
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(
+        new HttpError(
+          "Validation Error",
+          httpStatus.BAD_REQUEST,
+          errors.mapped()
+        )
+      );
+    }
+    next();
+  },
+
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
     return (req, res, next) => {
       let limit = parseInt(req.query.limit, 10);
@@ -364,20 +409,7 @@ const measurementsValidations = {
     ...commonValidations.test,
     ...commonValidations.checkConflictingParams("cohort_id", "grid_id"),
     ...commonValidations.checkConflictingParams("device_id", "site_id"),
-    (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation Errors",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listHistoricalMeasurements: [
     commonValidations.optionalObjectId("cohort_id"),
@@ -404,41 +436,24 @@ const measurementsValidations = {
     ...commonValidations.checkConflictingParams("cohort_id", "grid_id"),
     ...commonValidations.checkConflictingParams("device_id", "site_id"),
     (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: errors.array()[0].msg,
-          },
-        });
+      let conflict = commonValidations.conflictingParamHandler(
+        "cohort_id",
+        "grid_id",
+        res
+      );
+      if (conflict) {
+        //If conflict is true, stop and return the json response from conflictingParamHandler
+        return conflict;
       }
-
-      const { cohort_id, grid_id, device_id, site_id } = req.query;
-
-      if (cohort_id && grid_id) {
-        return res.status(400).json({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "You cannot provide both cohort_id and grid_id",
-          },
-        });
+      conflict = commonValidations.conflictingParamHandler(
+        "device_id",
+        "site_id",
+        res
+      );
+      if (conflict) {
+        return conflict;
       }
-
-      if (device_id && site_id) {
-        return res.status(400).json({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "You cannot provide both device_id and site_id",
-          },
-        });
-      }
-
-      next(); // Proceed to the route handler
+      commonValidations.paramErrorChecker(req, res, next); // Proceed with other validations if no conflicting params
     },
   ],
   listRecentMeasurements: [
@@ -466,41 +481,24 @@ const measurementsValidations = {
     ...commonValidations.checkConflictingParams("cohort_id", "grid_id"),
     ...commonValidations.checkConflictingParams("device_id", "site_id"),
     (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: errors.array()[0].msg,
-          },
-        });
+      let conflict = commonValidations.conflictingParamHandler(
+        "cohort_id",
+        "grid_id",
+        res
+      );
+      if (conflict) {
+        return conflict;
+      }
+      conflict = commonValidations.conflictingParamHandler(
+        "device_id",
+        "site_id",
+        res
+      );
+      if (conflict) {
+        return conflict;
       }
 
-      const { cohort_id, grid_id, device_id, site_id } = req.query;
-
-      if (cohort_id && grid_id) {
-        return res.status(400).json({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "You cannot provide both cohort_id and grid_id",
-          },
-        });
-      }
-
-      if (device_id && site_id) {
-        return res.status(400).json({
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: "You cannot provide both device_id and site_id",
-          },
-        });
-      }
-
-      next(); // Proceed to the route handler
+      commonValidations.paramErrorChecker(req, res, next);
     },
   ],
   listLatestMeasurements: [
@@ -515,26 +513,12 @@ const measurementsValidations = {
     ...commonValidations.latLong,
     commonValidations.validObjectId("airqloud_id"),
     ...commonValidations.deviceNumber,
-    // measurements.validators.js (continued)
-
     ...commonValidations.site,
     commonValidations.validObjectId("site_id"),
     ...commonValidations.primary,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listMeasurementsByLocation: [
     ...commonValidations.tenant,
@@ -546,23 +530,11 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listHistoricalSiteMeasurements: [
     ...commonValidations.tenant,
-    commonValidations.validObjectId("site_id", param),
+    commonValidations.validObjectId("site_id"),
     ...commonValidations.timeRange,
     ...commonValidations.frequency,
     ...commonValidations.format,
@@ -570,24 +542,12 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listRecentSiteMeasurements: [
     ...commonValidations.tenant,
-    commonValidations.validObjectId("site_id", param),
+    commonValidations.validObjectId("site_id"),
     ...commonValidations.timeRange,
     ...commonValidations.frequency,
     ...commonValidations.format,
@@ -595,24 +555,12 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listSiteMeasurements: [
     ...commonValidations.tenant,
-    commonValidations.validObjectId("site_id", param),
+    commonValidations.validObjectId("site_id"),
     ...commonValidations.timeRange,
     ...commonValidations.frequency,
     ...commonValidations.format,
@@ -620,24 +568,12 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listSiteAverages: [
     ...commonValidations.tenant,
-    commonValidations.validObjectId("site_id", param),
+    commonValidations.validObjectId("site_id"),
     ...commonValidations.timeRange,
     ...commonValidations.frequency,
     ...commonValidations.format,
@@ -645,24 +581,12 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listSiteAveragesV2: [
     ...commonValidations.tenant,
-    commonValidations.validObjectId("site_id", param),
+    commonValidations.validObjectId("site_id"),
     ...commonValidations.timeRange,
     ...commonValidations.frequency,
     ...commonValidations.format,
@@ -670,24 +594,12 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listSiteAveragesV3: [
     ...commonValidations.tenant,
-    commonValidations.validObjectId("site_id", param),
+    commonValidations.validObjectId("site_id"),
     ...commonValidations.timeRange,
     ...commonValidations.frequency,
     ...commonValidations.format,
@@ -695,19 +607,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listHistoricalAirqloudMeasurements: [
@@ -720,19 +620,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listRecentAirqloudMeasurements: [
@@ -745,19 +633,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listAirqloudMeasurements: [
@@ -770,20 +646,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listHistoricalGridMeasurements: [
     ...commonValidations.tenant,
@@ -795,20 +658,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listRecentGridMeasurements: [
     ...commonValidations.tenant,
@@ -820,19 +670,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listGridMeasurements: [
     ...commonValidations.tenant,
@@ -844,20 +682,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listHistoricalCohortMeasurements: [
     ...commonValidations.tenant,
@@ -869,19 +694,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listRecentCohortMeasurements: [
@@ -894,19 +707,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listCohortMeasurements: [
     ...commonValidations.tenant,
@@ -918,20 +719,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
   listHistoricalDeviceMeasurements: [
     ...commonValidations.tenant,
@@ -943,19 +731,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listRecentDeviceMeasurements: [
@@ -968,19 +744,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 
   listDeviceMeasurements: [
@@ -993,19 +757,7 @@ const measurementsValidations = {
     ...commonValidations.recent,
     ...commonValidations.metadata,
     ...commonValidations.test,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.errorHandler,
   ],
 };
 

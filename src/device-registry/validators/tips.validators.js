@@ -6,6 +6,16 @@ const isEmpty = require("is-empty");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(
+      new HttpError("Validation error", httpStatus.BAD_REQUEST, errors.mapped())
+    );
+  }
+  next();
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -117,37 +127,13 @@ const healthTipValidations = {
         }
         return true;
       }),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   list: [
     ...commonValidations.tenant,
     ...commonValidations.optionalId,
     ...commonValidations.language,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   update: [
     ...commonValidations.tenant,
@@ -202,36 +188,12 @@ const healthTipValidations = {
         }
         return true;
       }),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
   delete: [
     ...commonValidations.tenant,
     ...commonValidations.id,
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    handleValidationErrors,
   ],
 };
 
