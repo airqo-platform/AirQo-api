@@ -65,21 +65,6 @@ const commonValidations = {
     return false; // Indicate no conflict
   },
 
-  paramErrorChecker: (req, res, next) => {
-    //Checks for errors and calls next if no errors are found
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return next(
-        new HttpError(
-          "Validation Error",
-          httpStatus.BAD_REQUEST,
-          errors.mapped()
-        )
-      );
-    }
-    next();
-  },
-
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
     return (req, res, next) => {
       let limit = parseInt(req.query.limit, 10);
@@ -386,6 +371,18 @@ const commonValidations = {
   ],
 };
 
+const baseValidations = [
+  ...commonValidations.tenant,
+  ...commonValidations.timeRange,
+  ...commonValidations.frequency,
+  ...commonValidations.format,
+  ...commonValidations.external,
+  ...commonValidations.recent,
+  ...commonValidations.metadata,
+  ...commonValidations.test,
+  commonValidations.errorHandler,
+];
+
 const measurementsValidations = {
   listMeasurements: [
     ...commonValidations.tenant,
@@ -454,7 +451,7 @@ const measurementsValidations = {
       if (conflict) {
         return conflict;
       }
-      commonValidations.paramErrorChecker(req, res, next); // Proceed with other validations if no conflicting params
+      commonValidations.errorHandler(req, res, next); // Proceed with other validations if no conflicting params
     },
   ],
   listRecentMeasurements: [
@@ -501,7 +498,7 @@ const measurementsValidations = {
         return conflict;
       }
 
-      commonValidations.paramErrorChecker(req, res, next);
+      commonValidations.errorHandler(req, res, next);
     },
   ],
   listLatestMeasurements: [
@@ -524,243 +521,91 @@ const measurementsValidations = {
     commonValidations.errorHandler,
   ],
   listMeasurementsByLocation: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     ...commonValidations.latLong,
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
   listHistoricalSiteMeasurements: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     commonValidations.validObjectId("site_id"),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
 
   listRecentSiteMeasurements: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     commonValidations.validObjectId("site_id"),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
 
   listSiteMeasurements: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     commonValidations.validObjectId("site_id"),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
 
   listSiteAverages: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     commonValidations.validObjectId("site_id"),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
 
   listSiteAveragesV2: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     commonValidations.validObjectId("site_id"),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
 
   listSiteAveragesV3: [
-    ...commonValidations.tenant,
+    ...baseValidations,
     commonValidations.validObjectId("site_id"),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
   ],
 
   listHistoricalAirqloudMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("airqloud_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("airqloud_id"),
   ],
 
   listRecentAirqloudMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("airqloud_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("airqloud_id"),
   ],
 
   listAirqloudMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("airqloud_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("airqloud_id"),
   ],
   listHistoricalGridMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("grid_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("grid_id"),
   ],
   listRecentGridMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("grid_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("grid_id"),
   ],
   listGridMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("grid_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("grid_id"),
   ],
   listHistoricalCohortMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("cohort_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("cohort_id"),
   ],
 
   listRecentCohortMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("cohort_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("cohort_id"),
   ],
   listCohortMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("cohort_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("cohort_id"),
   ],
   listHistoricalDeviceMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("device_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("device_id"),
   ],
 
   listRecentDeviceMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("device_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("device_id"),
   ],
 
   listDeviceMeasurements: [
-    ...commonValidations.tenant,
-    commonValidations.validObjectId("device_id", param),
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.errorHandler,
+    ...baseValidations,
+    commonValidations.validObjectId("device_id"),
   ],
 };
 

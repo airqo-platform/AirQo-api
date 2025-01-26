@@ -450,7 +450,7 @@ const commonValidations = {
     query("site_id")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the device_id"
+        "the record's identifier is missing in request, consider using the site_id"
       )
       .bail()
       .trim()
