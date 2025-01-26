@@ -451,19 +451,18 @@ const apiUsageQueue = async.queue(async (task, callback) => {
   }
 }, 1); // Adjust concurrency as needed
 
-const logAPIUsage = async (logData) => {
-  try {
-    // Asynchronous Logging using a queue
+const logAPIUsage = (logData) => {
+  // No need for async here
+  return new Promise((resolve, reject) => {
     apiUsageQueue.push(logData, (err) => {
-      // Provide a callback to handle potential queue errors
       if (err) {
         logger.error(`Error pushing to apiUsageQueue: ${err.message}`);
+        reject(err); // Reject the promise if there's a queue error
+      } else {
+        resolve(); // Resolve the promise if the task is pushed successfully
       }
     });
-  } catch (error) {
-    // Handle logging errors gracefully
-    logger.error(`Error logging API usage: ${error.message}`); // Ensure 'logger' is defined
-  }
+  });
 };
 
 const calculateLatency = (startTime, endTime = process.hrtime.bigint()) => {
