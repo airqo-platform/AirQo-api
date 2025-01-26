@@ -1150,12 +1150,6 @@ const createUser = {
 
       if (req.auth.success === true) {
         const user = await req.user.toAuthJSON();
-        const currentDate = new Date();
-        await UserModel("airqo").findByIdAndUpdate(user._id, {
-          lastLogin: currentDate,
-          isActive: true,
-        });
-
         return res.status(httpStatus.OK).json(user);
       } else {
         if (req.auth.error) {
