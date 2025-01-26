@@ -11,34 +11,7 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError, logText } = require("@utils/shared");
 const httpStatus = require("http-status");
-const NetworkModel = require("@models/Network");
-const AdminLevelModel = require("@models/AdminLevel");
-
-const validAdminLevels = async () => {
-  const levels = await AdminLevelModel("airqo").distinct("name");
-  return levels.map((level) => level.toLowerCase());
-};
-
-const validateAdminLevels = async (value) => {
-  const levels = await validAdminLevels();
-  if (!levels.includes(value.toLowerCase())) {
-    throw new Error("Invalid level");
-  }
-  return true;
-};
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-  return true;
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const validateCoordinate = (coordinate) => {
   const [longitude, latitude] = coordinate;

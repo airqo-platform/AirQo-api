@@ -5,19 +5,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const validateTenant = oneOf([
   query("tenant")

@@ -11,34 +11,8 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const createAirQloudUtil = require("@utils/airqloud.util");
 const isEmpty = require("is-empty");
-const AdminLevelModel = require("@models/AdminLevel");
-const NetworkModel = require("@models/Network");
-
-const validAdminLevels = async () => {
-  const levels = await AdminLevelModel("airqo").distinct("name");
-  return levels.map((level) => level.toLowerCase());
-};
-
-const validateAdminLevels = async (value) => {
-  const levels = await validAdminLevels();
-  if (!levels.includes(value.toLowerCase())) {
-    throw new Error("Invalid level");
-  }
-};
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const commonValidations = {
   tenant: [

@@ -6,19 +6,7 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logObject, logText, logElement } = require("@utils/shared");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const validatePagination = (req, res, next) => {
   let limit = parseInt(req.query.limit, 10);

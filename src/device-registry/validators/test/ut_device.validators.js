@@ -21,34 +21,6 @@ describe("Device Validator", () => {
     sandbox.restore();
   });
 
-  describe("validNetworks", () => {
-    it("should return a list of valid networks", async () => {
-      const mockNetworks = ["network1", "network2"];
-      sandbox.stub(NetworkModel("airqo"), "distinct").resolves(mockNetworks);
-
-      const result = await deviceValidator.validNetworks();
-      expect(result).to.deep.equal(mockNetworks.map((n) => n.toLowerCase()));
-    });
-  });
-
-  describe("validateNetwork", () => {
-    it("should pass for a valid network", async () => {
-      sandbox
-        .stub(deviceValidator, "validNetworks")
-        .resolves(["network1", "network2"]);
-      await expect(deviceValidator.validateNetwork("network1")).to.be.fulfilled;
-    });
-
-    it("should throw an error for an invalid network", async () => {
-      sandbox
-        .stub(deviceValidator, "validNetworks")
-        .resolves(["network1", "network2"]);
-      await expect(
-        deviceValidator.validateNetwork("invalidNetwork")
-      ).to.be.rejectedWith("Invalid network");
-    });
-  });
-
   describe("validateTenant", () => {
     it("should validate tenant correctly", () => {
       const req = {

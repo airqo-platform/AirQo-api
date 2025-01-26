@@ -113,20 +113,6 @@ describe("Create Event Routes", () => {
         isValidObjectId.restore();
       });
     });
-
-    describe("validateNetwork", () => {
-      it("should not throw error for valid network", async () => {
-        const validateNetwork = sinon.stub().resolves();
-        await expect(validateNetwork("Network1")).to.be.fulfilled;
-      });
-
-      it("should throw error for invalid network", async () => {
-        const validateNetwork = sinon
-          .stub()
-          .rejects(new Error("Invalid network"));
-        await expect(validateNetwork("InvalidNetwork")).to.be.rejected;
-      });
-    });
   });
 
   describe("Route Handlers", () => {

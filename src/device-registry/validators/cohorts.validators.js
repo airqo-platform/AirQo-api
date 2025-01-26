@@ -11,19 +11,7 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const commonValidations = {
   tenant: [

@@ -3,20 +3,7 @@ const { oneOf, query, body, param } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-  return true; // Important for express-validator custom validators
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const commonValidations = {
   tenant: [
