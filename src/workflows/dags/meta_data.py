@@ -46,7 +46,7 @@ def update_big_query_airqlouds_sites_and_devices():
         big_query_api = BigQueryApi()
         big_query_api.update_sites_and_devices(
             dataframe=data,
-            table=big_query_api.sites_sites_table,
+            table=big_query_api.sites_table,
             component="sites",
         )
 
@@ -75,7 +75,7 @@ def update_big_query_airqlouds_sites_and_devices():
         big_query_api = BigQueryApi()
         big_query_api.update_sites_and_devices(
             dataframe=data,
-            table=big_query_api.devices_devices_table,
+            table=big_query_api.devices_table,
             component="devices",
         )
 
