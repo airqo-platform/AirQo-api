@@ -25,7 +25,6 @@ const moment = require("moment-timezone");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-util`);
-const apiUsageLogger = log4js.getLogger("api-usage-logger");
 const async = require("async");
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -716,7 +715,6 @@ const token = {
             clientOriginalIp: ip,
             endpoint: endpoint ? endpoint : "unknown",
           });
-
           return createValidTokenResponse();
         }
       }
