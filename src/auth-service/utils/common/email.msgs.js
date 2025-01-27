@@ -54,6 +54,20 @@ module.exports = {
     `;
     return constants.EMAIL_BODY({ email, content });
   },
+  mobileEmailVerification: ({ token, email }) => {
+    const content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <p>Welcome to AirQo!  Thank you for registering.</p>
+          <p>Please use the code below to verify your email address (${email}):</p>
+          <h1 style="font-size: 36px; font-weight: bold; margin: 20px 0;">${token}</h1>
+          <p>This code will expire in 24 hours.</p>
+          <p>If you did not register for an AirQo account, you can safely ignore this email.</p>
+        </td>
+      </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content });
+  },
   joinRequest: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>
@@ -542,7 +556,8 @@ module.exports = {
     <tr>
      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
        <p>You already exist as an AirQo User.</p>
-       <p>Please use the FORGOT PASSWORD feature by clicking <a href="${FORGOT_PAGE}" style="color: blue; text-decoration: underline;">HERE</a>.</p>
+       <p>For AirQo Web, please use the FORGOT PASSWORD feature by clicking <a href="${FORGOT_PAGE}" style="color: blue; text-decoration: underline;">HERE</a>.</p>
+       <p>For AirQo Mobile, please use the FORGOT PASSWORD feature in the app.</p>
      </td>
     </tr>
     `;

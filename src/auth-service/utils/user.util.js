@@ -1543,6 +1543,39 @@ const createUserModule = {
       );
     }
   },
+  registerMobileUser: async (request, next) => {
+    try {
+      const { tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      const userData = request.body;
+      const verificationToken = generateNumericToken(5);
+      userData.verificationToken = verificationToken;
+
+      const newUserResponse = await UserModel(tenant).register(userData, next);
+
+      if (newUserResponse.success === true) {
+        await mailer.sendVerificationEmail({
+          email: userData.email,
+          token: verificationToken,
+        });
+
+        return {
+          success: true,
+          message: "User registered successfully. Please verify your email.",
+          user: newUserResponse.data,
+        };
+      } else {
+        return newUserResponse;
+      }
+    } catch (error) {
+      logObject("error in reg", error);
+      return { success: false, message: error.message };
+    }
+  },
   verificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
@@ -1616,6 +1649,97 @@ const createUserModule = {
           { message: error.message }
         )
       );
+    }
+  },
+  mobileVerificationReminder: async (request, next) => {
+    try {
+      const { tenant, email } = request;
+
+      const user = await UserModel(tenant)
+        .findOne({ email })
+        .select("_id email firstName lastName verified")
+        .lean();
+
+      if (isEmpty(user)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not provided or does not exist",
+          })
+        );
+      }
+
+      const token = generateNumericToken(5);
+
+      const tokenCreationBody = {
+        token,
+        name: user.firstName,
+      };
+      const responseFromCreateToken = await VerifyTokenModel(
+        tenant.toLowerCase()
+      ).register(tokenCreationBody, next);
+
+      if (responseFromCreateToken.success === false) {
+        return responseFromCreateToken;
+      } else {
+        const emailResponse = await mailer.sendVerificationEmail(
+          { email, token, tenant },
+          next
+        );
+        logObject("emailResponse", emailResponse);
+        if (emailResponse.success === false) {
+          logger.error(
+            `Failed to send mobile verification email to user (${email}) with id ${user._id}`
+          );
+          return emailResponse;
+        }
+
+        const userDetails = {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          verified: user.verified,
+        };
+        return {
+          success: true,
+          message: "Verification code sent to your email.",
+          data: userDetails,
+        };
+      }
+    } catch (error) {
+      logObject("error in mobileVerificationReminder", error);
+
+      logger.error(`Error sending verification reminder: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  verifyMobileEmail: async (token) => {
+    try {
+      // ... your logic to retrieve the user associated with the verification token from the database ...
+      const user = await UserModel("airqo").findOne({
+        verificationToken: token,
+      });
+
+      if (!user) {
+        return { success: false, message: "Invalid verification token." };
+      }
+
+      user.verified = true;
+      user.verificationToken = undefined; // Clear the token after verification
+      await user.save();
+
+      return {
+        success: true,
+        message: "Email verified successfully.",
+        user: user,
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   },
   create: async (request, next) => {
@@ -2041,13 +2165,6 @@ const createUserModule = {
       );
     }
   },
-  generateNumericToken: (length) => {
-    let token = "";
-    for (let i = 0; i < length; i++) {
-      token += Math.floor(Math.random() * 10); // Generates a random digit (0-9)
-    }
-    return token;
-  },
   initiatePasswordReset: async ({ email, token, tenant }, next) => {
     try {
       const update = {
@@ -2083,7 +2200,6 @@ const createUserModule = {
       );
     }
   },
-
   resetPassword: async ({ token, password, tenant }, next) => {
     try {
       const resetPasswordToken = token;
@@ -2751,4 +2867,4 @@ const createUserModule = {
   },
 };
 
-module.exports = createUserModule;
+module.exports = { ...createUserModule, generateNumericToken };

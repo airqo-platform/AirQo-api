@@ -329,6 +329,35 @@ const verifyEmail = [
   ],
 ];
 
+const verifyMobileEmail = [
+  validateTenant,
+  [
+    param("token")
+      .exists()
+      .withMessage("Token is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the token should not be empty")
+      .bail()
+      .isNumeric()
+      .withMessage("Token must be numeric")
+      .bail()
+      .isLength({ min: 5, max: 5 })
+      .withMessage("Token must be 5 digits")
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage("email is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+  ],
+];
+
 const registerUser = [
   validateTenant,
   [
@@ -918,4 +947,5 @@ module.exports = {
   getUser,
   resetPasswordRequest,
   resetPassword,
+  verifyMobileEmail,
 };
