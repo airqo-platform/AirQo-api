@@ -416,61 +416,6 @@ const isIPBlacklistedHelper = async (
 const isIPBlacklisted = (...args) =>
   trampoline(() => isIPBlacklistedHelper(...args));
 
-//Create async queue for handling API Usage logs
-const apiUsageQueue = async.queue(async (task, callback) => {
-  try {
-    const {
-      timestamp,
-      token,
-      client_id,
-      endpoint,
-      ip_address,
-      user_agent,
-      response_code,
-      latency,
-    } = task;
-
-    const logPayload = {
-      timestamp,
-      token,
-      client_id,
-      endpoint,
-      ip_address,
-      user_agent,
-      response_code,
-      latency,
-    };
-
-    apiUsageLogger.info(stringify(logPayload));
-    callback();
-  } catch (error) {
-    logger.error(
-      `🐛🐛 API Usage Queue Internal Server Error --- ${error.message}`
-    );
-    callback(error);
-  }
-}, 1); // Adjust concurrency as needed
-
-const logAPIUsage = (logData) => {
-  // No need for async here
-  return new Promise((resolve, reject) => {
-    apiUsageQueue.push(logData, (err) => {
-      if (err) {
-        logger.error(`Error pushing to apiUsageQueue: ${err.message}`);
-        reject(err); // Reject the promise if there's a queue error
-      } else {
-        resolve(); // Resolve the promise if the task is pushed successfully
-      }
-    });
-  });
-};
-
-const calculateLatency = (startTime, endTime = process.hrtime.bigint()) => {
-  const nanoseconds = Number(endTime - startTime);
-  const milliseconds = nanoseconds / 1000000;
-  return milliseconds;
-};
-
 const token = {
   verifyEmail: async (request, next) => {
     try {
@@ -728,7 +673,6 @@ const token = {
   verifyToken: async (request, next) => {
     try {
       logText("I have just entered the verifyToken() function");
-      const startTime = process.hrtime.bigint(); // Start measuring latency
       const ip =
         request.headers["x-client-ip"] ||
         request.headers["x-client-original-ip"];
@@ -772,34 +716,6 @@ const token = {
             clientOriginalIp: ip,
             endpoint: endpoint ? endpoint : "unknown",
           });
-
-          const endTime = process.hrtime.bigint();
-          const latency = calculateLatency(startTime, endTime);
-
-          try {
-            await AccessTokenModel("airqo").updateOne(
-              { token },
-              { $set: { last_used_at: new Date(), last_ip_address: ip } }
-            );
-          } catch (updateError) {
-            logger.error(`Error updating AccessToken: ${updateError.message}`);
-          }
-          const logPayload = {
-            timestamp: new Date().toISOString(),
-            token: accessToken.token,
-            client_id: accessToken.client_id.toString(),
-            endpoint,
-            ip_address: ip,
-            user_agent: request.headers["user-agent"],
-            response_code: 200,
-            latency: latency,
-          };
-
-          try {
-            await logAPIUsage(logPayload);
-          } catch (loggingError) {
-            logger.error(`Error logging API Usage: ${loggingError.message}`);
-          }
 
           return createValidTokenResponse();
         }
