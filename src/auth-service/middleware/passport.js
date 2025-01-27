@@ -176,6 +176,33 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.success = true;
         req.auth.message = "successful login";
         req.auth.status = httpStatus.OK;
+
+        const currentDate = new Date();
+
+        try {
+          await UserModel(tenant.toLowerCase())
+            .findOneAndUpdate(
+              { _id: user._id },
+              {
+                $set: { lastLogin: currentDate, isActive: true },
+                $inc: { loginCount: 1 },
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { $set: { verified: true } }
+                  : {}),
+              },
+              {
+                new: true,
+                upsert: false,
+                runValidators: true,
+              }
+            )
+            .then(() => {})
+            .catch((error) => {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            });
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+        }
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -270,6 +297,33 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+
+        const currentDate = new Date();
+
+        try {
+          await UserModel(tenant.toLowerCase())
+            .findOneAndUpdate(
+              { _id: user._id },
+              {
+                $set: { lastLogin: currentDate, isActive: true },
+                $inc: { loginCount: 1 },
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { $set: { verified: true } }
+                  : {}),
+              },
+              {
+                new: true,
+                upsert: false,
+                runValidators: true,
+              }
+            )
+            .then(() => {})
+            .catch((error) => {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            });
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+        }
 
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
@@ -1130,6 +1184,29 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+function authenticateJWT(req, res, next) {
+  try {
+    if (req.body && req.body.user_id) {
+      logText("Skipping setJWTAuth due to user_id in request body.");
+      next();
+      return;
+    }
+
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+
+    setJWTStrategy("airqo", req, res, next);
+
+    passport.authenticate("jwt", { session: false })(req, res, next); //Authenticate
+  } catch (e) {
+    logger.error(`the error in authenticateJWT is: ${e.message}`);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+  }
+}
+
 module.exports = {
   setLocalAuth,
   setJWTAuth,
@@ -1140,4 +1217,5 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  authenticateJWT,
 };

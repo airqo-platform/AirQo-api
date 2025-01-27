@@ -1,61 +1,31 @@
+// uptime.routes.js
 const express = require("express");
 const router = express.Router();
-const uptimeController = require("@controllers/uptime.controller");
-const { validatePagination, headers } = require("@middleware/common");
-const {
-  validateTenant,
-  validateUptimeQueries,
-  validateDeviceBatteryQueries,
-} = require("@validators/uptime.validators");
+const uptime = require("@controllers/uptime.controller");
+const uptimeValidations = require("@validators/uptime.validators");
+const { headers, pagination } = require("@validators/common");
 
-// Apply common middleware
 router.use(headers);
-router.use(validatePagination);
+router.use(pagination());
 
-// Base routes with consistent naming and validation
-router.get(
-  "/status",
-  validateTenant,
-  validateUptimeQueries,
-  uptimeController.getDeviceStatus
-);
+router.get("/status", uptimeValidations.getUptime, uptime.getDeviceStatus);
 
-// router.post(
-//   "/status",
-//   validateTenant,
-//   validateUptimeBody,
-//   uptimeController.createDeviceStatus
-// );
+router.get("/network", uptimeValidations.getUptime, uptime.getNetworkUptime);
 
-router.get(
-  "/network",
-  validateTenant,
-  validateUptimeQueries,
-  uptimeController.getNetworkUptime
-);
-
-router.get(
-  "/device",
-  validateTenant,
-  validateUptimeQueries,
-  uptimeController.getDeviceUptime
-);
+router.get("/device", uptimeValidations.getUptime, uptime.getDeviceUptime);
 
 router.get(
   "/battery",
-  validateTenant,
-  validateDeviceBatteryQueries,
-  uptimeController.getDeviceBattery
+  uptimeValidations.getDeviceBattery,
+  uptime.getDeviceBattery
 );
 
 router.get(
   "/leaderboard",
-  validateTenant,
-  validateUptimeQueries,
-  uptimeController.getDeviceUptimeLeaderboard
+  uptimeValidations.getUptime,
+  uptime.getDeviceUptimeLeaderboard
 );
 
-// Health check endpoint (matching Python implementation)
 router.get("/health", (req, res) => {
   console.info("health status OK");
   return res.status(200).json({

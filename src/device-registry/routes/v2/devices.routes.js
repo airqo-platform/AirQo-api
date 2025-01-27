@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const deviceController = require("@controllers/device.controller");
-const { validatePagination, headers } = require("@middleware/common");
+const { headers, pagination } = require("@validators/common");
 const {
   validateTenant,
   validateDeviceIdentifier,
@@ -16,7 +16,7 @@ const {
 } = require("@validators/device.validators");
 
 router.use(headers);
-router.use(validatePagination);
+router.use(pagination());
 
 // Decrypt key route
 router.post(

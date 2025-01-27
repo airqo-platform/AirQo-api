@@ -7,6 +7,10 @@ const {
   validateCollocationReset,
 } = require("@validators/collocation.validators");
 
+const { headers, pagination } = require("@validators/common");
+router.use(headers);
+router.use(pagination());
+
 // Export Collection Route
 router.get("/export-collection", collocationController.exportCollocationData);
 

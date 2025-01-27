@@ -12,9 +12,7 @@ const tokenUtil = require("@utils/token.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const UserModel = require("@models/User");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-user-controller`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user controller`);
 
 function handleResponse({
   result,
@@ -1152,12 +1150,6 @@ const createUser = {
 
       if (req.auth.success === true) {
         const user = await req.user.toAuthJSON();
-        const currentDate = new Date();
-        await UserModel("airqo").findByIdAndUpdate(user._id, {
-          lastLogin: currentDate,
-          isActive: true,
-        });
-
         return res.status(httpStatus.OK).json(user);
       } else {
         if (req.auth.error) {
