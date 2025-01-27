@@ -203,6 +203,18 @@ router.post(
   createUserController.forgot
 );
 
+router.post(
+  "/reset-password-request",
+  userValidations.resetPasswordRequest,
+  createUserController.resetPasswordRequest
+);
+
+router.post(
+  "/reset-password/:token",
+  userValidations.resetPassword,
+  createUserController.resetPassword
+);
+
 router.put("/", userValidations.updateUser, createUserController.update);
 
 router.put(

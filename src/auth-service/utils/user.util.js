@@ -2041,6 +2041,110 @@ const createUserModule = {
       );
     }
   },
+  generateNumericToken: (length) => {
+    let token = "";
+    for (let i = 0; i < length; i++) {
+      token += Math.floor(Math.random() * 10); // Generates a random digit (0-9)
+    }
+    return token;
+  },
+  initiatePasswordReset: async ({ email, token, tenant }, next) => {
+    try {
+      const update = {
+        resetPasswordToken: token,
+        resetPasswordExpires: Date.now() + 3600000,
+      };
+      const responseFromModifyUser = await UserModel(tenant)
+        .findOneAndUpdate({ email }, update, { new: true })
+        .select("firstName lastName email");
+
+      if (isEmpty(responseFromModifyUser)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: "user does not exist, please crosscheck",
+          })
+        );
+      }
+
+      await mailer.sendPasswordResetEmail({ email, token, tenant });
+
+      return {
+        success: true,
+        message: "Password reset email sent successfully",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Unable to initiate password reset",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  resetPassword: async ({ token, password, tenant }, next) => {
+    try {
+      const resetPasswordToken = token;
+      const timeZone = moment.tz.guess();
+      const filter = {
+        resetPasswordToken,
+        resetPasswordExpires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
+
+      const user = await UserModel(tenant).findOne(filter);
+      if (!user) {
+        throw new HttpError(
+          "Password reset token is invalid or has expired.",
+          httpStatus.BAD_REQUEST
+        );
+      }
+      const update = {
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+        password,
+      };
+
+      const responseFromModifyUser = await UserModel(tenant)
+        .findOneAndUpdate({ _id: ObjectId(user._id) }, update, { new: true })
+        .select("firstName lastName email");
+
+      const { email, firstName, lastName } = responseFromModifyUser._doc;
+
+      const responseFromSendEmail = await mailer.updateForgottenPassword(
+        {
+          email,
+          firstName,
+          lastName,
+        },
+        next
+      );
+
+      logObject("responseFromSendEmail", responseFromSendEmail);
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "Password reset successful",
+        };
+      } else if (responseFromSendEmail.success === false) {
+        return responseFromSendEmail;
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   generateResetToken: (next) => {
     try {
       const token = crypto.randomBytes(20).toString("hex");

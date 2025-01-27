@@ -41,6 +41,19 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content });
   },
+  mobilePasswordReset: ({ token, email }) => {
+    const content = `
+      <tr>
+        <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          <p>You requested a password reset for your AirQo account associated with ${email}.</p>
+          <p>Use this code to finish setting up your new password:</p>
+          <h1 style="font-size: 36px; font-weight: bold; margin: 20px 0;">${token}</h1>
+          <p>This code will expire in 24 hours.</p>
+        </td>
+      </tr>
+    `;
+    return constants.EMAIL_BODY({ email, content });
+  },
   joinRequest: (firstName, lastName, email) => {
     const name = firstName + " " + lastName;
     const content = ` <tr>

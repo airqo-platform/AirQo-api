@@ -1311,6 +1311,55 @@ const mailer = {
       );
     }
   },
+
+  sendPasswordResetEmail: async ({ email, token, tenant = "airqo" }, next) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: email,
+        subject: `Password Reset Code: ${token}`,
+        html: msgs.mobilePasswordReset({ token, email }),
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Email sent successfully",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError("Email not sent", httpStatus.INTERNAL_SERVER_ERROR, {
+            emailResults: data,
+          })
+        );
+      }
+    } catch (error) {
+      logger.error(`Error sending password reset email: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   signInWithEmailLink: async (
     { email, token, tenant = "airqo" } = {},
     next
