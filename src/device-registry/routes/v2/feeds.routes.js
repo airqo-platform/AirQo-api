@@ -5,17 +5,18 @@ const transformController = require("@controllers/feed.controller");
 const feedsValidations = require("@validators/feeds.validators");
 const { headers, pagination } = require("@validators/common");
 router.use(headers);
-router.use(pagination());
 
 router.get(
   "/recent/:ch_id",
   feedsValidations.getLastFeed,
+  pagination(),
   transformController.getLastFeed
 );
 
 router.get(
   "/transform/recent",
   feedsValidations.generateDescriptiveLastEntry,
+  pagination(),
   transformController.generateDescriptiveLastEntry
 );
 

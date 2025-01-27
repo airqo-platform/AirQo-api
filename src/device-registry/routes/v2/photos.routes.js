@@ -6,7 +6,6 @@ const photoValidations = require("@validators/photos.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 router.delete("/", photoValidations.deletePhoto, photoController.delete);
 
@@ -14,7 +13,12 @@ router.post("/", photoValidations.createPhoto, photoController.create);
 
 router.put("/", photoValidations.updatePhoto, photoController.update);
 
-router.get("/", photoValidations.listPhotos, photoController.list);
+router.get(
+  "/",
+  photoValidations.listPhotos,
+  pagination(),
+  photoController.list
+);
 
 router.post(
   "/soft",

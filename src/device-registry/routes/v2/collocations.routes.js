@@ -9,10 +9,13 @@ const {
 
 const { headers, pagination } = require("@validators/common");
 router.use(headers);
-router.use(pagination());
 
 // Export Collection Route
-router.get("/export-collection", collocationController.exportCollocationData);
+router.get(
+  "/export-collection",
+  pagination(),
+  collocationController.exportCollocationData
+);
 
 // Create Collocation Batch Route
 router.post(
@@ -40,16 +43,22 @@ router.patch(
 router.get(
   "/",
   validateCollocationParams,
+  pagination(),
   collocationController.getCollocationBatch
 );
 
 // Get Collocation Summary Route
-router.get("/summary", collocationController.getCollocationSummary);
+router.get(
+  "/summary",
+  pagination(),
+  collocationController.getCollocationSummary
+);
 
 // Get Collocation Batch Data Route
 router.get(
   "/data",
   validateCollocationParams,
+  pagination(),
   collocationController.getCollocationBatchData
 );
 
@@ -57,6 +66,7 @@ router.get(
 router.get(
   "/results",
   validateCollocationParams,
+  pagination(),
   collocationController.getCollocationBatchResults
 );
 
@@ -64,6 +74,7 @@ router.get(
 router.get(
   "/data-completeness",
   validateCollocationParams,
+  pagination(),
   collocationController.getCollocationDataCompleteness
 );
 
@@ -71,6 +82,7 @@ router.get(
 router.get(
   "/statistics",
   validateCollocationParams,
+  pagination(),
   collocationController.getCollocationDataStatistics
 );
 
@@ -78,6 +90,7 @@ router.get(
 router.get(
   "/intra",
   validateCollocationParams,
+  pagination(),
   collocationController.getCollocationIntraSensorCorrelation
 );
 

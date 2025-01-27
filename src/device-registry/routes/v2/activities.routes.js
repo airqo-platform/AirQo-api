@@ -6,7 +6,6 @@ const activitiesValidations = require("@validators/activities.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 router.post(
   "/recall",
@@ -33,7 +32,12 @@ router.post(
   activityController.maintain
 );
 
-router.get("/", activitiesValidations.listActivities, activityController.list);
+router.get(
+  "/",
+  activitiesValidations.listActivities,
+  pagination(),
+  activityController.list
+);
 
 router.put(
   "/",

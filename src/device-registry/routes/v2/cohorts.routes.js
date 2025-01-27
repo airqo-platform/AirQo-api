@@ -6,7 +6,6 @@ const cohortValidations = require("@validators/cohorts.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 router.delete(
   "/:cohort_id",
@@ -22,17 +21,24 @@ router.put(
 
 router.post("/", cohortValidations.createCohort, createCohortController.create);
 
-router.get("/", cohortValidations.listCohorts, createCohortController.list);
+router.get(
+  "/",
+  cohortValidations.listCohorts,
+  pagination(),
+  createCohortController.list
+);
 
 router.get(
   "/summary",
   cohortValidations.listCohortsSummary,
+  pagination(),
   createCohortController.listSummary
 );
 
 router.get(
   "/dashboard",
   cohortValidations.listCohortsDashboard,
+  pagination(),
   createCohortController.listDashboard
 );
 
@@ -45,12 +51,14 @@ router.put(
 router.get(
   "/:cohort_id/assigned-devices",
   cohortValidations.listAssignedDevices,
+  pagination(),
   createCohortController.listAssignedDevices
 );
 
 router.get(
   "/:cohort_id/available-devices",
   cohortValidations.listAvailableDevices,
+  pagination(),
   createCohortController.listAvailableDevices
 );
 
@@ -81,6 +89,7 @@ router.post(
 router.get(
   "/:cohort_id/generate",
   cohortValidations.getSiteAndDeviceIds,
+  pagination(),
   createCohortController.getSiteAndDeviceIds
 );
 
@@ -105,24 +114,28 @@ router.delete(
 router.get(
   "/networks",
   cohortValidations.listNetworks,
+  pagination(),
   createCohortController.listNetworks
 );
 
 router.get(
   "/networks/:net_id",
   cohortValidations.getNetwork,
+  pagination(),
   createCohortController.listNetworks
 );
 
 router.get(
   "/verify/:cohort_id",
   cohortValidations.verifyCohort,
+  pagination(),
   createCohortController.verify
 );
 
 router.get(
   "/:cohort_id",
   cohortValidations.getCohort,
+  pagination(),
   createCohortController.list
 );
 
