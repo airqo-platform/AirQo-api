@@ -10,6 +10,7 @@ const constants = require("./constants");
 const log4js = {
   appenders: {
     console: { type: "console" },
+    out: { type: "stdout" }, // Log to standard output (essential for Cloud Run/Functions)
     access: {
       type: "dateFile",
       filename: "log/access.log",
@@ -39,9 +40,10 @@ const log4js = {
     },
   },
   categories: {
-    default: { appenders: ["alerts"], level: "info" },
+    default: { appenders: ["alerts", "out"], level: "info" },
     error: { appenders: ["alerts", "errors"], level: "error" },
     http: { appenders: ["access"], level: "DEBUG" },
+    "api-usage-logger": { appenders: ["out"], level: "info" }, // API Usage logs *only* to stdout, not to slack!
   },
 };
 
