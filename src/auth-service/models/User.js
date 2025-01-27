@@ -93,7 +93,6 @@ const UserSchema = new Schema(
     },
     userName: {
       type: String,
-      required: [true, "UserName is required!"],
       trim: true,
       unique: true,
     },
@@ -404,6 +403,14 @@ UserSchema.pre(
           return next(new Error("Phone number or email is required!"));
         }
 
+        if (!this.userName && this.email) {
+          this.userName = this.email;
+        }
+
+        if (!this.userName) {
+          return next(new Error("userName is required!"));
+        }
+
         // Profile picture validation - only for new documents
         if (
           this.profilePicture &&
@@ -469,10 +476,6 @@ UserSchema.pre(
             },
           ];
         }
-
-        // Ensure default values for new documents
-        this.verified = this.verified ?? false;
-        this.analyticsVersion = this.analyticsVersion ?? 2;
 
         // Permissions handling for new documents
         if (this.permissions && this.permissions.length > 0) {
@@ -580,15 +583,6 @@ UserSchema.pre(
           } else {
             updates.permissions = uniquePermissions;
           }
-        }
-
-        // Conditional default values for updates
-        if (updates && updates.$set) {
-          updates.$set.verified = updates.$set.verified ?? false;
-          updates.$set.analyticsVersion = updates.$set.analyticsVersion ?? 2;
-        } else {
-          updates.verified = updates.verified ?? false;
-          updates.analyticsVersion = updates.analyticsVersion ?? 2;
         }
       }
 

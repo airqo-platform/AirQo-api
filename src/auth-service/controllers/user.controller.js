@@ -1664,6 +1664,169 @@ const createUser = {
       return;
     }
   },
+  resetPasswordRequest: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const { email } = req.body;
+      const tenant = req.query.tenant;
+      const token = userUtil.generateNumericToken(5);
+      const result = await userUtil.initiatePasswordReset(
+        {
+          email,
+          token,
+          tenant,
+        },
+        next
+      );
+
+      res
+        .status(httpStatus.OK)
+        .json({ success: true, message: result.message });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  resetPassword: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const { token } = req.params;
+      const { password } = req.body;
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await userUtil.resetPassword(
+        {
+          token,
+          password,
+          tenant,
+        },
+        next
+      );
+
+      res
+        .status(httpStatus.OK)
+        .json({ success: true, message: result.message });
+    } catch (error) {
+      logObject("error in controller", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  registerMobileUser: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      request.body.analyticsVersion = 4;
+
+      const result = await userUtil.registerMobileUser(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        res
+          .status(httpStatus.CREATED)
+          .json({ success: true, message: result.message, data: result.user });
+      } else {
+        next(new HttpError(result.message, httpStatus.BAD_REQUEST));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  verifyMobileEmail: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await userUtil.verifyMobileEmail(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+      if (result.success) {
+        res
+          .status(httpStatus.OK)
+          .json({ success: true, message: result.message, data: result.user });
+      } else {
+        next(new HttpError(result.message, httpStatus.BAD_REQUEST));
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
   subscribeToNewsLetter: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
