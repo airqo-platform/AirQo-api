@@ -446,9 +446,7 @@ const activitiesValidations = {
       .bail()
       .isIn(constants.MAINTENANCE_TYPES)
       .withMessage("Invalid maintenanceType"),
-    commonValidations
-      .objectId("site_id", body)
-      .withMessage("site_id is required"),
+    commonValidations.objectId("site_id", body),
   ],
 
   batchDeployActivity: [
