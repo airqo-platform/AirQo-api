@@ -1553,11 +1553,34 @@ const createUserModule = {
 
       const userData = request.body;
       const verificationToken = generateNumericToken(5);
-      userData.verificationToken = verificationToken;
 
       const newUserResponse = await UserModel(tenant).register(userData, next);
 
       if (newUserResponse.success === true) {
+        const newUser = newUserResponse.data;
+
+        // Add this block to store the token in the VerifyToken collection:
+        const tokenExpiry = 86400; //24hrs in seconds. Feel free to use any value
+
+        const tokenCreationBody = {
+          token: verificationToken,
+          name: newUser.firstName,
+          expires: new Date(Date.now() + tokenExpiry * 1000), // Set token expiry
+        };
+
+        const verifyTokenResponse = await VerifyTokenModel(
+          tenant.toLowerCase()
+        ).register(tokenCreationBody, next);
+
+        if (verifyTokenResponse.success === false) {
+          // Consider rolling back user creation
+          logger.error(
+            `Failed to create verification token for user ${newUser.email}: ${verifyTokenResponse.message}`
+          );
+
+          return verifyTokenResponse;
+        }
+
         await mailer.sendVerificationEmail({
           email: userData.email,
           token: verificationToken,
@@ -1566,7 +1589,7 @@ const createUserModule = {
         return {
           success: true,
           message: "User registered successfully. Please verify your email.",
-          user: newUserResponse.data,
+          user: newUser,
         };
       } else {
         return newUserResponse;
@@ -1576,6 +1599,7 @@ const createUserModule = {
       return { success: false, message: error.message };
     }
   },
+
   verificationReminder: async (request, next) => {
     try {
       const { tenant, email } = request;
@@ -1718,28 +1742,278 @@ const createUserModule = {
       );
     }
   },
-  verifyMobileEmail: async (token) => {
+  verifyMobileEmail: async (request, next) => {
     try {
-      // ... your logic to retrieve the user associated with the verification token from the database ...
-      const user = await UserModel("airqo").findOne({
-        verificationToken: token,
-      });
+      const { email, token, tenant, skip, limit } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+      const timeZone = moment.tz.guess();
+      let filter = {
+        token,
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
 
-      if (!user) {
-        return { success: false, message: "Invalid verification token." };
+      const userDetails = await UserModel("airqo")
+        .find({
+          email,
+        })
+        .select("_id firstName lastName userName email verified")
+        .lean();
+
+      const user = userDetails[0];
+
+      if (isEmpty(user)) {
+        return {
+          success: false,
+          message: "Invalid Verification Token or the User does not exist",
+          errors: {
+            message: "Invalid Verification Token or the User does not exist",
+          },
+        };
       }
 
-      user.verified = true;
-      user.verificationToken = undefined; // Clear the token after verification
-      await user.save();
+      const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
 
-      return {
-        success: true,
-        message: "Email verified successfully.",
-        user: user,
-      };
+      logObject("responseFromListAccessToken", responseFromListAccessToken);
+      if (responseFromListAccessToken.success === true) {
+        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
+          next(
+            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
+              message: "incorrect user or token details provided",
+            })
+          );
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          let update = {
+            verified: true,
+          };
+          filter = { email };
+
+          const responseFromUpdateUser = await UserModel(tenant).modify(
+            {
+              filter,
+              update,
+            },
+            next
+          );
+
+          if (responseFromUpdateUser.success === true) {
+            /**
+             * we shall also need to handle case where there was no update
+             * later...cases where the user never existed in the first place
+             * this will not be necessary if user deletion is cascaded.
+             */
+            if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
+              return responseFromUpdateUser;
+            }
+
+            filter = { token };
+            logObject("the deletion of the token filter", filter);
+            const responseFromDeleteToken = await VerifyTokenModel(
+              tenant
+            ).remove({ filter }, next);
+
+            logObject("responseFromDeleteToken", responseFromDeleteToken);
+
+            if (responseFromDeleteToken.success === true) {
+              logObject("user", user);
+              const responseFromSendEmail = await mailer.afterEmailVerification(
+                {
+                  firstName: user.firstName,
+                  username: user.userName,
+                  email: user.email,
+                  analyticsVersion: 4,
+                },
+                next
+              );
+
+              if (responseFromSendEmail.success === true) {
+                return {
+                  success: true,
+                  message: "email verified sucessfully",
+                  status: httpStatus.OK,
+                };
+              } else if (responseFromSendEmail.success === false) {
+                return responseFromSendEmail;
+              }
+            } else if (responseFromDeleteToken.success === false) {
+              next(
+                new HttpError(
+                  "unable to verify user",
+                  responseFromDeleteToken.status
+                    ? responseFromDeleteToken.status
+                    : httpStatus.INTERNAL_SERVER_ERROR,
+                  responseFromDeleteToken.errors
+                    ? responseFromDeleteToken.errors
+                    : { message: "internal server errors" }
+                )
+              );
+            }
+          } else if (responseFromUpdateUser.success === false) {
+            next(
+              new HttpError(
+                "unable to verify user",
+                responseFromUpdateUser.status
+                  ? responseFromUpdateUser.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
+                responseFromUpdateUser.errors
+                  ? responseFromUpdateUser.errors
+                  : { message: "internal server errors" }
+              )
+            );
+          }
+        }
+      } else if (responseFromListAccessToken.success === false) {
+        return responseFromListAccessToken;
+      }
     } catch (error) {
       return { success: false, message: error.message };
+    }
+  },
+  verifyEmail: async (request, next) => {
+    try {
+      const { tenant, limit, skip, user_id, token } = {
+        ...request.query,
+        ...request.params,
+      };
+      const timeZone = moment.tz.guess();
+      let filter = {
+        token,
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
+
+      const userDetails = await UserModel(tenant)
+        .find({
+          _id: ObjectId(user_id),
+        })
+        .lean();
+
+      if (isEmpty(userDetails)) {
+        next(
+          new HttpError("Bad Reqest Error", httpStatus.BAD_REQUEST, {
+            message: "User does not exist",
+          })
+        );
+      }
+
+      const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
+        {
+          skip,
+          limit,
+          filter,
+        },
+        next
+      );
+
+      if (responseFromListAccessToken.success === true) {
+        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
+          next(
+            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
+              message: "incorrect user or token details provided",
+            })
+          );
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          let update = {
+            verified: true,
+          };
+          filter = { _id: user_id };
+
+          const responseFromUpdateUser = await UserModel(tenant).modify(
+            {
+              filter,
+              update,
+            },
+            next
+          );
+
+          if (responseFromUpdateUser.success === true) {
+            /**
+             * we shall also need to handle case where there was no update
+             * later...cases where the user never existed in the first place
+             * this will not be necessary if user deletion is cascaded.
+             */
+            if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
+              return responseFromUpdateUser;
+            }
+
+            filter = { token };
+            logObject("the deletion of the token filter", filter);
+            const responseFromDeleteToken = await VerifyTokenModel(
+              tenant
+            ).remove({ filter }, next);
+
+            logObject("responseFromDeleteToken", responseFromDeleteToken);
+
+            if (responseFromDeleteToken.success === true) {
+              const responseFromSendEmail = await mailer.afterEmailVerification(
+                {
+                  firstName: userDetails[0].firstName,
+                  username: userDetails[0].userName,
+                  email: userDetails[0].email,
+                },
+                next
+              );
+
+              if (responseFromSendEmail.success === true) {
+                return {
+                  success: true,
+                  message: "email verified sucessfully",
+                  status: httpStatus.OK,
+                };
+              } else if (responseFromSendEmail.success === false) {
+                return responseFromSendEmail;
+              }
+            } else if (responseFromDeleteToken.success === false) {
+              next(
+                new HttpError(
+                  "unable to verify user",
+                  responseFromDeleteToken.status
+                    ? responseFromDeleteToken.status
+                    : httpStatus.INTERNAL_SERVER_ERROR,
+                  responseFromDeleteToken.errors
+                    ? responseFromDeleteToken.errors
+                    : { message: "internal server errors" }
+                )
+              );
+            }
+          } else if (responseFromUpdateUser.success === false) {
+            next(
+              new HttpError(
+                "unable to verify user",
+                responseFromUpdateUser.status
+                  ? responseFromUpdateUser.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
+                responseFromUpdateUser.errors
+                  ? responseFromUpdateUser.errors
+                  : { message: "internal server errors" }
+              )
+            );
+          }
+        }
+      } else if (responseFromListAccessToken.success === false) {
+        return responseFromListAccessToken;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   create: async (request, next) => {
