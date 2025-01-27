@@ -485,31 +485,44 @@ class AirQoDataUtils:
         remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
-        Removes outlier values, drops duplicates and converts timestamp to the pandas datetime type.
+        Cleans low-cost sensor data by performing outlier removal, raw data quality checks,
+        timestamp conversion, duplicate removal, and network-specific calculations.
+
+        The cleaning process includes:
+        1. Optional removal of outliers.
+        2. Device-specific raw data quality checks.
+        3. Conversion of the 'timestamp' column to pandas datetime format.
+        4. Removal of duplicate rows based on 'timestamp' and 'device_id'.
+        5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
 
         Args:
-            data(pandas.DataFrame): The data to clean.
-            device_category(DeviceCategory): Device category as defined by the enums in DeviceCategory.
-            remove_outliers(bool): A bool that defaults to true that is used to determine whether outliers should be dropped or not.
+            data (pd.DataFrame): The input data to be cleaned.
+            device_category (DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
+            remove_outliers (bool, optional): Determines whether outliers should be removed. Defaults to True.
 
         Returns:
-            A pandas.DataFrame object that contains the cleaned data.
+            pd.DataFrame: The cleaned DataFrame.
+
+        Raises:
+            KeyError: If there are issues with the 'timestamp' column during processing.
         """
         if remove_outliers:
             data = DataValidationUtils.remove_outliers(data)
             # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
-            match device_category:
-                case DeviceCategory.LOW_COST_GAS:
-                    AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                        data
-                    )
-                case DeviceCategory.LOW_COST:
-                    AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
-                        data
-                    )
-        else:
+
+        match device_category:
+            case DeviceCategory.LOW_COST_GAS:
+                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                    data
+                )
+            case DeviceCategory.LOW_COST:
+                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
+        try:
+            data.dropna(subset=["timestamp"], inplace=True)
             data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data.dropna(subset=["timestamp"], inplace=True)
+        except Exception as e:
+            logger.exception(f"There is an issue with the timestamp column: {e}")
+            raise KeyError(f"An error has occurred with the 'timestamp' column: {e}")
 
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
