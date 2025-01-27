@@ -19,27 +19,40 @@ const {
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 /****************************** create sites use-case *************** */
-router.get("/", validateTenant, validateSiteQueryParams, siteController.list);
+router.get(
+  "/",
+  validateTenant,
+  validateSiteQueryParams,
+  pagination(),
+  siteController.list
+);
 router.get(
   "/summary",
   validateTenant,
   validateSiteQueryParams,
+  pagination(),
   siteController.listSummary
 );
-router.get("/weather", validateTenant, siteController.listWeatherStations);
+router.get(
+  "/weather",
+  validateTenant,
+  pagination(),
+  siteController.listWeatherStations
+);
 router.get(
   "/weather/nearest",
   validateTenant,
   validateMandatorySiteIdentifier,
+  pagination(),
   siteController.listNearestWeatherStation
 );
 router.get(
   "/airqlouds/",
   validateTenant,
   validateMandatorySiteIdentifier,
+  pagination(),
   siteController.findAirQlouds
 );
 router.post("/", validateTenant, validateCreateSite, siteController.register);
@@ -66,8 +79,14 @@ router.post(
 router.get(
   "/approximate",
   validateGetApproximateCoordinates,
+  pagination(),
   siteController.createApproximateCoordinates
 );
-router.get("/nearest", validateNearestSite, siteController.findNearestSite);
+router.get(
+  "/nearest",
+  validateNearestSite,
+  pagination(),
+  siteController.findNearestSite
+);
 router.put("/bulk", validateBulkUpdateSites, siteController.updateManySites);
 module.exports = router;

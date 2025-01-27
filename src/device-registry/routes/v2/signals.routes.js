@@ -10,10 +10,9 @@ const { validateNetwork, validateAdminLevels } = require("@validators/common");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 /******************* create-events use-case *******************************/
 
-router.get("/map", eventController.signalsForMap);
+router.get("/map", pagination(), eventController.signalsForMap);
 
 module.exports = router;

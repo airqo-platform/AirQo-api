@@ -8,15 +8,20 @@ const upload = multer({ dest: "uploads/" });
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 router.post("/", gridsValidations.createGrid, createGridController.create);
 
-router.get("/", gridsValidations.listGrids, createGridController.list);
+router.get(
+  "/",
+  gridsValidations.listGrids,
+  pagination(),
+  createGridController.list
+);
 
 router.get(
   "/summary",
   gridsValidations.listGridSummary,
+  pagination(),
   createGridController.listSummary
 );
 
@@ -41,18 +46,21 @@ router.put(
 router.get(
   "/:grid_id/generate",
   gridsValidations.getSiteAndDeviceIds,
+  pagination(),
   createGridController.getSiteAndDeviceIds
 );
 
 router.get(
   "/:grid_id/assigned-sites",
   gridsValidations.listAssignedSites,
+  pagination(),
   createGridController.listAssignedSites
 );
 
 router.get(
   "/:grid_id/available-sites",
   gridsValidations.listAvailableSites,
+  pagination(),
   createGridController.listAvailableSites
 );
 
@@ -84,6 +92,7 @@ router.post(
 router.get(
   "/levels",
   gridsValidations.listAdminLevels,
+  pagination(),
   createGridController.listAdminLevels
 );
 
@@ -102,9 +111,15 @@ router.delete(
 router.get(
   "/levels/:level_id",
   gridsValidations.getAdminLevel,
+  pagination(),
   createGridController.listAdminLevels
 );
 
-router.get("/:grid_id", gridsValidations.getGrid, createGridController.list);
+router.get(
+  "/:grid_id",
+  gridsValidations.getGrid,
+  pagination(),
+  createGridController.list
+);
 
 module.exports = router;

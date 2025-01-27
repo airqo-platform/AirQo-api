@@ -6,28 +6,34 @@ const readingsValidations = require("@validators/readings.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
-router.get("/map", eventController.readingsForMap);
+router.get("/map", pagination(), eventController.readingsForMap);
 
 router.get(
   "/best-air-quality",
   readingsValidations.bestAirQuality,
+  pagination(),
   eventController.getBestAirQuality
 );
 
 router.get(
   "/recent",
   readingsValidations.recent,
+  pagination(),
   eventController.recentReadings
 );
 
 router.get(
   "/sites/:site_id/averages",
   readingsValidations.listAverages,
+  pagination(),
   eventController.listReadingAverages
 );
 
-router.get("/fetchAndStoreData", eventController.fetchAndStoreData);
+router.get(
+  "/fetchAndStoreData",
+  pagination(),
+  eventController.fetchAndStoreData
+);
 
 module.exports = router;

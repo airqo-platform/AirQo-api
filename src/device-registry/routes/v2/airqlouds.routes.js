@@ -6,7 +6,6 @@ const airqloudValidations = require("@validators/airqlouds.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination()); // Apply pagination middleware
 
 router.post(
   "/",
@@ -20,23 +19,31 @@ router.put(
   airqloudController.refresh
 );
 
-router.get("/", airqloudValidations.listAirqlouds, airqloudController.list);
+router.get(
+  "/",
+  airqloudValidations.listAirqlouds,
+  pagination(),
+  airqloudController.list
+);
 
 router.get(
   "/summary",
   airqloudValidations.listAirqloudsSummary,
+  pagination(),
   airqloudController.listSummary
 );
 
 router.get(
   "/dashboard",
   airqloudValidations.listAirqloudsDashboard,
+  pagination(),
   airqloudController.listDashboard
 );
 
 router.get(
   "/sites",
   airqloudValidations.getAirqloudSites,
+  pagination(),
   airqloudController.findSites
 );
 
@@ -51,30 +58,35 @@ router.delete(
 router.get(
   "/center",
   airqloudValidations.getAirqloudCenter,
+  pagination(),
   airqloudController.calculateGeographicalCenter
 );
 
 router.get(
   "/combined/:net_id/summary",
   airqloudValidations.listCombinedAirqloudsSummary,
+  pagination(),
   airqloudController.listCohortsAndGridsSummary
 );
 
 router.get(
   "/groups/:group_id/summary",
   airqloudValidations.listGroupAirqloudsSummary,
+  pagination(),
   airqloudController.listCohortsAndGridsSummary
 );
 
 router.get(
   "/combined/:net_id",
   airqloudValidations.listCombinedAirqlouds,
+  pagination(),
   airqloudController.listCohortsAndGrids
 );
 
 router.get(
   "/groups/:group_id",
   airqloudValidations.listGroupAirqlouds,
+  pagination(),
   airqloudController.listCohortsAndGrids
 );
 
