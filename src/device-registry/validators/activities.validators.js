@@ -17,38 +17,38 @@ const commonValidations = {
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
-
   objectId: (
     field,
     location = query,
     errorMessage = "Invalid ObjectId format"
   ) => {
     return location(field)
-      .optional()
+      .optional() // The field is optional
+      .if(location(field).exists()) // Only validate if the field exists
       .custom((value) => {
-        let values = Array.isArray(value)
-          ? value
-          : value?.toString().split(",");
-        for (const v of values) {
-          if (v && !isValidObjectId(v)) {
-            throw new Error(`${field}: ${errorMessage} - ${v}`);
+        //Handles both single and array of ObjectIds
+        if (Array.isArray(value)) {
+          value.forEach((v) => {
+            if (!isValidObjectId(v)) {
+              throw new Error(`${field}: ${errorMessage} - ${v}`);
+            }
+          });
+        } else {
+          if (!isValidObjectId(value)) {
+            throw new Error(`${field}: ${errorMessage} - ${value}`);
           }
         }
         return true;
       })
       .customSanitizer((value) => {
-        if (value) {
-          let values;
-          if (Array.isArray(value)) {
-            values = value;
-          } else {
-            values = value?.toString().split(",");
-          }
-          return values
+        // No need for spliting since we are not allowing arrays here
+        if (Array.isArray(value)) {
+          return value
             .map((v) => (isValidObjectId(v) ? ObjectId(v) : null))
             .filter((v) => v !== null);
+        } else {
+          return isValidObjectId(value) ? ObjectId(value) : null;
         }
-        return value;
       });
   },
   pagination: (defaultLimit = 1000, maxLimit = 2000) => {
@@ -324,15 +324,75 @@ const activitiesValidations = {
   recallActivity: [
     ...commonValidations.tenant,
     ...commonValidations.deviceName,
-    ...commonValidations.recallType,
+    body("recallType")
+      .exists()
+      .withMessage("recallType is required")
+      .bail()
+      .isIn(constants.RECALL_TYPES)
+      .withMessage("Invalid recallType"),
+    commonValidations.objectId("user_id", body),
+    body("date")
+      .optional()
+      .trim()
+      .toDate()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage("Invalid date format"),
     ...commonValidations.firstName,
     ...commonValidations.lastName,
     ...commonValidations.userName,
     ...commonValidations.email,
-    commonValidations.objectId("user_id", body),
   ],
 
   deployActivity: [
+    //Required fields validation
+    ...commonValidations.tenant,
+    ...commonValidations.deviceName,
+    body("site_id")
+      .exists()
+      .withMessage("site_id is required")
+      .bail()
+      .custom((value) => {
+        if (!isValidObjectId(value)) {
+          throw new Error("Invalid site_id format");
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        return isValidObjectId(value) ? ObjectId(value) : null;
+      }),
+    body("height")
+      .exists()
+      .withMessage("height is required")
+      .isFloat({ gt: 0, lt: 100 })
+      .withMessage("height must be a number between 0 and 100")
+      .trim(),
+    body("powerType")
+      .exists()
+      .withMessage("powerType is required")
+      .trim()
+      .toLowerCase()
+      .isIn(["solar", "mains", "alternator"])
+      .withMessage("Invalid powerType"),
+    body("mountType")
+      .exists()
+      .withMessage("mountType is required")
+      .trim()
+      .toLowerCase()
+      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+      .withMessage("Invalid mountType"),
+    body("date")
+      .exists()
+      .withMessage("date is required")
+      .trim()
+      .toDate()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage("Invalid date format"),
+    //Optional fields validation if provided
+    body("isPrimaryInLocation")
+      .optional()
+      .isBoolean()
+      .withMessage("isPrimaryInLocation must be a boolean value")
+      .trim(),
     ...commonValidations.tenant,
     ...commonValidations.deviceName,
     ...commonValidations.powerType,
@@ -342,6 +402,15 @@ const activitiesValidations = {
     commonValidations.objectId("site_id", body),
     commonValidations.objectId("host_id", body),
     commonValidations.objectId("user_id", body),
+    body("network")
+      .optional()
+      .custom((value) => {
+        if (typeof value !== "string") {
+          throw new Error("Network must be a string");
+        }
+        return true;
+      })
+      .trim(),
     ...commonValidations.date,
     ...commonValidations.firstName,
     ...commonValidations.lastName,
@@ -361,22 +430,85 @@ const activitiesValidations = {
     ...commonValidations.lastName,
     ...commonValidations.userName,
     ...commonValidations.email,
+    body("description")
+      .exists()
+      .withMessage("description is required")
+      .trim(),
+    body("tags")
+      .exists()
+      .withMessage("tags is required")
+      .bail()
+      .isArray()
+      .withMessage("tags must be an array"),
+    body("maintenanceType")
+      .exists()
+      .withMessage("maintenanceType is required")
+      .bail()
+      .isIn(constants.MAINTENANCE_TYPES)
+      .withMessage("Invalid maintenanceType"),
+    commonValidations.objectId("site_id", body),
   ],
 
   batchDeployActivity: [
     ...commonValidations.tenant,
-    ...commonValidations.deviceNameBody,
-    ...commonValidations.powerType,
-    ...commonValidations.mountType,
-    ...commonValidations.height,
-    ...commonValidations.isPrimaryInLocation,
-    ...commonValidations.latitude,
-    ...commonValidations.longitude,
-    ...commonValidations.siteName,
-    ...commonValidations.network,
-    commonValidations.objectId("user_id", body),
-    commonValidations.objectId("host_id", body),
-    ...commonValidations.date,
+    body("*.deviceName")
+      .exists()
+      .withMessage("deviceName is required")
+      .trim(),
+    body("*.height")
+      .exists()
+      .withMessage("height is required")
+      .isFloat({ gt: 0, lt: 100 })
+      .withMessage("height must be a number between 0 and 100")
+      .trim(),
+    body("*.powerType")
+      .exists()
+      .withMessage("powerType is required")
+      .trim()
+      .toLowerCase()
+      .isIn(["solar", "mains", "alternator"])
+      .withMessage("Invalid powerType"),
+    body("*.mountType")
+      .exists()
+      .withMessage("mountType is required")
+      .trim()
+      .toLowerCase()
+      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+      .withMessage("Invalid mountType"),
+    body("*.isPrimaryInLocation")
+      .exists()
+      .withMessage("isPrimaryInLocation is required")
+      .isBoolean()
+      .withMessage("isPrimaryInLocation must be Boolean")
+      .trim(),
+    body("*.latitude")
+      .exists()
+      .withMessage("latitude is required")
+      .isFloat()
+      .withMessage("latitude must be a float"),
+    body("*.longitude")
+      .exists()
+      .withMessage("longitude is required")
+      .isFloat()
+      .withMessage("longitude must be a float"),
+    body("*.site_name")
+      .exists()
+      .withMessage("site_name is required")
+      .trim(),
+    body("*.network")
+      .exists()
+      .withMessage("network is required")
+      .trim()
+      .custom(validateNetwork),
+    body("*.date")
+      .exists()
+      .withMessage("date is required")
+      .trim()
+      .toDate()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage("Invalid date format"),
+    commonValidations.objectId("*.user_id", body),
+    commonValidations.objectId("*.host_id", body),
   ],
 
   listActivities: [

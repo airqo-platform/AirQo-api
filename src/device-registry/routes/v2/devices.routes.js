@@ -16,7 +16,6 @@ const {
 } = require("@validators/device.validators");
 
 router.use(headers);
-router.use(pagination());
 
 // Decrypt key route
 router.post(
@@ -45,16 +44,28 @@ router.put(
 );
 
 // Get devices count route
-router.get("/count", validateTenant, deviceController.getDevicesCount);
+router.get(
+  "/count",
+  validateTenant,
+  pagination(),
+  deviceController.getDevicesCount
+);
 
 // List devices route
-router.get("/", validateTenant, validateListDevices, deviceController.list);
+router.get(
+  "/",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.list
+);
 
 // List devices summary route
 router.get(
   "/summary",
   validateTenant,
   validateListDevices,
+  pagination(),
   deviceController.listSummary
 );
 
@@ -90,6 +101,7 @@ router.put(
 router.get(
   "/by/nearest-coordinates",
   validateTenant,
+  pagination(),
   deviceController.listAllByNearestCoordinates
 );
 
@@ -123,6 +135,7 @@ router.get(
   "/qrcode",
   validateTenant,
   validateDeviceIdentifier,
+  pagination(),
   deviceController.generateQRCode
 );
 

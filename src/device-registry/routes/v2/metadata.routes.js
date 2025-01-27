@@ -10,42 +10,75 @@ const metadataValidations = require("@validators/metadata.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 router.use(metadataValidations.addCategoryQueryParam);
 
-router.get("/sites", metadataValidations.listSites, siteController.list);
+router.get(
+  "/sites",
+  metadataValidations.listSites,
+  pagination(),
+  siteController.list
+);
 
 router.get(
   "/airqlouds",
   metadataValidations.listAirQloud,
+  pagination(),
   airqloudController.list
 );
 
-router.get("/grids", metadataValidations.listGrids, gridController.list);
+router.get(
+  "/grids",
+  metadataValidations.listGrids,
+  pagination(),
+  gridController.list
+);
 
-router.get("/cohorts", metadataValidations.listCohorts, cohortController.list);
+router.get(
+  "/cohorts",
+  metadataValidations.listCohorts,
+  pagination(),
+  cohortController.list
+);
 
-router.get("/devices", metadataValidations.listDevices, deviceController.list);
+router.get(
+  "/devices",
+  metadataValidations.listDevices,
+  pagination(),
+  deviceController.list
+);
 
-router.get("/sites/:site_id", metadataValidations.getSite, siteController.list);
+router.get(
+  "/sites/:site_id",
+  metadataValidations.getSite,
+  pagination(),
+  siteController.list
+);
 
 router.get(
   "/airqlouds/:airqloud_id",
   metadataValidations.getAirqloud,
+  pagination(),
   airqloudController.list
 );
 
-router.get("/grids/:grid_id", metadataValidations.getGrid, gridController.list);
+router.get(
+  "/grids/:grid_id",
+  metadataValidations.getGrid,
+  pagination(),
+  gridController.list
+);
 
 router.get(
   "/cohorts/:cohort_id",
   metadataValidations.getCohort,
+  pagination(),
   cohortController.list
 );
 
 router.get(
   "/devices/:device_id",
   metadataValidations.getDevice,
+  pagination(),
   deviceController.list
 );
 

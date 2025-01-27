@@ -6,7 +6,6 @@ const locationValidations = require("@validators/locations.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 router.post(
   "/",
@@ -14,7 +13,12 @@ router.post(
   locationController.register
 );
 
-router.get("/", locationValidations.listLocations, locationController.list);
+router.get(
+  "/",
+  locationValidations.listLocations,
+  pagination(),
+  locationController.list
+);
 
 router.put("/", locationValidations.updateLocation, locationController.update);
 
