@@ -172,6 +172,44 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
+        } else if (user.analyticsVersion === 4 && !user.verified) {
+          await createUserUtil
+            .mobileVerificationReminder({ tenant, email: user.email }, next)
+            .then((verificationResponse) => {
+              if (
+                !verificationResponse ||
+                verificationResponse.success === false
+              ) {
+                logger.error(
+                  `Verification reminder failed: ${
+                    verificationResponse
+                      ? verificationResponse.message
+                      : "No response"
+                  }`
+                );
+              }
+            })
+            .catch((err) => {
+              logger.error(
+                `Error sending verification reminder: ${err.message}`
+              );
+            });
+
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN,
+              {
+                message:
+                  "account not verified, verification email has been sent to your email",
+              }
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
@@ -291,6 +329,44 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             new HttpError(
               "account not verified, verification email has been sent to your email",
               httpStatus.FORBIDDEN
+            )
+          );
+          return;
+        } else if (user.analyticsVersion === 4 && !user.verified) {
+          createUserUtil
+            .mobileVerificationReminder({ tenant, email: user.email }, next)
+            .then((verificationResponse) => {
+              if (
+                !verificationResponse ||
+                verificationResponse.success === false
+              ) {
+                logger.error(
+                  `Verification reminder failed: ${
+                    verificationResponse
+                      ? verificationResponse.message
+                      : "No response"
+                  }`
+                );
+              }
+            })
+            .catch((err) => {
+              logger.error(
+                `Error sending verification reminder: ${err.message}`
+              );
+            });
+
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN,
+              {
+                message:
+                  "account not verified, verification email has been sent to your email",
+              }
             )
           );
           return;
