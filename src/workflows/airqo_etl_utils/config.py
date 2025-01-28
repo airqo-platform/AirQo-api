@@ -319,6 +319,32 @@ class Config:
         "pm1_pi": "pm1",
     }
 
+    VALID_SENSOR_RANGES = {
+        "pm2_5": (1, 1000),
+        "pm10": (1, 1000),
+        "pm2_5_calibrated_value": (1, 1000),
+        "pm2_5_raw_value": (1, 1000),
+        "pm10_calibrated_value": (1, 1000),
+        "pm10_raw_value": (1, 1000),
+        "latitude": (-90, 90),
+        "longitude": (-180, 180),
+        "battery": (2.7, 5),
+        "no2": (0, 2049),
+        "no2_calibrated_value": (0, 2049),
+        "no2_raw_value": (0, 2049),
+        "altitude": (0, float("inf")),
+        "hdop": (0, float("inf")),
+        "satellites": (1, 50),
+        "temperature": (0, 45),
+        "humidity": (0, 99),
+        "pressure": (30, 110),
+        "tvoc": (0, 10),
+        "co2": (400, 3000),
+        "hcho": (0, float("inf")),
+        "intaketemperature": (0, 45),
+        "intakehumidity": (0, 99),
+    }
+
     device_config_mapping = {
         "bam": {
             "field_8_cols": list(AIRQO_BAM_MAPPING_NEW.get("field8", {}).values()),
