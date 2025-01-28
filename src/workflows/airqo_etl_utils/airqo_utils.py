@@ -508,8 +508,8 @@ class AirQoDataUtils:
         """
         if remove_outliers:
             data = DataValidationUtils.remove_outliers(data)
-            # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
 
+        # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
         match device_category:
             case DeviceCategory.LOW_COST_GAS:
                 AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
