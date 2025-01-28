@@ -1343,7 +1343,7 @@ class EventsModel(BasePyMongoModel):
           JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
           WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
           AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-          AND `airqo-250220.metadata.sites`.id in UNNEST({sites})
+          AND {self.BIGQUERY_SITES}.id in UNNEST({sites})
         """
 
         client = bigquery.Client()

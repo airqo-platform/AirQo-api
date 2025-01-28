@@ -1,9 +1,7 @@
 from enum import Enum
 from typing import Any, List, Union, Dict
-from werkzeug.exceptions import BadRequest
 
 import pandas as pd
-import requests
 
 from api.utils.dates import str_to_aqcsv_date_format
 from api.utils.pollutants.pm_25 import (
