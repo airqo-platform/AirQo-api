@@ -207,9 +207,7 @@ class D3ChartDataResource(Resource):
         json_data = request.get_json()
 
         try:
-            filter_type, filter_value, error_message = self._get_validated_filter(
-                json_data
-            )
+            _, filter_value, error_message = self._get_validated_filter(json_data)
             if error_message:
                 return error_message, AirQoRequests.Status.HTTP_400_BAD_REQUEST
         except Exception as e:

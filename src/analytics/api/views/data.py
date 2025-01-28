@@ -234,8 +234,9 @@ class DataExportResource(Resource):
         ]
         provided_filters = [key for key in valid_filters if json_data.get(key)]
         if len(provided_filters) != 1:
-            error_message = "Specify exactly one of 'airqlouds', 'sites', 'device_names', or 'devices' in the request body."
-            return filter_type, validated_data, error_message
+            from utils.messages import FILTER_MSG
+
+            return filter_type, validated_data, FILTER_MSG
 
         filter_type = provided_filters[0]
         filter_value = json_data.get(filter_type)
@@ -252,7 +253,6 @@ class DataExportResource(Resource):
             return filter_type, filter_value, None
 
         if validated_value and validated_value.get("status") == "success":
-            # TODO This should be cleaned up.
             validated_data = validated_value.get("data", [])
         else:
             error_message = validated_value.get(
