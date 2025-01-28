@@ -6,17 +6,18 @@ const kyaValidations = require("@validators/kya.validators");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
-router.use(pagination());
 
 router.get(
   "/lessons",
   kyaValidations.listLessons,
+  pagination(),
   knowYourAirController.listLessons
 );
 
 router.get(
   "/lessons/users/:user_id",
   kyaValidations.listLessonsByUserId,
+  pagination(),
   knowYourAirController.listLessons
 );
 
@@ -41,30 +42,35 @@ router.delete(
 router.get(
   "/lessons/:lesson_id/assigned-tasks",
   kyaValidations.listAssignedTasks,
+  pagination(),
   knowYourAirController.listAssignedTasks
 );
 
 router.get(
   "/lessons/:lesson_id/available-tasks",
   kyaValidations.listAvailableTasks,
+  pagination(),
   knowYourAirController.listAvailableTasks
 );
 
 router.get(
   "/lessons/:lesson_id",
   kyaValidations.getLesson,
+  pagination(),
   knowYourAirController.listLessons
 );
 
 router.get(
   "/progress/:user_id?",
   kyaValidations.listUserLessonProgress,
+  pagination(),
   knowYourAirController.listUserLessonProgress
 );
 
 router.get(
   "/progress/lessons/:lesson_id/users/:user_id",
   kyaValidations.getUserLessonProgress,
+  pagination(),
   knowYourAirController.listUserLessonProgress
 );
 
@@ -92,7 +98,12 @@ router.post(
   knowYourAirController.syncUserLessonProgress
 );
 
-router.get("/tasks", kyaValidations.listTasks, knowYourAirController.listTask);
+router.get(
+  "/tasks",
+  kyaValidations.listTasks,
+  pagination(),
+  knowYourAirController.listTask
+);
 
 router.post(
   "/tasks",
@@ -115,6 +126,7 @@ router.delete(
 router.get(
   "/tasks/:task_id",
   kyaValidations.getTask,
+  pagination(),
   knowYourAirController.listTask
 );
 
@@ -145,30 +157,35 @@ router.delete(
 router.get(
   "/quizzes/questions",
   kyaValidations.listQuestions,
+  pagination(),
   knowYourAirController.listQuestions
 );
 
 router.get(
   "/quizzes/answers",
   kyaValidations.listAnswers,
+  pagination(),
   knowYourAirController.listAnswers
 );
 
 router.get(
   "/quizzes/progress/:user_id?",
   kyaValidations.listUserQuizProgress,
+  pagination(),
   knowYourAirController.listUserQuizProgress
 );
 
 router.get(
   "/quizzes",
   kyaValidations.listQuizzes,
+  pagination(),
   knowYourAirController.listQuizzes
 );
 
 router.get(
   "/quizzes/users/:user_id",
   kyaValidations.listQuizzesByUserId,
+  pagination(),
   knowYourAirController.listQuizzes
 );
 
@@ -193,6 +210,7 @@ router.delete(
 router.get(
   "/quizzes/:quiz_id",
   kyaValidations.getQuiz,
+  pagination(),
   knowYourAirController.listQuizzes
 );
 
@@ -241,6 +259,7 @@ router.delete(
 router.get(
   "/quizzes/questions/:question_id",
   kyaValidations.getQuestion,
+  pagination(),
   knowYourAirController.listQuestions
 );
 
@@ -265,6 +284,7 @@ router.delete(
 router.get(
   "/quizzes/answers/:answer_id",
   kyaValidations.getAnswer,
+  pagination(),
   knowYourAirController.listAnswers
 );
 

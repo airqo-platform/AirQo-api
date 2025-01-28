@@ -1,7 +1,7 @@
 // users.routes.js
 const express = require("express");
 const router = express.Router();
-const createUserController = require("@controllers/user.controller");
+const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
 const {
   setJWTAuth,
@@ -31,7 +31,7 @@ router.use(userValidations.pagination);
 router.get(
   "/deleteMobileUserData/:userId/:token",
   userValidations.deleteMobileUserData,
-  createUserController.deleteMobileUserData
+  userController.deleteMobileUserData
 );
 
 router.post(
@@ -39,7 +39,7 @@ router.post(
   userValidations.login,
   setLocalAuth,
   authLocal,
-  createUserController.login
+  userController.login
 );
 
 router.post(
@@ -47,7 +47,7 @@ router.post(
   userValidations.login,
   setLocalAuth,
   authLocal,
-  createUserController.login
+  userController.login
 );
 
 router.post(
@@ -55,7 +55,7 @@ router.post(
   userValidations.login,
   setLocalAuth,
   authLocal,
-  createUserController.loginWithDetails
+  userController.loginWithDetails
 );
 
 router.get(
@@ -63,7 +63,7 @@ router.get(
   userValidations.tenant,
   setJWTAuth,
   authJWT,
-  createUserController.logout
+  userController.logout
 );
 
 router.post(
@@ -71,55 +71,51 @@ router.post(
   userValidations.tenant,
   setGuestToken,
   authGuest,
-  createUserController.guest
+  userController.guest
 );
 
 router.post(
   "/emailLogin",
   userValidations.emailLogin,
-  createUserController.loginInViaEmail
+  userController.loginInViaEmail
 );
 
 router.post(
   "/emailAuth/:purpose?",
   userValidations.emailAuth,
-  createUserController.emailAuth
+  userController.emailAuth
 );
 
-router.post(
-  "/feedback",
-  userValidations.feedback,
-  createUserController.sendFeedback
-);
+router.post("/feedback", userValidations.feedback, userController.sendFeedback);
 
 router.post(
   "/firebase/lookup",
   userValidations.firebaseLookup,
-  createUserController.lookUpFirebaseUser
+  userController.lookUpFirebaseUser
 );
 
 router.post(
   "/firebase/create",
   userValidations.firebaseCreate,
-  createUserController.createFirebaseUser
+  userController.createFirebaseUser
 );
 
 router.post(
   "/firebase/login",
   userValidations.firebaseLogin,
-  createUserController.loginWithFirebase
+  userController.loginWithFirebase
 );
 
 router.post(
   "/firebase/signup",
   userValidations.firebaseSignup,
-  createUserController.signUpWithFirebase
+  userController.signUpWithFirebase
 );
 
 router.post(
   "/syncAnalyticsAndMobile",
   userValidations.syncAnalyticsAndMobile,
-  createUserController.syncAnalyticsAndMobile
+  userController.syncAnalyticsAndMobile
 );
 
 router.post(
@@ -127,66 +123,61 @@ router.post(
   userValidations.emailReport,
   setJWTAuth,
   authJWT,
-  createUserController.emailReport
+  userController.emailReport
 );
 
 router.post(
   "/firebase/verify",
   userValidations.firebaseVerify,
-  createUserController.verifyFirebaseCustomToken
+  userController.verifyFirebaseCustomToken
 );
 
-router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
+router.post("/verify", setJWTAuth, authJWT, userController.verify);
 
 router.get(
   "/combined",
   userValidations.tenant,
   setJWTAuth,
   authJWT,
-  createUserController.listUsersAndAccessRequests
+  userController.listUsersAndAccessRequests
 );
 
 router.get(
   "/verify/:user_id/:token",
   userValidations.verifyEmail,
-  createUserController.verifyEmail
+  userController.verifyEmail
 );
 
 router.get(
   "/auth/google/callback",
   setGoogleAuth,
   authGoogleCallback,
-  createUserController.googleCallback
+  userController.googleCallback
 );
 
-router.get(
-  "/auth/google",
-  setGoogleAuth,
-  authGoogle,
-  createUserController.login
-);
+router.get("/auth/google", setGoogleAuth, authGoogle, userController.login);
 
 router.get(
   "/",
   userValidations.tenant,
   setJWTAuth,
   authJWT,
-  createUserController.list
+  userController.list
 );
 
 router.post(
   "/registerUser",
   userValidations.registerUser,
-  createUserController.register
+  userController.register
 );
 
-router.post("/", userValidations.createUser, createUserController.create);
+router.post("/", userValidations.createUser, userController.create);
 
 router.put(
   "/updatePasswordViaEmail",
   userValidations.updatePasswordViaEmail,
   setJWTAuth,
-  createUserController.updateForgottenPassword
+  userController.updateForgottenPassword
 );
 
 router.put(
@@ -194,29 +185,49 @@ router.put(
   userValidations.updatePassword,
   setJWTAuth,
   authJWT,
-  createUserController.updateKnownPassword
+  userController.updateKnownPassword
 );
 
 router.post(
   "/forgotPassword",
   userValidations.forgotPassword,
-  createUserController.forgot
+  userController.forgot
 );
 
-router.put("/", userValidations.updateUser, createUserController.update);
-
-router.put(
-  "/:user_id",
-  userValidations.updateUserById,
-  createUserController.update
+router.post(
+  "/reset-password-request",
+  userValidations.resetPasswordRequest,
+  userController.resetPasswordRequest
 );
+
+router.post(
+  "/reset-password/:token",
+  userValidations.resetPassword,
+  userController.resetPassword
+);
+
+router.post(
+  "/register",
+  userValidations.createUser,
+  userController.registerMobileUser
+);
+
+router.post(
+  "/verify-email/:token",
+  userValidations.verifyMobileEmail,
+  userController.verifyMobileEmail
+);
+
+router.put("/", userValidations.updateUser, userController.update);
+
+router.put("/:user_id", userValidations.updateUserById, userController.update);
 
 router.delete(
   "/",
   userValidations.deleteUser,
   setJWTAuth,
   authJWT,
-  createUserController.delete
+  userController.delete
 );
 
 router.delete(
@@ -224,25 +235,25 @@ router.delete(
   userValidations.deleteUserById,
   setJWTAuth,
   authJWT,
-  createUserController.delete
+  userController.delete
 );
 
 router.post(
   "/newsletter/subscribe",
   userValidations.newsletterSubscribe,
-  createUserController.subscribeToNewsLetter
+  userController.subscribeToNewsLetter
 );
 
 router.post(
   "/newsletter/resubscribe",
   userValidations.newsletterResubscribe,
-  createUserController.reSubscribeToNewsLetter
+  userController.reSubscribeToNewsLetter
 );
 
 router.post(
   "/newsletter/unsubscribe",
   userValidations.newsletterUnsubscribe,
-  createUserController.unSubscribeFromNewsLetter
+  userController.unSubscribeFromNewsLetter
 );
 
 router.get(
@@ -250,7 +261,7 @@ router.get(
   userValidations.tenant,
   setJWTAuth,
   authJWT,
-  createUserController.listStatistics
+  userController.listStatistics
 );
 
 router.get(
@@ -258,7 +269,7 @@ router.get(
   userValidations.cache,
   setJWTAuth,
   authJWT,
-  createUserController.listCache
+  userController.listCache
 );
 
 router.get(
@@ -266,7 +277,7 @@ router.get(
   userValidations.tenant,
   setJWTAuth,
   authJWT,
-  createUserController.listLogs
+  userController.listLogs
 );
 
 router.get(
@@ -274,25 +285,25 @@ router.get(
   userValidations.tenant,
   setJWTAuth,
   authJWT,
-  createUserController.getUserStats
+  userController.getUserStats
 );
 
 router.post(
   "/subscribe/:type",
   userValidations.subscribeToNotifications,
-  createUserController.subscribeToNotifications
+  userController.subscribeToNotifications
 );
 
 router.post(
   "/unsubscribe/:type",
   userValidations.unSubscribeFromNotifications,
-  createUserController.unSubscribeFromNotifications
+  userController.unSubscribeFromNotifications
 );
 
 router.post(
   "/notification-status/:type",
   userValidations.notificationStatus,
-  createUserController.checkNotificationStatus
+  userController.checkNotificationStatus
 );
 
 router.get(
@@ -300,7 +311,7 @@ router.get(
   userValidations.getUser,
   setJWTAuth,
   authJWT,
-  createUserController.list
+  userController.list
 );
 
 module.exports = router;

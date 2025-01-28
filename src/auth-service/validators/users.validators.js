@@ -329,6 +329,35 @@ const verifyEmail = [
   ],
 ];
 
+const verifyMobileEmail = [
+  validateTenant,
+  [
+    param("token")
+      .exists()
+      .withMessage("Token is required")
+      .bail()
+      .notEmpty()
+      .withMessage("the token should not be empty")
+      .bail()
+      .isNumeric()
+      .withMessage("Token must be numeric")
+      .bail()
+      .isLength({ min: 5, max: 5 })
+      .withMessage("Token must be 5 digits")
+      .trim(),
+    body("email")
+      .exists()
+      .withMessage("email is missing in your request")
+      .bail()
+      .notEmpty()
+      .withMessage("the email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+  ],
+];
+
 const registerUser = [
   validateTenant,
   [
@@ -842,6 +871,46 @@ const getUser = [
   ],
 ];
 
+const resetPasswordRequest = [
+  body("email")
+    .exists()
+    .withMessage("Email is required")
+    .isEmail()
+    .withMessage("Invalid email format")
+    .trim(),
+  //Potentially add tenant validation here as well, using the oneOf approach if necessary
+];
+
+const resetPassword = [
+  param("token")
+    .exists()
+    .withMessage("Token is required")
+    .bail()
+    .isNumeric()
+    .withMessage("Token must be numeric")
+    .isLength({ min: 5, max: 5 })
+    .withMessage("Token must be 5 digits")
+    .trim(),
+  body("password")
+    .exists()
+    .withMessage("Password is required")
+    .bail()
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters long")
+    .trim(),
+  body("confirmPassword")
+    .exists()
+    .withMessage("Confirm Password is required")
+    .bail()
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error("Passwords do not match");
+      }
+      return true;
+    })
+    .trim(),
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -876,4 +945,7 @@ module.exports = {
   unSubscribeFromNotifications,
   notificationStatus,
   getUser,
+  resetPasswordRequest,
+  resetPassword,
+  verifyMobileEmail,
 };
