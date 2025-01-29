@@ -384,6 +384,27 @@ class Config:
         },
     }
 
+    DEVICE_FIELD_MAPPING = {
+        DeviceCategory.LOW_COST: {
+            "field1": "s1_pm2_5",
+            "field2": "s1_pm10",
+            "field3": "s2_pm2_5",
+            "field4": "s2_pm10",
+            "field7": "battery",
+            "created_at": "timestamp",
+        },
+        DeviceCategory.LOW_COST_GAS: {
+            "field1": "pm2_5",
+            "field2": "tvoc",
+            "field3": "hcho",
+            "field4": "co2",
+            "field5": "intaketemperature",
+            "field6": "intakehumidity",
+            "field7": "battery",
+            "created_at": "timestamp",
+        },
+    }
+
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {
         BIGQUERY_HOURLY_EVENTS_TABLE: "measurements.json",
