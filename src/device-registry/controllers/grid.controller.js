@@ -6,7 +6,7 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
-const createGridUtil = require("@utils/grid.util");
+const gridUtil = require("@utils/grid.util");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grid-controller`);
@@ -61,7 +61,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.listAdminLevels(request, next);
+      const result = await gridUtil.listAdminLevels(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -115,7 +115,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.updateAdminLevel(request, next);
+      const result = await gridUtil.updateAdminLevel(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -170,7 +170,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.deleteAdminLevel(request, next);
+      const result = await gridUtil.deleteAdminLevel(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -224,7 +224,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.createAdminLevel(request, next);
+      const result = await gridUtil.createAdminLevel(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -281,7 +281,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.create(request, next);
+      const result = await gridUtil.create(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -334,10 +334,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.calculateGeographicalCenter(
-        request,
-        next
-      );
+      const result = await gridUtil.calculateGeographicalCenter(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -396,7 +393,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.delete(request, next);
+      const result = await gridUtil.delete(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -448,7 +445,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.refresh(request, next);
+      const result = await gridUtil.refresh(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -500,7 +497,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.findSites(request, next);
+      const result = await gridUtil.findSites(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -553,7 +550,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.update(request, next);
+      const result = await gridUtil.update(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -608,7 +605,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.list(request, next);
+      const result = await gridUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -648,13 +645,6 @@ const createGrid = {
     try {
       logText(".....................................");
       logText("list all grids by query params provided");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
 
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
@@ -663,7 +653,7 @@ const createGrid = {
         : req.query.tenant;
       request.query.path = "summary";
 
-      const result = await createGridUtil.list(request, next);
+      const result = await gridUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -719,7 +709,7 @@ const createGrid = {
 
       request.query.dashboard = "yes";
 
-      const result = await createGridUtil.list(request, next);
+      const result = await gridUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -775,10 +765,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.findGridUsingGPSCoordinates(
-        request,
-        next
-      );
+      const result = await gridUtil.findGridUsingGPSCoordinates(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -834,10 +821,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.createGridFromShapefile(
-        request,
-        next
-      );
+      const result = await gridUtil.createGridFromShapefile(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -876,7 +860,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.listAvailableSites(request, next);
+      const result = await gridUtil.listAvailableSites(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
       }
@@ -930,7 +914,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.listAssignedSites(request, next);
+      const result = await gridUtil.listAssignedSites(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -992,7 +976,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.getSiteAndDeviceIds(request, next);
+      const result = await gridUtil.getSiteAndDeviceIds(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -1046,7 +1030,7 @@ const createGrid = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await createGridUtil.filterOutPrivateSites(request, next);
+      const result = await gridUtil.filterOutPrivateSites(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;

@@ -1,4 +1,5 @@
 const { validationResult } = require("express-validator");
+const httpStatus = require("http-status");
 
 class HttpError extends Error {
   constructor(message, statusCode, errors = null) {
@@ -17,32 +18,44 @@ class BadRequestError extends Error {
   }
 }
 
-const convertErrorArrayToObject = (arrays) => {
-  const initialValue = {};
-  return arrays.reduce((obj, item) => {
-    obj[item.param] = item.msg;
-    return obj;
-  }, initialValue);
-};
-
 const extractErrorsFromRequest = (req) => {
   const errors = validationResult(req);
+
   if (!errors.isEmpty()) {
-    let allErrors = {};
-    errors.errors.forEach((error) => {
-      if (error.nestedErrors && Array.isArray(error.nestedErrors)) {
-        allErrors = {
-          ...allErrors,
-          ...convertErrorArrayToObject(error.nestedErrors),
-        };
-      } else {
-        allErrors = { ...allErrors, ...convertErrorArrayToObject([error]) };
-      }
-    });
-    return allErrors;
+    if (errors.mapped) {
+      return errors.mapped();
+    } else {
+      const extractedErrors = {};
+      errors.array().forEach((err) => {
+        const param = err.param || "general"; // Fallback key
+
+        // Handle nested errors recursively:
+        if (!isEmpty(err.nestedErrors)) {
+          extractedErrors[param] = extractNestedErrors(err.nestedErrors);
+        } else {
+          extractedErrors[param] = err.msg;
+        }
+      });
+      return extractedErrors;
+    }
   }
 
   return null;
+};
+
+const extractNestedErrors = (nestedErrors) => {
+  if (Array.isArray(nestedErrors)) {
+    return nestedErrors.map((err) => extractNestedErrors(err)); // Recursively handle nested arrays
+  } else if (typeof nestedErrors === "object" && nestedErrors !== null) {
+    //check if object
+    const extracted = {};
+    for (const key in nestedErrors) {
+      extracted[key] = extractNestedErrors(nestedErrors[key]); // Recursively handle nested objects
+    }
+    return extracted;
+  } else {
+    return nestedErrors; // Base case: return the error message or value
+  }
 };
 
 module.exports = {
