@@ -1,6 +1,6 @@
 # API Documentation for Category and Tag Management
 
-**Base URL**: `https://api.yourdomain.com/v2/categories-tags`
+**Base URL**: `https://api.airqo.net/v2/categories-tags`
 
 ## Authentication
 
@@ -29,7 +29,7 @@ Create a new category or tag.
 
 ```http
 POST /categories-tags HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -58,7 +58,7 @@ Retrieve a list of all categories and tags.
 
 ```http
 GET /categories-tags?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -88,7 +88,7 @@ Update an existing category or tag.
 
 ```http
 PUT /categories-tags/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -115,7 +115,7 @@ Delete a specific category or tag.
 
 ```http
 DELETE /categories-tags/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -145,7 +145,7 @@ Assign a category or tag to a specific blog post.
 
 ```http
 POST /categories-tags/assign/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -172,7 +172,7 @@ Retrieve all blog posts associated with a specific category or tag.
 
 ```http
 GET /categories-tags/posts/456 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -190,7 +190,7 @@ Retrieve a list of all available categories.
 
 ```http
 GET /categories-tags/browse/categories HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -208,6 +208,6 @@ Retrieve a list of all available tags.
 
 ```http
 GET /categories-tags/browse/tags HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
