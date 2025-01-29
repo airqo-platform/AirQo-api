@@ -616,8 +616,12 @@ class AirQoDataUtils:
                 device_details = device_lookup.get(device_id)
                 if not device_details:
                     logger.exception(
-                        f"Device number {device_id} not found in device list."
+                        f"Device number {device_id} not found in device list"
                     )
+                    continue
+
+                if row["site_id"] is None or pd.isna(row["site_id"]):
+                    logger.exception(f"Invalid site id in data.")
                     continue
 
                 row_data = {
@@ -627,47 +631,44 @@ class AirQoDataUtils:
                     "device_number": device_number,
                     "network": device_details["network"],
                     "location": {
-                        "latitude": {"value": row["latitude"]},
-                        "longitude": {"value": row["longitude"]},
+                        key: {"value": row[key]} for key in ["latitude", "longitude"]
                     },
                     "frequency": str(frequency),
                     "time": row["timestamp"],
-                    "average_pm2_5": {
-                        "value": row["pm2_5"],
-                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    **{
+                        f"average_{key}": {
+                            "value": row[key],
+                            "calibratedValue": row[f"{key}_calibrated_value"],
+                        }
+                        for key in ["pm2_5", "pm10"]
                     },
-                    "average_pm10": {
-                        "value": row["pm10"],
-                        "calibratedValue": row["pm10_calibrated_value"],
+                    **{
+                        key: {
+                            "value": row[key],
+                            "calibratedValue": row[f"{key}_calibrated_value"],
+                        }
+                        for key in ["pm2_5", "pm10"]
                     },
-                    "pm2_5": {
-                        "value": row["pm2_5"],
-                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    **{
+                        key: {"value": row[key]}
+                        for key in [
+                            "s1_pm2_5",
+                            "s1_pm10",
+                            "s2_pm2_5",
+                            "s2_pm10",
+                            "battery",
+                            "altitude",
+                            "wind_speed",
+                            "satellites",
+                            "hdop",
+                            "temperature",
+                            "humidity",
+                        ]
                     },
-                    "pm10": {
-                        "value": row["pm10"],
-                        "calibratedValue": row["pm10_calibrated_value"],
-                    },
-                    "s1_pm2_5": {"value": row["s1_pm2_5"]},
-                    "s1_pm10": {"value": row["s1_pm10"]},
-                    "s2_pm2_5": {"value": row["s2_pm2_5"]},
-                    "s2_pm10": {"value": row["s2_pm10"]},
-                    "battery": {"value": row["battery"]},
-                    "altitude": {"value": row["altitude"]},
-                    "speed": {"value": row["wind_speed"]},
-                    "satellites": {"value": row["satellites"]},
-                    "hdop": {"value": row["hdop"]},
-                    "externalTemperature": {"value": row["temperature"]},
-                    "externalHumidity": {"value": row["humidity"]},
                 }
-
-                if row_data["site_id"] is None or row_data["site_id"] is np.nan:
-                    row_data.pop("site_id")
-
                 restructured_data.append(row_data)
-
-            except Exception as ex:
-                logger.exception(f"An error occurred: {ex}")
+            except Exception as e:
+                logger.exception(f"An error occurred: {e}")
 
         return restructured_data
 
@@ -765,7 +766,7 @@ class AirQoDataUtils:
         for device in devices:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
-                    network="airqo",
+                    network=device.get("network", "airqo"),
                     device=device.get("name", None),
                     activity_type="deployment",
                 )
@@ -867,6 +868,25 @@ class AirQoDataUtils:
 
     @staticmethod
     def calibrate_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calibrates air quality sensor data by applying machine learning models to adjust sensor readings.
+
+        The function:
+        1. Converts timestamps to datetime format.
+        2. Merges site metadata to include city information.
+        3. Drops rows with missing device ID or timestamp.
+        4. Fills missing sensor readings with 0 (temporary placeholder).
+        5. Computes additional calibration input variables.
+        6. Loads trained calibration models and applies them based on city.
+        7. Updates the dataset with calibrated PM2.5 and PM10 values.
+        8. Ensures missing calibrated values fall back to raw sensor values.
+
+        Args:
+            data (pd.DataFrame): The raw air quality sensor data.
+
+        Returns:
+            pd.DataFrame: The calibrated dataset with additional processed fields.
+        """
         bucket = configuration.FORECAST_MODELS_BUCKET
         project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 
@@ -911,7 +931,7 @@ class AirQoDataUtils:
         ]
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
-        # Explicitly filter data to calibrate.
+        # Explicitly filter data to calibrate. At the moment, only calibrating on AirQo data.
         to_calibrate = data["network"] == "airqo"
         data_to_calibrate = data.loc[to_calibrate]
         data_to_calibrate.dropna(subset=input_variables, inplace=True)
@@ -948,38 +968,29 @@ class AirQoDataUtils:
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
-                except Exception as ex:
-                    logger.exception(f"Error getting model: {ex}")
-                    continue
+                except Exception as e:
+                    logger.exception(
+                        f"Error getting custom model. Will default to generic one: {e}"
+                    )
+
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
 
-            data.loc[group.index, "pm2_5_calibrated_value"] = group[
-                "pm2_5_calibrated_value"
-            ]
-            data.loc[group.index, "pm10_calibrated_value"] = group[
-                "pm10_calibrated_value"
-            ]
+            data.loc[
+                group.index, ["pm2_5_calibrated_value", "pm10_calibrated_value"]
+            ] = group[["pm2_5_calibrated_value", "pm10_calibrated_value"]]
 
+        # Compute raw pm2_5 and pm10 values.
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-        if "pm2_5_calibrated_value" in data.columns:
-            data.loc[to_calibrate, "pm2_5"] = data.loc[
-                to_calibrate, "pm2_5_calibrated_value"
-            ]
-        else:
-            data.loc[to_calibrate, "pm2_5_calibrated_value"] = None
-            data.loc[to_calibrate, "pm2_5"] = None
-        if "pm10_calibrated_value" in data.columns:
-            data.loc[to_calibrate, "pm10"] = data.loc[
-                to_calibrate, "pm10_calibrated_value"
-            ]
-        else:
-            data.loc[to_calibrate, "pm10_calibrated_value"] = None
-            data.loc[to_calibrate, "pm10"] = None
 
-        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
-        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+        # Assign calibrated values, falling back to raw values when missing
+        data.loc[to_calibrate, "pm2_5"] = data.loc[
+            to_calibrate, "pm2_5_calibrated_value"
+        ].fillna(data.loc[to_calibrate, "pm2_5_raw_value"])
+        data.loc[to_calibrate, "pm10"] = data.loc[
+            to_calibrate, "pm10_calibrated_value"
+        ].fillna(data.loc[to_calibrate, "pm10_raw_value"])
 
         return data.drop(
             columns=[
