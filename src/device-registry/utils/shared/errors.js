@@ -1,5 +1,5 @@
 const { validationResult } = require("express-validator");
-const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
 
 class HttpError extends Error {
   constructor(message, statusCode, errors = null) {
@@ -43,14 +43,18 @@ const extractErrorsFromRequest = (req) => {
   return null;
 };
 
-const extractNestedErrors = (nestedErrors) => {
+const extractNestedErrors = (nestedErrors, depth = 0) => {
+  const MAX_DEPTH = 10;
+  if (depth > MAX_DEPTH) {
+    return "Maximum error nesting depth exceeded";
+  }
   if (Array.isArray(nestedErrors)) {
-    return nestedErrors.map((err) => extractNestedErrors(err)); // Recursively handle nested arrays
+    return nestedErrors.map((err) => extractNestedErrors(err, depth + 1)); // Recursively handle nested arrays
   } else if (typeof nestedErrors === "object" && nestedErrors !== null) {
     //check if object
     const extracted = {};
     for (const key in nestedErrors) {
-      extracted[key] = extractNestedErrors(nestedErrors[key]); // Recursively handle nested objects
+      extracted[key] = extractNestedErrors(nestedErrors[key], depth + 1); // Recursively handle nested objects
     }
     return extracted;
   } else {
