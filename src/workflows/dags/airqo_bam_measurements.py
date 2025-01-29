@@ -28,7 +28,7 @@ def airqo_bam_historical_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, **kwargs
         )
-        return AirQoDataUtils.extract_devices_data(
+        return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
@@ -88,7 +88,7 @@ def airqo_bam_realtime_measurements():
 
         start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
 
-        return AirQoDataUtils.extract_devices_data(
+        return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
