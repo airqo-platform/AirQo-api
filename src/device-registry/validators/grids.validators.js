@@ -140,14 +140,11 @@ const commonValidations = {
   validObjectId: (field) => {
     return query(field)
       .optional()
+      .if(query(field).exists())
       .notEmpty()
       .withMessage("id cannot be empty")
       .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      });
+      .withMessage("id must be an object ID");
   },
 
   paramObjectId: (field, location = param) => {
@@ -315,24 +312,9 @@ const gridsValidations = {
   ],
   listGridSummary: [
     ...commonValidations.tenant,
-    oneOf([
-      commonValidations.validObjectId("id"),
-      commonValidations.nameQuery,
-      commonValidations.adminLevelQuery,
-    ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.validObjectId("id"),
+    commonValidations.nameQuery,
+    commonValidations.adminLevelQuery,
   ],
   deleteGrid: [
     ...commonValidations.tenant,
