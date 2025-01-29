@@ -1,6 +1,6 @@
 # API Documentation for Blog Post Management
 
-**Base URL**: `https://api.yourdomain.com/v2/posts`
+**Base URL**: `https://api.airqo.net/v2/posts`
 
 ## Authentication
 
@@ -25,7 +25,7 @@ Retrieve a list of all blog posts.
 
 ```http
 GET /posts?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -54,7 +54,7 @@ Create a new blog post.
 
 ```http
 POST /posts HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -92,7 +92,7 @@ Update the draft status of a specific blog post.
 
 ```http
 PATCH /posts/123/draft HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -119,7 +119,7 @@ Retrieve the details of a specific blog post.
 
 ```http
 GET /posts/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -152,7 +152,7 @@ Update an existing blog post.
 
 ```http
 PUT /posts/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -182,7 +182,7 @@ Delete a specific blog post.
 
 ```http
 DELETE /posts/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -204,7 +204,7 @@ Upload an image associated with a specific blog post.
 
 ```http
 POST /posts/123/images HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: multipart/form-data
 
@@ -229,6 +229,6 @@ Preview a specific blog post before publishing.
 
 ```http
 GET /posts/123/preview HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
