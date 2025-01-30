@@ -114,6 +114,7 @@ const createMailOptions = ({
       activityType,
     }),
     bcc: bccEmails,
+    attachments: attachments,
   };
 };
 const handleMailResponse = (data) => {
