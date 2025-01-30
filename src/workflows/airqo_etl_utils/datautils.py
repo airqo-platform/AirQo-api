@@ -31,8 +31,7 @@ class DataUtils:
         device_category: DeviceCategory,
         device_network: DeviceNetwork = None,
         resolution: Frequency = Frequency.RAW,
-        device_numbers: list = None,
-        remove_outliers: bool = True,
+        device_names: list = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -44,8 +43,7 @@ class DataUtils:
             start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
             end_date_time (str): End date and time (ISO 8601 format) for data extraction.
             device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-            device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
-            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            device_names(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
         """
         devices_data = pd.DataFrame()
         airqo_api = AirQoApi()
@@ -63,8 +61,8 @@ class DataUtils:
         other_fields_cols: List[str] = []
         network: str = None
         devices = (
-            [x for x in devices if x["device_number"] in device_numbers]
-            if device_numbers
+            [x for x in devices if x["name"] in device_names]
+            if device_names
             else devices
         )
 
@@ -136,6 +134,7 @@ class DataUtils:
                 data = DataValidationUtils.fill_missing_columns(
                     data=data, cols=data_columns
                 )
+                data["device_category"] = device["category"]
                 data["device_number"] = device_number
                 data["device_id"] = device["name"]
                 data["site_id"] = device["site_id"]
@@ -150,13 +149,11 @@ class DataUtils:
                     data["longitude"] = meta_data.get("longitude", None)
                 devices_data = pd.concat([devices_data, data], ignore_index=True)
 
-        if remove_outliers:
-            if "vapor_pressure" in devices_data.columns.to_list():
-                is_airqo_network = devices_data["network"] == "airqo"
-                devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                    is_airqo_network, "vapor_pressure"
-                ].apply(DataValidationUtils.convert_pressure_values)
-            devices_data = DataValidationUtils.remove_outliers(devices_data)
+        if "vapor_pressure" in devices_data.columns.to_list():
+            is_airqo_network = devices_data["network"] == "airqo"
+            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
+                is_airqo_network, "vapor_pressure"
+            ].apply(DataValidationUtils.convert_pressure_values)
 
         return devices_data
 
@@ -620,6 +617,38 @@ class DataUtils:
             data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
             data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
+
+    @staticmethod
+    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Resamples and averages out the numeric type fields on an hourly basis.
+
+        Args:
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
+
+        Returns:
+            A pandas DataFrame object containing hourly averages of data.
+        """
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        group_metadata = (
+            data[["device_id", "site_id", "device_number", "network"]]
+            .drop_duplicates("device_id")
+            .set_index("device_id")
+        )
+        numeric_columns = data.select_dtypes(include=["number"]).columns
+        numeric_columns = numeric_columns.difference(["device_number"])
+        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
+        aggregated = (
+            data_for_aggregation.groupby("device_id")
+            .apply(lambda group: group.resample("1H", on="timestamp").mean())
+            .reset_index()
+        )
+
+        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+
+        return aggregated
 
     @staticmethod
     def map_and_extract_data(
