@@ -29,7 +29,7 @@ Retrieve the number of views for a specific blog post.
 
 ```http
 GET /posts/123/views?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -56,7 +56,7 @@ Retrieve comments for a specific blog post.
 
 ```http
 GET /posts/123/comments?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -79,7 +79,7 @@ Retrieve a list of popular blog posts based on views or engagement metrics.
 
 ```http
 GET /posts/popular?limit=5&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -106,7 +106,7 @@ Retrieve the number of views for a specific user’s posts.
 
 ```http
 GET /users/456/views?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -133,7 +133,7 @@ Retrieve comments made by a specific user.
 
 ```http
 GET /users/456/comments?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -160,7 +160,7 @@ Retrieve activity statistics for a specific user, including posts and interactio
 
 ```http
 GET /users/456/activity?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -187,7 +187,7 @@ Generate a report on user growth over a specified period.
 
 ```http
 POST /reports/user-growth HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -220,7 +220,7 @@ Generate a report on post performance metrics over a specified period.
 
 ```http
 POST /reports/post-performance HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
