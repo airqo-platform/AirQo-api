@@ -612,7 +612,6 @@ def airqo_gaseous_realtime_measurements():
             end_date_time=end_date_time,
             device_category=DeviceCategory.LOW_COST_GAS,
             device_network=DeviceNetwork.AIRQO,
-            remove_outliers=False,
         )
 
     @task(
