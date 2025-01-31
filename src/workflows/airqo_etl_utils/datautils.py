@@ -93,7 +93,8 @@ class DataUtils:
             end_date_time=end_date_time,
             data_source=DataSource.THINGSPEAK,
         )
-
+        dataaa = pd.DataFrame(devices)
+        dataaa.to_csv("devices550.csv")
         for device in devices:
             data = []
             device_number = device.get("device_number", None)
@@ -134,7 +135,7 @@ class DataUtils:
                 data = DataValidationUtils.fill_missing_columns(
                     data=data, cols=data_columns
                 )
-                data["device_category"] = device["category"]
+                data["device_category"] = device["device_category"]
                 data["device_number"] = device_number
                 data["device_id"] = device["name"]
                 data["site_id"] = device["site_id"]
