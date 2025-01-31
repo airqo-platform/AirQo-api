@@ -320,12 +320,12 @@ class Config:
     }
 
     VALID_SENSOR_RANGES = {
-        "pm2_5": (1, 1000),
-        "pm10": (1, 1000),
-        "pm2_5_calibrated_value": (1, 1000),
-        "pm2_5_raw_value": (1, 1000),
-        "pm10_calibrated_value": (1, 1000),
-        "pm10_raw_value": (1, 1000),
+        "pm2_5": (0, 1000),
+        "pm10": (0, 1000),
+        "pm2_5_calibrated_value": (0, 1000),
+        "pm2_5_raw_value": (0, 1000),
+        "pm10_calibrated_value": (0, 1000),
+        "pm10_raw_value": (0, 1000),
         "latitude": (-90, 90),
         "longitude": (-180, 180),
         "battery": (2.7, 5),
