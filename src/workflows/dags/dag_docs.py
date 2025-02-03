@@ -76,7 +76,7 @@ Data Destinations:
 """
 
 extract_store_devices_data_in_temp_store = """
-### AirQo devices hourly ETL
+### AirQo devices daily ETL
 #### Purpose
 Extract devices data from the api(or source database) and store it in temp storage.
 #### Notes
