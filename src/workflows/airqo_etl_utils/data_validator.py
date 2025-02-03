@@ -439,17 +439,10 @@ class DataValidationUtils:
 
     def extract_transform_and_decrypt_devices() -> pd.DataFrame:
         """
-        Transforms and processes the devices DataFrame. If the checksum of the
-        devices data has not changed since the last execution, it returns an empty DataFrame.
-        Otherwise, it updates the checksum in XCom and returns the transformed DataFrame.
-
-        Args:
-            devices (pd.DataFrame): A Pandas DataFrame containing the devices data.
-            task_instance: The Airflow task instance used to pull and push XCom values.
+        Transforms and processes the devices DataFrame. This methods adds keys before caching the devices data.
 
         Returns:
-            pd.DataFrame: Transformed DataFrame if the devices data has changed since
-                        the last execution; otherwise, an empty DataFrame.
+            pd.DataFrame: The devices dataframe with an extra key column
         """
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices_by_network()
