@@ -111,17 +111,17 @@ GET http://127.0.0.1:5000/api/v2/spatial/site_location
 {
   "polygon": {
     "coordinates": [
-      [[36.960411, -1.441632], [36.935005, -1.432022], [36.960411, -1.441632]]
+      [[32.575107,0.305577],[32.575364,0.319138],[32.597337,0.32034],[32.607894,0.312787],[32.608752,0.297509],[32.599225,0.292102],[32.580342,0.291845],[32.574334,0.296994],[32.575107,0.305577]]
     ]
   },
   "must_have_locations": [
-    [-1.2790166, 36.816709]
+    [0.324256, 32.581227]
   ],
   "min_distance_km": 2.5,
   "num_sensors": 1
 }
 ```
-
+Must have locations should be  coordinates withinh the polygon.
 ### **Site Categorization Tool**
 
 Categorize a monitoring site based on its geographic properties.
