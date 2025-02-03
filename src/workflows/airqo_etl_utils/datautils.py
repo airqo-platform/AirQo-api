@@ -160,14 +160,13 @@ class DataUtils:
                 data["device_id"] = device["name"]
                 data["site_id"] = device["site_id"]
                 data["network"] = network
+                data["latitude"] = device.get("latitude") or meta_data.get(
+                    "latitude", None
+                )
+                data["longitude"] = device.get("longitude") or meta_data.get(
+                    "longitude", None
+                )
 
-                # TODO Clean up long,lat assignment.
-                if device_category in Config.DEVICE_FIELD_MAPPING:
-                    data["latitude"] = device.get("latitude", None)
-                    data["longitude"] = device.get("longitude", None)
-                else:
-                    data["latitude"] = meta_data.get("latitude", None)
-                    data["longitude"] = meta_data.get("longitude", None)
                 devices_data = pd.concat([devices_data, data], ignore_index=True)
 
         if "vapor_pressure" in devices_data.columns.to_list():

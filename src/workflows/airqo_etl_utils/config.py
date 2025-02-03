@@ -193,34 +193,6 @@ class Config:
         "hourly_conc": "pm2_5",
     }
 
-    # 1st 6 values are from the gps
-    AIRQO_LOW_COST_CONFIG = {
-        0: "latitude",
-        1: "longitude",
-        2: "altitude",
-        3: "wind_speed",  # For mobile devices (Velocity)
-        4: "satellites",  # Number of satelites tracked
-        5: "hdop",  # For mobile devices
-        6: "device_temperature",  # Internal
-        7: "device_humidity",  # Internal
-        8: "temperature",  # Internal
-        9: "humidity",
-        10: "vapor_pressure",
-    }
-
-    AIRQO_LOW_COST_GAS_CONFIG = {
-        0: "latitude",
-        1: "longitude",
-        2: "altitude",
-        3: "wind_speed",
-        4: "satellites",
-        5: "hdop",
-        6: "device_temperature",
-        7: "device_humidity",
-        8: "temperature",
-        9: "humidity",
-        10: "vapor_pressure",
-    }
     AIRQO_LOW_COST_GAS_FIELD_MAPPING = {
         "field1": "pm2_5",
         "field2": "tvoc",
@@ -381,27 +353,6 @@ class Config:
                 "s2_pm10",
                 "battery",
             ],
-        },
-    }
-
-    DEVICE_FIELD_MAPPING = {
-        DeviceCategory.LOW_COST: {
-            "field1": "s1_pm2_5",
-            "field2": "s1_pm10",
-            "field3": "s2_pm2_5",
-            "field4": "s2_pm10",
-            "field7": "battery",
-            "created_at": "timestamp",
-        },
-        DeviceCategory.LOW_COST_GAS: {
-            "field1": "pm2_5",
-            "field2": "tvoc",
-            "field3": "hcho",
-            "field4": "co2",
-            "field5": "intaketemperature",
-            "field6": "intakehumidity",
-            "field7": "battery",
-            "created_at": "timestamp",
         },
     }
 

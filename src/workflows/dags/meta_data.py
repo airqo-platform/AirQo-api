@@ -259,8 +259,8 @@ def cache_devices_data():
     def store_devices(devices: pd.DataFrame) -> None:
         from airqo_etl_utils.commons import upload_dataframe_to_gcs
 
-        if devices and not devices.empty:
-            upload_dataframe_to_gcs(
+        if not devices.empty:
+            return upload_dataframe_to_gcs(
                 bucket_name=Config.AIRFLOW_XCOM_BUCKET,
                 contents=devices,
                 destination_file="devices.csv",
