@@ -110,6 +110,7 @@ class DataUtils:
             end_date_time=end_date_time,
             data_source=DataSource.THINGSPEAK,
         )
+
         for device in devices:
             data = []
             device_number = device.get("device_number", None)
