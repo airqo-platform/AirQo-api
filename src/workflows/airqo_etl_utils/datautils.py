@@ -262,7 +262,8 @@ class DataUtils:
             Exception: For unexpected errors during column retrieval or data processing.
         """
         bigquery = BigQueryApi()
-        data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
+        data.dropna(subset=["timestamp"], inplace=True)
+        data["time"] = pd.to_datetime(data["time"], errors="coerce")
 
         try:
             datasource = Config.DataSource
