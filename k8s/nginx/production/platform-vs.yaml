@@ -40,6 +40,28 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: grafana
+      service: prometheus-grafana
+      port: 80
+  subroutes:
+    - path: /grafana
+      action:
+        pass: grafana 
+    - path: /grafana/(.*)
+      action:
+        proxy:
+          upstream: grafana
+          rewritePath: /$1                 
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
   name: inventory
   namespace: production
 spec:
@@ -158,6 +180,8 @@ spec:
       route: pipeline/workflows
     - path: /argocd
       route: argocd/argocd
+    - path: /grafana
+      route: monitoring/grafana      
     - path: /inventory
       route: production/inventory 
     - path: /reports
