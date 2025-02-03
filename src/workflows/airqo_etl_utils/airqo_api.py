@@ -326,53 +326,65 @@ class AirQoApi:
 
         return devices
 
-    def get_thingspeak_read_keys(
-        self, devices: pd.DataFrame, return_type: str = "all"
-    ) -> Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
+    def get_thingspeak_read_keys(self, devices: pd.DataFrame) -> Dict[int, str]:
         """
         Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
             devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
-            return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
-                            If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
         Returns:
-            Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
-                - A dictionary containing device decrypted keys when `return_type='all'`. The dictionary has the structure {device_number: decrypted_key}.
-                - A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+            Dict[int, str]: A dictionary containing device decrypted keys. The dictionary has the structure {device_number: decrypted_key}.
+            There is another version of this method that returns a generator. get_thingspeak_read_keys_generator`
         """
-
         body: List = []
         decrypted_keys: List[Dict[str, str]] = []
-        decrypted_read_keys: Dict[int, str] = {}
-
-        for device_number, row in devices.iterrows():
-            if pd.notna(row["readKey"]) and pd.notna(device_number):
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
                 body.append(
-                    {"encrypted_key": row["readKey"], "device_number": device_number}
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
                 )
-
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
-
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
+            return {
+                int(entry["device_number"]): entry["decrypted_key"]
+                for entry in decrypted_keys
+            }
+        return None
 
-            if return_type == "all":
-                return {
-                    int(entry["device_number"]): entry["decrypted_key"]
-                    for entry in decrypted_keys
-                }
-            elif return_type == "yield":
-                for entry in decrypted_keys:
-                    device_number = int(entry["device_number"])
-                    decrypted_key = entry["decrypted_key"]
-                    yield device_number, decrypted_key
+    def get_thingspeak_read_keys_generator(
+        self, devices: pd.DataFrame
+    ) -> Generator[Tuple[int, str], None, None]:
+        """
+        Retrieve read keys from the AirQo API given a list of devices.
 
-        if return_type == "all":
-            return decrypted_read_keys
-        elif return_type == "yield":
-            return
+        Args:
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
+
+        Returns:
+            Generator[Tuple[int, str], None, None]]: A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+        """
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
+                body.append(
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
+                )
+        response = self.__request("devices/decrypt/bulk", body=body, method="post")
+        if response:
+            decrypted_keys = response.get("decrypted_keys", [])
+            for entry in decrypted_keys:
+                device_number = int(entry["device_number"])
+                decrypted_key = entry["decrypted_key"]
+                yield device_number, decrypted_key
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """
