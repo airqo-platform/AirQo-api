@@ -18,6 +18,7 @@ from .constants import (
 from .utils import Utils
 from .date import date_to_str
 from .data_validator import DataValidationUtils
+from airflow_xcom.gcs_xcom_backend import GCSXComBackend
 from typing import List, Dict, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
@@ -48,10 +49,27 @@ class DataUtils:
         devices_data = pd.DataFrame()
         airqo_api = AirQoApi()
         data_source_api = DataSourcesApis()
+        local_file_path = f"/tmp/devices.csv"
+        devices: Any = None
+        try:
+            path = GCSXComBackend.download_file_from_gcs(
+                bucket_name=GCSXComBackend.BUCKET_NAME,
+                source_file="devices.csv",
+                destination_file=local_file_path,
+            )
+            if path:
+                devices = pd.read_csv(local_file_path)
+                if devices:
+                    devices.drop(columns=devices.columns[0], axis=1, inplace=True)
+        except Exception as e:
+            logger.exception("Failed to download xcom devices.")
 
-        devices = airqo_api.get_devices_by_network(
-            device_network=device_network, device_category=device_category
-        )
+        if not devices:
+            devices = airqo_api.get_devices_by_network(
+                device_network=device_network, device_category=device_category
+            )
+            keys = airqo_api.get_thingspeak_read_keys(pd.DataFrame(devices))
+
         if not devices:
             logger.exception(
                 "Failed to fetch devices. Please check if devices are deployed"
@@ -65,7 +83,6 @@ class DataUtils:
             if device_names
             else devices
         )
-
         config = Config.device_config_mapping.get(str(device_category), None)
         if not config:
             logger.warning("Missing device category.")
@@ -93,11 +110,12 @@ class DataUtils:
             end_date_time=end_date_time,
             data_source=DataSource.THINGSPEAK,
         )
-        
+
         for device in devices:
             data = []
             device_number = device.get("device_number", None)
             read_key = device.get("readKey", None)
+            key = device.get("key", None)
             network = device.get("network", None)
 
             if device_number and read_key is None:
@@ -110,7 +128,7 @@ class DataUtils:
                         device_number=device_number,
                         start_date_time=start,
                         end_date_time=end,
-                        read_key=read_key,
+                        read_key=key if key else keys.get(device_number),
                     )
                     if data_available:
                         api_data.extend(data_)

@@ -2,6 +2,10 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
+from dag_docs import extract_store_devices_data_in_temp_store
+from datetime import timedelta
+from airflow_xcom.gcs_xcom_backend import GCSXComBackend
+
 
 @dag(
     "Update-BigQuery-Sites-AirQlouds-And-Devices",
@@ -241,6 +245,37 @@ def meta_data_update_microservice_sites_meta_data():
     refresh_grids()
 
 
+@dag(
+    "AirQo-devices-to-temp-store-pipeline",
+    schedule="0 0 * * *",
+    doc_md=extract_store_devices_data_in_temp_store,
+    catchup=False,
+    tags=["devices", "store"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def cache_devices_data():
+    import pandas as pd
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def extract_devices() -> pd.DataFrame:
+        from airqo_etl_utils.data_validator import DataValidationUtils
+
+        return DataValidationUtils.extract_transform_and_decrypt_devices()
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def store_devices(devices: pd.DataFrame) -> None:
+        if devices and not devices.empty:
+            GCSXComBackend.upload_dataframe_to_gcs(
+                bucket_name=GCSXComBackend.BUCKET_NAME,
+                contents=devices,
+                destination_file="devices.csv",
+            )
+
+    extracted_devices = extract_devices()
+    store_devices(extracted_devices)
+
+
+cache_devices_data()
 update_big_query_airqlouds_sites_and_devices()
 update_big_query_grids_cohorts_sites_and_devices()
 meta_data_update_microservice_sites_meta_data()
