@@ -447,9 +447,9 @@ class DataValidationUtils:
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices_by_network()
         if devices:
-            keys = airqo_api.get_thingspeak_read_keys(devices)
             devices = pd.DataFrame(devices)
-            devices["key"] = devices["device_number"].map(keys).fillna(None)
-        else:
-            return None
-        return devices
+            keys = airqo_api.get_thingspeak_read_keys(devices)
+            if keys:
+                devices["key"] = devices["device_number"].map(keys).fillna(-1)
+                return devices
+        return None
