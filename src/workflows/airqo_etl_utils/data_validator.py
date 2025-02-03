@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.constants import ColumnDataType, Frequency
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
 from .config import configuration as Config
@@ -434,4 +435,21 @@ class DataValidationUtils:
         else:
             logger.warning("No devices returned.")
 
+        return devices
+
+    def extract_transform_and_decrypt_devices() -> pd.DataFrame:
+        """
+        Transforms and processes the devices DataFrame. This methods adds keys before caching the devices data.
+
+        Returns:
+            pd.DataFrame: The devices dataframe with an extra key column
+        """
+        airqo_api = AirQoApi()
+        devices = airqo_api.get_devices_by_network()
+        if devices:
+            keys = airqo_api.get_thingspeak_read_keys(devices)
+            devices = pd.DataFrame(devices)
+            devices["key"] = devices["device_number"].map(keys).fillna(None)
+        else:
+            return None
         return devices
