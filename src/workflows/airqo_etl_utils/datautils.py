@@ -52,7 +52,6 @@ class DataUtils:
         airqo_api = AirQoApi()
         data_source_api = DataSourcesApis()
         local_file_path = f"/tmp/devices.csv"
-        devices: Any = None
         try:
             file = Path(local_file_path)
             if not file.exists():
@@ -61,22 +60,21 @@ class DataUtils:
                     source_file="devices.csv",
                     destination_file=local_file_path,
                 )
-            devices = pd.read_csv(local_file_path)
-            if devices:
+            devices = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            if not devices.empty:
                 devices.drop(columns=devices.columns[0], axis=1, inplace=True)
         except Exception as e:
-            logger.exception("Failed to download xcom devices.")
+            logger.exception("Failed to download cached devices.")
+            devices = pd.DataFrame()
 
-        if not devices:
+        if devices.empty:
             devices = airqo_api.get_devices_by_network(
                 device_network=device_network, device_category=device_category
             )
             keys = airqo_api.get_thingspeak_read_keys(pd.DataFrame(devices))
 
-        if not devices:
-            logger.exception(
-                "Failed to fetch devices. Please check if devices are deployed"
-            )
+        if devices.empty:
+            logger.exception("Failed to download or read xcom devices.")
             return devices_data
 
         other_fields_cols: List[str] = []
