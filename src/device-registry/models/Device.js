@@ -37,6 +37,14 @@ function sanitizeObject(obj, invalidKeys) {
   return obj;
 }
 
+const sanitizeName = (name) => {
+  return name
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .slice(0, 41)
+    .trim()
+    .toLowerCase();
+};
+
 const DEVICE_CATEGORIES = Object.freeze({
   GAS: "gas",
   LOWCOST: "lowcost",
@@ -343,18 +351,10 @@ deviceSchema.pre(
           }
         }
 
-        const sanitizeName = (name) => {
-          return name
-            .replace(/[^a-zA-Z0-9]/g, "_")
-            .slice(0, 41)
-            .trim()
-            .toLowerCase();
-        };
-
         if (!this.name && !this.long_name) {
           return next(
             new HttpError(
-              "Both name and long_name are required.",
+              "Either name or long_name is required.",
               httpStatus.BAD_REQUEST
             )
           );
@@ -416,13 +416,6 @@ deviceSchema.pre(
 
       // Sanitize name if modified
       if (updateData.name) {
-        const sanitizeName = (name) => {
-          return name
-            .replace(/[^a-zA-Z0-9]/g, "_")
-            .slice(0, 41)
-            .trim()
-            .toLowerCase();
-        };
         updateData.name = sanitizeName(updateData.name);
       }
 
@@ -517,14 +510,6 @@ deviceSchema.statics = {
   async register(args, next) {
     try {
       logObject("args", args);
-      const sanitizeName = (name) => {
-        return name
-          .replace(/[^a-zA-Z0-9]/g, "_")
-          .slice(0, 41)
-          .trim()
-          .toLowerCase();
-      };
-
       if (!args.name && !args.long_name) {
         // Check if both are missing
         return next(
