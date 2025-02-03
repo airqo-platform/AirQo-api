@@ -1,10 +1,10 @@
 from airflow.decorators import dag, task
-
+import pandas as pd
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
 from dag_docs import extract_store_devices_data_in_temp_store
 from datetime import timedelta
-from airflow_xcom.gcs_xcom_backend import GCSXComBackend
+from airqo_etl_utils.config import configuration as Config
 
 
 @dag(
@@ -15,8 +15,6 @@ from airflow_xcom.gcs_xcom_backend import GCSXComBackend
     tags=["hourly", "sites", "devices", "airqlouds"],
 )
 def update_big_query_airqlouds_sites_and_devices():
-    import pandas as pd
-
     @task()
     def extract_airqlouds() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
@@ -45,7 +43,7 @@ def update_big_query_airqlouds_sites_and_devices():
 
     @task()
     def load_sites(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.bigquery_api import BigQueryAp
 
         big_query_api = BigQueryApi()
         big_query_api.update_sites_and_devices(
@@ -102,8 +100,6 @@ def update_big_query_airqlouds_sites_and_devices():
     tags=["hourly", "sites", "devices", "grids"],
 )
 def update_big_query_grids_cohorts_sites_and_devices():
-    import pandas as pd
-
     @task()
     def extract_grids() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
@@ -221,21 +217,18 @@ def meta_data_update_microservice_sites_meta_data():
     @task()
     def update_distance_measures() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
-        from airqo_etl_utils.constants import Tenant
 
         MetaDataUtils.update_sites_distance_measures()
 
     @task()
     def refresh_airqlouds() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
-        from airqo_etl_utils.constants import Tenant
 
         MetaDataUtils.refresh_airqlouds()
 
     @task()
     def refresh_grids() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
-        from airqo_etl_utils.constants import Tenant
 
         MetaDataUtils.refresh_grids()
 
@@ -264,9 +257,11 @@ def cache_devices_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_devices(devices: pd.DataFrame) -> None:
+        from airqo_etl_utils.commons import upload_dataframe_to_gcs
+
         if devices and not devices.empty:
-            GCSXComBackend.upload_dataframe_to_gcs(
-                bucket_name=GCSXComBackend.BUCKET_NAME,
+            upload_dataframe_to_gcs(
+                bucket_name=Config.AIRFLOW_XCOM_BUCKET,
                 contents=devices,
                 destination_file="devices.csv",
             )
