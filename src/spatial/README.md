@@ -37,9 +37,8 @@ pip install -r requirements.txt
 
 Different regions have specific AirQloud IDs. Below are some examples:
 
-- **Uganda**:
 - **Cameroon**: `6368b31b2fa4d3001e73e9c8`
-- **Kampala**:
+- **Kampala city**:`64b7baccf2b99f00296acd59`
 - **Kenya**: `636629b22fa4d3001e739d0f`
 - **Fort Portal**: `618b850c9326560036a453eb`
 
