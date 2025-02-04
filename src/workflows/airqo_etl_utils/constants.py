@@ -30,6 +30,14 @@ class DeviceCategory(Enum):
         else:
             return "general"
 
+    @property
+    def str(self):
+        """
+        Returns the string representation of the device category.
+        Access via instance.str.
+        """
+        return self.__str__()
+
     @staticmethod
     def category_from_str(category: str):
         """
@@ -79,6 +87,14 @@ class DeviceNetwork(Enum):
             return "iqair"
         else:
             raise LookupError("Invalid network supplied")
+
+    @property
+    def str(self):
+        """
+        Returns the string representation of the device network.
+        Access via instance.str.
+        """
+        return self.__str__()
 
 
 class DataType(Enum):
