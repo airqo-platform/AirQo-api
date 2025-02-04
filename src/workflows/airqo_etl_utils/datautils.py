@@ -117,7 +117,10 @@ class DataUtils:
                     source_file="devices.csv",
                     destination_file=local_file_path,
                 )
-            return pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            devices = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            if not devices.empty:
+                devices["device_number"] = devices["device_number"].fillna(-1)
+            return devices
         except Exception as e:
             logger.exception("Failed to download cached devices.")
             return pd.DataFrame()
@@ -157,7 +160,7 @@ class DataUtils:
         api_data = []
         data_source_api = DataSourcesApis()
 
-        if device_number and network == "airqo":
+        if device_number and not np.isnan(device_number) and network == "airqo":
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
                     device_number=int(device_number),
