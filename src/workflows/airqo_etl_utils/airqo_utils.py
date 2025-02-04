@@ -606,8 +606,9 @@ class AirQoDataUtils:
         ]
 
         # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
-        # May have to rewrite entire pipeline flow
-        data[columns_to_fill] = data[columns_to_fill].fillna(0)
+        default_values = {col: 0 for col in columns_to_fill}
+        data = data.assign(**default_values)
+        # data[columns_to_fill] = data[columns_to_fill].fillna(0)
 
         # additional input columns for calibration
         data["avg_pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
