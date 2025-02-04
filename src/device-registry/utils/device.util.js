@@ -60,7 +60,8 @@ const createDevice = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const count = await DeviceModel(tenant).countDocuments({});
+      const filter = generateFilter.devices(request, next);
+      const count = await DeviceModel(tenant).countDocuments(filter);
       return {
         success: true,
         message: "retrieved the number of devices",
