@@ -618,7 +618,8 @@ class AirQoDataUtils:
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
         data["hour"] = data["timestamp"].dt.__getattribute__("hour")
-
+        data["pm2_5_calibrated_value"] = np.nan
+        data["pm10_calibrated_value"] = np.nan
         input_variables = [
             "avg_pm2_5",
             "avg_pm10",
@@ -629,6 +630,8 @@ class AirQoDataUtils:
             "error_pm10",
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
         ]
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
@@ -637,7 +640,6 @@ class AirQoDataUtils:
         data_to_calibrate = data.loc[to_calibrate]
         data_to_calibrate.dropna(subset=input_variables, inplace=True)
         grouped_df = data_to_calibrate.groupby("city", dropna=False)
-
         rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
@@ -653,7 +655,6 @@ class AirQoDataUtils:
             ),
         )
         for city, group in grouped_df:
-            # What was the intention of this?
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
             if str(city).lower() in [c.value.lower() for c in CityModel]:
                 try:
@@ -676,7 +677,6 @@ class AirQoDataUtils:
 
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
-
             data.loc[
                 group.index, ["pm2_5_calibrated_value", "pm10_calibrated_value"]
             ] = group[["pm2_5_calibrated_value", "pm10_calibrated_value"]]
