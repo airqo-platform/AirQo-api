@@ -2,6 +2,7 @@ from airflow.decorators import dag, task
 import pandas as pd
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
+from airqo_etl_utils.bigquery_api import BigQueryApi
 from dag_docs import extract_store_devices_data_in_temp_store
 from datetime import timedelta
 from airqo_etl_utils.config import configuration as Config
@@ -23,13 +24,11 @@ def update_big_query_airqlouds_sites_and_devices():
 
     @task()
     def load_airqlouds(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         BigQueryApi().update_airqlouds(data)
 
     @task()
     def update_airqloud_sites_table(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
         data = MetaDataUtils.merge_airqlouds_and_sites(data)
@@ -43,7 +42,6 @@ def update_big_query_airqlouds_sites_and_devices():
 
     @task()
     def load_sites(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryAp
 
         big_query_api = BigQueryApi()
         big_query_api.update_sites_and_devices(
@@ -212,7 +210,7 @@ def meta_data_update_microservice_sites_meta_data():
     def update_nearest_weather_stations() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        MetaDataUtils.update_nearest_weather_stations(network="all")
+        MetaDataUtils.update_nearest_weather_stations()
 
     @task()
     def update_distance_measures() -> None:
