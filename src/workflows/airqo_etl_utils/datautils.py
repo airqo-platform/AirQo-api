@@ -19,7 +19,7 @@ from .constants import (
 from .utils import Utils
 from .date import date_to_str
 from .data_validator import DataValidationUtils
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Tuple
 
 import logging
 
@@ -49,9 +49,64 @@ class DataUtils:
             device_names(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
         """
         devices_data = pd.DataFrame()
-        airqo_api = AirQoApi()
-        data_source_api = DataSourcesApis()
-        local_file_path = f"/tmp/devices.csv"
+        local_file_path = "/tmp/devices.csv"
+
+        # Load devices from cache
+        devices = DataUtils._load_cached_devices(local_file_path)
+
+        # If cache is empty, fetch from API
+        keys = {}
+        if devices.empty:
+            devices, keys = DataUtils._fetch_devices_from_api(
+                device_network, device_category
+            )
+            if devices.empty:
+                logger.exception("Failed to download or fetch devices.")
+                return devices_data
+
+        if device_names:
+            devices = devices.loc[devices.name.isin(device_names)]
+
+        config = Config.device_config_mapping.get(str(device_category), None)
+        if not config:
+            logger.warning("Missing device category configuration.")
+            return devices_data
+
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.THINGSPEAK,
+        )
+        data_store: List[pd.DataFrame] = []
+        for _, device in devices.iterrows():
+            data, meta_data = DataUtils._extract_device_api_data(
+                device, dates, config, keys, resolution
+            )
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                data = DataUtils._process_and_append_device_data(
+                    device, data, meta_data, config
+                )
+            else:
+                continue
+
+            if not data.empty:
+                data_store.append(data)
+
+        if data_store:
+            devices_data = pd.concat(data_store, ignore_index=True)
+        else:
+            devices_data = pd.DataFrame()
+
+        if "vapor_pressure" in devices_data.columns.to_list():
+            is_airqo_network = devices_data["network"] == "airqo"
+            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
+                is_airqo_network, "vapor_pressure"
+            ].apply(DataValidationUtils.convert_pressure_values)
+
+        return devices_data
+
+    def _load_cached_devices(local_file_path: str) -> pd.DataFrame:
+        """Download and load the devices CSV from GCS if available."""
         try:
             file = Path(local_file_path)
             if not file.exists():
@@ -60,37 +115,78 @@ class DataUtils:
                     source_file="devices.csv",
                     destination_file=local_file_path,
                 )
-            devices = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
-            if not devices.empty:
-                devices.drop(columns=devices.columns[0], axis=1, inplace=True)
+            return pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
         except Exception as e:
             logger.exception("Failed to download cached devices.")
-            devices = pd.DataFrame()
+            return pd.DataFrame()
 
-        if devices.empty:
-            devices = airqo_api.get_devices_by_network(
-                device_network=device_network, device_category=device_category
+    def _fetch_devices_from_api(
+        device_network: DeviceNetwork, device_category: DeviceCategory
+    ) -> pd.DataFrame:
+        """Fetch devices from the API if the cached file is empty."""
+        airqo_api = AirQoApi()
+        try:
+            devices = pd.DataFrame(
+                airqo_api.get_devices_by_network(device_category=device_category)
             )
-            keys = airqo_api.get_thingspeak_read_keys(pd.DataFrame(devices))
+            devices_airqo = devices.loc[devices.network == "airqo"]
+            keys = airqo_api.get_thingspeak_read_keys(devices_airqo)
+            return devices, keys
+        except Exception as e:
+            logger.exception(
+                f"Failed to fetch devices or read keys from device_registry. {e}"
+            )
+        return pd.DataFrame(), {}
 
-        if devices.empty:
-            logger.exception("Failed to download or read xcom devices.")
-            return devices_data
+    def _extract_device_api_data(
+        device: pd.Series,
+        dates: List[Tuple[str, str]],
+        config: dict,
+        keys: dict,
+        resolution: Frequency,
+    ) -> pd.DataFrame:
+        """Extract and map API data for a single device."""
+        device_number = device.get("device_number")
+        key = device.get("key")
+        network = device.get("network")
+        api_data = []
+        data_source_api = DataSourcesApis()
 
-        other_fields_cols: List[str] = []
-        network: str = None
-        devices = (
-            [x for x in devices if x["name"] in device_names]
-            if device_names
-            else devices
-        )
-        config = Config.device_config_mapping.get(str(device_category), None)
-        if not config:
-            logger.warning("Missing device category.")
-            return devices_data
+        if device_number and network == "airqo":
+            for start, end in dates:
+                data_, meta_data, data_available = data_source_api.thingspeak(
+                    device_number=device_number,
+                    start_date_time=start,
+                    end_date_time=end,
+                    read_key=key if key else keys.get(device_number),
+                )
+                if data_available:
+                    api_data.extend(data_)
+            if api_data:
+                mapping = config["mapping"][network]
+                return DataUtils.map_and_extract_data(mapping, api_data), meta_data
+        elif network == "iqair":
+            mapping = config["mapping"][network]
+            try:
+                data = DataUtils.map_and_extract_data(
+                    mapping, data_source_api.iqair(device, resolution=resolution)
+                )
+                return data, {}
+            except Exception as e:
+                logger.exception(
+                    f"An error occurred: {e} - device {device.get('name')}"
+                )
+                return pd.DataFrame(), {}
+        return pd.DataFrame(), {}
 
-        field_8_cols = config["field_8_cols"]
-        other_fields_cols = config["other_fields_cols"]
+    def _process_and_append_device_data(
+        device: pd.Series, data: pd.DataFrame, meta_data: dict, config: dict
+    ) -> pd.DataFrame:
+        """Process API data, fill missing columns, and append device details."""
+        if data.empty:
+            logger.warning(f"No data received from {device.get('name')}")
+            return
+
         data_columns = list(
             set(
                 [
@@ -100,80 +196,22 @@ class DataUtils:
                     "latitude",
                     "longitude",
                     "timestamp",
-                    *field_8_cols,
-                    *other_fields_cols,
+                    *config["field_8_cols"],
+                    *config["other_fields_cols"],
                 ]
             )
         )
 
-        dates = Utils.query_dates_array(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            data_source=DataSource.THINGSPEAK,
-        )
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
+        data["device_category"] = device.get("device_category")
+        data["device_number"] = device.get("device_number")
+        data["device_id"] = device.get("name")
+        data["site_id"] = device.get("site_id")
+        data["network"] = device.get("network")
+        data["latitude"] = device.get("latitude") or meta_data.get("latitude")
+        data["longitude"] = device.get("longitude") or meta_data.get("longitude")
 
-        for device in devices:
-            data = []
-            device_number = device.get("device_number", None)
-            read_key = device.get("readKey", None)
-            key = device.get("key", None)
-            network = device.get("network", None)
-
-            if device_number and read_key is None:
-                logger.exception(f"{device_number} does not have a read key")
-                continue
-            api_data = []
-            if device_number and network == "airqo":
-                for start, end in dates:
-                    data_, meta_data, data_available = data_source_api.thingspeak(
-                        device_number=device_number,
-                        start_date_time=start,
-                        end_date_time=end,
-                        read_key=key if key else keys.get(device_number),
-                    )
-                    if data_available:
-                        api_data.extend(data_)
-                if len(api_data) > 0:
-                    mapping = config["mapping"][network]
-                    data = DataUtils.map_and_extract_data(mapping, api_data)
-            elif network == "iqair":
-                mapping = config["mapping"][network]
-                try:
-                    data = DataUtils.map_and_extract_data(
-                        mapping, data_source_api.iqair(device, resolution=resolution)
-                    )
-                except Exception as e:
-                    logger.exception(f"An error occured: {e} - device {device['name']}")
-                    continue
-            if isinstance(data, pd.DataFrame) and data.empty:
-                logger.warning(f"No data received from {device['name']}")
-                continue
-
-            if isinstance(data, pd.DataFrame) and not data.empty:
-                data = DataValidationUtils.fill_missing_columns(
-                    data=data, cols=data_columns
-                )
-                data["device_category"] = device["device_category"]
-                data["device_number"] = device_number
-                data["device_id"] = device["name"]
-                data["site_id"] = device["site_id"]
-                data["network"] = network
-                data["latitude"] = device.get("latitude") or meta_data.get(
-                    "latitude", None
-                )
-                data["longitude"] = device.get("longitude") or meta_data.get(
-                    "longitude", None
-                )
-
-                devices_data = pd.concat([devices_data, data], ignore_index=True)
-
-        if "vapor_pressure" in devices_data.columns.to_list():
-            is_airqo_network = devices_data["network"] == "airqo"
-            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                is_airqo_network, "vapor_pressure"
-            ].apply(DataValidationUtils.convert_pressure_values)
-
-        return devices_data
+        return data
 
     @staticmethod
     def extract_data_from_bigquery(
