@@ -63,11 +63,13 @@ class DataUtils:
             if devices.empty:
                 logger.exception("Failed to download or fetch devices.")
                 return devices_data
+        if not devices.empty and device_network:
+            devices = devices.loc[devices.network == device_network.str]
 
         if device_names:
             devices = devices.loc[devices.name.isin(device_names)]
 
-        config = Config.device_config_mapping.get(str(device_category), None)
+        config = Config.device_config_mapping.get((device_category.str), None)
         if not config:
             logger.warning("Missing device category configuration.")
             return devices_data
@@ -127,7 +129,9 @@ class DataUtils:
         airqo_api = AirQoApi()
         try:
             devices = pd.DataFrame(
-                airqo_api.get_devices_by_network(device_category=device_category)
+                airqo_api.get_devices_by_network(
+                    device_network=device_network, device_category=device_category
+                )
             )
             devices_airqo = devices.loc[devices.network == "airqo"]
             keys = airqo_api.get_thingspeak_read_keys(devices_airqo)
@@ -155,7 +159,7 @@ class DataUtils:
         if device_number and network == "airqo":
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
-                    device_number=device_number,
+                    device_number=int(device_number),
                     start_date_time=start,
                     end_date_time=end,
                     read_key=key if key else keys.get(device_number),
@@ -702,9 +706,7 @@ class DataUtils:
             .apply(lambda group: group.resample("1H", on="timestamp").mean())
             .reset_index()
         )
-
         aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-
         return aggregated
 
     @staticmethod
