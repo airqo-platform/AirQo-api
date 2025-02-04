@@ -50,8 +50,7 @@ def require_env_var(env_var: str) -> str:
 # Core Settings
 # ---------------------------------------------------------
 SECRET_KEY = require_env_var('SECRET_KEY')
-# DEBUG = get_env_bool('DEBUG', default=False)
-DEBUG = True
+DEBUG = get_env_bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = parse_env_list('ALLOWED_HOSTS', default='localhost,127.0.0.1')
 
