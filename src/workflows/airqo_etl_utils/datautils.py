@@ -309,7 +309,7 @@ class DataUtils:
         """
         bigquery = BigQueryApi()
         data.dropna(subset=["timestamp"], inplace=True)
-        data["time"] = pd.to_datetime(data["time"], errors="coerce")
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
 
         try:
             datasource = Config.DataSource
