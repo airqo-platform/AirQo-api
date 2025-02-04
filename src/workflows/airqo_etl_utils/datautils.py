@@ -133,6 +133,7 @@ class DataUtils:
                     device_network=device_network, device_category=device_category
                 )
             )
+            devices["device_number"] = devices["device_number"].fillna(-1)
             devices_airqo = devices.loc[devices.network == "airqo"]
             keys = airqo_api.get_thingspeak_read_keys(devices_airqo)
             return devices, keys
@@ -658,7 +659,9 @@ class DataUtils:
             data.dropna(subset=["timestamp"], inplace=True)
             data["timestamp"] = pd.to_datetime(data["timestamp"])
         except Exception as e:
-            logger.exception(f"There is an issue with the timestamp column: {e}")
+            logger.exception(
+                f"There is an issue with the timestamp column. Shape of data: {data.shape}"
+            )
             raise KeyError(f"An error has occurred with the 'timestamp' column: {e}")
 
         data.drop_duplicates(
