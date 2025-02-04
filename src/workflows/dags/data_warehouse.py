@@ -143,8 +143,8 @@ def data_warehouse_cleanup_consolidated_data():
 
         exclude_cols = [
             data.device_number.name,
-            data.latitude.name,
-            data.longitude.name,
+            data.device_latitude.name,
+            data.device_longitude.name,
             data.network.name,
         ]
         return DataUtils.remove_duplicates(
@@ -320,8 +320,8 @@ def data_warehouse_historical_cleanup_consolidated_data():
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         exclude_cols = [
             data.device_number.name,
-            data.latitude.name,
-            data.longitude.name,
+            data.device_latitude.name,
+            data.device_longitude.name,
             data.network.name,
         ]
         return DataUtils.remove_duplicates(
