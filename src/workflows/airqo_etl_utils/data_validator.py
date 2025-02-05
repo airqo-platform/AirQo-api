@@ -253,7 +253,7 @@ class DataValidationUtils:
         """
         from .airqo_utils import AirQoDataUtils
 
-        data["frequency"] = str(frequency)
+        data["frequency"] = frequency.str
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
