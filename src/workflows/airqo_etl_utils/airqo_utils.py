@@ -312,7 +312,7 @@ class AirQoDataUtils:
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["network"] = DeviceNetwork.AIRQO
+        data["network"] = DeviceNetwork.AIRQO.str
         data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()

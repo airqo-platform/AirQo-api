@@ -132,7 +132,7 @@ class AirQoApi:
 
     def get_devices(
         self,
-        network: Union[str, Any] = None,
+        network: DeviceNetwork = None,
         device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
@@ -179,13 +179,13 @@ class AirQoApi:
         """
         params: Dict = {}
         if device_category:
-            params["category"] = str(device_category)
+            params["category"] = device_category.str
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
 
         if network:
-            params["network"] = network
+            params["network"] = network.str
 
         # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
         try:
@@ -515,7 +515,7 @@ class AirQoApi:
 
     def refresh_airqloud(self, airqloud_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"network": DeviceNetwork.AIRQO, "id": airqloud_id}
+        query_params = {"network": DeviceNetwork.AIRQO.str, "id": airqloud_id}
 
         try:
             self.__request(
@@ -526,7 +526,7 @@ class AirQoApi:
 
     def refresh_grid(self, grid_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         try:
             response = self.__request(
@@ -555,7 +555,7 @@ class AirQoApi:
                 }
             ]
         """
-        query_params: Dict = {"network": DeviceNetwork.AIRQO}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO.str}
 
         if network:
             query_params["network"] = network
@@ -573,7 +573,7 @@ class AirQoApi:
 
     def get_favorites(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no favorites exist","favorites":[]} for ids passed.
-        query_params = {"network": str(DeviceNetwork.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(f"users/favorites/users/{user_id}", query_params)
 
@@ -595,7 +595,7 @@ class AirQoApi:
 
     def get_location_history(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no Location Histories exist","location_histories":[]} for ids passed
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(
             f"users/locationHistory/users/{user_id}", query_params
@@ -619,7 +619,7 @@ class AirQoApi:
 
     def get_search_history(self, user_id: str) -> List:
         # TODO Check if this is working. Currently returns {"success":true,"message":"no Search Histories exist","search_histories":[]} for all ids.
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
 
@@ -665,7 +665,7 @@ class AirQoApi:
             float: pm2_5 value of the given site.
         """
         try:
-            query_params = {"network": DeviceNetwork.AIRQO, "site_id": site_id}
+            query_params = {"network": DeviceNetwork.AIRQO.str, "site_id": site_id}
 
             response = self.__request("devices/measurements", query_params)
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
@@ -693,7 +693,7 @@ class AirQoApi:
                 },
             ]
         """
-        query_params: Dict = {"network": DeviceNetwork.AIRQO}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO.str}
 
         if network:
             query_params["network"] = network
@@ -727,7 +727,7 @@ class AirQoApi:
                 },
             ]
         """
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         if network:
             query_params["network"] = network
@@ -832,7 +832,7 @@ class AirQoApi:
             site_id = site.pop("site_id", None)
             if site_id is None:
                 raise KeyError("Each site dictionary must contain a 'site_id' key.")
-            params = {"network": DeviceNetwork.AIRQO, "id": site_id}
+            params = {"network": DeviceNetwork.AIRQO.str, "id": site_id}
 
             self.__request("devices/sites", params, site, "put")
 
