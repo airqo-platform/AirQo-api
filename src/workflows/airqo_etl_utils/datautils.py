@@ -59,7 +59,8 @@ class DataUtils:
                 )
             )["device_number"] = devices["device_number"].fillna(-1)
         except Exception as e:
-            logger.exception("No devices currently catched.")
+            logger.exception("No devices currently cached.")
+            devices = pd.DataFrame()
 
         keys = {}
         # If cache is empty, fetch from API
@@ -130,7 +131,7 @@ class DataUtils:
             if not data.empty:
                 return data
         except Exception as e:
-            logger.exception(f"Failed to download cached {file_name}.")
+            logger.exception(f"Failed to download cached {file_name}. {e}")
             return pd.DataFrame()
 
     def _fetch_devices_from_api(
