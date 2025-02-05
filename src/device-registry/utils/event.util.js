@@ -116,6 +116,29 @@ async function transformOneReading(
 ) {
   try {
     const transformedEvent = transform(data, map, context);
+
+    const validValues = transformedEvent.values.filter((value) => {
+      let isValid = true;
+      for (const key in map.item) {
+        // Use the provided map for consistency
+        if (typeof value[key] === "number" && value[key] <= 0) {
+          isValid = false;
+          break;
+        }
+      }
+      return isValid;
+    });
+
+    if (validValues.length === 0) {
+      return {
+        success: false,
+        message: "All values zero or less; discarding.",
+      };
+    }
+    transformedEvent.values = validValues;
+    if (transformedEvent.values.length < transformedEvent.nValues) {
+      transformedEvent.nValues = validValues.length;
+    }
     return {
       success: true,
       message: "successfully transformed the provided event",
@@ -162,7 +185,11 @@ async function transformManyReadings(request, next) {
       for (let i = 0; i < results.length; i++) {
         let result = results[i];
         if (result.status === "fulfilled") {
-          transforms.push(result.value.data);
+          if (result.value.success) {
+            transforms.push(result.value.data);
+          } else {
+            errors.push(result.value); // Collect errors about discarded events if needed
+          }
         } else if (result.status === "rejected") {
           let error = result.reason.errors
             ? result.reason.errors
@@ -239,19 +266,38 @@ async function processEvent(event, next) {
     let filter = cleanDeep(event.filter);
     let update = event.update;
     dot.delete(["filter", "update", "options"], value);
-    update["$push"] = { values: value };
 
-    logObject("event.tenant", event.tenant);
-    logObject("update", update);
-    logObject("filter", filter);
-    logObject("options", options);
+    const validValues = event.values.filter((valItem) => {
+      // Directly access the values property
+      let isValid = true;
+
+      for (const key in constants.EVENT_MAPPINGS.item) {
+        if (typeof valItem[key] === "number" && valItem[key] <= 0) {
+          isValid = false;
+          break;
+        }
+      }
+      return isValid;
+    });
+
+    if (validValues.length === 0) {
+      logger.warn(
+        `Discarding event with all zero/negative values: ${JSON.stringify(
+          value
+        )}`
+      );
+      return { added: false };
+    }
+
+    value.values = validValues;
+    update["$push"] = { values: { $each: value.values } };
+    update["$inc"] = { nValues: validValues.length };
 
     const addedEvents = await EventModel(event.tenant).updateOne(
       filter,
       update,
       options
     );
-    // logObject("addedEvents", addedEvents);
 
     if (addedEvents) {
       return {
@@ -293,6 +339,7 @@ async function processEvent(event, next) {
     };
   }
 }
+
 async function processEvents(events, next) {
   let nAdded = 0;
   let eventsAdded = [];
