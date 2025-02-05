@@ -11,9 +11,9 @@ class DeviceCategory(Enum):
     GENERAL -> All the sensors
     """
 
-    LOW_COST = 1
+    LOWCOST = 1
     BAM = 2
-    LOW_COST_GAS = 3
+    GAS = 3
     WEATHER = 4
     GENERAL = 5
     NONE = 20
@@ -49,9 +49,9 @@ class DeviceCategory(Enum):
         category = category.lower()
         if category == str(DeviceCategory.BAM).lower():
             return DeviceCategory.BAM
-        elif category == str(DeviceCategory.LOW_COST_GAS).lower():
-            return DeviceCategory.LOW_COST_GAS
-        return DeviceCategory.LOW_COST
+        elif category == str(DeviceCategory.GAS).lower():
+            return DeviceCategory.GAS
+        return DeviceCategory.LOWCOST
 
 
 class DeviceNetwork(Enum):

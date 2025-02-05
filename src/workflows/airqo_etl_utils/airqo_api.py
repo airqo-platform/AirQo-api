@@ -240,7 +240,9 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_network: str = None, device_category: DeviceCategory = None
+        self,
+        device_network: DeviceNetwork = None,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
@@ -288,7 +290,7 @@ class AirQoApi:
         networks: List[str] = []
         params: Dict = {}
         if device_network:
-            networks.append({"net_name": device_network})
+            networks.append({"net_name": device_network.str})
         else:
             networks, error = self.get_networks()
             if error:
@@ -296,7 +298,7 @@ class AirQoApi:
                 return devices
 
         if device_category:
-            params["category"] = str(device_category)
+            params["category"] = device_category.str
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = True

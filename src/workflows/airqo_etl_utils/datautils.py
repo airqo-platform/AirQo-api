@@ -59,7 +59,7 @@ class DataUtils:
                 )
             )["device_number"] = devices["device_number"].fillna(-1)
         except Exception as e:
-            logger.exception("No devices currently cached.")
+            logger.exception(f"No devices currently cached: {e}")
             devices = pd.DataFrame()
 
         keys = {}
@@ -71,7 +71,7 @@ class DataUtils:
             if devices.empty:
                 logger.exception("Failed to download or fetch devices.")
                 raise RuntimeError("Failed to cached and api devices data.")
-
+        print(devices)
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
 
@@ -124,7 +124,7 @@ class DataUtils:
             if not file.exists():
                 download_file_from_gcs(
                     bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                    source_file=file_name,
+                    source_file=file_name + ".csv",
                     destination_file=local_file_path,
                 )
             data = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
@@ -135,15 +135,15 @@ class DataUtils:
             return pd.DataFrame()
 
     def _fetch_devices_from_api(
-        device_network: DeviceNetwork, device_category: DeviceCategory
+        device_network: DeviceNetwork = None, device_category: DeviceCategory = None
     ) -> pd.DataFrame:
         """Fetch devices from the API if the cached file is empty."""
         airqo_api = AirQoApi()
         try:
             devices = pd.DataFrame(
                 airqo_api.get_devices_by_network(
-                    device_network=device_network.str,
-                    device_category=device_category.str,
+                    device_network=device_network,
+                    device_category=device_category,
                 )
             )
             devices["device_number"] = devices["device_number"].fillna(-1)
@@ -662,11 +662,11 @@ class DataUtils:
 
         # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
         match device_category:
-            case DeviceCategory.LOW_COST_GAS:
+            case DeviceCategory.GAS:
                 AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
                     data
                 )
-            case DeviceCategory.LOW_COST:
+            case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
             data.dropna(subset=["timestamp"], inplace=True)
@@ -681,7 +681,7 @@ class DataUtils:
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
         # TODO Find an appropriate place to put this
-        if device_category == DeviceCategory.LOW_COST:
+        if device_category == DeviceCategory.LOWCOST:
             is_airqo_network = data["network"] == "airqo"
 
             pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
