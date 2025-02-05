@@ -86,7 +86,22 @@ Extract devices data from the api(or source database) and store it in temp stora
 Data sources:
 - API(devices/summary):
 Data Destinations:
-- GCP - devices-file
+- GCP Bucket - airflow-xcom-bucket
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+extract_store_sites_data_in_temp_store = """
+### AirQo sites daily ETL
+#### Purpose
+Extract sites data from the api(or source database) and store it in temp storage.
+#### Notes
+- Imagine you had a many sites(100,000+) and had to extract them each time you were going to query their data.
+- This pipeline extracts the data and store it in a temporary storage for easy access to cancel out the repeatitive queries.
+
+Data sources:
+- API(devices/summary):
+Data Destinations:
+- GCP Bucket - airflow-xcom-bucket
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
 

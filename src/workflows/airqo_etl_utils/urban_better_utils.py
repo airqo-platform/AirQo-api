@@ -2,8 +2,9 @@ import pandas as pd
 
 from .air_beam_api import AirBeamApi
 from .air_quality_utils import AirQualityUtils
-from .config import configuration
-from .constants import Tenant
+from .config import configuration as Config
+from .constants import DeviceNetwork
+
 from .date import str_to_date
 
 
@@ -17,7 +18,7 @@ class UrbanBetterUtils:
 
         air_beam_api = AirBeamApi()
 
-        usernames = configuration.AIR_BEAM_USERNAMES.split(",")
+        usernames = Config.AIR_BEAM_USERNAMES.split(",")
         stream_ids = []
         for username in usernames:
             for pollutant in ["pm2.5", "pm10", "pm1", "rh", "f"]:
@@ -97,7 +98,7 @@ class UrbanBetterUtils:
             how="outer",
         )
 
-        measurements["tenant"] = str(Tenant.URBAN_BETTER)
+        measurements["network"] = DeviceNetwork.URBANBETTER.str
         measurements.rename(
             columns={
                 "time": "timestamp",

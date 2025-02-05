@@ -14,7 +14,7 @@ from .constants import (
     Frequency,
     DataSource,
     DataType,
-    CityModel,
+    MetaDataType,
 )
 from .utils import Utils
 from .date import date_to_str
@@ -52,7 +52,8 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
 
         # Load devices from cache
-        devices = DataUtils._load_cached_devices(local_file_path)
+        devices = DataUtils.load_cached_data(local_file_path, MetaDataType.DEVICES.str)
+        devices["device_number"] = devices["device_number"].fillna(-1)
 
         # If cache is empty, fetch from API
         keys = {}
@@ -107,22 +108,22 @@ class DataUtils:
 
         return devices_data
 
-    def _load_cached_devices(local_file_path: str) -> pd.DataFrame:
-        """Download and load the devices CSV from GCS if available."""
+    @staticmethod
+    def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
+        """Download and load the cached CSV from GCS if available."""
         try:
             file = Path(local_file_path)
             if not file.exists():
                 download_file_from_gcs(
                     bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                    source_file="devices.csv",
+                    source_file=file_name,
                     destination_file=local_file_path,
                 )
-            devices = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
-            if not devices.empty:
-                devices["device_number"] = devices["device_number"].fillna(-1)
-            return devices
+            data = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            if not data.empty:
+                return data
         except Exception as e:
-            logger.exception("Failed to download cached devices.")
+            logger.exception(f"Failed to download cached {file_name}.")
             return pd.DataFrame()
 
     def _fetch_devices_from_api(

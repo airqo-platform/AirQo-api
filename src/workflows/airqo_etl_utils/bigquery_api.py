@@ -798,7 +798,7 @@ class BigQueryApi:
         )
 
         if network:
-            where_clause += f"AND network = '{str(network)}' "
+            where_clause += f"AND network = '{network.str}' "
 
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
@@ -815,7 +815,7 @@ class BigQueryApi:
           """
         else:
             query = f"""
-                SELECT * FROM `{self.devices_table}` WHERE network = '{str(network)}'
+                SELECT * FROM `{self.devices_table}` WHERE network = '{network.str}'
             """
 
         dataframe = self.client.query(query=query).result().to_dataframe()
@@ -828,7 +828,7 @@ class BigQueryApi:
           """
         else:
             query = f"""
-                SELECT * FROM `{self.sites_table}` WHERE network = '{str(network)}'
+                SELECT * FROM `{self.sites_table}` WHERE network = '{network.str}'
             """
 
         dataframe = self.client.query(query=query).result().to_dataframe()
