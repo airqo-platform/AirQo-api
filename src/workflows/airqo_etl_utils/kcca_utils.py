@@ -132,7 +132,7 @@ class KccaUtils:
     @staticmethod
     def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
         data.loc[:, "network"] = str(DeviceNetwork.KCCA)
-        data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
+        data.loc[:, "device_category"] = str(DeviceCategory.LOWCOST)
         return data
 
     @staticmethod

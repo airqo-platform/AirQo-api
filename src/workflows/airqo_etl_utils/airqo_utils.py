@@ -156,7 +156,7 @@ class AirQoDataUtils:
                 end_date_time=value.get("end_date_time"),
                 device_numbers=[value.get("device_number")],
                 resolution=resolution,
-                device_category=DeviceCategory.LOW_COST,
+                device_category=DeviceCategory.LOWCOST,
             )
             if measurements.empty:
                 continue

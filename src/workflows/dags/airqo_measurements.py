@@ -184,14 +184,14 @@ def airqo_historical_raw_measurements():
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST,
+            device_category=DeviceCategory.LOWCOST,
             resolution=Frequency.DAILY,
         )
 
     @task()
     def clean_data_raw_data(data: pd.DataFrame):
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+            data=data, device_category=DeviceCategory.LOWCOST
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -360,14 +360,14 @@ def airqo_realtime_measurements():
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST,
+            device_category=DeviceCategory.LOWCOST,
             resolution=Frequency.RAW_LOW_COST,
         )
 
     @task()
     def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+            data=data, device_category=DeviceCategory.LOWCOST
         )
 
     @task()
@@ -486,7 +486,7 @@ def airqo_realtime_measurements():
         unique_str = str(now.date()) + "-" + str(now.hour)
 
         data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+            data=data, device_category=DeviceCategory.LOWCOST
         )
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
@@ -551,7 +551,7 @@ def airqo_raw_data_measurements():
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST,
+            device_category=DeviceCategory.LOWCOST,
         )
 
     @task(
@@ -559,7 +559,7 @@ def airqo_raw_data_measurements():
     )
     def clean_data_raw_data(data: pd.DataFrame):
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+            data=data, device_category=DeviceCategory.LOWCOST
         )
 
     @task(
@@ -610,7 +610,7 @@ def airqo_gaseous_realtime_measurements():
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST_GAS,
+            device_category=DeviceCategory.GAS,
             device_network=DeviceNetwork.AIRQO,
         )
 
@@ -619,7 +619,7 @@ def airqo_gaseous_realtime_measurements():
     )
     def clean_data_raw_data(data: pd.DataFrame):
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST_GAS
+            data=data, device_category=DeviceCategory.GAS
         )
 
     @task(
