@@ -4,36 +4,37 @@ import json
 import urllib3
 from urllib3.util.retry import Retry
 
-from .config import configuration
-from .constants import Tenant
+from .config import configuration as Config
+from .constants import DeviceNetwork
 from .utils import Utils
 
 
 class PlumeLabsApi:
+    # TODO Seems not to be active at the moment. Needs some reworking.
     def __init__(self):
-        self.PLUME_LABS_BASE_URL = configuration.PLUME_LABS_BASE_URL
-        self.PLUME_LABS_ORGANISATIONS_CRED = configuration.PLUME_LABS_ORGANISATIONS_CRED
+        self.PLUME_LABS_BASE_URL = Config.PLUME_LABS_BASE_URL
+        self.PLUME_LABS_ORGANISATIONS_CRED = Config.PLUME_LABS_ORGANISATIONS_CRED
 
-    def __get_tenants_credentials(self):
+    def __get_network_credentials(self):
         with open(self.PLUME_LABS_ORGANISATIONS_CRED) as file:
             credentials = json.load(file)
         return credentials
 
-    def __get_tenant_meta_data(self, tenant: Tenant) -> dict:
-        tenant = str(tenant)
-        tenants = dict(self.__get_tenants_credentials())
-        tenant_id, token = next(iter(tenants.items()))
+    def __get_network_meta_data(self, network: DeviceNetwork) -> dict:
+        network = network.str
+        network = dict(self.__get_network_credentials())
+        network_id, token = next(iter(network.items()))
         sensors = self.__request(
-            endpoint=f"/organizations/{tenant_id}/sensors/list",
+            endpoint=f"/organizations/{network_id}/sensors/list",
             params={
                 "token": token,
             },
         )
 
         return {
-            "id": tenant_id,
+            "id": network_id,
             "token": token,
-            "tenant": tenant,
+            "network": network,
             "sensors": sensors["sensors"],
         }
 
@@ -115,15 +116,15 @@ class PlumeLabsApi:
         self,
         start_date_time: datetime.datetime,
         end_date_time: datetime.datetime,
-        tenant: Tenant,
+        network: DeviceNetwork,
     ) -> list:
-        tenant_meta_data = self.__get_tenant_meta_data(tenant=tenant)
+        network_meta_data = self.__get_network_meta_data(network=network)
 
-        token = tenant_meta_data.get("token")
-        organization_id = tenant_meta_data.get("id")
+        token = network_meta_data.get("token")
+        organization_id = network_meta_data.get("id")
 
         sensors_positions = []
-        for sensor in tenant_meta_data["sensors"]:
+        for sensor in network_meta_data["sensors"]:
             device_number = sensor["id"]
             sensor_positions = self.__query_sensor_positions(
                 token=token,
@@ -147,15 +148,15 @@ class PlumeLabsApi:
         self,
         start_date_time: datetime.datetime,
         end_date_time: datetime.datetime,
-        tenant: Tenant,
+        network: DeviceNetwork,
     ) -> list:
-        tenant_meta_data = self.__get_tenant_meta_data(tenant=tenant)
+        network_meta_data = self.__get_network_meta_data(network=network)
 
         sensors_data = []
-        token = tenant_meta_data.get("token")
-        organization_id = tenant_meta_data.get("id")
+        token = network_meta_data.get("token")
+        organization_id = network_meta_data.get("id")
 
-        for sensor in tenant_meta_data["sensors"]:
+        for sensor in network_meta_data["sensors"]:
             device_number = sensor["id"]
             sensor_data = self.__query_sensor_measures(
                 token=token,
