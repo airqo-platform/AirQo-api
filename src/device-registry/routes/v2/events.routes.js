@@ -93,10 +93,4 @@ router.post(
   eventController.bulkTransmitMultipleSensorValues
 );
 
-router.delete(
-  "/",
-  eventValidations.deleteValuesOnPlatform,
-  eventController.deleteValuesOnPlatform
-);
-
 module.exports = router;

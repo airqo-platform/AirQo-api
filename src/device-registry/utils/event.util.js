@@ -2071,11 +2071,22 @@ const createEvent = {
           shouldContinue = false;
         } else {
           const eventIds = eventsToDelete.map((event) => event._id);
-          const result = await EventModel(tenant).deleteMany({
-            _id: { $in: eventIds },
-          });
-          deletedCount = result.deletedCount;
-          totalDeletedCount += deletedCount;
+          try {
+            const result = await EventModel(tenant).deleteMany({
+              _id: { $in: eventIds },
+            });
+            deletedCount = result.deletedCount;
+            totalDeletedCount += deletedCount;
+          } catch (error) {
+            logger.error(`Batch deletion failed: ${error.message}`);
+            return {
+              success: false,
+              message: "Batch deletion failed",
+              error: error.message,
+              deletedCount: totalDeletedCount,
+              lastEndTimeProcessed: lastDeletedEventTime,
+            };
+          }
 
           if (deletedCount > 0) {
             //pick the minimum time in the current batch since the query sorts in descending order
@@ -2995,31 +3006,6 @@ const createEvent = {
       status: httpStatus.NOT_IMPLEMENTED,
       errors: { message: "coming soon" },
     };
-  },
-  clearEventsOnPlatform: async (request, next) => {
-    try {
-      const { device, name, id, device_number, tenant } = {
-        ...request.query,
-        ...request.params,
-      };
-      const filter = generateFilter.events(request, next);
-      const responseFromClearEvents = {
-        success: false,
-        message: "coming soon",
-        errors: { message: "coming soon" },
-        status: httpStatus.NOT_IMPLEMENTED,
-      };
-      return responseFromClearEvents;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
   },
   insertMeasurements: async (measurements, next) => {
     try {
