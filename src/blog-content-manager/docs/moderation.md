@@ -1,6 +1,6 @@
 # API Documentation for Content Moderation
 
-**Base URL**: `https://api.yourdomain.com/v2/moderation`
+**Base URL**: `https://api.airqo.net/v2/moderation`
 
 ## Authentication
 
@@ -25,7 +25,7 @@ Retrieve a list of user registrations pending approval or rejection.
 
 ```http
 GET /moderation/registrations?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -47,7 +47,7 @@ Approve a specific user registration.
 
 ```http
 PUT /moderation/registrations/456/approve HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -69,7 +69,7 @@ Reject a specific user registration.
 
 ```http
 PUT /moderation/registrations/456/reject HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -91,7 +91,7 @@ Flag a specific blog post as inappropriate.
 
 ```http
 POST /moderation/123/flag HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -113,7 +113,7 @@ Retrieve all flags associated with a specific blog post.
 
 ```http
 GET /moderation/123/flags HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -135,7 +135,7 @@ Suspend a specific user, preventing them from accessing their account temporaril
 
 ```http
 PUT /moderation/456/suspend HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -157,6 +157,6 @@ Ban a specific user, permanently preventing them from accessing their account.
 
 ```http
 PUT /moderation/456/ban HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```

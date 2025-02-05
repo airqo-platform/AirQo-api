@@ -3,21 +3,16 @@ import json
 import urllib3
 from urllib3.util.retry import Retry
 
-from .config import configuration
+from .config import configuration as Config
 
-from typing import List
-
-from .constants import Tenant, DataSource
 from .utils import Utils
 
 
 class AirNowApi:
     def __init__(self):
-        self.AIRNOW_BASE_URL = configuration.AIRNOW_BASE_URL
-        self.US_EMBASSY_API_KEY = configuration.US_EMBASSY_API_KEY
-        self.AIRNOW_COUNTRIES_METADATA = (
-            configuration.AIRNOW_COUNTRIES_METADATA_JSON_FILE
-        )
+        self.AIRNOW_BASE_URL = Config.AIRNOW_BASE_URL
+        self.US_EMBASSY_API_KEY = Config.US_EMBASSY_API_KEY
+        self.AIRNOW_COUNTRIES_METADATA = Config.AIRNOW_COUNTRIES_METADATA_JSON_FILE
 
     def get_countries_metadata(self):
         with open(self.AIRNOW_COUNTRIES_METADATA) as file:

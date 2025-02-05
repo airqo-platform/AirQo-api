@@ -4,14 +4,15 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer`
 );
-const { logObject } = require("@utils/log");
-const createEventUtil = require("@utils/create-event");
-const createForecastUtil = require("@utils/create-forecast");
+const { logObject } = require("@utils/shared");
+const createEventUtil = require("@utils/event.util");
+const createForecastUtil = require("@utils/forecast.util");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const cleanDeep = require("clean-deep");
 const isEmpty = require("is-empty");
-const stringify = require("@utils/stringify");
+
+const { stringify } = require("@utils/common");
 
 // Existing measurement schema
 const eventSchema = Joi.object({

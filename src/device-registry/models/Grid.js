@@ -3,9 +3,9 @@ const { Schema } = mongoose;
 const isEmpty = require("is-empty");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logText } = require("@utils/log");
+
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- grid-model`

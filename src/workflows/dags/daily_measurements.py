@@ -63,14 +63,14 @@ def realtime_daily_measurements():
     import pandas as pd
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
-    def extract():
+    def extract(**kwargs):
         from airqo_etl_utils.date import date_to_str_days
         from datetime import datetime, timezone
 
-        start_date_time = date_to_str_days(datetime.now(timezone.utc))
-        end_date_time = datetime.strftime(
-            datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
-        )
+        dag_run = kwargs.get("dag_run", None)
+        execution_date = dag_run.execution_date
+        start_date_time = date_to_str_days(execution_date)
+        end_date_time = datetime.strftime(execution_date, "%Y-%m-%dT23:00:00Z")
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
@@ -83,7 +83,7 @@ def realtime_daily_measurements():
     def resample(data: pd.DataFrame):
         return DailyDataUtils.average_data(data=data)
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         DailyDataUtils.save_data(data=data)
 

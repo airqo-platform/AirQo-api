@@ -3,7 +3,7 @@ const { Schema } = mongoose;
 const isEmpty = require("is-empty");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject } = require("@utils/log");
+
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -11,7 +11,7 @@ const { getModelByTenant } = require("@config/database");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- admin-level-model`
 );
-const { HttpError } = require("@utils/errors");
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 
 const adminLevelSchema = new Schema({
   name: {

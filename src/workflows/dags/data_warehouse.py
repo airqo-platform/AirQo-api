@@ -1,7 +1,7 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
-from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from datetime import timedelta
 from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 from airqo_etl_utils.datautils import DataUtils
@@ -52,20 +52,15 @@ def data_warehouse_consolidated_data():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=7, **kwargs
         )
-
-        data = DataUtils.extract_data_from_bigquery(
+        return WeatherDataUtils.extract_weather_data(
             DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
-            device_category=DeviceCategory.BAM,
+            remove_outliers=False,
         )
 
-        return DataWarehouseUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
-
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_sites_info(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
@@ -82,7 +77,7 @@ def data_warehouse_consolidated_data():
             sites_info=sites_data,
         )
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
@@ -132,7 +127,7 @@ def data_warehouse_cleanup_consolidated_data():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=5, kwargs=kwargs
+            days=5, **kwargs
         )
         return DataUtils.extract_data_from_bigquery(
             DataType.CONSOLIDATED,
@@ -148,8 +143,8 @@ def data_warehouse_cleanup_consolidated_data():
 
         exclude_cols = [
             data.device_number.name,
-            data.latitude.name,
-            data.longitude.name,
+            data.device_latitude.name,
+            data.device_longitude.name,
             data.network.name,
         ]
         return DataUtils.remove_duplicates(
@@ -325,8 +320,8 @@ def data_warehouse_historical_cleanup_consolidated_data():
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         exclude_cols = [
             data.device_number.name,
-            data.latitude.name,
-            data.longitude.name,
+            data.device_latitude.name,
+            data.device_longitude.name,
             data.network.name,
         ]
         return DataUtils.remove_duplicates(

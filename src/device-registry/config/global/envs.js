@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
-const { logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const envs = {
@@ -96,5 +96,6 @@ const envs = {
   EXPECTED_RECORDS_PER_HOUR: process.env.EXPECTED_RECORDS_PER_HOUR || 30,
   INTER_CORRELATION_PARAMETER:
     process.env.INTER_CORRELATION_PARAMETER || "pm2_5",
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
 };
 module.exports = envs;

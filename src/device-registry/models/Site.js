@@ -2,11 +2,10 @@ const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { logObject, HttpError } = require("@utils/shared");
 const { getModelByTenant } = require("@config/database");
 
 const log4js = require("log4js");

@@ -20,11 +20,15 @@ const processString = (inputString) => {
   const uppercasedString = stringWithSpaces.toUpperCase();
   return uppercasedString;
 };
-const imagePath = path.join(__dirname, "../../config/images");
+
+const projectRoot = path.join(__dirname, "..", ".."); // Go two levels up
+// const projectRoot = "/usr/src/app";
+const imagePath = path.join(projectRoot, "config", "images");
+
 let attachments = [
   {
     filename: "airqoLogo.png",
-    path: imagePath + "/airqoLogo.png",
+    path: path.join(imagePath, "airqoLogo.png"),
     cid: "AirQoEmailLogo",
     contentDisposition: "inline",
   },
@@ -110,6 +114,7 @@ const createMailOptions = ({
       activityType,
     }),
     bcc: bccEmails,
+    attachments: attachments,
   };
 };
 const handleMailResponse = (data) => {
@@ -785,7 +790,6 @@ const mailer = {
 
       const subscribedBccEmails = subscribedEmails.join(",");
       // bcc: subscribedBccEmails,
-      const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
       mailOptions = {
@@ -877,6 +881,120 @@ const mailer = {
       );
     }
   },
+  sendVerificationEmail: async ({ email, token, tenant }, next) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+      let bccEmails = [];
+
+      if (constants.REQUEST_ACCESS_EMAILS) {
+        bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
+      }
+
+      let subscribedEmails = [];
+
+      for (let i = 0; i < bccEmails.length; i++) {
+        const bccEmail = bccEmails[i].trim();
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({ email: bccEmail, type: "email" });
+
+        if (checkResult.success) {
+          subscribedEmails.push(bccEmail);
+        }
+      }
+
+      const subscribedBccEmails = subscribedEmails.join(",");
+      // bcc: subscribedBccEmails,
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: `Email Verification Code: ${token}`,
+        html: msgs.mobileEmailVerification({ token, email }),
+        attachments: [
+          {
+            filename: "airqoLogo.png",
+            path: imagePath + "/airqoLogo.png",
+            cid: "AirQoEmailLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "faceBookLogo.png",
+            path: imagePath + "/facebookLogo.png",
+            cid: "FacebookLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "youtubeLogo.png",
+            path: imagePath + "/youtubeLogo.png",
+            cid: "YoutubeLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "twitterLogo.png",
+            path: imagePath + "/Twitter.png",
+            cid: "Twitter",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "linkedInLogo.png",
+            path: imagePath + "/linkedInLogo.png",
+            cid: "LinkedInLogo",
+            contentDisposition: "inline",
+          },
+        ],
+      };
+
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "email not sent",
+              emailResults: data,
+            }
+          )
+        );
+      }
+    } catch (error) {
+      logObject("the error in the mailer", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   verifyMobileEmail: async (
     { firebase_uid = "", token = "", email = "", tenant = "airqo" } = {},
     next
@@ -909,8 +1027,6 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
-
-      const imagePath = path.join(__dirname, "../config/images");
 
       let mailOptions = {};
       mailOptions = {
@@ -1002,7 +1118,14 @@ const mailer = {
     }
   },
   afterEmailVerification: async (
-    { firstName = "", username = "", email = "", tenant = "airqo" } = {},
+    {
+      firstName = "",
+      lastName = "",
+      username = "",
+      email = "",
+      tenant = "airqo",
+      analyticsVersion,
+    } = {},
     next
   ) => {
     try {
@@ -1043,7 +1166,16 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Welcome to AirQo!",
-        html: msgTemplates.afterEmailVerification(firstName, username, email),
+        html: msgTemplates.afterEmailVerification(
+          {
+            firstName,
+            lastName,
+            username,
+            email,
+            analyticsVersion,
+          },
+          next
+        ),
         attachments: attachments,
       };
 
@@ -1310,6 +1442,55 @@ const mailer = {
       );
     }
   },
+
+  sendPasswordResetEmail: async ({ email, token, tenant = "airqo" }, next) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email, type: "email" });
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: email,
+        subject: `Password Reset Code: ${token}`,
+        html: msgs.mobilePasswordReset({ token, email }),
+        attachments: attachments,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Email sent successfully",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError("Email not sent", httpStatus.INTERNAL_SERVER_ERROR, {
+            emailResults: data,
+          })
+        );
+      }
+    } catch (error) {
+      logger.error(`Error sending password reset email: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   signInWithEmailLink: async (
     { email, token, tenant = "airqo" } = {},
     next
@@ -1321,7 +1502,6 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,

@@ -3,7 +3,7 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const decimalPlaces = require("decimal-places");
-const createSiteUtil = require("@utils/create-site");
+const createSiteUtil = require("@utils/site.util");
 
 // Utility Functions
 const validateDecimalPlaces = (
@@ -191,23 +191,7 @@ const validateSiteQueryParams = oneOf([
         .notEmpty()
         .withMessage("the category should not be empty if provided")
         .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["bam", "lowcost", "gas"])
-        .withMessage(
-          "the category value is not among the expected ones which include: lowcost, gas and bam"
-        ),
-      query("site_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the site_category should not be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["category", "search_radius", "tags"])
-        .withMessage(
-          "the site_category value is not among the expected ones which include: category, search_radius, tags"
-        ),
+        .trim(),
       query("last_active_before")
         .optional()
         .notEmpty()
@@ -417,7 +401,7 @@ const validateNearestSite = [
   ]),
 ];
 
-const validateBulkUpdateDevices = [
+const validateBulkUpdateSites = [
   createTenantValidation({ isOptional: true }),
   body("siteIds")
     .exists()
@@ -437,7 +421,7 @@ const validateBulkUpdateDevices = [
       const MAX_BULK_UPDATE_SITES = 30;
       if (value.length > MAX_BULK_UPDATE_SITES) {
         throw new Error(
-          `Cannot update more than ${MAX_BULK_UPDATE_SITES} devices in a single request`
+          `Cannot update more than ${MAX_BULK_UPDATE_SITES} sites in a single request`
         );
       }
       return true;
@@ -501,6 +485,6 @@ module.exports = {
   validateCreateApproximateCoordinates,
   validateGetApproximateCoordinates,
   validateNearestSite,
-  validateBulkUpdateDevices,
+  validateBulkUpdateSites,
   validateCategoryField,
 };

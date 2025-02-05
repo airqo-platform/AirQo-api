@@ -5,24 +5,15 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .config import configuration
-from .constants import (
-    DeviceCategory,
-    DeviceNetwork,
-    Frequency,
-    DataSource,
-    DataType,
-    CityModel,
-)
+from .config import configuration as Config
+from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel, MetaDataType
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .ml_utils import GCSUtils
-from .data_sources import DataSourcesApis
 from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
-from typing import List, Dict, Any, Optional, Union
-from .airqo_gx_expectations import AirQoGxExpectations
+from typing import List, Dict, Any, Union
 
 import logging
 
@@ -30,27 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class AirQoDataUtils:
-    Device_Field_Mapping = {
-        DeviceCategory.LOW_COST: {
-            "field1": "s1_pm2_5",
-            "field2": "s1_pm10",
-            "field3": "s2_pm2_5",
-            "field4": "s2_pm10",
-            "field7": "battery",
-            "created_at": "timestamp",
-        },
-        DeviceCategory.LOW_COST_GAS: {
-            "field1": "pm2_5",
-            "field2": "tvoc",
-            "field3": "hcho",
-            "field4": "co2",
-            "field5": "intaketemperature",
-            "field6": "intakehumidity",
-            "field7": "battery",
-            "created_at": "timestamp",
-        },
-    }
-
     @staticmethod
     def extract_uncalibrated_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
@@ -181,12 +151,12 @@ class AirQoDataUtils:
 
         for value in meta_data:
             value = dict(value)
-            measurements = AirQoDataUtils.extract_devices_data(
+            measurements = DataUtils.extract_devices_data(
                 start_date_time=value.get("start_date_time"),
                 end_date_time=value.get("end_date_time"),
                 device_numbers=[value.get("device_number")],
                 resolution=resolution,
-                device_category=DeviceCategory.LOW_COST,
+                device_category=DeviceCategory.LOWCOST,
             )
             if measurements.empty:
                 continue
@@ -291,142 +261,6 @@ class AirQoDataUtils:
         return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
-    def extract_devices_data(
-        start_date_time: str,
-        end_date_time: str,
-        device_category: DeviceCategory,
-        device_network: DeviceNetwork = None,
-        resolution: Frequency = Frequency.RAW,
-        device_numbers: list = None,
-        remove_outliers: bool = True,
-    ) -> pd.DataFrame:
-        """
-        Extracts sensor measurements from network devices recorded between specified date and time ranges.
-
-        Retrieves sensor data from Thingspeak API for devices belonging to the specified device category (BAM or low-cost sensors).
-        Optionally filters data by specific device numbers and removes outliers if requested.
-
-        Args:
-            start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
-            end_date_time (str): End date and time (ISO 8601 format) for data extraction.
-            device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-            device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
-            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
-        """
-        devices_data = pd.DataFrame()
-        airqo_api = AirQoApi()
-        data_source_api = DataSourcesApis()
-
-        devices = airqo_api.get_devices_by_network(
-            device_network=device_network, device_category=device_category
-        )
-        if not devices:
-            logger.exception(
-                "Failed to fetch devices. Please check if devices are deployed"
-            )
-            return devices_data
-
-        other_fields_cols: List[str] = []
-        network: str = None
-        devices = (
-            [x for x in devices if x["device_number"] in device_numbers]
-            if device_numbers
-            else devices
-        )
-
-        config = configuration.device_config_mapping.get(str(device_category), None)
-        if not config:
-            logger.warning("Missing device category.")
-            return devices_data
-
-        field_8_cols = config["field_8_cols"]
-        other_fields_cols = config["other_fields_cols"]
-        data_columns = list(
-            set(
-                [
-                    "device_number",
-                    "device_id",
-                    "site_id",
-                    "latitude",
-                    "longitude",
-                    "timestamp",
-                    *field_8_cols,
-                    *other_fields_cols,
-                ]
-            )
-        )
-
-        dates = Utils.query_dates_array(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            data_source=DataSource.THINGSPEAK,
-        )
-
-        for device in devices:
-            data = []
-            device_number = device.get("device_number", None)
-            read_key = device.get("readKey", None)
-            network = device.get("network", None)
-
-            if device_number and read_key is None:
-                logger.exception(f"{device_number} does not have a read key")
-                continue
-            api_data = []
-            if device_number and network == "airqo":
-                for start, end in dates:
-                    data_, meta_data, data_available = data_source_api.thingspeak(
-                        device_number=device_number,
-                        start_date_time=start,
-                        end_date_time=end,
-                        read_key=read_key,
-                    )
-                    if data_available:
-                        api_data.extend(data_)
-                if len(api_data) > 0:
-                    mapping = config["mapping"][network]
-                    data = AirQoDataUtils.map_and_extract_data(mapping, api_data)
-            elif network == "iqair":
-                mapping = config["mapping"][network]
-                try:
-                    data = AirQoDataUtils.map_and_extract_data(
-                        mapping, data_source_api.iqair(device, resolution=resolution)
-                    )
-                except Exception as e:
-                    logger.exception(f"An error occured: {e} - device {device['name']}")
-                    continue
-            if isinstance(data, pd.DataFrame) and data.empty:
-                logger.warning(f"No data received from {device['name']}")
-                continue
-
-            if isinstance(data, pd.DataFrame) and not data.empty:
-                data = DataValidationUtils.fill_missing_columns(
-                    data=data, cols=data_columns
-                )
-                data["device_number"] = device_number
-                data["device_id"] = device["name"]
-                data["site_id"] = device["site_id"]
-                data["network"] = network
-
-                # TODO Clean up long,lat assignment.
-                if device_category in AirQoDataUtils.Device_Field_Mapping:
-                    data["latitude"] = device.get("latitude", None)
-                    data["longitude"] = device.get("longitude", None)
-                else:
-                    data["latitude"] = meta_data.get("latitude", None)
-                    data["longitude"] = meta_data.get("longitude", None)
-                devices_data = pd.concat([devices_data, data], ignore_index=True)
-
-        if remove_outliers:
-            if "vapor_pressure" in devices_data.columns.to_list():
-                is_airqo_network = devices_data["network"] == "airqo"
-                devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                    is_airqo_network, "vapor_pressure"
-                ].apply(DataValidationUtils.convert_pressure_values)
-            devices_data = DataValidationUtils.remove_outliers(devices_data)
-
-        return devices_data
-
-    @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         """
         Resamples and averages out the numeric type fields on an hourly basis.
@@ -460,13 +294,26 @@ class AirQoDataUtils:
 
     @staticmethod
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Cleans and transforms BAM data for BigQuery insertion.
+
+        This function processes the input DataFrame by removing outliers, dropping duplicate entries based on timestamp and device number, and renaming columns according to a
+        specified mapping. It also adds a network identifier and ensures that all required columns for the BigQuery BAM hourly measurements table are present.
+
+        Args:
+            data(pd.DataFrame): The input DataFrame containing BAM data with columns such as 'timestamp' and 'device_number'.
+
+        Returns:
+            pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
+        """
+        # TODO Merge bam data cleanup functionality
         data = DataValidationUtils.remove_outliers(data)
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
         data["network"] = DeviceNetwork.AIRQO
-        data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
+        data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
         required_cols = big_query_api.get_columns(
@@ -476,57 +323,6 @@ class AirQoDataUtils:
         data = Utils.populate_missing_columns(data=data, columns=required_cols)
         data = data[required_cols]
 
-        return data
-
-    @staticmethod
-    def clean_low_cost_sensor_data(
-        data: pd.DataFrame,
-        device_category: DeviceCategory,
-        remove_outliers: bool = True,
-    ) -> pd.DataFrame:
-        """
-        Removes outlier values, drops duplicates and converts timestamp to the pandas datetime type.
-
-        Args:
-            data(pandas.DataFrame): The data to clean.
-            device_category(DeviceCategory): Device category as defined by the enums in DeviceCategory.
-            remove_outliers(bool): A bool that defaults to true that is used to determine whether outliers should be dropped or not.
-
-        Returns:
-            A pandas.DataFrame object that contains the cleaned data.
-        """
-        if remove_outliers:
-            data = DataValidationUtils.remove_outliers(data)
-            # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
-            match device_category:
-                case DeviceCategory.LOW_COST_GAS:
-                    AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                        data
-                    )
-                case DeviceCategory.LOW_COST:
-                    AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(
-                        data
-                    )
-        else:
-            data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data.dropna(subset=["timestamp"], inplace=True)
-
-        data.drop_duplicates(
-            subset=["timestamp", "device_id"], keep="first", inplace=True
-        )
-        # TODO Find an appropriate place to put this
-        if device_category == DeviceCategory.LOW_COST:
-            is_airqo_network = data["network"] == "airqo"
-
-            pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
-                axis=1
-            )
-            pm10_mean = data.loc[is_airqo_network, ["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-            data.loc[is_airqo_network, "pm2_5_raw_value"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm2_5"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
-            data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
 
     @staticmethod
@@ -568,95 +364,6 @@ class AirQoDataUtils:
         data.loc[:, "device_category"] = str(device_category)
 
         return data
-
-    @staticmethod
-    def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
-        """
-        Formats device measurements into a format required by the events endpoint.
-
-        Args:
-            data: device measurements
-            frequency: frequency of the measurements.
-
-        Return:
-            A list of measurements
-        """
-        restructured_data = []
-
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
-
-        # Create a device lookup dictionary for faster access
-        airqo_api = AirQoApi()
-        devices = airqo_api.get_devices()
-
-        device_lookup = {
-            device["device_id"]: device for device in devices if device.get("device_id")
-        }
-
-        for _, row in data.iterrows():
-            try:
-                device_number = row["device_number"]
-                device_id = row["device_id"]
-
-                # Get device details from the lookup dictionary
-                device_details = device_lookup.get(device_id)
-                if not device_details:
-                    logger.exception(
-                        f"Device number {device_id} not found in device list."
-                    )
-                    continue
-
-                row_data = {
-                    "device": device_details["device_id"],
-                    "device_id": device_details["_id"],
-                    "site_id": row["site_id"],
-                    "device_number": device_number,
-                    "network": device_details["network"],
-                    "location": {
-                        "latitude": {"value": row["latitude"]},
-                        "longitude": {"value": row["longitude"]},
-                    },
-                    "frequency": str(frequency),
-                    "time": row["timestamp"],
-                    "average_pm2_5": {
-                        "value": row["pm2_5"],
-                        "calibratedValue": row["pm2_5_calibrated_value"],
-                    },
-                    "average_pm10": {
-                        "value": row["pm10"],
-                        "calibratedValue": row["pm10_calibrated_value"],
-                    },
-                    "pm2_5": {
-                        "value": row["pm2_5"],
-                        "calibratedValue": row["pm2_5_calibrated_value"],
-                    },
-                    "pm10": {
-                        "value": row["pm10"],
-                        "calibratedValue": row["pm10_calibrated_value"],
-                    },
-                    "s1_pm2_5": {"value": row["s1_pm2_5"]},
-                    "s1_pm10": {"value": row["s1_pm10"]},
-                    "s2_pm2_5": {"value": row["s2_pm2_5"]},
-                    "s2_pm10": {"value": row["s2_pm10"]},
-                    "battery": {"value": row["battery"]},
-                    "altitude": {"value": row["altitude"]},
-                    "speed": {"value": row["wind_speed"]},
-                    "satellites": {"value": row["satellites"]},
-                    "hdop": {"value": row["hdop"]},
-                    "externalTemperature": {"value": row["temperature"]},
-                    "externalHumidity": {"value": row["humidity"]},
-                }
-
-                if row_data["site_id"] is None or row_data["site_id"] is np.nan:
-                    row_data.pop("site_id")
-
-                restructured_data.append(row_data)
-
-            except Exception as ex:
-                logger.exception(f"An error occurred: {ex}")
-
-        return restructured_data
 
     @staticmethod
     def merge_aggregated_weather_data(
@@ -752,7 +459,7 @@ class AirQoDataUtils:
         for device in devices:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
-                    network="airqo",
+                    network=device.get("network", "airqo"),
                     device=device.get("name", None),
                     activity_type="deployment",
                 )
@@ -854,14 +561,44 @@ class AirQoDataUtils:
 
     @staticmethod
     def calibrate_data(data: pd.DataFrame) -> pd.DataFrame:
-        bucket = configuration.FORECAST_MODELS_BUCKET
-        project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+        """
+        Calibrates air quality sensor data by applying machine learning models to adjust sensor readings.
+
+        The function:
+        1. Converts timestamps to datetime format.
+        2. Merges site metadata to include city information.
+        3. Drops rows with missing device ID or timestamp.
+        4. Fills missing sensor readings with 0 (temporary placeholder).
+        5. Computes additional calibration input variables.
+        6. Loads trained calibration models and applies them based on city.
+        7. Updates the dataset with calibrated PM2.5 and PM10 values.
+        8. Ensures missing calibrated values fall back to raw sensor values.
+
+        Args:
+            data (pd.DataFrame): The raw air quality sensor data.
+
+        Returns:
+            pd.DataFrame: The calibrated dataset with additional processed fields.
+        """
+
+        local_file_path = "/tmp/sites.csv"
+        # Load sites from cache
+        sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
+        if not sites:
+            try:
+                sites = pd.DataFrame(AirQoApi().get_sites())
+            except Exception as e:
+                logger.exception(
+                    "An error has occured while fetching devices from the api"
+                )
+                raise RuntimeError("Failed to fetch sites data from the API") from e
+
+        bucket = Config.FORECAST_MODELS_BUCKET
+        project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        sites = AirQoApi().get_sites()
-        sites_df = pd.DataFrame(sites, columns=["site_id", "city"])
-
-        data = pd.merge(data, sites_df, on="site_id", how="left")
+        sites = sites[["site_id", "city"]]
+        data = pd.merge(data, sites, on="site_id", how="left")
         data.dropna(subset=["device_id", "timestamp"], inplace=True)
         columns_to_fill = [
             "s1_pm2_5",
@@ -873,7 +610,7 @@ class AirQoDataUtils:
         ]
 
         # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
-        # May have to rewrite entire pipeline flow
+        # Fill nas for the specified fields.
         data[columns_to_fill] = data[columns_to_fill].fillna(0)
 
         # additional input columns for calibration
@@ -884,7 +621,8 @@ class AirQoDataUtils:
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
         data["hour"] = data["timestamp"].dt.__getattribute__("hour")
-
+        data["pm2_5_calibrated_value"] = np.nan
+        data["pm10_calibrated_value"] = np.nan
         input_variables = [
             "avg_pm2_5",
             "avg_pm10",
@@ -895,15 +633,16 @@ class AirQoDataUtils:
             "error_pm10",
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
         ]
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
-        # Explicitly filter data to calibrate.
+        # Explicitly filter data to calibrate. At the moment, only calibrating on AirQo data.
         to_calibrate = data["network"] == "airqo"
         data_to_calibrate = data.loc[to_calibrate]
         data_to_calibrate.dropna(subset=input_variables, inplace=True)
         grouped_df = data_to_calibrate.groupby("city", dropna=False)
-
         rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
@@ -919,7 +658,6 @@ class AirQoDataUtils:
             ),
         )
         for city, group in grouped_df:
-            # What was the intention of this?
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
             if str(city).lower() in [c.value.lower() for c in CityModel]:
                 try:
@@ -935,38 +673,28 @@ class AirQoDataUtils:
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
                     )
-                except Exception as ex:
-                    logger.exception(f"Error getting model: {ex}")
-                    continue
+                except Exception as e:
+                    logger.exception(
+                        f"Error getting custom model. Will default to generic one: {e}"
+                    )
+
             group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
             group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
+            data.loc[
+                group.index, ["pm2_5_calibrated_value", "pm10_calibrated_value"]
+            ] = group[["pm2_5_calibrated_value", "pm10_calibrated_value"]]
 
-            data.loc[group.index, "pm2_5_calibrated_value"] = group[
-                "pm2_5_calibrated_value"
-            ]
-            data.loc[group.index, "pm10_calibrated_value"] = group[
-                "pm10_calibrated_value"
-            ]
-
+        # Compute raw pm2_5 and pm10 values.
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-        if "pm2_5_calibrated_value" in data.columns:
-            data.loc[to_calibrate, "pm2_5"] = data.loc[
-                to_calibrate, "pm2_5_calibrated_value"
-            ]
-        else:
-            data.loc[to_calibrate, "pm2_5_calibrated_value"] = None
-            data.loc[to_calibrate, "pm2_5"] = None
-        if "pm10_calibrated_value" in data.columns:
-            data.loc[to_calibrate, "pm10"] = data.loc[
-                to_calibrate, "pm10_calibrated_value"
-            ]
-        else:
-            data.loc[to_calibrate, "pm10_calibrated_value"] = None
-            data.loc[to_calibrate, "pm10"] = None
 
-        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
-        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+        # Assign calibrated values, falling back to raw values when missing
+        data.loc[to_calibrate, "pm2_5"] = data.loc[
+            to_calibrate, "pm2_5_calibrated_value"
+        ].fillna(data.loc[to_calibrate, "pm2_5_raw_value"])
+        data.loc[to_calibrate, "pm10"] = data.loc[
+            to_calibrate, "pm10_calibrated_value"
+        ].fillna(data.loc[to_calibrate, "pm10_raw_value"])
 
         return data.drop(
             columns=[
@@ -982,7 +710,7 @@ class AirQoDataUtils:
         )
 
     @staticmethod
-    def get_devices(group_id: str) -> pd.DataFrame:
+    def get_devices_kafka(group_id: str) -> pd.DataFrame:
         """
         Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
 

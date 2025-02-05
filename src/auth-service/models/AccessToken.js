@@ -41,7 +41,7 @@ const AccessTokenSchema = new mongoose.Schema(
       required: [true, "token is required!"],
     },
     last_used_at: { type: Date },
-    last_ip_address: { type: Date },
+    last_ip_address: { type: String },
     expires_in: { type: Number },
     expires: {
       type: Date,

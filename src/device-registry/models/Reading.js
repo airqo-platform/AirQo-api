@@ -1,14 +1,12 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logText } = require("@utils/log");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
-const { logElement } = require("../utils/log");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- reading-model`);
 
 const HealthTipsSchema = new Schema(

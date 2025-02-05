@@ -240,7 +240,9 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_network: str = None, device_category: DeviceCategory = None
+        self,
+        device_network: DeviceNetwork = None,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
@@ -288,7 +290,7 @@ class AirQoApi:
         networks: List[str] = []
         params: Dict = {}
         if device_network:
-            networks.append({"net_name": device_network})
+            networks.append({"net_name": device_network.str})
         else:
             networks, error = self.get_networks()
             if error:
@@ -296,7 +298,7 @@ class AirQoApi:
                 return devices
 
         if device_category:
-            params["category"] = str(device_category)
+            params["category"] = device_category.str
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = True
@@ -326,53 +328,65 @@ class AirQoApi:
 
         return devices
 
-    def get_thingspeak_read_keys(
-        self, devices: pd.DataFrame, return_type: str = "all"
-    ) -> Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
+    def get_thingspeak_read_keys(self, devices: pd.DataFrame) -> Dict[int, str]:
         """
         Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
             devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
-            return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
-                            If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
         Returns:
-            Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
-                - A dictionary containing device decrypted keys when `return_type='all'`. The dictionary has the structure {device_number: decrypted_key}.
-                - A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+            Dict[int, str]: A dictionary containing device decrypted keys. The dictionary has the structure {device_number: decrypted_key}.
+            There is another version of this method that returns a generator. get_thingspeak_read_keys_generator`
         """
-
         body: List = []
         decrypted_keys: List[Dict[str, str]] = []
-        decrypted_read_keys: Dict[int, str] = {}
-
-        for device_number, row in devices.iterrows():
-            if pd.notna(row["readKey"]) and pd.notna(device_number):
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
                 body.append(
-                    {"encrypted_key": row["readKey"], "device_number": device_number}
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
                 )
-
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
-
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
+            return {
+                int(entry["device_number"]): entry["decrypted_key"]
+                for entry in decrypted_keys
+            }
+        return None
 
-            if return_type == "all":
-                return {
-                    int(entry["device_number"]): entry["decrypted_key"]
-                    for entry in decrypted_keys
-                }
-            elif return_type == "yield":
-                for entry in decrypted_keys:
-                    device_number = int(entry["device_number"])
-                    decrypted_key = entry["decrypted_key"]
-                    yield device_number, decrypted_key
+    def get_thingspeak_read_keys_generator(
+        self, devices: pd.DataFrame
+    ) -> Generator[Tuple[int, str], None, None]:
+        """
+        Retrieve read keys from the AirQo API given a list of devices.
 
-        if return_type == "all":
-            return decrypted_read_keys
-        elif return_type == "yield":
-            return
+        Args:
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
+
+        Returns:
+            Generator[Tuple[int, str], None, None]]: A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+        """
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
+                body.append(
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
+                )
+        response = self.__request("devices/decrypt/bulk", body=body, method="post")
+        if response:
+            decrypted_keys = response.get("decrypted_keys", [])
+            for entry in decrypted_keys:
+                device_number = int(entry["device_number"])
+                decrypted_key = entry["decrypted_key"]
+                yield device_number, decrypted_key
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """
@@ -494,8 +508,8 @@ class AirQoApi:
                 )
 
                 meta_data[key] = float(response["data"])
-            except Exception as ex:
-                logger.exception()
+            except Exception as e:
+                logger.exception(f"Failed to fetch location meta data: {e}")
 
         return meta_data
 
@@ -799,11 +813,27 @@ class AirQoApi:
             for site in response.get("sites", [])
         ]
 
-    def update_sites(self, updated_sites):
-        # TODO Update doc string.
-        for i in updated_sites:
-            site = dict(i)
-            params = {"network": DeviceNetwork.AIRQO, "id": site.pop("site_id")}
+    def update_sites(self, updated_sites: List[Dict[str, Any]]) -> None:
+        """
+        Updates site information for a list of sites in the system.
+
+        Args:
+            updated_sites (list): A list of dictionaries, where each dictionary contains the details of a site to be updated. Each dictionary must have a "site_id" key.
+
+        Returns:
+            None: The function performs the update operations but does not return anything.
+
+        Raises:
+            KeyError: If a site dictionary does not contain the 'site_id' key.
+        """
+        for site_data in updated_sites:
+            site = dict(site_data)
+
+            site_id = site.pop("site_id", None)
+            if site_id is None:
+                raise KeyError("Each site dictionary must contain a 'site_id' key.")
+            params = {"network": DeviceNetwork.AIRQO, "id": site_id}
+
             self.__request("devices/sites", params, site, "put")
 
     def __request(self, endpoint, params=None, body=None, method="get", base_url=None):

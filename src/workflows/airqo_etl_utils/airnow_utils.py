@@ -111,13 +111,20 @@ class AirnowDataUtils:
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
         """
-        Processes BAM data by matching it to device details and constructing a list of air quality measurements.
+        Processes raw BAM device data by matching it to corresponding device details and constructing
+        a structured DataFrame of air quality measurements.
+
+        Steps:
+        1. Maps each device code to its corresponding device details using a device mapping.
+        2. Iterates over the input DataFrame, validates the device details, and retrieves pollutant values.
+        3. Constructs a list of air quality measurements with relevant device information and pollutant data.
+        4. Removes outliers from the processed data.
 
         Args:
-            data (pd.DataFrame): A DataFrame containing raw BAM device data.
+            data(pd.DataFrame): A DataFrame containing raw BAM device data, with columns such as 'FullAQSCode', 'Parameter', 'Value', 'Latitude', 'Longitude', and 'UTC'.
 
         Returns:
-            pd.DataFrame: A DataFrame containing processed air quality data, with relevant device information and pollutant values.
+            pd.DataFrame: A cleaned and structured DataFrame containing processed air quality data. The resulting DataFrame includes columns such as 'timestamp', 'network', 'site_id', 'device_id', and pollutant values ('pm2_5', 'pm10', 'no2', etc.).
         """
         air_now_data = []
 
@@ -125,27 +132,24 @@ class AirnowDataUtils:
             device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
         )
 
-        # Initialize pollutant values (note: pm10 and no2 are not always present)
         pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
 
-        # Precompute device mapping for faster lookup
-        device_mapping = {}
-        for device in devices:
-            for device_code in device["device_codes"]:
-                device_mapping[device_code] = device
+        device_mapping = {
+            device_code: device
+            for device in devices
+            for device_code in device["device_codes"]
+        }
 
         for _, row in data.iterrows():
             try:
-                # Temp external device id
+                # Temp external device id  # Lookup device details based on FullAQSCode
                 device_id_ = str(row["FullAQSCode"])
-
-                # Lookup device details based on FullAQSCode
                 device_details = device_mapping.get(device_id_)
+
                 if not device_details:
                     logger.exception(f"Device with ID {device_id_} not found")
                     continue
 
-                # Get the corresponding pollutant value for the current parameter
                 parameter_col_name = AirnowDataUtils.parameter_column_name(
                     row["Parameter"]
                 )
@@ -179,7 +183,10 @@ class AirnowDataUtils:
                         "no2_raw_value": pollutant_value["no2"],
                     }
                 )
-            except Exception as ex:
-                logger.exception(f"Error processing row: {ex}")
+            except Exception as e:
+                logger.exception(f"Error processing row: {e}")
 
-        return pd.DataFrame(air_now_data)
+        air_now_data = pd.DataFrame(air_now_data)
+        air_now_data = DataValidationUtils.remove_outliers(air_now_data)
+
+        return air_now_data

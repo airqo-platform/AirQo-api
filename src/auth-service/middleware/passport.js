@@ -137,8 +137,9 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           );
           return;
         } else if (user.analyticsVersion === 3 && user.verified === false) {
+          const tenantValue = tenant || "airqo";
           const verificationRequest = {
-            tenant: "airqo",
+            tenant: tenantValue,
             email: user.email,
           };
           try {
@@ -147,10 +148,13 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
                 verificationRequest,
                 next
               );
-            if (verificationEmailResponse.success === false) {
+            if (
+              !verificationEmailResponse ||
+              verificationEmailResponse.success === false
+            ) {
               logger.error(
                 `Internal Server Error --- ${stringify(
-                  verificationEmailResponse
+                  verificationEmailResponse || "No Response"
                 )}`
               );
             }
@@ -168,10 +172,75 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
+        } else if (user.analyticsVersion === 4 && !user.verified) {
+          await createUserUtil
+            .mobileVerificationReminder({ tenant, email: user.email }, next)
+            .then((verificationResponse) => {
+              if (
+                !verificationResponse ||
+                verificationResponse.success === false
+              ) {
+                logger.error(
+                  `Verification reminder failed: ${
+                    verificationResponse
+                      ? verificationResponse.message
+                      : "No response"
+                  }`
+                );
+              }
+            })
+            .catch((err) => {
+              logger.error(
+                `Error sending verification reminder: ${err.message}`
+              );
+            });
+
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN,
+              {
+                message:
+                  "account not verified, verification email has been sent to your email",
+              }
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
         req.auth.status = httpStatus.OK;
+
+        const currentDate = new Date();
+
+        try {
+          await UserModel(tenant.toLowerCase())
+            .findOneAndUpdate(
+              { _id: user._id },
+              {
+                $set: { lastLogin: currentDate, isActive: true },
+                $inc: { loginCount: 1 },
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { $set: { verified: true } }
+                  : {}),
+              },
+              {
+                new: true,
+                upsert: false,
+                runValidators: true,
+              }
+            )
+            .then(() => {})
+            .catch((error) => {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            });
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+        }
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
           {
@@ -229,12 +298,23 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           return;
         } else if (user.analyticsVersion === 3 && user.verified === false) {
           try {
+            const tenantValue = tenant || "airqo";
+            const verificationRequest = {
+              tenant: tenantValue,
+              email: user.email,
+            };
             const verificationEmailResponse =
-              await createUserUtil.verificationReminder(verificationRequest);
-            if (verificationEmailResponse.success === false) {
+              await createUserUtil.verificationReminder(
+                verificationRequest,
+                next
+              );
+            if (
+              !verificationEmailResponse ||
+              verificationEmailResponse.success === false
+            ) {
               logger.error(
                 `Internal Server Error --- ${stringify(
-                  verificationEmailResponse
+                  verificationEmailResponse || "No Response"
                 )}`
               );
             }
@@ -252,9 +332,74 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             )
           );
           return;
+        } else if (user.analyticsVersion === 4 && !user.verified) {
+          createUserUtil
+            .mobileVerificationReminder({ tenant, email: user.email }, next)
+            .then((verificationResponse) => {
+              if (
+                !verificationResponse ||
+                verificationResponse.success === false
+              ) {
+                logger.error(
+                  `Verification reminder failed: ${
+                    verificationResponse
+                      ? verificationResponse.message
+                      : "No response"
+                  }`
+                );
+              }
+            })
+            .catch((err) => {
+              logger.error(
+                `Error sending verification reminder: ${err.message}`
+              );
+            });
+
+          req.auth.success = false;
+          req.auth.message =
+            "account not verified, verification email has been sent to your email";
+          req.auth.status = httpStatus.FORBIDDEN;
+          next(
+            new HttpError(
+              "account not verified, verification email has been sent to your email",
+              httpStatus.FORBIDDEN,
+              {
+                message:
+                  "account not verified, verification email has been sent to your email",
+              }
+            )
+          );
+          return;
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+
+        const currentDate = new Date();
+
+        try {
+          await UserModel(tenant.toLowerCase())
+            .findOneAndUpdate(
+              { _id: user._id },
+              {
+                $set: { lastLogin: currentDate, isActive: true },
+                $inc: { loginCount: 1 },
+                ...(user.analyticsVersion !== 3 && user.verified === false
+                  ? { $set: { verified: true } }
+                  : {}),
+              },
+              {
+                new: true,
+                upsert: false,
+                runValidators: true,
+              }
+            )
+            .then(() => {})
+            .catch((error) => {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            });
+        } catch (error) {
+          logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+        }
 
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
@@ -1115,6 +1260,29 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+function authenticateJWT(req, res, next) {
+  try {
+    if (req.body && req.body.user_id) {
+      logText("Skipping setJWTAuth due to user_id in request body.");
+      next();
+      return;
+    }
+
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+
+    setJWTStrategy("airqo", req, res, next);
+
+    passport.authenticate("jwt", { session: false })(req, res, next); //Authenticate
+  } catch (e) {
+    logger.error(`the error in authenticateJWT is: ${e.message}`);
+    next(new HttpError(e.message, httpStatus.INTERNAL_SERVER_ERROR));
+  }
+}
+
 module.exports = {
   setLocalAuth,
   setJWTAuth,
@@ -1125,4 +1293,5 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  authenticateJWT,
 };

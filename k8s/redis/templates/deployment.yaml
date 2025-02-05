@@ -26,15 +26,17 @@ spec:
       labels:
         io.kompose.service: {{ .Values.app.name }}
     spec:
+      nodeSelector:
+        role: high-cpu
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: role
-                    operator: In
-                    values:
-                      - high-cpu
+            - preference:
+                matchExpressions:
+                - key: role
+                  operator: In
+                  values:
+                  - high-cpu
       containers:
         - env:
             - name: GET_HOSTS_FROM

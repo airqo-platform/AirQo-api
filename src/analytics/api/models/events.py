@@ -26,10 +26,8 @@ class EventsModel(BasePyMongoModel):
     BIGQUERY_GRIDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_GRIDS_SITES}`"
     BIGQUERY_COHORTS = f"`{CONFIGURATIONS.BIGQUERY_COHORTS}`"
     BIGQUERY_COHORTS_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_COHORTS_DEVICES}`"
-    BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES}`"
-    BIGQUERY_SITES_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES_SITES}`"
-    BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES}`"
-    BIGQUERY_DEVICES_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES_DEVICES}`"
+    BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES_SITES}`"
+    BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES_DEVICES}`"
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
 
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
@@ -43,40 +41,38 @@ class EventsModel(BasePyMongoModel):
 
     DEVICES_SUMMARY_TABLE = CONFIGURATIONS.DEVICES_SUMMARY_TABLE
 
-    def __init__(self, tenant):
+    def __init__(self, network):
         """
         Initializes the EventsModel with default settings and mappings for limit thresholds,
         and specifies collections and BigQuery table references.
 
         Args:
-            tenant (str): The tenant identifier for managing database collections.
+            network (str): The network identifier for managing database collections.
         """
         self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
         self.sites_table = self.BIGQUERY_SITES
-        self.sites_sites_table = self.BIGQUERY_SITES_SITES
         self.airqlouds_sites_table = self.BIGQUERY_AIRQLOUDS_SITES
         self.devices_table = self.BIGQUERY_DEVICES
-        self.devices_devices_table = self.BIGQUERY_DEVICES_DEVICES
         self.airqlouds_table = self.BIGQUERY_AIRQLOUDS
-        super().__init__(tenant, collection_name="events")
+        super().__init__(network, collection_name="events")
 
     @property
     def device_info_query(self):
         """Generates a device information query including site_id, network, and approximate location details."""
         return (
-            f"{self.devices_devices_table}.site_id AS site_id, "
-            f"{self.devices_devices_table}.network AS network "
+            f"{self.devices_table}.site_id AS site_id, "
+            f"{self.devices_table}.network AS network "
         )
 
     @property
     def device_info_query_airqloud(self):
         """Generates a device information query specifically for airqlouds, excluding the site_id."""
-        return f"{self.devices_devices_table}.network AS network "
+        return f"{self.devices_table}.network AS network "
 
     @property
     def site_info_query(self):
         """Generates a site information query to retrieve site name and approximate location details."""
-        return f"{self.sites_sites_table}.name AS site_name "
+        return f"{self.sites_table}.name AS site_name "
 
     @property
     def airqloud_info_query(self):
@@ -96,8 +92,8 @@ class EventsModel(BasePyMongoModel):
         """
         return (
             f"SELECT {self.device_info_query}, data.* "
-            f"FROM {self.devices_devices_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.device_name = {self.devices_devices_table}.device_id "
+            f"FROM {self.devices_table} "
+            f"RIGHT JOIN ({data_query}) data ON data.device_name = {self.devices_table}.device_id "
             f"{filter_clause}"
         )
 
@@ -114,8 +110,8 @@ class EventsModel(BasePyMongoModel):
         """
         return (
             f"SELECT {self.device_info_query_airqloud}, data.* "
-            f"FROM {self.devices_devices_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.devices_devices_table}.site_id "
+            f"FROM {self.devices_table} "
+            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.devices_table}.site_id "
             f"{filter_clause}"
         )
 
@@ -131,8 +127,8 @@ class EventsModel(BasePyMongoModel):
         """
         return (
             f"SELECT {self.site_info_query}, data.* "
-            f"FROM {self.sites_sites_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.sites_sites_table}.id "
+            f"FROM {self.sites_table} "
+            f"RIGHT JOIN ({data_query}) data ON data.site_id = {self.sites_table}.id "
         )
 
     def add_airqloud_join(self, data_query):
@@ -198,11 +194,11 @@ class EventsModel(BasePyMongoModel):
                 including BAM data if applicable.
         """
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_devices_table}.name AS device_name "
+            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
             f"FROM {data_table} "
-            f"JOIN {self.devices_devices_table} ON {self.devices_devices_table}.device_id = {data_table}.device_id "
+            f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {data_table}.device_id "
             f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-            f"AND {self.devices_devices_table}.device_id IN UNNEST(@filter_value) "
+            f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
         )
         if frequency in ["weekly", "monthly", "yearly"]:
             query += " GROUP BY ALL"
@@ -210,11 +206,11 @@ class EventsModel(BasePyMongoModel):
         query = self.add_site_join(query)
         if frequency in ["hourly", "weekly", "monthly", "yearly"]:
             bam_query = (
-                f"{bam_pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_devices_table}.name AS device_name "
+                f"{bam_pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
                 f"FROM {self.BIGQUERY_BAM_DATA} "
-                f"JOIN {self.devices_devices_table} ON {self.devices_devices_table}.device_id = {self.BIGQUERY_BAM_DATA}.device_id "
+                f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {self.BIGQUERY_BAM_DATA}.device_id "
                 f"WHERE {self.BIGQUERY_BAM_DATA}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-                f"AND {self.devices_devices_table}.device_id IN UNNEST(@filter_value) "
+                f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
             )
             if frequency in ["weekly", "monthly", "yearly"]:
                 bam_query += " GROUP BY ALL"
@@ -251,9 +247,9 @@ class EventsModel(BasePyMongoModel):
         query = (
             f"{pollutants_query}, {time_grouping}, {self.site_info_query}, {data_table}.device_id AS device_name "
             f"FROM {data_table} "
-            f"JOIN {self.sites_sites_table} ON {self.sites_sites_table}.id = {data_table}.site_id "
+            f"JOIN {self.sites_table} ON {self.sites_table}.id = {data_table}.site_id "
             f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-            f"AND {self.sites_sites_table}.id IN UNNEST(@filter_value) "
+            f"AND {self.sites_table}.id IN UNNEST(@filter_value) "
         )
         if frequency in ["weekly", "monthly", "yearly"]:
             query += " GROUP BY ALL"
@@ -1347,7 +1343,7 @@ class EventsModel(BasePyMongoModel):
           JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
           WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
           AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-          AND `airqo-250220.metadata.sites`.id in UNNEST({sites})
+          AND {self.BIGQUERY_SITES}.id in UNNEST({sites})
         """
 
         client = bigquery.Client()

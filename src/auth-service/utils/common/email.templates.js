@@ -1,4 +1,6 @@
 const constants = require("@config/constants");
+const { log } = require("async");
+const { logObject } = require("@utils/shared");
 const processString = (inputString) => {
   const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
   const uppercasedString = stringWithSpaces.toUpperCase();
@@ -144,33 +146,54 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content });
   },
-  afterEmailVerification: (firstName, username, email) => {
+  afterEmailVerification: (
+    { firstName, username, email, analyticsVersion = 3 } = {},
+    next
+  ) => {
     const name = firstName;
-    const content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Congratulations! Your account has been successfully verified.
-                                <br />
-                                We are pleased to inform you that you can now fully access all of the features and services offered by AirQo Analytics.
-                                <br />
-                                <ul>
-                                    <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
-                                </ul>
-                                    <br />
-                                If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
-                                team. We are here to help.
-                                <br />
-                                Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals
-                                <br />
-                                <br />
-                                Sincerely,
-                                <br />
-                                The AirQo Data Team
-                                </td>
-                            </tr>`;
+    let content = "";
+
+    if (analyticsVersion === 4) {
+      content = `
+        <tr>
+            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                <p>Congratulations! Your AirQo account has been successfully verified.</p>
+                <p>You can now fully access all the features and services offered by the AirQo mobile application.</p>
+
+                <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
+                <br />
+                 <p>Thank you for choosing AirQo.</p>
+                <br />
+                <p>Sincerely,</p>
+                <p>The AirQo Team</p>
+            </td>
+        </tr>`;
+    } else {
+      // other user types (web app)
+      content = ` <tr>
+            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                <p>Congratulations! Your account has been successfully verified.</p>
+                <p>We are pleased to inform you that you can now fully access all of the features and services offered by AirQo Analytics.</p>
+                <ul>
+                    <li>YOUR USERNAME: ${username}</li>
+                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
+                </ul>
+                <br />
+                <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
+                <br />
+                <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals</p>
+                <br />
+                <br />
+                <p>Sincerely,</p>
+                <br />
+                <p>The AirQo Data Team</p>
+            </td>
+        </tr>`;
+    }
+
     return constants.EMAIL_BODY({ email, content, name });
   },
+
   afterAcceptingInvitation: ({ firstName, username, email, entity_title }) => {
     const name = firstName;
     const content = ` <tr>

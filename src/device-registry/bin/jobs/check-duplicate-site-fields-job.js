@@ -5,7 +5,7 @@ const logger = log4js.getLogger(
 );
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 
 // Fields to check for duplicates - easily modifiable
 const FIELDS_TO_CHECK = ["name", "search_name", "description"];

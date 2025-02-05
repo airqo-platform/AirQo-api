@@ -5,19 +5,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -30,6 +18,26 @@ const validateTenant = oneOf([
     .isIn(constants.NETWORKS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
+
+const pagination = (defaultLimit = 1000, maxLimit = 2000) => {
+  return (req, res, next) => {
+    let limit = parseInt(req.query.limit, 10);
+    const skip = parseInt(req.query.skip, 10);
+    if (Number.isNaN(limit) || limit < 1) {
+      limit = defaultLimit;
+    }
+    if (limit > maxLimit) {
+      limit = maxLimit;
+    }
+    if (Number.isNaN(skip) || skip < 0) {
+      req.query.skip = 0;
+    }
+    req.query.limit = limit;
+    req.query.skip = skip;
+
+    next();
+  };
+};
 
 const validateDeviceIdentifier = oneOf([
   query("device_number")
@@ -800,6 +808,7 @@ const validateBulkUpdateDevices = [
 
 module.exports = {
   validateTenant,
+  pagination,
   validateDeviceIdentifier,
   validateArrayBody,
   validateCreateDevice,

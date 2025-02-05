@@ -160,7 +160,11 @@ const analytics = {
         tenant: isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant,
         year,
       });
-      res.json(validation);
+      if (isEmpty(validation) || res.headersSent) {
+        return;
+      }
+
+      res.status(validation.status).json(validation);
     } catch (error) {
       logger.error(`🐛🐛 validateEnvironment Error: ${error.message}`);
       next(

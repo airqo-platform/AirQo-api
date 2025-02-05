@@ -1,6 +1,6 @@
 # API Documentation for User Interaction Management
 
-**Base URL**: `https://api.yourdomain.com/v2/interactions`
+**Base URL**: `https://api.airqo.net/v2/interactions`
 
 ## Authentication
 
@@ -24,7 +24,7 @@ Follow a specific user.
 
 ```http
 POST /interactions/follow/456 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -47,7 +47,7 @@ Retrieve notifications for the authenticated user.
 
 ```http
 GET /interactions/notifications?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -69,7 +69,7 @@ Like a specific blog post.
 
 ```http
 POST /interactions/123/like HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -91,6 +91,6 @@ Bookmark a specific blog post for later reference.
 
 ```http
 POST /interactions/123/bookmark HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```

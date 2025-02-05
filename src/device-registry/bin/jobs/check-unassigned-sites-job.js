@@ -6,7 +6,7 @@ const logger = log4js.getLogger(
 const SitesModel = require("@models/Site");
 const cron = require("node-cron");
 const UNASSIGNED_THRESHOLD = 0;
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 
 const checkUnassignedSites = async () => {
   try {

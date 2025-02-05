@@ -6,26 +6,29 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-data-mgt-api
-  tag: stage-847c727a-1737046297
+  tag: stage-dc7e4d56-1738048837
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 5m
+    cpu: 50m
     memory: 200Mi
   requests:
     cpu: 1m
     memory: 100Mi
+nodeSelector:
+  role: high-mem
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-        - matchExpressions:
+      - preference:
+          matchExpressions:
             - key: role
               operator: In
               values:
                 - high-mem
+        weight: 1
 ingress:
   enabled: false
 service:

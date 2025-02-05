@@ -1,9 +1,10 @@
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.config import configuration
+from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.exceptions import AirflowFailException
 from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.data_validator import DataValidationUtils
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
     airqo_historical_hourly_measurements_doc,
@@ -53,6 +54,7 @@ def airqo_historical_hourly_measurements():
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.RAW,
+            device_category=DeviceCategory.GENERAL,
             dynamic_query=True,
         )
 
@@ -116,7 +118,7 @@ def airqo_historical_hourly_measurements():
         if send_to_api_param:
             from airqo_etl_utils.airqo_api import AirQoApi
 
-            data = AirQoDataUtils.process_data_for_api(
+            data = DataUtils.process_data_for_api(
                 airqo_data, frequency=Frequency.HOURLY
             )
 
@@ -130,7 +132,6 @@ def airqo_historical_hourly_measurements():
         data: pd.DataFrame, **kwargs
     ) -> None:
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from datetime import datetime
 
         now = datetime.now()
@@ -139,7 +140,7 @@ def airqo_historical_hourly_measurements():
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -148,9 +149,7 @@ def airqo_historical_hourly_measurements():
             )
 
         broker = MessageBrokerUtils()
-        broker.publish_to_topic(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
-        )
+        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)
 
     extracted_device_measurements = extract_device_measurements()
     extracted_weather_data = extract_weather_data()
@@ -178,24 +177,21 @@ def airqo_historical_raw_measurements():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=2, **kwargs
         )
-        return AirQoDataUtils.extract_devices_data(
+        return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST,
+            device_category=DeviceCategory.LOWCOST,
             resolution=Frequency.DAILY,
         )
 
     @task()
     def clean_data_raw_data(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+        return DataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOWCOST
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -214,7 +210,6 @@ def airqo_historical_raw_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_data(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
@@ -248,7 +243,6 @@ def airqo_cleanup_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -264,24 +258,22 @@ def airqo_cleanup_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=1, **kwargs
+            days=3, **kwargs
         )
-        return DataUtils.extract_data_from_bigquery(
+        data = DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             frequency=Frequency.HOURLY,
             device_category=DeviceCategory.GENERAL,
         )
+        return DataValidationUtils.remove_outliers(data)
 
     @task()
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         exclude_cols = [
             data.device_number.name,
             data.latitude.name,
@@ -298,8 +290,6 @@ def airqo_cleanup_measurements():
 
     @task()
     def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         exclude_cols = [
             data.device_number.name,
             data.latitude.name,
@@ -361,28 +351,23 @@ def airqo_realtime_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
 
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        return AirQoDataUtils.extract_devices_data(
+        return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST,
+            device_category=DeviceCategory.LOWCOST,
             resolution=Frequency.RAW_LOW_COST,
         )
 
     @task()
     def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-        # TODO Future possibility of adding gx data quality checks here to measure data quality
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+        return DataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOWCOST
         )
 
     @task()
@@ -420,8 +405,7 @@ def airqo_realtime_measurements():
             frequency=Frequency.HOURLY,
             remove_outliers=False,
         )
-        transformed_weather_data = DataUtils.transform_weather_data(weather_data)
-        return DataUtils.aggregate_weather_data(transformed_weather_data)
+        return DataUtils.aggregate_weather_data(weather_data)
 
     @task()
     def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
@@ -442,7 +426,7 @@ def airqo_realtime_measurements():
         from airqo_etl_utils.airqo_api import AirQoApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        data = AirQoDataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
+        data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=data)
@@ -450,7 +434,6 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from datetime import datetime
 
         now = datetime.now()
@@ -459,7 +442,7 @@ def airqo_realtime_measurements():
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -468,14 +451,11 @@ def airqo_realtime_measurements():
             )
 
         broker = MessageBrokerUtils()
-        broker.publish_to_topic(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
-        )
+        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
@@ -488,7 +468,6 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_raw_measurements_to_bigquery(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
@@ -501,19 +480,18 @@ def airqo_realtime_measurements():
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from datetime import datetime
 
         now = datetime.now()
         unique_str = str(now.date()) + "-" + str(now.hour)
 
         data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+            data=data, device_category=DeviceCategory.LOWCOST
         )
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
-            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
+            topic=Config.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -523,7 +501,7 @@ def airqo_realtime_measurements():
 
         broker = MessageBrokerUtils()
         broker.publish_to_topic(
-            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC, data=data
+            topic=Config.AVERAGED_HOURLY_MEASUREMENTS_TOPIC, data=data
         )
 
     raw_data = extract_raw_data()
@@ -561,7 +539,6 @@ def airqo_raw_data_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import date_to_str_hours
         from datetime import datetime, timedelta
 
@@ -571,20 +548,18 @@ def airqo_raw_data_measurements():
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        return AirQoDataUtils.extract_devices_data(
+        return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST,
+            device_category=DeviceCategory.LOWCOST,
         )
 
     @task(
         doc_md=clean_data_raw_data_doc,
     )
     def clean_data_raw_data(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST
+        return DataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.LOWCOST
         )
 
     @task(
@@ -593,7 +568,6 @@ def airqo_raw_data_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
@@ -625,7 +599,6 @@ def airqo_gaseous_realtime_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def extract_raw_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import date_to_str_hours
         from datetime import datetime, timedelta
 
@@ -634,22 +607,19 @@ def airqo_gaseous_realtime_measurements():
 
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
-        return AirQoDataUtils.extract_devices_data(
+        return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            device_category=DeviceCategory.LOW_COST_GAS,
+            device_category=DeviceCategory.GAS,
             device_network=DeviceNetwork.AIRQO,
-            remove_outliers=False,
         )
 
     @task(
         doc_md=clean_data_raw_data_doc,
     )
     def clean_data_raw_data(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOW_COST_GAS
+        return DataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.GAS
         )
 
     @task(
@@ -658,7 +628,6 @@ def airqo_gaseous_realtime_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(

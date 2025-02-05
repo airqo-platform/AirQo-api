@@ -6,7 +6,7 @@
   "scripts": {
     "start": "NODE_ENV=production node --max-old-space-size=4096 ./bin",
     "stage": "NODE_ENV=staging node --max-old-space-size=4096 ./bin",
-    "dev-mac": "NODE_ENV=development nodemon --max-old-space-size=4096 ./bin",
+    "dev-mac": "NODE_ENV=development nodemon --max-old-space-size=4096 --trace-warnings ./bin",
     "prod-mac": "NODE_ENV=production nodemon --max-old-space-size=4096 ./bin",
     "stage-mac": "NODE_ENV=staging nodemon --max-old-space-size=4096 ./bin",
     "dev-pc": "SET NODE_ENV=development&&nodemon --max-old-space-size=4096 ./bin",
