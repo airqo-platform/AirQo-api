@@ -1,7 +1,6 @@
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.constants import Tenant
 from airqo_etl_utils.data_validator import DataValidationUtils
 
 
