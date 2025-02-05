@@ -6,21 +6,14 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
-from .constants import (
-    DeviceCategory,
-    DeviceNetwork,
-    Frequency,
-    DataSource,
-    DataType,
-    CityModel,
-)
+from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel, MetaDataType
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .ml_utils import GCSUtils
 from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Union
 
 import logging
 
@@ -587,14 +580,25 @@ class AirQoDataUtils:
         Returns:
             pd.DataFrame: The calibrated dataset with additional processed fields.
         """
+
+        local_file_path = "/tmp/sites.csv"
+        # Load sites from cache
+        sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
+        if not sites:
+            try:
+                sites = pd.DataFrame(AirQoApi().get_sites())
+            except Exception as e:
+                logger.exception(
+                    "An error has occured while fetching devices from the api"
+                )
+                raise RuntimeError("Failed to fetch sites data from the API") from e
+
         bucket = Config.FORECAST_MODELS_BUCKET
         project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        sites = AirQoApi().get_sites()
-        sites_df = pd.DataFrame(sites, columns=["site_id", "city"])
-
-        data = pd.merge(data, sites_df, on="site_id", how="left")
+        sites = sites[["site_id", "city"]]
+        data = pd.merge(data, sites, on="site_id", how="left")
         data.dropna(subset=["device_id", "timestamp"], inplace=True)
         columns_to_fill = [
             "s1_pm2_5",
@@ -706,7 +710,7 @@ class AirQoDataUtils:
         )
 
     @staticmethod
-    def get_devices(group_id: str) -> pd.DataFrame:
+    def get_devices_kafka(group_id: str) -> pd.DataFrame:
         """
         Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
 

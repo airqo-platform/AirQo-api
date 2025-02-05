@@ -259,7 +259,7 @@ class DataValidationUtils:
 
         data.rename(columns={"device_id": "device_name"}, inplace=True)
 
-        devices = AirQoDataUtils.get_devices(group_id=caller)
+        devices = AirQoDataUtils.get_devices_kafka(group_id=caller)
         try:
             devices = devices[
                 [
