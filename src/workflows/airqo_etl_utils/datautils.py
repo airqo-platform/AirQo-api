@@ -78,10 +78,10 @@ class DataUtils:
         if device_names:
             devices = devices.loc[devices.name.isin(device_names)]
 
-        config = Config.device_config_mapping.get((device_category.str), None)
+        config = Config.device_config_mapping.get(device_category.str, None)
         if not config:
             logger.warning("Missing device category configuration.")
-            return devices_data
+            raise RuntimeError("Device category configurations not found.")
 
         dates = Utils.query_dates_array(
             data_source=DataSource.THINGSPEAK,
