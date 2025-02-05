@@ -110,7 +110,7 @@ class DataType(Enum):
         return self.__str__()
 
 
-class MetaData(Enum):
+class MetaDataType(Enum):
     """
     Enumeration representing metadata types.
 
