@@ -52,11 +52,18 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
 
         # Load devices from cache
-        devices = DataUtils.load_cached_data(local_file_path, MetaDataType.DEVICES.str)
-        devices["device_number"] = devices["device_number"].fillna(-1)
+        try:
+            (
+                devices := DataUtils.load_cached_data(
+                    local_file_path, MetaDataType.DEVICES.str
+                )
+            )["device_number"] = devices["device_number"].fillna(-1)
+        except Exception as e:
+            logger.exception("No devices currently cached.")
+            devices = pd.DataFrame()
 
-        # If cache is empty, fetch from API
         keys = {}
+        # If cache is empty, fetch from API
         if devices.empty:
             devices, keys = DataUtils._fetch_devices_from_api(
                 device_network, device_category
@@ -64,6 +71,7 @@ class DataUtils:
             if devices.empty:
                 logger.exception("Failed to download or fetch devices.")
                 return devices_data
+
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
 
@@ -123,7 +131,7 @@ class DataUtils:
             if not data.empty:
                 return data
         except Exception as e:
-            logger.exception(f"Failed to download cached {file_name}.")
+            logger.exception(f"Failed to download cached {file_name}. {e}")
             return pd.DataFrame()
 
     def _fetch_devices_from_api(
