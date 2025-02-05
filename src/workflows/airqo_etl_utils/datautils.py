@@ -142,7 +142,8 @@ class DataUtils:
         try:
             devices = pd.DataFrame(
                 airqo_api.get_devices_by_network(
-                    device_network=device_network, device_category=device_category
+                    device_network=device_network.str,
+                    device_category=device_category.str,
                 )
             )
             devices["device_number"] = devices["device_number"].fillna(-1)
