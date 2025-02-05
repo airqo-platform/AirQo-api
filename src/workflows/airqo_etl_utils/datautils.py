@@ -71,7 +71,7 @@ class DataUtils:
             if devices.empty:
                 logger.exception("Failed to download or fetch devices.")
                 raise RuntimeError("Failed to cached and api devices data.")
-        print(devices)
+                
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
 
