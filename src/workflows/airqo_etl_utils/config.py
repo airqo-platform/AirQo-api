@@ -409,7 +409,186 @@ class Config:
 
     AIRFLOW_XCOM_BUCKET = os.getenv("AIRFLOW_XCOM_BUCKET")
 
+    # -------------------------------------------------------
+    # Satelite constants
+    # -------------------------------------------------------
+    # TODO: May need to remove when no. of locations grow
+    satellite_cities = [
+        # NOTE: Syntax is lon, lat for GEE, not the usual lat, lon
+        {"city": "kampala", "coords": [32.6313083, 0.336219]},
+        {"city": "nairobi", "coords": [36.886487, -1.243396]},
+        {"city": "lagos", "coords": [3.39936, 6.53257]},
+        {"city": "accra", "coords": [-0.205874, 5.614818]},
+        {"city": "bujumbura", "coords": [29.3599, 3.3614]},
+        {"city": "yaounde", "coords": [11.5202, 3.8617]},
+        {"city": "kisumu", "coords": [34.7680, 0.0917]},
+    ]
+    satellite_collections = {
+        "COPERNICUS/S5P/OFFL/L3_SO2": [
+            "SO2_column_number_density",
+            "SO2_column_number_density_amf",
+            "SO2_slant_column_number_density",
+            "absorbing_aerosol_index",
+            "cloud_fraction",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+            "SO2_column_number_density_15km",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_CO": [
+            "CO_column_number_density",
+            "H2O_column_number_density",
+            "cloud_height",
+            "sensor_altitude",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_NO2": [
+            "NO2_column_number_density",
+            "tropospheric_NO2_column_number_density",
+            "stratospheric_NO2_column_number_density",
+            "NO2_slant_column_number_density",
+            "tropopause_pressure",
+            "absorbing_aerosol_index",
+            "cloud_fraction",
+            "sensor_altitude",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_HCHO": [
+            "tropospheric_HCHO_column_number_density",
+            "tropospheric_HCHO_column_number_density_amf",
+            "HCHO_slant_column_number_density",
+            "cloud_fraction",
+            "solar_zenith_angle",
+            "solar_azimuth_angle",
+            "sensor_zenith_angle",
+            "sensor_azimuth_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_O3": [
+            "O3_column_number_density",
+            "O3_effective_temperature",
+            "cloud_fraction",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_AER_AI": [
+            "absorbing_aerosol_index",
+            "sensor_altitude",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_CH4": [
+            "CH4_column_volume_mixing_ratio_dry_air",
+            "aerosol_height",
+            "aerosol_optical_depth",
+            "sensor_zenith_angle",
+            "sensor_azimuth_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_CLOUD": [
+            "cloud_fraction",
+            "cloud_top_pressure",
+            "cloud_top_height",
+            "cloud_base_pressure",
+            "cloud_base_height",
+            "cloud_optical_depth",
+            "surface_albedo",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+    }
+    # -------------------------------------------------------
+    # Attachment constants
+    # -------------------------------------------------------
+    IMAGE_DIR = os.path.join(os.path.dirname(__file__), "images")
+    ATTACHMENTS = {
+        "EMAIL_ATTACHMENTS": [
+            {
+                "filename": "favoriteIcon.png",
+                "path": os.path.join(IMAGE_DIR, "favoriteIcon.png"),
+                "cid": "FavoriteIcon",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "airqoLogoAlternate.png",
+                "path": os.path.join(IMAGE_DIR, "airqoLogoAlternate.png"),
+                "cid": "AirQoEmailLogoAlternate",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "faceBookLogo.png",
+                "path": os.path.join(IMAGE_DIR, "facebookLogo.png"),
+                "cid": "FacebookLogo",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "youtubeLogo.png",
+                "path": os.path.join(IMAGE_DIR, "youtubeLogo.png"),
+                "cid": "YoutubeLogo",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "twitterLogo.png",
+                "path": os.path.join(IMAGE_DIR, "Twitter.png"),
+                "cid": "Twitter",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "linkedInLogo.png",
+                "path": os.path.join(IMAGE_DIR, "linkedInLogo.png"),
+                "cid": "LinkedInLogo",
+                "contentDisposition": "inline",
+            },
+        ],
+        "EMOJI_ATTACHMENTS": [
+            {
+                "filename": "goodEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "goodEmoji.png"),
+                "cid": "goodEmoji",
+            },
+            {
+                "filename": "moderateEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "moderateEmoji.png"),
+                "cid": "moderateEmoji",
+            },
+            {
+                "filename": "uhfsgEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "uhfsgEmoji.png"),
+                "cid": "uhfsgEmoji",
+            },
+            {
+                "filename": "unhealthyEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "unhealthyEmoji.png"),
+                "cid": "unhealthyEmoji",
+            },
+            {
+                "filename": "veryUnhealthyEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "veryUnhealthyEmoji.png"),
+                "cid": "veryUnhealthyEmoji",
+            },
+            {
+                "filename": "hazardousEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "hazardousEmoji.png"),
+                "cid": "hazardousEmoji",
+            },
+        ],
+    }
+    # ---------------------------------------------------
     # Data unit tests
+    # ---------------------------------------------------
     BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
     FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
 
