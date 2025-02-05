@@ -27,6 +27,44 @@ const AQI_RANGES = {
 const MIN_READINGS_PER_DAY = 12;
 const TIMEZONE = "Africa/Kampala"; // Consistent timezone
 
+const SENSOR_CONFIG = [
+  { name: "pm2_5", type: Number },
+  { name: "pm10", type: Number },
+  { name: "no2", type: Number },
+  { name: "pm1", type: Number },
+  { name: "s2_pm2_5", type: Number },
+  { name: "s2_pm10", type: Number },
+  { name: "s2_no2", type: Number },
+  { name: "longitude", type: Number },
+  { name: "latitude", type: Number },
+  { name: "battery", type: Number },
+  { name: "altitude", type: Number },
+  { name: "speed", type: Number },
+  { name: "satellites", type: Number },
+  { name: "hdop", type: Number },
+  { name: "internalTemperature", type: Number },
+  { name: "externalTemperature", type: Number },
+  { name: "internalHumidity", type: Number },
+  { name: "externalHumidity", type: Number },
+  { name: "externalPressure", type: Number },
+  { name: "externalAltitude", type: Number },
+  { name: "s1_pm2_5", type: Number },
+  { name: "s1_pm10", type: Number },
+  { name: "s1_no2", type: Number },
+  { name: "s1_pm1", type: Number },
+  { name: "tvoc", type: Number },
+  { name: "co2", type: Number },
+  { name: "hcho", type: Number },
+  { name: "intaketemperature", type: Number },
+  { name: "intakehumidity", type: Number },
+  { name: "rtc_adc", type: Number },
+  { name: "rtc_v", type: Number },
+  { name: "rtc", type: Number },
+  { name: "stc_adc", type: Number },
+  { name: "stc_v", type: Number },
+  { name: "stc", type: Number },
+];
+
 // Reusable Schemas and Data Structures
 const measurementSchema = new Schema({
   value: { type: Number, default: null },
@@ -35,40 +73,20 @@ const measurementSchema = new Schema({
   standardDeviationValue: { type: Number, default: null },
 });
 
-const valueSchema = new Schema({
-  time: { type: Date, required: true },
-  pm2_5: measurementSchema,
-  pm10: measurementSchema,
-  no2: measurementSchema,
-  pm1: measurementSchema,
-  s2_pm2_5: measurementSchema,
-  s2_pm10: measurementSchema,
-  s2_no2: measurementSchema,
-  pm2_5_calibrated_value: { type: Number, default: null },
-  pm10_calibrated_value: { type: Number, default: null },
-  no2_calibrated_value: { type: Number, default: null },
-  pm1_calibrated_value: { type: Number, default: null },
-  s2_pm2_5_calibrated_value: { type: Number, default: null },
-  s2_pm10_calibrated_value: { type: Number, default: null },
-  s2_no2_calibrated_value: { type: Number, default: null },
-  longitude: { type: Number, default: null },
-  latitude: { type: Number, default: null },
-  battery: { type: Number, default: null },
-  altitude: { type: Number, default: null },
-  speed: { type: Number, default: null },
-  satellites: { type: Number, default: null },
-  hdop: { type: Number, default: null },
-  internalTemperature: { type: Number, default: null },
-  externalTemperature: { type: Number, default: null },
-  internalHumidity: { type: Number, default: null },
-  externalHumidity: { type: Number, default: null },
-  externalPressure: { type: Number, default: null },
-  externalAltitude: { type: Number, default: null },
-  s1_pm2_5: measurementSchema,
-  s1_pm10: measurementSchema,
-  s1_no2: measurementSchema,
-  s1_pm1: measurementSchema,
-});
+const valueSchema = new Schema(
+  SENSOR_CONFIG.reduce(
+    (fields, sensor) => {
+      fields[sensor.name] =
+        sensor.type === Number
+          ? measurementSchema
+          : { type: sensor.type, default: null }; //use measurementSchema if the field is a pollutant
+      return fields;
+    },
+    {
+      time: { type: Date, required: true },
+    }
+  )
+);
 
 const eventSchema = new Schema(
   {
