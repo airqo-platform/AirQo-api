@@ -2033,6 +2033,91 @@ const createEvent = {
       );
     }
   },
+  deleteEvents: async (
+    tenant,
+    startTime,
+    endTime,
+    device,
+    site,
+    next,
+    limit = 1000
+  ) => {
+    try {
+      let filter = {
+        ...(device ? { device } : {}), // Add device filter if provided
+        ...(site ? { site } : {}), // Add site filter if provided
+      };
+
+      if (startTime && endTime) {
+        filter["values.time"] = {
+          $gte: new Date(startTime),
+          $lte: new Date(endTime),
+        };
+      }
+
+      let deletedCount = 0;
+      let totalDeletedCount = 0;
+      let shouldContinue = true;
+      let lastDeletedEventTime = new Date(endTime); // Initialize with endTime
+
+      do {
+        const eventsToDelete = await EventModel(tenant)
+          .find(filter)
+          .sort({ "values.time": -1 }) //sort in decending order of time to consistently pick the last time in every batch
+          .limit(limit)
+          .lean();
+
+        if (eventsToDelete.length === 0) {
+          shouldContinue = false;
+        } else {
+          const eventIds = eventsToDelete.map((event) => event._id);
+          const result = await EventModel(tenant).deleteMany({
+            _id: { $in: eventIds },
+          });
+          deletedCount = result.deletedCount;
+          totalDeletedCount += deletedCount;
+
+          if (deletedCount > 0) {
+            //pick the minimum time in the current batch since the query sorts in descending order
+            lastDeletedEventTime = Math.min(
+              ...eventsToDelete.map((event) => {
+                if (event.values && Array.isArray(event.values)) {
+                  return Math.min(
+                    ...event.values.map((val) => new Date(val.time))
+                  );
+                }
+                return new Date(); // Return current time if no values to avoid affecting Math.min
+              })
+            );
+
+            filter["values.time"]["$lte"] = lastDeletedEventTime; // Adjust $lte
+          } else {
+            shouldContinue = false; // Stop if nothing deleted in this batch
+          }
+        }
+      } while (shouldContinue);
+
+      logObject("totalDeletedCount", totalDeletedCount);
+      logObject("lastDeletedEventTime", lastDeletedEventTime);
+
+      return {
+        success: true,
+        message: "Events deleted successfully",
+        deletedCount: totalDeletedCount,
+        lastEndTimeProcessed: lastDeletedEventTime,
+      };
+    } catch (error) {
+      logObject("the error in the util", error);
+      logger.error(`Error deleting events: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   store: async (request, next) => {
     try {
       const transformReadingsResponse = await transformManyReadings(
@@ -2509,7 +2594,7 @@ const createEvent = {
       );
       await redisExpireAsync(
         cacheID,
-        parseInt(constants.EVENTS_CACHE_LIMIT) || 1800
+        parseInt(constants.EVENTS_CACHE_LIMIT) || 0
       );
 
       return {

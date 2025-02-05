@@ -13,6 +13,11 @@ router.get(
   pagination(),
   eventController.listRunningDevices
 );
+router.delete(
+  "/",
+  eventValidations.deleteValuesOnPlatform,
+  eventController.delete
+);
 router.get(
   "/good",
   eventValidations.listGoodEvents,
