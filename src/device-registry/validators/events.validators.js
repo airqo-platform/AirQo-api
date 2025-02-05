@@ -11,7 +11,7 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const { validateNetwork, validateAdminLevels } = require("@validators/common");
+const { validateNetwork, isValidDateFormat } = require("@validators/common");
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -552,7 +552,55 @@ const eventsValidations = {
   ],
 };
 
+const deleteValuesOnPlatform = [
+  ...commonValidations.tenant,
+  query("startTime")
+    .exists()
+    .trim()
+    .withMessage("startTime is missing")
+    .bail()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage("startTime must be a valid datetime."),
+  query("endTime")
+    .exists()
+    .trim()
+    .withMessage("endTime is missing")
+    .bail()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage("endTime must be a valid datetime."),
+  query("device_number")
+    .optional()
+    .isInt()
+    .withMessage("device_number must be an integer")
+    .bail()
+    .toInt(),
+  query("device_id")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid device_id format")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+  query("site_id")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid site_id format")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+  query("device")
+    .optional()
+    .isString()
+    .trim()
+    .toLowerCase()
+    .matches(constants.WHITE_SPACES_REGEX, "i")
+    .withMessage("Invalid device name format"),
+  query("site")
+    .optional()
+    .isString()
+    .trim(),
+];
+
 module.exports = {
   ...eventsValidations,
   pagination: commonValidations.pagination,
+  deleteValuesOnPlatform,
 };
