@@ -312,7 +312,7 @@ class AirQoDataUtils:
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["network"] = DeviceNetwork.AIRQO
+        data["network"] = DeviceNetwork.AIRQO.str
         data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
@@ -584,7 +584,7 @@ class AirQoDataUtils:
         local_file_path = "/tmp/sites.csv"
         # Load sites from cache
         sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
-        if not sites:
+        if sites.empty:
             try:
                 sites = pd.DataFrame(AirQoApi().get_sites())
             except Exception as e:

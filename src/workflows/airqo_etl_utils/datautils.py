@@ -71,7 +71,7 @@ class DataUtils:
             if devices.empty:
                 logger.exception("Failed to download or fetch devices.")
                 raise RuntimeError("Failed to cached and api devices data.")
-                
+
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
 
@@ -84,9 +84,9 @@ class DataUtils:
             return devices_data
 
         dates = Utils.query_dates_array(
+            data_source=DataSource.THINGSPEAK,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            data_source=DataSource.THINGSPEAK,
         )
         data_store: List[pd.DataFrame] = []
         for _, device in devices.iterrows():
@@ -271,7 +271,7 @@ class DataUtils:
             table = source.get(device_category).get(frequency)
         except KeyError as e:
             logger.exception(
-                f"Invalid combination: {datatype}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category}, {frequency}"
             )
         except Exception as e:
             logger.exception(
@@ -327,7 +327,7 @@ class DataUtils:
             cols = bigquery.get_columns(table=table)
         except KeyError:
             logger.exception(
-                f"Invalid combination: {datatype}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
             )
         except Exception as e:
             logger.exception(
