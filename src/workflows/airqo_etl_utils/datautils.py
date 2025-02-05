@@ -70,7 +70,7 @@ class DataUtils:
             )
             if devices.empty:
                 logger.exception("Failed to download or fetch devices.")
-                return devices_data
+                raise RuntimeError("Failed to cached and api devices data.")
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
@@ -142,7 +142,8 @@ class DataUtils:
         try:
             devices = pd.DataFrame(
                 airqo_api.get_devices_by_network(
-                    device_network=device_network, device_category=device_category
+                    device_network=device_network.str,
+                    device_category=device_category.str,
                 )
             )
             devices["device_number"] = devices["device_number"].fillna(-1)
