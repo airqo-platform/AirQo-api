@@ -24,14 +24,16 @@ function handleResponse({
   res,
 } = {}) {
   if (!result) {
-    return;
+    return res.status(500).json({
+      message: "Internal Server Error",
+      errors: { message: "No result provided" },
+    });
   }
 
   const isSuccess = result.success;
   const defaultStatus = isSuccess
     ? httpStatus.OK
     : httpStatus.INTERNAL_SERVER_ERROR;
-
   const defaultMessage = isSuccess
     ? "Operation Successful"
     : "Internal Server Error";
@@ -39,15 +41,59 @@ function handleResponse({
   const status = result.status !== undefined ? result.status : defaultStatus;
   const message =
     result.message !== undefined ? result.message : defaultMessage;
-  const data = result.data !== undefined ? result.data : [];
+
+  let data = result.data;
+  let additionalData = {};
+
+  if (isSuccess && data === undefined) {
+    data = {}; // Initialize data as an empty object to hold any unique fields
+
+    for (const field in result) {
+      if (
+        field !== "success" &&
+        field !== "message" &&
+        field !== "status" &&
+        field !== "errors"
+      ) {
+        data[field] = result[field]; // Include the additional fields under the specified key
+      }
+    }
+  } else if (
+    isSuccess &&
+    Array.isArray(result.data) &&
+    result.data.length === 0
+  ) {
+    data = null; // Or an empty object {} if you prefer for other successful requests with empty arrays
+  } else if (isSuccess) {
+    // Existing logic to copy any unique fields that are not the standard fields remains the same.
+    for (const field in result) {
+      if (
+        field !== "success" &&
+        field !== "message" &&
+        field !== "status" &&
+        field !== "data" &&
+        field !== "errors"
+      ) {
+        additionalData[field] = result[field];
+      }
+    }
+  }
+
   const errors = isSuccess
-    ? undefined
+    ? null
     : result.errors !== undefined
     ? result.errors
     : { message: "Internal Server Error" };
 
-  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+  let response = { message, [key]: data, [errorKey]: errors };
+
+  if (isSuccess) {
+    response = { ...response, ...additionalData }; // adds any unique fields present in the result object other than the standard ones.
+  }
+
+  return res.status(status).json(response);
 }
+
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
     const airQloud = await AirQloudModel(tenant)
@@ -537,6 +583,45 @@ const createEvent = {
         )
       );
       return;
+    }
+  },
+  delete: async (req, res, next) => {
+    try {
+      const { tenant, startTime, endTime, device, site } = req.query; // Get query parameters
+      const errors = extractErrorsFromRequest(req); //extract errors from the request if any
+
+      if (errors) {
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+      if (!startTime || !endTime) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "startTime and endTime are required",
+          })
+        );
+      }
+      const result = await createEventUtil.deleteEvents(
+        tenant,
+        startTime,
+        endTime,
+        device,
+        site,
+        next
+      );
+
+      if (result.success) {
+        handleResponse({ result, res, key: "events" });
+      }
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   listFromBigQuery: async (req, res, next) => {
