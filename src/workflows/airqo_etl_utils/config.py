@@ -15,6 +15,17 @@ urllib3.disable_warnings()
 
 
 class Config:
+    # TODO
+    # -----------------------------------------------
+    # Top level settings
+    # -----------------------------------------------
+    # DataBase
+    # Create default database configs
+    # Transport Backend configs
+    # Data streaming configs
+    # Data quality tests configs
+    # -----------------------------------------------
+
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
