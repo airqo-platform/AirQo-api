@@ -790,7 +790,7 @@ class AirQoApi:
                 },
             ]
         """
-        query_params: Dict = {"network": DeviceNetwork.AIRQO}
+        query_params: Dict[str, Any] = {}
 
         if network:
             query_params["network"] = network
