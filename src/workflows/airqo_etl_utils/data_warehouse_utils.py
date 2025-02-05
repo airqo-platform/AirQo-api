@@ -69,7 +69,7 @@ class DataWarehouseUtils:
             },
             inplace=True,
         )
-        data["device_category"] = str(DeviceCategory.LOW_COST)
+        data["device_category"] = str(DeviceCategory.LOWCOST)
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
@@ -119,7 +119,7 @@ class DataWarehouseUtils:
         low_cost_data: pd.DataFrame,
         sites_info: pd.DataFrame,
     ) -> pd.DataFrame:
-        low_cost_data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
+        low_cost_data.loc[:, "device_category"] = str(DeviceCategory.LOWCOST)
         bam_data.loc[:, "device_category"] = str(DeviceCategory.BAM)
 
         airqo_data = low_cost_data.loc[low_cost_data["network"] == DeviceNetwork.AIRQO]
