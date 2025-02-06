@@ -223,7 +223,7 @@ class BigQueryApi:
                 schema.extend(file_schema)
 
         # Convert column_type list to strings for comparison
-        column_type_strings = [str(ct) for ct in column_type]
+        column_type_strings = [ct.str.upper() for ct in column_type]
 
         # Retrieve columns that match any of the specified types or match ColumnDataType.NONE
         columns: List[str] = list(
@@ -236,7 +236,6 @@ class BigQueryApi:
                 ]
             )
         )
-
         return columns
 
     def load_data(
