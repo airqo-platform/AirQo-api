@@ -53,11 +53,11 @@ class DataUtils:
 
         # Load devices from cache
         try:
-            (
-                devices := DataUtils.load_cached_data(
-                    local_file_path, MetaDataType.DEVICES.str
-                )
-            )["device_number"] = devices["device_number"].fillna(-1)
+            devices = DataUtils.load_cached_data(
+                local_file_path, MetaDataType.DEVICES.str
+            )
+            if not devices.empty:
+                devices["device_number"] = devices["device_number"].fillna(-1)
         except Exception as e:
             logger.exception(f"No devices currently cached: {e}")
             devices = pd.DataFrame()
@@ -186,10 +186,10 @@ class DataUtils:
         elif network == "iqair":
             mapping = config["mapping"][network]
             try:
-                data = DataUtils.map_and_extract_data(
-                    mapping, data_source_api.iqair(device, resolution=resolution)
-                )
-                return data, {}
+                iqair_data = data_source_api.iqair(device, resolution=resolution)
+                if iqair_data:
+                    data = DataUtils.map_and_extract_data(mapping, iqair_data)
+                    return data, {}
             except Exception as e:
                 logger.exception(
                     f"An error occurred: {e} - device {device.get('name')}"
