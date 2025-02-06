@@ -18,8 +18,6 @@ WORKDIR /app/
 ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
 ENV C_INCLUDE_PATH=/usr/include/gdal
 
-#install tensorflow
-#RUN pip install tensorflow==2.11.1 --no-deps
 # Copy the dependencies file to the working directory
 COPY requirements.txt requirements.txt
 

@@ -156,3 +156,21 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
         print(f"Error loading model from GCS: {e}")
         job = None
     return job
+    
+def load_tflite_model_from_gcs(project_name, bucket_name, source_blob_name):
+    # Create a GCSFileSystem object
+    fs = gcsfs.GCSFileSystem(project=project_name)
+    
+    # Construct the full path to the model in GCS
+    gcs_model_path = f"gs://{bucket_name}/{source_blob_name}"
+    
+    try:
+        # Open the TFLite model file from GCS
+        with fs.open(gcs_model_path, "rb") as model_file:
+            # Load the TFLite model
+            tflite_model = tf.lite.Interpreter(model_content=model_file.read())
+            tflite_model.allocate_tensors()  # Allocate tensors for the model
+            return tflite_model  # Return the loaded model interpreter
+    except Exception as e:
+        print(f"Error loading TFLite model from GCS: {e}")
+        return None

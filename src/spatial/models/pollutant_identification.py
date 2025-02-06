@@ -36,33 +36,30 @@ from matplotlib.patches import Polygon as pltPolygon
 from pymongo import MongoClient
 from bson import json_util
 
-from configure import get_trained_model_from_gcs, Config
+from configure import load_tflite_model_from_gcs, Config
 
+#authentification
+from google.oauth2 import service_account
 # Configure Warnings
 warnings.filterwarnings('ignore')
 
 
 # Ignore warnings
 warnings.filterwarnings('ignore')
-
-h5file = get_trained_model_from_gcs(
-                Config.GOOGLE_CLOUD_PROJECT_ID,
-                Config.PROJECT_BUCKET,
-                "paperunetmodel100-031-0.440052-0.500628.h5",
-            )
-
-
+print(f"GOOGLE_CLOUD_PROJECT_ID: {Config.GOOGLE_CLOUD_PROJECT_ID}")
+#print(f"PROJECT_BUCKET: {Config.PROJECT_BUCKET}")
 
 # Load the model
-model = tf.keras.models.load_model(h5file, compile=False)
+#tflite_model_path = 'optimized_pollutant_model.tflite'
 
 
-@staticmethod
 def initialize_earth_engine():
     ee.Initialize(credentials=service_account.Credentials.from_service_account_file(
         Config.CREDENTIALS,
         scopes=['https://www.googleapis.com/auth/earthengine']
     ), project=Config.GOOGLE_CLOUD_PROJECT_ID)
+
+initialize_earth_engine()
 # Function to load TIFF file
 class PredictionAndProcessing:
     @staticmethod 
@@ -80,23 +77,41 @@ class PredictionAndProcessing:
     # Function to preprocess the image for prediction
     @staticmethod 
     def preprocess_image(image_path):
-        image, image_profile = load_tiff(image_path)
+        image, image_profile = PredictionAndProcessing.load_tiff(image_path)
         # Check if the image has 4 channels (e.g., RGBA)
         if image.shape[-1] == 4:
             # Discard the alpha channel (keep only the first three channels: RGB)
             image = image[:, :, :3]
-        image = normalize_image(image)
+        image = PredictionAndProcessing.normalize_image(image)
         return image, image_profile
     @staticmethod 
-    def predict_and_get_centroids(image, image_profile):
-        # Predict the probability map
-        prediction_probabilities = model.predict(image[tf.newaxis, ...])[0, :, :, 0]
+    def predict_and_get_centroids(image, image_profile,interpreter):
+        # Get input and output tensors
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+
+        # Prepare input data
+        # Assuming image_rgb is already defined and loaded
+        image = np.array(image, dtype=np.float32)  # Ensure the image is float32 if required
+        image = np.expand_dims(image, axis=0)  # Add batch dimension
+
+        # Set the input tensor
+        interpreter.set_tensor(input_details[0]['index'], image)
+
+        # Run inference
+        interpreter.invoke()
+
+        # Get the output tensor and probabilities
+        prediction_probabilities = interpreter.get_tensor(output_details[0]['index'])[0, :, :, 0]
 
         # Create a binary mask by thresholding the probabilities
-        binary_mask = (prediction_probabilities > 0.5).astype(np.uint8)
+        binary_mask = (prediction_probabilities > 0.5).astype(np.uint8)  # Convert to uint8
+
+        # Post-process the binary mask
         binary_mask = remove_small_objects(binary_mask.astype(bool), min_size=500)
         binary_mask = binary_closing(binary_mask, disk(5))
-        binary_mask = binary_mask.astype(np.uint8)
+        binary_mask = binary_mask.astype(np.uint8)  # Ensure binary mask is uint8
+
 
         # Generate geometries
         results = (
@@ -215,9 +230,13 @@ class PredictionAndProcessing:
         point = ee.Geometry.Point(longitude, latitude)
 
         def get_mean(collection, band):
-            collection = collection.filterDate(start_date, end_date).filterBounds(point).select(band)
-            mean_value = collection.mean().reduceRegion(ee.Reducer.mean(), point.buffer(radius), scale=1000).get(band)
-            return mean_value.getInfo() if mean_value else None
+            try:
+                collection = collection.filterDate(start_date, end_date).filterBounds(point).select(band)
+                mean_value = collection.mean().reduceRegion(ee.Reducer.mean(), point.buffer(radius), scale=1000).get(band)
+                return mean_value.getInfo() if mean_value else None
+            except Exception as e:
+                logging.error(f"Error fetching mean value for band {band}: {e}")
+                return None
 
         return {
             'mean_AOD': get_mean(ee.ImageCollection('MODIS/061/MCD19A2_GRANULES'), 'Optical_Depth_047'),
