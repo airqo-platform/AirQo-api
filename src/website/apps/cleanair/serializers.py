@@ -117,16 +117,37 @@ class ForumResourceSerializer(serializers.ModelSerializer):
 class ForumEventSerializer(serializers.ModelSerializer):
     forum_resources = ForumResourceSerializer(many=True, read_only=True)
     engagement = EngagementSerializer(read_only=True)
-    partners = PartnerSerializer(many=True, read_only=True)
+    # Replace the default partners field with a SerializerMethodField.
+    partners = serializers.SerializerMethodField()
     supports = SupportSerializer(many=True, read_only=True)
     programs = CleanAirProgramSerializer(many=True, read_only=True)
-    persons = PersonSerializer(many=True, read_only=True)
+    persons = serializers.SerializerMethodField()
     background_image_url = serializers.SerializerMethodField()
 
     def get_background_image_url(self, obj):
         if obj.background_image:
             return obj.background_image.url
         return None
+
+    def get_persons(self, obj):
+        """
+        Return all Person objects that are explicitly linked to this event plus
+        any Person with no assigned forum_events (interpreted as belonging to all events).
+        """
+        explicit_persons = obj.persons.all()
+        unassigned_persons = Person.objects.filter(forum_events__isnull=True)
+        combined = (explicit_persons | unassigned_persons).distinct()
+        return PersonSerializer(combined, many=True).data
+
+    def get_partners(self, obj):
+        """
+        Return all Partner objects that are explicitly linked to this event plus
+        any Partner with no assigned forum_events (interpreted as belonging to all events).
+        """
+        explicit_partners = obj.partners.all()
+        unassigned_partners = Partner.objects.filter(forum_events__isnull=True)
+        combined = (explicit_partners | unassigned_partners).distinct()
+        return PartnerSerializer(combined, many=True).data
 
     class Meta:
         model = ForumEvent
