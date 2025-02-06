@@ -1,6 +1,6 @@
 # API Documentation for Search Management
 
-**Base URL**: `https://api.yourdomain.com/v2/search`
+**Base URL**: `https://api.airqo.net/v2/search`
 
 ## Authentication
 
@@ -26,7 +26,7 @@ Perform a search based on the provided query parameters.
 
 ```http
 GET /search?q=blogging&limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -49,7 +49,7 @@ Retrieve autocomplete suggestions based on the user's input.
 
 ```http
 GET /search/autocomplete?term=blog HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -74,7 +74,7 @@ Filter search results based on specific criteria.
 
 ```http
 GET /search/filter?q=blogging&category=technology&limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -98,6 +98,6 @@ Retrieve paginated search results based on the provided query parameters.
 
 ```http
 GET /search/paginate?q=blogging&page=2&limit=10 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```

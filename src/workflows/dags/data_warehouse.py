@@ -52,14 +52,6 @@ def data_warehouse_consolidated_data():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=7, **kwargs
         )
-
-        data = DataUtils.extract_data_from_bigquery(
-            DataType.AVERAGED,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            frequency=Frequency.HOURLY,
-            device_category=DeviceCategory.BAM,
-        )
         return WeatherDataUtils.extract_weather_data(
             DataType.AVERAGED,
             start_date_time=start_date_time,
@@ -135,7 +127,7 @@ def data_warehouse_cleanup_consolidated_data():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=5, kwargs=kwargs
+            days=5, **kwargs
         )
         return DataUtils.extract_data_from_bigquery(
             DataType.CONSOLIDATED,
