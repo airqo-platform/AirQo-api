@@ -1,3 +1,4 @@
+
 from django.contrib import admin
 from django.utils.html import format_html
 from nested_admin import NestedTabularInline, NestedModelAdmin
@@ -122,10 +123,22 @@ class ForumResourceAdmin(NestedModelAdmin):
 
 @admin.register(Partner)
 class PartnerAdmin(admin.ModelAdmin):
-    list_display = ('name', 'forum_event', 'category', 'logo_preview', 'order')
-    list_filter = ('forum_event',)
-    search_fields = ('name', 'category', 'forum_event__title',)
+    list_display = ('name', 'forum_events_display',
+                    'category', 'logo_preview', 'order')
+    list_filter = ('forum_events', 'category',)
+    search_fields = ('name', 'category', 'forum_events__title',)
     list_per_page = 12
+    # Use the horizontal filter widget for the many-to-many field.
+    filter_horizontal = ('forum_events',)
+
+    def forum_events_display(self, obj):
+        events = obj.forum_events.all()
+        if events.exists():
+            # Show a comma-separated list of the event titles.
+            return ", ".join(event.title for event in events)
+        else:
+            return "All Events"
+    forum_events_display.short_description = 'Forum Events'
 
     def logo_preview(self, obj):
         if obj.partner_logo:
@@ -138,11 +151,23 @@ class PartnerAdmin(admin.ModelAdmin):
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
-    list_display = ('name', 'forum_event', 'category',
-                    'image_preview', 'order')
-    list_filter = ('forum_event',)
-    search_fields = ('name', 'category', 'forum_event__title',)
+    list_display = ('name', 'forum_events_display',
+                    'category', 'image_preview', 'order')
+    list_filter = ('forum_events', 'category')
+    search_fields = ('name', 'category', 'forum_events__title',)
     list_per_page = 12
+
+    # Enable a horizontal filter widget for the many-to-many field.
+    filter_horizontal = ('forum_events',)
+
+    def forum_events_display(self, obj):
+        """Display the events a person is linked to. If none are selected, show 'All Events'."""
+        events = obj.forum_events.all()
+        if events.exists():
+            return ", ".join(event.title for event in events)
+        else:
+            return "All Events"
+    forum_events_display.short_description = 'Forum Events'
 
     def image_preview(self, obj):
         if obj.picture:
