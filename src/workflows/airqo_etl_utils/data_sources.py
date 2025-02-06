@@ -111,22 +111,19 @@ class DataSourcesApis:
             "historical" if resolution in historical_resolutions else resolution
         )
         data = None
+        response_data = None
         try:
             base_url = device.get("api_code")
             device_id = device.get("serial_number")
-            if not base_url or not device_id:
-                logger.exception(
-                    "Device information must include 'api_code' and 'serial_number'."
-                )
+            if base_url and device_id and not pd.isna(base_url):
+                url = f"{base_url}/{device_id}"
+                logger.info(f"Fetching data from URL: {url}")
 
-            url = f"{base_url}/{device_id}"
-            logger.info(f"Fetching data from URL: {url}")
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+                response_data = response.json()
 
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-            response_data = response.json()
-
-            if api_resolution in response_data:
+            if response_data and api_resolution in response_data:
                 if resolution == "current":
                     data = response_data.get("current")
                 else:
