@@ -11,7 +11,7 @@ const commonValidations = {
       .withMessage("tenant should not be empty if provided")
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "airqount"])
       .withMessage("the tenant value is not among the expected ones"),
   ],
   preferenceId: [
