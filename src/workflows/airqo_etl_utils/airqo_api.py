@@ -32,10 +32,8 @@ class AirQoApi:
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
             if data:
-                network = data[0].get("network", "")
                 self.__request(
                     endpoint="devices/events",
-                    params={"network": network},
                     method="post",
                     body=data,
                 )
