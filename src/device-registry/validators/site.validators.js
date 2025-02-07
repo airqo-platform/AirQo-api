@@ -234,9 +234,17 @@ const validateMandatorySiteIdentifier = oneOf([
   createMongoIdValidation("id"),
   query("lat_long")
     .exists()
+    .withMessage(
+      "an identifier is missing in the request, consider using lat_long"
+    )
+    .bail()
     .trim(),
   query("generated_name")
     .exists()
+    .withMessage(
+      "an identifier is missing in the request, consider using generated_name"
+    )
+    .bail()
     .trim(),
 ]);
 
