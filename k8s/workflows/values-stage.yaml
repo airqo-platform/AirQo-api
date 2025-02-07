@@ -52,7 +52,6 @@ affinity:
               operator: In
               values:
                 - high-cpu
-                - high-mem
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
