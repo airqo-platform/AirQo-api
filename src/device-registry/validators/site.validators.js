@@ -160,21 +160,23 @@ function validateCategoryField(value) {
   return isValid;
 }
 
-// Composed Validation Middleware
-const validateSiteIdentifier = oneOf([
+const siteIdentifierChains = [
   createMongoIdValidation("id"),
   createMongoIdValidation("site_id", { isOptional: true }),
   query("name")
     .optional()
     .notEmpty()
     .trim(),
-]);
+];
+
+// Composed Validation Middleware
+const validateSiteIdentifier = oneOf(siteIdentifierChains);
 
 const validateSiteQueryParams = oneOf([
   [
-    ...[
+    [
       createTenantValidation({ isOptional: true }),
-      validateSiteIdentifier,
+      ...siteIdentifierChains,
       query("online_status")
         .optional()
         .notEmpty()
