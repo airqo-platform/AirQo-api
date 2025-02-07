@@ -1,4 +1,10 @@
-const { check, oneOf, query, body } = require("express-validator");
+const {
+  check,
+  oneOf,
+  query,
+  body,
+  validationResult,
+} = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -198,10 +204,10 @@ const healthTipValidations = {
 };
 
 const tipsValidations = {
-  createTip: oneOf([healthTipValidations.create]),
-  listTips: oneOf([healthTipValidations.list]),
-  updateTip: oneOf([healthTipValidations.update]),
-  deleteTip: oneOf([healthTipValidations.delete]),
+  createTip: healthTipValidations.create,
+  listTips: healthTipValidations.list,
+  updateTip: healthTipValidations.update,
+  deleteTip: healthTipValidations.delete,
   pagination: commonValidations.pagination,
 };
 
