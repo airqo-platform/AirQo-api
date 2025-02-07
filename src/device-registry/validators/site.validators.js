@@ -292,7 +292,16 @@ const validateSiteMetadata = [
 
 const validateUpdateSite = [
   createTenantValidation({ isOptional: true }),
-
+  body("name")
+    .optional()
+    .notEmpty()
+    .withMessage("name cannot be empty IF provided")
+    .bail()
+    .trim()
+    .custom((value) => createSiteUtil.validateSiteName(value))
+    .withMessage(
+      "The name should be greater than 5 and less than 50 in length"
+    ),
   body("status")
     .optional()
     .notEmpty()
