@@ -230,7 +230,7 @@ const validateSiteQueryParams = oneOf([
     .toDate(),
 ]);
 
-const validateMandatorySiteIdentifier = [
+const validateMandatorySiteIdentifier = oneOf([
   createMongoIdValidation("id"),
   query("lat_long")
     .exists()
@@ -238,7 +238,7 @@ const validateMandatorySiteIdentifier = [
   query("generated_name")
     .exists()
     .trim(),
-];
+]);
 
 const validateCreateSite = [
   createCoordinateValidation("latitude", { isQuery: false }),
@@ -342,21 +342,9 @@ const validateUpdateSite = [
     ),
 ];
 
-const validateRefreshSite = oneOf([
-  createTenantValidation({ isOptional: true }),
-  ...validateMandatorySiteIdentifier,
-]);
+const validateRefreshSite = [createTenantValidation({ isOptional: true })];
 
-const validateDeleteSite = [
-  createTenantValidation({ isOptional: true }),
-  createMongoIdValidation("id"),
-  query("lat_long")
-    .exists()
-    .trim(),
-  query("generated_name")
-    .exists()
-    .trim(),
-];
+const validateDeleteSite = [createTenantValidation({ isOptional: true })];
 
 const validateCreateApproximateCoordinates = [
   createCoordinateValidation("latitude", { isQuery: false, minPlaces: 2 }),
