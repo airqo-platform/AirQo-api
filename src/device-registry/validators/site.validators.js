@@ -170,71 +170,67 @@ const siteIdentifierChains = [
 ];
 
 // Composed Validation Middleware
-const validateSiteIdentifier = oneOf(siteIdentifierChains);
+const validateSiteIdentifier = siteIdentifierChains;
 
 const validateSiteQueryParams = oneOf([
-  [
-    [
-      createTenantValidation({ isOptional: true }),
-      ...siteIdentifierChains,
-      query("online_status")
-        .optional()
-        .notEmpty()
-        .withMessage("the online_status should not be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["online", "offline"])
-        .withMessage(
-          "the online_status value is not among the expected ones which include: online, offline"
-        ),
-      query("category")
-        .optional()
-        .notEmpty()
-        .withMessage("the category should not be empty if provided")
-        .bail()
-        .trim(),
-      query("last_active_before")
-        .optional()
-        .notEmpty()
-        .withMessage("last_active_before date cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage(
-          "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
-        )
-        .bail()
-        .toDate(),
-      query("last_active_after")
-        .optional()
-        .notEmpty()
-        .withMessage("last_active_after date cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage(
-          "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
-        )
-        .bail()
-        .toDate(),
-      query("last_active")
-        .optional()
-        .notEmpty()
-        .withMessage("last_active date cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage(
-          "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
-        )
-        .bail()
-        .toDate(),
-    ],
-  ],
+  createTenantValidation({ isOptional: true }),
+  ...siteIdentifierChains,
+  query("online_status")
+    .optional()
+    .notEmpty()
+    .withMessage("the online_status should not be empty if provided")
+    .bail()
+    .trim()
+    .toLowerCase()
+    .isIn(["online", "offline"])
+    .withMessage(
+      "the online_status value is not among the expected ones which include: online, offline"
+    ),
+  query("category")
+    .optional()
+    .notEmpty()
+    .withMessage("the category should not be empty if provided")
+    .bail()
+    .trim(),
+  query("last_active_before")
+    .optional()
+    .notEmpty()
+    .withMessage("last_active_before date cannot be empty IF provided")
+    .bail()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage(
+      "last_active_before date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+    )
+    .bail()
+    .toDate(),
+  query("last_active_after")
+    .optional()
+    .notEmpty()
+    .withMessage("last_active_after date cannot be empty IF provided")
+    .bail()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage(
+      "last_active_after date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+    )
+    .bail()
+    .toDate(),
+  query("last_active")
+    .optional()
+    .notEmpty()
+    .withMessage("last_active date cannot be empty IF provided")
+    .bail()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage(
+      "last_active date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)."
+    )
+    .bail()
+    .toDate(),
 ]);
 
-const validateMandatorySiteIdentifier = oneOf([
+const validateMandatorySiteIdentifier = [
   createMongoIdValidation("id"),
   query("lat_long")
     .exists()
@@ -242,165 +238,140 @@ const validateMandatorySiteIdentifier = oneOf([
   query("generated_name")
     .exists()
     .trim(),
-]);
+];
 
 const validateCreateSite = [
-  oneOf([
-    [
-      createCoordinateValidation("latitude", { isQuery: false }),
-      createCoordinateValidation("longitude", { isQuery: false }),
-      body("name")
-        .exists()
-        .withMessage("the name is is missing in your request")
-        .bail()
-        .trim()
-        .custom((value) => createSiteUtil.validateSiteName(value))
-        .withMessage(
-          "The name should be greater than 5 and less than 50 in length"
-        ),
-      body("site_tags")
-        .optional()
-        .custom((value) => Array.isArray(value))
-        .withMessage("the site_tags should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the site_tags should not be empty"),
-      body("groups")
-        .optional()
-        .custom((value) => Array.isArray(value))
-        .withMessage("the groups should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the groups should not be empty"),
-      body("airqlouds")
-        .optional()
-        .custom((value) => Array.isArray(value))
-        .withMessage("the airqlouds should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the airqlouds should not be empty"),
-      body("airqlouds.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each airqloud should be a mongo ID"),
-      body("site_category")
-        .optional()
-        .custom(validateCategoryField)
-        .withMessage(
-          "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
-        ),
-    ],
-  ]),
+  createCoordinateValidation("latitude", { isQuery: false }),
+  createCoordinateValidation("longitude", { isQuery: false }),
+  body("name")
+    .exists()
+    .withMessage("the name is is missing in your request")
+    .bail()
+    .trim()
+    .custom((value) => createSiteUtil.validateSiteName(value))
+    .withMessage(
+      "The name should be greater than 5 and less than 50 in length"
+    ),
+  body("site_tags")
+    .optional()
+    .custom((value) => Array.isArray(value))
+    .withMessage("the site_tags should be an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the site_tags should not be empty"),
+  body("groups")
+    .optional()
+    .custom((value) => Array.isArray(value))
+    .withMessage("the groups should be an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the groups should not be empty"),
+  body("airqlouds")
+    .optional()
+    .custom((value) => Array.isArray(value))
+    .withMessage("the airqlouds should be an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the airqlouds should not be empty"),
+  body("airqlouds.*")
+    .optional()
+    .isMongoId()
+    .withMessage("each airqloud should be a mongo ID"),
+  body("site_category")
+    .optional()
+    .custom(validateCategoryField)
+    .withMessage(
+      "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
+    ),
 ];
 
 const validateSiteMetadata = [
-  oneOf([
-    [
-      createCoordinateValidation("latitude", { isQuery: false, minPlaces: 2 }),
-      createCoordinateValidation("longitude", { isQuery: false, minPlaces: 2 }),
-    ],
-  ]),
+  createCoordinateValidation("latitude", { isQuery: false, minPlaces: 2 }),
+  createCoordinateValidation("longitude", { isQuery: false, minPlaces: 2 }),
 ];
 
 const validateUpdateSite = [
   createTenantValidation({ isOptional: true }),
-  oneOf([
-    [
-      body("status")
-        .optional()
-        .notEmpty()
-        .trim()
-        .toLowerCase()
-        .isIn(["active", "decommissioned"])
-        .withMessage(
-          "the status value is not among the expected ones which include: decommissioned, active"
-        ),
-      body("visibility")
-        .optional()
-        .notEmpty()
-        .withMessage("visibility cannot be empty IF provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("visibility must be Boolean"),
-      createCoordinateValidation("latitude", {
-        isOptional: true,
-        isQuery: false,
-      }),
-      createCoordinateValidation("longitude", {
-        isOptional: true,
-        isQuery: false,
-      }),
-      body("site_tags")
-        .optional()
-        .custom((value) => Array.isArray(value))
-        .withMessage("the site_tags should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the site_tags should not be empty"),
-      body("site_category")
-        .optional()
-        .custom(validateCategoryField)
-        .withMessage(
-          "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
-        ),
-    ],
-  ]),
+
+  body("status")
+    .optional()
+    .notEmpty()
+    .trim()
+    .toLowerCase()
+    .isIn(["active", "decommissioned"])
+    .withMessage(
+      "the status value is not among the expected ones which include: decommissioned, active"
+    ),
+  body("visibility")
+    .optional()
+    .notEmpty()
+    .withMessage("visibility cannot be empty IF provided")
+    .bail()
+    .trim()
+    .isBoolean()
+    .withMessage("visibility must be Boolean"),
+  createCoordinateValidation("latitude", {
+    isOptional: true,
+    isQuery: false,
+  }),
+  createCoordinateValidation("longitude", {
+    isOptional: true,
+    isQuery: false,
+  }),
+  body("site_tags")
+    .optional()
+    .custom((value) => Array.isArray(value))
+    .withMessage("the site_tags should be an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the site_tags should not be empty"),
+  body("site_category")
+    .optional()
+    .custom(validateCategoryField)
+    .withMessage(
+      "Invalid site_category format, crosscheck the types or content of all the provided nested fields. latitude, longitude & search_radius should be numbers. tags should be an array of strings. category, search_tags & search_radius are required fields"
+    ),
 ];
 
-const validateRefreshSite = [
+const validateRefreshSite = oneOf([
   createTenantValidation({ isOptional: true }),
-  validateMandatorySiteIdentifier,
-];
+  ...validateMandatorySiteIdentifier,
+]);
 
 const validateDeleteSite = [
   createTenantValidation({ isOptional: true }),
-  oneOf([
-    createMongoIdValidation("id"),
-    query("lat_long")
-      .exists()
-      .trim(),
-    query("generated_name")
-      .exists()
-      .trim(),
-  ]),
+  createMongoIdValidation("id"),
+  query("lat_long")
+    .exists()
+    .trim(),
+  query("generated_name")
+    .exists()
+    .trim(),
 ];
 
 const validateCreateApproximateCoordinates = [
-  oneOf([
-    [
-      createCoordinateValidation("latitude", { isQuery: false, minPlaces: 2 }),
-      createCoordinateValidation("longitude", { isQuery: false, minPlaces: 2 }),
-    ],
-  ]),
+  createCoordinateValidation("latitude", { isQuery: false, minPlaces: 2 }),
+  createCoordinateValidation("longitude", { isQuery: false, minPlaces: 2 }),
 ];
 
 const validateGetApproximateCoordinates = [
-  oneOf([
-    [
-      createCoordinateValidation("latitude", { minPlaces: 2 }),
-      createCoordinateValidation("longitude", { minPlaces: 2 }),
-    ],
-  ]),
+  createCoordinateValidation("latitude", { minPlaces: 2 }),
+  createCoordinateValidation("longitude", { minPlaces: 2 }),
 ];
 
 const validateNearestSite = [
   createTenantValidation({ isOptional: true }),
-  oneOf([
-    [
-      createCoordinateValidation("longitude"),
-      createCoordinateValidation("latitude"),
-      query("radius")
-        .exists()
-        .withMessage("the radius is missing in request")
-        .bail()
-        .trim()
-        .isFloat()
-        .withMessage("the radius must be a number")
-        .bail()
-        .toFloat(),
-    ],
-  ]),
+  createCoordinateValidation("longitude"),
+  createCoordinateValidation("latitude"),
+  query("radius")
+    .exists()
+    .withMessage("the radius is missing in request")
+    .bail()
+    .trim()
+    .isFloat()
+    .withMessage("the radius must be a number")
+    .bail()
+    .toFloat(),
 ];
 
 const validateBulkUpdateSites = [
