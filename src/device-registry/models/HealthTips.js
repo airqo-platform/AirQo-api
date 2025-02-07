@@ -67,31 +67,7 @@ tipsSchema.statics = {
   async register(args, next) {
     try {
       logText("registering a new tip....");
-      let modifiedArgs = Object.assign({}, args);
-      delete modifiedArgs.aqi_category;
-
-      switch (args.aqi_category) {
-        case "good":
-          modifiedArgs.aqi_category = { min: 0, max: 12.09 };
-          break;
-        case "moderate":
-          modifiedArgs.aqi_category = { min: 12.1, max: 35.49 };
-          break;
-        case "u4sg":
-          modifiedArgs.aqi_category = { min: 35.5, max: 55.49 };
-          break;
-        case "unhealthy":
-          modifiedArgs.aqi_category = { min: 55.5, max: 150.49 };
-          break;
-        case "very_unhealthy":
-          modifiedArgs.aqi_category = { min: 150.5, max: 250.49 };
-          break;
-        case "hazardous":
-          modifiedArgs.aqi_category = { min: 250.5, max: 500 };
-          break;
-        default:
-      }
-      const createdTip = await this.create({ ...modifiedArgs });
+      const createdTip = await this.create({ ...args });
       if (!isEmpty(createdTip)) {
         return {
           success: true,
