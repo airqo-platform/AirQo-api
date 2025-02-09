@@ -210,8 +210,8 @@ const client = {
           next
         );
         const responseMessage = isActive
-          ? "STI API client activated successfully"
-          : "STI API client deactivated successfully";
+          ? "AirQo API client activated successfully"
+          : "AirQo API client deactivated successfully";
 
         if (responseFromSendEmail.success === true) {
           return {
