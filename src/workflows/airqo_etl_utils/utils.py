@@ -173,21 +173,29 @@ class Utils:
 
     @staticmethod
     def query_frequency(data_source: DataSource) -> str:
-        if data_source == DataSource.THINGSPEAK:
-            return "12H"
-        if data_source == DataSource.AIRNOW:
-            return "12H"
-        if data_source == DataSource.BIGQUERY:
-            return "720H"
-        if data_source == DataSource.TAHMO:
-            return "24H"
-        if data_source == DataSource.AIRQO:
-            return "12H"
-        if data_source == DataSource.CLARITY:
-            return "6H"
-        if data_source == DataSource.PURPLE_AIR:
-            return "72H"
-        return "1H"
+        """
+        Determines the query frequency for a given data source.
+
+        This function maps a specified data source to a corresponding frequency string,
+        which is used to schedule data queries or processing intervals. If the data source
+        is not recognized, a default frequency of "1H" (one hour) is returned.
+
+        Args:
+            data_source (DataSource): The data source for which the query frequency is required.
+
+        Returns:
+            str: The frequency string associated with the data source (e.g., "12H" for 12 hours).
+        """
+        frequency_map = {
+            DataSource.THINGSPEAK: "12H",
+            DataSource.AIRNOW: "12H",
+            DataSource.BIGQUERY: "720H",
+            DataSource.TAHMO: "24H",
+            DataSource.AIRQO: "12H",
+            DataSource.CLARITY: "6H",
+            DataSource.PURPLE_AIR: "72H",
+        }
+        return frequency_map.get(data_source, "1H")
 
     @staticmethod
     def handle_api_error(response: Response):
@@ -204,7 +212,6 @@ class Utils:
         data_source: DataSource,
         start_date_time,
         end_date_time,
-        freq: Optional[Frequency] = None,
     ):
         """
         Generates an array of date ranges based on the specified time period and frequency.
@@ -219,13 +226,12 @@ class Utils:
             data_source(DataSource): The source of data to determine frequency.
             start_date_time(str): The start date and time for the query range.
             end_date_time(str): The end date and time for the query range.
-            freq(Optional[Frequency]): The frequency of date ranges. If None, it is determined based on the data source.
 
         Returns:
             list: A list of tuples, where each tuple contains the start and end date (as strings) for each time range within the specified period.
         """
-        freq = Utils.query_frequency(data_source) if freq is None else freq
-        dates = pd.date_range(start_date_time, end_date_time, freq=freq.str)
+        freq = Utils.query_frequency(data_source)
+        dates = pd.date_range(start_date_time, end_date_time, freq=freq)
         frequency = dates.freq
 
         if dates.values.size == 1:
