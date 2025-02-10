@@ -20,7 +20,7 @@ from task_docs import (
     extract_historical_device_measurements_doc,
 )
 from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -343,7 +343,6 @@ def airqo_realtime_measurements():
     import pandas as pd
 
     from airqo_etl_utils.date import date_to_str_hours
-    from datetime import datetime, timedelta
 
     @task(
         doc_md=extract_raw_airqo_data_doc,
@@ -540,7 +539,6 @@ def airqo_raw_data_measurements():
     )
     def extract_raw_data(**kwargs):
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
 
         execution_time = kwargs["dag_run"].execution_date
         hour_of_day = execution_time - timedelta(minutes=30)
@@ -600,7 +598,6 @@ def airqo_gaseous_realtime_measurements():
     )
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
 
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
@@ -659,7 +656,6 @@ def airqo_bigquery_data_measurements_to_api():
     )
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
 
         # Only used the first time
         start = "2021-01-01"
@@ -678,6 +674,7 @@ def airqo_bigquery_data_measurements_to_api():
 
         if start_date_time > end or end_date_time > end:
             raise AirflowFailException(f"Run expired on {end}")
+
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
