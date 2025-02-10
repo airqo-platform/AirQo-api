@@ -25,6 +25,20 @@ class AirQoApi:
         self.AIRQO_API_TOKEN = configuration.AIRQO_API_TOKEN
 
     def save_events(self, measurements: List) -> None:
+        """
+        Posts event measurements to the API in batches.
+
+        This method divides a list of event measurements into smaller batches based on the
+        configured POST_EVENTS_BODY_SIZE and posts each batch to the "devices/events" endpoint
+        using the internal __request method with the POST HTTP method. If a batch is empty, it
+        is skipped.
+
+        Args:
+            measurements (List): A list of event measurement objects to be posted.
+
+        Returns:
+            None
+        """
         #  Temporarily disabling usage of the API to store measurements.
         # if "staging" in self.AIRQO_BASE_URL_V2.lower():
         #     return
@@ -32,10 +46,8 @@ class AirQoApi:
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
             if data:
-                network = data[0].get("network", "")
                 self.__request(
                     endpoint="devices/events",
-                    params={"network": network},
                     method="post",
                     body=data,
                 )
@@ -81,54 +93,6 @@ class AirQoApi:
         elif "device_activities" in response:
             return response["device_activities"]
         return []
-
-    def calibrate_data(self, time: str, data: pd.DataFrame) -> List:
-        # TODO Update doc string.
-        data = data.copy()
-        data = data[
-            [
-                "device_number",
-                "s1_pm2_5",
-                "s2_pm2_5",
-                "s1_pm10",
-                "s2_pm10",
-                "temperature",
-                "humidity",
-            ]
-        ]
-
-        data.rename(
-            columns={
-                "device_number": "device_id",
-                "s1_pm2_5": "sensor1_pm2.5",
-                "s2_pm2_5": "sensor2_pm2.5",
-                "s1_pm10": "sensor1_pm10",
-                "s2_pm10": "sensor2_pm10",
-                "temperature": "temperature",
-                "humidity": "humidity",
-            },
-            inplace=True,
-        )
-
-        request_body = {"datetime": time, "raw_values": data.to_dict("records")}
-
-        base_url = (
-            self.CALIBRATION_BASE_URL
-            if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL_V2
-        )
-
-        try:
-            response = self.__request(
-                endpoint="calibrate",
-                method="post",
-                body=request_body,
-                base_url=base_url,
-            )
-            return response if response else []
-        except Exception as ex:
-            logger.exception()
-            return []
 
     def get_devices(
         self,
@@ -199,9 +163,7 @@ class AirQoApi:
                 "device_id": device.pop("name"),
                 "site_id": device.get("site", {}).get("_id", None),
                 "site_location": device.pop("site", {}).get("location_name", None),
-                "device_category": str(
-                    DeviceCategory.category_from_str(device.pop("category", ""))
-                ),
+                "device_category": device.pop("category", ""),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }
@@ -793,7 +755,7 @@ class AirQoApi:
         query_params: Dict[str, Any] = {}
 
         if network:
-            query_params["network"] = network
+            query_params["network"] = network.str
 
         response = self.__request("devices/sites", query_params)
 

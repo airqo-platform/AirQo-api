@@ -17,9 +17,14 @@ from firebase_admin.exceptions import NotFoundError
 
 from .airqo_api import AirQoApi
 from .config import configuration as Config
+from .datautils import DataUtils
 
 from .date import get_utc_offset_for_hour
 from .email_templates import forecast_email
+from typing import Tuple, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 cred = credentials.Certificate(
     {
@@ -93,22 +98,48 @@ def get_all_users(notifications_type):
         raise (error)
 
 
-def get_random_measurement():
+def get_random_measurement() -> Tuple[
+    Optional[float], Optional[str], Optional[str], Optional[str]
+]:
+    """
+    Retrieve a random site measurement with a valid pm_value.
+
+    This function obtains the sites DataFrame via DataUtils.get_sites() and then attempts to
+    retrieve a valid (non-NaN) pm_value for a randomly selected site. It repeatedly samples
+    random rows up to a maximum number of attempts equal to the number of rows in the DataFrame.
+    If no valid measurement is found after all attempts, a warning is logged and the default
+    values (None) are returned.
+
+    The measurement for a site is fetched using AirQoApi().get_site_measurement(place_id),
+    where 'place_id' is obtained from the site's data.
+
+    Returns:
+        tuple:
+            - pm_value (Optional[float]): The measurement value if valid; otherwise, None.
+            - name (Optional[str]): The site's search name.
+            - location (Optional[str]): The site's location name.
+            - place_id (Optional[str]): The site's identifier.
+    """
     try:
-        name, location, pm_value = None, None, None
-        sites = AirQoApi().get_sites()
-        while pm_value is None:
-            random_index = random.randint(0, len(sites) - 1)
-            target_place = sites[random_index]
+        sites = DataUtils.get_sites()
+        max_attempts = len(sites)
+        attempt = 0
+        pm_value, name, location, place_id = None, None, None, None
+
+        while (pm_value is None or pd.isna(pm_value)) and attempt < max_attempts:
+            target_place = sites.sample(n=1).iloc[0]
             name = target_place.get("search_name")
             location = target_place.get("location_name")
             place_id = target_place.get("site_id")
             pm_value = AirQoApi().get_site_measurement(place_id)
+            attempt += 1
 
+        if pm_value is None or pd.isna(pm_value):
+            logger.warning("No valid measurement found after maximum attempts.")
         return pm_value, name, location, place_id
-    except Exception as error:
-        print("Error getting random measurement", error)
-        traceback.print_exc()
+
+    except Exception as e:
+        logger.exception("Error getting random measurement", exc_info=e)
         return None, None, None, None
 
 
