@@ -8,10 +8,10 @@ from requests import Response
 from google.cloud import storage
 import joblib
 
-from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
+from .constants import ColumnDataType, Pollutant, AirQuality, DataSource, Frequency
 from .date import date_to_str
 
-from typing import List
+from typing import List, Optional
 
 
 class Utils:
@@ -201,11 +201,32 @@ class Utils:
 
     @staticmethod
     def query_dates_array(
-        data_source: DataSource, start_date_time, end_date_time, freq: str = None
+        data_source: DataSource,
+        start_date_time,
+        end_date_time,
+        freq: Optional[Frequency] = None,
     ):
-        frequency = Utils.query_frequency(data_source) if freq is None else freq
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        freq = dates.freq
+        """
+        Generates an array of date ranges based on the specified time period and frequency.
+
+        This function creates an array of date ranges starting from `start_date_time` to `end_date_time`,
+        with each range having a frequency determined by `freq`. If `freq` is not provided, it is retrieved
+        from the `Utils.query_frequency()` method based on the provided `data_source`. The date ranges are
+        split such that each range's end time does not exceed the specified `end_date_time`. The function returns
+        a list of tuples, where each tuple represents a start and end date in string format.
+
+        Args:
+            data_source(DataSource): The source of data to determine frequency.
+            start_date_time(str): The start date and time for the query range.
+            end_date_time(str): The end date and time for the query range.
+            freq(Optional[Frequency]): The frequency of date ranges. If None, it is determined based on the data source.
+
+        Returns:
+            list: A list of tuples, where each tuple contains the start and end date (as strings) for each time range within the specified period.
+        """
+        freq = Utils.query_frequency(data_source) if freq is None else freq
+        dates = pd.date_range(start_date_time, end_date_time, freq=freq.str)
+        frequency = dates.freq
 
         if dates.values.size == 1:
             dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
@@ -215,7 +236,7 @@ class Utils:
 
         array_last_date_time = dates.pop()
         for date in dates:
-            end = date + timedelta(hours=freq.n)
+            end = date + timedelta(hours=frequency.n)
             if end > array_last_date_time:
                 end = array_last_date_time
             return_dates.append((date_to_str(date), date_to_str(end)))

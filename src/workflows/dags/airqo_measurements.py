@@ -10,6 +10,7 @@ from dag_docs import (
     airqo_historical_hourly_measurements_doc,
     airqo_gaseous_realtime_low_cost_data_doc,
     airqo_historical_raw_low_cost_measurements_doc,
+    stream_old_data_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
@@ -19,7 +20,7 @@ from task_docs import (
     extract_historical_device_measurements_doc,
 )
 from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -342,7 +343,6 @@ def airqo_realtime_measurements():
     import pandas as pd
 
     from airqo_etl_utils.date import date_to_str_hours
-    from datetime import datetime, timedelta, timezone
 
     @task(
         doc_md=extract_raw_airqo_data_doc,
@@ -424,7 +424,6 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
@@ -540,7 +539,6 @@ def airqo_raw_data_measurements():
     )
     def extract_raw_data(**kwargs):
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
 
         execution_time = kwargs["dag_run"].execution_date
         hour_of_day = execution_time - timedelta(minutes=30)
@@ -600,7 +598,6 @@ def airqo_gaseous_realtime_measurements():
     )
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
 
         execution_date = kwargs["dag_run"].execution_date
         hour_of_day = execution_date - timedelta(hours=1)
@@ -641,9 +638,71 @@ def airqo_gaseous_realtime_measurements():
     send_raw_measurements_to_bigquery(clean_data)
 
 
+@dag(
+    "Stream-Old-Data",
+    schedule="*/25 * * * *",
+    catchup=False,
+    doc_md=stream_old_data_doc,
+    tags=["old", "hourly-data", "bigquery", "api"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def airqo_bigquery_data_measurements_to_api():
+    import pandas as pd
+
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
+    def extract_hourly_data(**kwargs) -> pd.DataFrame:
+        from airqo_etl_utils.date import date_to_str_hours
+
+        # Only used the first time
+        start = kwargs.get("params", {}).get("start_date", "2021-01-01")
+        end_d = kwargs.get("params", {}).get("end_date", "2021-12-31")
+        end_d = datetime.strptime(end_d, "%Y-%m-%d")
+        end_dt = end_d.replace(hour=23, minute=59, second=59)
+        end = datetime.strftime(end_dt, "%Y-%m-%dT%H:%M:%SZ")
+
+        previous_date = kwargs["ti"].xcom_pull(key="new_date")
+        if not previous_date:
+            previous_date = start
+
+        hour_of_day = previous_date + timedelta(hours=1)
+
+        start_date_time = date_to_str_hours(previous_date)
+        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+
+        if start_date_time > end or end_date_time > end:
+            raise AirflowFailException(f"Run expired on {end}")
+
+        return DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            device_category=DeviceCategory.GENERAL,
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_hourly_measurements_to_api(data: pd.DataFrame, **kwargs):
+        from airqo_etl_utils.airqo_api import AirQoApi
+
+        data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
+
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=data)
+        previous_date = kwargs["ti"].xcom_pull(key="new_date")
+        kwargs["ti"].xcom_push(key="new_date", value=previous_date + timedelta(hours=1))
+
+    hourly_data = extract_hourly_data()
+    send_hourly_measurements_to_api(hourly_data)
+
+
 airqo_historical_hourly_measurements()
 airqo_realtime_measurements()
 airqo_historical_raw_measurements()
 airqo_cleanup_measurements()
 airqo_raw_data_measurements()
 airqo_gaseous_realtime_measurements()
+airqo_bigquery_data_measurements_to_api()

@@ -1,6 +1,5 @@
 import pandas as pd
 
-from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
 
 # from .app_insights_utils import AirQoAppUtils
@@ -11,16 +10,30 @@ from .weather_data_utils import WeatherDataUtils
 from .constants import DataType, Frequency
 from .datautils import DataUtils
 
+from typing import Set
+
 
 class DataWarehouseUtils:
     @staticmethod
     def filter_valid_columns(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Filters the given DataFrame to retain only the columns that exist in the data warehouse table.
+
+        This function retrieves the list of valid columns from the BigQuery data warehouse
+        and then compares them with the columns present in the given DataFrame. It returns a
+        new DataFrame containing only the columns that are common to both.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame containing data to be filtered.
+
+        Returns:
+            pd.DataFrame: A new DataFrame containing only the valid columns that exist in the BigQuery data warehouse table.
+        """
         biq_query_api = BigQueryApi()
-        data_warehouse_cols = biq_query_api.get_columns(
-            table=biq_query_api.consolidated_data_table
+        data_warehouse_cols: Set[str] = set(
+            biq_query_api.get_columns(table=biq_query_api.consolidated_data_table)
         )
-        data_cols = set(data.columns.to_list())
-        data_warehouse_cols = set(data_warehouse_cols)
+        data_cols: Set[str] = set(data.columns.to_list())
 
         return data[list(data_cols & data_warehouse_cols)]
 
@@ -85,9 +98,7 @@ class DataWarehouseUtils:
 
     @staticmethod
     def extract_sites_meta_data(network: DeviceNetwork = None) -> pd.DataFrame:
-        airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(network=network)
-        sites = pd.DataFrame(sites)
+        sites = DataUtils.get_sites(network=network)
         sites.rename(
             columns={
                 "approximate_latitude": "site_latitude",
