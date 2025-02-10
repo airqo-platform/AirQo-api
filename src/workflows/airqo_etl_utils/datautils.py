@@ -627,6 +627,7 @@ class DataUtils:
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
         devices, _ = DataUtils.get_devices()
+        devices.rename(columns={"name": "device_id"}, inplace=True)
         devices = devices[["_id", "device_id", "network"]]
         devices = devices.set_index("device_id")
 
