@@ -79,7 +79,7 @@ extract_store_devices_data_in_kafka = """
 Extract devices data from the api(or source database) and store it in kafka.
 #### Notes
 - Imagine you had a many devices(100,000+) and had to extract them each time you were going to query their data.
-- This pipeline extracts the data and store it in kafka for easy access to cancel out the repeatitive queries.
+- This pipeline extracts the data and store it in kafka for easy access to cancel out the repetitive queries.
 
 Data sources:
 - API(devices/summary):
@@ -94,7 +94,7 @@ extract_store_devices_data_in_temp_store = """
 Extract devices data from the api(or source database) and store it in temp storage.
 #### Notes
 - Imagine you had a many devices(100,000+) and had to extract them each time you were going to query their data.
-- This pipeline extracts the data and store it in a temporary storage for easy access to cancel out the repeatitive queries.
+- This pipeline extracts the data and store it in a temporary storage for easy access to cancel out the repetitive queries.
 
 Data sources:
 - API(devices/summary):
@@ -109,7 +109,7 @@ extract_store_sites_data_in_temp_store = """
 Extract sites data from the api(or source database) and store it in temp storage.
 #### Notes
 - Imagine you had a many sites(100,000+) and had to extract them each time you were going to query their data.
-- This pipeline extracts the data and store it in a temporary storage for easy access to cancel out the repeatitive queries.
+- This pipeline extracts the data and store it in a temporary storage for easy access to cancel out the repetitive queries.
 
 Data sources:
 - API(devices/summary):

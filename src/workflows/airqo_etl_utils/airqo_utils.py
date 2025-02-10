@@ -382,21 +382,20 @@ class AirQoDataUtils:
         airqo_data["timestamp"] = pd.to_datetime(airqo_data["timestamp"])
         weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
 
-        airqo_api = AirQoApi()
-        sites: List[Dict[str, Any]] = []
+        sites = DataUtils.get_sites(DeviceNetwork.AIRQO)
+        sites_info: List[Dict[str, Any]] = []
 
-        for site in airqo_api.get_sites(network="airqo"):
-            sites.extend(
-                [
-                    {
-                        "site_id": site.get("_id"),
-                        "station_code": station.get("code", None),
-                        "distance": station.get("distance", None),
-                    }
-                    for station in site.get("weather_stations", [])
-                ]
-            )
-        sites_df = pd.DataFrame(sites)
+        sites_info = [
+            {
+                "site_id": site.get("_id"),
+                "station_code": station.get("code", None),
+                "distance": station.get("distance", None),
+            }
+            for _, site in sites.iterrows()
+            for station in site.get("weather_stations", [])
+        ]
+        sites_df = pd.DataFrame(sites_info)
+
         sites_weather_data = pd.DataFrame()
         weather_data_cols = weather_data.columns.to_list()
 
@@ -581,17 +580,9 @@ class AirQoDataUtils:
             pd.DataFrame: The calibrated dataset with additional processed fields.
         """
 
-        local_file_path = "/tmp/sites.csv"
-        # Load sites from cache
-        sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
+        sites = DataUtils.get_sites()
         if sites.empty:
-            try:
-                sites = pd.DataFrame(AirQoApi().get_sites())
-            except Exception as e:
-                logger.exception(
-                    "An error has occured while fetching devices from the api"
-                )
-                raise RuntimeError("Failed to fetch sites data from the API") from e
+            raise RuntimeError("Failed to fetch sites data from the cache/API") from e
 
         bucket = Config.FORECAST_MODELS_BUCKET
         project_id = Config.GOOGLE_CLOUD_PROJECT_ID

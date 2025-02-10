@@ -43,7 +43,7 @@ def update_big_query_airqlouds_sites_and_devices():
     def extract_sites() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_sites_from_api()
+        return MetaDataUtils.extract_sites()
 
     @task()
     def load_sites(data: pd.DataFrame):
@@ -59,7 +59,7 @@ def update_big_query_airqlouds_sites_and_devices():
     def extract_sites_meta_data() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_sites_meta_data_from_api()
+        return MetaDataUtils.extract_sites_meta_data()
 
     @task()
     def load_sites_meta_data(data: pd.DataFrame):
@@ -71,7 +71,7 @@ def update_big_query_airqlouds_sites_and_devices():
     def extract_devices():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_devices_from_api()
+        return MetaDataUtils.extract_devices()
 
     @task()
     def load_devices(data: pd.DataFrame):
@@ -147,7 +147,7 @@ def update_big_query_grids_cohorts_sites_and_devices():
     def extract_sites() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_sites_from_api()
+        return MetaDataUtils.extract_sites()
 
     @task()
     def load_sites(data: pd.DataFrame):
@@ -164,7 +164,7 @@ def update_big_query_grids_cohorts_sites_and_devices():
     def extract_sites_meta_data() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_sites_meta_data_from_api()
+        return MetaDataUtils.extract_sites_meta_data()
 
     @task()
     def load_sites_meta_data(data: pd.DataFrame):
@@ -176,7 +176,7 @@ def update_big_query_grids_cohorts_sites_and_devices():
     def extract_devices():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_devices_from_api()
+        return MetaDataUtils.extract_devices()
 
     @task()
     def load_devices(data: pd.DataFrame):

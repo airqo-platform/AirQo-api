@@ -791,7 +791,7 @@ class AirQoApi:
         query_params: Dict[str, Any] = {}
 
         if network:
-            query_params["network"] = network
+            query_params["network"] = network.str
 
         response = self.__request("devices/sites", query_params)
 

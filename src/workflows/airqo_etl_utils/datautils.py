@@ -77,6 +77,45 @@ class DataUtils:
         return devices, keys
 
     @staticmethod
+    def get_sites(network: DeviceNetwork = None) -> pd.DataFrame:
+        """
+        Retrieve sites data.
+
+        This function attempts to load sites data from a cached CSV file located at a predetermined
+        local path. If the cache is empty, the function tries to fetche sites data via the API.
+        If both the cache and the API fail to return any sites data, a RuntimeError is raised.
+
+        Returns:
+            sites(pd.DataFrame):A pandas DataFrame containing the sites data.
+
+        Raises:
+            RuntimeError: If sites data cannot be obtained from either the cache or the API.
+        """
+        local_file_path = "/tmp/sites.csv"
+        sites: pd.DataFrame = pd.DataFrame()
+
+        # Load sites from cache
+        try:
+            sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
+        except Exception as e:
+            logger.exception(f"Failed to load cached: {e}")
+
+        # If cache is empty, fetch from API
+        if sites.empty:
+            airqo_api = AirQoApi()
+            try:
+                sites = pd.DataFrame(airqo_api.get_sites())
+            except Exception as e:
+                logger.exception(f"Failed to load sites data from api. {e}")
+
+        if sites.empty:
+            raise RuntimeError("Failed to retrieve cached/api sites data.")
+
+        if network:
+            sites = sites.loc[sites.network == network.str]
+        return sites
+
+    @staticmethod
     def extract_devices_data(
         start_date_time: str,
         end_date_time: str,
