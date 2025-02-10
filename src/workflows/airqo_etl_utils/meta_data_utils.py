@@ -29,14 +29,14 @@ class MetaDataUtils:
                 "latitude",
                 "longitude",
                 "site_id",
-                "device_id",
+                "name",
                 "device_number",
                 "description",
                 "device_manufacturer",
                 "device_category",
             ]
         ]
-        dataframe["name"] = dataframe["device_id"]
+        dataframe["device_id"] = dataframe["name"]
         dataframe["last_updated"] = datetime.now(timezone.utc)
 
         return dataframe

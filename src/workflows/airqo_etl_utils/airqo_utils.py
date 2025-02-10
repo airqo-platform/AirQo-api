@@ -459,7 +459,7 @@ class AirQoDataUtils:
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     network=device.get("network", "airqo"),
-                    device=device.get("device_id", None),
+                    device=device.get("name", None),
                     activity_type="deployment",
                 )
 

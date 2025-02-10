@@ -69,7 +69,7 @@ class KccaUtils:
                     or None values if the device is not found or an error occurs.
         """
         try:
-            filtered_devices = devices.loc[devices.device_id == device_id]
+            filtered_devices = devices.loc[devices.name == device_id]
             if not filtered_devices.empty:
                 result = filtered_devices.iloc[0]
                 return pd.Series(
@@ -127,7 +127,7 @@ class KccaUtils:
             KccaUtils.flatten_location_coordinates
         )
 
-        devices = DataUtils.get_devices()
+        devices, _ = DataUtils.get_devices()
         data[["site_id", "device_number"]] = data["device_id"].apply(
             lambda device_id: KccaUtils.add_site_and_device_details(
                 devices=devices, device_id=device_id
