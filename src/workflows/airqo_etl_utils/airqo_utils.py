@@ -671,17 +671,17 @@ class AirQoDataUtils:
                     logger.exception(
                         f"Error getting custom model. Will default to generic one: {e}"
                     )
+                    current_rf_model = default_rf_model
+                    current_lasso_model = default_lasso_model
                     logger.info(
                         f"Got 2nd models {current_rf_model} and {current_lasso_model} for {city}"
                     )
-                    current_rf_model = default_rf_model
-                    current_lasso_model = default_lasso_model
             else:
+                current_rf_model = default_rf_model
+                current_lasso_model = default_lasso_model
                 logger.info(
                     f"Got default models {current_rf_model} and {current_lasso_model} for {city}"
                 )
-                current_rf_model = default_rf_model
-                current_lasso_model = default_lasso_model
 
             group["pm2_5_calibrated_value"] = current_rf_model.predict(
                 group[input_variables]
