@@ -643,7 +643,7 @@ def airqo_gaseous_realtime_measurements():
     schedule="*/25 * * * *",
     catchup=False,
     doc_md=stream_old_data_doc,
-    tags=["old", "hourly-data", "bigquery" "api"],
+    tags=["old", "hourly-data", "bigquery", "api"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_bigquery_data_measurements_to_api():
