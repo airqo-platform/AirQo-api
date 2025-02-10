@@ -163,9 +163,7 @@ class AirQoApi:
                 "device_id": device.pop("name"),
                 "site_id": device.get("site", {}).get("_id", None),
                 "site_location": device.pop("site", {}).get("location_name", None),
-                "device_category": str(
-                    DeviceCategory.category_from_str(device.pop("category", ""))
-                ),
+                "device_category": device.pop("category", ""),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }

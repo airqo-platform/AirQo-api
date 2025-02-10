@@ -634,14 +634,14 @@ class AirQoDataUtils:
         data_to_calibrate = data.loc[to_calibrate]
         data_to_calibrate.dropna(subset=input_variables, inplace=True)
         grouped_df = data_to_calibrate.groupby("city", dropna=False)
-        rf_model = GCSUtils.get_trained_model_from_gcs(
+        default_rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
             source_blob_name=Utils.get_calibration_model_path(
                 CityModel.DEFAULT, "pm2_5"
             ),
         )
-        lasso_model = GCSUtils.get_trained_model_from_gcs(
+        default_lasso_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
             source_blob_name=Utils.get_calibration_model_path(
@@ -650,27 +650,45 @@ class AirQoDataUtils:
         )
         for city, group in grouped_df:
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
-            if str(city).lower() in [c.value.lower() for c in CityModel]:
+            if str(city).lower() in [c.str for c in CityModel]:
                 try:
-                    rf_model = GCSUtils.get_trained_model_from_gcs(
+                    current_rf_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(
                             city, "pm2_5"
                         ),
                     )
-                    lasso_model = GCSUtils.get_trained_model_from_gcs(
+                    current_lasso_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
+                    )
+                    logger.info(
+                        f"Got 1st models {current_rf_model} and {current_lasso_model} for {city}"
                     )
                 except Exception as e:
                     logger.exception(
                         f"Error getting custom model. Will default to generic one: {e}"
                     )
+                    current_rf_model = default_rf_model
+                    current_lasso_model = default_lasso_model
+                    logger.info(
+                        f"Got 2nd models {current_rf_model} and {current_lasso_model} for {city}"
+                    )
+            else:
+                current_rf_model = default_rf_model
+                current_lasso_model = default_lasso_model
+                logger.info(
+                    f"Got default models {current_rf_model} and {current_lasso_model} for {city}"
+                )
 
-            group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
-            group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
+            group["pm2_5_calibrated_value"] = current_rf_model.predict(
+                group[input_variables]
+            )
+            group["pm10_calibrated_value"] = current_lasso_model.predict(
+                group[input_variables]
+            )
             data.loc[
                 group.index, ["pm2_5_calibrated_value", "pm10_calibrated_value"]
             ] = group[["pm2_5_calibrated_value", "pm10_calibrated_value"]]
