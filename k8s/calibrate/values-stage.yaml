@@ -6,17 +6,17 @@ app:
 initContainer:
   image:
     repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
-    tag: stage-db46fe65-1737478850
+    tag: stage-c99c620a-1738907213
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api
-  tag: stage-db46fe65-1737478850
+  tag: stage-c99c620a-1738907213
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 500m
+    cpu: 700m
     memory: 200Mi
   requests:
     cpu: 10m

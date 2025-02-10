@@ -91,10 +91,10 @@ GET http://127.0.0.1:5000/api/v2/spatial/localmoran
 
 ### **Site Selection Using Locate Tool**
 
-Use this tool to select monitoring sites based on a defined area.
+The Locate Tool enables effective sensor placement by using Machine Learning (ML) to analyze and identify optimal locations within a defined polygon. It helps to maximize the coverage and efficiency of sensor networks.
 
 ```http
-GET http://127.0.0.1:5000/api/v2/spatial/site_location
+POST http://127.0.0.1:5000/api/v2/spatial/site_location
 ```
 
 #### Required Parameters:

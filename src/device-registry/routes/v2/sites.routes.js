@@ -69,8 +69,18 @@ router.put(
   validateUpdateSite,
   siteController.update
 );
-router.put("/refresh", validateRefreshSite, siteController.refresh);
-router.delete("/", validateDeleteSite, siteController.delete);
+router.put(
+  "/refresh",
+  validateMandatorySiteIdentifier,
+  validateRefreshSite,
+  siteController.refresh
+);
+router.delete(
+  "/",
+  validateMandatorySiteIdentifier,
+  validateDeleteSite,
+  siteController.delete
+);
 router.post(
   "/approximate",
   validateCreateApproximateCoordinates,

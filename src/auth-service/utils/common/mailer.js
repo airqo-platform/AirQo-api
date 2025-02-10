@@ -517,7 +517,6 @@ const mailer = {
         },
         subject: `Welcome to AirQo`,
         html: msgs.inquiry(fullName, email, category),
-        bcc: subscribedBccEmails,
         attachments,
       };
 

@@ -193,6 +193,7 @@ GroupSchema.statics = {
         };
       }
     } catch (err) {
+      logObject("the error for registering a group", err);
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
@@ -266,6 +267,7 @@ GroupSchema.statics = {
         };
       }
     } catch (err) {
+      logObject("the error for listing a group", err);
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
@@ -402,6 +404,7 @@ GroupSchema.statics = {
 };
 
 const GroupModel = (tenant) => {
+  logObject("the tenant value being used in the group model creation", tenant);
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
