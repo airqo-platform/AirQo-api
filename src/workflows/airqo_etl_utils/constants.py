@@ -29,30 +29,6 @@ class DeviceCategory(Enum):
         """
         return self.__str__()
 
-    @staticmethod
-    def category_from_str(category: str):
-        """
-        Converts a string representation of a device category into the corresponding `DeviceCategory` enumeration.
-
-        Args:
-            category (str): The string representation of a device category.
-                            Possible values include "bam", "low_cost_gas", or others.
-
-        Returns:
-            DeviceCategory: The corresponding `DeviceCategory` enumeration value.
-                            Defaults to `DeviceCategory.LOW_COST` if the category does not match "bam" or "low_cost_gas".
-            None: If the input `category` is `None` or an empty string.
-        """
-        if not category:
-            return None
-
-        category = category.lower()
-        if category == str(DeviceCategory.BAM).lower():
-            return DeviceCategory.BAM
-        elif category == str(DeviceCategory.GAS).lower():
-            return DeviceCategory.GAS
-        return DeviceCategory.LOWCOST
-
 
 class DeviceNetwork(Enum):
     """
@@ -287,3 +263,16 @@ class CityModel(Enum):
     KAMPALA = "kampala"
     MOMBASA = "mombasa"
     DEFAULT = "default"
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the CityModel.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()

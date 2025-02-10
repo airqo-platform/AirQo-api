@@ -298,6 +298,22 @@ class Utils:
         )
 
     @staticmethod
-    def get_calibration_model_path(city, pollutant):
+    def get_calibration_model_path(city, pollutant: str):
+        """
+        Constructs the file path for the calibration model based on the given city and pollutant.
+
+        For the pollutant "pm2_5", the calibration model file is assumed to be a random forest model
+        with the suffix "_rf.pkl". For any other pollutant, the model file is assumed to be a lasso
+        regression model with the suffix "_lasso.pkl". The file path is constructed by concatenating
+        the city's value (assumed to be accessible via the 'value' attribute) with the corresponding model suffix.
+
+        Args:
+            city: An object representing a city. This object is expected to have a 'value' attribute that
+                serves as the base for the model path.
+            pollutant (str): The pollutant identifier (e.g., "pm2_5") used to determine the type of calibration model.
+
+        Returns:
+            str: The constructed calibration model file path.
+        """
         model_type = "_rf.pkl" if pollutant == "pm2_5" else "_lasso.pkl"
         return f"{city.value}{model_type}"
