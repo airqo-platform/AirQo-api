@@ -10,6 +10,7 @@ from dag_docs import (
     airqo_historical_hourly_measurements_doc,
     airqo_gaseous_realtime_low_cost_data_doc,
     airqo_historical_raw_low_cost_measurements_doc,
+    stream_old_data_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
@@ -640,12 +641,12 @@ def airqo_gaseous_realtime_measurements():
     send_raw_measurements_to_bigquery(clean_data)
 
 
-# TODO Delete/Stop after streaming all the data
 @dag(
     "Stream-Old-Data",
-    schedule="10 * * * *",
+    schedule="*/25 * * * *",
     catchup=False,
-    tags=["old", "hourly", "bigquery" "api"],
+    doc_md=stream_old_data_doc,
+    tags=["old", "hourly-data", "bigquery" "api"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_bigquery_data_measurements_to_api():
@@ -662,11 +663,14 @@ def airqo_bigquery_data_measurements_to_api():
 
         # Only used the first time
         start = "2021-01-01"
-        end = datetime.strftime("2021-12-31", "%Y-%m-%dT%H:59:59Z")
+        end_dt = datetime.strptime("2021-12-31", "%Y-%m-%d")
+        end = end_dt.replace(hour=23, minute=59, second=59)
+        end = datetime.strftime(end, "%Y-%m-%dT%H:%M:%SZ")
 
         previous_date = kwargs["ti"].xcom_pull(key="new_date")
         if not previous_date:
             previous_date = start
+
         hour_of_day = previous_date + timedelta(hours=1)
 
         start_date_time = date_to_str_hours(previous_date)

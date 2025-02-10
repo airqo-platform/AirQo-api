@@ -1,4 +1,3 @@
-# TODO: Needs to be improved
 airqo_realtime_low_cost_measurements_doc = """
 ### AirQo low cost sensors hourly ETL
 #### Purpose
@@ -15,6 +14,20 @@ Data Destinations:
 - Bigquery(prod):raw_data.device_measurements
 - API(devices/events):
 - Kafka(hourly-measurements-topic):
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+stream_old_data_doc = """
+### Stream-Old-Data ETL
+#### Purpose
+Streams and old/historical measurements from biqquery to the events api. 
+This flow can be updated depending on type of data to stream. 
+Ensure to manually apply start and end dates for the data required.
+#### Notes
+Data sources:
+- Bigquery(prod):averaged_data.hourly_device_measurements
+Data Destinations:
+- API(devices/events):
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
 
