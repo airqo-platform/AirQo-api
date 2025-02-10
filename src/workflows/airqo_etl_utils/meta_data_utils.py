@@ -262,7 +262,8 @@ class MetaDataUtils:
             columns={
                 "approximate_latitude": "latitude",
                 "approximate_longitude": "longitude",
-            }
+            },
+            inplace=True,
         )
 
         updated_sites = WeatherDataUtils.get_nearest_weather_stations(sites_data)

@@ -658,10 +658,11 @@ def airqo_bigquery_data_measurements_to_api():
         from airqo_etl_utils.date import date_to_str_hours
 
         # Only used the first time
-        start = "2021-01-01"
-        end_dt = datetime.strptime("2021-12-31", "%Y-%m-%d")
-        end = end_dt.replace(hour=23, minute=59, second=59)
-        end = datetime.strftime(end, "%Y-%m-%dT%H:%M:%SZ")
+        start = kwargs.get("params", {}).get("start_date", "2021-01-01")
+        end_d = kwargs.get("params", {}).get("end_date", "2021-12-31")
+        end_d = datetime.strptime(end_d, "%Y-%m-%d")
+        end_dt = end_d.replace(hour=23, minute=59, second=59)
+        end = datetime.strftime(end_dt, "%Y-%m-%dT%H:%M:%SZ")
 
         previous_date = kwargs["ti"].xcom_pull(key="new_date")
         if not previous_date:

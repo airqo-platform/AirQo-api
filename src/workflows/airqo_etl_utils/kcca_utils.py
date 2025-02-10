@@ -9,6 +9,7 @@ from .constants import DataSource, Frequency, DeviceCategory, DeviceNetwork
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
+from .datautils import DataUtils
 
 import logging
 
@@ -50,23 +51,38 @@ class KccaUtils:
         return pd.json_normalize(measurements)
 
     @staticmethod
-    def add_site_and_device_details(devices, device_id):
-        try:
-            result = dict(
-                list(
-                    filter(lambda device: (device["device_id"] == device_id), devices)
-                )[0]
-            )
+    def add_site_and_device_details(devices: pd.DataFrame, device_id) -> pd.Series:
+        """
+        Retrieves site and device details for a given device ID from the provided DataFrame.
 
-            return pd.Series(
-                {
-                    "site_id": result.get("site_id", None),
-                    "device_number": result.get("device_number", None),
-                }
-            )
-        except Exception as ex:
-            logger.exception(ex)
-            return pd.Series({"site_id": None, "device_number": None})
+        This function filters the `devices` DataFrame to find a row matching the specified `device_id`.
+        If a matching device is found, it returns a pandas Series containing the `site_id` and
+        `device_number` associated with that device. If no matching device is found or an error occurs,
+        it returns a Series with None values.
+
+        Args:
+            devices (pd.DataFrame): A DataFrame containing device information, including 'device_id'.
+            device_id: The ID of the device to search for in the DataFrame.
+
+        Returns:
+            pd.Series: A Series containing 'site_id' and 'device_number' for the specified device ID,
+                    or None values if the device is not found or an error occurs.
+        """
+        try:
+            filtered_devices = devices.loc[devices.device_id == device_id]
+            if not filtered_devices.empty:
+                result = filtered_devices.iloc[0]
+                return pd.Series(
+                    {
+                        "site_id": result.get("site_id", None),
+                        "device_number": result.get("device_number", None),
+                    }
+                )
+        except Exception as e:
+            logger.exception(f"An erro has occurred: {e}")
+
+        logger.info("No matching device_id found.")
+        return pd.Series({"site_id": None, "device_number": None})
 
     @staticmethod
     def flatten_location_coordinates(coordinates: str):
@@ -111,8 +127,7 @@ class KccaUtils:
             KccaUtils.flatten_location_coordinates
         )
 
-        airqo_api = AirQoApi()
-        devices = airqo_api.get_devices()
+        devices = DataUtils.get_devices()
         data[["site_id", "device_number"]] = data["device_id"].apply(
             lambda device_id: KccaUtils.add_site_and_device_details(
                 devices=devices, device_id=device_id
@@ -137,64 +152,4 @@ class KccaUtils:
 
     @staticmethod
     def transform_data_for_api(data: pd.DataFrame) -> list:
-        measurements = []
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
-        airqo_api = AirQoApi()
-        devices = airqo_api.get_devices()
-
-        for _, row in data.iterrows():
-            device_id = row["device_id"]
-            device_details = list(
-                filter(
-                    lambda device: (device["device_id"] == device_id),
-                    devices,
-                )
-            )[0]
-
-            row_data = {
-                "frequency": str(Frequency.HOURLY),
-                "time": row.get("timestamp", None),
-                "network": DeviceNetwork.AIRQO,
-                "site_id": row.get("site_id", None),
-                "device_id": device_details.get("_id", None),
-                "device": device_details.get("name", None),
-                "location": dict(
-                    {
-                        "longitude": dict({"value": row.get("longitude", None)}),
-                        "latitude": dict({"value": row.get("latitude", None)}),
-                    }
-                ),
-                "pm2_5": {
-                    "value": row.get("pm2_5", None),
-                    "calibratedValue": row.get("pm2_5_calibrated_value", None),
-                },
-                "pm1": {
-                    "value": row.get("pm1", None),
-                    "calibratedValue": row.get("pm1_calibrated_value", None),
-                },
-                "pm10": {
-                    "value": row.get("pm10", None),
-                    "calibratedValue": row.get("pm10_calibrated_value", None),
-                },
-                "no2": {
-                    "value": row.get("no2", None),
-                    "calibratedValue": row.get("no2_calibrated_value", None),
-                },
-                "externalTemperature": {
-                    "value": row.get("temperature", None),
-                },
-                "externalHumidity": {
-                    "value": row.get("humidity", None),
-                },
-                "speed": {
-                    "value": row.get("wind_speed", None),
-                },
-            }
-
-            if row_data["site_id"] is None or data["site_id"] is np.nan:
-                data.pop("site_id")
-
-            measurements.append(row_data)
-
-        return measurements
+        return DataUtils.process_data_for_api(data)

@@ -19,7 +19,7 @@ from .constants import (
 from .utils import Utils
 from .date import date_to_str
 from .data_validator import DataValidationUtils
-from typing import List, Dict, Any, Union, Tuple
+from typing import List, Dict, Any, Union, Tuple, Optional
 
 import logging
 
@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 class DataUtils:
     @staticmethod
     def get_devices(
-        device_category: DeviceCategory = None, device_network: DeviceNetwork = None
+        device_category: Optional[DeviceCategory] = None,
+        device_network: Optional[DeviceNetwork] = None,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
         Retrieve devices data and associated keys for a given device network and category.
@@ -637,8 +638,7 @@ class DataUtils:
 
                 if device_id in devices.index:
                     device_details = devices.loc[device_id]
-
-                if not device_details:
+                else:
                     logger.exception(
                         f"Device number {device_id} not found in device list"
                     )
@@ -649,7 +649,7 @@ class DataUtils:
                     continue
 
                 row_data = {
-                    "device": device_details["device_id"],
+                    "device": device_id,
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
                     "device_number": device_number,
@@ -657,7 +657,7 @@ class DataUtils:
                     "location": {
                         key: {"value": row[key]} for key in ["latitude", "longitude"]
                     },
-                    "frequency": str(frequency),
+                    "frequency": frequency.str,
                     "time": row["timestamp"],
                     **{
                         f"average_{key}": {

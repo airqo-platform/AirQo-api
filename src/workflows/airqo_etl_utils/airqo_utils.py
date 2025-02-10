@@ -453,13 +453,13 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(network=DeviceNetwork.AIRQO)
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
-        for device in devices:
+        for _, device in devices.iterrows():
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     network=device.get("network", "airqo"),
-                    device=device.get("name", None),
+                    device=device.get("device_id", None),
                     activity_type="deployment",
                 )
 
@@ -582,7 +582,7 @@ class AirQoDataUtils:
 
         sites = DataUtils.get_sites()
         if sites.empty:
-            raise RuntimeError("Failed to fetch sites data from the cache/API") from e
+            raise RuntimeError("Failed to fetch sites data from the cache/API")
 
         bucket = Config.FORECAST_MODELS_BUCKET
         project_id = Config.GOOGLE_CLOUD_PROJECT_ID
