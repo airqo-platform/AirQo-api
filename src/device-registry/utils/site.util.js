@@ -29,6 +29,38 @@ const kafka = new Kafka({
 });
 
 const createSite = {
+  getSiteById: async (req, next) => {
+    try {
+      const { id } = req.params;
+      const { tenant } = req.query;
+
+      const site = await SiteModel(tenant.toLowerCase()).findById(id);
+
+      if (!site) {
+        throw new HttpError("site not found", httpStatus.NOT_FOUND);
+      }
+
+      return {
+        success: true,
+        message: "site details fetched successfully",
+        data: site,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      }
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   fetchSiteDetails: async (tenant, req, next) => {
     const filter = generateFilter.sites(req, next);
     logObject("the filter being used to filter", filter);
@@ -79,7 +111,6 @@ const createSite = {
 
     return request;
   },
-
   fetchAdditionalSiteDetails: async (tenant, id, next) => {
     const baseQuery = { query: { tenant, id } };
     const additionalDetails = {};

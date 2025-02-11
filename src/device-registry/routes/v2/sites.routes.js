@@ -7,6 +7,7 @@ const {
   validateSiteQueryParams,
   validateMandatorySiteIdentifier,
   validateCreateSite,
+  validateSiteIdParam,
   validateSiteMetadata,
   validateUpdateSite,
   validateRefreshSite,
@@ -16,6 +17,7 @@ const {
   validateNearestSite,
   validateBulkUpdateSites,
 } = require("@validators/site.validators");
+const { validate } = require("@validators/common");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
@@ -99,4 +101,11 @@ router.get(
   siteController.findNearestSite
 );
 router.put("/bulk", validateBulkUpdateSites, siteController.updateManySites);
+router.get(
+  "/:id",
+  validateTenant,
+  validateSiteIdParam,
+  validate,
+  siteController.getSiteDetailsById
+);
 module.exports = router;
