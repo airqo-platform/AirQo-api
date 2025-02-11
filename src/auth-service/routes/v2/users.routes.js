@@ -13,6 +13,8 @@ const {
   authLocal,
   authGuest,
   authGoogle,
+  v2AuthGoogleCallback,
+  googleRefreshToken,
 } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
@@ -156,6 +158,12 @@ router.get(
 );
 
 router.get("/auth/google", setGoogleAuth, authGoogle, userController.login);
+
+router.post("/auth/google/callback", setGoogleAuth, v2AuthGoogleCallback);
+
+router.get("/refresh_token", googleRefreshToken);
+
+router.get("/auth/google/v2", setGoogleAuth, authGoogle);
 
 router.get(
   "/",
