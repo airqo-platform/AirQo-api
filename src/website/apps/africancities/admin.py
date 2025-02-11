@@ -43,7 +43,8 @@ class AfricanCitiesAdmin(nested_admin.NestedModelAdmin):
         width, height = 60, 40
         from django.utils.html import format_html
 
-        flag_url = obj.get_country_flag_url()
-        if flag_url:
-            return format_html(f'<img src="{flag_url}" width="{width}" height="{height}" />')
+        if obj.country_flag:
+            return format_html(f'<img src="{obj.get_country_flag_url()}" width="{width}" height="{height}" />')
         return '-'
+
+    flag_preview.short_description = "Country Flag"

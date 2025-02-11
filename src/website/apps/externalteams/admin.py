@@ -19,15 +19,25 @@ class ExternalTeamMemberAdmin(admin.ModelAdmin):
     inlines = [ExternalTeamMemberBiographyInline]
 
     def image_preview(self, obj):
+        """
+        Display a small thumbnail of the team member's picture.
+        """
         if obj.picture:
-            return format_html(f'<img src="{obj.get_picture_url()}" style="width: 50px; height: 50px;" />')
-        return ""
+            return format_html(
+                f'<img src="{obj.get_picture_url()}" style="width: 50px; height: 50px;" />'
+            )
+        return "-"
     image_preview.short_description = "Picture Preview"
 
     def image_preview_detail(self, obj):
+        """
+        Display a larger preview of the team member's picture.
+        """
         if obj.picture:
-            return format_html(f'<img src="{obj.get_picture_url()}" style="max-width: 300px; max-height: 300px;" />')
-        return ""
+            return format_html(
+                f'<img src="{obj.get_picture_url()}" style="max-width: 300px; max-height: 300px;" />'
+            )
+        return "-"
     image_preview_detail.short_description = "Picture Preview"
 
     readonly_fields = ['image_preview_detail']

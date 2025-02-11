@@ -5,6 +5,8 @@ from pathlib import Path
 import gcsfs
 import joblib
 from dotenv import load_dotenv
+import tensorflow as tf  
+import logging
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -25,10 +27,8 @@ class Config:
         "BIGQUERY_SATELLITE_MODEL_PREDICTIONS"
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
-    HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    MONGO_URI = os.getenv("MONGO_GCE_URI", "mongodb://localhost:27017")
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
     DB_NAME = os.getenv("DB_NAME", "sources_of_pollution")
 
 class ProductionConfig(Config):

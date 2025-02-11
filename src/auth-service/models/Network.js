@@ -3,7 +3,6 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
 const validator = require("validator");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
@@ -11,7 +10,30 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- network-model`
 );
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
+
+function validateProfilePicture(net_profile_picture) {
+  const urlRegex =
+    /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+  if (!urlRegex.test(net_profile_picture)) {
+    logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
+    return false;
+  }
+  if (net_profile_picture.length > 200) {
+    logText("longer than 200 chars");
+    logger.error(
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+    );
+    return false;
+  }
+  return true;
+}
 
 const NetworkSchema = new Schema(
   {
@@ -92,6 +114,20 @@ const NetworkSchema = new Schema(
         ref: "permission",
       },
     ],
+    net_profile_picture: {
+      type: String,
+      maxLength: 200,
+      default: constants.DEFAULT_ORGANISATION_PROFILE_PICTURE,
+      validate: {
+        validator: function (v) {
+          const urlRegex =
+            /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+          return urlRegex.test(v);
+        },
+        message:
+          "Profile picture URL must be a valid URL & must not exceed 200 characters.",
+      },
+    },
   },
   {
     timestamps: true,
@@ -108,12 +144,134 @@ NetworkSchema.index({ net_phoneNumber: 1 }, { unique: true });
 NetworkSchema.index({ net_acronym: 1 }, { unique: true });
 NetworkSchema.index({ net_name: 1 }, { unique: true });
 
+NetworkSchema.pre(
+  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
+  async function (next) {
+    const isNew = this.isNew;
+    let updates = this.getUpdate ? this.getUpdate() : this;
+
+    try {
+      // Get the current document for context
+      const query = this.getQuery ? this.getQuery() : { _id: this._id };
+
+      // Get the correct tenant-specific model
+      const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
+      const Network = getModelByTenant(tenant, "network", NetworkSchema);
+
+      const existingDoc = await Network.findOne(query);
+
+      // Helper function to handle array field updates
+      const handleArrayFieldUpdates = (fieldName) => {
+        if (updates[fieldName]) {
+          updates["$addToSet"] = updates["$addToSet"] || {};
+          updates["$addToSet"][fieldName] = {
+            $each: updates[fieldName],
+          };
+          delete updates[fieldName];
+        }
+      };
+
+      // Process array field updates
+      handleArrayFieldUpdates("net_departments");
+      handleArrayFieldUpdates("net_permissions");
+
+      // Get all actual fields being updated from both root and $set
+      const actualUpdates = {
+        ...(updates || {}),
+        ...(updates.$set || {}),
+      };
+
+      // Profile picture validation for both new documents and updates
+      if (isNew) {
+        // Validation for new documents
+        this.net_status = this.net_status || "inactive";
+
+        if (!this.net_profile_picture) {
+          this.net_profile_picture =
+            constants.DEFAULT_ORGANISATION_PROFILE_PICTURE;
+        } else if (
+          this.net_profile_picture &&
+          !validateProfilePicture(this.net_profile_picture)
+        ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+      } else if (actualUpdates.net_profile_picture) {
+        // Validation for updates
+        if (!validateProfilePicture(actualUpdates.net_profile_picture)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
+            })
+          );
+        }
+      }
+
+      // Unique field handling
+      const uniqueFields = [
+        "net_email",
+        "net_name",
+        "net_phoneNumber",
+        "net_website",
+        "net_acronym",
+      ];
+
+      for (const field of uniqueFields) {
+        const fieldValue = isNew
+          ? this[field]
+          : updates[field] || (updates.$set && updates.$set[field]);
+
+        if (fieldValue) {
+          const duplicateDoc = await Network.findOne({
+            [field]: fieldValue,
+          });
+
+          if (
+            duplicateDoc &&
+            (!existingDoc ||
+              duplicateDoc._id.toString() !== existingDoc._id.toString())
+          ) {
+            return next(
+              new HttpError("Duplicate Error", httpStatus.CONFLICT, {
+                message: `${field} must be unique`,
+              })
+            );
+          }
+        }
+      }
+
+      // Limit departments and permissions
+      const ORGANISATIONS_LIMIT = 6;
+      const checkArrayLimit = (arrayField) => {
+        if (this[arrayField] && this[arrayField].length > ORGANISATIONS_LIMIT) {
+          return next(
+            new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
+              message: `Maximum ${ORGANISATIONS_LIMIT} ${arrayField} allowed`,
+            })
+          );
+        }
+      };
+
+      checkArrayLimit("net_departments");
+      checkArrayLimit("net_permissions");
+
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
 NetworkSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
       net_email: this.net_email,
       net_website: this.net_website,
+      net_profile_picture: this.net_profile_picture,
       net_category: this.net_category,
       net_status: this.net_status,
       net_phoneNumber: this.net_phoneNumber,
@@ -151,13 +309,8 @@ const sanitizeName = (name) => {
 NetworkSchema.statics = {
   async register(args, next) {
     try {
-      let modifiedArgs = args;
-      let tenant = modifiedArgs.tenant;
-      if (tenant) {
-        modifiedArgs["tenant"] = sanitizeName(tenant);
-      }
       const data = await this.create({
-        ...modifiedArgs,
+        ...args,
       });
       if (!isEmpty(data)) {
         return {
@@ -333,7 +486,7 @@ NetworkSchema.statics = {
       next(new HttpError(message, status, response));
     }
   },
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async oldModify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
@@ -424,6 +577,64 @@ NetworkSchema.statics = {
       next(new HttpError(message, status, response));
     }
   },
+  async modify({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+
+      const updatedNetwork = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      if (!updatedNetwork) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "No networks exist for this operation",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "successfully modified the network",
+        data: updatedNetwork._doc,
+        status: httpStatus.OK,
+      };
+    } catch (err) {
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
+
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
+
+      if (
+        !isEmpty(err.code) &&
+        !isEmpty(err.keyValue) &&
+        (err.code === 11000 || err.code === 11001)
+      ) {
+        message = "duplicate values provided";
+        status = httpStatus.CONFLICT;
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          response[key] = value;
+          response["message"] = value;
+        });
+      } else if (!isEmpty(err.errors)) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          response[key] = value.message;
+          response["message"] = value.message;
+        });
+      } else if (
+        !isEmpty(err.code) &&
+        !isEmpty(err.codeName) &&
+        (err.code === 13 || err.codeName === "Unauthorized")
+      ) {
+        response["message"] = "Unauthorized to carry out this operation";
+      }
+
+      return next(new HttpError(message, status, response));
+    }
+  },
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {
@@ -435,6 +646,7 @@ NetworkSchema.statics = {
           net_manager: 1,
         },
       };
+      logObject("the FILTER we are using", filter);
       const removedNetwork = await this.findOneAndRemove(
         filter,
         options

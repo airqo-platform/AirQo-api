@@ -12,10 +12,7 @@ from api.models import (
     SiteModel,
     ExceedanceModel,
 )
-from api.utils.data_formatters import (
-    filter_non_private_sites,
-    filter_non_private_devices,
-)
+from api.utils.data_formatters import filter_non_private_sites_devices
 
 # Middlewares
 from api.utils.http import AirQoRequests
@@ -45,12 +42,12 @@ class ChartDataResource(Resource):
         "chartType|required:str",
     )
     def post(self):
-        tenant = request.args.get("tenant", "airqo")
+        network = request.args.get("network", "airqo")
 
         json_data = request.get_json()
-        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
-            "sites", []
-        )
+        sites = filter_non_private_sites_devices(
+            filter_type="sites", filter_value=json_data.get("sites", {})
+        ).get("data", [])
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
@@ -59,11 +56,10 @@ class ChartDataResource(Resource):
 
         colors = ["#7F7F7F", "#E377C2", "#17BECF", "#BCBD22", "#3f51b5"]
 
-        events_model = EventsModel(tenant)
+        events_model = EventsModel(network)
         data = events_model.get_chart_events(
             sites, start_date, end_date, pollutant, frequency
         )
-
         chart_datasets = []
         chart_labels = []
 
@@ -189,39 +185,33 @@ class D3ChartDataResource(Resource):
         filter_value = json_data.get(filter_type)
 
         if filter_type in sites:
-            validated_value = filter_non_private_sites(filter_type, filter_value)
+            validated_value = filter_non_private_sites_devices(
+                filter_type, filter_value
+            )
         elif filter_type in devices:
-            validated_value = filter_non_private_devices(filter_type, filter_value)
+            validated_value = filter_non_private_sites_devices(
+                filter_type, filter_value
+            )
         else:
             return filter_type, filter_value, None
 
         if validated_value and validated_value.get("status") == "success":
-            # TODO This should be cleaned up.
-            validated_data = validated_value.get("data", {}).get(
-                "sites" if filter_type in sites else "devices", []
-            )
+            validated_data = validated_value.get("data", [])
         else:
             error_message = validated_value.get("message", "Validation failed")
 
         return filter_type, validated_data, error_message
 
     def post(self):
-        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
 
         try:
-            filter_type, filter_value, error_message = self._get_validated_filter(
-                json_data
-            )
+            _, filter_value, error_message = self._get_validated_filter(json_data)
             if error_message:
                 return error_message, AirQoRequests.Status.HTTP_400_BAD_REQUEST
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
-
-        sites = filter_non_private_sites("sites", json_data.get("sites", {})).get(
-            "sites", []
-        )
 
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
@@ -229,10 +219,10 @@ class D3ChartDataResource(Resource):
         pollutant = json_data["pollutant"]
         chart_type = json_data["chartType"]
 
-        events_model = EventsModel(tenant)
-        # data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+        events_model = EventsModel("airqo")
+
         data = events_model.get_d3_chart_events_v2(
-            filter_value, start_date, end_date, pollutant, frequency, tenant
+            filter_value, start_date, end_date, pollutant, frequency
         )
 
         if chart_type.lower() == "pie":
@@ -279,9 +269,9 @@ class DailyAveragesResource(Resource):
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
-            "sites", []
-        )
+        sites = filter_non_private_sites_devices(
+            filter_type="sites", filter_value=json_data.get("sites", {})
+        ).get("data", [])
 
         events_model = EventsModel(tenant)
         site_model = SiteModel(tenant)
@@ -338,15 +328,16 @@ class DailyAveragesResource2(Resource):
         "devices|optional:list",
     )
     def post(self):
-        tenant = request.args.get("tenant", "airqo")
+        network = request.args.get("network", "airqo")
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        devices = filter_non_private_devices(devices=json_data.get("devices", {})).get(
-            "devices", []
-        )
-        events_model = EventsModel(tenant)
+        devices = filter_non_private_sites_devices(
+            filter_type="devices", filter_value=json_data.get("devices", {})
+        ).get("data", [])
+
+        events_model = EventsModel(network)
         data = events_model.get_device_averages_from_bigquery(
             start_date, end_date, pollutant, devices=devices
         )
@@ -396,9 +387,9 @@ class ExceedancesResource(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
-            "sites", []
-        )
+        sites = filter_non_private_sites_devices(
+            filter_type="sites", filter_value=json_data.get("sites", {})
+        ).get("data", [])
 
         exc_model = ExceedanceModel(tenant)
         data = exc_model.get_exceedances(
@@ -432,9 +423,9 @@ class ExceedancesResource2(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
-        devices = filter_non_private_devices(devices=json_data.get("devices", {})).get(
-            "devices", []
-        )
+        devices = filter_non_private_sites_devices(
+            filter_type="devices", filter_value=json_data.get("devices", {})
+        ).get("data", [])
 
         events_model = EventsModel(tenant)
         data = events_model.get_device_readings_from_bigquery(

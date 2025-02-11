@@ -1,9 +1,11 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta, datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.constants import Tenant
+from airqo_etl_utils.constants import DataType, Frequency, DeviceNetwork
+from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 
 @dag(
@@ -16,9 +18,8 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 def weather_data_historical_raw_measurements():
     import pandas as pd
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -30,17 +31,13 @@ def weather_data_historical_raw_measurements():
 
     @task()
     def transform(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        return DataUtils.transform_weather_data(data=data)
 
-        return WeatherDataUtils.transform_raw_data(data=data)
-
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
+        bigquery_data = DataUtils.transform_for_bigquery_weather(data=data)
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
@@ -62,25 +59,26 @@ def weather_data_historical_raw_measurements():
 def weather_data_historical_hourly_measurements():
     import pandas as pd
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=7, **kwargs
         )
-        return WeatherDataUtils.extract_raw_data_from_bigquery(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return WeatherDataUtils.extract_weather_data(
+            DataType.RAW,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.RAW,
+            remove_outliers=False,
         )
 
     @task()
     def average(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        return DataUtils.aggregate_weather_data(data=data)
 
-        return WeatherDataUtils.aggregate_data(data=data)
-
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(weather_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -104,50 +102,66 @@ def weather_data_historical_hourly_measurements():
 def weather_data_cleanup_measurements():
     import pandas as pd
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
-        return WeatherDataUtils.extract_raw_data_from_bigquery(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return WeatherDataUtils.extract_weather_data(
+            DataType.RAW,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.RAW,
+            remove_outliers=False,
         )
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
-        return WeatherDataUtils.extract_hourly_weather_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return WeatherDataUtils.extract_weather_data(
+            DataType.AVERAGED,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            frequency=Frequency.HOURLY,
+            remove_outliers=False,
         )
 
     @task()
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        return WeatherDataUtils.remove_duplicates(data=data)
+        exclude_cols = [data.station_code.name]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.station_code.name,
+            group_col=data.station_code.name,
+            exclude_cols=exclude_cols,
+        )
 
     @task()
     def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        exclude_cols = [data.station_code.name]
+        return DataUtils.remove_duplicates(
+            data=data,
+            timestamp_col=data.timestamp.name,
+            id_col=data.station_code.name,
+            group_col=data.station_code.name,
+            exclude_cols=exclude_cols,
+        )
 
-        return WeatherDataUtils.remove_duplicates(data=data)
-
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
         big_query_api.reload_data(dataframe=data, table=big_query_api.raw_weather_table)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_hourly_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -174,12 +188,12 @@ def weather_data_cleanup_measurements():
 def weather_data_realtime():
     import pandas as pd
 
-    @task()
-    def extract() -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.date import date_to_str_hours
 
-        hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
+        execution_date = kwargs["dag_run"].execution_date
+        hour_of_day = execution_date - timedelta(hours=1)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
@@ -189,17 +203,13 @@ def weather_data_realtime():
 
     @task()
     def transform(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        return DataUtils.transform_weather_data(data=data)
 
-        return WeatherDataUtils.transform_raw_data(data=data)
-
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_raw_data_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
+        bigquery_data = DataUtils.transform_for_bigquery_weather(data=data)
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
@@ -208,17 +218,14 @@ def weather_data_realtime():
 
     @task()
     def average_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        return WeatherDataUtils.aggregate_data(data=data)
+        return DataUtils.aggregate_weather_data(data=data)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_hourly_data_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
+        bigquery_data = DataUtils.transform_for_bigquery_weather(data=data)
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
@@ -242,13 +249,11 @@ def weather_data_realtime():
 def openweathermap_data():
     @task()
     def retrieve_sites():
-        from airqo_etl_utils.airqo_api import AirQoApi
 
-        return AirQoApi().get_sites(tenant=Tenant.AIRQO)
+        return DataUtils.get_sites(network=DeviceNetwork.AIRQO)
 
     @task()
     def retrieve_weather_data(sites):
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
         return WeatherDataUtils.fetch_openweathermap_data_for_sites(sites=sites)
 

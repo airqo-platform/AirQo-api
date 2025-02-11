@@ -63,10 +63,10 @@ class DateUtils:
                     end_date_time = dag_run.conf["end_date_time"]
                 except Exception as e:
                     exception_occurred = True
-                    print("Exception in get_dag_date_time_values", repr(e))
+                    logger.exception(f"Exception in get_dag_date_time_values", {e})
 
         if exception_occurred or not is_manual_run:
-            execution_date = kwargs["dag_run"].execution_date
+            execution_date = dag_run.execution_date
             start_date_time = execution_date - timedelta(**delta_kwargs)
             end_date_time = (
                 start_date_time + timedelta(**delta_kwargs)

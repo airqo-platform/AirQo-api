@@ -2,7 +2,8 @@ from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from datetime import timedelta
-from airqo_etl_utils.config import configuration
+from airqo_etl_utils.config import configuration as Config
+from airflow.exceptions import AirflowFailException
 
 
 # Historical Data DAG
@@ -40,7 +41,6 @@ def airnow_bam_historical_data():
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
         from datetime import datetime
 
         now = datetime.now()
@@ -48,14 +48,16 @@ def airnow_bam_historical_data():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            tenant=Tenant.AIRQO,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
-        broker.publish_to_topic(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
-        )
+        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_bigquery(data: pd.DataFrame):
@@ -123,7 +125,6 @@ def airnow_bam_realtime_data():
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
         from datetime import datetime
 
         now = datetime.now()
@@ -131,14 +132,17 @@ def airnow_bam_realtime_data():
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            tenant=Tenant.AIRQO,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
             caller=kwargs["dag"].dag_id + unique_str,
+            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
+
+        if not data:
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
         broker = MessageBrokerUtils()
-        broker.publish_to_topic(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
-        )
+        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_bigquery(data: pd.DataFrame):

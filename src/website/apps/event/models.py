@@ -1,17 +1,15 @@
-# backend/apps/event/models.py
+import logging
 from django.db import models
-from utils.models import BaseModel
 from django.contrib.auth import get_user_model
-from django.conf import settings
-from utils.fields import ConditionalImageField, ConditionalFileField
-from cloudinary.uploader import destroy
 from django_quill.fields import QuillField
-import os
+from utils.models import BaseModel
+from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
-# Event Model
 class Event(BaseModel):
     title = models.CharField(max_length=100)
     title_subtext = models.CharField(max_length=90)
@@ -22,59 +20,63 @@ class Event(BaseModel):
     registration_link = models.URLField(null=True, blank=True)
 
     class WebsiteCategory(models.TextChoices):
-        AirQo = "airqo", "AirQo"
-        CleanAir = "cleanair", "CleanAir"
+        AIRQO = "airqo", "AirQo"
+        CLEAN_AIR = "cleanair", "CleanAir"
 
     website_category = models.CharField(
         max_length=40,
-        default=WebsiteCategory.AirQo,
         choices=WebsiteCategory.choices,
+        default=WebsiteCategory.AIRQO,
         null=True,
         blank=True,
     )
 
     class EventTag(models.TextChoices):
-        Untagged = "none", "None"
-        Featured = "featured", "Featured"
+        UNTAGGED = "none", "None"
+        FEATURED = "featured", "Featured"
 
     event_tag = models.CharField(
         max_length=40,
-        default=EventTag.Untagged,
         choices=EventTag.choices,
+        default=EventTag.UNTAGGED,
         null=True,
         blank=True,
     )
 
     class EventCategory(models.TextChoices):
-        NoneCategory = "none", "None"
-        Webinar = "webinar", "Webinar"
-        Workshop = "workshop", "Workshop"
-        Marathon = "marathon", "Marathon"
-        Conference = "conference", "Conference"
-        Summit = "summit", "Summit"
-        Commemoration = "commemoration", "Commemoration"
-        InPerson = "in-person", "In-person"
-        Hybrid = "hybrid", "Hybrid"
+        NONE_CATEGORY = "none", "None"
+        WEBINAR = "webinar", "Webinar"
+        WORKSHOP = "workshop", "Workshop"
+        MARATHON = "marathon", "Marathon"
+        CONFERENCE = "conference", "Conference"
+        SUMMIT = "summit", "Summit"
+        COMMEMORATION = "commemoration", "Commemoration"
+        IN_PERSON = "in-person", "In-person"
+        HYBRID = "hybrid", "Hybrid"
 
     event_category = models.CharField(
         max_length=40,
-        default=EventCategory.NoneCategory,
         choices=EventCategory.choices,
+        default=EventCategory.NONE_CATEGORY,
         null=True,
         blank=True,
     )
 
-    event_image = ConditionalImageField(
-        local_upload_to='events/images/',
-        cloudinary_folder='website/uploads/events/images',
+    event_image = CloudinaryField(
+        'image',
+        folder='website/uploads/events/images',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
+        resource_type='image'
     )
-    background_image = ConditionalImageField(
-        local_upload_to='events/images/',
-        cloudinary_folder='website/uploads/events/images',
+    background_image = CloudinaryField(
+        'image',
+        folder='website/uploads/events/images',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
+        resource_type='image'
     )
 
     location_name = models.CharField(max_length=100, null=True, blank=True)
@@ -86,28 +88,41 @@ class Event(BaseModel):
         ordering = ["order", "-start_date"]
 
     def __str__(self):
-        return f"{self.title}"
+        return self.title
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(f"Created new Event: ID={self.pk}, Title={self.title}")
+        else:
+            logger.info(f"Updated Event: ID={self.pk}, Title={self.title}")
 
     def delete(self, *args, **kwargs):
-        # Delete files from storage for both Cloudinary and local storage
+        logger.debug(
+            f"Attempting to delete Event: ID={self.pk}, Title={self.title}")
+        # Attempt to delete images from Cloudinary
         if self.event_image:
-            if not settings.DEBUG:  # Delete from Cloudinary in production
+            try:
                 destroy(self.event_image.public_id)
-            else:  # Delete from local storage in development
-                if os.path.isfile(self.event_image.path):
-                    os.remove(self.event_image.path)
-
+                logger.info(
+                    f"Deleted event_image from Cloudinary: {self.event_image.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting event_image from Cloudinary: {e}")
         if self.background_image:
-            if not settings.DEBUG:
+            try:
                 destroy(self.background_image.public_id)
-            else:
-                if os.path.isfile(self.background_image.path):
-                    os.remove(self.background_image.path)
+                logger.info(
+                    f"Deleted background_image from Cloudinary: {self.background_image.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting background_image from Cloudinary: {e}")
 
         super().delete(*args, **kwargs)
+        logger.info(f"Deleted Event: ID={self.pk}, Title={self.title}")
 
 
-# Inquiry Model
 class Inquiry(BaseModel):
     inquiry = models.CharField(max_length=80)
     role = models.CharField(max_length=100, null=True, blank=True)
@@ -127,11 +142,26 @@ class Inquiry(BaseModel):
     def __str__(self):
         return f"Inquiry - {self.inquiry}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+        else:
+            logger.info(
+                f"Updated Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
 
-# Program Model
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+        super().delete(*args, **kwargs)
+        logger.info(f"Deleted Inquiry: ID={self.pk}, Inquiry={self.inquiry}")
+
+
 class Program(BaseModel):
     date = models.DateField()
-    program_details = QuillField(default="No details available yet.")
+    program_details = models.TextField(default="No details available yet.")
     order = models.IntegerField(default=1)
     event = models.ForeignKey(
         Event,
@@ -147,14 +177,27 @@ class Program(BaseModel):
     def __str__(self):
         return f"Program - {self.date}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(f"Created new Program: ID={self.pk}, Date={self.date}")
+        else:
+            logger.info(f"Updated Program: ID={self.pk}, Date={self.date}")
 
-# Session Model
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Program: ID={self.pk}, Date={self.date}")
+        super().delete(*args, **kwargs)
+        logger.info(f"Deleted Program: ID={self.pk}, Date={self.date}")
+
+
 class Session(BaseModel):
     start_time = models.TimeField()
     end_time = models.TimeField()
     venue = models.CharField(max_length=80, null=True, blank=True)
     session_title = models.CharField(max_length=150)
-    session_details = QuillField(default="No details available yet.")
+    session_details = models.TextField(default="No details available yet.")
     order = models.IntegerField(default=1)
     program = models.ForeignKey(
         Program,
@@ -170,14 +213,32 @@ class Session(BaseModel):
     def __str__(self):
         return f"Session - {self.session_title}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new Session: ID={self.pk}, Title={self.session_title}")
+        else:
+            logger.info(
+                f"Updated Session: ID={self.pk}, Title={self.session_title}")
 
-# PartnerLogo Model
+    def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Session: ID={self.pk}, Title={self.session_title}")
+        super().delete(*args, **kwargs)
+        logger.info(
+            f"Deleted Session: ID={self.pk}, Title={self.session_title}")
+
+
 class PartnerLogo(BaseModel):
-    partner_logo = ConditionalImageField(
-        local_upload_to='events/logos/',
-        cloudinary_folder='website/uploads/events/logos',
+    partner_logo = CloudinaryField(
+        'image',
+        folder='website/uploads/events/logos',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
+        resource_type='image'
     )
     name = models.CharField(max_length=70)
     order = models.IntegerField(default=1)
@@ -195,25 +256,40 @@ class PartnerLogo(BaseModel):
     def __str__(self):
         return f"Partner - {self.name}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new PartnerLogo: ID={self.pk}, Name={self.name}")
+        else:
+            logger.info(f"Updated PartnerLogo: ID={self.pk}, Name={self.name}")
+
     def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete PartnerLogo: ID={self.pk}, Name={self.name}")
         if self.partner_logo:
-            if not settings.DEBUG:
+            try:
                 destroy(self.partner_logo.public_id)
-            else:
-                if os.path.isfile(self.partner_logo.path):
-                    os.remove(self.partner_logo.path)
+                logger.info(
+                    f"Deleted partner_logo from Cloudinary: {self.partner_logo.public_id}")
+            except Exception as e:
+                logger.error(
+                    f"Error deleting partner_logo from Cloudinary: {e}")
         super().delete(*args, **kwargs)
+        logger.info(f"Deleted PartnerLogo: ID={self.pk}, Name={self.name}")
 
 
-# Resource Model
 class Resource(BaseModel):
     title = models.CharField(max_length=100)
     link = models.URLField(null=True, blank=True)
-    resource = ConditionalFileField(
-        local_upload_to='publications/files/',
-        cloudinary_folder='website/uploads/events/files',
+    resource = CloudinaryField(
+        'file',
+        folder='website/uploads/events/files',
         null=True,
-        blank=True
+        blank=True,
+        default=None,
+        resource_type='raw'
     )
     order = models.IntegerField(default=1)
     event = models.ForeignKey(
@@ -230,11 +306,24 @@ class Resource(BaseModel):
     def __str__(self):
         return f"Resource - {self.title}"
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new:
+            logger.info(
+                f"Created new Resource: ID={self.pk}, Title={self.title}")
+        else:
+            logger.info(f"Updated Resource: ID={self.pk}, Title={self.title}")
+
     def delete(self, *args, **kwargs):
+        logger.debug(
+            f"Attempting to delete Resource: ID={self.pk}, Title={self.title}")
         if self.resource:
-            if not settings.DEBUG:
+            try:
                 destroy(self.resource.public_id)
-            else:
-                if os.path.isfile(self.resource.path):
-                    os.remove(self.resource.path)
+                logger.info(
+                    f"Deleted resource from Cloudinary: {self.resource.public_id}")
+            except Exception as e:
+                logger.error(f"Error deleting resource from Cloudinary: {e}")
         super().delete(*args, **kwargs)
+        logger.info(f"Deleted Resource: ID={self.pk}, Title={self.title}")

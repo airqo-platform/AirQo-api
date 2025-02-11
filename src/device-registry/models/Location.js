@@ -3,10 +3,9 @@ const { Schema } = require("mongoose");
 const constants = require("@config/constants");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { logObject, logElement, HttpError } = require("@utils/shared");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- location-model`);
@@ -84,6 +83,10 @@ const locationSchema = new Schema(
       type: String,
       trim: true,
     },
+    groups: {
+      type: [String],
+      trim: true,
+    },
     location_tags: {
       type: Array,
       default: [],
@@ -124,6 +127,7 @@ locationSchema.methods = {
       isCustom: this.isCustom,
       location: this.location,
       network: this.network,
+      groups: this.groups,
       metadata: this.metadata,
     };
   },
@@ -190,6 +194,7 @@ locationSchema.statics = {
         isCustom: 1,
         metadata: 1,
         network: 1,
+        groups: 1,
         sites: "$sites",
       };
 
@@ -200,6 +205,7 @@ locationSchema.statics = {
         admin_level: 1,
         description: 1,
         network: 1,
+        groups: 1,
         metadata: 1,
       };
 
@@ -306,6 +312,7 @@ locationSchema.statics = {
           description: 1,
           admin_level: 1,
           network: 1,
+          groups: 1,
           isCustom: 1,
           metadata: 1,
         },

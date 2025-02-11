@@ -2,11 +2,10 @@ const { Schema } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- photo-model`);
@@ -18,8 +17,8 @@ const photoSchema = new Schema(
       type: String,
       trim: true,
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     device_id: {
@@ -83,7 +82,7 @@ photoSchema.methods = {
       tags: this.tags,
       name: this.name,
       network: this.network,
-      group: this.group,
+      groups: this.groups,
       image_url: this.image_url,
       device_id: this.device_id,
       site_id: this.site_id,
@@ -158,7 +157,7 @@ photoSchema.statics = {
           description: 1,
           metadata: 1,
           network: 1,
-          group: 1,
+          groups: 1,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 1000)

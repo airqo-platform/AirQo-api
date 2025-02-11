@@ -1,7 +1,7 @@
 import pandas as pd
 
 from .bigquery_api import BigQueryApi
-from .constants import Tenant, DataSource
+from .constants import DataSource, DeviceNetwork
 from .purple_air_api import PurpleAirApi
 from .utils import Utils
 
@@ -28,7 +28,7 @@ class PurpleDataUtils:
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         data = pd.DataFrame()
         bigquery_api = BigQueryApi()
-        devices = bigquery_api.query_devices(tenant=Tenant.NASA)
+        devices = bigquery_api.query_devices(network=DeviceNetwork.NASA)
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -78,7 +78,7 @@ class PurpleDataUtils:
             },
             inplace=True,
         )
-        data["tenant"] = str(Tenant.NASA)
+        data["network"] = DeviceNetwork.NASA
         return data
 
     @staticmethod

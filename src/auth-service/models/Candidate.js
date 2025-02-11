@@ -1,12 +1,17 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- candidate-model`);
 

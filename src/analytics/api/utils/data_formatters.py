@@ -1,9 +1,7 @@
 from enum import Enum
 from typing import Any, List, Union, Dict
-from werkzeug.exceptions import BadRequest
 
 import pandas as pd
-import requests
 
 from api.utils.dates import str_to_aqcsv_date_format
 from api.utils.pollutants.pm_25 import (
@@ -252,7 +250,7 @@ def format_to_aqcsv(
                 "pm2_5_raw_value",
                 "pm10_raw_value",
                 "device_name",
-                "tenant",
+                "network",
                 "device_latitude",
                 "device_longitude",
                 "frequency",
@@ -265,96 +263,67 @@ def format_to_aqcsv(
     return dataframe.to_dict("records")
 
 
-def tenant_to_str(tenant: str) -> str:
-    try:
-        if tenant.lower() == "airqo":
-            return "AirQo"
-        elif tenant.lower() == "kcca":
-            return "KCCA"
-        elif tenant.lower() == "us_embassy":
-            return "US Embassy"
-        else:
-            pass
-    except Exception as ex:
-        pass
-
-    return ""
-
-
-def device_category_to_str(device_category: str) -> str:
-    try:
-        if device_category.lower() == "bam":
-            return "Reference Monitor"
-        elif device_category.lower() == "lowcost":
-            return "Low Cost Sensor"
-        else:
-            pass
-    except Exception as ex:
-        pass
-
-    return ""
-
-
-def filter_non_private_sites(filter_type: str, sites: List[str]) -> Dict[str, Any]:
+def validate_network(network_name: str) -> bool:
     """
-    Filters out private site IDs from a provided array of site IDs.
+    Validate if a given network name exists in the list of networks.
 
     Args:
-        sites(List[str]): List of site ids to filter against.
+        network_name (str): The name of the network to validate.
 
     Returns:
-        a response dictionary object that contains a list of non-private site ids if any.
+        bool: True if the network name exists, False otherwise.
+    """
+    if not network_name:
+        return False
+
+    endpoint: str = "/users/networks"
+    airqo_requests = AirQoRequests()
+    response = airqo_requests.request(endpoint=endpoint, method="get")
+
+    if response and "networks" in response:
+        networks = response["networks"]
+        # TODO Could add an active network filter
+        return any(network.get("net_name") == network_name for network in networks)
+
+    return False
+
+
+def filter_non_private_sites_devices(
+    filter_type: str, filter_value: List[str]
+) -> Dict[str, Any]:
+    """
+    Filters out private device/site IDs from a provided array of device IDs.
+
+    Args:
+        filter_type(str): A string either devices or sites.
+        filter_value(List[str]): List of device/site ids to filter against.
+
+    Returns:
+        A response dictionary object that contains a list of non-private device/site ids if any.
     """
 
-    if len(sites) == 0:
-        return {}
+    if len(filter_value) == 0:
+        raise ValueError(f"{filter_type} can't be empty")
 
-    endpoint: str = "devices/grids/filterNonPrivateSites"
+    endpoint: Dict = {
+        "devices": "devices/cohorts/filterNonPrivateDevices",
+        "sites": "devices/grids/filterNonPrivateSites",
+    }
 
     try:
         airqo_requests = AirQoRequests()
         response = airqo_requests.request(
-            endpoint=endpoint, body={filter_type: sites}, method="post"
+            endpoint=endpoint.get(filter_type),
+            body={filter_type: filter_value},
+            method="post",
         )
         if response and response.get("status") == "success":
             return airqo_requests.create_response(
                 message="Successfully returned data.",
-                data=response.get("data"),
+                data=response.get("data", {}).get(filter_type, []),
                 success=True,
             )
         else:
             return airqo_requests.create_response(response, success=False)
-    except Exception as rex:
-        logger.exception(f"Error while filtering non private devices {rex}")
-
-
-def filter_non_private_devices(filter_type: str, devices: List[str]) -> Dict[str, Any]:
-    """
-    FilterS out private device IDs from a provided array of device IDs.
-
-    Args:
-        entities(List[str]): List of device/site ids to filter against.
-
-    Returns:
-        a response dictionary object that contains a list of non-private device ids if any.
-    """
-
-    if len(devices) == 0:
-        return {}
-
-    endpoint: str = "devices/cohorts/filterNonPrivateDevices"
-    try:
-        airqo_requests = AirQoRequests()
-        response = airqo_requests.request(
-            endpoint=endpoint, body={filter_type: devices}, method="post"
-        )
-        if response and response.get("status") == "success":
-            return airqo_requests.create_response(
-                message="Successfully returned data.",
-                data=response.get("data"),
-                success=True,
-            )
-        else:
-            return airqo_requests.create_response(response, success=False)
-    except Exception as rex:
-        logger.exception(f"Error while filtering non private devices {rex}")
+    except Exception as e:
+        logger.exception(f"Error while filtering non private {filter_type}: {e}")

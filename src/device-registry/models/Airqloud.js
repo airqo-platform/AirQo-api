@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -11,7 +10,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const polygonSchema = new mongoose.Schema(
   {
     type: {
@@ -113,8 +112,8 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
     },
-    group: {
-      type: String,
+    groups: {
+      type: [String],
       trim: true,
     },
     airqloud_tags: {
@@ -152,7 +151,7 @@ airqloudSchema.methods.toJSON = function() {
     name: this.name,
     long_name: this.long_name,
     network: this.network,
-    group: this.group,
+    groups: this.groups,
     description: this.description,
     airqloud_tags: this.airqloud_tags,
     admin_level: this.admin_level,

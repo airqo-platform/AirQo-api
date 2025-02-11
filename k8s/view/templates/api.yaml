@@ -27,23 +27,14 @@ spec:
       labels:
         app: {{ .Values.api.label }}
     spec:
+      nodeSelector: 
+        {{- if .Values.api.nodeSelector }}
+        {{- toYaml .Values.api.nodeSelector | nindent 8 }}
+        {{- end }}
       affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 90
-              preference:
-                matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                      - high-memory
-            - weight: 1
-              preference:
-                matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                      - general-purpose
+        {{- if .Values.api.affinity }}
+        {{- toYaml .Values.api.affinity | nindent 8 }}
+        {{- end }}                      
       containers:
         - name: {{ .Values.api.label }}
           image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"

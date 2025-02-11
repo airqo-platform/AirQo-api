@@ -1,9 +1,6 @@
 from django.db import models
-from django.conf import settings
+from cloudinary.models import CloudinaryField
 from utils.models import BaseModel
-from utils.fields import ConditionalImageField
-
-# Tag Model
 
 
 class Tag(BaseModel):
@@ -13,18 +10,16 @@ class Tag(BaseModel):
         return self.name
 
 
-# Highlight Model
 class Highlight(BaseModel):
     title = models.CharField(max_length=110)
-    tags = models.ManyToManyField(Tag, related_name='highlights')
+    # String-based reference to Tag
+    tags = models.ManyToManyField("Tag", related_name='highlights')
 
-    # Use ConditionalImageField for handling local or Cloudinary image storage
-    image = ConditionalImageField(
-        local_upload_to='highlights/images/',
-        cloudinary_folder='website/uploads/highlights/images',
-        default='website/uploads/default_image.webp',
+    image = CloudinaryField(
+        folder='website/uploads/highlights/images',
         null=True,
-        blank=True
+        blank=True,
+        resource_type='image'
     )
 
     link = models.URLField()
@@ -39,8 +34,7 @@ class Highlight(BaseModel):
 
     def delete(self, *args, **kwargs):
         """
-        Automatically delete the file from Cloudinary or local storage
-        when the highlight is deleted.
+        Automatically delete the image from Cloudinary when the highlight is deleted.
         """
         if self.image:
             self.image.delete(save=False)

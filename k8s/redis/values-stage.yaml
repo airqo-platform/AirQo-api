@@ -5,5 +5,5 @@ app:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
+  targetCPUUtilizationPercentage: 85
   # targetMemoryUtilizationPercentage: 80

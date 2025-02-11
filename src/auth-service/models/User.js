@@ -4,7 +4,6 @@ const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
-const { logObject, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
@@ -15,9 +14,9 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
 const validUserTypes = ["user", "guest"];
-const { HttpError } = require("@utils/errors");
-const mailer = require("@utils/mailer");
+const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -94,7 +93,6 @@ const UserSchema = new Schema(
     },
     userName: {
       type: String,
-      required: [true, "UserName is required!"],
       trim: true,
       unique: true,
     },
@@ -141,7 +139,7 @@ const UserSchema = new Schema(
           validator: function (value) {
             return value.length <= ORGANISATIONS_LIMIT;
           },
-          message: "Too many networks. Maximum limit: 6.",
+          message: `Too many networks. Maximum limit: ${ORGANISATIONS_LIMIT}`,
         },
       ],
     },
@@ -169,7 +167,7 @@ const UserSchema = new Schema(
           validator: function (value) {
             return value.length <= ORGANISATIONS_LIMIT;
           },
-          message: "Too many groups. Maximum limit: 6.",
+          message: `Too many groups. Maximum limit: ${ORGANISATIONS_LIMIT}`,
         },
       ],
     },
@@ -234,6 +232,37 @@ const UserSchema = new Schema(
     },
     google_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
+    subscriptionStatus: {
+      type: String,
+      enum: ["inactive", "active", "past_due", "cancelled"],
+      default: "inactive",
+    },
+    currentSubscriptionId: {
+      type: String,
+    },
+    lastSubscriptionCheck: {
+      type: Date,
+    },
+    subscriptionCancelledAt: {
+      type: Date,
+    },
+    automaticRenewal: {
+      type: Boolean,
+      default: false,
+    },
+    nextBillingDate: {
+      type: Date,
+    },
+    lastRenewalDate: {
+      type: Date,
+    },
+    currentPlanDetails: {
+      type: {
+        priceId: String,
+        currency: String,
+        billingCycle: String, // 'monthly', 'annual', etc.
+      },
+    },
   },
   { timestamps: true }
 );
@@ -251,32 +280,63 @@ UserSchema.pre(
   async function (next) {
     // Determine if this is a new document or an update
     const isNew = this.isNew;
-    let updates = this.getUpdate ? this.getUpdate() : this;
+
+    // Safely get updates object, accounting for different mongoose operations
+    let updates = {};
+    if (this.getUpdate) {
+      updates = this.getUpdate() || {};
+    } else if (!isNew) {
+      updates = this.toObject();
+    } else {
+      updates = this;
+    }
 
     try {
       // Helper function to handle role updates
       const handleRoleUpdates = async (fieldName, idField) => {
         const query = this.getQuery ? this.getQuery() : { _id: this._id };
-        const doc = await this.model.findOne(query);
+
+        // Get the correct tenant-specific model
+        const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
+        const User = getModelByTenant(tenant, "user", UserSchema);
+        const doc = await User.findOne(query);
         if (!doc) return;
 
         let newRoles = [];
         const existingRoles = doc[fieldName] || [];
 
-        // Handle $set operations
+        // Initialize update operators safely
+        updates.$set = updates.$set || {};
+        updates.$push = updates.$push || {};
+        updates.$addToSet = updates.$addToSet || {};
+
+        // Handle update operations in order of precedence
         if (updates.$set && updates.$set[fieldName]) {
+          // $set takes precedence as it's a direct override
           newRoles = updates.$set[fieldName];
-        }
-        // Handle $push operations
-        else if (updates.$push && updates.$push[fieldName]) {
+        } else if (updates.$push && updates.$push[fieldName]) {
+          // Safely handle $push with potential $each operator
           const pushValue = updates.$push[fieldName];
-          const newRole = pushValue.$each ? pushValue.$each[0] : pushValue;
-          newRoles = [...existingRoles, newRole];
-        }
-        // Handle $addToSet operations
-        else if (updates.$addToSet && updates.$addToSet[fieldName]) {
-          const newRole = updates.$addToSet[fieldName];
-          newRoles = [...existingRoles, newRole];
+          if (pushValue) {
+            if (pushValue.$each && Array.isArray(pushValue.$each)) {
+              newRoles = [...existingRoles, ...pushValue.$each];
+            } else {
+              newRoles = [...existingRoles, pushValue];
+            }
+          }
+        } else if (updates.$addToSet && updates.$addToSet[fieldName]) {
+          // Safely handle $addToSet
+          const addToSetValue = updates.$addToSet[fieldName];
+          if (addToSetValue) {
+            if (addToSetValue.$each && Array.isArray(addToSetValue.$each)) {
+              newRoles = [...existingRoles, ...addToSetValue.$each];
+            } else {
+              newRoles = [...existingRoles, addToSetValue];
+            }
+          }
+        } else if (updates[fieldName]) {
+          // Direct field update
+          newRoles = updates[fieldName];
         }
 
         if (newRoles.length > 0) {
@@ -302,14 +362,11 @@ UserSchema.pre(
           // Convert Map values back to array
           const finalRoles = Array.from(uniqueRoles.values());
 
-          // Clear all update operators for this field
-          if (updates.$set) delete updates.$set[fieldName];
-          if (updates.$push) delete updates.$push[fieldName];
-          if (updates.$addToSet) delete updates.$addToSet[fieldName];
-
-          // Set the final filtered array
-          updates.$set = updates.$set || {};
+          // Set the final filtered array using $set and clean up other operators
           updates.$set[fieldName] = finalRoles;
+          delete updates.$push[fieldName];
+          delete updates.$addToSet[fieldName];
+          delete updates[fieldName]; // Clean up direct field update if any
         }
       };
 
@@ -330,10 +387,10 @@ UserSchema.pre(
         if (isNew) {
           this.password = bcrypt.hashSync(passwordToHash, saltRounds);
         } else {
-          if (updates.password) {
+          if (updates && updates.password) {
             updates.password = bcrypt.hashSync(passwordToHash, saltRounds);
           }
-          if (updates.$set && updates.$set.password) {
+          if (updates && updates.$set && updates.$set.password) {
             updates.$set.password = bcrypt.hashSync(passwordToHash, saltRounds);
           }
         }
@@ -344,6 +401,14 @@ UserSchema.pre(
         // Validate contact information - only for new documents
         if (!this.email && !this.phoneNumber) {
           return next(new Error("Phone number or email is required!"));
+        }
+
+        if (!this.userName && this.email) {
+          this.userName = this.email;
+        }
+
+        if (!this.userName) {
+          return next(new Error("userName is required!"));
         }
 
         // Profile picture validation - only for new documents
@@ -412,10 +477,6 @@ UserSchema.pre(
           ];
         }
 
-        // Ensure default values for new documents
-        this.verified = this.verified ?? false;
-        this.analyticsVersion = this.analyticsVersion ?? 2;
-
         // Permissions handling for new documents
         if (this.permissions && this.permissions.length > 0) {
           this.permissions = [...new Set(this.permissions)];
@@ -449,6 +510,17 @@ UserSchema.pre(
           ...(updates.$set || {}),
         };
 
+        // Profile picture validation for updates
+        if (actualUpdates.profilePicture) {
+          if (!validateProfilePicture(actualUpdates.profilePicture)) {
+            return next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "Invalid profile picture URL",
+              })
+            );
+          }
+        }
+
         // Conditional validations for updates
         // Only validate fields that are present in the update
         fieldsToValidate.forEach((field) => {
@@ -468,7 +540,7 @@ UserSchema.pre(
         const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
         immutableFields.forEach((field) => {
           if (updates[field]) delete updates[field];
-          if (updates.$set && updates.$set[field]) {
+          if (updates && updates.$set && updates.$set[field]) {
             return next(
               new HttpError(
                 "Modification Not Allowed",
@@ -477,7 +549,7 @@ UserSchema.pre(
               )
             );
           }
-          if (updates.$set) delete updates.$set[field];
+          if (updates && updates.$set) delete updates.$set[field];
           if (updates.$push) delete updates.$push[field];
         });
 
@@ -506,20 +578,11 @@ UserSchema.pre(
         // Conditional permissions validation
         if (updates.permissions) {
           const uniquePermissions = [...new Set(updates.permissions)];
-          if (updates.$set) {
+          if (updates && updates.$set) {
             updates.$set.permissions = uniquePermissions;
           } else {
             updates.permissions = uniquePermissions;
           }
-        }
-
-        // Conditional default values for updates
-        if (updates.$set) {
-          updates.$set.verified = updates.$set.verified ?? false;
-          updates.$set.analyticsVersion = updates.$set.analyticsVersion ?? 2;
-        } else {
-          updates.verified = updates.verified ?? false;
-          updates.analyticsVersion = updates.analyticsVersion ?? 2;
         }
       }
 
@@ -716,7 +779,10 @@ UserSchema.statics = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -736,6 +802,8 @@ UserSchema.statics = {
         delete filter.category;
       }
       logObject("the filter being used", filter);
+      const totalCount = await this.countDocuments(filter).exec();
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -903,14 +971,15 @@ UserSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .sort({ createdAt: -1 })
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
+        .skip(skip ? parseInt(skip) : 0)
+        .limit(limit ? parseInt(limit) : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
       if (!isEmpty(response)) {
         return {
           success: true,
           message: "successfully retrieved the user details",
           data: response,
+          totalCount,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -918,12 +987,16 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
+          totalCount,
           status: httpStatus.OK,
         };
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -965,6 +1038,9 @@ UserSchema.statics = {
       );
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      if (error instanceof HttpError) {
+        return next(error);
+      }
       return next(
         new HttpError(
           "Internal Server Error",
@@ -1004,7 +1080,10 @@ UserSchema.statics = {
     } catch (error) {
       logObject("the models error", error);
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,

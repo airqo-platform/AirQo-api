@@ -5,6 +5,16 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "network",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_category",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "timestamp",
     "type": "TIMESTAMP",
     "mode": "NULLABLE"

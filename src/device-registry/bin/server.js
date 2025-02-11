@@ -13,7 +13,6 @@ connectToMongoDB();
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
-const { HttpError, BadRequestError } = require("@utils/errors");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
@@ -21,8 +20,13 @@ const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
-const { logText, logObject } = require("@utils/log");
-const stringify = require("@utils/stringify");
+const {
+  logObject,
+  logText,
+  BadRequestError,
+  HttpError,
+} = require("@utils/shared");
+const { stringify } = require("@utils/common");
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/v2.1-store-readings-job");
 require("@bin/jobs/v2-check-network-status-job");
@@ -30,6 +34,7 @@ require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
+require("@bin/jobs/update-duplicate-site-fields-job");
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }

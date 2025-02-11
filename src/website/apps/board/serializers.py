@@ -17,4 +17,6 @@ class BoardMemberSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_picture_url(self, obj):
-        return obj.get_picture_url()  # Secure or local URL is handled inside the model
+        if obj.picture:
+            return obj.picture.url  # Cloudinary automatically provides the correct URL
+        return None

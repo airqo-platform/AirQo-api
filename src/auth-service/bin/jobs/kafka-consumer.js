@@ -4,20 +4,24 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer script`
 );
-const { logObject } = require("@utils/log");
-const mailer = require("@utils/mailer");
-const emailTemplates = require("@utils/email.templates");
+const { mailer, stringify, emailTemplates } = require("@utils/common");
 const Joi = require("joi");
 const { jsonrepair } = require("jsonrepair");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const BlacklistedIPModel = require("@models/BlacklistedIP");
 const UserModel = require("@models/User");
-const stringify = require("@utils/stringify");
 const rangeCheck = require("ip-range-check");
 const asyncRetry = require("async-retry");
 const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const ObjectId = mongoose.Types.ObjectId;
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),

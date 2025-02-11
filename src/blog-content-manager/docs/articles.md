@@ -1,6 +1,6 @@
 # API Documentation for Blog Post Management
 
-**Base URL**: `https://api.yourdomain.com/v2/articles`
+**Base URL**: `https://api.airqo.net/v2/articles`
 
 ## Authentication
 
@@ -24,7 +24,7 @@ Retrieve the details of a specific blog post for editing.
 
 ```http
 GET /articles/edit/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 ```
 
 ---
@@ -56,7 +56,7 @@ Update the details of a specific blog post.
 
 ```http
 PUT /articles/edit/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -86,7 +86,7 @@ Delete a specific blog post.
 
 ```http
 DELETE /articles/delete/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -116,7 +116,7 @@ Schedule a specific blog post for future publication.
 
 ```http
 POST /articles/schedule/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -143,5 +143,5 @@ Retrieve the revision history of a specific blog post.
 
 ```http
 GET /articles/history/123 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 ```

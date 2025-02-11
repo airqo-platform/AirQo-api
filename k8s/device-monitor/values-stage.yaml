@@ -9,17 +9,29 @@ images:
     deviceMonitor: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-worker
-  tag: stage-38af6de7-1730309744
+  tag: stage-db46fe65-1737478850
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 500m
-    memory: 800Mi
+    cpu: 50m
+    memory: 1000Mi
   requests:
     cpu: 5m
-    memory: 40Mi
+    memory: 400Mi
+nodeSelector:
+  role: high-mem
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

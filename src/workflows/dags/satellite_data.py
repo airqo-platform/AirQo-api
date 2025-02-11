@@ -4,7 +4,7 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
-from airqo_etl_utils.config import configuration
+from airqo_etl_utils.config import configuration as Config
 
 
 @dag(
@@ -19,13 +19,12 @@ def retrieve_satellite_data():
     def fetch_data():
         # TODO: Break this down into smaller tasks, challenge is xcom support only df & json atm
         from airqo_etl_utils.satellite_utils import SatelliteUtils
-        from airqo_etl_utils.constants import satellite_cities, satellite_collections
 
         return SatelliteUtils.extract_satellite_data(
-            locations=satellite_cities,
+            locations=Config.satellite_cities,
             start_date=datetime.now() - timedelta(days=30),
             end_date=datetime.now(),
-            satellite_collections=satellite_collections,
+            satellite_collections=Config.satellite_collections,
         )
 
     @task()
@@ -33,9 +32,7 @@ def retrieve_satellite_data():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data_to_bigquery(
-            data, configuration.BIGQUERY_SATELLITE_DATA_TABLE
-        )
+        big_query_api.save_data_to_bigquery(data, Config.BIGQUERY_SATELLITE_DATA_TABLE)
 
     data = fetch_data()
     save_to_bigquery(data)

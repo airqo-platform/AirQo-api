@@ -1,9 +1,6 @@
-# backend/apps/event/serializers.py
 
 from rest_framework import serializers
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
-from cloudinary.utils import cloudinary_url
-from django.conf import settings
 
 
 class PartnerLogoSerializer(serializers.ModelSerializer):
@@ -15,10 +12,7 @@ class PartnerLogoSerializer(serializers.ModelSerializer):
 
     def get_partner_logo_url(self, obj):
         if obj.partner_logo:
-            if settings.DEBUG:
-                return self.context['request'].build_absolute_uri(obj.partner_logo.url)
-            else:
-                return cloudinary_url(obj.partner_logo.public_id, secure=True)[0]
+            return obj.partner_logo.url  # Directly use the .url attribute
         return None
 
 
@@ -31,10 +25,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
     def get_resource_url(self, obj):
         if obj.resource:
-            if settings.DEBUG:
-                return self.context['request'].build_absolute_uri(obj.resource.url)
-            else:
-                return cloudinary_url(obj.resource.public_id, secure=True)[0]
+            return obj.resource.url  # Directly use the .url attribute
         return None
 
 
@@ -46,7 +37,7 @@ class SessionSerializer(serializers.ModelSerializer):
             'start_time',
             'end_time',
             'venue',
-            'session_details',  # Keep session_details as QuillField
+            'session_details',  # Now TextField
             'order'
         ]
         ref_name = 'EventSessionSerializer'
@@ -59,7 +50,7 @@ class ProgramSerializer(serializers.ModelSerializer):
         model = Program
         fields = [
             'date',
-            'program_details',  # Keep program_details as QuillField
+            'program_details',  # Now TextField
             'order',
             'sessions'
         ]
@@ -92,10 +83,7 @@ class EventListSerializer(serializers.ModelSerializer):
 
     def get_event_image_url(self, obj):
         if obj.event_image:
-            if settings.DEBUG:
-                return self.context['request'].build_absolute_uri(obj.event_image.url)
-            else:
-                return cloudinary_url(obj.event_image.public_id, secure=True)[0]
+            return obj.event_image.url  # Directly use the .url attribute
         return None
 
 
@@ -126,7 +114,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'background_image_url',
             'location_name',
             'location_link',
-            'event_details',  # Keep event_details as QuillField
+            'event_details',  # Now TextField
             'order',
             'inquiries',
             'programs',
@@ -136,16 +124,10 @@ class EventDetailSerializer(serializers.ModelSerializer):
 
     def get_event_image_url(self, obj):
         if obj.event_image:
-            if settings.DEBUG:
-                return self.context['request'].build_absolute_uri(obj.event_image.url)
-            else:
-                return cloudinary_url(obj.event_image.public_id, secure=True)[0]
+            return obj.event_image.url  # Directly use the .url attribute
         return None
 
     def get_background_image_url(self, obj):
         if obj.background_image:
-            if settings.DEBUG:
-                return self.context['request'].build_absolute_uri(obj.background_image.url)
-            else:
-                return cloudinary_url(obj.background_image.public_id, secure=True)[0]
+            return obj.background_image.url  # Directly use the .url attribute
         return None

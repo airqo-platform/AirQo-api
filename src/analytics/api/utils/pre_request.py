@@ -2,7 +2,7 @@ from itertools import chain
 import re
 from flask import request, jsonify, make_response
 from config import API_V2_BASE_URL
-from .messages import TENANT_REQUIRED_MSG
+from .messages import NETWORK_REQUIRED_MSG
 
 
 class PreRequest:
@@ -30,4 +30,4 @@ class PreRequest:
             tenant = request.args.get(cls.TENANT_KEY)
 
             if not tenant:
-                return make_response(jsonify({"message": TENANT_REQUIRED_MSG})), 400
+                return make_response(jsonify({"message": NETWORK_REQUIRED_MSG})), 400

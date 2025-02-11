@@ -6,7 +6,7 @@ const logger = log4js.getLogger(
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
 const UNASSIGNED_THRESHOLD = 0;
-const { logText, logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 
 const checkUnassignedDevices = async () => {
   try {

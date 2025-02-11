@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
-const { logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 const envs = require("./envs");
 
@@ -33,6 +33,32 @@ const mappings = {
     unhealthy: { min: 55.5, max: 125.4 },
     very_unhealthy: { min: 125.5, max: 225.4 },
     hazardous: { min: 225.5, max: null },
+  },
+  PREDEFINED_FILTER_VALUES: {
+    NETWORKS: ["metone", "usembassy"],
+    COMBINATIONS: {
+      NETWORK_PAIRS: [
+        ["metone", "usembassy", "us_embassy", "us-embassy"],
+        ["kcca", "clarity"],
+        ["urbanbetter", "airbeam", "urban_better"],
+      ],
+      GROUP_PAIRS: [
+        ["us-embassy", "usembassy", "us_embassy"],
+        ["kcca", "kampala"],
+        ["urbanbetter", "urban_better", "urban-better"],
+      ],
+      STATUS_PAIRS: [
+        ["active", "enabled", "running"],
+        ["inactive", "disabled"],
+        ["inactive", "disabled", "stopped", "halted"],
+        ["pending", "processing"][("pending", "processing", "initializing")],
+      ],
+      LOCATION_ALIASES: [
+        ["kampala", "kla", "kamp"],
+        ["entebbe", "ebb", "entb"],
+        ["jinja", "jja"],
+      ],
+    },
   },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",

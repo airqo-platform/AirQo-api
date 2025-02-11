@@ -5,7 +5,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-insights-api
     celery: eu.gcr.io/airqo-250220/airqo-stage-insights-celery
-  tag: stage-38af6de7-1730309744
+  tag: stage-6ffb3fe6-1735572850
 api:
   name: airqo-stage-insights-api
   label: sta-alytics-api
@@ -14,7 +14,6 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 100m
       memory: 600Mi
     requests:
       cpu: 10m

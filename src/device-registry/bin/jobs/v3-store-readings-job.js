@@ -7,10 +7,10 @@ const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
-const { logText, logObject } = require("@utils/log");
-const stringify = require("@utils/stringify");
+const { logObject, logText } = require("@utils/shared");
+const { stringify, generateFilter } = require("@utils/common");
 const asyncRetry = require("async-retry");
-const generateFilter = require("@utils/generate-filter");
+
 const cron = require("node-cron");
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();

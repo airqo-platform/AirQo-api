@@ -2,11 +2,10 @@ const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logObject, logText } = require("@utils/log");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
-const { HttpError } = require("@utils/errors");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- health-tip-model`);
@@ -68,31 +67,7 @@ tipsSchema.statics = {
   async register(args, next) {
     try {
       logText("registering a new tip....");
-      let modifiedArgs = Object.assign({}, args);
-      delete modifiedArgs.aqi_category;
-
-      switch (args.aqi_category) {
-        case "good":
-          modifiedArgs.aqi_category = { min: 0, max: 12.09 };
-          break;
-        case "moderate":
-          modifiedArgs.aqi_category = { min: 12.1, max: 35.49 };
-          break;
-        case "u4sg":
-          modifiedArgs.aqi_category = { min: 35.5, max: 55.49 };
-          break;
-        case "unhealthy":
-          modifiedArgs.aqi_category = { min: 55.5, max: 150.49 };
-          break;
-        case "very_unhealthy":
-          modifiedArgs.aqi_category = { min: 150.5, max: 250.49 };
-          break;
-        case "hazardous":
-          modifiedArgs.aqi_category = { min: 250.5, max: 500 };
-          break;
-        default:
-      }
-      const createdTip = await this.create({ ...modifiedArgs });
+      const createdTip = await this.create({ ...args });
       if (!isEmpty(createdTip)) {
         return {
           success: true,
@@ -197,54 +172,7 @@ tipsSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = { new: true } } = {}, next) {
     try {
-      logObject("the filter in the model", filter);
-      logObject("the update in the model", update);
-      logObject("the opts in the model", opts);
-      let modifiedUpdateBody = Object.assign({}, update);
-      if (modifiedUpdateBody._id) {
-        delete modifiedUpdateBody._id;
-      }
-
-      delete modifiedUpdateBody.aqi_category;
-
-      switch (update.aqi_category) {
-        case "good":
-          modifiedUpdateBody.aqi_category = { min: 0, max: 12.09 };
-          break;
-        case "moderate":
-          modifiedUpdateBody.aqi_category = { min: 12.1, max: 35.49 };
-          break;
-        case "u4sg":
-          modifiedUpdateBody.aqi_category = { min: 35.5, max: 55.49 };
-          break;
-        case "unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 55.5, max: 150.49 };
-          break;
-        case "very_unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 150.5, max: 250.49 };
-          break;
-        case "hazardous":
-          modifiedUpdateBody.aqi_category = { min: 250.5, max: 500 };
-          break;
-        default:
-      }
-
-      let options = opts;
-      let keys = {};
-      const setProjection = (object) => {
-        Object.keys(object).forEach((element) => {
-          keys[element] = 1;
-        });
-        return keys;
-      };
-      logObject("the new modifiedUpdateBody", modifiedUpdateBody);
-
-      const updatedTip = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdateBody,
-        options
-      );
-      logObject("updatedTip", updatedTip);
+      const updatedTip = await this.findOneAndUpdate(filter, update, opts);
       if (!isEmpty(updatedTip)) {
         return {
           success: true,

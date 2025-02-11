@@ -5,10 +5,16 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- selected-sites-model`
 );
-const { HttpError } = require("@utils/errors");
+
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const { logText } = require("@utils/log");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const SelectedSiteSchema = new Schema(
   {

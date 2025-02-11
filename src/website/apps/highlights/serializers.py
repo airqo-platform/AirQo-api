@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import Tag, Highlight
-from django.conf import settings
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -33,12 +32,9 @@ class HighlightSerializer(serializers.ModelSerializer):
         ]
 
     def get_image_url(self, obj):
+        """
+        Return the secure URL for the image.
+        """
         if obj.image:
-            request = self.context.get('request')
-            if settings.DEBUG and request:
-                # Return absolute URL in local development
-                return request.build_absolute_uri(obj.image.url)
-            else:
-                # Return secure Cloudinary URL in production
-                return obj.image.url
+            return obj.image.url  # CloudinaryField provides secure URLs
         return None

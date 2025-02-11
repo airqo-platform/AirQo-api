@@ -1,9 +1,8 @@
 const AccessTokenModel = require("@models/AccessToken");
 const cron = require("node-cron");
 const constants = require("@config/constants");
-const { logObject, logText } = require("@utils/log");
-const mailer = require("@utils/mailer");
-const stringify = require("@utils/stringify");
+const { logObject } = require("@utils/shared");
+const { mailer, stringify } = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/token-expiration-job`

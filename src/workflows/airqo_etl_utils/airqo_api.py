@@ -5,10 +5,10 @@ import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any, Union, Generator, Tuple
+from typing import List, Dict, Any, Union, Generator, Tuple, Optional
 
 from .config import configuration
-from .constants import DeviceCategory, Tenant
+from .constants import DeviceCategory, DeviceNetwork
 from .utils import Utils
 import logging
 
@@ -25,27 +25,41 @@ class AirQoApi:
         self.AIRQO_API_TOKEN = configuration.AIRQO_API_TOKEN
 
     def save_events(self, measurements: List) -> None:
+        """
+        Posts event measurements to the API in batches.
+
+        This method divides a list of event measurements into smaller batches based on the
+        configured POST_EVENTS_BODY_SIZE and posts each batch to the "devices/events" endpoint
+        using the internal __request method with the POST HTTP method. If a batch is empty, it
+        is skipped.
+
+        Args:
+            measurements (List): A list of event measurement objects to be posted.
+
+        Returns:
+            None
+        """
         #  Temporarily disabling usage of the API to store measurements.
-        if "staging" in self.AIRQO_BASE_URL_V2.lower():
-            return
+        # if "staging" in self.AIRQO_BASE_URL_V2.lower():
+        #     return
         # TODO Findout if there is a bulk post api option greater than 5.
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
-            response = self.__request(
-                endpoint="devices/events",
-                params={"tenant": str(Tenant.AIRQO)},
-                method="post",
-                body=data,
-            )
+            if data:
+                self.__request(
+                    endpoint="devices/events",
+                    method="post",
+                    body=data,
+                )
 
     def get_maintenance_logs(
-        self, tenant: str, device: str, activity_type: str = None
+        self, network: str, device: str, activity_type: str = None
     ) -> List:
         """
-        Retrieve devices given a tenant and device category.
+        Retrieve devices given a network and device category.
 
         Args:
-            - tenant: An Enum that represents site ownership.
+            - network: An Enum that represents site ownership.
             - device: The name of the device.
             - activity_type: Defines if the activity logged is a maintenance or deployment activity. If not supplied returns all activities for the given device.
 
@@ -67,8 +81,7 @@ class AirQoApi:
                 }
             ]
         """
-        # Why is tenant still a parameter when it is being overriden.
-        params = {"tenant": str(Tenant.AIRQO), "device": device}
+        params = {"network": network, "device": device}
 
         if activity_type:
             params["activity_type"] = activity_type
@@ -81,64 +94,16 @@ class AirQoApi:
             return response["device_activities"]
         return []
 
-    def calibrate_data(self, time: str, data: pd.DataFrame) -> List:
-        # TODO Update doc string.
-        data = data.copy()
-        data = data[
-            [
-                "device_number",
-                "s1_pm2_5",
-                "s2_pm2_5",
-                "s1_pm10",
-                "s2_pm10",
-                "temperature",
-                "humidity",
-            ]
-        ]
-
-        data.rename(
-            columns={
-                "device_number": "device_id",
-                "s1_pm2_5": "sensor1_pm2.5",
-                "s2_pm2_5": "sensor2_pm2.5",
-                "s1_pm10": "sensor1_pm10",
-                "s2_pm10": "sensor2_pm10",
-                "temperature": "temperature",
-                "humidity": "humidity",
-            },
-            inplace=True,
-        )
-
-        request_body = {"datetime": time, "raw_values": data.to_dict("records")}
-
-        base_url = (
-            self.CALIBRATION_BASE_URL
-            if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL_V2
-        )
-
-        try:
-            response = self.__request(
-                endpoint="calibrate",
-                method="post",
-                body=request_body,
-                base_url=base_url,
-            )
-            return response if response else []
-        except Exception as ex:
-            logger.exception()
-            return []
-
     def get_devices(
         self,
-        tenant: Tenant = Tenant.ALL,
-        device_category: DeviceCategory = DeviceCategory.NONE,
+        network: DeviceNetwork = None,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve devices given a tenant and device category.
+        Retrieve devices given a network and device category.
 
         Args:
-            - tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
+            - network (str): A string that represents device manufaturer.
             - device_category (DeviceCategory, optional): An Enum that represents device category. Defaults to `DeviceCategory.None` if not supplied.
 
         Returns:
@@ -176,13 +141,15 @@ class AirQoApi:
                 },
             ]
         """
-        params = {"tenant": str(Tenant.AIRQO), "category": str(device_category)}
+        params: Dict = {}
+        if device_category:
+            params["category"] = device_category.str
+
         if configuration.ENVIRONMENT == "production":
-            # Query for active devices only when in production
             params["active"] = "yes"
 
-        if tenant != Tenant.ALL:
-            params["network"] = str(tenant)
+        if network:
+            params["network"] = network.str
 
         # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
         try:
@@ -196,66 +163,192 @@ class AirQoApi:
                 "device_id": device.pop("name"),
                 "site_id": device.get("site", {}).get("_id", None),
                 "site_location": device.pop("site", {}).get("location_name", None),
-                "device_category": str(
-                    DeviceCategory.from_str(device.pop("category", None))
-                ),
-                "tenant": device.get("network"),
-                "device_manufacturer": Tenant.from_str(
-                    device.pop("network")
-                ).device_manufacturer(),
+                "device_category": device.pop("category", ""),
+                "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }
             for device in response.get("devices", [])
         ]
         return devices
 
-    def get_thingspeak_read_keys(
-        self, devices: pd.DataFrame, return_type: str = "all"
-    ) -> Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
+    def get_networks(
+        self, net_status: str = "active"
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """
+        Retrieve a list of networks.
+
+        Args:
+            net_status (str): The status of networks to retrieve. Defaults to "active".
+
+        Returns:
+            Tuple[List[Dict[str, Any]], Optional[str]]:
+                - List of networks (dictionaries) retrieved from the API.
+                - Optional error message if an exception occurs.
+        """
+        params = {}
+        networks: List[Dict[str, Any]] = []
+        exception_message: Optional[str] = None
+
+        if configuration.ENVIRONMENT == "production":
+            params["net_status"] = net_status
+
+        try:
+            response = self.__request("users/networks", params)
+            networks = response.get("networks", [])
+        except Exception as e:
+            exception_message = f"Failed to fetch networks: {e}"
+            logger.exception(exception_message)
+
+        return networks, exception_message
+
+    def get_devices_by_network(
+        self,
+        device_network: DeviceNetwork = None,
+        device_category: DeviceCategory = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve devices by network based on the specified device category.
+
+        Args:
+            network (str): This defines the network or manufacture of the device(s) to retrieve. Defaults to `None`. If not passed, devices from all networks are returned.
+            device_category (DeviceCategory, optional): The category of devices to retrieve. Defaults to `None`. If not passed, devices from all categories are returned.
+
+        Returns:
+            List[Dict[str, Any]]: A List of dictionaries containing the details of the devices. The dictionary has the following structure.
+            [
+                {
+                    "_id": str,
+                    "visibility": bool,
+                    "mobility": bool,
+                    "height": int,
+                    "device_codes": List[str]
+                    "status": str,
+                    "isPrimaryInLocation": bool,
+                    "nextMaintenance": date(str),
+                    "category": str,
+                    "isActive": bool,
+                    "long_name": str,
+                    "network": str,
+                    "alias": str",
+                    "name": str,
+                    "createdAt": date(str),
+                    "description": str,
+                    "latitude": float,
+                    "longitude": float,
+                    "approximate_distance_in_km": float,
+                    "bearing_in_radians": float,
+                    "deployment_date": date(str),
+                    "mountType": str,
+                    "powerType": str,
+                    "recall_date": date(str),
+                    "previous_sites": List[Dict[str, Any]],
+                    "cohorts": List,
+                    "site": Dict[str, Any],
+                    "device_number": int
+                },
+            ]
+        """
+        devices: List[Dict[str, Any]] = []
+        networks: List[str] = []
+        params: Dict = {}
+        if device_network:
+            networks.append({"net_name": device_network.str})
+        else:
+            networks, error = self.get_networks()
+            if error:
+                logger.error(f"Error while fetching networks: {error}")
+                return devices
+
+        if device_category:
+            params["category"] = device_category.str
+
+        if configuration.ENVIRONMENT == "production":
+            params["active"] = True
+
+        for network in networks:
+            network_name = network.get("net_name", "airqo")
+            params["network"] = network_name
+            try:
+                response = self.__request("devices/summary", params)
+                devices.extend(
+                    [
+                        {
+                            "site_id": device.get("site", {}).get("_id", None),
+                            "site_location": device.pop("site", {}).get(
+                                "location_name", None
+                            ),
+                            "device_category": device.pop("category", None),
+                            "device_manufacturer": network_name,
+                            **device,
+                        }
+                        for device in response.get("devices", [])
+                    ]
+                )
+            except Exception as e:
+                logger.exception(f"Failed to fetch devices on {network_name}: {e}")
+                continue
+
+        return devices
+
+    def get_thingspeak_read_keys(self, devices: pd.DataFrame) -> Dict[int, str]:
         """
         Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
             devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
-            return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
-                            If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
         Returns:
-            Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
-                - A dictionary containing device decrypted keys when `return_type='all'`. The dictionary has the structure {device_number: decrypted_key}.
-                - A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+            Dict[int, str]: A dictionary containing device decrypted keys. The dictionary has the structure {device_number: decrypted_key}.
+            There is another version of this method that returns a generator. get_thingspeak_read_keys_generator`
         """
-
         body: List = []
         decrypted_keys: List[Dict[str, str]] = []
-        decrypted_read_keys: Dict[int, str] = {}
-
-        for device_number, row in devices.iterrows():
-            if pd.notna(row["readKey"]) and pd.notna(device_number):
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
                 body.append(
-                    {"encrypted_key": row["readKey"], "device_number": device_number}
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
                 )
-
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
-
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
+            return {
+                int(entry["device_number"]): entry["decrypted_key"]
+                for entry in decrypted_keys
+            }
+        return None
 
-            if return_type == "all":
-                return {
-                    int(entry["device_number"]): entry["decrypted_key"]
-                    for entry in decrypted_keys
-                }
-            elif return_type == "yield":
-                for entry in decrypted_keys:
-                    device_number = int(entry["device_number"])
-                    decrypted_key = entry["decrypted_key"]
-                    yield device_number, decrypted_key
+    def get_thingspeak_read_keys_generator(
+        self, devices: pd.DataFrame
+    ) -> Generator[Tuple[int, str], None, None]:
+        """
+        Retrieve read keys from the AirQo API given a list of devices.
 
-        if return_type == "all":
-            return decrypted_read_keys
-        elif return_type == "yield":
-            return
+        Args:
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
+
+        Returns:
+            Generator[Tuple[int, str], None, None]]: A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+        """
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
+                body.append(
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
+                )
+        response = self.__request("devices/decrypt/bulk", body=body, method="post")
+        if response:
+            decrypted_keys = response.get("decrypted_keys", [])
+            for entry in decrypted_keys:
+                device_number = int(entry["device_number"])
+                decrypted_key = entry["decrypted_key"]
+                yield device_number, decrypted_key
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """
@@ -377,14 +470,14 @@ class AirQoApi:
                 )
 
                 meta_data[key] = float(response["data"])
-            except Exception as ex:
-                logger.exception()
+            except Exception as e:
+                logger.exception(f"Failed to fetch location meta data: {e}")
 
         return meta_data
 
     def refresh_airqloud(self, airqloud_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
+        query_params = {"network": DeviceNetwork.AIRQO.str, "id": airqloud_id}
 
         try:
             self.__request(
@@ -395,7 +488,7 @@ class AirQoApi:
 
     def refresh_grid(self, grid_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         try:
             response = self.__request(
@@ -406,12 +499,12 @@ class AirQoApi:
         except Exception:
             logger.exception()
 
-    def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_airqlouds(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve airqlouds given tenant. An airqloud is a logical group of devices or sites. It can be a grid or a cohort.
+        Retrieve airqlouds given network. An airqloud is a logical group of devices or sites. It can be a grid or a cohort.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents grid/cohort ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to None if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the airqloud details.
@@ -419,22 +512,22 @@ class AirQoApi:
                 {
                     "id": str,
                     "name": str,
-                    "tenant": str, #Can be null/None
+                    "network": str, #Can be null/None
                     "sites": List[str] #List of site ids.
                 }
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO.str}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network
         response = self.__request("devices/airqlouds/dashboard", query_params)
 
         return [
             {
                 "id": airqloud.get("_id", None),
                 "name": airqloud.get("name", None),
-                "tenant": airqloud.get("network", airqloud.get("tenant", None)),
+                "network": airqloud.get("network"),
                 "sites": [site["_id"] for site in airqloud.get("sites", [])],
             }
             for airqloud in response.get("airqlouds", [])
@@ -442,7 +535,7 @@ class AirQoApi:
 
     def get_favorites(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no favorites exist","favorites":[]} for ids passed.
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(f"users/favorites/users/{user_id}", query_params)
 
@@ -464,7 +557,7 @@ class AirQoApi:
 
     def get_location_history(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no Location Histories exist","location_histories":[]} for ids passed
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(
             f"users/locationHistory/users/{user_id}", query_params
@@ -488,7 +581,7 @@ class AirQoApi:
 
     def get_search_history(self, user_id: str) -> List:
         # TODO Check if this is working. Currently returns {"success":true,"message":"no Search Histories exist","search_histories":[]} for all ids.
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
 
@@ -534,7 +627,7 @@ class AirQoApi:
             float: pm2_5 value of the given site.
         """
         try:
-            query_params = {"tenant": str(Tenant.AIRQO), "site_id": site_id}
+            query_params = {"network": DeviceNetwork.AIRQO.str, "site_id": site_id}
 
             response = self.__request("devices/measurements", query_params)
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
@@ -544,12 +637,12 @@ class AirQoApi:
             logger.exception()
             return None
 
-    def get_grids(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_grids(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve grids given a tenant. A grid is a group of sites which are 'usually' in the same geographical boundary.
+        Retrieve grids given a network. A grid is a group of sites which are 'usually' in the same geographical boundary.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents grid/cohort ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to None if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the grid details.
@@ -557,33 +650,33 @@ class AirQoApi:
                 {
                     "id": str,
                     "name": str,
-                    "tenant": str,
+                    "network": str,
                     "sites": List[str]
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO.str}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network
         response = self.__request("devices/grids/summary", query_params)
 
         return [
             {
                 "id": grid.get("_id", None),
                 "name": grid.get("name", None),
-                "tenant": "airqo",
+                "network": "airqo",
                 "sites": [site["_id"] for site in grid.get("sites", [])],
             }
             for grid in response.get("grids", [])
         ]
 
-    def get_cohorts(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_cohorts(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve cohorts given a tenant. A cohort is a group of devices put together based on various criteria.
+        Retrieve cohorts given a network. A cohort is a group of devices put together based on various criteria.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents grid/cohort ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents grid/cohort ownership. Defaults to `None` if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries with the cohort details.
@@ -591,33 +684,33 @@ class AirQoApi:
                 {
                     "id": str,
                     "name": str,
-                    "tenant": str,
+                    "network": str,
                     "devices": List[str]
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network
         response = self.__request("devices/cohorts", query_params)
 
         return [
             {
                 "id": cohort.get("_id", None),
                 "name": cohort.get("name", None),
-                "tenant": "airqo",
+                "network": "airqo",
                 "devices": [device["_id"] for device in cohort.get("devices", [])],
             }
             for cohort in response.get("cohorts", [])
         ]
 
-    def get_sites(self, tenant: Tenant = Tenant.ALL) -> List[Dict[str, Any]]:
+    def get_sites(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
-        Retrieve sites given a tenant.
+        Retrieve sites given a network.
 
         Args:
-            tenant (Tenant, optional): An Enum that represents site ownership. Defaults to `Tenant.ALL` if not supplied.
+            network (DeviceNetwork, optional): An Enum that represents site ownership. Defaults to `None` if not supplied.
 
         Returns:
             List[Dict[str, Any]]: A List of dictionaries containing the details of the sites. The dictionary has the following structure.
@@ -659,10 +752,10 @@ class AirQoApi:
                 },
             ]
         """
-        query_params = {"tenant": str(Tenant.AIRQO)}
+        query_params: Dict[str, Any] = {}
 
-        if tenant != Tenant.ALL:
-            query_params["network"] = str(tenant)
+        if network:
+            query_params["network"] = network.str
 
         response = self.__request("devices/sites", query_params)
 
@@ -670,8 +763,6 @@ class AirQoApi:
             {
                 **site,
                 "site_id": site.get("_id", None),
-                "tenant": site.get("network", site.get("tenant", None)),
-                "location": site.get("location", None),
                 "approximate_latitude": site.get(
                     "approximate_latitude", site.get("latitude", None)
                 ),
@@ -684,64 +775,28 @@ class AirQoApi:
             for site in response.get("sites", [])
         ]
 
-    def update_sites(self, updated_sites):
-        # TODO Update doc string.
-        for i in updated_sites:
-            site = dict(i)
-            params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
-            self.__request("devices/sites", params, site, "put")
-
-    def get_tenants(self, data_source: str) -> List[Dict[str, Any]]:
+    def update_sites(self, updated_sites: List[Dict[str, Any]]) -> None:
         """
-        Retrieve tenants given a data source.
+        Updates site information for a list of sites in the system.
 
         Args:
-            data_source: The source of the tenant's data.
+            updated_sites (list): A list of dictionaries, where each dictionary contains the details of a site to be updated. Each dictionary must have a "site_id" key.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries with tenant details.
+            None: The function performs the update operations but does not return anything.
 
-            [
-                {
-                    "_id": str,
-                    "net_status": str,
-                    "net_email": str,
-                    "net_phoneNumber": int,
-                    "net_category": str,
-                    "net_name": str,
-                    "net_description": str,
-                    "net_website": str,
-                    "net_acronym": str,
-                    "net_api_key": str,
-                    "net_data_source": str,
-                    "createdAt": str,
-                    "net_users": List[Dict[str,Any]],
-                    "net_permissions": List[Dict[str,Any]],
-                    "net_roles": List[Dict[str,Any]],
-                    "net_groups": List[Dict[str,Any]],
-                    "net_departments": List[Dict[str,Any]],
-                    "network_id": str,
-                    "network": str,
-                    "data_source": str,
-                    "api_key": str"
-                },
-            ]
+        Raises:
+            KeyError: If a site dictionary does not contain the 'site_id' key.
         """
-        response = self.__request("users/networks")
+        for site_data in updated_sites:
+            site = dict(site_data)
 
-        return [
-            {
-                **network,
-                **{
-                    "network_id": network.get("_id", None),
-                    "network": network.get("net_name", None),
-                    "data_source": network.get("net_data_source", None),
-                    "api_key": network.get("net_api_key", None),
-                },
-            }
-            for network in response.get("networks", [])
-            if network.get("net_data_source") == str(data_source)
-        ]
+            site_id = site.pop("site_id", None)
+            if site_id is None:
+                raise KeyError("Each site dictionary must contain a 'site_id' key.")
+            params = {"network": DeviceNetwork.AIRQO.str, "id": site_id}
+
+            self.__request("devices/sites", params, site, "put")
 
     def __request(self, endpoint, params=None, body=None, method="get", base_url=None):
         """

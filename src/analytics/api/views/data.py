@@ -19,8 +19,7 @@ from api.models.data_export import (
     Frequency,
 )
 from api.utils.data_formatters import (
-    filter_non_private_sites,
-    filter_non_private_devices,
+    filter_non_private_sites_devices,
 )
 
 # Middlewares
@@ -99,7 +98,10 @@ class DataExportResource(Resource):
                 json_data
             )
             if error_message:
-                return error_message, AirQoRequests.Status.HTTP_400_BAD_REQUEST
+                return (
+                    AirQoRequests.create_response(error_message, success=False),
+                    AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+                )
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
 
@@ -160,10 +162,14 @@ class DataExportResource(Resource):
                 )
             if minimum_output:
                 # Drop unnecessary columns
+                columns_to_drop = ["site_id"]
+                columns_to_drop.append("timestamp") if frequency in [
+                    "hourly",
+                    "daily",
+                ] else columns_to_drop
+                print(data_frame.columns.to_list())
                 data_frame.drop(
-                    columns=[
-                        "site_id",
-                    ],
+                    columns=columns_to_drop,
                     inplace=True,
                 )
 
@@ -189,7 +195,7 @@ class DataExportResource(Resource):
             logger.exception(f"An error occurred: {ex}")
             return (
                 AirQoRequests.create_response(
-                    f"An Error occurred while processing your request. Please contact support. {ex}",
+                    f"An Error occurred while processing your request. Please contact support.",
                     success=False,
                 ),
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -209,8 +215,9 @@ class DataExportResource(Resource):
         Raises:
             ValueError: If more than one or none of the filters are provided.
         """
-        error_message: str = ""
+        filter_type: str = None
         validated_data: List[str] = None
+        error_message: str = ""
 
         # TODO Lias with device registry to cleanup this makeshift implementation
         devices = ["devices", "device_ids", "device_names"]
@@ -227,26 +234,30 @@ class DataExportResource(Resource):
         ]
         provided_filters = [key for key in valid_filters if json_data.get(key)]
         if len(provided_filters) != 1:
-            raise ValueError(
-                "Specify exactly one of 'airqlouds', 'sites', 'device_names', or 'devices' in the request body."
-            )
+            from utils.messages import FILTER_MSG
+
+            return filter_type, validated_data, FILTER_MSG
+
         filter_type = provided_filters[0]
         filter_value = json_data.get(filter_type)
 
         if filter_type in sites:
-            validated_value = filter_non_private_sites(filter_type, filter_value)
+            validated_value = filter_non_private_sites_devices(
+                filter_type, filter_value
+            )
         elif filter_type in devices:
-            validated_value = filter_non_private_devices(filter_type, filter_value)
+            validated_value = filter_non_private_sites_devices(
+                filter_type, filter_value
+            )
         else:
             return filter_type, filter_value, None
 
         if validated_value and validated_value.get("status") == "success":
-            # TODO This should be cleaned up.
-            validated_data = validated_value.get("data", {}).get(
-                "sites" if filter_type in sites else "devices", []
-            )
+            validated_data = validated_value.get("data", [])
         else:
-            error_message = validated_value.get("message", "Validation failed")
+            error_message = validated_value.get(
+                "message", "Data filter validation failed"
+            )
 
         return filter_type, validated_data, error_message
 
@@ -299,12 +310,12 @@ class DataExportV2Resource(Resource):
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
         meta_data = json_data.get("meta_data", [])
-        sites = filter_non_private_sites(sites=json_data.get("sites", {})).get(
-            "sites", None
-        )
-        devices = filter_non_private_devices(devices=json_data.get("devices", {})).get(
-            "devices", None
-        )
+        sites = filter_non_private_sites_devices(
+            filter_type="sites", filter_value=json_data.get("sites", {})
+        ).get("data", [])
+        devices = filter_non_private_sites_devices(
+            filter_type="devices", filter_value=json_data.get("devices", {})
+        ).get("data", [])
         airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
         user_id = json_data.get("userId")

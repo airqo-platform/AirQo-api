@@ -1,5 +1,5 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logElement, logText } = require("@utils/log");
+
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -8,7 +8,13 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- blaclist-ip-model`
 );
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const BlacklistedIPSchema = new mongoose.Schema(
   {

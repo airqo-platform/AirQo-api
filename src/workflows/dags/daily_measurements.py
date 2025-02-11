@@ -1,11 +1,22 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.daily_data_utils import DailyDataUtils
+from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.datautils import DataUtils
+from datetime import timedelta
+from dag_docs import (
+    daily_measurements_clean_up_doc,
+    daily_devices_measurements_realtime_doc,
+    daily_devices_measurements_historical_doc,
+)
+from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 
 
 @dag(
     "Cleanup-Daily-Measurements",
     schedule="0 11 * * *",
+    doc_md=daily_measurements_clean_up_doc,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "cleanup"],
@@ -13,24 +24,27 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 def cleanup_measurements():
     import pandas as pd
 
-    @task()
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=10),
+    )
     def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
-
-        return DailyDataUtils.query_daily_data(
+        return DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=DeviceCategory.GENERAL,
+            frequency=Frequency.DAILY,
         )
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=10))
     def cleanup_and_load(data: pd.DataFrame):
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
-
         DailyDataUtils.cleanup_and_reload(data=data)
 
     daily_data = extract()
@@ -40,6 +54,7 @@ def cleanup_measurements():
 @dag(
     "Realtime-Daily-Measurements",
     schedule="50 * * * *",
+    doc_md=daily_devices_measurements_realtime_doc,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["realtime", "daily"],
@@ -47,32 +62,29 @@ def cleanup_measurements():
 def realtime_daily_measurements():
     import pandas as pd
 
-    @task()
-    def extract():
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def extract(**kwargs):
         from airqo_etl_utils.date import date_to_str_days
         from datetime import datetime, timezone
 
-        start_date_time = date_to_str_days(datetime.now(timezone.utc))
-        end_date_time = datetime.strftime(
-            datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
-        )
-
-        return DailyDataUtils.query_hourly_data(
+        dag_run = kwargs.get("dag_run", None)
+        execution_date = dag_run.execution_date
+        start_date_time = date_to_str_days(execution_date)
+        end_date_time = datetime.strftime(execution_date, "%Y-%m-%dT23:00:00Z")
+        return DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=DeviceCategory.GENERAL,
+            frequency=Frequency.HOURLY,
         )
 
     @task()
     def resample(data: pd.DataFrame):
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
-
         return DailyDataUtils.average_data(data=data)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
-
         DailyDataUtils.save_data(data=data)
 
     daily_data = extract()
@@ -83,6 +95,7 @@ def realtime_daily_measurements():
 @dag(
     "Historical-Daily-Measurements",
     schedule="0 0 * * *",
+    doc_md=daily_devices_measurements_historical_doc,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "historical"],
@@ -90,29 +103,27 @@ def realtime_daily_measurements():
 def historical_daily_measurements():
     import pandas as pd
 
-    @task()
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs):
         from airqo_etl_utils.date import DateUtils
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             historical=True, days=7, **kwargs
         )
-        return DailyDataUtils.query_hourly_data(
+        return DataUtils.extract_data_from_bigquery(
+            DataType.AVERAGED,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=DeviceCategory.GENERAL,
+            frequency=Frequency.HOURLY,
         )
 
     @task()
     def resample(data: pd.DataFrame):
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
-
         return DailyDataUtils.average_data(data=data)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
-        from airqo_etl_utils.daily_data_utils import DailyDataUtils
-
         DailyDataUtils.save_data(data=data)
 
     daily_data = extract()

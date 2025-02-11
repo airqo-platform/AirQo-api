@@ -5,7 +5,7 @@ const logger = log4js.getLogger(
 );
 const DeviceModel = require("@models/Device");
 const cron = require("node-cron");
-const { logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 const UPTIME_THRESHOLD = 35;

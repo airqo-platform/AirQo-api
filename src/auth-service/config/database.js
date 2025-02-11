@@ -7,7 +7,13 @@ const constants = require("./constants");
 const URI = constants.MONGO_URI;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- confi-database`);
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 
 const options = {
   useCreateIndex: true,

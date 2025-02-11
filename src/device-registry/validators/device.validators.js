@@ -1,23 +1,11 @@
-const { query, body, oneOf } = require("express-validator");
+const { query, body, oneOf, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
-const NetworkModel = require("@models/Network");
-
-const validNetworks = async () => {
-  const networks = await NetworkModel("airqo").distinct("name");
-  return networks.map((network) => network.toLowerCase());
-};
-
-const validateNetwork = async (value) => {
-  const networks = await validNetworks();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
-  }
-};
+const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const validateTenant = oneOf([
   query("tenant")
@@ -30,6 +18,26 @@ const validateTenant = oneOf([
     .isIn(constants.NETWORKS)
     .withMessage("the tenant value is not among the expected ones"),
 ]);
+
+const pagination = (defaultLimit = 1000, maxLimit = 2000) => {
+  return (req, res, next) => {
+    let limit = parseInt(req.query.limit, 10);
+    const skip = parseInt(req.query.skip, 10);
+    if (Number.isNaN(limit) || limit < 1) {
+      limit = defaultLimit;
+    }
+    if (limit > maxLimit) {
+      limit = maxLimit;
+    }
+    if (Number.isNaN(skip) || skip < 0) {
+      req.query.skip = 0;
+    }
+    req.query.limit = limit;
+    req.query.skip = skip;
+
+    next();
+  };
+};
 
 const validateDeviceIdentifier = oneOf([
   query("device_number")
@@ -67,6 +75,18 @@ const validateDeviceIdentifier = oneOf([
     .matches(constants.WHITE_SPACES_REGEX, "i")
     .withMessage("the device names do not have spaces in them"),
 ]);
+
+const validateDeviceIdParam = [
+  param("id")
+    .exists()
+    .withMessage("The device ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid device ID. Must be a valid MongoDB ObjectId.")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+];
 
 const validateCreateDevice = [
   oneOf([
@@ -126,6 +146,15 @@ const validateCreateDevice = [
         .isInt()
         .withMessage("the generation should be an integer")
         .toInt(),
+      body("groups")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the groups should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the groups should not be empty"),
       body("mountType")
         .optional()
         .notEmpty()
@@ -384,6 +413,15 @@ const validateUpdateDevice = [
     .trim()
     .isBoolean()
     .withMessage("isActive must be Boolean"),
+  body("groups")
+    .optional()
+    .custom((value) => {
+      return Array.isArray(value);
+    })
+    .withMessage("the groups should be an array")
+    .bail()
+    .notEmpty()
+    .withMessage("the groups should not be empty"),
   body("isRetired")
     .optional()
     .notEmpty()
@@ -702,14 +740,95 @@ const validateArrayBody = oneOf([
     .withMessage("the request body should be an array"),
 ]);
 
+const validateBulkUpdateDevices = [
+  body("deviceIds")
+    .exists()
+    .withMessage("deviceIds must be provided in the request body")
+    .bail()
+    .isArray()
+    .withMessage("deviceIds must be an array")
+    .bail()
+    .custom((value) => {
+      if (value.length === 0) {
+        throw new Error("deviceIds array cannot be empty");
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      const MAX_BULK_UPDATE_DEVICES = 30;
+      if (value.length > MAX_BULK_UPDATE_DEVICES) {
+        throw new Error(
+          `Cannot update more than ${MAX_BULK_UPDATE_DEVICES} devices in a single request`
+        );
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      const invalidIds = value.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      );
+      if (invalidIds.length > 0) {
+        throw new Error("All deviceIds must be valid MongoDB ObjectIds");
+      }
+      return true;
+    }),
+
+  body("updateData")
+    .exists()
+    .withMessage("updateData must be provided in the request body")
+    .bail()
+    .custom((value) => {
+      if (typeof value !== "object" || Array.isArray(value) || value === null) {
+        throw new Error("updateData must be an object");
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      if (Object.keys(value).length === 0) {
+        throw new Error("updateData cannot be an empty object");
+      }
+      return true;
+    })
+    .bail()
+    .custom((value) => {
+      const allowedFields = [
+        "groups",
+        "mobility",
+        "owner",
+        "description",
+        "product_name",
+        "device_manufacturer",
+        "category",
+      ];
+
+      const invalidFields = Object.keys(value).filter(
+        (field) => !allowedFields.includes(field)
+      );
+      if (invalidFields.length > 0) {
+        throw new Error(
+          `Invalid fields in updateData: ${invalidFields.join(", ")}`
+        );
+      }
+
+      return true;
+    }),
+  ...validateUpdateDevice,
+];
+
 module.exports = {
   validateTenant,
+  pagination,
   validateDeviceIdentifier,
   validateArrayBody,
   validateCreateDevice,
   validateUpdateDevice,
+  validateDeviceIdParam,
   validateEncryptKeys,
   validateListDevices,
   validateDecryptKeys,
   validateDecryptManyKeys,
+  validateBulkUpdateDevices,
 };

@@ -1,6 +1,6 @@
 [
   {
-    "name": "tenant",
+    "name": "network",
     "type": "STRING",
     "mode": "REQUIRED"
   },
@@ -15,16 +15,6 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "approximate_latitude",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "approximate_longitude",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
-  },
-  {
     "name": "site_id",
     "type": "STRING",
     "mode": "NULLABLE"
@@ -32,7 +22,7 @@
   {
     "name": "device_id",
     "type": "STRING",
-    "mode": "NULLABLE"
+    "mode": "REQUIRED"
   },
   {
     "name": "device_number",
@@ -58,5 +48,10 @@
     "name": "device_category",
     "type": "STRING",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "last_updated",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
   }
 ]

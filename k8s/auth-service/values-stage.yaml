@@ -6,17 +6,29 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-auth-api
-  tag: stage-f4e1d36c-1732738613
+  tag: stage-ddca9623-1739134293
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 250Mi
+    cpu: 300m
+    memory: 500Mi
   requests:
     cpu: 10m
     memory: 180Mi
+nodeSelector:
+  role: moderate-usage
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - moderate-usage
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

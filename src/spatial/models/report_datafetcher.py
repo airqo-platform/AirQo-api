@@ -1,27 +1,15 @@
 import requests
-import openai
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import login
 from configure import Config
 import google.generativeai as genai 
 import logging
-from functools import lru_cache
 
 
 # Configure API keys
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
 genai.configure(api_key=GOOGLE_API_KEY)
-hf_token = Config.HUGGING_FACE_TOKEN
-
-
-if hf_token:
-    login(hf_token)
-else:
-    print("Hugging Face token is missing. Set the 'HUGGING_FACE_TOKEN' environment variable.")
 
 class DataFetcher:
     @staticmethod
-    @lru_cache(maxsize=128)  # Cache up to 128 most recent queries
     def fetch_air_quality_data_a(grid_id, start_time, end_time):
         token = Config.AIRQO_API_TOKEN  
         analytics_url = Config.ANALTICS_URL
@@ -90,7 +78,6 @@ class AirQualityReport:
 
         # Initialize models once in the constructor
         self.gemini_model = genai.GenerativeModel('gemini-pro')
-        openai.api_key = Config.OPENAI_API_KEY
 
     def _prepare_base_info(self):
         return (
@@ -147,8 +134,7 @@ class AirQualityReport:
         except Exception as e:
             print(f"Error: {e}")
             return None
-    # Generate report with customised prompt
-    @lru_cache(maxsize=64)  # Cache up to 64 most recent reports
+    # Generate report with customised promptrecent reports
     def generate_report_with_customised_prompt_gemini(self, custom_prompt):
         """
         Generate an air quality report using a customised user-provided prompt.
@@ -171,21 +157,8 @@ class AirQualityReport:
         except Exception as e:
             print(f"Error: {e}")
 
-    def generate_report_with_openai(self, audience):
-        prompt = self._generate_prompt(audience)
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            openai_output = response.choices[0].message['content']
-            return self._prepare_report_json(openai_output)
-        except Exception as e:
-            print(f"Error: {e}")
-            return None
 
-
-    # Use non-LLM template text as report content
+    # Use non-LLM template text as report contents
     def generate_report_template_without_LLM(self, audience):
         prompt = self._generate_prompt(audience)
         report_content = prompt

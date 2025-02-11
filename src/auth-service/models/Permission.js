@@ -1,10 +1,15 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- permission-model`);
@@ -20,6 +25,10 @@ const PermissionSchema = new mongoose.Schema(
       type: ObjectId,
       ref: "network",
     },
+    group_id: {
+      type: ObjectId,
+      ref: "group",
+    },
     description: { type: String, required: [true, "description is required"] },
   },
   { timestamps: true }
@@ -34,6 +43,7 @@ PermissionSchema.pre("update", function (next) {
 });
 
 PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
+PermissionSchema.index({ permission: 1, group_id: 1 }, { unique: true });
 PermissionSchema.index({ permission: 1 }, { unique: true });
 
 PermissionSchema.statics = {
@@ -87,11 +97,18 @@ PermissionSchema.statics = {
           foreignField: "_id",
           as: "network",
         })
+        .lookup({
+          from: "groups",
+          localField: "group_id",
+          foreignField: "_id",
+          as: "group",
+        })
         .project({
           _id: 1,
           permission: 1,
           description: 1,
           network: { $arrayElemAt: ["$network", 0] },
+          group: { $arrayElemAt: ["$group", 0] },
         })
         .project({
           "network.__v": 0,

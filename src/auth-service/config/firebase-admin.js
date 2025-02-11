@@ -1,7 +1,14 @@
 const admin = require("firebase-admin");
 const constants = require("./constants");
 const { initializeApp } = require("firebase-admin/app");
-const { logObject, logText } = require("@utils/log");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
+
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- config-firebase-admin`

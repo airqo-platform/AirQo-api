@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 mongoose.set("debug", process.env.NODE_ENV !== "production");
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logObject } = require("@utils/log");
+
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
@@ -11,7 +11,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- maintenances-model`
 );
-const { HttpError } = require("@utils/errors");
+const { HttpError } = require("@utils/shared");
 const moment = require("moment-timezone");
 const timeZone = moment.tz.guess();
 const maxLimit = 100;

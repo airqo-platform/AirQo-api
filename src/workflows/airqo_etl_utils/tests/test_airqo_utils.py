@@ -7,6 +7,8 @@ import numpy as np
 import pymongo as pm
 import pytest
 
+from airqo_etl_utils.constants import DataType, Frequency
+
 import airqo_etl_utils.tests.conftest as ct
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.config import configuration
@@ -238,8 +240,12 @@ class TestAirQoDataUtils(unittest.TestCase):
         start_date_time = "2024-07-10T00:00:00Z"
         end_date_time = "2024-07-11T11:59:59Z"
 
-        result = AirQoDataUtils.extract_aggregated_raw_data(
-            start_date_time, end_date_time
+        result = AirQoDataUtils.extract_data_from_bigquery(
+            DataType.RAW,
+            start_date_time,
+            end_date_time,
+            Frequency.RAW,
+            dynamic_query=True,
         )
 
         pd.testing.assert_frame_equal(result, expected_dataframe)

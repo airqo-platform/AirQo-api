@@ -14,7 +14,20 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Member
-        fields = '__all__'
+        fields = [
+            "id",
+            "name",
+            "title",
+            "about",
+            "picture_url",
+            "twitter",
+            "linked_in",
+            "order",
+            "descriptions",
+        ]
 
     def get_picture_url(self, obj):
-        return obj.get_picture_url()  # Handles secure URL or local URL based on the environment
+        """
+        Get the secure URL for the member's picture.
+        """
+        return obj.get_picture_url()

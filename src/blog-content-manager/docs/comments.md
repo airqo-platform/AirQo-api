@@ -1,6 +1,6 @@
 # API Documentation for Comment Management
 
-**Base URL**: `https://api.yourdomain.com/v2/posts`
+**Base URL**: `https://api.airqo.net/v2/posts`
 
 ## Authentication
 
@@ -32,7 +32,7 @@ Add a new comment to a specific blog post.
 
 ```http
 POST /posts/123/comments HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -64,7 +64,7 @@ Retrieve all comments associated with a specific blog post.
 
 ```http
 GET /posts/123/comments?limit=10&skip=0 HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -87,7 +87,7 @@ Retrieve all replies to a specific comment on a blog post.
 
 ```http
 GET /posts/123/comments/456/replies HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -118,7 +118,7 @@ Update an existing comment on a blog post.
 
 ```http
 PUT /posts/123/comments/456/edit HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 Content-Type: application/json
 
@@ -146,7 +146,7 @@ Delete a specific comment from a blog post.
 
 ```http
 DELETE /posts/123/comments/456/delete HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -169,7 +169,7 @@ Approve a specific comment, making it visible on the blog post.
 
 ```http
 PATCH /posts/123/comments/456/approve HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
@@ -192,6 +192,6 @@ Reject a specific comment, preventing it from being visible on the blog post.
 
 ```http
 PATCH /posts/123/comments/456/reject HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```

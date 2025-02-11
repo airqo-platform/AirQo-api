@@ -2,8 +2,8 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.airqo_tweets_utils import AirQoTweetsUtils
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import Tenant
+from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.datautils import DataUtils
 
 
 @dag(
@@ -16,9 +16,7 @@ from airqo_etl_utils.constants import Tenant
 def create_forecast_tweets():
     @task()
     def retrieve_sites():
-        from airqo_etl_utils.airqo_api import AirQoApi
-
-        return AirQoApi().get_sites(tenant=Tenant.AIRQO)
+        return DataUtils.get_sites(network=DeviceNetwork.AIRQO)
 
     @task()
     def select_forecast_sites(sites):

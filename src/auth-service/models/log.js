@@ -5,7 +5,13 @@ const { getTenantDB, getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- log-model`);
-const { HttpError } = require("@utils/errors");
+const {
+  logObject,
+  logText,
+  logElement,
+  HttpError,
+  extractErrorsFromRequest,
+} = require("@utils/shared");
 const logSchema = new mongoose.Schema(
   {
     timestamp: { type: Date, required: true },
@@ -29,7 +35,17 @@ const logSchema = new mongoose.Schema(
       default: {},
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    indexes: [
+      {
+        timestamp: 1,
+        "meta.email": 1,
+        "meta.service": 1,
+        "meta.endpoint": 1,
+      },
+    ],
+  }
 );
 
 logSchema.pre("save", function (next) {

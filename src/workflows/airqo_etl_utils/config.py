@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from .constants import DataType, DeviceCategory, Frequency
 import pymongo as pm
 import tweepy
 import urllib3
@@ -14,6 +15,17 @@ urllib3.disable_warnings()
 
 
 class Config:
+    # TODO
+    # -----------------------------------------------
+    # Top level settings
+    # -----------------------------------------------
+    # DataBase
+    # Create default database configs
+    # Transport Backend configs
+    # Data streaming configs
+    # Data quality tests configs
+    # -----------------------------------------------
+
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
@@ -39,7 +51,7 @@ class Config:
 
     # Bam data
     BIGQUERY_RAW_BAM_DATA_TABLE = os.getenv("BIGQUERY_RAW_BAM_DATA_TABLE")
-    BIGQUERY_BAM_EVENTS_TABLE = os.getenv("BIGQUERY_BAM_EVENTS_TABLE")
+    BIGQUERY_HOURLY_BAM_EVENTS_TABLE = os.getenv("BIGQUERY_BAM_EVENTS_TABLE")
 
     # Raw data
     BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE = os.getenv("BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE")
@@ -57,8 +69,10 @@ class Config:
 
     # Meta data
     BIGQUERY_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_TABLE")
+    BIGQUERY_DEVICES_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_DEVICES_TABLE")
     BIGQUERY_DEVICES_DATA_TABLE = os.getenv("BIGQUERY_DEVICES_DATA_TABLE")
     BIGQUERY_SITES_TABLE = os.getenv("BIGQUERY_SITES_TABLE")
+    BIGQUERY_SITES_SITES_TABLE = os.getenv("BIGQUERY_SITES_SITES_TABLE")
     BIGQUERY_SITES_META_DATA_TABLE = os.getenv("BIGQUERY_SITES_META_DATA_TABLE")
     BIGQUERY_AIRQLOUDS_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_TABLE")
     BIGQUERY_AIRQLOUDS_SITES_TABLE = os.getenv("BIGQUERY_AIRQLOUDS_SITES_TABLE")
@@ -168,37 +182,101 @@ class Config:
         12: "status",
     }
 
+    AIRQO_BAM_MAPPING_NEW = {
+        "field8": {
+            0: "timestamp",
+            1: "realtime_conc",
+            2: "hourly_conc",
+            3: "short_time_conc",
+            4: "air_flow",
+            5: "wind_speed",
+            6: "wind_direction",
+            7: "temperature",
+            8: "humidity",
+            9: "barometric_pressure",
+            10: "filter_temperature",
+            11: "filter_humidity",
+            12: "status",
+        },
+    }
+
     AIRQO_BAM_MAPPING = {
         "hourly_conc": "pm2_5",
     }
-    # 1st 6 values are from the gps
-    AIRQO_LOW_COST_CONFIG = {
-        0: "latitude",
-        1: "longitude",
-        2: "altitude",
-        3: "wind_speed",  # For mobile devices (Velocity)
-        4: "satellites",  # Number of satelites tracked
-        5: "hdop",  # For mobile devices
-        6: "device_temperature",  # Internal
-        7: "device_humidity",  # Internal
-        8: "temperature",  # Internal
-        9: "humidity",
-        10: "vapor_pressure",
+
+    AIRQO_LOW_COST_GAS_FIELD_MAPPING = {
+        "field1": "pm2_5",
+        "field2": "tvoc",
+        "field3": "hcho",
+        "field4": "co2",
+        "field5": "intaketemperature",
+        "field6": "intakehumidity",
+        "field7": "battery",
+        "created_at": "timestamp",
+        "field8": {
+            0: "latitude",
+            1: "longitude",
+            2: "altitude",
+            3: "wind_speed",  # For mobile devices (Velocity)
+            4: "satellites",  # Number of satelites tracked
+            5: "hdop",  # For mobile devices
+            6: "device_temperature",  # Internal
+            7: "device_humidity",  # Internal
+            8: "temperature",  # Internal
+            9: "humidity",
+            10: "vapor_pressure",
+        },
     }
 
-    AIRQO_LOW_COST_GAS_CONFIG = {
-        0: "latitude",
-        1: "longitude",
-        2: "altitude",
-        3: "wind_speed",
-        4: "satellites",
-        5: "hdop",
-        6: "device_temperature",
-        7: "device_humidity",
-        8: "temperature",
-        9: "humidity",
-        10: "vapor_pressure",
+    AIRQO_LOW_COST_FIELD_MAPPING = {
+        "field1": "s1_pm2_5",
+        "field2": "s1_pm10",
+        "field3": "s2_pm2_5",
+        "field4": "s2_pm10",
+        "field7": "battery",
+        "created_at": "timestamp",
+        "field8": {
+            0: "latitude",
+            1: "longitude",
+            2: "altitude",
+            3: "wind_speed",  # For mobile devices (Velocity)
+            4: "satellites",  # Number of satelites tracked
+            5: "hdop",  # For mobile devices
+            6: "device_temperature",  # Internal
+            7: "device_humidity",  # Internal
+            8: "temperature",  # Internal
+            9: "humidity",
+            10: "vapor_pressure",
+        },
     }
+    URBANBETTER_LOW_COST_FIELD_MAPPING = {
+        "pollutants.no2.value": "no2",
+        "pollutants.voc.value": "voc",
+        "pollutants.pm25.value": "pm2_5",
+        "pollutants.pm10.value": "pm10",
+        "pollutants.pm1.value": "pm1",
+        "pollutants.no2.pi": "no2_pi",
+        "pollutants.voc.pi": "voc_pi",
+        "pollutants.pm25.pi": "pm2_5_pi",
+        "pollutants.pm10.pi": "pm10_pi",
+        "pollutants.pm1.pi": "pm1_pi",
+        "date": "timestamp",
+    }
+
+    IQAIR_LOW_COST_FIELD_MAPPING = {
+        "pm25": {"key": "pm2_5", "value": "conc"},
+        "pm10": {"key": "pm10", "value": "conc"},
+        "pm1": {"key": "pm1", "value": "conc"},
+        "pr": "pressure",
+        "hm": "humidity",
+        "tp": "temperature",
+        "ts": "timestamp",
+    }
+
+    DATA_RESOLUTION_MAPPING = {
+        "iqair": {"hourly": "instant", "raw": "instant", "current": "current"}
+    }
+
     AIRQO_DATA_COLUMN_NAME_MAPPING = {
         "pm2_5": "pm2_5",
         "s1_pm2_5": "pm2_5",
@@ -224,6 +302,71 @@ class Config:
         "pm1_pi": "pm1",
     }
 
+    VALID_SENSOR_RANGES = {
+        "pm2_5": (0, 1000),
+        "pm10": (0, 1000),
+        "pm2_5_calibrated_value": (0, 1000),
+        "pm2_5_raw_value": (0, 1000),
+        "pm10_calibrated_value": (0, 1000),
+        "pm10_raw_value": (0, 1000),
+        "latitude": (-90, 90),
+        "longitude": (-180, 180),
+        "battery": (2.7, 5),
+        "no2": (0, 2049),
+        "no2_calibrated_value": (0, 2049),
+        "no2_raw_value": (0, 2049),
+        "altitude": (0, float("inf")),
+        "hdop": (0, float("inf")),
+        "satellites": (1, 50),
+        "temperature": (0, 45),
+        "humidity": (0, 99),
+        "pressure": (30, 110),
+        "tvoc": (0, 10),
+        "co2": (400, 3000),
+        "hcho": (0, float("inf")),
+        "intaketemperature": (0, 45),
+        "intakehumidity": (0, 99),
+    }
+
+    device_config_mapping = {
+        "bam": {
+            "field_8_cols": list(AIRQO_BAM_MAPPING_NEW.get("field8", {}).values()),
+            "mapping": {"airqo": AIRQO_BAM_MAPPING_NEW},
+            "other_fields_cols": [],
+        },
+        "gas": {
+            "field_8_cols": list(
+                AIRQO_LOW_COST_GAS_FIELD_MAPPING.get("field8", {}).values()
+            ),
+            "mapping": {"airqo": AIRQO_LOW_COST_GAS_FIELD_MAPPING},
+            "other_fields_cols": [
+                "pm2_5",
+                "tvoc",
+                "hcho",
+                "co2",
+                "intaketemperature",
+                "intakehumidity",
+                "battery",
+            ],
+        },
+        "lowcost": {
+            "field_8_cols": list(
+                AIRQO_LOW_COST_FIELD_MAPPING.get("field8", {}).values()
+            ),
+            "mapping": {
+                "airqo": AIRQO_LOW_COST_FIELD_MAPPING,
+                "iqair": IQAIR_LOW_COST_FIELD_MAPPING,
+            },
+            "other_fields_cols": [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ],
+        },
+    }
+
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {
         BIGQUERY_HOURLY_EVENTS_TABLE: "measurements.json",
@@ -240,18 +383,223 @@ class Config:
         BIGQUERY_GRIDS_SITES_TABLE: "grids_sites.json",
         BIGQUERY_COHORTS_DEVICES_TABLE: "cohorts_devices.json",
         BIGQUERY_SITES_TABLE: "sites.json",
+        BIGQUERY_SITES_SITES_TABLE: "sites.json",
         BIGQUERY_SITES_META_DATA_TABLE: "sites_meta_data.json",
         SENSOR_POSITIONS_TABLE: "sensor_positions.json",
         BIGQUERY_DEVICES_TABLE: "devices.json",
+        BIGQUERY_DEVICES_DEVICES_TABLE: "devices.json",
         BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
         BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
         BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE: "airqo_mobile_measurements.json",
-        BIGQUERY_BAM_EVENTS_TABLE: "bam_measurements.json",
+        BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         "all": None,
     }
+    DataSource = {
+        DataType.RAW: {
+            DeviceCategory.GENERAL: {
+                Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
+            },
+            DeviceCategory.BAM: {Frequency.RAW: BIGQUERY_RAW_BAM_DATA_TABLE},
+            DeviceCategory.WEATHER: {Frequency.RAW: BIGQUERY_RAW_WEATHER_TABLE},
+        },
+        DataType.AVERAGED: {
+            DeviceCategory.GENERAL: {
+                Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
+                Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
+            },
+            DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
+            DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},
+        },
+        DataType.CONSOLIDATED: {
+            DeviceCategory.GENERAL: {
+                Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
+            }
+        },
+    }
 
+    AIRFLOW_XCOM_BUCKET = os.getenv("AIRFLOW_XCOM_BUCKET")
+
+    # -------------------------------------------------------
+    # Satelite constants
+    # -------------------------------------------------------
+    # TODO: May need to remove when no. of locations grow
+    satellite_cities = [
+        # NOTE: Syntax is lon, lat for GEE, not the usual lat, lon
+        {"city": "kampala", "coords": [32.6313083, 0.336219]},
+        {"city": "nairobi", "coords": [36.886487, -1.243396]},
+        {"city": "lagos", "coords": [3.39936, 6.53257]},
+        {"city": "accra", "coords": [-0.205874, 5.614818]},
+        {"city": "bujumbura", "coords": [29.3599, 3.3614]},
+        {"city": "yaounde", "coords": [11.5202, 3.8617]},
+        {"city": "kisumu", "coords": [34.7680, 0.0917]},
+    ]
+    satellite_collections = {
+        "COPERNICUS/S5P/OFFL/L3_SO2": [
+            "SO2_column_number_density",
+            "SO2_column_number_density_amf",
+            "SO2_slant_column_number_density",
+            "absorbing_aerosol_index",
+            "cloud_fraction",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+            "SO2_column_number_density_15km",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_CO": [
+            "CO_column_number_density",
+            "H2O_column_number_density",
+            "cloud_height",
+            "sensor_altitude",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_NO2": [
+            "NO2_column_number_density",
+            "tropospheric_NO2_column_number_density",
+            "stratospheric_NO2_column_number_density",
+            "NO2_slant_column_number_density",
+            "tropopause_pressure",
+            "absorbing_aerosol_index",
+            "cloud_fraction",
+            "sensor_altitude",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_HCHO": [
+            "tropospheric_HCHO_column_number_density",
+            "tropospheric_HCHO_column_number_density_amf",
+            "HCHO_slant_column_number_density",
+            "cloud_fraction",
+            "solar_zenith_angle",
+            "solar_azimuth_angle",
+            "sensor_zenith_angle",
+            "sensor_azimuth_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_O3": [
+            "O3_column_number_density",
+            "O3_effective_temperature",
+            "cloud_fraction",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_AER_AI": [
+            "absorbing_aerosol_index",
+            "sensor_altitude",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_CH4": [
+            "CH4_column_volume_mixing_ratio_dry_air",
+            "aerosol_height",
+            "aerosol_optical_depth",
+            "sensor_zenith_angle",
+            "sensor_azimuth_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+        "COPERNICUS/S5P/OFFL/L3_CLOUD": [
+            "cloud_fraction",
+            "cloud_top_pressure",
+            "cloud_top_height",
+            "cloud_base_pressure",
+            "cloud_base_height",
+            "cloud_optical_depth",
+            "surface_albedo",
+            "sensor_azimuth_angle",
+            "sensor_zenith_angle",
+            "solar_azimuth_angle",
+            "solar_zenith_angle",
+        ],
+    }
+    # -------------------------------------------------------
+    # Attachment constants
+    # -------------------------------------------------------
+    IMAGE_DIR = os.path.join(os.path.dirname(__file__), "images")
+    ATTACHMENTS = {
+        "EMAIL_ATTACHMENTS": [
+            {
+                "filename": "favoriteIcon.png",
+                "path": os.path.join(IMAGE_DIR, "favoriteIcon.png"),
+                "cid": "FavoriteIcon",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "airqoLogoAlternate.png",
+                "path": os.path.join(IMAGE_DIR, "airqoLogoAlternate.png"),
+                "cid": "AirQoEmailLogoAlternate",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "faceBookLogo.png",
+                "path": os.path.join(IMAGE_DIR, "facebookLogo.png"),
+                "cid": "FacebookLogo",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "youtubeLogo.png",
+                "path": os.path.join(IMAGE_DIR, "youtubeLogo.png"),
+                "cid": "YoutubeLogo",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "twitterLogo.png",
+                "path": os.path.join(IMAGE_DIR, "Twitter.png"),
+                "cid": "Twitter",
+                "contentDisposition": "inline",
+            },
+            {
+                "filename": "linkedInLogo.png",
+                "path": os.path.join(IMAGE_DIR, "linkedInLogo.png"),
+                "cid": "LinkedInLogo",
+                "contentDisposition": "inline",
+            },
+        ],
+        "EMOJI_ATTACHMENTS": [
+            {
+                "filename": "goodEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "goodEmoji.png"),
+                "cid": "goodEmoji",
+            },
+            {
+                "filename": "moderateEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "moderateEmoji.png"),
+                "cid": "moderateEmoji",
+            },
+            {
+                "filename": "uhfsgEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "uhfsgEmoji.png"),
+                "cid": "uhfsgEmoji",
+            },
+            {
+                "filename": "unhealthyEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "unhealthyEmoji.png"),
+                "cid": "unhealthyEmoji",
+            },
+            {
+                "filename": "veryUnhealthyEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "veryUnhealthyEmoji.png"),
+                "cid": "veryUnhealthyEmoji",
+            },
+            {
+                "filename": "hazardousEmoji.png",
+                "path": os.path.join(IMAGE_DIR, "hazardousEmoji.png"),
+                "cid": "hazardousEmoji",
+            },
+        ],
+    }
+    # ---------------------------------------------------
     # Data unit tests
+    # ---------------------------------------------------
     BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
     FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
 

@@ -8,13 +8,13 @@ and following up on its deployment. :)
 const mongoose = require("mongoose");
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logText } = require("@utils/log");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-const { HttpError } = require("@utils/errors");
+
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- event-model`
 );
@@ -26,12 +26,12 @@ const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
 const AQI_RANGES = {
-  good: { min: 0, max: 9.0 },
-  moderate: { min: 9.1, max: 35.4 },
-  u4sg: { min: 35.5, max: 55.4 },
-  unhealthy: { min: 55.5, max: 125.4 },
-  very_unhealthy: { min: 125.5, max: 225.4 },
-  hazardous: { min: 225.5, max: null },
+  good: { min: 0, max: 9.1 },
+  moderate: { min: 9.101, max: 35.49 },
+  u4sg: { min: 35.491, max: 55.49 },
+  unhealthy: { min: 55.491, max: 125.49 },
+  very_unhealthy: { min: 125.491, max: 225.49 },
+  hazardous: { min: 225.491, max: null },
 };
 
 const valueSchema = new Schema({
@@ -2946,6 +2946,456 @@ eventSchema.statics.getAirQualityAverages = async function(siteId, next) {
     );
   }
 };
+
+eventSchema.statics.v2_getAirQualityAverages = async function(siteId, next) {
+  try {
+    const TIMEZONE = "Africa/Kampala";
+    const MIN_READINGS_PER_DAY = 12; // Minimum readings per day for validity
+
+    const now = moment()
+      .tz(TIMEZONE)
+      .toDate();
+    const today = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .toDate();
+    const twoWeeksAgo = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .subtract(14, "days")
+      .toDate();
+
+    logText("Debug Info:");
+    logObject("TIMEZONE", TIMEZONE);
+    logObject("now", now);
+    logObject("today", today);
+    logObject("twoWeeksAgo", twoWeeksAgo);
+
+    const result = await this.aggregate([
+      // Initial match
+      {
+        $match: {
+          "values.site_id": mongoose.Types.ObjectId(siteId),
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+        },
+      },
+
+      // Unwind values
+      {
+        $unwind: {
+          path: "$values",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+
+      // Data quality filtering
+      {
+        $match: {
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+          "values.pm2_5.value": {
+            $exists: true,
+            $ne: null,
+            $gte: 0,
+            $lte: 1000,
+          },
+        },
+      },
+
+      // Project fields
+      {
+        $project: {
+          _id: 0,
+          time: "$values.time",
+          pm2_5: "$values.pm2_5.value",
+          yearWeek: {
+            $let: {
+              vars: {
+                dateParts: {
+                  $dateToParts: {
+                    date: "$values.time",
+                    timezone: TIMEZONE,
+                    iso8601: true,
+                  },
+                },
+              },
+              in: {
+                $concat: [
+                  { $toString: "$$dateParts.isoWeekYear" },
+                  "-",
+                  {
+                    $cond: [
+                      { $lt: ["$$dateParts.isoWeek", 10] },
+                      { $concat: ["0", { $toString: "$$dateParts.isoWeek" }] },
+                      { $toString: "$$dateParts.isoWeek" },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          dayOfYear: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$values.time",
+              timezone: TIMEZONE,
+            },
+          },
+          hourOfDay: {
+            $hour: {
+              date: "$values.time",
+              timezone: TIMEZONE,
+            },
+          },
+        },
+      },
+
+      // Group by day with data quality metrics
+      {
+        $group: {
+          _id: "$dayOfYear",
+          dailyAverage: { $avg: "$pm2_5" },
+          readingCount: { $sum: 1 },
+          uniqueHours: { $addToSet: "$hourOfDay" },
+          yearWeek: { $first: "$yearWeek" },
+          minReading: { $min: "$pm2_5" },
+          maxReading: { $max: "$pm2_5" },
+        },
+      },
+
+      // Add data quality indicators
+      {
+        $addFields: {
+          dataQuality: {
+            hasMinReadings: { $gte: ["$readingCount", MIN_READINGS_PER_DAY] },
+            hoursCovered: { $size: "$uniqueHours" },
+            readingSpread: { $subtract: ["$maxReading", "$minReading"] },
+          },
+        },
+      },
+
+      // Group by week with quality metrics
+      {
+        $group: {
+          _id: "$yearWeek",
+          weeklyAverage: { $avg: "$dailyAverage" },
+          daysWithData: { $sum: 1 },
+          daysWithMinReadings: {
+            $sum: { $cond: ["$dataQuality.hasMinReadings", 1, 0] },
+          },
+          avgHoursCovered: { $avg: "$dataQuality.hoursCovered" },
+          days: {
+            $push: {
+              date: "$_id",
+              average: "$dailyAverage",
+              readingCount: "$readingCount",
+              hoursCovered: "$dataQuality.hoursCovered",
+              readingSpread: "$dataQuality.readingSpread",
+            },
+          },
+        },
+      },
+
+      // Sort and limit to 2 weeks
+      { $sort: { _id: -1 } },
+      { $limit: 2 },
+    ]).allowDiskUse(true);
+
+    if (result.length < 2) {
+      return {
+        success: false,
+        message: "Insufficient data for comparison",
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+
+    const [currentWeek, previousWeek] = result;
+    const todayStr = moment(today)
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+    const todayData = currentWeek.days.find((day) => day.date === todayStr);
+
+    // Calculate percentage difference without capping
+    const percentageDifference =
+      previousWeek.weeklyAverage !== 0
+        ? ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
+            previousWeek.weeklyAverage) *
+          100
+        : 0;
+
+    // Calculate data quality score
+    const dataQualityScore = calculateWeeklyDataQuality(
+      currentWeek,
+      previousWeek
+    );
+
+    return {
+      success: true,
+      data: {
+        dailyAverage: todayData
+          ? {
+              value: parseFloat(todayData.average.toFixed(2)),
+              readingCount: todayData.readingCount,
+              hoursCovered: todayData.hoursCovered,
+            }
+          : null,
+        percentageDifference: parseFloat(percentageDifference.toFixed(2)),
+        weeklyAverages: {
+          currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
+          previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
+        },
+        dataQuality: {
+          score: dataQualityScore,
+          currentWeek: {
+            daysWithData: currentWeek.daysWithData,
+            daysWithMinReadings: currentWeek.daysWithMinReadings,
+            averageHoursCovered: parseFloat(
+              currentWeek.avgHoursCovered.toFixed(1)
+            ),
+          },
+          previousWeek: {
+            daysWithData: previousWeek.daysWithData,
+            daysWithMinReadings: previousWeek.daysWithMinReadings,
+            averageHoursCovered: parseFloat(
+              previousWeek.avgHoursCovered.toFixed(1)
+            ),
+          },
+          warning:
+            dataQualityScore < 0.7
+              ? "Low data quality may affect accuracy of comparison"
+              : null,
+        },
+      },
+      message: "Successfully retrieved air quality averages",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `Internal Server Error --- getAirQualityAverages --- ${error.message}`
+    );
+    logObject("error", error);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+eventSchema.statics.v3_getAirQualityAverages = async function(siteId, next) {
+  try {
+    const TIMEZONE = "Africa/Kampala"; // Using a consistent timezone
+    const MIN_READINGS_PER_WEEK = 7 * 12; // Minimum 12 readings/day * 7 days/week
+    const EPSILON = 0.1; // Minimum divisor for percentage change
+
+    const now = moment()
+      .tz(TIMEZONE)
+      .toDate();
+    const today = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .toDate();
+    const twoWeeksAgo = moment()
+      .tz(TIMEZONE)
+      .startOf("day")
+      .subtract(14, "days")
+      .toDate();
+
+    const aggregationPipeline = [
+      // Initial match and unwind
+      {
+        $match: {
+          "values.site_id": mongoose.Types.ObjectId(siteId),
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+        },
+      },
+      { $unwind: { path: "$values", preserveNullAndEmptyArrays: false } },
+
+      // Filter for valid pm2_5 values and time range
+      {
+        $match: {
+          "values.time": { $gte: twoWeeksAgo, $lte: now },
+          "values.pm2_5.value": {
+            $exists: true,
+            $ne: null,
+            $gte: 0,
+            $lte: 500,
+          },
+        },
+      }, // Reasonable range check
+
+      // Project necessary fields
+      {
+        $project: {
+          _id: 0,
+          time: "$values.time",
+          pm2_5: "$values.pm2_5.value",
+          yearWeek: { $week: { date: "$values.time", timezone: TIMEZONE } }, // Use $week for simplification if your MongoDB version supports it. Otherwise, use the $let approach.
+          dayOfYear: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$values.time",
+              timezone: TIMEZONE,
+            },
+          },
+        },
+      },
+
+      // Group by day and calculate daily average
+      {
+        $group: {
+          _id: "$dayOfYear",
+          dailyAverage: { $avg: "$pm2_5" },
+          yearWeek: { $first: "$yearWeek" },
+          dailyReadingCount: { $sum: 1 },
+        },
+      },
+
+      // Group by week and calculate weekly metrics
+      {
+        $group: {
+          _id: "$yearWeek",
+          weeklyAverage: { $avg: "$dailyAverage" },
+          weeklyReadingCount: { $sum: "$dailyReadingCount" }, // Count readings for the week
+          days: {
+            $push: {
+              date: "$_id",
+              average: "$dailyAverage",
+            },
+          },
+        },
+      },
+
+      // Sort by week descending (most recent first)
+      { $sort: { _id: -1 } },
+
+      // Limit to the last two weeks
+      { $limit: 2 },
+    ];
+
+    const result = await this.aggregate(aggregationPipeline).allowDiskUse(true);
+
+    if (result.length < 2) {
+      return {
+        success: false,
+        message: "Insufficient data for comparison",
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+
+    // Check data quality for both weeks.
+    if (
+      result[0].weeklyReadingCount < MIN_READINGS_PER_WEEK ||
+      result[1].weeklyReadingCount < MIN_READINGS_PER_WEEK
+    ) {
+      return {
+        success: false,
+        message: "Insufficient data points for a reliable comparison",
+        status: httpStatus.NOT_FOUND,
+      };
+    }
+
+    const [currentWeek, previousWeek] = result;
+    const todayStr = moment(today)
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+    const todayAverage = currentWeek.days.find((day) => day.date === todayStr)
+      ?.average;
+
+    let percentageDifference = null; // Initialize as null, calculate only if sufficient data quality
+
+    if (previousWeek.weeklyAverage > EPSILON) {
+      //Calculate % diff only if divisor large enough
+      percentageDifference =
+        ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
+          previousWeek.weeklyAverage) *
+        100;
+    } else if (previousWeek.weeklyAverage < -1 * EPSILON) {
+      percentageDifference =
+        ((currentWeek.weeklyAverage - previousWeek.weeklyAverage) /
+          Math.abs(previousWeek.weeklyAverage)) *
+        100;
+    } // if previousWeek.weeklyAverage is close to 0, no percentage difference will be returned
+
+    return {
+      success: true,
+      data: {
+        dailyAverage: todayAverage ? parseFloat(todayAverage.toFixed(2)) : null,
+        percentageDifference:
+          percentageDifference !== null
+            ? parseFloat(percentageDifference.toFixed(2))
+            : null, // Return null or formatted value
+        weeklyAverages: {
+          currentWeek: parseFloat(currentWeek.weeklyAverage.toFixed(2)),
+          previousWeek: parseFloat(previousWeek.weeklyAverage.toFixed(2)),
+        },
+      },
+      message: "Successfully retrieved air quality averages",
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `Internal Server Error --- getAirQualityAverages --- ${error.message}`
+    );
+    logObject("error", error);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+function calculateWeeklyDataQuality(currentWeek, previousWeek) {
+  const IDEAL_DAYS = 7;
+  const IDEAL_HOURS = 24;
+
+  // Calculate scores for each week
+  const currentScore =
+    (currentWeek.daysWithMinReadings / IDEAL_DAYS) *
+    (currentWeek.avgHoursCovered / IDEAL_HOURS);
+
+  const previousScore =
+    (previousWeek.daysWithMinReadings / IDEAL_DAYS) *
+    (previousWeek.avgHoursCovered / IDEAL_HOURS);
+
+  // Return average score (0-1 range)
+  return (currentScore + previousScore) / 2;
+}
+
+// Helper function to calculate confidence score
+function calculateConfidenceScore(
+  currentWeek,
+  baselineWeeks,
+  minDataPointsPerDay
+) {
+  const maxPossibleReadings = 24; // Assuming hourly readings
+  const idealDaysPerWeek = 7;
+
+  // Score current week data completeness
+  const currentWeekScore =
+    (currentWeek.daysWithData / idealDaysPerWeek) *
+    (currentWeek.days.reduce(
+      (acc, day) => acc + day.readingCount / maxPossibleReadings,
+      0
+    ) /
+      currentWeek.daysWithData);
+
+  // Score baseline weeks data completeness
+  const baselineScore =
+    baselineWeeks.reduce((acc, week) => {
+      const weekScore =
+        (week.daysWithData / idealDaysPerWeek) *
+        (week.days.reduce(
+          (acc, day) => acc + day.readingCount / maxPossibleReadings,
+          0
+        ) /
+          week.daysWithData);
+      return acc + weekScore;
+    }, 0) / baselineWeeks.length;
+
+  // Combine scores (giving more weight to current week)
+  return (currentWeekScore * 0.6 + baselineScore * 0.4) * 100;
+}
 
 const eventsModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";

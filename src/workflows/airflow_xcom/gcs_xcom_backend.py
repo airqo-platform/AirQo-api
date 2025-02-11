@@ -64,7 +64,10 @@ class GCSXComBackend(BaseXCom):
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(destination_file)
         contents.reset_index(drop=True, inplace=True)
-        blob.upload_from_string(contents.to_csv(index=False), "text/csv")
+        # "\" to escape any special characters
+        blob.upload_from_string(
+            contents.to_csv(index=False, escapechar="\\"), "text/csv"
+        )
 
         print(
             "{} with contents {} has been uploaded to {}.".format(

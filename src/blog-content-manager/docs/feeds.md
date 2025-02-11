@@ -1,6 +1,6 @@
 # API Documentation for RSS Feed Management
 
-**Base URL**: `https://api.yourdomain.com/v2/blogs`
+**Base URL**: `https://api.airqo.net/v2/blogs`
 
 ## Authentication
 
@@ -28,6 +28,6 @@ Generate an RSS feed for a specific blog.
 
 ```http
 GET /blogs/123/rss HTTP/1.1
-Host: api.yourdomain.com
+Host: api.airqo.net
 Authorization: Bearer YOUR_JWT_TOKEN
 ```

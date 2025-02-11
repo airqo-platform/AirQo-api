@@ -4,10 +4,11 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.constants import ColumnDataType, Frequency, MetaDataType
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
-from .config import configuration
+from .config import configuration as Config
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,16 @@ class DataValidationUtils:
     VALID_SENSOR_RANGES = {
         "pm2_5": (1, 1000),
         "pm10": (1, 1000),
+        "pm2_5_calibrated_value": (1, 1000),
+        "pm2_5_raw_value": (1, 1000),
+        "pm10_calibrated_value": (1, 1000),
+        "pm10_raw_value": (1, 1000),
         "latitude": (-90, 90),
         "longitude": (-180, 180),
         "battery": (2.7, 5),
         "no2": (0, 2049),
+        "no2_calibrated_value": (0, 2049),
+        "no2_raw_value": (0, 2049),
         "altitude": (0, float("inf")),
         "hdop": (0, float("inf")),
         "satellites": (1, 50),
@@ -40,23 +47,57 @@ class DataValidationUtils:
         integers: list = None,
         timestamps: list = None,
     ) -> pd.DataFrame:
-        floats = [] if floats is None else floats
-        integers = [] if integers is None else integers
-        timestamps = [] if timestamps is None else timestamps
+        """
+        Formats specified columns in a DataFrame to desired data types: float, integer, and datetime.
 
-        # This drops rows that have data that cannot be converted
-        data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
-        data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
+        Args:
+            data(pd.DataFrame): The input DataFrame containing the data to be formatted.
+            floats(list, optional): List of column names to be converted to floats. Defaults to an empty list.
+            integers(list, optional): List of column names to be converted to integers. Defaults to an empty list.
+            timestamps(list, optional): List of column names to be converted to datetime. Defaults to an empty list.
 
-        # formatting integers
+        Returns:
+            pd.DataFrame: A DataFrame with the specified columns formatted to their respective data types.
+
+        Notes:
+        ------
+        - Columns specified in `floats` are converted to floats. Rows with invalid values are coerced to NaN.
+        - Columns specified in `integers` are stripped of non-numeric characters, and invalid values are replaced with -1.
+        - Columns specified in `timestamps` are converted to datetime. Invalid timestamps are coerced to NaT.
+        - The function modifies the input DataFrame in place and returns it.
+        """
+
+        floats = floats or []
+        integers = integers or []
+        timestamps = timestamps or []
+
+        if floats:
+            data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
+
+        if timestamps:
+            for col in timestamps:
+                data[col] = (
+                    data[col]
+                    .astype(str)
+                    .str.replace(r"[^\w\s\.\-+:]", "", regex=True)
+                    .str.replace(r"(?<!\.\d{3})Z$", ".000Z", regex=True)
+                )  # Negative lookbehind to add missing milliseconds if needed
+                data[col] = pd.to_datetime(data[col], errors="coerce", utc=True)
+
         if integers:
             for col in integers:
-                if data[col].dtype != "str":
-                    data[col] = data[col].astype(str)
-                data[col] = data[col].str.replace("[^\d]", "", regex=True)
-                data[col] = data[col].str.strip()
-                data[col] = data[col].replace("", -1)
-                data[col] = data[col].astype(np.int64)
+                data[col] = (
+                    data[col]
+                    .fillna("")  # Replace NaN with empty strings
+                    .astype(str)  # Convert to string
+                    .str.strip()  # Remove leading/trailing whitespace
+                    .replace("", np.nan)  # Replace empty strings with NaN for clarity
+                    .apply(
+                        lambda x: pd.to_numeric(x, errors="coerce")
+                    )  # Convert to numeric
+                    .fillna(-1)  # Replace NaN with -1 for invalid/missing values
+                    .astype(np.int64)  # Convert to integer type
+                )
 
         return data
 
@@ -72,8 +113,8 @@ class DataValidationUtils:
         Return:
             None if value does not fall with in the valid range otherwise returns the value passed.
         """
-        if column_name in DataValidationUtils.VALID_SENSOR_RANGES:
-            min_val, max_val = DataValidationUtils.VALID_SENSOR_RANGES[column_name]
+        if column_name in Config.VALID_SENSOR_RANGES:
+            min_val, max_val = Config.VALID_SENSOR_RANGES[column_name]
             if not (min_val <= row_value <= max_val):
                 return None
 
@@ -81,66 +122,120 @@ class DataValidationUtils:
 
     @staticmethod
     def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Cleans and validates data in a DataFrame by formatting columns to their proper types and removing or correcting outliers based on predefined validation rules.
+
+        Args:
+            data (pd.DataFrame): Input DataFrame containing the raw data to clean.
+
+        Returns:
+            pd.DataFrame: A DataFrame with outliers removed or corrected and data formatted to their respective types (float, integer, timestamp).
+        """
         big_query_api = BigQueryApi()
-        float_columns = set(
-            big_query_api.get_columns(table="all", column_type=[ColumnDataType.FLOAT])
-        )
-        integer_columns = set(
-            big_query_api.get_columns(table="all", column_type=[ColumnDataType.INTEGER])
-        )
-        timestamp_columns = set(
-            big_query_api.get_columns(
+        column_types = {
+            ColumnDataType.FLOAT: big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.FLOAT]
+            ),
+            ColumnDataType.INTEGER: big_query_api.get_columns(
+                table="all", column_type=[ColumnDataType.INTEGER]
+            ),
+            ColumnDataType.TIMESTAMP: big_query_api.get_columns(
                 table="all", column_type=[ColumnDataType.TIMESTAMP]
-            )
-        )
+            ),
+        }
 
-        float_columns = list(float_columns & set(data.columns))
-        integer_columns = list(integer_columns & set(data.columns))
-        timestamp_columns = list(timestamp_columns & set(data.columns))
-
+        filtered_columns = {
+            dtype: list(set(columns) & set(data.columns))
+            for dtype, columns in column_types.items()
+        }
         data = DataValidationUtils.format_data_types(
             data=data,
-            floats=float_columns,
-            integers=integer_columns,
-            timestamps=timestamp_columns,
+            floats=filtered_columns[ColumnDataType.FLOAT],
+            integers=filtered_columns[ColumnDataType.INTEGER],
+            timestamps=filtered_columns[ColumnDataType.TIMESTAMP],
         )
 
-        columns = list(chain(float_columns, integer_columns, timestamp_columns))
-
-        for col in columns:
-            name = configuration.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-            data.loc[:, col] = data[col].apply(
-                lambda x: DataValidationUtils.get_valid_value(
-                    column_name=name, row_value=x
+        validated_columns = list(chain.from_iterable(filtered_columns.values()))
+        for col in validated_columns:
+            mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
+            if (
+                "network" in data.columns
+                and (is_airqo_network := data["network"] == "airqo").any()
+            ):
+                data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
                 )
-            )
+            else:
+                data[col] = data[col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
+                )
 
         return data
 
     @staticmethod
     def fill_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+        """
+        Ensures that all specified columns exist in the given DataFrame.
+        If a column is missing, it is added to the DataFrame with `None` as its default value.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame to check and update.
+            cols (list): A list of column names to ensure exist in the DataFrame.
+
+        Returns:
+            pd.DataFrame: The updated DataFrame with all specified columns present.
+
+        Logs:
+            Warns if a column in the `cols` list is missing from the DataFrame.
+        """
         for col in cols:
-            if col not in list(data.columns):
-                logger.warning(f"{col} missing in dataframe")
+            if col not in data.columns.to_list():
+                logger.warning(f"{col} missing in DataFrame")
                 data.loc[:, col] = None
 
         return data
 
     @staticmethod
     def process_for_big_query(dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
+        """
+        Prepares a pandas DataFrame for insertion into a BigQuery table by aligning columns
+        with the target table schema and performing necessary data validation.
+
+        Steps:
+        1. Ensures that the DataFrame contains all the columns required by the target BigQuery table.
+        2. Removes outliers from the DataFrame.
+        3. Selects and returns only the columns present in the target BigQuery table schema.
+
+        Args:
+            dataframe (pd.DataFrame): The input DataFrame containing the data to be processed.
+            table (str): The name of the target BigQuery table to align the DataFrame schema with.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame with validated columns and outliers removed.
+
+        Notes:
+            - Columns missing in the input DataFrame are added with `None` as their default value.
+            - Only the columns that exist in the BigQuery table schema are retained in the output DataFrame.
+        """
         columns = BigQueryApi().get_columns(table)
+
         dataframe = DataValidationUtils.fill_missing_columns(
             data=dataframe, cols=columns
         )
+
         dataframe = DataValidationUtils.remove_outliers(dataframe)
+
         return dataframe[columns]
 
     @staticmethod
     def process_data_for_message_broker(
         data: pd.DataFrame,
-        tenant: Tenant,
-        topic: str,
         caller: str,
+        topic: str = None,
         frequency: Frequency = Frequency.HOURLY,
     ) -> pd.DataFrame:
         """
@@ -158,30 +253,38 @@ class DataValidationUtils:
         """
         from .airqo_utils import AirQoDataUtils
 
-        data.loc[:, "frequency"] = str(frequency)
+        data["frequency"] = frequency.str
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        if tenant != Tenant.ALL:
-            data.loc[:, "tenant"] = str(tenant)
-
         data.rename(columns={"device_id": "device_name"}, inplace=True)
 
-        devices = AirQoDataUtils.get_devices(group_id=caller)
-        devices = devices[
-            ["tenant", "device_name", "site_id", "device_latitude", "device_longitude"]
-        ]
+        devices = AirQoDataUtils.get_devices_kafka(group_id=caller)
+        try:
+            devices = devices[
+                [
+                    "device_name",
+                    "site_id",
+                    "device_latitude",
+                    "device_longitude",
+                    "network",
+                ]
+            ]
 
-        data = pd.merge(
-            left=data,
-            right=devices,
-            on=["device_name", "site_id", "tenant"],
-            how="left",
-        )
-
-        data.rename(columns={"tenant": "network"}, inplace=True)
-        data["tenant"] = str(Tenant.AIRQO)
-
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "network"],
+                how="left",
+            )
+        except KeyError as e:
+            logger.exception(
+                f"KeyError: The key(s) '{e.args}' are not available in the returned devices data."
+            )
+            return None
+        except Exception as e:
+            logger.exception(f"An error occured: {e}")
+            return None
         return data
 
     @staticmethod
@@ -193,15 +296,43 @@ class DataValidationUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame) -> list:
+        """
+        Processes a pandas DataFrame to structure data into a format suitable for API consumption.
+
+        The function:
+        1. Ensures all required columns are present in the DataFrame by filling missing ones.
+        2. Constructs a list of dictionaries for each row, with nested data structures for location,
+        pollutant values, and other metadata.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame containing raw device data.
+
+        Returns:
+            list: A list of dictionaries, each representing a structured data record ready for the API.
+
+        Raises:
+            Exception: Logs any errors encountered during row processing but does not halt execution.
+        """
         restructured_data = []
 
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data["timestamp"] = pd.to_datetime(data["timestamp"]).apply(date_to_str)
 
         bigquery_api = BigQueryApi()
         cols = bigquery_api.get_columns(bigquery_api.hourly_measurements_table)
         cols.append("battery")
         data = DataValidationUtils.fill_missing_columns(data, cols=cols)
+
+        # TODO Use DataValidation.format_data_types() to convert cleanup multipe columns.
+        data["device_number"] = (
+            data["device_number"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .replace("", np.nan)
+            .apply(lambda x: pd.to_numeric(x, errors="coerce"))
+            .fillna(-1)
+            .astype(np.int64)
+        )
 
         for _, row in data.iterrows():
             try:
@@ -210,8 +341,7 @@ class DataValidationUtils:
                     "device_id": row["mongo_id"],
                     "site_id": row["site_id"],
                     "device_number": row["device_number"],
-                    "tenant": str(Tenant.AIRQO),
-                    "network": row["tenant"],
+                    "network": row["network"],
                     "location": {
                         "latitude": {"value": row["latitude"]},
                         "longitude": {"value": row["longitude"]},
@@ -306,3 +436,43 @@ class DataValidationUtils:
             logger.warning("No devices returned.")
 
         return devices
+
+    def extract_transform_and_decrypt_metadata(
+        metadata_type: MetaDataType,
+    ) -> pd.DataFrame:
+        """
+        Extracts, transforms, and decrypts metadata for a given type.
+
+        For metadata type 'DEVICES':
+        - Retrieves devices data,
+        - Decrypts read keys,
+        - Adds a 'key' column to the DataFrame.
+
+        For metadata type 'SITES':
+        - Retrieves site data and converts it to a DataFrame.
+
+        Returns:
+            pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
+        """
+        airqo_api = AirQoApi()
+        endpoints: Dict[str, Any] = {
+            "devices": airqo_api.get_devices_by_network(),
+            "sites": airqo_api.get_sites(),
+        }
+        result: pd.DataFrame = pd.DataFrame()
+        match metadata_type:
+            case MetaDataType.DEVICES:
+                devices_raw = endpoints.get(metadata_type.str)
+                if devices_raw:
+                    devices_df = pd.DataFrame(devices_raw)
+                    keys = airqo_api.get_thingspeak_read_keys(devices_df)
+                    if keys:
+                        devices_df["key"] = (
+                            devices_df["device_number"].map(keys).fillna(-1)
+                        )
+                    result = devices_df
+            case MetaDataType.SITES:
+                sites_raw = endpoints.get(metadata_type.str)
+                if sites_raw:
+                    result = pd.DataFrame(sites_raw)
+        return result
