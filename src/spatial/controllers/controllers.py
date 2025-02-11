@@ -83,9 +83,12 @@ def fetch_air_quality_without_llm():
 def fetch_air_quality_with_customised_prompt():
     return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
 
-
 @controller_bp.route('/upload-image', methods=['POST'])
 def upload_image_for_prediction():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    if not request.form.get('months') or not request.form.get('radius'):
+        return jsonify({'error': 'Missing required parameters'}), 400
     return PollutantApis.upload_image()
 
 @controller_bp.route('/get-data-by-confidence', methods=['GET'])

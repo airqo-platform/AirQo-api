@@ -48,6 +48,11 @@ interpreter = load_tflite_model_from_gcs(
                            Config.GOOGLE_CLOUD_PROJECT_ID, 
                            Config.PROJECT_BUCKET, 
                            "optimized_pollutant_model.tflite")
+if interpreter:
+    print("TFLite model loaded successfully.")
+    # You can now use tflite_model_interpreter for inference.
+else:
+    print("Failed to load TFLite model.")
 
 class PollutantApis:
     @staticmethod

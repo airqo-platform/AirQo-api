@@ -47,10 +47,6 @@ warnings.filterwarnings('ignore')
 # Ignore warnings
 warnings.filterwarnings('ignore')
 print(f"GOOGLE_CLOUD_PROJECT_ID: {Config.GOOGLE_CLOUD_PROJECT_ID}")
-#print(f"PROJECT_BUCKET: {Config.PROJECT_BUCKET}")
-
-# Load the model
-#tflite_model_path = 'optimized_pollutant_model.tflite'
 
 
 def initialize_earth_engine():
