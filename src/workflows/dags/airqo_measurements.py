@@ -675,7 +675,7 @@ def airqo_bigquery_data_measurements_to_api():
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        if start_date_time > end or end_date_time > end:
+        if hour_of_day > end or (hour_of_day + timedelta(hours=1)) > end:
             raise AirflowFailException(f"Run expired on {end}")
 
         if previous_date == start:
