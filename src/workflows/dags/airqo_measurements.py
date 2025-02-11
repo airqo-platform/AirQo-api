@@ -18,6 +18,7 @@ from task_docs import (
     send_raw_measurements_to_bigquery_doc,
     extract_raw_airqo_gaseous_data_doc,
     extract_historical_device_measurements_doc,
+    extract_hourly_old_historical_data_doc,
 )
 from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
 from datetime import datetime, timedelta
@@ -648,38 +649,29 @@ def airqo_gaseous_realtime_measurements():
 )
 def airqo_bigquery_data_measurements_to_api():
     import pandas as pd
+    from airflow.models import Variable
+    from airqo_etl_utils.date import date_to_str_hours
 
     @task(
+        doc_md=extract_hourly_old_historical_data_doc,
         provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
     )
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.date import date_to_str_hours
-
         # Only used the first time
-        start = kwargs.get("params", {}).get("start_date", "2021-01-01T00:00:00Z")
-        start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%SZ")
+        start = kwargs.get("params", {}).get("start_date", "2021-01-01T01:00:00Z")
         end = kwargs.get("params", {}).get("end_date", "2021-12-31T23:59:59Z")
         end = datetime.strptime(end, "%Y-%m-%dT%H:%M:%SZ")
 
-        previous_date = kwargs["ti"].xcom_pull(key="new_date")
-        if not previous_date:
-            previous_date = start
+        previous_date = Variable.get("new_date_2021", default_var=start)
 
-        hour_of_day = (
-            datetime.strptime(previous_date, "%Y-%m-%dT%H:%M:%SZ")
-            if not isinstance(previous_date, datetime)
-            else previous_date
-        )
+        hour_of_day = datetime.strptime(previous_date, "%Y-%m-%dT%H:%M:%SZ")
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         if hour_of_day > end or (hour_of_day + timedelta(hours=1)) > end:
             raise AirflowFailException(f"Run expired on {end}")
-
-        if previous_date == start:
-            kwargs["ti"].xcom_push(key="new_date", value=hour_of_day)
 
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
@@ -697,8 +689,11 @@ def airqo_bigquery_data_measurements_to_api():
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=data)
-        previous_date = kwargs["ti"].xcom_pull(key="new_date")
-        kwargs["ti"].xcom_push(key="new_date", value=previous_date + timedelta(hours=1))
+        previous_date = datetime.strptime(
+            Variable.get("new_date_2021"), "%Y-%m-%dT%H:%M:%SZ"
+        )
+        previous_date = date_to_str_hours(previous_date + timedelta(hours=1))
+        Variable.set("new_date_2021", previous_date)
 
     hourly_data = extract_hourly_data()
     send_hourly_measurements_to_api(hourly_data)
