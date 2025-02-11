@@ -2,6 +2,9 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.constants import DataType, Frequency, DeviceCategory
+from airqo_etl_utils.config import configuration as Config
+from typing import Optional
 
 
 class DailyDataUtils:
@@ -53,21 +56,44 @@ class DailyDataUtils:
 
     @staticmethod
     def cleanup_and_reload(
-        data: pd.DataFrame, start_date_time=None, end_date_time=None
-    ):
+        data: pd.DataFrame,
+        start_date_time: Optional[str] = None,
+        end_date_time: Optional[str] = None,
+    ) -> None:
+        """
+        Cleans up the input dataset by removing duplicates and reloads the processed data into BigQuery.
+
+        This function:
+        - Converts the "timestamp" column to a datetime format.
+        - Removes duplicate entries based on "device_number", "device_id", and "timestamp".
+        - Validates and processes the data to match BigQuery requirements.
+        - Reloads the cleaned dataset into the BigQuery daily measurements table.
+
+        Args:
+            data(pd.DataFrame): The input dataset containing device measurements.
+            start_date_time(str, optional): The start timestamp for data reloading (ISO format).
+            end_date_time(str, optional): The end timestamp for data reloading (ISO format).
+
+        Returns:
+            None
+        """
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data = data.drop_duplicates(
-            subset=["device_number", "device_id", "timestamp"], keep="first"
+        data.drop_duplicates(
+            subset=["device_number", "device_id", "timestamp"],
+            keep="first",
+            inplace=True,
         )
 
         bigquery_api = BigQueryApi()
-        table = bigquery_api.daily_measurements_table
+
+        source = Config.DataSource.get(DataType.AVERAGED)
+        table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
+
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
         )
         bigquery_api.reload_data(
-            network="all",
             table=table,
             dataframe=data,
             start_date_time=start_date_time,
@@ -75,11 +101,25 @@ class DailyDataUtils:
         )
 
     @staticmethod
-    def save_data(data: pd.DataFrame):
+    def save_data(data: pd.DataFrame) -> None:
+        """
+        Processes and saves the given dataset to BigQuery.
+
+        This function:
+        - Retrieves the BigQuery daily measurements table.
+        - Validates and processes the dataset to ensure it meets BigQuery requirements.
+        - Loads the processed data into the designated BigQuery table.
+
+        Args:
+            data (pd.DataFrame): The dataset containing measurement data to be stored.
+
+        Returns:
+            None
+        """
         bigquery_api = BigQueryApi()
 
-        table = bigquery_api.daily_measurements_table
-
+        source = Config.DataSource.get(DataType.AVERAGED)
+        table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,

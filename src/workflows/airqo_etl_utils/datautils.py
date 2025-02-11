@@ -308,22 +308,22 @@ class DataUtils:
         end_date_time: str,
         frequency: Frequency,
         device_category: DeviceCategory,
-        device_network: DeviceNetwork = None,
-        dynamic_query: bool = False,
-        remove_outliers: bool = True,
+        device_network: Optional[DeviceNetwork] = None,
+        dynamic_query: Optional[bool] = False,
+        remove_outliers: Optional[bool] = True,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
         with an optional filter for the device network. The data is cleaned to remove outliers.
 
         Args:
-            datatype(str): The type of data to extract determined by the source data asset.
+            datatype(DataType): The type of data to extract determined by the source data asset.
             start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
             end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
             frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
-            dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
+            remove_outliers(bool, optional): If True, removes outliers from the extracted data. Defaults to True.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
