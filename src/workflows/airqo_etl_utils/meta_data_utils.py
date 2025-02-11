@@ -8,6 +8,7 @@ from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
 from datetime import datetime, timezone
 from typing import Optional
+import ast
 
 
 class MetaDataUtils:
@@ -271,7 +272,7 @@ class MetaDataUtils:
             {
                 "site_id": site.get("site_id"),
                 "network": site.get("network"),
-                "weather_stations": site.get("weather_stations"),
+                "weather_stations": ast.literal_eval(site.get("weather_stations")),
             }
             for site in updated_sites
         ]

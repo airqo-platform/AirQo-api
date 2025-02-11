@@ -11,6 +11,7 @@ from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
 from .tahmo_api import TahmoApi
 from .utils import Utils
+import ast
 
 from typing import List, Dict, Optional
 
@@ -141,7 +142,7 @@ class WeatherDataUtils:
             sites = DataUtils.get_sites()
             station_codes = []
             for _, site in sites.iterrows():
-                weather_stations = site.get("weather_stations", [])
+                weather_stations = ast.literal_eval(site.get("weather_stations", []))
                 station_codes.extend(
                     weather_station.get("code", "")
                     for weather_station in weather_stations
