@@ -393,6 +393,7 @@ class AirQoDataUtils:
             }
             for _, site in sites.iterrows()
             for station in site.get("weather_stations", [])
+            if isinstance(station, dict)
         ]
         sites_df = pd.DataFrame(sites_info)
 
