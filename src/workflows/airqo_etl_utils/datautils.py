@@ -78,7 +78,7 @@ class DataUtils:
         return devices, keys
 
     @staticmethod
-    def get_sites(network: DeviceNetwork = None) -> pd.DataFrame:
+    def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
         """
         Retrieve sites data.
 

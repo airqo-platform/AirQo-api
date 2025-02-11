@@ -658,23 +658,28 @@ def airqo_bigquery_data_measurements_to_api():
         from airqo_etl_utils.date import date_to_str_hours
 
         # Only used the first time
-        start = kwargs.get("params", {}).get("start_date", "2021-01-01")
-        end_d = kwargs.get("params", {}).get("end_date", "2021-12-31")
-        end_d = datetime.strptime(end_d, "%Y-%m-%d")
-        end_dt = end_d.replace(hour=23, minute=59, second=59)
-        end = datetime.strftime(end_dt, "%Y-%m-%dT%H:%M:%SZ")
+        start = kwargs.get("params", {}).get("start_date", "2021-01-01T00:00:00Z")
+        start = datetime.strptime(start, "%%Y-%m-%dT%H:%M:%SZ")
+        end = kwargs.get("params", {}).get("end_date", "2021-12-31T23:59:59Z")
+        end = datetime.strptime(end, "%Y-%m-%dT%H:%M:%SZ")
 
         previous_date = kwargs["ti"].xcom_pull(key="new_date")
         if not previous_date:
             previous_date = start
 
-        hour_of_day = previous_date + timedelta(hours=1)
-
-        start_date_time = date_to_str_hours(previous_date)
+        hour_of_day = (
+            datetime.strptime(previous_date, "%%Y-%m-%dT%H:%M:%SZ")
+            if not isinstance(previous_date, datetime)
+            else previous_date
+        )
+        start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         if start_date_time > end or end_date_time > end:
             raise AirflowFailException(f"Run expired on {end}")
+
+        if previous_date == start:
+            kwargs["ti"].xcom_push(key="new_date", value=hour_of_day)
 
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,

@@ -14,6 +14,7 @@ from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
 from typing import List, Dict, Any, Union
+import ast
 
 import logging
 
@@ -392,8 +393,7 @@ class AirQoDataUtils:
                 "distance": station.get("distance", None),
             }
             for _, site in sites.iterrows()
-            for station in site.get("weather_stations", [])
-            if isinstance(station, dict)
+            for station in ast.literal_eval(site.get("weather_stations", []))
         ]
         sites_df = pd.DataFrame(sites_info)
 
