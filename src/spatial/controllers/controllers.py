@@ -1,5 +1,6 @@
 # controller/controller.py
 from flask import Blueprint, request, jsonify
+
 from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
@@ -13,6 +14,7 @@ from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView
+
 from views.pollutant_views import PollutantApis
 
 
@@ -94,11 +96,3 @@ def get_data_by_confidence():
 def get_all_data():
     return PollutantApis.get_all_data()
 
-
-@controller_bp.route('/get-data-by-confidence', methods=['GET'])
-def get_data_by_confidence():
-    return PollutantApis.get_data_by_confidence()
-
-@controller_bp.route('/get-all-data', methods=['GET'])
-def get_all_data():
-    return PollutantApis.get_all_data()
