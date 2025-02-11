@@ -675,7 +675,7 @@ class DataUtils:
                         for key in ["pm2_5", "pm10"]
                     },
                     **{
-                        key: {"value": row[key]}
+                        key: {"value": row.get(key, None)}
                         for key in [
                             "s1_pm2_5",
                             "s1_pm10",
