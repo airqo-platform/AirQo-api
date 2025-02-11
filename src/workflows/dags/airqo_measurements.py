@@ -665,6 +665,8 @@ def airqo_bigquery_data_measurements_to_api():
         end = datetime.strptime(end, "%Y-%m-%dT%H:%M:%SZ")
 
         previous_date = Variable.get("new_date_2021", default_var=start)
+        if previous_date == start:
+            Variable.set("new_date_2021", previous_date)
 
         hour_of_day = datetime.strptime(previous_date, "%Y-%m-%dT%H:%M:%SZ")
         start_date_time = date_to_str_hours(hour_of_day)

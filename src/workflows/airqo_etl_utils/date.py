@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Tuple
+from typing import Tuple, Optional, Dict, Any
 
 import logging
 
@@ -7,12 +7,12 @@ logger = logging.getLogger(__name__)
 
 
 class DateUtils:
-    day_start_date_time_format = "%Y-%m-%dT00:00:00Z"
-    day_end_date_time_format = "%Y-%m-%dT11:59:59Z"
-    hour_date_time_format = "%Y-%m-%dT%H:00:00Z"
+    day_start_date_time_format: str = "%Y-%m-%dT00:00:00Z"
+    day_end_date_time_format: str = "%Y-%m-%dT11:59:59Z"
+    hour_date_time_format: str = "%Y-%m-%dT%H:00:00Z"
 
     @staticmethod
-    def date_to_str(date: datetime, unit: str = None) -> str:
+    def date_to_str(date: datetime, unit: Optional[str] = None) -> str:
         """
         Returns a string formatted datetime.
         """
@@ -27,10 +27,10 @@ class DateUtils:
 
     @staticmethod
     def get_dag_date_time_values(
-        historical: bool = False,
-        days: int = None,
-        hours: int = None,
-        **kwargs,
+        historical: Optional[bool] = False,
+        days: Optional[int] = None,
+        hours: Optional[int] = None,
+        **kwargs: Dict[str, Any],
     ) -> Tuple[str, str]:
         """
         Formats start and end dates.
@@ -83,16 +83,33 @@ class DateUtils:
         return start_date_time, end_date_time
 
     @staticmethod
-    def get_query_date_time_values(hours=1, days=0, **kwargs):
+    def get_query_date_time_values(
+        hours: Optional[int] = 1, days: Optional[int] = 0, **kwargs: Dict[str, Any]
+    ) -> Tuple[str, str]:
+        """
+        Calculates query start and end datetime values based on the DAG run's execution date.
 
+        This function determines the time window for querying data. If the `days` parameter is non-zero,
+        the time window is computed using days; otherwise, the `hours` parameter is used. The start datetime
+        is computed by subtracting the appropriate delta from the execution date, and the end datetime is computed
+        by adding the same delta to the start datetime. The final datetimes are formatted as strings using
+        the `date_to_str_hours` function.
+
+        Args:
+            hours(int, optional): The number of hours to use for the time window when `days` is zero. Defaults to 1.
+            days(int, optional): The number of days to use for the time window. If non-zero, this value overrides `hours`. Defaults to 0.
+            **kwargs: Additional keyword arguments. Expected to contain a "dag_run" key with an `execution_date` attribute.
+
+        Returns:
+            tuple: A tuple containing two strings:
+                - The formatted start datetime.
+                - The formatted end datetime.
+        """
         execution_date = kwargs["dag_run"].execution_date
 
-        start_date_time = execution_date - timedelta(hours=hours)
-        end_date_time = start_date_time + timedelta(hours=hours)
-
-        if days != 0:
-            start_date_time = execution_date - timedelta(days=days)
-            end_date_time = start_date_time + timedelta(days=days)
+        delta = timedelta(days=days) if days else timedelta(hours=hours)
+        start_date_time = execution_date - delta
+        end_date_time = start_date_time + delta
 
         return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)
 
