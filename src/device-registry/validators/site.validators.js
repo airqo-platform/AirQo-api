@@ -1,4 +1,4 @@
-const { query, body, oneOf } = require("express-validator");
+const { query, body, oneOf, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -60,19 +60,38 @@ const createMongoIdValidation = (field, options = {}) => {
     isOptional = false,
     existsMessage = `the ${field} identifier is missing in request`,
     isQuery = true,
+    isParam = false,
+    isBody = false, // Add isBody option
   } = options;
 
-  const validationChain = isQuery
-    ? isOptional
-      ? query(field).optional()
-      : query(field)
+  let validationChain;
+
+  if (isParam) {
+    validationChain = isOptional
+      ? param(field).optional()
+      : param(field)
           .exists()
-          .withMessage(existsMessage)
-    : isOptional
-    ? body(field).optional()
-    : body(field)
-        .exists()
-        .withMessage(existsMessage);
+          .withMessage(existsMessage);
+  } else if (isBody) {
+    validationChain = isOptional
+      ? body(field).optional()
+      : body(field)
+          .exists()
+          .withMessage(existsMessage);
+  } else {
+    // Default to query parameter validation
+    validationChain = isQuery
+      ? isOptional
+        ? query(field).optional()
+        : query(field)
+            .exists()
+            .withMessage(existsMessage)
+      : isOptional
+      ? body(field).optional()
+      : body(field)
+          .exists()
+          .withMessage(existsMessage);
+  }
 
   return validationChain
     .notEmpty()
@@ -168,6 +187,13 @@ const siteIdentifierChains = [
     .notEmpty()
     .trim(),
 ];
+
+const validateSiteIdParam = oneOf([
+  createMongoIdValidation("id", {
+    isParam: true,
+    existsMessage: "The site ID is missing in the request path.",
+  }),
+]);
 
 // Composed Validation Middleware
 const validateSiteIdentifier = siteIdentifierChains;
@@ -464,5 +490,6 @@ module.exports = {
   validateGetApproximateCoordinates,
   validateNearestSite,
   validateBulkUpdateSites,
+  validateSiteIdParam,
   validateCategoryField,
 };
