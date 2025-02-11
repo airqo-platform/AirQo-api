@@ -1,4 +1,4 @@
-const { query, body, oneOf } = require("express-validator");
+const { query, body, oneOf, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -75,6 +75,18 @@ const validateDeviceIdentifier = oneOf([
     .matches(constants.WHITE_SPACES_REGEX, "i")
     .withMessage("the device names do not have spaces in them"),
 ]);
+
+const validateDeviceIdParam = [
+  param("id")
+    .exists()
+    .withMessage("The device ID is missing in the request path.")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("Invalid device ID. Must be a valid MongoDB ObjectId.")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+];
 
 const validateCreateDevice = [
   oneOf([
@@ -813,6 +825,7 @@ module.exports = {
   validateArrayBody,
   validateCreateDevice,
   validateUpdateDevice,
+  validateDeviceIdParam,
   validateEncryptKeys,
   validateListDevices,
   validateDecryptKeys,

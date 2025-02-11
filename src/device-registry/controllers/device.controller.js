@@ -50,6 +50,27 @@ function handleResponse({
 }
 
 const device = {
+  getDeviceDetailsById: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      req.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createDeviceUtil.getDeviceById(req, next); // Call the utility function
+      handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   bulkCreate: async (req, res, next) => {
     try {
       return res.status(httpStatus.NOT_IMPLEMENTED).json({
