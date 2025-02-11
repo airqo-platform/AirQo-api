@@ -659,7 +659,7 @@ def airqo_bigquery_data_measurements_to_api():
 
         # Only used the first time
         start = kwargs.get("params", {}).get("start_date", "2021-01-01T00:00:00Z")
-        start = datetime.strptime(start, "%%Y-%m-%dT%H:%M:%SZ")
+        start = datetime.strptime(start, "%Y-%m-%dT%H:%M:%SZ")
         end = kwargs.get("params", {}).get("end_date", "2021-12-31T23:59:59Z")
         end = datetime.strptime(end, "%Y-%m-%dT%H:%M:%SZ")
 
@@ -668,7 +668,7 @@ def airqo_bigquery_data_measurements_to_api():
             previous_date = start
 
         hour_of_day = (
-            datetime.strptime(previous_date, "%%Y-%m-%dT%H:%M:%SZ")
+            datetime.strptime(previous_date, "%Y-%m-%dT%H:%M:%SZ")
             if not isinstance(previous_date, datetime)
             else previous_date
         )
