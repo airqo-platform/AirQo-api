@@ -95,7 +95,7 @@ class DateUtils:
                 start_date_time, unit + "_start"
             )
             end_date_time = DateUtils.format_datetime_by_unit_str(
-                start_date_time, unit + "_end"
+                end_date_time, unit + "_end"
             )
 
         return start_date_time, end_date_time
