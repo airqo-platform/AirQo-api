@@ -14,25 +14,23 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 100m
-      memory: 1500Mi
+      cpu: 20m
+      memory: 420Mi
     requests:
-      cpu: 10m
-      memory: 500Mi
-messageBroker:
-  name: airqo-view-message-broker
-  label: view-msg-brokr
-  configmap: prod-view-message-broker-config
-  replicaCount: 2
-  podAnnotations:
-    sidecar.istio.io/inject: 'false'
-  resources:
-    limits:
-      cpu: 500m
-      memory: 800Mi
-    requests:
-      cpu: 50m
-      memory: 400Mi
+      cpu: 5m
+      memory: 300Mi
+  nodeSelector:
+    role: high-mem
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - high-mem
+          weight: 1
 ingress:
   enabled: false
 service:
@@ -43,4 +41,4 @@ service:
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  targetCPUUtilizationPercentage: 70
+  targetCPUUtilizationPercentage: 80

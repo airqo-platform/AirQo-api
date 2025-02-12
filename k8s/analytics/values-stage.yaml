@@ -38,9 +38,6 @@ jobs:
   reports:
     name: stage-analytics-report
     configmap: env-analytics-report-staging
-  devicesSummaryJob:
-    name: stage-analytics-devices-summary
-    configmap: env-analytics-staging
   resources:
     limits:
       cpu: 1000m

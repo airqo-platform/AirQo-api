@@ -12,11 +12,23 @@ fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 350Mi
+    cpu: 200m
+    memory: 500Mi
   requests:
     cpu: 10m
     memory: 250Mi
+nodeSelector:
+  role: high-cpu
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-cpu
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

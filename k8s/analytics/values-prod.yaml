@@ -17,18 +17,26 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 1000m
-      memory: 2000Mi
+      cpu: 50m
+      memory: 1000Mi
     requests:
       cpu: 10m
       memory: 250Mi
+ 
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - preference:
+            matchExpressions:
+              - key: role
+                operator: In
+                values:
+                  - moderate-usage
+          weight: 1
 jobs:
   reports:
     name: prod-analytics-report
     configmap: env-analytics-report-production
-  devicesSummaryJob:
-    name: analytics-devices-summary
-    configmap: env-analytics-production
   resources:
     limits:
       cpu: 1000m

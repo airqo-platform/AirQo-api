@@ -13,10 +13,22 @@ podAnnotations: {}
 resources:
   limits:
     cpu: 50m
-    memory: 500Mi
+    memory: 200Mi
   requests:
-    cpu: 10m
-    memory: 70Mi
+    cpu: 1m
+    memory: 100Mi
+nodeSelector:
+  role: high-mem
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
+        weight: 1
 ingress:
   enabled: false
 service:
