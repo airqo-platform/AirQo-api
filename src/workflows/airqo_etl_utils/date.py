@@ -74,7 +74,7 @@ class DateUtils:
         if is_manual_run:
             start_date_time = kwargs.get("params", {}).get("start_date_time")
             end_date_time = kwargs.get("params", {}).get("end_date_time")
-            if not start_date_time or not start_date_time:
+            if not start_date_time or not end_date_time:
                 try:
                     logger.info("DAG RUN:", dag_run)
                     start_date_time = dag_run.conf["start_date_time"]
