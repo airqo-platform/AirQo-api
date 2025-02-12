@@ -2,7 +2,7 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.daily_data_utils import DailyDataUtils
-from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.datautils import DataUtils
 from datetime import timedelta
 from dag_docs import (
@@ -30,11 +30,10 @@ def cleanup_measurements():
         retry_delay=timedelta(minutes=10),
     )
     def extract(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.date import DateUtils
-
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
+
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
@@ -64,13 +63,8 @@ def realtime_daily_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs):
-        from airqo_etl_utils.date import date_to_str_days
-        from datetime import datetime, timezone
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
-        dag_run = kwargs.get("dag_run", None)
-        execution_date = dag_run.execution_date
-        start_date_time = date_to_str_days(execution_date)
-        end_date_time = datetime.strftime(execution_date, "%Y-%m-%dT23:00:00Z")
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
@@ -105,11 +99,10 @@ def historical_daily_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs):
-        from airqo_etl_utils.date import DateUtils
-
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, days=7, **kwargs
+            days=7, **kwargs
         )
+
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,

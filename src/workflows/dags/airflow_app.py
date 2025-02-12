@@ -1,6 +1,9 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dag(
@@ -19,7 +22,7 @@ def aiflow_app_cleanup():
             dag_run = kwargs.get("dag_run")
             days = int(dag_run.conf["days"])
         except Exception as ex:
-            print(ex)
+            logger.exception(ex)
             days = 14
 
         AirflowUtils().remove_old_dag_runs(days)

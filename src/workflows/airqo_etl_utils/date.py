@@ -7,27 +7,46 @@ logger = logging.getLogger(__name__)
 
 
 class DateUtils:
-    day_start_date_time_format: str = "%Y-%m-%dT00:00:00Z"
-    day_end_date_time_format: str = "%Y-%m-%dT11:59:59Z"
-    hour_date_time_format: str = "%Y-%m-%dT%H:00:00Z"
-
     @staticmethod
-    def date_to_str(date: datetime, unit: Optional[str] = None) -> str:
+    def format_datetime_by_unit_str(date: datetime, unit: str) -> str:
         """
-        Returns a string formatted datetime.
+        Formats a datetime object into a string based on a specified time boundary using match-case.
+
+        The function supports the following modes:
+        - "days_start": Returns the datetime formatted at the start of the day (00:00:00).
+        - "days_end": Returns the datetime formatted at the end of the day (23:59:59).
+        - "hours_start": Returns the datetime formatted at the start of the hour (minute and second set to 00:00).
+        - "hours_end": Returns the datetime formatted at the end of the hour (minute and second set to 59:59).
+
+        If the unit is not provided or does not match one of the expected values, the function defaults to "day_end".
+
+        Args:
+            date (datetime): The datetime object to format.
+            unit (Optional[str]): The desired time boundary for formatting. Valid values are "day_start",
+                                "day_end", "hour_start", and "hour_end". Defaults to None.
+
+        Returns:
+            str: The formatted datetime string in ISO 8601 format with a trailing "Z" indicating UTC.
         """
-        date_str: str = ""
-        if unit == "hours":
-            date_str = datetime.strftime(date, DateUtils.hour_date_time_format)
-        elif unit == "days":
-            date_str = datetime.strftime(date, DateUtils.day_start_date_time_format)
-        else:
-            date_str = datetime.strftime(date, DateUtils.day_end_date_time_format)
-        return date_str
+        DAY_START_FORMAT = "%Y-%m-%dT00:00:00Z"
+        DAY_END_FORMAT = "%Y-%m-%dT23:59:59Z"
+        HOUR_START_FORMAT = "%Y-%m-%dT%H:00:00Z"
+        HOUR_END_FORMAT = "%Y-%m-%dT%H:59:59Z"
+
+        match unit:
+            case "days_start":
+                return date.strftime(DAY_START_FORMAT)
+            case "days_end":
+                return date.strftime(DAY_END_FORMAT)
+            case "hours_start":
+                return date.strftime(HOUR_START_FORMAT)
+            case "hours_end":
+                return date.strftime(HOUR_END_FORMAT)
+            case _:
+                return date.strftime(DAY_START_FORMAT)
 
     @staticmethod
     def get_dag_date_time_values(
-        historical: Optional[bool] = False,
         days: Optional[int] = None,
         hours: Optional[int] = None,
         **kwargs: Dict[str, Any],
@@ -36,7 +55,6 @@ class DateUtils:
         Formats start and end dates.
 
         Args:
-            - historical: A boolean that defines if the data is more than a day old or not.
             - days(Optional): Number of days in the past to consider.
             - hours(Optional): Number of hours in the past to consider.
             - **kwargs: Extra arguments to pass. Usually from the airflow context.
@@ -53,31 +71,31 @@ class DateUtils:
         logger.info(f"KWARGS:, {kwargs}")
         logger.info(f"IS MANUAL RUN: {is_manual_run}")
 
-        if historical and is_manual_run:
+        if is_manual_run:
             start_date_time = kwargs.get("params", {}).get("start_date_time")
             end_date_time = kwargs.get("params", {}).get("end_date_time")
-            if not start_date_time:
+            if not start_date_time or not end_date_time:
                 try:
-                    print("DAG RUN:", dag_run)
+                    logger.info("DAG RUN:", dag_run)
                     start_date_time = dag_run.conf["start_date_time"]
                     end_date_time = dag_run.conf["end_date_time"]
                 except Exception as e:
                     exception_occurred = True
                     logger.exception(f"Exception in get_dag_date_time_values", {e})
 
-        if exception_occurred or not is_manual_run:
-            execution_date = dag_run.execution_date
-            start_date_time = execution_date - timedelta(**delta_kwargs)
-            end_date_time = (
-                start_date_time + timedelta(**delta_kwargs)
-                if hours or days
-                else datetime.now(timezone.utc)
+        if not is_manual_run or exception_occurred:
+            execution_date = (
+                dag_run.execution_date if dag_run else datetime.now(timezone.utc)
             )
-            start_date_time = DateUtils.date_to_str(start_date_time, unit)
-            end_date_time = (
-                DateUtils.date_to_str(end_date_time, unit)
-                if unit == "hours"
-                else DateUtils.date_to_str(end_date_time)
+            delta = timedelta(**delta_kwargs)
+            start_date_time = execution_date - delta
+            end_date_time = execution_date
+
+            start_date_time = DateUtils.format_datetime_by_unit_str(
+                start_date_time, unit + "_start"
+            )
+            end_date_time = DateUtils.format_datetime_by_unit_str(
+                end_date_time, unit + "_end"
             )
 
         return start_date_time, end_date_time
@@ -123,17 +141,6 @@ def get_utc_offset_for_hour(subject_hour: int) -> int:
     return hour
 
 
-def predict_str_to_date(st: str):
-    """
-    Converts a predict string to utc datetime
-    """
-
-    st = st.replace(" GMT", "")
-    date_time = datetime.strptime(st, "%a, %d %b %Y %H:%M:%S")
-    date_time = date_time + timedelta(hours=3)
-    return date_time
-
-
 def str_to_date(st: str, date_format="%Y-%m-%dT%H:%M:%SZ"):
     """
     Converts a string to datetime
@@ -157,71 +164,6 @@ def date_to_str_hours(date: datetime):
     Converts datetime to a string
     """
     return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
-
-
-def str_to_str_hours(dateStr: str) -> str:
-    """
-    Converts string to a string hours
-    """
-    date = str_to_date(dateStr)
-    return date_to_str_hours(date)
-
-
-def str_to_str_days(dateStr: str) -> str:
-    """
-    Converts string to a string days
-    """
-    date = str_to_date(dateStr)
-    return date_to_str_days(date)
-
-
-def str_to_str_default(dateStr: str) -> str:
-    """
-    Converts string to a string dafault
-    """
-    date = str_to_date(dateStr)
-    return date_to_str(date)
-
-
-def frequency_time(dateStr: str, frequency: str) -> str:
-    if frequency.lower() == "hourly":
-        return str_to_str_hours(dateStr=dateStr)
-    elif frequency.lower() == "daily":
-        return str_to_str_days(dateStr=dateStr)
-    else:
-        return str_to_str_default(dateStr=dateStr)
-
-
-def first_day_of_month(date_time: datetime) -> datetime:
-    return datetime(year=date_time.year, month=date_time.month, day=1)
-
-
-def last_day_of_month(date_time: datetime) -> datetime:
-    month = date_time.month
-    if month < 12:
-        month = month + 1
-        next_month = datetime(year=date_time.year, month=month, day=1)
-        return next_month - timedelta(days=1)
-    else:
-        year = date_time.year + 1
-        next_month = datetime(year=year, month=1, day=1)
-        return next_month - timedelta(days=1)
-
-
-def first_day_of_week(date_time: datetime):
-    if date_time.weekday() != 0:
-        offset = abs(0 - date_time.weekday())
-        return date_time - timedelta(days=offset)
-    else:
-        return date_time
-
-
-def last_day_of_week(date_time: datetime):
-    if date_time.weekday() != 6:
-        offset = 6 - date_time.weekday()
-        return date_time + timedelta(days=offset)
-    else:
-        return date_time
 
 
 def date_to_str_days(date: datetime):
