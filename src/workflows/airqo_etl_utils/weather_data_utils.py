@@ -13,7 +13,7 @@ from .tahmo_api import TahmoApi
 from .utils import Utils
 import ast
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 
 class WeatherDataUtils:
@@ -23,7 +23,7 @@ class WeatherDataUtils:
         start_date_time: str,
         end_date_time: str,
         frequency: Frequency,
-        remove_outliers: bool = False,
+        remove_outliers: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Extracts hourly weather data from BigQuery for a specified time range.
@@ -172,8 +172,10 @@ class WeatherDataUtils:
         return measurements
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(sites):
-        def process_batch(batch_of_coordinates):
+    def fetch_openweathermap_data_for_sites(
+        sites: List[Dict[str, Any]]
+    ) -> pd.DataFrame:
+        def process_batch(batch_of_coordinates: List[Dict[str, Any]]):
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 results = executor.map(
                     OpenWeatherApi.get_current_weather_for_each_site,
