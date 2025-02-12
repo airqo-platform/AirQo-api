@@ -6,7 +6,7 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
-from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel, MetaDataType
+from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .ml_utils import GCSUtils
@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 class AirQoDataUtils:
     @staticmethod
-    def extract_uncalibrated_data(start_date_time, end_date_time) -> pd.DataFrame:
+    def extract_uncalibrated_data(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
 
         hourly_uncalibrated_data = bigquery_api.query_data(

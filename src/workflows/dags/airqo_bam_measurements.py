@@ -25,9 +25,8 @@ from airqo_etl_utils.constants import Frequency, DeviceNetwork, DeviceCategory, 
 def airqo_bam_historical_measurements():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs) -> pd.DataFrame:
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+
         return DataUtils.extract_devices_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,

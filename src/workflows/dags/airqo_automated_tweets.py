@@ -1,9 +1,11 @@
 from airflow.decorators import dag, task
-
+import pandas as pd
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.airqo_tweets_utils import AirQoTweetsUtils
 from airqo_etl_utils.constants import DeviceNetwork
 from airqo_etl_utils.datautils import DataUtils
+
+from typing import Dict
 
 
 @dag(
@@ -15,19 +17,19 @@ from airqo_etl_utils.datautils import DataUtils
 )
 def create_forecast_tweets():
     @task()
-    def retrieve_sites():
+    def retrieve_sites() -> pd.DataFrame:
         return DataUtils.get_sites(network=DeviceNetwork.AIRQO)
 
     @task()
-    def select_forecast_sites(sites):
+    def select_forecast_sites(sites) -> Dict:
         return AirQoTweetsUtils.select_sites_for_forecast(sites)
 
     @task()
-    def get_site_forecast(sites):
+    def get_site_forecast(sites) -> Dict:
         return AirQoTweetsUtils.fetch_site_forecasts(sites)
 
     @task()
-    def send_tweet(site_forecasts):
+    def send_tweet(site_forecasts) -> None:
         AirQoTweetsUtils.create_tweet(site_forecasts)
 
     sites = retrieve_sites()

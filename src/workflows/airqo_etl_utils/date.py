@@ -7,39 +7,16 @@ logger = logging.getLogger(__name__)
 
 
 class DateUtils:
-    day_start_date_time_format: str = "%Y-%m-%dT00:00:00Z"
-    day_end_date_time_format: str = "%Y-%m-%dT11:59:59Z"
-    hour_date_time_format: str = "%Y-%m-%dT%H:00:00Z"
-    hour_end_date_time_format: str = "%Y-%m-%dT%H:59:59Z"
-
     @staticmethod
-    def date_to_str(date: datetime, unit: Optional[str] = None) -> str:
-        """
-        Returns a string formatted datetime.
-        """
-        day_start_date_time_format: str = "%Y-%m-%dT00:00:00Z"
-        day_end_date_time_format: str = "%Y-%m-%dT11:59:59Z"
-        hour_date_time_format: str = "%Y-%m-%dT%H:00:00Z"
-        hour_end_date_time_format: str = "%Y-%m-%dT%H:59:59Z"
-
-        date_str: str = ""
-        if unit == "hours":
-            date_str = datetime.strftime(date, hour_date_time_format)
-        elif unit == "days":
-            date_str = datetime.strftime(date, day_start_date_time_format)
-        else:
-            date_str = datetime.strftime(date, day_end_date_time_format)
-        return date_str
-
     def format_datetime_by_unit_str(date: datetime, unit: str) -> str:
         """
         Formats a datetime object into a string based on a specified time boundary using match-case.
 
         The function supports the following modes:
-        - "day_start": Returns the datetime formatted at the start of the day (00:00:00).
-        - "day_end": Returns the datetime formatted at the end of the day (23:59:59).
-        - "hour_start": Returns the datetime formatted at the start of the hour (minute and second set to 00:00).
-        - "hour_end": Returns the datetime formatted at the end of the hour (minute and second set to 59:59).
+        - "days_start": Returns the datetime formatted at the start of the day (00:00:00).
+        - "days_end": Returns the datetime formatted at the end of the day (23:59:59).
+        - "hours_start": Returns the datetime formatted at the start of the hour (minute and second set to 00:00).
+        - "hours_end": Returns the datetime formatted at the end of the hour (minute and second set to 59:59).
 
         If the unit is not provided or does not match one of the expected values, the function defaults to "day_end".
 
@@ -65,6 +42,8 @@ class DateUtils:
                 return date.strftime(HOUR_START_FORMAT)
             case "hours_end":
                 return date.strftime(HOUR_END_FORMAT)
+            case _:
+                return date.strftime(DAY_START_FORMAT)
 
     @staticmethod
     def get_dag_date_time_values(

@@ -121,9 +121,9 @@ class DataUtils:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
-        device_network: DeviceNetwork = None,
+        device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_names: list = None,
+        device_names: Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -205,7 +205,8 @@ class DataUtils:
 
     @staticmethod
     def fetch_devices_from_api(
-        device_network: DeviceNetwork = None, device_category: DeviceCategory = None
+        device_network: Optional[DeviceNetwork] = None,
+        device_category: Optional[DeviceCategory] = None,
     ) -> pd.DataFrame:
         """Fetch devices from the API if the cached file is empty."""
         airqo_api = AirQoApi()
@@ -412,7 +413,7 @@ class DataUtils:
         timestamp_col: str,
         id_col: str,
         group_col: str,
-        exclude_cols: list = None,
+        exclude_cols: Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Removes duplicate rows from a pandas DataFrame based on unique identifiers while
@@ -701,7 +702,7 @@ class DataUtils:
     def clean_low_cost_sensor_data(
         data: pd.DataFrame,
         device_category: DeviceCategory,
-        remove_outliers: bool = True,
+        remove_outliers: Optional[bool] = True,
     ) -> pd.DataFrame:
         """
         Cleans low-cost sensor data by performing outlier removal, raw data quality checks,

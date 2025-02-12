@@ -23,8 +23,9 @@ def weather_data_historical_raw_measurements():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, days=7, **kwargs
+            days=7, **kwargs
         )
+
         return WeatherDataUtils.query_raw_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -64,8 +65,9 @@ def weather_data_historical_hourly_measurements():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, days=7, **kwargs
+            days=7, **kwargs
         )
+
         return WeatherDataUtils.extract_weather_data(
             DataType.RAW,
             start_date_time=start_date_time,
@@ -109,6 +111,7 @@ def weather_data_cleanup_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
+
         return WeatherDataUtils.extract_weather_data(
             DataType.RAW,
             start_date_time=start_date_time,
