@@ -142,14 +142,10 @@ const createGroup = {
           },
         };
 
-        logObject("requestForRole", requestForRole);
-
         const responseFromCreateRole = await rolePermissionsUtil.createRole(
           requestForRole,
           next
         );
-
-        logObject("responseFromCreateRole", responseFromCreateRole);
 
         if (responseFromCreateRole.success === false) {
           return responseFromCreateRole;
@@ -285,7 +281,6 @@ const createGroup = {
         );
       }
     } catch (error) {
-      logObject("error in util", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
