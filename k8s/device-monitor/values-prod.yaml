@@ -15,11 +15,13 @@ fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 500m
+    cpu: 50m
     memory: 1000Mi
   requests:
     cpu: 10m
-    memory: 50Mi
+    memory: 400Mi
+nodeSelector:
+  role: high-mem
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
