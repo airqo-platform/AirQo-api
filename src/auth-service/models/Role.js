@@ -47,7 +47,6 @@ const RoleSchema = new mongoose.Schema(
       {
         type: ObjectId,
         ref: "permission",
-        unique: true,
       },
     ],
   },
