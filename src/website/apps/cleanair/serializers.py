@@ -6,7 +6,7 @@ from cloudinary.utils import cloudinary_url
 from .models import (
     CleanAirResource, ForumEvent, Engagement, Partner, Program,
     Session, Support, Person, Objective, ForumResource,
-    ResourceFile, ResourceSession
+    ResourceFile, ResourceSession, Section
 )
 
 
@@ -114,7 +114,28 @@ class ForumResourceSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class SectionSerializer(serializers.ModelSerializer):
+    forum_events = serializers.PrimaryKeyRelatedField(
+        queryset=ForumEvent.objects.all(),
+        many=True
+    )
+
+    class Meta:
+        model = Section
+        fields = [
+            'id',
+            'forum_events',
+            'title',
+            'content',
+            'section_type',
+            'reverse_order',
+            'pages',
+            'order',
+        ]
+
+
 class ForumEventSerializer(serializers.ModelSerializer):
+    sections = SectionSerializer(many=True, read_only=True)
     forum_resources = ForumResourceSerializer(many=True, read_only=True)
     engagement = EngagementSerializer(read_only=True)
     # Replace the default partners field with a SerializerMethodField.
