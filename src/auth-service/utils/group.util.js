@@ -114,7 +114,10 @@ const createGroup = {
 
       logObject("responseFromRegisterGroup", responseFromRegisterGroup);
 
-      if (responseFromRegisterGroup.success === true) {
+      if (
+        responseFromRegisterGroup &&
+        responseFromRegisterGroup.success === true
+      ) {
         const grp_id = responseFromRegisterGroup.data._doc._id;
         if (isEmpty(grp_id)) {
           next(
@@ -139,9 +142,14 @@ const createGroup = {
           },
         };
 
+        logObject("requestForRole", requestForRole);
+
         const responseFromCreateRole = await rolePermissionsUtil.createRole(
-          requestForRole
+          requestForRole,
+          next
         );
+
+        logObject("responseFromCreateRole", responseFromCreateRole);
 
         if (responseFromCreateRole.success === false) {
           return responseFromCreateRole;
@@ -266,10 +274,18 @@ const createGroup = {
             return responseFromRegisterGroup;
           }
         }
-      } else if (responseFromRegisterGroup.success === false) {
-        return responseFromRegisterGroup;
+      } else {
+        return (
+          responseFromRegisterGroup || {
+            success: false,
+            message: "unable to create group",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: "unable to create group" },
+          }
+        );
       }
     } catch (error) {
+      logObject("error in util", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(

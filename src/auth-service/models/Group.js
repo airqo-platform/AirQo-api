@@ -187,7 +187,7 @@ GroupSchema.statics = {
       } else if (isEmpty(data)) {
         return {
           success: true,
-          data,
+          data: null,
           message: "group NOT successfully created but operation successful",
           status: httpStatus.ACCEPTED,
         };
@@ -214,7 +214,13 @@ GroupSchema.statics = {
         });
       }
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return {
+        success: false,
+        data: null,
+        message,
+        errors,
+        status,
+      };
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
