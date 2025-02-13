@@ -14,6 +14,12 @@ const log4js = require("log4js");
 const UserModel = require("@models/User");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user controller`);
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIME_TYPES = {
+  PDF: "application/pdf",
+  CSV: "text/csv",
+};
+
 function handleResponse({
   result,
   key = "data",
@@ -531,7 +537,19 @@ const createUser = {
 
       if (req.files.pdf) {
         pdfFile = req.files.pdf;
-        if (!pdfFile.mimetype.includes("pdf")) {
+
+        if (pdfFile.size > MAX_FILE_SIZE) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "PDF file size should not exceed 5MB",
+            })
+          );
+        }
+
+        if (
+          !pdfFile.name.toLowerCase().endsWith(".pdf") ||
+          pdfFile.mimetype !== ALLOWED_MIME_TYPES.PDF
+        ) {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid PDF file",
@@ -542,7 +560,18 @@ const createUser = {
 
       if (req.files.csv) {
         csvFile = req.files.csv;
-        if (!csvFile.mimetype.includes("csv")) {
+        if (csvFile.size > MAX_FILE_SIZE) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "CSV file size should not exceed 5MB",
+            })
+          );
+        }
+
+        if (
+          !csvFile.name.toLowerCase().endsWith(".csv") ||
+          csvFile.mimetype !== ALLOWED_MIME_TYPES.CSV
+        ) {
           return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Invalid CSV file",
