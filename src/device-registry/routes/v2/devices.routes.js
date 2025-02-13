@@ -13,7 +13,10 @@ const {
   validateListDevices,
   validateArrayBody,
   validateBulkUpdateDevices,
+  validateDeviceIdParam,
 } = require("@validators/device.validators");
+
+const { validate } = require("@validators/common");
 
 router.use(headers);
 
@@ -145,5 +148,13 @@ router.put(
   validateTenant,
   validateBulkUpdateDevices,
   deviceController.updateManyDevicesOnPlatform
+);
+
+router.get(
+  "/:id",
+  validateTenant,
+  validateDeviceIdParam,
+  validate,
+  deviceController.getDeviceDetailsById
 );
 module.exports = router;

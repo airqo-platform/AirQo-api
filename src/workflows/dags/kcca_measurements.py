@@ -2,7 +2,8 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.exceptions import AirflowFailException
-from airqo_etl_utils.config import configuration
+from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.constants import DeviceNetwork
 
 
 @dag(
@@ -48,13 +49,12 @@ def kcca_hourly_measurements():
     @task()
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id,
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC,
+            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -67,12 +67,11 @@ def kcca_hourly_measurements():
     @task()
     def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
         table = big_query_api.hourly_measurements_table
-        data["tenant"] = str(Tenant.KCCA)
+        data["network"] = DeviceNetwork.KCCA.str
         data = DataValidationUtils.process_for_big_query(dataframe=data, table=table)
         big_query_api.load_data(
             dataframe=data,
@@ -111,9 +110,8 @@ def kcca_historical_hourly_measurements():
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.kcca_utils import KccaUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+
         return KccaUtils.extract_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -127,12 +125,11 @@ def kcca_historical_hourly_measurements():
     @task()
     def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
         table = big_query_api.hourly_measurements_table
-        data["tenant"] = str(Tenant.KCCA)
+        data["network"] = DeviceNetwork.KCCA.str
         data = DataValidationUtils.process_for_big_query(dataframe=data, table=table)
         big_query_api.load_data(
             dataframe=data,

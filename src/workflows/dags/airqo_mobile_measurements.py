@@ -58,9 +58,9 @@ def airqo_mobile_devices_measurements():
 
     @task()
     def calibrate(data: pd.DataFrame):
-        from airqo_etl_utils.calibration_utils import CalibrationUtils
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return CalibrationUtils.calibrate_airqo_data(data=data)
+        return AirQoDataUtils.calibrate_data(data=data)
 
     @task()
     def load(data: pd.DataFrame):

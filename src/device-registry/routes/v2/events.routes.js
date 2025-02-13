@@ -13,6 +13,11 @@ router.get(
   pagination(),
   eventController.listRunningDevices
 );
+router.delete(
+  "/",
+  eventValidations.deleteValuesOnPlatform,
+  eventController.delete
+);
 router.get(
   "/good",
   eventValidations.listGoodEvents,
@@ -86,12 +91,6 @@ router.post(
   "/transmit/bulk",
   eventValidations.bulkTransmitMultipleSensorValues,
   eventController.bulkTransmitMultipleSensorValues
-);
-
-router.delete(
-  "/",
-  eventValidations.deleteValuesOnPlatform,
-  eventController.deleteValuesOnPlatform
 );
 
 module.exports = router;

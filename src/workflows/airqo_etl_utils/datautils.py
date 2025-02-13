@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-import logging
+from pathlib import Path
 
 from .config import configuration as Config
+from .commons import download_file_from_gcs
 from .bigquery_api import BigQueryApi
 from .airqo_api import AirQoApi
 from .data_sources import DataSourcesApis
@@ -13,26 +14,116 @@ from .constants import (
     Frequency,
     DataSource,
     DataType,
-    CityModel,
+    MetaDataType,
 )
 from .utils import Utils
 from .date import date_to_str
 from .data_validator import DataValidationUtils
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Union, Tuple, Optional
+
+import logging
 
 logger = logging.getLogger(__name__)
 
 
 class DataUtils:
     @staticmethod
+    def get_devices(
+        device_category: Optional[DeviceCategory] = None,
+        device_network: Optional[DeviceNetwork] = None,
+    ) -> Tuple[pd.DataFrame, Dict]:
+        """
+        Retrieve devices data and associated keys for a given device network and category.
+
+        This function attempts to load devices data from a cached CSV file located at a predetermined
+        local path. If cached data is available, missing values in the "device_number" column are filled
+        with -1. If the cache is empty, the function fetches devices data and corresponding keys via the
+        API. If both the cache and the API fail to return any devices data, a RuntimeError is raised.
+
+        Args:
+            device_network (DeviceNetwork): The device network for which devices data is required.
+            device_category (DeviceCategory): The category of devices to filter the retrieved data.
+
+        Returns:
+            Tuple[pd.DataFrame, Dict]: A tuple where:
+                - The first element is a pandas DataFrame containing the devices data.
+                - The second element is a dictionary mapping device numbers to their corresponding keys.
+
+        Raises:
+            RuntimeError: If devices data cannot be obtained from either the cache or the API.
+        """
+        local_file_path = "/tmp/devices.csv"
+        devices: pd.DataFrame = pd.DataFrame()
+        keys: Dict = {}
+        # Load devices from cache
+        try:
+            devices = DataUtils.load_cached_data(
+                local_file_path, MetaDataType.DEVICES.str
+            )
+            if not devices.empty:
+                devices["device_number"] = devices["device_number"].fillna(-1)
+        except Exception as e:
+            logger.exception(f"No devices currently cached: {e}")
+
+        # If cache is empty, fetch from API
+        if devices.empty:
+            devices, keys = DataUtils.fetch_devices_from_api(
+                device_network, device_category
+            )
+            if not keys:
+                raise RuntimeError("Failed to retrieve device keys")
+
+        if devices.empty:
+            raise RuntimeError("Failed to retrieve cached/api devices data.")
+        return devices, keys
+
+    @staticmethod
+    def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
+        """
+        Retrieve sites data.
+
+        This function attempts to load sites data from a cached CSV file located at a predetermined
+        local path. If the cache is empty, the function tries to fetche sites data via the API.
+        If both the cache and the API fail to return any sites data, a RuntimeError is raised.
+
+        Returns:
+            sites(pd.DataFrame):A pandas DataFrame containing the sites data.
+
+        Raises:
+            RuntimeError: If sites data cannot be obtained from either the cache or the API.
+        """
+        local_file_path = "/tmp/sites.csv"
+        sites: pd.DataFrame = pd.DataFrame()
+
+        # Load sites from cache
+        try:
+            sites = DataUtils.load_cached_data(local_file_path, MetaDataType.SITES.str)
+        except Exception as e:
+            logger.exception(f"Failed to load cached: {e}")
+
+        # If cache is empty, fetch from API
+        if sites.empty:
+            airqo_api = AirQoApi()
+            try:
+                sites = pd.DataFrame(airqo_api.get_sites())
+            except Exception as e:
+                logger.exception(f"Failed to load sites data from api. {e}")
+
+        if sites.empty:
+            raise RuntimeError("Failed to retrieve cached/api sites data.")
+
+        if network:
+            sites = sites.loc[sites.network == network.str]
+        return sites
+
+    @staticmethod
     def extract_devices_data(
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
-        device_network: DeviceNetwork = None,
+        device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_numbers: list = None,
-        remove_outliers: bool = True,
+        device_names: Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -44,37 +135,147 @@ class DataUtils:
             start_date_time (str): Start date and time (ISO 8601 format) for data extraction.
             end_date_time (str): End date and time (ISO 8601 format) for data extraction.
             device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
-            device_numbers (list, optional): List of device numbers whose data to extract. Defaults to None (all devices).
-            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            device_names(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
         """
         devices_data = pd.DataFrame()
+
+        devices, keys = DataUtils.get_devices(device_category, device_network)
+
+        if not devices.empty and device_network:
+            devices = devices.loc[devices.network == device_network.str]
+
+        if device_names:
+            devices = devices.loc[devices.name.isin(device_names)]
+
+        config = Config.device_config_mapping.get(device_category.str, None)
+        if not config:
+            logger.warning("Missing device category configuration.")
+            raise RuntimeError("Device category configurations not found.")
+
+        dates = Utils.query_dates_array(
+            data_source=DataSource.THINGSPEAK,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+        )
+        data_store: List[pd.DataFrame] = []
+        for _, device in devices.iterrows():
+            data, meta_data = DataUtils._extract_device_api_data(
+                device, dates, config, keys, resolution
+            )
+            if isinstance(data, pd.DataFrame) and not data.empty:
+                data = DataUtils._process_and_append_device_data(
+                    device, data, meta_data, config
+                )
+            else:
+                continue
+
+            if not data.empty:
+                data_store.append(data)
+
+        if data_store:
+            devices_data = pd.concat(data_store, ignore_index=True)
+        else:
+            devices_data = pd.DataFrame()
+
+        if "vapor_pressure" in devices_data.columns.to_list():
+            is_airqo_network = devices_data["network"] == "airqo"
+            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
+                is_airqo_network, "vapor_pressure"
+            ].apply(DataValidationUtils.convert_pressure_values)
+
+        return devices_data
+
+    @staticmethod
+    def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
+        """Download and load the cached CSV from GCS if available."""
+        try:
+            file = Path(local_file_path)
+            if not file.exists():
+                download_file_from_gcs(
+                    bucket_name=Config.AIRFLOW_XCOM_BUCKET,
+                    source_file=file_name + ".csv",
+                    destination_file=local_file_path,
+                )
+            data = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            if not data.empty:
+                return data
+        except Exception as e:
+            logger.exception(f"Failed to download cached {file_name}. {e}")
+            return pd.DataFrame()
+
+    @staticmethod
+    def fetch_devices_from_api(
+        device_network: Optional[DeviceNetwork] = None,
+        device_category: Optional[DeviceCategory] = None,
+    ) -> pd.DataFrame:
+        """Fetch devices from the API if the cached file is empty."""
         airqo_api = AirQoApi()
+        try:
+            devices = pd.DataFrame(
+                airqo_api.get_devices_by_network(
+                    device_network=device_network,
+                    device_category=device_category,
+                )
+            )
+            devices["device_number"] = devices["device_number"].fillna(-1)
+            devices_airqo = devices.loc[devices.network == "airqo"]
+            keys = airqo_api.get_thingspeak_read_keys(devices_airqo)
+            return devices, keys
+        except Exception as e:
+            logger.exception(
+                f"Failed to fetch devices or read keys from device_registry. {e}"
+            )
+        return pd.DataFrame(), {}
+
+    def _extract_device_api_data(
+        device: pd.Series,
+        dates: List[Tuple[str, str]],
+        config: dict,
+        keys: dict,
+        resolution: Frequency,
+    ) -> pd.DataFrame:
+        """Extract and map API data for a single device."""
+        device_number = device.get("device_number")
+        key = device.get("key")
+        network = device.get("network")
+        api_data = []
         data_source_api = DataSourcesApis()
 
-        devices = airqo_api.get_devices_by_network(
-            device_network=device_network, device_category=device_category
-        )
-        if not devices:
-            logger.exception(
-                "Failed to fetch devices. Please check if devices are deployed"
-            )
-            return devices_data
+        if device_number and not np.isnan(device_number) and network == "airqo":
+            for start, end in dates:
+                data_, meta_data, data_available = data_source_api.thingspeak(
+                    device_number=int(device_number),
+                    start_date_time=start,
+                    end_date_time=end,
+                    read_key=key if key else keys.get(device_number),
+                )
+                if data_available:
+                    api_data.extend(data_)
+            if api_data:
+                mapping = config["mapping"][network]
+                return DataUtils.map_and_extract_data(mapping, api_data), meta_data
+        elif network == "iqair":
+            mapping = config["mapping"][network]
+            try:
+                iqair_data = data_source_api.iqair(device, resolution=resolution)
+                if iqair_data:
+                    data = DataUtils.map_and_extract_data(mapping, iqair_data)
+                    return data, {}
+            except Exception as e:
+                logger.exception(
+                    f"An error occurred: {e} - device {device.get('name')}"
+                )
+                return pd.DataFrame(), {}
+        return pd.DataFrame(), {}
 
-        other_fields_cols: List[str] = []
-        network: str = None
-        devices = (
-            [x for x in devices if x["device_number"] in device_numbers]
-            if device_numbers
-            else devices
-        )
+    def _process_and_append_device_data(
+        device: pd.Series, data: pd.DataFrame, meta_data: dict, config: dict
+    ) -> pd.DataFrame:
+        """Process API data, fill missing columns, and append device details."""
+        if data.empty:
+            logger.warning(f"No data received from {device.get('name')}")
+            return
 
-        config = Config.device_config_mapping.get(str(device_category), None)
-        if not config:
-            logger.warning("Missing device category.")
-            return devices_data
-
-        field_8_cols = config["field_8_cols"]
-        other_fields_cols = config["other_fields_cols"]
         data_columns = list(
             set(
                 [
@@ -84,81 +285,22 @@ class DataUtils:
                     "latitude",
                     "longitude",
                     "timestamp",
-                    *field_8_cols,
-                    *other_fields_cols,
+                    *config["field_8_cols"],
+                    *config["other_fields_cols"],
                 ]
             )
         )
 
-        dates = Utils.query_dates_array(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            data_source=DataSource.THINGSPEAK,
-        )
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
+        data["device_category"] = device.get("device_category")
+        data["device_number"] = device.get("device_number")
+        data["device_id"] = device.get("name")
+        data["site_id"] = device.get("site_id")
+        data["network"] = device.get("network")
+        data["latitude"] = device.get("latitude") or meta_data.get("latitude")
+        data["longitude"] = device.get("longitude") or meta_data.get("longitude")
 
-        for device in devices:
-            data = []
-            device_number = device.get("device_number", None)
-            read_key = device.get("readKey", None)
-            network = device.get("network", None)
-
-            if device_number and read_key is None:
-                logger.exception(f"{device_number} does not have a read key")
-                continue
-            api_data = []
-            if device_number and network == "airqo":
-                for start, end in dates:
-                    data_, meta_data, data_available = data_source_api.thingspeak(
-                        device_number=device_number,
-                        start_date_time=start,
-                        end_date_time=end,
-                        read_key=read_key,
-                    )
-                    if data_available:
-                        api_data.extend(data_)
-                if len(api_data) > 0:
-                    mapping = config["mapping"][network]
-                    data = DataUtils.map_and_extract_data(mapping, api_data)
-            elif network == "iqair":
-                mapping = config["mapping"][network]
-                try:
-                    data = DataUtils.map_and_extract_data(
-                        mapping, data_source_api.iqair(device, resolution=resolution)
-                    )
-                except Exception as e:
-                    logger.exception(f"An error occured: {e} - device {device['name']}")
-                    continue
-            if isinstance(data, pd.DataFrame) and data.empty:
-                logger.warning(f"No data received from {device['name']}")
-                continue
-
-            if isinstance(data, pd.DataFrame) and not data.empty:
-                data = DataValidationUtils.fill_missing_columns(
-                    data=data, cols=data_columns
-                )
-                data["device_number"] = device_number
-                data["device_id"] = device["name"]
-                data["site_id"] = device["site_id"]
-                data["network"] = network
-
-                # TODO Clean up long,lat assignment.
-                if device_category in Config.DEVICE_FIELD_MAPPING:
-                    data["latitude"] = device.get("latitude", None)
-                    data["longitude"] = device.get("longitude", None)
-                else:
-                    data["latitude"] = meta_data.get("latitude", None)
-                    data["longitude"] = meta_data.get("longitude", None)
-                devices_data = pd.concat([devices_data, data], ignore_index=True)
-
-        if remove_outliers:
-            if "vapor_pressure" in devices_data.columns.to_list():
-                is_airqo_network = devices_data["network"] == "airqo"
-                devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                    is_airqo_network, "vapor_pressure"
-                ].apply(DataValidationUtils.convert_pressure_values)
-            devices_data = DataValidationUtils.remove_outliers(devices_data)
-
-        return devices_data
+        return data
 
     @staticmethod
     def extract_data_from_bigquery(
@@ -167,22 +309,22 @@ class DataUtils:
         end_date_time: str,
         frequency: Frequency,
         device_category: DeviceCategory,
-        device_network: DeviceNetwork = None,
-        dynamic_query: bool = False,
-        remove_outliers: bool = True,
+        device_network: Optional[DeviceNetwork] = None,
+        dynamic_query: Optional[bool] = False,
+        remove_outliers: Optional[bool] = True,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
         with an optional filter for the device network. The data is cleaned to remove outliers.
 
         Args:
-            datatype(str): The type of data to extract determined by the source data asset.
+            datatype(DataType): The type of data to extract determined by the source data asset.
             start_date_time(str): The start of the time range for data extraction, in ISO 8601 format.
             end_date_time(str): The end of the time range for data extraction, in ISO 8601 format.
             frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
-            dynamic_query (bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-            remove_outliers (bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
+            remove_outliers(bool, optional): If True, removes outliers from the extracted data. Defaults to True.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
@@ -200,7 +342,7 @@ class DataUtils:
             table = source.get(device_category).get(frequency)
         except KeyError as e:
             logger.exception(
-                f"Invalid combination: {datatype}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category}, {frequency}"
             )
         except Exception as e:
             logger.exception(
@@ -247,7 +389,8 @@ class DataUtils:
             Exception: For unexpected errors during column retrieval or data processing.
         """
         bigquery = BigQueryApi()
-        data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
+        data.dropna(subset=["timestamp"], inplace=True)
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
 
         try:
             datasource = Config.DataSource
@@ -255,7 +398,7 @@ class DataUtils:
             cols = bigquery.get_columns(table=table)
         except KeyError:
             logger.exception(
-                f"Invalid combination: {datatype}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
             )
         except Exception as e:
             logger.exception(
@@ -270,7 +413,7 @@ class DataUtils:
         timestamp_col: str,
         id_col: str,
         group_col: str,
-        exclude_cols: list = None,
+        exclude_cols: Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Removes duplicate rows from a pandas DataFrame based on unique identifiers while
@@ -484,22 +627,20 @@ class DataUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
-        # Create a device lookup dictionary for faster access
-        airqo_api = AirQoApi()
-        devices = airqo_api.get_devices()
-
-        device_lookup = {
-            device["device_id"]: device for device in devices if device.get("device_id")
-        }
+        devices, _ = DataUtils.get_devices()
+        devices.rename(columns={"name": "device_id"}, inplace=True)
+        devices = devices[["_id", "device_id", "network"]]
+        devices = devices.set_index("device_id")
 
         for _, row in data.iterrows():
             try:
                 device_number = row["device_number"]
                 device_id = row["device_id"]
+                device_details = None
 
-                # Get device details from the lookup dictionary
-                device_details = device_lookup.get(device_id)
-                if not device_details:
+                if device_id in devices.index:
+                    device_details = devices.loc[device_id]
+                else:
                     logger.exception(
                         f"Device number {device_id} not found in device list"
                     )
@@ -510,7 +651,7 @@ class DataUtils:
                     continue
 
                 row_data = {
-                    "device": device_details["device_id"],
+                    "device": device_id,
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
                     "device_number": device_number,
@@ -518,7 +659,7 @@ class DataUtils:
                     "location": {
                         key: {"value": row[key]} for key in ["latitude", "longitude"]
                     },
-                    "frequency": str(frequency),
+                    "frequency": frequency.str,
                     "time": row["timestamp"],
                     **{
                         f"average_{key}": {
@@ -535,7 +676,7 @@ class DataUtils:
                         for key in ["pm2_5", "pm10"]
                     },
                     **{
-                        key: {"value": row[key]}
+                        key: {"value": row.get(key, None)}
                         for key in [
                             "s1_pm2_5",
                             "s1_pm10",
@@ -561,7 +702,7 @@ class DataUtils:
     def clean_low_cost_sensor_data(
         data: pd.DataFrame,
         device_category: DeviceCategory,
-        remove_outliers: bool = True,
+        remove_outliers: Optional[bool] = True,
     ) -> pd.DataFrame:
         """
         Cleans low-cost sensor data by performing outlier removal, raw data quality checks,
@@ -590,24 +731,26 @@ class DataUtils:
 
         # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
         match device_category:
-            case DeviceCategory.LOW_COST_GAS:
+            case DeviceCategory.GAS:
                 AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
                     data
                 )
-            case DeviceCategory.LOW_COST:
+            case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
             data.dropna(subset=["timestamp"], inplace=True)
             data["timestamp"] = pd.to_datetime(data["timestamp"])
         except Exception as e:
-            logger.exception(f"There is an issue with the timestamp column: {e}")
+            logger.exception(
+                f"There is an issue with the timestamp column. Shape of data: {data.shape}"
+            )
             raise KeyError(f"An error has occurred with the 'timestamp' column: {e}")
 
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
         # TODO Find an appropriate place to put this
-        if device_category == DeviceCategory.LOW_COST:
+        if device_category == DeviceCategory.LOWCOST:
             is_airqo_network = data["network"] == "airqo"
 
             pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
@@ -620,6 +763,37 @@ class DataUtils:
             data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
             data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
+
+    @staticmethod
+    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Resamples and averages out the numeric type fields on an hourly basis.
+
+        Args:
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
+
+        Returns:
+            A pandas DataFrame object containing hourly averages of data.
+        """
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        group_metadata = (
+            data[["device_id", "site_id", "device_number", "network"]]
+            .drop_duplicates("device_id")
+            .set_index("device_id")
+        )
+        numeric_columns = data.select_dtypes(include=["number"]).columns
+        numeric_columns = numeric_columns.difference(["device_number"])
+        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
+        aggregated = (
+            data_for_aggregation.groupby("device_id")
+            .apply(lambda group: group.resample("1H", on="timestamp").mean())
+            .reset_index()
+        )
+        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+
+        return aggregated
 
     @staticmethod
     def map_and_extract_data(

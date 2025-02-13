@@ -6,21 +6,15 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
-from .constants import (
-    DeviceCategory,
-    DeviceNetwork,
-    Frequency,
-    DataSource,
-    DataType,
-    CityModel,
-)
+from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .ml_utils import GCSUtils
 from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Union
+import ast
 
 import logging
 
@@ -29,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 class AirQoDataUtils:
     @staticmethod
-    def extract_uncalibrated_data(start_date_time, end_date_time) -> pd.DataFrame:
+    def extract_uncalibrated_data(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
 
         hourly_uncalibrated_data = bigquery_api.query_data(
@@ -163,7 +159,7 @@ class AirQoDataUtils:
                 end_date_time=value.get("end_date_time"),
                 device_numbers=[value.get("device_number")],
                 resolution=resolution,
-                device_category=DeviceCategory.LOW_COST,
+                device_category=DeviceCategory.LOWCOST,
             )
             if measurements.empty:
                 continue
@@ -319,7 +315,7 @@ class AirQoDataUtils:
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["network"] = DeviceNetwork.AIRQO
+        data["network"] = DeviceNetwork.AIRQO.str
         data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
 
         big_query_api = BigQueryApi()
@@ -389,21 +385,20 @@ class AirQoDataUtils:
         airqo_data["timestamp"] = pd.to_datetime(airqo_data["timestamp"])
         weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
 
-        airqo_api = AirQoApi()
-        sites: List[Dict[str, Any]] = []
+        sites = DataUtils.get_sites(DeviceNetwork.AIRQO)
+        sites_info: List[Dict[str, Any]] = []
 
-        for site in airqo_api.get_sites(network="airqo"):
-            sites.extend(
-                [
-                    {
-                        "site_id": site.get("_id"),
-                        "station_code": station.get("code", None),
-                        "distance": station.get("distance", None),
-                    }
-                    for station in site.get("weather_stations", [])
-                ]
-            )
-        sites_df = pd.DataFrame(sites)
+        sites_info = [
+            {
+                "site_id": site.get("_id"),
+                "station_code": station.get("code", None),
+                "distance": station.get("distance", None),
+            }
+            for _, site in sites.iterrows()
+            for station in ast.literal_eval(site.get("weather_stations", []))
+        ]
+        sites_df = pd.DataFrame(sites_info)
+
         sites_weather_data = pd.DataFrame()
         weather_data_cols = weather_data.columns.to_list()
 
@@ -461,9 +456,9 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(network=DeviceNetwork.AIRQO)
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
-        for device in devices:
+        for _, device in devices.iterrows():
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     network=device.get("network", "airqo"),
@@ -587,14 +582,17 @@ class AirQoDataUtils:
         Returns:
             pd.DataFrame: The calibrated dataset with additional processed fields.
         """
+
+        sites = DataUtils.get_sites()
+        if sites.empty:
+            raise RuntimeError("Failed to fetch sites data from the cache/API")
+
         bucket = Config.FORECAST_MODELS_BUCKET
         project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        sites = AirQoApi().get_sites()
-        sites_df = pd.DataFrame(sites, columns=["site_id", "city"])
-
-        data = pd.merge(data, sites_df, on="site_id", how="left")
+        sites = sites[["site_id", "city"]]
+        data = pd.merge(data, sites, on="site_id", how="left")
         data.dropna(subset=["device_id", "timestamp"], inplace=True)
         columns_to_fill = [
             "s1_pm2_5",
@@ -606,7 +604,7 @@ class AirQoDataUtils:
         ]
 
         # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
-        # May have to rewrite entire pipeline flow
+        # Fill nas for the specified fields.
         data[columns_to_fill] = data[columns_to_fill].fillna(0)
 
         # additional input columns for calibration
@@ -617,7 +615,8 @@ class AirQoDataUtils:
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
         data["hour"] = data["timestamp"].dt.__getattribute__("hour")
-
+        data["pm2_5_calibrated_value"] = np.nan
+        data["pm10_calibrated_value"] = np.nan
         input_variables = [
             "avg_pm2_5",
             "avg_pm10",
@@ -628,6 +627,8 @@ class AirQoDataUtils:
             "error_pm10",
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
         ]
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
@@ -636,15 +637,14 @@ class AirQoDataUtils:
         data_to_calibrate = data.loc[to_calibrate]
         data_to_calibrate.dropna(subset=input_variables, inplace=True)
         grouped_df = data_to_calibrate.groupby("city", dropna=False)
-
-        rf_model = GCSUtils.get_trained_model_from_gcs(
+        default_rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
             source_blob_name=Utils.get_calibration_model_path(
                 CityModel.DEFAULT, "pm2_5"
             ),
         )
-        lasso_model = GCSUtils.get_trained_model_from_gcs(
+        default_lasso_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
             source_blob_name=Utils.get_calibration_model_path(
@@ -652,30 +652,46 @@ class AirQoDataUtils:
             ),
         )
         for city, group in grouped_df:
-            # What was the intention of this?
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
-            if str(city).lower() in [c.value.lower() for c in CityModel]:
+            if str(city).lower() in [c.str for c in CityModel]:
                 try:
-                    rf_model = GCSUtils.get_trained_model_from_gcs(
+                    current_rf_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(
                             city, "pm2_5"
                         ),
                     )
-                    lasso_model = GCSUtils.get_trained_model_from_gcs(
+                    current_lasso_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
+                    )
+                    logger.info(
+                        f"Got 1st models {current_rf_model} and {current_lasso_model} for {city}"
                     )
                 except Exception as e:
                     logger.exception(
                         f"Error getting custom model. Will default to generic one: {e}"
                     )
+                    current_rf_model = default_rf_model
+                    current_lasso_model = default_lasso_model
+                    logger.info(
+                        f"Got 2nd models {current_rf_model} and {current_lasso_model} for {city}"
+                    )
+            else:
+                current_rf_model = default_rf_model
+                current_lasso_model = default_lasso_model
+                logger.info(
+                    f"Got default models {current_rf_model} and {current_lasso_model} for {city}"
+                )
 
-            group["pm2_5_calibrated_value"] = rf_model.predict(group[input_variables])
-            group["pm10_calibrated_value"] = lasso_model.predict(group[input_variables])
-
+            group["pm2_5_calibrated_value"] = current_rf_model.predict(
+                group[input_variables]
+            )
+            group["pm10_calibrated_value"] = current_lasso_model.predict(
+                group[input_variables]
+            )
             data.loc[
                 group.index, ["pm2_5_calibrated_value", "pm10_calibrated_value"]
             ] = group[["pm2_5_calibrated_value", "pm10_calibrated_value"]]
@@ -706,7 +722,7 @@ class AirQoDataUtils:
         )
 
     @staticmethod
-    def get_devices(group_id: str) -> pd.DataFrame:
+    def get_devices_kafka(group_id: str) -> pd.DataFrame:
         """
         Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
 

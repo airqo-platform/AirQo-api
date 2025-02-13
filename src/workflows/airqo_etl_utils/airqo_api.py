@@ -25,6 +25,20 @@ class AirQoApi:
         self.AIRQO_API_TOKEN = configuration.AIRQO_API_TOKEN
 
     def save_events(self, measurements: List) -> None:
+        """
+        Posts event measurements to the API in batches.
+
+        This method divides a list of event measurements into smaller batches based on the
+        configured POST_EVENTS_BODY_SIZE and posts each batch to the "devices/events" endpoint
+        using the internal __request method with the POST HTTP method. If a batch is empty, it
+        is skipped.
+
+        Args:
+            measurements (List): A list of event measurement objects to be posted.
+
+        Returns:
+            None
+        """
         #  Temporarily disabling usage of the API to store measurements.
         # if "staging" in self.AIRQO_BASE_URL_V2.lower():
         #     return
@@ -32,10 +46,8 @@ class AirQoApi:
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
             if data:
-                network = data[0].get("network", "")
                 self.__request(
                     endpoint="devices/events",
-                    params={"network": network},
                     method="post",
                     body=data,
                 )
@@ -82,57 +94,9 @@ class AirQoApi:
             return response["device_activities"]
         return []
 
-    def calibrate_data(self, time: str, data: pd.DataFrame) -> List:
-        # TODO Update doc string.
-        data = data.copy()
-        data = data[
-            [
-                "device_number",
-                "s1_pm2_5",
-                "s2_pm2_5",
-                "s1_pm10",
-                "s2_pm10",
-                "temperature",
-                "humidity",
-            ]
-        ]
-
-        data.rename(
-            columns={
-                "device_number": "device_id",
-                "s1_pm2_5": "sensor1_pm2.5",
-                "s2_pm2_5": "sensor2_pm2.5",
-                "s1_pm10": "sensor1_pm10",
-                "s2_pm10": "sensor2_pm10",
-                "temperature": "temperature",
-                "humidity": "humidity",
-            },
-            inplace=True,
-        )
-
-        request_body = {"datetime": time, "raw_values": data.to_dict("records")}
-
-        base_url = (
-            self.CALIBRATION_BASE_URL
-            if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL_V2
-        )
-
-        try:
-            response = self.__request(
-                endpoint="calibrate",
-                method="post",
-                body=request_body,
-                base_url=base_url,
-            )
-            return response if response else []
-        except Exception as ex:
-            logger.exception()
-            return []
-
     def get_devices(
         self,
-        network: Union[str, Any] = None,
+        network: DeviceNetwork = None,
         device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
@@ -179,13 +143,13 @@ class AirQoApi:
         """
         params: Dict = {}
         if device_category:
-            params["category"] = str(device_category)
+            params["category"] = device_category.str
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = "yes"
 
         if network:
-            params["network"] = network
+            params["network"] = network.str
 
         # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
         try:
@@ -199,9 +163,7 @@ class AirQoApi:
                 "device_id": device.pop("name"),
                 "site_id": device.get("site", {}).get("_id", None),
                 "site_location": device.pop("site", {}).get("location_name", None),
-                "device_category": str(
-                    DeviceCategory.category_from_str(device.pop("category", ""))
-                ),
+                "device_category": device.pop("category", ""),
                 "device_manufacturer": device.get("network", "airqo"),
                 **device,
             }
@@ -240,7 +202,9 @@ class AirQoApi:
         return networks, exception_message
 
     def get_devices_by_network(
-        self, device_network: str = None, device_category: DeviceCategory = None
+        self,
+        device_network: DeviceNetwork = None,
+        device_category: DeviceCategory = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve devices by network based on the specified device category.
@@ -288,7 +252,7 @@ class AirQoApi:
         networks: List[str] = []
         params: Dict = {}
         if device_network:
-            networks.append({"net_name": device_network})
+            networks.append({"net_name": device_network.str})
         else:
             networks, error = self.get_networks()
             if error:
@@ -296,7 +260,7 @@ class AirQoApi:
                 return devices
 
         if device_category:
-            params["category"] = str(device_category)
+            params["category"] = device_category.str
 
         if configuration.ENVIRONMENT == "production":
             params["active"] = True
@@ -326,53 +290,65 @@ class AirQoApi:
 
         return devices
 
-    def get_thingspeak_read_keys(
-        self, devices: pd.DataFrame, return_type: str = "all"
-    ) -> Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
+    def get_thingspeak_read_keys(self, devices: pd.DataFrame) -> Dict[int, str]:
         """
         Retrieve read keys from the AirQo API given a list of devices.
 
         Args:
             devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
-            return_type (str): Defines the return behavior. If 'all', returns a dictionary of all keys.
-                            If 'yield', yields each key one by one as a generator. Defaults to 'all'.
 
         Returns:
-            Union[Dict[int, str], Generator[Tuple[int, str], None, None]]:
-                - A dictionary containing device decrypted keys when `return_type='all'`. The dictionary has the structure {device_number: decrypted_key}.
-                - A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+            Dict[int, str]: A dictionary containing device decrypted keys. The dictionary has the structure {device_number: decrypted_key}.
+            There is another version of this method that returns a generator. get_thingspeak_read_keys_generator`
         """
-
         body: List = []
         decrypted_keys: List[Dict[str, str]] = []
-        decrypted_read_keys: Dict[int, str] = {}
-
-        for device_number, row in devices.iterrows():
-            if pd.notna(row["readKey"]) and pd.notna(device_number):
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
                 body.append(
-                    {"encrypted_key": row["readKey"], "device_number": device_number}
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
                 )
-
         response = self.__request("devices/decrypt/bulk", body=body, method="post")
-
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
+            return {
+                int(entry["device_number"]): entry["decrypted_key"]
+                for entry in decrypted_keys
+            }
+        return None
 
-            if return_type == "all":
-                return {
-                    int(entry["device_number"]): entry["decrypted_key"]
-                    for entry in decrypted_keys
-                }
-            elif return_type == "yield":
-                for entry in decrypted_keys:
-                    device_number = int(entry["device_number"])
-                    decrypted_key = entry["decrypted_key"]
-                    yield device_number, decrypted_key
+    def get_thingspeak_read_keys_generator(
+        self, devices: pd.DataFrame
+    ) -> Generator[Tuple[int, str], None, None]:
+        """
+        Retrieve read keys from the AirQo API given a list of devices.
 
-        if return_type == "all":
-            return decrypted_read_keys
-        elif return_type == "yield":
-            return
+        Args:
+            devices (pd.DataFrame): A pandas DataFrame of devices read keys and device numbers.
+
+        Returns:
+            Generator[Tuple[int, str], None, None]]: A generator yielding (device_number, decrypted_key) when `return_type='yield'`.
+        """
+        body: List = []
+        decrypted_keys: List[Dict[str, str]] = []
+        for _, row in devices.iterrows():
+            if pd.notna(row["readKey"]) and pd.notna(row["device_number"]):
+                body.append(
+                    {
+                        "encrypted_key": row["readKey"],
+                        "device_number": row["device_number"],
+                    }
+                )
+        response = self.__request("devices/decrypt/bulk", body=body, method="post")
+        if response:
+            decrypted_keys = response.get("decrypted_keys", [])
+            for entry in decrypted_keys:
+                device_number = int(entry["device_number"])
+                decrypted_key = entry["decrypted_key"]
+                yield device_number, decrypted_key
 
     def get_forecast(self, frequency: str, site_id: str) -> List:
         """
@@ -501,7 +477,7 @@ class AirQoApi:
 
     def refresh_airqloud(self, airqloud_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"network": DeviceNetwork.AIRQO, "id": airqloud_id}
+        query_params = {"network": DeviceNetwork.AIRQO.str, "id": airqloud_id}
 
         try:
             self.__request(
@@ -512,7 +488,7 @@ class AirQoApi:
 
     def refresh_grid(self, grid_id: str) -> None:
         # TODO Update doc string.
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         try:
             response = self.__request(
@@ -541,7 +517,7 @@ class AirQoApi:
                 }
             ]
         """
-        query_params: Dict = {"network": DeviceNetwork.AIRQO}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO.str}
 
         if network:
             query_params["network"] = network
@@ -559,7 +535,7 @@ class AirQoApi:
 
     def get_favorites(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no favorites exist","favorites":[]} for ids passed.
-        query_params = {"network": str(DeviceNetwork.AIRQO)}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(f"users/favorites/users/{user_id}", query_params)
 
@@ -581,7 +557,7 @@ class AirQoApi:
 
     def get_location_history(self, user_id: str) -> List:
         # TODO Check if this is working. {"success":true,"message":"no Location Histories exist","location_histories":[]} for ids passed
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(
             f"users/locationHistory/users/{user_id}", query_params
@@ -605,7 +581,7 @@ class AirQoApi:
 
     def get_search_history(self, user_id: str) -> List:
         # TODO Check if this is working. Currently returns {"success":true,"message":"no Search Histories exist","search_histories":[]} for all ids.
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
 
@@ -651,7 +627,7 @@ class AirQoApi:
             float: pm2_5 value of the given site.
         """
         try:
-            query_params = {"network": DeviceNetwork.AIRQO, "site_id": site_id}
+            query_params = {"network": DeviceNetwork.AIRQO.str, "site_id": site_id}
 
             response = self.__request("devices/measurements", query_params)
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
@@ -679,7 +655,7 @@ class AirQoApi:
                 },
             ]
         """
-        query_params: Dict = {"network": DeviceNetwork.AIRQO}
+        query_params: Dict = {"network": DeviceNetwork.AIRQO.str}
 
         if network:
             query_params["network"] = network
@@ -713,7 +689,7 @@ class AirQoApi:
                 },
             ]
         """
-        query_params = {"network": DeviceNetwork.AIRQO}
+        query_params = {"network": DeviceNetwork.AIRQO.str}
 
         if network:
             query_params["network"] = network
@@ -776,10 +752,10 @@ class AirQoApi:
                 },
             ]
         """
-        query_params: Dict = {"network": DeviceNetwork.AIRQO}
+        query_params: Dict[str, Any] = {}
 
         if network:
-            query_params["network"] = network
+            query_params["network"] = network.str
 
         response = self.__request("devices/sites", query_params)
 
@@ -818,7 +794,7 @@ class AirQoApi:
             site_id = site.pop("site_id", None)
             if site_id is None:
                 raise KeyError("Each site dictionary must contain a 'site_id' key.")
-            params = {"network": DeviceNetwork.AIRQO, "id": site_id}
+            params = {"network": DeviceNetwork.AIRQO.str, "id": site_id}
 
             self.__request("devices/sites", params, site, "put")
 

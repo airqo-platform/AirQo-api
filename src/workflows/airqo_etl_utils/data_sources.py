@@ -14,32 +14,6 @@ class DataSourcesApis:
     def __init__(self):
         self.THINGSPEAK_CHANNEL_URL = configuration.THINGSPEAK_CHANNEL_URL
 
-    def query_data(
-        self,
-        device_number: int,
-        start_date_time: str,
-        end_date_time: str,
-        read_key: str,
-    ) -> pd.DataFrame:
-        data = pd.DataFrame([])
-
-        try:
-            url = f"{self.THINGSPEAK_CHANNEL_URL}{device_number}/feeds.json?start={start_date_time}&end={end_date_time}&api_key={read_key}"
-            print(f"{url}")
-
-            response = json.loads(
-                requests.get(url, timeout=100.0).content.decode("utf-8")
-            )
-
-            if (response != -1) and ("feeds" in response):
-                data = pd.DataFrame(response["feeds"])
-                data.attrs["meta_data"] = response["channel"]
-
-        except Exception as ex:
-            logger.exception(f"An error occured: {ex}")
-
-        return data
-
     def thingspeak(
         self,
         device_number: int,
@@ -73,12 +47,10 @@ class DataSourcesApis:
         data_available: bool = True
         try:
             url = f"{self.THINGSPEAK_CHANNEL_URL}{device_number}/feeds.json?start={start_date_time}&end={end_date_time}&api_key={read_key}"
-            logger.info(f"Fetching data from URL: {url}")
 
             response_data = json.loads(
                 requests.get(url, timeout=100.0).content.decode("utf-8")
             )
-
             if (response_data != -1) and ("feeds" in response_data):
                 data = response_data.get("feeds", {})
                 meta_data = response_data.get("channel", {})
@@ -93,7 +65,7 @@ class DataSourcesApis:
         if not data:
             data_available = False
             logger.exception(
-                f"Device does not have data between {start_date_time} and {end_date_time}"
+                f"{device_number} does not have data between {start_date_time} and {end_date_time}"
             )
 
         return data, meta_data, data_available
@@ -139,22 +111,19 @@ class DataSourcesApis:
             "historical" if resolution in historical_resolutions else resolution
         )
         data = None
+        response_data = None
         try:
             base_url = device.get("api_code")
             device_id = device.get("serial_number")
-            if not base_url or not device_id:
-                logger.exception(
-                    "Device information must include 'api_code' and 'serial_number'."
-                )
+            if base_url and device_id and not pd.isna(base_url):
+                url = f"{base_url}/{device_id}"
+                logger.info(f"Fetching data from URL: {url}")
 
-            url = f"{base_url}/{device_id}"
-            logger.info(f"Fetching data from URL: {url}")
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+                response_data = response.json()
 
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-            response_data = response.json()
-
-            if api_resolution in response_data:
+            if response_data and api_resolution in response_data:
                 if resolution == "current":
                     data = response_data.get("current")
                 else:

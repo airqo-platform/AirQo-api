@@ -6,17 +6,29 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-data-mgt-api
-  tag: prod-0a01e1d5-1738151855
+  tag: prod-9c4365f0-1739422748
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 50m
-    memory: 500Mi
+    memory: 200Mi
   requests:
-    cpu: 10m
-    memory: 70Mi
+    cpu: 1m
+    memory: 100Mi
+nodeSelector:
+  role: high-mem
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
+        weight: 1
 ingress:
   enabled: false
 service:

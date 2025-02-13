@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.constants import ColumnDataType, Frequency, MetaDataType
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
 from .config import configuration as Config
@@ -252,13 +253,13 @@ class DataValidationUtils:
         """
         from .airqo_utils import AirQoDataUtils
 
-        data["frequency"] = str(frequency)
+        data["frequency"] = frequency.str
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         data.rename(columns={"device_id": "device_name"}, inplace=True)
 
-        devices = AirQoDataUtils.get_devices(group_id=caller)
+        devices = AirQoDataUtils.get_devices_kafka(group_id=caller)
         try:
             devices = devices[
                 [
@@ -435,3 +436,43 @@ class DataValidationUtils:
             logger.warning("No devices returned.")
 
         return devices
+
+    def extract_transform_and_decrypt_metadata(
+        metadata_type: MetaDataType,
+    ) -> pd.DataFrame:
+        """
+        Extracts, transforms, and decrypts metadata for a given type.
+
+        For metadata type 'DEVICES':
+        - Retrieves devices data,
+        - Decrypts read keys,
+        - Adds a 'key' column to the DataFrame.
+
+        For metadata type 'SITES':
+        - Retrieves site data and converts it to a DataFrame.
+
+        Returns:
+            pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
+        """
+        airqo_api = AirQoApi()
+        endpoints: Dict[str, Any] = {
+            "devices": airqo_api.get_devices_by_network(),
+            "sites": airqo_api.get_sites(),
+        }
+        result: pd.DataFrame = pd.DataFrame()
+        match metadata_type:
+            case MetaDataType.DEVICES:
+                devices_raw = endpoints.get(metadata_type.str)
+                if devices_raw:
+                    devices_df = pd.DataFrame(devices_raw)
+                    keys = airqo_api.get_thingspeak_read_keys(devices_df)
+                    if keys:
+                        devices_df["key"] = (
+                            devices_df["device_number"].map(keys).fillna(-1)
+                        )
+                    result = devices_df
+            case MetaDataType.SITES:
+                sites_raw = endpoints.get(metadata_type.str)
+                if sites_raw:
+                    result = pd.DataFrame(sites_raw)
+        return result

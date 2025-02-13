@@ -61,7 +61,7 @@ def data_warehouse_consolidated_data():
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def extract_sites_info(**kwargs):
+    def extract_sites_info():
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
         return DataWarehouseUtils.extract_sites_meta_data()
@@ -123,7 +123,6 @@ def data_warehouse_cleanup_consolidated_data():
         retry_delay=timedelta(minutes=5),
     )
     def extract_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -139,12 +138,11 @@ def data_warehouse_cleanup_consolidated_data():
 
     @task()
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
         exclude_cols = [
             data.device_number.name,
-            data.latitude.name,
-            data.longitude.name,
+            data.device_latitude.name,
+            data.device_longitude.name,
             data.network.name,
         ]
         return DataUtils.remove_duplicates(
@@ -191,9 +189,7 @@ def data_warehouse_historical_consolidated_data():
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         return DataWarehouseUtils.extract_hourly_low_cost_data(
             start_date_time=start_date_time, end_date_time=end_date_time
@@ -208,9 +204,7 @@ def data_warehouse_historical_consolidated_data():
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         return DataWarehouseUtils.extract_hourly_bam_data(
             start_date_time=start_date_time, end_date_time=end_date_time
@@ -225,9 +219,7 @@ def data_warehouse_historical_consolidated_data():
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         return DataWarehouseUtils.extract_hourly_weather_data(
             start_date_time=start_date_time, end_date_time=end_date_time
@@ -304,9 +296,7 @@ def data_warehouse_historical_cleanup_consolidated_data():
     def extract_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         return DataUtils.extract_data_from_bigquery(
             DataType.CONSOLIDATED,
@@ -320,8 +310,8 @@ def data_warehouse_historical_cleanup_consolidated_data():
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
         exclude_cols = [
             data.device_number.name,
-            data.latitude.name,
-            data.longitude.name,
+            data.device_latitude.name,
+            data.device_longitude.name,
             data.network.name,
         ]
         return DataUtils.remove_duplicates(

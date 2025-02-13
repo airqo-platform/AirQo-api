@@ -59,7 +59,7 @@ def categorize_site():
     return SiteCategorizationView.get_site_categorization()
 
 
-@controller_bp.route("/site_location", methods=["GET"])
+@controller_bp.route("/site_location", methods=["POST"])
 def site_selection():
     return SiteSelectionView.site_selection()
 

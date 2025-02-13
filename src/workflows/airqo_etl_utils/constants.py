@@ -11,48 +11,23 @@ class DeviceCategory(Enum):
     GENERAL -> All the sensors
     """
 
-    LOW_COST = 1
+    LOWCOST = 1
     BAM = 2
-    LOW_COST_GAS = 3
+    GAS = 3
     WEATHER = 4
     GENERAL = 5
     NONE = 20
 
-    def __str__(self):
-        if self == self.BAM:
-            return "bam"
-        elif self == self.LOW_COST_GAS:
-            return "gas"
-        elif self == self.LOW_COST:
-            return "lowcost"
-        elif self == self.WEATHER:
-            return "weather"
-        else:
-            return "general"
+    def __str__(self) -> str:
+        return self.name.lower()
 
-    @staticmethod
-    def category_from_str(category: str):
+    @property
+    def str(self):
         """
-        Converts a string representation of a device category into the corresponding `DeviceCategory` enumeration.
-
-        Args:
-            category (str): The string representation of a device category.
-                            Possible values include "bam", "low_cost_gas", or others.
-
-        Returns:
-            DeviceCategory: The corresponding `DeviceCategory` enumeration value.
-                            Defaults to `DeviceCategory.LOW_COST` if the category does not match "bam" or "low_cost_gas".
-            None: If the input `category` is `None` or an empty string.
+        Returns the string representation of the device category.
+        Access via instance.str.
         """
-        if not category:
-            return None
-
-        category = category.lower()
-        if category == str(DeviceCategory.BAM).lower():
-            return DeviceCategory.BAM
-        elif category == str(DeviceCategory.LOW_COST_GAS).lower():
-            return DeviceCategory.LOW_COST_GAS
-        return DeviceCategory.LOW_COST
+        return self.__str__()
 
 
 class DeviceNetwork(Enum):
@@ -61,24 +36,29 @@ class DeviceNetwork(Enum):
     AIRQO -> Airqo
     URBANBETTER -> Urban Better
     IQAIR -> Iqair
+    NASA -> (TBD)
+    KCCA -> (TBD)
     """
 
     METONE = 1
     AIRQO = 2
     URBANBETTER = 3
     IQAIR = 4
+    NASA = 5
+    KCCA = 6
 
-    def __str__(self):
-        if self == self.METONE:
-            return "metone"
-        elif self == self.AIRQO:
-            return "airqo"
-        elif self == self.URBANBETTER:
-            return "airbeam"
-        elif self == self.IQAIR:
-            return "iqair"
-        else:
-            raise LookupError("Invalid network supplied")
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the device network.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class DataType(Enum):
@@ -92,26 +72,50 @@ class DataType(Enum):
     AVERAGED = 2
     CONSOLIDATED = 3
 
-    def __str__(self):
-        if self == self.RAW:
-            return "raw"
-        elif self == self.AVERAGED:
-            return "averaged"
-        elif self == self.CONSOLIDATED:
-            return "consolidated"
-        else:
-            raise LookupError("Invalid data type supplied")
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the data type.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
-# class DataType(Enum):
-# UNCLEAN_BAM_DATA = 0
-# CLEAN_BAM_DATA = 1
-# UNCLEAN_LOW_COST_DATA = 2
-# CLEAN_LOW_COST_DATA = 3
-# # TODO investigate numbering
-# AGGREGATED_LOW_COST_DATA = 3
-# UNCLEAN_LOW_COST_GASEOUS_DATA = 5
-# CLEAN_LOW_COST_GASEOUS_DATA = 6
+class MetaDataType(Enum):
+    """
+    Enumeration representing metadata types.
+
+    Attributes:
+        DEVICES: Sensors data.
+        SITES: Installation locations and related details.
+        AIRQLOUDS: (TBD)
+        GRIDS: (TBD)
+        COHORTS: (TBD)
+    """
+
+    DEVICES = 1
+    SITES = 2
+    AIRQLOUDS = 3
+    GRIDS = 4
+    COHORTS = 5
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the metadata type.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class Frequency(Enum):
@@ -136,97 +140,17 @@ class Frequency(Enum):
     HISTORICAL = 7
 
     def __str__(self) -> str:
-        match self:
-            case self.RAW | self.RAW_LOW_COST:
-                return "raw"
-            case self.HOURLY:
-                return "hourly"
-            case self.DAILY:
-                return "daily"
-            case self.WEEKLY:
-                return "weekly"
-            case self.MONTHLY:
-                return "monthly"
-            case self.YEARLY:
-                return "yearly"
-            case _:
-                return "historical"
+        return self.name.lower()
 
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the frequency.
 
-class Attachments(Enum):
-    IMAGE_DIR = os.path.join(os.path.dirname(__file__), "images")
-
-    EMAIL_ATTACHMENTS = [
-        {
-            "filename": "favoriteIcon.png",
-            "path": os.path.join(IMAGE_DIR, "favoriteIcon.png"),
-            "cid": "FavoriteIcon",
-            "contentDisposition": "inline",
-        },
-        {
-            "filename": "airqoLogoAlternate.png",
-            "path": os.path.join(IMAGE_DIR, "airqoLogoAlternate.png"),
-            "cid": "AirQoEmailLogoAlternate",
-            "contentDisposition": "inline",
-        },
-        {
-            "filename": "faceBookLogo.png",
-            "path": os.path.join(IMAGE_DIR, "facebookLogo.png"),
-            "cid": "FacebookLogo",
-            "contentDisposition": "inline",
-        },
-        {
-            "filename": "youtubeLogo.png",
-            "path": os.path.join(IMAGE_DIR, "youtubeLogo.png"),
-            "cid": "YoutubeLogo",
-            "contentDisposition": "inline",
-        },
-        {
-            "filename": "twitterLogo.png",
-            "path": os.path.join(IMAGE_DIR, "Twitter.png"),
-            "cid": "Twitter",
-            "contentDisposition": "inline",
-        },
-        {
-            "filename": "linkedInLogo.png",
-            "path": os.path.join(IMAGE_DIR, "linkedInLogo.png"),
-            "cid": "LinkedInLogo",
-            "contentDisposition": "inline",
-        },
-    ]
-
-    EMOJI_ATTACHMENTS = [
-        {
-            "filename": "goodEmoji.png",
-            "path": os.path.join(IMAGE_DIR, "goodEmoji.png"),
-            "cid": "goodEmoji",
-        },
-        {
-            "filename": "moderateEmoji.png",
-            "path": os.path.join(IMAGE_DIR, "moderateEmoji.png"),
-            "cid": "moderateEmoji",
-        },
-        {
-            "filename": "uhfsgEmoji.png",
-            "path": os.path.join(IMAGE_DIR, "uhfsgEmoji.png"),
-            "cid": "uhfsgEmoji",
-        },
-        {
-            "filename": "unhealthyEmoji.png",
-            "path": os.path.join(IMAGE_DIR, "unhealthyEmoji.png"),
-            "cid": "unhealthyEmoji",
-        },
-        {
-            "filename": "veryUnhealthyEmoji.png",
-            "path": os.path.join(IMAGE_DIR, "veryUnhealthyEmoji.png"),
-            "cid": "veryUnhealthyEmoji",
-        },
-        {
-            "filename": "hazardousEmoji.png",
-            "path": os.path.join(IMAGE_DIR, "hazardousEmoji.png"),
-            "cid": "hazardousEmoji",
-        },
-    ]
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class DataSource(Enum):
@@ -240,89 +164,22 @@ class DataSource(Enum):
     BIGQUERY = 8
 
     def __str__(self) -> str:
-        if self == self.THINGSPEAK:
-            return "thingspeak"
-        elif self == self.CLARITY:
-            return "clarity"
-        elif self == self.PLUME_LABS:
-            return "plume_labs"
-        elif self == self.AIRNOW:
-            return "airnow"
-        elif self == self.TAHMO:
-            return "tahmo"
-        elif self == self.AIRQO:
-            return "airqo"
-        elif self == self.PURPLE_AIR:
-            return "purple_air"
-        else:
-            return ""
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the data source.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class QueryType(Enum):
     GET = 1
     DELETE = 2
-
-
-class Tenant(Enum):
-    NASA = 1
-    URBAN_BETTER = 2
-    AIRQO = 3
-    US_EMBASSY = 4
-    KCCA = 5
-    ALL = 20
-
-    def __str__(self) -> str:
-        if self == self.NASA:
-            return "nasa"
-        elif self == self.URBAN_BETTER:
-            return "urban_better"
-        elif self == self.AIRQO:
-            return "airqo"
-        elif self == self.KCCA:
-            return "kcca"
-        elif self == self.US_EMBASSY:
-            return "usembassy"
-        else:
-            return ""
-
-    @staticmethod
-    def from_str(string: str):
-        if string.lower() == "nasa":
-            return Tenant.NASA
-        elif string.lower() == "urban_better":
-            return Tenant.URBAN_BETTER
-        elif string.lower() == "kcca":
-            return Tenant.KCCA
-        elif string.lower() == "usembassy":
-            return Tenant.US_EMBASSY
-        else:
-            return Tenant.AIRQO
-
-    def name(self) -> str:
-        if self == self.NASA:
-            return "Nasa"
-        elif self == self.URBAN_BETTER:
-            return "Urban Better"
-        elif self == self.AIRQO:
-            return "AirQo"
-        elif self == self.KCCA:
-            return "KCCA"
-        elif self == self.US_EMBASSY:
-            return "US Embassy"
-        else:
-            return ""
-
-    def device_manufacturer(self) -> str:
-        if self == self.NASA:
-            return str(DataSource.PLUME_LABS)
-        elif self == self.AIRQO:
-            return str(DataSource.THINGSPEAK)
-        elif self == self.KCCA:
-            return str(DataSource.CLARITY)
-        elif self == self.US_EMBASSY:
-            return str(DataSource.AIRNOW)
-        else:
-            return ""
 
 
 class JobAction(Enum):
@@ -346,19 +203,18 @@ class ColumnDataType(Enum):
     INTEGER = 5
     NONE = 6
 
-    def __str__(self):
-        if self == self.TIMESTAMP:
-            return "TIMESTAMP"
-        elif self == self.FLOAT:
-            return "FLOAT"
-        elif self == self.INTEGER:
-            return "INTEGER"
-        elif self == self.STRING:
-            return "STRING"
-        elif self == self.TIMESTAMP_STR:
-            return "TIMESTAMP_STR"
-        else:
-            return "NONE"
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the Column data type.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class AirQuality(Enum):
@@ -370,20 +226,17 @@ class AirQuality(Enum):
     HAZARDOUS = 6
 
     def __str__(self) -> str:
-        if self == self.GOOD:
-            return "Good"
-        elif self == self.MODERATE:
-            return "Moderate"
-        if self == self.UNHEALTHY_FSGs:
-            return "Unhealthy for Sensitive Groups"
-        elif self == self.UNHEALTHY:
-            return "Unhealthy"
-        if self == self.VERY_UNHEALTHY:
-            return "Very Unhealthy"
-        elif self == self.HAZARDOUS:
-            return "Hazardous"
-        else:
-            return ""
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the airquality type.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class Pollutant(Enum):
@@ -392,14 +245,17 @@ class Pollutant(Enum):
     NO2 = 3
 
     def __str__(self) -> str:
-        if self == self.PM2_5:
-            return "pm2.5"
-        elif self == self.PM10:
-            return "pm10"
-        elif self == self.NO2:
-            return "no2"
-        else:
-            return ""
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the pollutant.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
 
 
 class CityModel(Enum):
@@ -408,102 +264,15 @@ class CityModel(Enum):
     MOMBASA = "mombasa"
     DEFAULT = "default"
 
+    def __str__(self) -> str:
+        return self.name.lower()
 
-# TODO: May need to remove when no. of locations grow
-satellite_cities = [
-    # NOTE: Syntax is lon, lat for GEE, not the usual lat, lon
-    {"city": "kampala", "coords": [32.6313083, 0.336219]},
-    {"city": "nairobi", "coords": [36.886487, -1.243396]},
-    {"city": "lagos", "coords": [3.39936, 6.53257]},
-    {"city": "accra", "coords": [-0.205874, 5.614818]},
-    {"city": "bujumbura", "coords": [29.3599, 3.3614]},
-    {"city": "yaounde", "coords": [11.5202, 3.8617]},
-    {"city": "kisumu", "coords": [34.7680, 0.0917]},
-]
-satellite_collections = {
-    "COPERNICUS/S5P/OFFL/L3_SO2": [
-        "SO2_column_number_density",
-        "SO2_column_number_density_amf",
-        "SO2_slant_column_number_density",
-        "absorbing_aerosol_index",
-        "cloud_fraction",
-        "sensor_azimuth_angle",
-        "sensor_zenith_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-        "SO2_column_number_density_15km",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_CO": [
-        "CO_column_number_density",
-        "H2O_column_number_density",
-        "cloud_height",
-        "sensor_altitude",
-        "sensor_azimuth_angle",
-        "sensor_zenith_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_NO2": [
-        "NO2_column_number_density",
-        "tropospheric_NO2_column_number_density",
-        "stratospheric_NO2_column_number_density",
-        "NO2_slant_column_number_density",
-        "tropopause_pressure",
-        "absorbing_aerosol_index",
-        "cloud_fraction",
-        "sensor_altitude",
-        "sensor_azimuth_angle",
-        "sensor_zenith_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_HCHO": [
-        "tropospheric_HCHO_column_number_density",
-        "tropospheric_HCHO_column_number_density_amf",
-        "HCHO_slant_column_number_density",
-        "cloud_fraction",
-        "solar_zenith_angle",
-        "solar_azimuth_angle",
-        "sensor_zenith_angle",
-        "sensor_azimuth_angle",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_O3": [
-        "O3_column_number_density",
-        "O3_effective_temperature",
-        "cloud_fraction",
-        "sensor_azimuth_angle",
-        "sensor_zenith_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_AER_AI": [
-        "absorbing_aerosol_index",
-        "sensor_altitude",
-        "sensor_azimuth_angle",
-        "sensor_zenith_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_CH4": [
-        "CH4_column_volume_mixing_ratio_dry_air",
-        "aerosol_height",
-        "aerosol_optical_depth",
-        "sensor_zenith_angle",
-        "sensor_azimuth_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-    ],
-    "COPERNICUS/S5P/OFFL/L3_CLOUD": [
-        "cloud_fraction",
-        "cloud_top_pressure",
-        "cloud_top_height",
-        "cloud_base_pressure",
-        "cloud_base_height",
-        "cloud_optical_depth",
-        "surface_albedo",
-        "sensor_azimuth_angle",
-        "sensor_zenith_angle",
-        "solar_azimuth_angle",
-        "solar_zenith_angle",
-    ],
-}
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the CityModel.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()

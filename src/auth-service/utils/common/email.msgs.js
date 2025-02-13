@@ -161,7 +161,7 @@ module.exports = {
                                     <p>Thank you for your interest in our work.</p>
                                     <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
                                     <p>For inquiries related to Hardware (Embedded Systems) Engineering, accessing the AirQo API, obtaining AirQo devices, or setting up an Air Quality Monitoring Network, please contact our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
-                                    <p>For open source contributors interested in AirQo software products, please contact our Software Engineering Lead, Martin Bbaale, at martin@airqo.net and CC: platform@airqo.net.</p>
+                                    <p>To contribute to our open-source community as a software engineer, please fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a>.</p>
                                 </td>
                   </tr>`;
         break;

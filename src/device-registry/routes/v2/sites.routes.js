@@ -7,6 +7,7 @@ const {
   validateSiteQueryParams,
   validateMandatorySiteIdentifier,
   validateCreateSite,
+  validateSiteIdParam,
   validateSiteMetadata,
   validateUpdateSite,
   validateRefreshSite,
@@ -16,6 +17,7 @@ const {
   validateNearestSite,
   validateBulkUpdateSites,
 } = require("@validators/site.validators");
+const { validate } = require("@validators/common");
 const { headers, pagination } = require("@validators/common");
 
 router.use(headers);
@@ -69,8 +71,18 @@ router.put(
   validateUpdateSite,
   siteController.update
 );
-router.put("/refresh", validateRefreshSite, siteController.refresh);
-router.delete("/", validateDeleteSite, siteController.delete);
+router.put(
+  "/refresh",
+  validateMandatorySiteIdentifier,
+  validateRefreshSite,
+  siteController.refresh
+);
+router.delete(
+  "/",
+  validateMandatorySiteIdentifier,
+  validateDeleteSite,
+  siteController.delete
+);
 router.post(
   "/approximate",
   validateCreateApproximateCoordinates,
@@ -89,4 +101,11 @@ router.get(
   siteController.findNearestSite
 );
 router.put("/bulk", validateBulkUpdateSites, siteController.updateManySites);
+router.get(
+  "/:id",
+  validateTenant,
+  validateSiteIdParam,
+  validate,
+  siteController.getSiteDetailsById
+);
 module.exports = router;

@@ -2,7 +2,7 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.daily_data_utils import DailyDataUtils
-from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.datautils import DataUtils
 from datetime import timedelta
 from dag_docs import (
@@ -30,11 +30,10 @@ def cleanup_measurements():
         retry_delay=timedelta(minutes=10),
     )
     def extract(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.date import DateUtils
-
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=14, **kwargs
         )
+
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
@@ -63,14 +62,9 @@ def realtime_daily_measurements():
     import pandas as pd
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
-    def extract():
-        from airqo_etl_utils.date import date_to_str_days
-        from datetime import datetime, timezone
+    def extract(**kwargs):
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
-        start_date_time = date_to_str_days(datetime.now(timezone.utc))
-        end_date_time = datetime.strftime(
-            datetime.now(timezone.utc), "%Y-%m-%dT23:00:00Z"
-        )
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,
@@ -83,7 +77,7 @@ def realtime_daily_measurements():
     def resample(data: pd.DataFrame):
         return DailyDataUtils.average_data(data=data)
 
-    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         DailyDataUtils.save_data(data=data)
 
@@ -105,11 +99,10 @@ def historical_daily_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract(**kwargs):
-        from airqo_etl_utils.date import DateUtils
-
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, days=7, **kwargs
+            days=7, **kwargs
         )
+
         return DataUtils.extract_data_from_bigquery(
             DataType.AVERAGED,
             start_date_time=start_date_time,

@@ -20,10 +20,6 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.schema_mapping = configuration.SCHEMA_FILE_MAPPING
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
-        # TODO: Remove later
-        self.hourly_measurements_table_prod = (
-            configuration.BIGQUERY_HOURLY_EVENTS_TABLE_PROD
-        )
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
         self.hourly_forecasts_table = (
             configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
@@ -227,7 +223,7 @@ class BigQueryApi:
                 schema.extend(file_schema)
 
         # Convert column_type list to strings for comparison
-        column_type_strings = [str(ct) for ct in column_type]
+        column_type_strings = [ct.str.upper() for ct in column_type]
 
         # Retrieve columns that match any of the specified types or match ColumnDataType.NONE
         columns: List[str] = list(
@@ -240,7 +236,6 @@ class BigQueryApi:
                 ]
             )
         )
-
         return columns
 
     def load_data(
@@ -802,7 +797,7 @@ class BigQueryApi:
         )
 
         if network:
-            where_clause += f"AND network = '{str(network)}' "
+            where_clause += f"AND network = '{network.str}' "
 
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
@@ -819,7 +814,7 @@ class BigQueryApi:
           """
         else:
             query = f"""
-                SELECT * FROM `{self.devices_table}` WHERE network = '{str(network)}'
+                SELECT * FROM `{self.devices_table}` WHERE network = '{network.str}'
             """
 
         dataframe = self.client.query(query=query).result().to_dataframe()
@@ -832,7 +827,7 @@ class BigQueryApi:
           """
         else:
             query = f"""
-                SELECT * FROM `{self.sites_table}` WHERE network = '{str(network)}'
+                SELECT * FROM `{self.sites_table}` WHERE network = '{network.str}'
             """
 
         dataframe = self.client.query(query=query).result().to_dataframe()
@@ -882,7 +877,6 @@ class BigQueryApi:
 
         return results
 
-    #
     def fetch_device_data_for_forecast_job(
         self,
         start_date_time: str,
@@ -907,7 +901,7 @@ class BigQueryApi:
             """
 
         query += f"""
-        FROM `{self.hourly_measurements_table_prod}` t1 
+        FROM `{self.hourly_measurements_table}` t1 
         JOIN `{self.sites_table}` t2 on t1.site_id = t2.id """
 
         query += f"""
@@ -940,7 +934,7 @@ SELECT DISTINCT
     t2.latitude,
     t2.longitude,
     AVG(t1.pm2_5_calibrated_value) as pm2_5
-FROM {self.hourly_measurements_table_prod} as t1 
+FROM {self.hourly_measurements_table} as t1 
 INNER JOIN {self.sites_table} as t2 
     ON t1.site_id = t2.id 
 WHERE 

@@ -19,6 +19,38 @@ const kafka = new Kafka({
 });
 
 const createDevice = {
+  getDeviceById: async (req, next) => {
+    try {
+      const { id } = req.params;
+      const { tenant } = req.query;
+
+      const device = await DeviceModel(tenant.toLowerCase()).findById(id);
+
+      if (!device) {
+        throw new HttpError("Device not found", httpStatus.NOT_FOUND);
+      }
+
+      return {
+        success: true,
+        message: "Device details fetched successfully",
+        data: device,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      }
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   doesDeviceSearchExist: async (request, next) => {
     try {
       const { filter, tenant } = request;
@@ -60,7 +92,8 @@ const createDevice = {
     try {
       const { query } = request;
       const { tenant } = query;
-      const count = await DeviceModel(tenant).countDocuments({});
+      const filter = generateFilter.devices(request, next);
+      const count = await DeviceModel(tenant).countDocuments(filter);
       return {
         success: true,
         message: "retrieved the number of devices",

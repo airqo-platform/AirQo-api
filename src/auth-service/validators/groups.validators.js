@@ -11,7 +11,7 @@ const validateTenant = oneOf([
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(["kcca", "airqo"])
+    .isIn(["kcca", "airqo", "airqount"])
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
