@@ -615,8 +615,7 @@ class AirQoDataUtils:
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
         data["hour"] = data["timestamp"].dt.__getattribute__("hour")
-        data["pm2_5_calibrated_value"] = np.nan
-        data["pm10_calibrated_value"] = np.nan
+
         input_variables = [
             "avg_pm2_5",
             "avg_pm10",
@@ -627,8 +626,6 @@ class AirQoDataUtils:
             "error_pm10",
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
-            "pm2_5_calibrated_value",
-            "pm10_calibrated_value",
         ]
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
@@ -699,6 +696,10 @@ class AirQoDataUtils:
         # Compute raw pm2_5 and pm10 values.
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+        # Create calibrated columns if they don't exist
+        data["pm2_5_calibrated_value"] = data.get("pm2_5_calibrated_value", np.nan)
+        data["pm10_calibrated_value"] = data.get("pm10_calibrated_value", np.nan)
 
         # Assign calibrated values, falling back to raw values when missing
         data.loc[to_calibrate, "pm2_5"] = data.loc[
