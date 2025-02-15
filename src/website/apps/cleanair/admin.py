@@ -78,13 +78,21 @@ class ForumEventAdmin(NestedModelAdmin):
     list_display = ('title', 'start_date', 'end_date',
                     'order', 'background_image_preview')
     list_filter = ('start_date', 'end_date')
-    search_fields = ('title',)
-    readonly_fields = ()
+    search_fields = ('title', 'unique_title')
+    readonly_fields = ('unique_title',)
     list_per_page = 12
     inlines = [EngagementInline, SupportInline]
+    fields = ('title', 'unique_title', 'start_date', 'end_date', 'order',
+              'background_image', 'location_name', 'location_link')
+
+    def save_model(self, request, obj, form, change):
+        # If you want to automatically update unique_title on save, even if the admin hasn't
+        # manually changed it, uncomment the following line:
+        obj.unique_title = obj.generate_unique_title()
+        obj.save()
 
     def background_image_preview(self, obj):
-        """Preview background image."""
+        # (The same implementation as above)
         if obj.background_image and hasattr(obj.background_image, 'url'):
             try:
                 return format_html(
@@ -93,10 +101,10 @@ class ForumEventAdmin(NestedModelAdmin):
                 )
             except Exception as e:
                 logger.error(
-                    f"Error loading background_image for ForumEvent '{obj.title}': {e}")
+                    f"Error loading background_image for ForumEvent '{obj.title}': {e}"
+                )
                 return "Error loading image."
         elif isinstance(obj.background_image, str) and obj.background_image:
-            # Handle cases where background_image is a string path
             try:
                 return format_html(
                     '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Background Image"/>',
@@ -104,7 +112,8 @@ class ForumEventAdmin(NestedModelAdmin):
                 )
             except Exception as e:
                 logger.error(
-                    f"Error loading background_image path for ForumEvent '{obj.title}': {e}")
+                    f"Error loading background_image path for ForumEvent '{obj.title}': {e}"
+                )
                 return "Error loading image."
         return "No image uploaded."
 
