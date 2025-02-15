@@ -11,6 +11,10 @@ from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from .config import configuration, db
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
@@ -30,10 +34,39 @@ class GCSUtils:
     # TODO: In future, save and retrieve models from mlflow instead of GCS
     @staticmethod
     def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
+        """
+        Retrieves a trained model from Google Cloud Storage (GCS). If the specified model file
+        does not exist, a default model is returned based on the pollutant type.
+
+        Args:
+            project_name (str): The GCP project name.
+            bucket_name (str): The name of the GCS bucket containing the model files.
+            source_blob_name (str): The file path of the trained model in the GCS bucket.
+
+        Returns:
+            object: The trained model loaded using joblib.
+
+        Raises:
+            FileNotFoundError: If neither the requested model nor the default model exists.
+        """
         fs = gcsfs.GCSFileSystem(project=project_name)
-        fs.ls(bucket_name)
-        with fs.open(bucket_name + "/" + source_blob_name, "rb") as handle:
+
+        # Store the original requested model name
+        original_model = source_blob_name
+
+        if not fs.exists(f"{bucket_name}/{source_blob_name}"):
+            default_model = (
+                "default_pm2_5.pkl"
+                if "pm2_5" in source_blob_name
+                else "default_pm10.pkl"
+            )
+            source_blob_name = default_model
+
+            logger.exception(f"Model '{original_model}' not found in '{bucket_name}'")
+
+        with fs.open(f"{bucket_name}/{source_blob_name}", "rb") as handle:
             job = joblib.load(handle)
+
         return job
 
     @staticmethod
