@@ -85,7 +85,7 @@ class ForumEvent(BaseModel):
         blank=True, null=True, default="No details available yet.")
     glossary_details = QuillField(
         blank=True, null=True, default="No details available yet.")
-    unique_title = models.CharField(max_length=100, blank=True)
+    unique_title = models.CharField(max_length=100, blank=True, unique=True)
     background_image = CloudinaryField(
         'background_image',
         folder='website/uploads/events/images/',
@@ -103,17 +103,30 @@ class ForumEvent(BaseModel):
     def __str__(self):
         return self.title
 
-    def generate_unique_title(self, postfix_index=0):
-        unique_title = slugify(self.title)
-        if postfix_index > 0:
-            unique_title = f"{unique_title}{postfix_index}"
-        try:
-            ForumEvent.objects.get(unique_title=unique_title)
-        except ForumEvent.DoesNotExist:
-            return unique_title
-        else:
+    def generate_unique_title(self):
+        """
+        Generate a unique slug from the title.
+        Assumes title is formatted like:
+            "CLEAN-Air Forum 2024, Lagos, Nigeria"
+        and uses the portion before the first comma.
+        """
+        base_title = self.title.split(",")[0]  # e.g., "CLEAN-Air Forum 2024"
+        # becomes "clean-air-forum-2024"
+        slug_base = slugify(base_title)
+        unique_slug = slug_base
+        postfix_index = 0
+
+        # Exclude the current instance (if updating) from the uniqueness check.
+        while ForumEvent.objects.filter(unique_title=unique_slug).exclude(pk=self.pk).exists():
             postfix_index += 1
-            return self.generate_unique_title(postfix_index=postfix_index)
+            unique_slug = f"{slug_base}-{postfix_index}"
+
+        return unique_slug
+
+    def save(self, *args, **kwargs):
+        if not self.unique_title:
+            self.unique_title = self.generate_unique_title()
+        super().save(*args, **kwargs)
 
 
 class Section(models.Model):

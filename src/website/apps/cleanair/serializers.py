@@ -134,6 +134,12 @@ class SectionSerializer(serializers.ModelSerializer):
         ]
 
 
+class ForumEventTitleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ForumEvent
+        fields = ['id', 'title', 'unique_title']
+
+
 class ForumEventSerializer(serializers.ModelSerializer):
     sections = SectionSerializer(many=True, read_only=True)
     forum_resources = ForumResourceSerializer(many=True, read_only=True)
