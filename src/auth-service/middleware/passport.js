@@ -2,6 +2,7 @@ const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const createUserUtil = require("@utils/user.util");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const refresh = require("passport-oauth2-refresh");
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
@@ -427,13 +428,14 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
       callbackURL: `${constants.PLATFORM_BASE_URL}/api/v2/users/auth/google/callback`,
+      passReqToCallback: true,
     },
-    async (accessToken, refreshToken, profile, cb) => {
+    async (req, accessToken, refreshToken, profile, cb) => {
       logObject("Google profile Object", profile._json);
 
       try {
         const service = req.headers["service"];
-        let user = await UserModel(tenant.toLowerCase())
+        let user = await UserModel(tenant.toLowerCase() || "airqo")
           .findOne({
             email: profile._json.email,
           })
@@ -441,6 +443,11 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 
         req.auth = {};
         if (user) {
+          user.lastLogin = new Date();
+          if (refreshToken) {
+            user.refreshToken = refreshToken;
+          }
+          await user.save();
           req.auth.success = true;
           req.auth.message = "successful login";
 
@@ -455,7 +462,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           cb(null, user);
           return next();
         } else {
-          const responseFromRegisterUser = await UserModel(tenant).register({
+          const responseFromRegisterUser = await UserModel(
+            req.query.tenant || "airqo"
+          ).register({
             google_id: profile._json.sub,
             firstName: profile._json.given_name,
             lastName: profile._json.family_name,
@@ -466,6 +475,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             password: accessCodeGenerator.generate(
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
             ),
+            refreshToken: refreshToken,
           });
           if (responseFromRegisterUser.success === false) {
             req.auth.success = false;
@@ -486,6 +496,24 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
+
+            user.lastLogin = new Date();
+            if (refreshToken) {
+              user.refreshToken = refreshToken;
+            }
+            req.auth.success = true;
+            req.auth.message = "successful login";
+
+            winstonLogger.info(
+              `successful login through ${
+                service ? service : "unknown"
+              } service`,
+              {
+                username: user.userName,
+                email: user.email,
+                service: service ? service : "none",
+              }
+            );
             cb(null, user);
 
             return next();
@@ -500,7 +528,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
         req.auth.error = error.message;
 
         next(new HttpError(error.message, httpStatus.INTERNAL_SERVER_ERROR));
-        return;
+        return cb(error);
       }
     }
   );
@@ -1139,6 +1167,7 @@ const setLocalStrategy = (tenant, req, res, next) => {
 
 const setGoogleStrategy = (tenant, req, res, next) => {
   passport.use(useGoogleStrategy(tenant, req, res, next));
+  refresh.use(useGoogleStrategy(tenant, req, res, next));
   passport.serializeUser((user, done) => {
     done(null, user);
   });
@@ -1230,11 +1259,92 @@ const authLocal = passport.authenticate("user-local", {
 
 const authGoogle = passport.authenticate("google", {
   scope: ["profile", "email"],
+  session: false,
 });
 
 const authGoogleCallback = passport.authenticate("google", {
   failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+  session: false,
 });
+
+const v2AuthGoogleCallback = (req, res, next) => {
+  //  Handles the callback and token generation
+  passport.authenticate(
+    "google",
+    {
+      session: false,
+      failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
+    },
+    async (err, user, info) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return next(new HttpError("User not found", httpStatus.NOT_FOUND));
+      }
+
+      try {
+        const accessToken = await user.createToken();
+        res.cookie("jwt", accessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          maxAge: constants.JWT_EXPIRY_MILLISECONDS,
+        });
+        res.redirect(constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT);
+      } catch (error) {
+        return next(error);
+      }
+    }
+  )(req, res, next);
+};
+
+const googleRefreshToken = (req, res, next) => {
+  const refreshToken = req.body.refreshToken || req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    return next(
+      new HttpError("Refresh Token not provided", httpStatus.BAD_REQUEST)
+    );
+  }
+
+  UserModel(req.query.tenant || "airqo").findOne(
+    { refreshToken },
+    (err, user) => {
+      if (err || !user) {
+        return next(
+          new HttpError("Invalid refresh token", httpStatus.FORBIDDEN)
+        );
+      }
+
+      refresh.requestNewAccessToken(
+        "google",
+        refreshToken,
+        async (err, accessToken, newRefreshToken) => {
+          if (err) {
+            return next(
+              new HttpError("Failed to refresh token", httpStatus.FORBIDDEN)
+            );
+          }
+          if (newRefreshToken) {
+            user.refreshToken = newRefreshToken;
+            await user.save();
+          }
+
+          const newJwtToken = await user.createToken();
+          res.cookie("jwt", newJwtToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: constants.JWT_EXPIRY_MILLISECONDS,
+          });
+
+          res.json({ accessToken: newJwtToken });
+        }
+      );
+    }
+  );
+};
 
 const authGuest = (req, res, next) => {
   try {
@@ -1290,8 +1400,10 @@ module.exports = {
   setGuestToken,
   authLocal,
   authJWT,
+  googleRefreshToken,
   authGoogle,
   authGoogleCallback,
+  v2AuthGoogleCallback,
   authGuest,
   authenticateJWT,
 };
