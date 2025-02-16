@@ -833,19 +833,29 @@ const createGroup = {
 
       const responseFromListAssignedUsers = await UserModel(tenant)
         .aggregate([
-          {
-            $match: {
-              "group_roles.group": group._id,
-            },
-          },
+          { $match: { "group_roles.group": group._id } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": group._id } },
           {
             $lookup: {
               from: "roles",
-              localField: "group_roles.role",
-              foreignField: "_id",
+              let: { groupId: group._id, roleId: "$group_roles.role" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
               as: "role",
             },
           },
+          { $unwind: "$role" },
           {
             $lookup: {
               from: "permissions",
@@ -866,14 +876,11 @@ const createGroup = {
               status: 1,
               jobTitle: 1,
               createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
+                $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: { $arrayElemAt: ["$role.role_name", 0] },
-              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_name: "$role.role_name",
+              role_id: "$role._id",
               role_permissions: "$role_permissions",
             },
           },
@@ -923,19 +930,29 @@ const createGroup = {
 
       const users = await UserModel(tenant)
         .aggregate([
-          {
-            $match: {
-              "group_roles.group": group._id,
-            },
-          },
+          { $match: { "group_roles.group": group._id } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": group._id } },
           {
             $lookup: {
               from: "roles",
-              localField: "group_roles.role",
-              foreignField: "_id",
+              let: { groupId: group._id, roleId: "$group_roles.role" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
               as: "role",
             },
           },
+          { $unwind: "$role" }, // Unwind role after lookup
           {
             $lookup: {
               from: "permissions",
@@ -957,14 +974,11 @@ const createGroup = {
               status: 1,
               jobTitle: 1,
               createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
+                $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: { $arrayElemAt: ["$role.role_name", 0] },
-              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_name: "$role.role_name", // Access directly after $unwind
+              role_id: "$role._id", // Access directly after $unwind
               role_permissions: "$role_permissions",
             },
           },
