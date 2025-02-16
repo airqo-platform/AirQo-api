@@ -395,10 +395,23 @@ const createGroup = {
         );
       }
 
+      // Fetch the default role for this group
+      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+        tenant,
+        grp_id
+      );
+
+      if (!defaultGroupRole || !defaultGroupRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for group ID ${grp_id}`,
+          })
+        );
+      }
+      const defaultRoleId = defaultGroupRole._id;
       const notAssignedUsers = [];
       let assignedUsers = 0;
       const bulkWriteOperations = [];
-      const cleanupOperations = [];
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
@@ -408,7 +421,7 @@ const createGroup = {
             user_id,
             reason: `User ${user_id} not found`,
           });
-          continue; // Continue to the next user
+          continue;
         }
 
         const existingAssignment = user.group_roles
@@ -428,23 +441,17 @@ const createGroup = {
             updateOne: {
               filter: { _id: user_id },
               update: {
-                $addToSet: { group_roles: { group: grp_id } },
+                $addToSet: {
+                  group_roles: {
+                    group: grp_id,
+                    role: defaultRoleId,
+                    userType: "user",
+                  },
+                },
               },
             },
           });
         }
-
-        cleanupOperations.push({
-          updateOne: {
-            filter: {
-              _id: { _id: user_id },
-              "group_roles.group": { $exists: true, $eq: null },
-            },
-            update: {
-              $pull: { group_roles: { group: { $exists: true, $eq: null } } },
-            },
-          },
-        });
       }
 
       if (bulkWriteOperations.length > 0) {
@@ -461,10 +468,6 @@ const createGroup = {
         message = "All users have been assigned to the group.";
       } else {
         message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the group.`;
-      }
-
-      if (cleanupOperations.length > 0) {
-        await UserModel(tenant).bulkWrite(cleanupOperations);
       }
 
       if (notAssignedUsers.length > 0) {
@@ -497,6 +500,7 @@ const createGroup = {
       );
     }
   },
+
   assignOneUser: async (request, next) => {
     try {
       const { grp_id, user_id, tenant } = {
