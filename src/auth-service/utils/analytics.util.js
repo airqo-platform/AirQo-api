@@ -1525,6 +1525,110 @@ function assessStability(indicators) {
 }
 
 const analytics = {
+  async getUserStatistics({ email, tenant = constants.DEFAULT_TENANT }) {
+    try {
+      if (!email) {
+        throw new HttpError("Email is required", httpStatus.BAD_REQUEST);
+      }
+
+      const user = await UserModel(tenant).findOne({ email });
+
+      if (!user) {
+        throw new HttpError("User not found", httpStatus.NOT_FOUND);
+      }
+
+      const userId = user._id;
+
+      // 1. API Usage (if applicable)
+      let apiUsage = null;
+
+      const client = await ClientModel(tenant).findOne({ user_id: userId });
+
+      if (client) {
+        const tokens = await AccessTokenModel(tenant).find({
+          client_id: client._id,
+        });
+        apiUsage = {
+          clientId: client._id,
+          tokens: tokens.map((token) => ({
+            name: token.name,
+            lastUsed: token.last_used_at,
+            expires: token.expires,
+          })),
+          totalTokens: tokens.length,
+        };
+      }
+
+      // 2. General User Stats
+      const userStats = {
+        _id: user._id,
+        createdAt: user.createdAt,
+        lastLogin: user.lastLogin,
+        loginCount: user.loginCount, // Add other relevant stats
+        // ...Add other user specific statistics.
+      };
+
+      return {
+        success: true,
+        message: "User statistics retrieved successfully",
+        data: {
+          user: userStats,
+          apiUsage: apiUsage, // Include only if user is API user
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      throw new HttpError(
+        error.message,
+        error.status || httpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  },
+
+  async getSystemStatistics({
+    tenant = constants.DEFAULT_TENANT,
+    timeframe = "last2weeks",
+  }) {
+    try {
+      const twoWeeksAgo = moment().subtract(2, "weeks").toDate();
+
+      // 1. New Users
+      const newUsers = await UserModel(tenant).countDocuments({
+        createdAt: { $gte: twoWeeksAgo },
+      });
+
+      // 2.  New API Users (Users with Clients created within last 2 weeks)
+      const newClients = await ClientModel(tenant).countDocuments({
+        createdAt: { $gte: twoWeeksAgo },
+      });
+
+      // 3. Calculate percentages (ensure totalUsers is not zero to avoid division by zero)
+      const totalUsers = await UserModel(tenant).countDocuments();
+
+      const newUsersPercentage =
+        totalUsers > 0 ? (newUsers / totalUsers) * 100 : 0;
+      const newApiUsersPercentage =
+        totalUsers > 0 ? (newClients / totalUsers) * 100 : 0;
+
+      return {
+        success: true,
+        message: "System usage statistics retrieved successfully",
+        data: {
+          newUsers,
+          newUsersPercentage,
+          newApiUsers: newClients,
+          newApiUsersPercentage,
+          // ... any other system-wide statistics
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      throw new HttpError(
+        error.message,
+        error.status || httpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  },
   // User Engagement Functions
   getUserEngagement: async (request, next) => {
     try {
@@ -1568,7 +1672,7 @@ const analytics = {
 
   getEngagementMetrics: async (request, next) => {
     try {
-      const { email, tenant, timeframe = "last30days" } = request.query;
+      const { email, tenant, timeframe = "last30days" } = request;
       const user = await ActivityModel(tenant).findOne({ email });
 
       if (!user) {
@@ -1586,13 +1690,22 @@ const analytics = {
         includeProjections: true,
       });
 
+      logObject("the metrics", metrics);
+
       return {
         success: true,
         message: "Engagement metrics retrieved successfully",
-        data: metrics,
+        data: {
+          // Create a plain object for the response.
+          summary: metrics.summary,
+          // ... Add other specific properties you need.  Do not include the request object here.
+          importantMetric1: metrics.someOtherMetric, // Example
+          importantMetric2: metrics.anotherMetric, // Example
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
+      logObject("the error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -2213,14 +2326,16 @@ const analytics = {
     timeWindowDays = 90, // Process data in 90-day windows
   } = {}) => {
     try {
-      return {
-        success: false,
-        message: "fetchUserStats temporarily disabled",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "fetchUserStats temporarily disabled" },
-      };
-      const startDate = new Date(`${year}-01-01`);
-      const endDate = new Date(`${year}-12-31`);
+      // return {
+      //   success: false,
+      //   message: "fetchUserStats temporarily disabled",
+      //   status: httpStatus.NOT_IMPLEMENTED,
+      //   errors: { message: "fetchUserStats temporarily disabled" },
+      // };
+      logObject("the year", year);
+      logObject("the emails", emails);
+      const startDate = new Date(`${year}-02-01`);
+      const endDate = new Date(`${year}-02-12`);
       const enrichedStats = [];
 
       // Process users in chunks to avoid memory overload

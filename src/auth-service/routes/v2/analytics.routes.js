@@ -47,6 +47,13 @@ router.get(
 );
 
 router.get(
+  "/:email/engagement/statistics",
+  createAnalyticsController.getEngagementStatistics
+);
+
+router.get("/usage/stats", createAnalyticsController.getSystemUsageStats);
+
+router.get(
   "/:email/engagement/metrics",
   analyticsValidations.userEngagementValidators.getMetrics,
   createAnalyticsController.getEngagementMetrics
