@@ -6,6 +6,11 @@ const staticLists = {
         (value) => value.trim() !== ""
       )
     : [],
+  DEFAULT_MEMBER_PERMISSIONS: process.env.DEFAULT_MEMBER_PERMISSIONS
+    ? process.env.DEFAULT_MEMBER_PERMISSIONS.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   TENANTS: process.env.TENANTS
     ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
     : [],
