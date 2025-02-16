@@ -1246,6 +1246,58 @@ const role = {
       );
     }
   },
+  getDefaultGroupRole: async (tenant, groupId) => {
+    try {
+      const group = await GroupModel(tenant).findById(groupId).lean();
+
+      if (!group) {
+        return null;
+      }
+
+      const organizationName = group.grp_title.toUpperCase();
+      const defaultRoleCode = `${organizationName}_DEFAULT_MEMBER`; //  dynamically create the role code
+      let role = await RoleModel(tenant).findOne({
+        role_code: defaultRoleCode,
+      });
+
+      if (!role) {
+        const roleDocument = {
+          role_code: defaultRoleCode,
+          role_name: defaultRoleCode, // Use the same naming convention as other group roles
+          description: "Default role for new group members",
+          group_id: groupId, // Associate the role with the group.
+        };
+        role = await RoleModel(tenant).create(roleDocument);
+
+        // Assign some default permissions to the newly created role here. For Example:
+        const defaultPermissions = await PermissionModel(tenant).find({
+          permission: { $in: constants.DEFAULT_MEMBER_PERMISSIONS },
+        });
+
+        if (defaultPermissions.length > 0) {
+          await RoleModel(tenant).findByIdAndUpdate(role._id, {
+            $addToSet: {
+              role_permissions: {
+                $each: defaultPermissions.map((permission) => permission._id),
+              },
+            },
+          });
+        }
+      }
+
+      return role;
+    } catch (error) {
+      logger.error("Error getting default group role:", error);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   unAssignPermissionFromRole: async (request, next) => {
     try {
       const { query, params } = request;
