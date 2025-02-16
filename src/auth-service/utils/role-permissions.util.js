@@ -1288,12 +1288,10 @@ const role = {
       return role;
     } catch (error) {
       logger.error("Error getting default group role:", error);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
     }
   },
