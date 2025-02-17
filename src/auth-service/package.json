@@ -7,6 +7,12 @@
     "start": "NODE_ENV=production node ./bin",
     "stage": "NODE_ENV=staging node ./bin",
     "dev": "cross-env NODE_ENV=development nodemon --trace-warnings ./bin",
+    "dev-mac": "NODE_ENV=development nodemon --trace-warnings ./bin",
+    "stage-mac": "NODE_ENV=staging nodemon ./bin",
+    "prod-mac": "NODE_ENV=production nodemon ./bin",
+    "dev-pc": "set NODE_ENV=development&&nodemon ./bin",
+    "stage-pc": "set NODE_ENV=staging&&nodemon ./bin",
+    "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
     "create-env": "printenv > .env",
     "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit"
   },
