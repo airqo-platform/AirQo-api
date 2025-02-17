@@ -2,7 +2,33 @@
 
 ![Coverage Status](https://coveralls.io/repos/github/airqo-platform/AirQo-api/src/device-registry/badge.svg)
 
-Device Registry is responsible for managing the creation of devices, sites, and events, along with handling the associated activities that occur within a site..
+Device Registry is responsible for managing the creation of devices, sites, and events, along with handling the associated activities that occur within a site.
+
+It follows the Model-View-Controller (MVC) architectural pattern.
+
+## Folder Structure
+
+```
+.
+├── bin
+│   └── jobs
+├── config
+│   ├── environments
+│   └── global
+├── controllers
+├── models
+├── routes
+│   ├── v1
+│   └── v2
+├── utils
+│   ├── common
+│   ├── scripts
+│   └── shared
+└── validators
+    ├── common
+    └── shared
+
+```
 
 ## Features
 
@@ -29,8 +55,13 @@ Device Registry is responsible for managing the creation of devices, sites, and 
 
 Ensure you have the following installed:
 
-- Node.js (version 14 or higher)
+- Node.js (version 18 or higher)
 - Docker (if using Docker for deployment)
+- npm
+- A valid Google Cloud project and associated credentials if interacting with Google Cloud services.
+- Redis (running and accessible) if using Redis for caching or other functionalities.
+- If using Kafka, configure a Kafka broker, client ID and bootstrap servers.
+- MongoDB (ensure a MongoDB instance is running, either locally or remotely. If running remotely, set DB_URL appropriately.)
 
 ### Running Locally
 
@@ -54,17 +85,9 @@ Ensure you have the following installed:
 
 4. **Run the service**
 
-   - On macOS:
-
-     ```bash
-     npm run dev-mac
-     ```
-
-   - On Windows:
-
-     ```bash
-     npm run dev-pc
-     ```
+   ```bash
+   npm run dev
+   ```
 
 ### Running with Docker
 
