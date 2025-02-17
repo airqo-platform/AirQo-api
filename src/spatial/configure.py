@@ -28,7 +28,7 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    MONGO_URI = os.getenv("MONGO_GCE_URI")
+    MONGO_URI = os.getenv("MONGO_GCE_URI","mongodb://airqo_ml2024:%40irQOMl_2024@34.79.143.111:27017/airqo_ml_db_staging?authSource=admin")
     DB_NAME = os.getenv("DB_NAME", "sources_of_pollution")
 
 class ProductionConfig(Config):

@@ -35,7 +35,7 @@ EXPOSE 5000
 # Command to run the Flask application
 FROM base as dev
 ENV FLASK_ENV=development
-CMD flask run --host=0.0.0.0
+CMD flask run --host=0.0.0.0  --timeout 120 app:app
 
 FROM base as staging
 ENV FLASK_ENV=staging
