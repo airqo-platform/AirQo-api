@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Any, Optional
 
 import pandas as pd
 from google.cloud import bigquery
@@ -186,8 +186,8 @@ class BigQueryApi:
 
     def get_columns(
         self,
-        table: str = "all",
-        column_type: List[ColumnDataType] = [ColumnDataType.NONE],
+        table: Optional[str] = "all",
+        column_type: Optional[List[ColumnDataType]] = [ColumnDataType.NONE],
     ) -> List[str]:
         """
         Retrieves a list of columns that match a schema of a given table and or match data type as well. The schemas should match the tables in bigquery.
@@ -533,10 +533,10 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        network: DeviceNetwork = None,
-        where_fields: dict = None,
-        null_cols: list = None,
-        columns: list = None,
+        network: Optional[DeviceNetwork] = None,
+        where_fields: Optional[Dict] = None,
+        null_cols: Optional[List] = None,
+        columns: Optional[List] = None,
     ) -> str:
         """
         Composes a SQL query for BigQuery based on the query type (GET or DELETE),
@@ -577,7 +577,10 @@ class BigQueryApi:
                 raise Exception(
                     f"Invalid table column. {key} is not among the columns for {table}"
                 )
-            where_clause = where_clause + f" and {key} = '{value}' "
+            if isinstance(value, tuple):
+                where_clause += f" AND {key} in {value}"
+            else:
+                where_clause += f" AND {key} = '{value}' "
 
         for field in null_cols:
             if field not in valid_cols:
@@ -604,11 +607,11 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        network: DeviceNetwork = None,
-        start_date_time: str = None,
-        end_date_time: str = None,
-        where_fields: dict = None,
-        null_cols: list = None,
+        network: Optional[DeviceNetwork] = None,
+        start_date_time: Optional[str] = None,
+        end_date_time: Optional[str] = None,
+        where_fields: Optional[Dict[str, Any]] = None,
+        null_cols: Optional[List] = None,
     ) -> None:
         """
         Reloads data into a specified table in BigQuery by:
@@ -639,13 +642,11 @@ class BigQueryApi:
                 raise ValueError(
                     "The DataFrame must contain a 'timestamp' column to derive the date range."
                 )
-            data = (
-                dataframe.copy()
-            )  # Not sure why this dataframe is being copied. # Memory wastage?
-            data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
             try:
-                start_date_time = date_to_str(data["timestamp"].min())
-                end_date_time = date_to_str(data["timestamp"].max())
+                start_date_time = date_to_str(dataframe["timestamp"].min())
+                end_date_time = date_to_str(dataframe["timestamp"].max())
             except Exception as e:
                 logger.exception(f"Time conversion error {e}")
 
@@ -668,12 +669,12 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         table: str,
-        network: DeviceNetwork = None,
-        dynamic_query: bool = False,
-        columns: list = None,
-        where_fields: dict = None,
-        null_cols: list = None,
-        time_granularity: str = "HOUR",
+        network: Optional[DeviceNetwork] = None,
+        dynamic_query: Optional[bool] = False,
+        columns: Optional[List] = None,
+        where_fields: Optional[Dict[str, Any]] = None,
+        null_cols: Optional[List] = None,
+        time_granularity: Optional[str] = "HOUR",
     ) -> pd.DataFrame:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
@@ -733,10 +734,10 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        exclude_columns: list = None,
-        group_by: list = None,
-        network: DeviceNetwork = None,
-        time_granularity: str = "HOUR",
+        exclude_columns: Optional[List] = None,
+        group_by: Optional[List] = None,
+        network: Optional[DeviceNetwork] = None,
+        time_granularity: Optional[str] = "HOUR",
     ) -> str:
         """
         Constructs a dynamic SQL query to select and average numeric columns, allowing exclusions,
@@ -1005,3 +1006,58 @@ ORDER BY
             credentials=credentials,
         )
         print(" data saved to bigquery")
+
+    def generate_missing_data_query(
+        self, date: str, table: str, network: DeviceNetwork
+    ) -> str:
+        """
+        Generates a BigQuery SQL query to find missing hourly air quality data for devices.
+
+        Args:
+            date (str): The target date in 'YYYY-MM-DD' format.
+            dataset (str): The name of the BigQuery dataset.
+            table (str): The name of the BigQuery table.
+            network (str): The network identifier to filter the data.
+
+        Returns:
+            str: The SQL query as a formatted string.
+        """
+        query = f"""
+            WITH timestamp_hours AS (
+            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS hour_timestamp 
+            FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
+            ),
+            device_data AS (
+            SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS hour_timestamp
+            FROM `{table}` 
+            WHERE 
+            DATE(timestamp) = '{date}'
+            AND pm2_5_calibrated_value IS NULL
+            AND network = '{network.str}'
+            )
+            SELECT 
+                dd.device_id,
+                dt.hour_timestamp
+            FROM 
+                device_data dd
+            LEFT JOIN 
+                timestamp_hours dt ON dd.hour_timestamp = dt.hour_timestamp
+            ORDER BY 
+                dt.hour_timestamp, dd.device_id;
+            """
+        return query
+
+    def execute_missing_data_query(self, query: str) -> pd.DataFrame:
+        """
+        Executes the given SQL query using the BigQuery client and returns the result as a Pandas DataFrame.
+
+        Args:
+            query(str): The SQL query to be executed.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the query results.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+        """
+        return self.client.query(query=query).result().to_dataframe()
