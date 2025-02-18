@@ -61,7 +61,7 @@ class PollutantApis:
         allowed_extensions = {'tiff','tif' }  
         filename = file.filename
         if ('.' not in filename  or filename.rsplit('.', 1)[1].lower() not in allowed_extensions):
-    +            return jsonify({"error": "Invalid file type"}), 400
+            return jsonify({"error": "Invalid file type"}), 400
         # Save the uploaded file
         filename = secure_filename(file.filename)
         file_path = os.path.join(UPLOAD_FOLDER, filename)
