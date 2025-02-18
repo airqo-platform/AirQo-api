@@ -36,6 +36,9 @@ class Config:
 
     # Aggregated data
     BIGQUERY_HOURLY_EVENTS_TABLE = os.getenv("BIGQUERY_HOURLY_EVENTS_TABLE")
+    BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE = os.getenv(
+        "BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE"
+    )
     BIGQUERY_HOURLY_EVENTS_TABLE_PROD = os.getenv("BIGQUERY_PROD_HOURLY_EVENTS_TABLE")
     BIGQUERY_DAILY_EVENTS_TABLE = os.getenv("BIGQUERY_DAILY_EVENTS_TABLE")
     BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE = os.getenv(
@@ -370,6 +373,7 @@ class Config:
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {
         BIGQUERY_HOURLY_EVENTS_TABLE: "measurements.json",
+        BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE: "measurements.json",
         BIGQUERY_DAILY_EVENTS_TABLE: "measurements.json",
         BIGQUERY_RAW_EVENTS_TABLE: "raw_measurements.json",
         BIGQUERY_HOURLY_WEATHER_TABLE: "weather_data.json",
