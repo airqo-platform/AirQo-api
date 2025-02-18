@@ -32,6 +32,7 @@ setup(
         "scikit-learn==1.2.2",
         "great_expectations===0.18.18",
         "airflow-provider-great-expectations==0.2.8",
+        "apache-airflow-providers-google",
         "sqlalchemy-bigquery==1.11.0",
         "confluent-kafka==2.5.0",
         "lz4==4.3.3",

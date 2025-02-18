@@ -5,6 +5,7 @@ from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.exceptions import AirflowFailException
 from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.data_validator import DataValidationUtils
 from dag_docs import (
@@ -103,7 +104,6 @@ def airqo_historical_hourly_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame) -> None:
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
@@ -210,7 +210,6 @@ def airqo_historical_raw_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_data(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
@@ -304,7 +303,6 @@ def airqo_cleanup_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_raw_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
         big_query_api.reload_data(
@@ -313,7 +311,6 @@ def airqo_cleanup_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def load_hourly_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
         big_query_api.reload_data(
@@ -412,6 +409,19 @@ def airqo_realtime_measurements():
             airqo_data=averaged_hourly_data, weather_data=weather_data
         )
 
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def save_merged_data(merged_air_weather_data: pd.DataFrame):
+        data = DataUtils.format_data_for_bigquery(
+            merged_air_weather_data,
+            DataType.AVERAGED,
+            DeviceCategory.GENERAL,
+            Frequency.HOURLY,
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            data, table=big_query_api.hourly_uncalibrated_measurements_table
+        )
+
     @task()
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
@@ -451,7 +461,6 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
@@ -464,7 +473,6 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_raw_measurements_to_bigquery(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
@@ -510,7 +518,7 @@ def airqo_realtime_measurements():
     merged_data = merge_data(
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
-    # TODO Should calibrated data be merge with non airqo data after calibration
+    save_merged_data(merged_data)
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
@@ -563,7 +571,6 @@ def airqo_raw_data_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
@@ -622,7 +629,6 @@ def airqo_gaseous_realtime_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW

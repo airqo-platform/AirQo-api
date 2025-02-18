@@ -20,6 +20,9 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.schema_mapping = configuration.SCHEMA_FILE_MAPPING
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.hourly_uncalibrated_measurements_table = (
+            configuration.BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE
+        )
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
         self.hourly_forecasts_table = (
             configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
@@ -565,7 +568,7 @@ class BigQueryApi:
         where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
 
         if network:
-            where_clause += f"AND network = '{str(network)}' "
+            where_clause += f"AND network = '{network.str}' "
 
         valid_cols = self.get_columns(table=table)
 
