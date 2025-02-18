@@ -9,6 +9,7 @@ from enum import Enum
 from django.utils.text import slugify
 from cloudinary.models import CloudinaryField
 from django.db.models.signals import post_save
+from multiselectfield import MultiSelectField
 
 
 class CleanAirResource(BaseModel):
@@ -84,7 +85,7 @@ class ForumEvent(BaseModel):
         blank=True, null=True, default="No details available yet.")
     glossary_details = QuillField(
         blank=True, null=True, default="No details available yet.")
-    unique_title = models.CharField(max_length=100, blank=True)
+    unique_title = models.CharField(max_length=100, blank=True, unique=True)
     background_image = CloudinaryField(
         'background_image',
         folder='website/uploads/events/images/',
@@ -102,17 +103,97 @@ class ForumEvent(BaseModel):
     def __str__(self):
         return self.title
 
-    def generate_unique_title(self, postfix_index=0):
-        unique_title = slugify(self.title)
-        if postfix_index > 0:
-            unique_title = f"{unique_title}{postfix_index}"
-        try:
-            ForumEvent.objects.get(unique_title=unique_title)
-        except ForumEvent.DoesNotExist:
-            return unique_title
-        else:
+    def generate_unique_title(self):
+        """
+        Generate a unique slug from the title.
+        Assumes title is formatted like:
+            "CLEAN-Air Forum 2024, Lagos, Nigeria"
+        and uses the portion before the first comma.
+        """
+        base_title = self.title.split(",")[0]  # e.g., "CLEAN-Air Forum 2024"
+        # becomes "clean-air-forum-2024"
+        slug_base = slugify(base_title)
+        unique_slug = slug_base
+        postfix_index = 0
+
+        # Exclude the current instance (if updating) from the uniqueness check.
+        while ForumEvent.objects.filter(unique_title=unique_slug).exclude(pk=self.pk).exists():
             postfix_index += 1
-            return self.generate_unique_title(postfix_index=postfix_index)
+            unique_slug = f"{slug_base}-{postfix_index}"
+
+        return unique_slug
+
+    def save(self, *args, **kwargs):
+        if not self.unique_title:
+            self.unique_title = self.generate_unique_title()
+        super().save(*args, **kwargs)
+
+
+class Section(models.Model):
+    # Section type choices.
+    SPLIT = 'split'
+    COLUMN = 'column'
+    SECTION_TYPE_CHOICES = [
+        (SPLIT, 'Split Section'),
+        (COLUMN, 'Column Section'),
+    ]
+
+    # Define the page choices.
+    PAGE_ABOUT = 'about'
+    PAGE_COMMITTEE = 'committee'
+    PAGE_SESSION = 'session'
+    PAGE_SPEAKERS = 'speakers'
+    PAGE_PARTNERS = 'partners'
+    PAGE_SPONSORSHIPS = 'sponsorships'
+    PAGE_LOGISTICS = 'logistics'
+    PAGE_GLOSSARY = 'glossary'
+    PAGE_CHOICES = [
+        (PAGE_ABOUT, 'About Page'),
+        (PAGE_COMMITTEE, 'Committee Page'),
+        (PAGE_SESSION, 'Session Page'),
+        (PAGE_SPEAKERS, 'Speakers Page'),
+        (PAGE_PARTNERS, 'Partners Page'),
+        (PAGE_SPONSORSHIPS, 'Sponsorships Page'),
+        (PAGE_LOGISTICS, 'Logistics Page'),
+        (PAGE_GLOSSARY, 'Glossary Page'),
+    ]
+
+    # A section can belong to multiple forum events.
+    forum_events = models.ManyToManyField(
+        ForumEvent,
+        related_name='sections',
+        blank=True
+    )
+    # Allow title to be empty.
+    title = models.TextField(blank=True, help_text="Section title (optional)")
+    content = QuillField(blank=True, null=True, default="")
+    section_type = models.CharField(
+        max_length=10,
+        choices=SECTION_TYPE_CHOICES,
+        default=COLUMN,
+        help_text="Select whether this is a split section (title on left, content on right) or a column section."
+    )
+    reverse_order = models.BooleanField(
+        default=False,
+        help_text="If checked, the layout for a split section will be reversed (content on left, title on right)."
+    )
+    pages = MultiSelectField(
+        choices=PAGE_CHOICES,
+        default=[PAGE_ABOUT],
+        help_text="Select the page(s) where this section should be displayed."
+    )
+    order = models.IntegerField(default=1)
+
+    class Meta:
+        ordering = ['order', '-id']
+
+    def __str__(self):
+        # Join the titles of related forum events.
+        events = ", ".join([fe.title for fe in self.forum_events.all()])
+        # If title is not empty, return the first 50 characters; otherwise, show "(Untitled)".
+        if self.title.strip():
+            return f"Section for {events}: {self.title[:50]}"
+        return f"Section for {events}: (Untitled)"
 
 
 class PartnerCategoryChoices(Enum):

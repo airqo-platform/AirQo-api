@@ -6,17 +6,27 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-auth-api
-  tag: prod-dc24e7c2-1739275322
+  tag: prod-77043d2f-1739816779
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 350Mi
+    cpu: 400m
+    memory: 600Mi
   requests:
-    cpu: 10m
+    cpu: 50m
     memory: 250Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - moderate-usage
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -35,4 +45,4 @@ service:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  targetMemoryUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 85

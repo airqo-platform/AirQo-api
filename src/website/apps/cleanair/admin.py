@@ -14,7 +14,7 @@ from .models import (
     Session,
     Support,
     ResourceFile,
-    ResourceSession,
+    ResourceSession, Section
 )
 import logging
 
@@ -78,13 +78,21 @@ class ForumEventAdmin(NestedModelAdmin):
     list_display = ('title', 'start_date', 'end_date',
                     'order', 'background_image_preview')
     list_filter = ('start_date', 'end_date')
-    search_fields = ('title',)
-    readonly_fields = ()
+    search_fields = ('title', 'unique_title')
+    readonly_fields = ('unique_title',)
     list_per_page = 12
     inlines = [EngagementInline, SupportInline]
+    fields = ('title', 'unique_title', 'start_date', 'end_date', 'order',
+              'background_image', 'location_name', 'location_link')
+
+    def save_model(self, request, obj, form, change):
+        # If you want to automatically update unique_title on save, even if the admin hasn't
+        # manually changed it, uncomment the following line:
+        obj.unique_title = obj.generate_unique_title()
+        obj.save()
 
     def background_image_preview(self, obj):
-        """Preview background image."""
+        # (The same implementation as above)
         if obj.background_image and hasattr(obj.background_image, 'url'):
             try:
                 return format_html(
@@ -93,10 +101,10 @@ class ForumEventAdmin(NestedModelAdmin):
                 )
             except Exception as e:
                 logger.error(
-                    f"Error loading background_image for ForumEvent '{obj.title}': {e}")
+                    f"Error loading background_image for ForumEvent '{obj.title}': {e}"
+                )
                 return "Error loading image."
         elif isinstance(obj.background_image, str) and obj.background_image:
-            # Handle cases where background_image is a string path
             try:
                 return format_html(
                     '<img src="{}" style="max-height: 150px; max-width: 300px;" alt="Background Image"/>',
@@ -104,7 +112,8 @@ class ForumEventAdmin(NestedModelAdmin):
                 )
             except Exception as e:
                 logger.error(
-                    f"Error loading background_image path for ForumEvent '{obj.title}': {e}")
+                    f"Error loading background_image path for ForumEvent '{obj.title}': {e}"
+                )
                 return "Error loading image."
         return "No image uploaded."
 
@@ -128,6 +137,7 @@ class PartnerAdmin(admin.ModelAdmin):
     list_filter = ('forum_events', 'category',)
     search_fields = ('name', 'category', 'forum_events__title',)
     list_per_page = 12
+    list_editable = ('order',)
     # Use the horizontal filter widget for the many-to-many field.
     filter_horizontal = ('forum_events',)
 
@@ -153,15 +163,20 @@ class PartnerAdmin(admin.ModelAdmin):
 class PersonAdmin(admin.ModelAdmin):
     list_display = ('name', 'forum_events_display',
                     'category', 'image_preview', 'order')
+    # Only scalar fields (like 'order') can be edited inline.
+    list_editable = ('order',)
     list_filter = ('forum_events', 'category')
     search_fields = ('name', 'category', 'forum_events__title',)
     list_per_page = 12
 
-    # Enable a horizontal filter widget for the many-to-many field.
+    # Use the horizontal filter widget on the change form for the M2M field.
     filter_horizontal = ('forum_events',)
 
     def forum_events_display(self, obj):
-        """Display the events a person is linked to. If none are selected, show 'All Events'."""
+        """
+        Display the events linked to the person.
+        If none are selected, interpret that as "All Events".
+        """
         events = obj.forum_events.all()
         if events.exists():
             return ", ".join(event.title for event in events)
@@ -185,3 +200,21 @@ class ProgramAdmin(NestedModelAdmin):
     search_fields = ('title', 'forum_event__title',)
     list_per_page = 12
     inlines = [SessionInline]
+
+
+@admin.register(Section)
+class SectionAdmin(admin.ModelAdmin):
+    list_display = ('get_forum_events', 'title', 'section_type',
+                    'reverse_order', 'pages', 'order')
+    # Make both the title and forum events clickable.
+    list_display_links = ('title', 'get_forum_events',)
+    list_filter = ('section_type', 'forum_events', 'pages')
+    search_fields = ('title',)
+    list_per_page = 12
+    list_editable = ('reverse_order', 'order', 'section_type',)
+    filter_horizontal = ('forum_events',)
+
+    def get_forum_events(self, obj):
+        events_str = ", ".join([fe.title for fe in obj.forum_events.all()])
+        return events_str if events_str else "(No Forum Event)"
+    get_forum_events.short_description = "Forum Events"

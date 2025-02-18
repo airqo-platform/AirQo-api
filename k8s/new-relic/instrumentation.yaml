@@ -1,0 +1,33 @@
+
+apiVersion: newrelic.com/v1alpha2
+kind: Instrumentation
+metadata:
+  name: newrelic-instrumentation
+  namespace: newrelic-monitoring
+spec:
+  agent:
+    # Values supported: dotnet, java, nodejs, python, ruby, php
+    language: nodejs
+
+    # Values supported: newrelic-java-init:latest, newrelic-dotnet-init:latest, newrelic-node-init:latest, newrelic-python-init:latest, newrelic-ruby-init:latest, newrelic-php-init:latest, newrelic-php-init:musl
+    image: newrelic/newrelic-node-init:latest
+    env:
+    # Example overriding the appName configuration
+    # - name: NEW_RELIC_APP_NAME
+    #   valueFrom:
+    #     fieldRef:
+    #       fieldPath: metadata.labels['app.kubernetes.io/name']
+
+  # Select a namespace with a specific name by using "kubernetes.io/metadata.name" label
+  namespaceLabelSelector:
+    matchExpressions:
+      - key: "kubernetes.io/metadata.name"
+        operator: "In"
+        values: ["staging"]
+
+  # Select pods containing a specific label and value
+  podLabelSelector:
+    matchExpressions:
+      - key: "app.kubernetes.io/name"
+        operator: "In"
+        values: ["airqo-stage-device-registry-api"]

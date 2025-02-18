@@ -114,7 +114,10 @@ const createGroup = {
 
       logObject("responseFromRegisterGroup", responseFromRegisterGroup);
 
-      if (responseFromRegisterGroup.success === true) {
+      if (
+        responseFromRegisterGroup &&
+        responseFromRegisterGroup.success === true
+      ) {
         const grp_id = responseFromRegisterGroup.data._doc._id;
         if (isEmpty(grp_id)) {
           next(
@@ -140,7 +143,8 @@ const createGroup = {
         };
 
         const responseFromCreateRole = await rolePermissionsUtil.createRole(
-          requestForRole
+          requestForRole,
+          next
         );
 
         if (responseFromCreateRole.success === false) {
@@ -266,8 +270,15 @@ const createGroup = {
             return responseFromRegisterGroup;
           }
         }
-      } else if (responseFromRegisterGroup.success === false) {
-        return responseFromRegisterGroup;
+      } else {
+        return (
+          responseFromRegisterGroup || {
+            success: false,
+            message: "unable to create group",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: "unable to create group" },
+          }
+        );
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -384,10 +395,23 @@ const createGroup = {
         );
       }
 
+      // Fetch the default role for this group
+      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+        tenant,
+        grp_id
+      );
+
+      if (!defaultGroupRole || !defaultGroupRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for group ID ${grp_id}`,
+          })
+        );
+      }
+      const defaultRoleId = defaultGroupRole._id;
       const notAssignedUsers = [];
       let assignedUsers = 0;
       const bulkWriteOperations = [];
-      const cleanupOperations = [];
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
@@ -397,7 +421,7 @@ const createGroup = {
             user_id,
             reason: `User ${user_id} not found`,
           });
-          continue; // Continue to the next user
+          continue;
         }
 
         const existingAssignment = user.group_roles
@@ -417,23 +441,17 @@ const createGroup = {
             updateOne: {
               filter: { _id: user_id },
               update: {
-                $addToSet: { group_roles: { group: grp_id } },
+                $addToSet: {
+                  group_roles: {
+                    group: grp_id,
+                    role: defaultRoleId,
+                    userType: "user",
+                  },
+                },
               },
             },
           });
         }
-
-        cleanupOperations.push({
-          updateOne: {
-            filter: {
-              _id: { _id: user_id },
-              "group_roles.group": { $exists: true, $eq: null },
-            },
-            update: {
-              $pull: { group_roles: { group: { $exists: true, $eq: null } } },
-            },
-          },
-        });
       }
 
       if (bulkWriteOperations.length > 0) {
@@ -450,10 +468,6 @@ const createGroup = {
         message = "All users have been assigned to the group.";
       } else {
         message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the group.`;
-      }
-
-      if (cleanupOperations.length > 0) {
-        await UserModel(tenant).bulkWrite(cleanupOperations);
       }
 
       if (notAssignedUsers.length > 0) {
@@ -486,6 +500,7 @@ const createGroup = {
       );
     }
   },
+
   assignOneUser: async (request, next) => {
     try {
       const { grp_id, user_id, tenant } = {
@@ -818,19 +833,29 @@ const createGroup = {
 
       const responseFromListAssignedUsers = await UserModel(tenant)
         .aggregate([
-          {
-            $match: {
-              "group_roles.group": group._id,
-            },
-          },
+          { $match: { "group_roles.group": group._id } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": group._id } },
           {
             $lookup: {
               from: "roles",
-              localField: "group_roles.role",
-              foreignField: "_id",
+              let: { groupId: group._id, roleId: "$group_roles.role" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
               as: "role",
             },
           },
+          { $unwind: "$role" },
           {
             $lookup: {
               from: "permissions",
@@ -851,14 +876,11 @@ const createGroup = {
               status: 1,
               jobTitle: 1,
               createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
+                $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: { $arrayElemAt: ["$role.role_name", 0] },
-              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_name: "$role.role_name",
+              role_id: "$role._id",
               role_permissions: "$role_permissions",
             },
           },
@@ -908,19 +930,29 @@ const createGroup = {
 
       const users = await UserModel(tenant)
         .aggregate([
-          {
-            $match: {
-              "group_roles.group": group._id,
-            },
-          },
+          { $match: { "group_roles.group": group._id } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": group._id } },
           {
             $lookup: {
               from: "roles",
-              localField: "group_roles.role",
-              foreignField: "_id",
+              let: { groupId: group._id, roleId: "$group_roles.role" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
               as: "role",
             },
           },
+          { $unwind: "$role" }, // Unwind role after lookup
           {
             $lookup: {
               from: "permissions",
@@ -942,14 +974,11 @@ const createGroup = {
               status: 1,
               jobTitle: 1,
               createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
+                $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: { $arrayElemAt: ["$role.role_name", 0] },
-              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_name: "$role.role_name", // Access directly after $unwind
+              role_id: "$role._id", // Access directly after $unwind
               role_permissions: "$role_permissions",
             },
           },

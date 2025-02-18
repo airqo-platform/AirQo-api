@@ -8,17 +8,29 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-meta-data-api
     sitesConsumer: eu.gcr.io/airqo-250220/airqo-meta-data-sites-consumer
-  tag: prod-5400c99e-1737527075
+  tag: prod-a384c094-1739819789
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 1000m
-    memory: 500Mi
+    cpu: 300m
+    memory: 700Mi
   requests:
-    cpu: 100m
-    memory: 250Mi
+    cpu: 10m
+    memory: 300Mi
+nodeSelector:
+  role: high-mem
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
