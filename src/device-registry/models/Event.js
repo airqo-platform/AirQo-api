@@ -500,9 +500,17 @@ async function fetchData(model, filter) {
     brief,
     index,
     skip,
-    limit,
+    limit = DEFAULT_LIMIT,
     page,
   } = filter;
+
+  if (typeof limit !== "number" || isNaN(limit)) {
+    limit = DEFAULT_LIMIT;
+  }
+
+  if (typeof page !== "number" || isNaN(page)) {
+    page = DEFAULT_PAGE;
+  }
 
   if (page) {
     skip = parseInt((page - 1) * limit);
