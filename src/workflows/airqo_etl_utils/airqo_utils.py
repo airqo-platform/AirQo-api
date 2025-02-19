@@ -842,6 +842,8 @@ class AirQoDataUtils:
         devices.drop_duplicates(
             subset=["device_id", "timestamp"], keep="first", inplace=True
         )
+
+        # TODO Might have to change approach to group by device_id depending on performance.
         for _, row in devices.iterrows():
             end_date_time = DateUtils.format_datetime_by_unit_str(
                 row.timestamp, "hours_end"
