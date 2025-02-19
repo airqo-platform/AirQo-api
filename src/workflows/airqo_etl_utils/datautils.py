@@ -17,7 +17,7 @@ from .constants import (
     MetaDataType,
 )
 from .utils import Utils
-from .date import date_to_str
+from .date import date_to_str, DateUtils
 from .data_validator import DataValidationUtils
 from typing import List, Dict, Any, Union, Tuple, Optional
 
@@ -312,6 +312,8 @@ class DataUtils:
         device_network: Optional[DeviceNetwork] = None,
         dynamic_query: Optional[bool] = False,
         remove_outliers: Optional[bool] = True,
+        data_filter: Optional[Dict[str, Any]] = None,
+        use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
@@ -342,7 +344,7 @@ class DataUtils:
             table = source.get(device_category).get(frequency)
         except KeyError as e:
             logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
             )
         except Exception as e:
             logger.exception(
@@ -358,6 +360,8 @@ class DataUtils:
             end_date_time=end_date_time,
             network=device_network,
             dynamic_query=dynamic_query,
+            where_fields=data_filter,
+            use_cache=use_cache,
         )
 
         if remove_outliers:
