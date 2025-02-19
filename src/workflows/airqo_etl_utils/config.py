@@ -409,6 +409,7 @@ class Config:
         },
         DataType.AVERAGED: {
             DeviceCategory.GENERAL: {
+                Frequency.RAW: BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE,
                 Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
                 Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
             },
