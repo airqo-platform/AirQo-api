@@ -16,6 +16,7 @@ from dag_docs import (
     airqo_gaseous_realtime_low_cost_data_doc,
     airqo_historical_raw_low_cost_measurements_doc,
     stream_old_data_doc,
+    re_calibrate_missing_calibrated_data_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
@@ -24,6 +25,7 @@ from task_docs import (
     extract_raw_airqo_gaseous_data_doc,
     extract_historical_device_measurements_doc,
     extract_hourly_old_historical_data_doc,
+    extract_devices_missing_calibrated_data_doc,
 )
 from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, DataType
 from datetime import datetime, timedelta
@@ -705,6 +707,7 @@ def airqo_bigquery_data_measurements_to_api():
     "Re_calibrate_missing_calibrated_data_doc",
     schedule="0 0 * * *",
     catchup=False,
+    doc_md=re_calibrate_missing_calibrated_data_doc,
     tags=["2025", "hourly-data", "bigquery"],
     default_args=AirflowUtils.dag_default_configs(),
 )
@@ -712,6 +715,7 @@ def calibrate_missing_measurements():
     import pandas as pd
 
     @task(
+        doc_md=extract_devices_missing_calibrated_data_doc,
         provide_context=True,
         retries=3,
         retry_delay=timedelta(minutes=5),
