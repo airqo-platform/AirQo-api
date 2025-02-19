@@ -25,6 +25,192 @@ function generateDateFormatWithoutHrs(ISODate) {
   }
 }
 
+// Centralized sensor/pollutant configuration
+const SENSOR_FIELDS = [
+  "pm2_5",
+  "pm10",
+  "no2",
+  "pm1",
+  "s1_pm2_5",
+  "s2_pm2_5",
+  "s1_pm10",
+  "s2_pm10",
+  "s1_pm1",
+  "s2_pm1",
+  "average_pm2_5",
+  "average_pm10",
+  "average_no2",
+  "latitude",
+  "longitude",
+  "battery",
+  "speed",
+  "altitude",
+  "satellites",
+  "hdop",
+  "internalTemperature",
+  "externalTemperature",
+  "internalHumidity",
+  "externalHumidity",
+  "externalPressure",
+  "externalAltitude",
+  "tvoc",
+  "co2",
+  "hcho",
+  "intaketemperature",
+  "intakehumidity",
+  "rtc_adc",
+  "rtc_v",
+  "rtc",
+  "stc_adc",
+  "stc_v",
+  "stc",
+];
+
+const V2_EVENT_MAPPINGS = {
+  item: {},
+  remove: [],
+  defaults: {},
+  operate: [
+    {
+      run: function(time) {
+        const day = generateDateFormatWithoutHrs(time);
+        return day;
+      },
+      on: "day",
+    },
+    {
+      run: function(time) {
+        const cleanedTime = new Date(time);
+        return cleanedTime;
+      },
+      on: "time",
+    },
+
+    {
+      run: function(device_number) {
+        if (!isEmpty(device_number)) {
+          return parseInt(device_number);
+        }
+        return device_number;
+      },
+      on: "device_number",
+    },
+  ],
+  each: function(item, index, collection, context) {
+    item.filter = {};
+    item.update = {};
+    item.options = {};
+    item["filter"]["device"] = item.device;
+    item["filter"]["device_id"] = item.device_id;
+    item["filter"]["site_id"] = item.site_id;
+    item["filter"]["nValues"] = { $lt: parseInt(envs.N_VALUES || 500) };
+    item["filter"]["day"] = item.day;
+    item["filter"]["$or"] = [
+      { "values.time": { $ne: item.time } },
+      { "values.device": { $ne: item.device } },
+      {
+        "values.frequency": {
+          $ne: item.frequency,
+        },
+      },
+      {
+        "values.device_id": {
+          $ne: item.device_id,
+        },
+      },
+      { "values.site_id": { $ne: item.site_id } },
+      {
+        day: {
+          $ne: item.day,
+        },
+      },
+    ];
+    item["update"]["$min"] = {
+      first: item.time,
+    };
+    item["update"]["$max"] = {
+      last: item.time,
+    };
+    item["update"]["$inc"] = { nValues: 1 };
+    item["options"]["upsert"] = true;
+
+    mappings.mapPollutantFields.call(mappings, item); // Call with correct context
+
+    return item;
+  },
+  pollutants: SENSOR_FIELDS.filter(
+    (field) =>
+      field.startsWith("average_") ||
+      field.startsWith("s1_") ||
+      field.startsWith("s2_") ||
+      field === "pm2_5" ||
+      field === "pm10" ||
+      field === "no2" ||
+      field === "pm1"
+  ), // Add pollutants that match the naming pattern average_*, s1_*, s2_*, pm2_5, pm10, pm1, no2
+
+  mapPollutantFields: function(item) {
+    this.pollutants.forEach((pollutant) => {
+      item[`${pollutant}.value`] = item[`${pollutant}_raw_value`] ?? null;
+      item[`${pollutant}.calibratedValue`] =
+        item[`${pollutant}_calibrated_value`] ?? null;
+      item[`${pollutant}.uncertaintyValue`] =
+        item[`${pollutant}_uncertainty_value`] ?? null;
+      item[`${pollutant}.standardDeviationValue`] =
+        item[`${pollutant}_standard_deviation_value`] ?? null;
+
+      delete item[`${pollutant}_raw_value`];
+      delete item[`${pollutant}_calibrated_value`];
+      delete item[`${pollutant}_uncertainty_value`];
+      delete item[`${pollutant}_standard_deviation_value`];
+    });
+
+    return item;
+  },
+};
+
+// Dynamically generate 'item' and 'defaults'
+SENSOR_FIELDS.forEach((field) => {
+  //handle the mapping of the pollutants in the item section
+  if (
+    field.startsWith("average_") ||
+    field.startsWith("s1_") ||
+    field.startsWith("s2_") ||
+    field === "pm2_5" ||
+    field === "pm10" ||
+    field === "no2" ||
+    field === "pm1"
+  ) {
+    V2_EVENT_MAPPINGS.item[`${field}.value`] = `${field}_raw_value`;
+  } else {
+    V2_EVENT_MAPPINGS.item[`${field}.value`] = field;
+  }
+
+  if (!field.includes(".")) {
+    // Exclude fields with . like "location.latitude.value" as they are handled separately
+    V2_EVENT_MAPPINGS.item[field] = field; // Direct mapping for simple fields
+  }
+  //handle the defaults for the pollutants
+  V2_EVENT_MAPPINGS.defaults[`${field}.value`] = null;
+  V2_EVENT_MAPPINGS.defaults[`${field}.calibratedValue`] = null;
+  V2_EVENT_MAPPINGS.defaults[`${field}.uncertaintyValue`] = null;
+  V2_EVENT_MAPPINGS.defaults[`${field}.standardDeviationValue`] = null;
+  V2_EVENT_MAPPINGS.item.time = "timestamp";
+  V2_EVENT_MAPPINGS.item.day = "timestamp";
+  V2_EVENT_MAPPINGS.item.frequency = "frequency";
+  V2_EVENT_MAPPINGS.item.device = "device_name";
+  V2_EVENT_MAPPINGS.item.device_number = "device_number";
+  V2_EVENT_MAPPINGS.item.site = "site";
+  V2_EVENT_MAPPINGS.item.site_id = "site_id";
+  V2_EVENT_MAPPINGS.item.device_id = "device_id";
+  V2_EVENT_MAPPINGS.item.tenant = "tenant";
+  V2_EVENT_MAPPINGS.item.network = "network";
+  V2_EVENT_MAPPINGS.item.is_test_data = "is_test_data";
+  V2_EVENT_MAPPINGS.item.is_device_primary = "is_device_primary";
+});
+
+// Add other mappings to V2_EVENT_MAPPINGS.item as needed (e.g., time, device, etc.)
+
 const mappings = {
   AQI_INDEX: {
     good: { min: 0, max: 9.0 },
@@ -170,135 +356,31 @@ const mappings = {
       network: "network",
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
-
-      "pm2_5.value": "pm2_5_raw_value",
-      "pm2_5.calibratedValue": "pm2_5_calibrated_value",
-      "pm2_5.uncertaintyValue": "pm2_5_uncertainty_value",
-      "pm2_5.standardDeviationValue": "pm2_5_standard_deviation_value",
-
-      "average_pm2_5.value": "pm2_5_raw_value",
-      "average_pm2_5.calibratedValue": "pm2_5_calibrated_value",
-      "average_pm2_5.uncertaintyValue": "pm2_5_uncertainty_value",
-      "average_pm2_5.standardDeviationValue": "pm2_5_standard_deviation_value",
-
-      "average_pm10.value": "pm10_raw_value",
-      "average_pm10.calibratedValue": "pm10_calibrated_value",
-      "average_pm10.uncertaintyValue": "pm10_uncertainty_value",
-      "average_pm10.standardDeviationValue": "pm10_standard_deviation_value",
-
-      "s1_pm2_5.value": "s1_pm2_5",
-      "s1_pm2_5.calibratedValue": "s1_pm2_5_calibrated_value",
-      "s1_pm2_5.uncertaintyValue": "s1_pm2_5_uncertainty_value",
-      "s1_pm2_5.standardDeviationValue": "s1_pm2_5_standard_deviation_value",
-
-      "s2_pm2_5.value": "s2_pm2_5",
-      "s2_pm2_5.calibratedValue": "s2_pm2_5_calibrated_value",
-      "s2_pm2_5.uncertaintyValue": "s2_pm2_5_uncertainty_value",
-      "s2_pm2_5.standardDeviationValue": "s2_pm2_5_standard_deviation_value",
-
-      "pm10.value": "pm10_raw_value",
-      "pm10.calibratedValue": "pm10_calibrated_value",
-      "pm10.uncertaintyValue": "pm10_uncertainty_value",
-      "pm10.standardDeviationValue": "pm10_standard_deviation_value",
-
-      "s1_pm10.value": "s1_pm10",
-      "s1_pm10.calibrated_value": "s1_pm10_calibrated_value",
-      "s1_pm10.uncertainty_value": "s1_pm10_uncertainty_value",
-      "s1_pm10.standard_deviation_value": "s1_pm10_standard_deviation_value",
-
-      "s2_pm10.value": "s2_pm10",
-      "s2_pm10.calibratedValue": "s2_pm10_calibrated_value",
-      "s2_pm10.uncertaintyValue": "s2_pm10_uncertainty_value",
-      "s2_pm10.standardDeviationValue": "s2_pm10_standard_deviation_value",
-
-      "pm1.value": "pm1_raw_value",
-      "pm1.calibratedValue": "pm1_calibrated_value",
-      "pm1.uncertaintyValue": "pm1_uncertainty_value",
-      "pm1.standardDeviationValue": "pm1_standard_deviation_value",
-
-      "s1_pm1.value": "s1_pm1",
-      "s1_pm1.calibratedValue": "s1_pm1_calibrated_value",
-      "s1_pm1.uncertaintyValue": "s1_pm1_uncertainty_value",
-      "s1_pm1.standardDeviationValue": "s1_pm1_standard_deviation_value",
-
-      "s2_pm1.value": "s2_pm1",
-      "s2_pm1.calibratedValue": "s2_pm1_calibrated_value",
-      "s2_pm1.uncertaintyValue": "s2_pm1_uncertainty_value",
-      "s2_pm1.standardDeviationValue": "s2_pm1_standard_deviation_value",
-
-      "latitude.value": "latitude",
-      "longitude.value": "longitude",
-
-      "no2.value": "no2_raw_value",
-      "no2.calibratedValue": "no2_calibrated_value",
-      "no2.uncertaintyValue": "no2_uncertainty_value",
-      "no2.standardDeviationValue": "no2_standard_deviation_value",
-
-      "pm1.value": "pm1_raw_value",
-      "pm1.calibratedValue": "pm1_calibrated_value",
-      "pm1.uncertaintyValue": "pm1_uncertainty_value",
-      "pm1.standardDeviationValue": "pm1_standard_deviation_value",
-
-      "s1_pm1.value": "s1_pm1",
-      "s1_pm1.calibratedValue": "s1_pm1_calibrated_value",
-      "s1_pm1.uncertaintyValue": "s1_pm1_uncertainty_value",
-      "s1_pm1.standardDeviationValue": "s1_pm1_standard_deviation_value",
-
-      "rtc_adc.value": "rtc_adc",
-      "rtc_adc.calibratedValue": "rtc_adc_calibrated_value",
-      "rtc_adc.uncertaintyValue": "rtc_adc_uncertainty_value",
-      "rtc_adc.standardDeviationValue": "rtc_adc_standard_deviation_value",
-
-      "rtc_v.value": "rtc_v",
-      "rtc_v.calibratedValue": "rtc_v_calibrated_value",
-      "rtc_v.uncertaintyValue": "rtc_v_uncertainty_value",
-      "rtc_v.standardDeviationValue": "rtc_v_standard_deviation_value",
-
-      "rtc.value": "rtc",
-      "rtc.calibratedValue": "rtc_calibrated_value",
-      "rtc.uncertaintyValue": "rtc_uncertainty_value",
-      "rtc.standardDeviationValue": "rtc_standard_deviation_value",
-
-      "stc_adc.value": "stc_adc",
-      "stc_adc.calibratedValue": "stc_adc_calibrated_value",
-      "stc_adc.uncertaintyValue": "stc_adc_uncertainty_value",
-      "stc_adc.standardDeviationValue": "stc_adc_standard_deviation_value",
-
-      "stc_v.value": "stc_v",
-      "stc_v.calibratedValue": "stc_v_calibrated_value",
-      "stc_v.uncertaintyValue": "stc_v_uncertainty_value",
-      "stc_v.standardDeviationValue": "stc_v_standard_deviation_value",
-
-      "stc.value": "stc",
-      "stc.calibratedValue": "stc_calibrated_value",
-      "stc.uncertaintyValue": "stc_uncertainty_value",
-      "stc.standardDeviationValue": "stc_standard_deviation_value",
-
-      "s2_pm1.value": "s2_pm1",
-      "s2_pm1.calibratedValue": "s2_pm1_calibrated_value",
-      "s2_pm1.uncertaintyValue": "s2_pm1_uncertainty_value",
-      "s2_pm1.standardDeviationValue": "s2_pm1_standard_deviation_value",
-
-      "internalTemperature.value": "device_temperature",
-      "externalTemperature.value": "temperature",
-
-      "internalHumidity.value": "device_humidity",
-      "externalHumidity.value": "humidity",
-
-      "externalPressure.value": "external_pressure",
-      "internalPressure.value": "internal_pressure",
-
+      "location.latitude.value": "latitude",
+      "location.longitude.value": "longitude",
+      "battery.value": "battery",
       "speed.value": "wind_speed",
       "altitude.value": "altitude",
-      "battery.value": "battery",
       "satellites.value": "satellites",
       "hdop.value": "hdop",
-
+      "internalTemperature.value": "internalTemperature",
+      "externalTemperature.value": "externalTemperature",
+      "internalHumidity.value": "internalHumidity",
+      "externalHumidity.value": "externalHumidity",
+      "externalPressure.value": "externalPressure",
+      "externalAltitude.value": "externalAltitude",
       "tvoc.value": "tvoc",
-      "hcho.value": "hcho",
       "co2.value": "co2",
+      "hcho.value": "hcho",
       "intaketemperature.value": "intaketemperature",
       "intakehumidity.value": "intakehumidity",
+
+      "rtc_adc.value": "rtc_adc",
+      "rtc_v.value": "rtc_v",
+      "rtc.value": "rtc",
+      "stc_adc.value": "stc_adc",
+      "stc_v.value": "stc_v",
+      "stc.value": "stc",
     },
     remove: [],
     defaults: {
@@ -462,6 +544,7 @@ const mappings = {
         on: "device_number",
       },
     ],
+
     each: function(item, index, collection, context) {
       item.filter = {};
       item.update = {};
@@ -501,6 +584,37 @@ const mappings = {
       item["options"]["upsert"] = true;
       return item;
     },
+
+    pollutants: [
+      // Array to hold pollutant configurations
+      "pm2_5",
+      "pm10",
+      "no2",
+      "pm1",
+      "s1_pm2_5",
+      "s2_pm2_5",
+      "s1_pm10",
+      "s2_pm10",
+      "s1_pm1",
+      "s2_pm1",
+      "average_pm2_5",
+      "average_pm10",
+      "average_no2",
+    ],
+
+    mapPollutantFields: function(item) {
+      // Function to map pollutant fields
+      this.pollutants.forEach((pollutant) => {
+        item[`$pollutant.value`] = `$pollutant_raw_value`;
+        item[`$pollutant.calibratedValue`] = `$pollutant_calibrated_value`;
+        item[`$pollutant.uncertaintyValue`] = `$pollutant_uncertainty_value`;
+        item[
+          `$pollutant.standardDeviationValue`
+        ] = `$pollutant_standard_deviation_value`;
+      });
+      return item;
+    },
   },
+  V2_EVENT_MAPPINGS,
 };
 module.exports = mappings;
