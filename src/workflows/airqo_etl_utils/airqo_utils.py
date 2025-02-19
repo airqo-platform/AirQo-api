@@ -894,6 +894,8 @@ class AirQoDataUtils:
                 air_weather_hourly_data = AirQoDataUtils.merge_aggregated_weather_data(
                     airqo_data=aggregated_device_data, weather_data=hourly_weather_data
                 )
+                if air_weather_hourly_data.empty:
+                    continue
 
                 calibrated_data = AirQoDataUtils.calibrate_data(
                     data=air_weather_hourly_data
