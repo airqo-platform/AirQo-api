@@ -870,34 +870,36 @@ class AirQoDataUtils:
                     raw_device_data.network.name,
                 ]
             if not raw_device_data.empty:
-                clean_raw = DataUtils.remove_duplicates(
-                    raw_device_data,
-                    timestamp_col=raw_device_data.timestamp.name,
-                    id_col=raw_device_data.device_id.name,
-                    group_col=raw_device_data.site_id.name,
-                    exclude_cols=exclude_cols,
-                )
-                aggregated_device_data = AirQoDataUtils.aggregate_low_cost_sensors_data(
-                    data=clean_raw
-                )
-                if aggregated_device_data.empty:
+                try:
+                    clean_raw = DataUtils.remove_duplicates(
+                        raw_device_data,
+                        timestamp_col=raw_device_data.timestamp.name,
+                        id_col=raw_device_data.device_id.name,
+                        group_col=raw_device_data.site_id.name,
+                        exclude_cols=exclude_cols,
+                    )
+                    aggregated_device_data = (
+                        AirQoDataUtils.aggregate_low_cost_sensors_data(data=clean_raw)
+                    )
+                    hourly_weather_data = DataUtils.extract_data_from_bigquery(
+                        DataType.AVERAGED,
+                        start_date_time=row.timestamp,
+                        end_date_time=end_date_time,
+                        frequency=Frequency.HOURLY,
+                        device_category=DeviceCategory.WEATHER,
+                        use_cache=True,
+                    )
+                    air_weather_hourly_data = (
+                        AirQoDataUtils.merge_aggregated_weather_data(
+                            airqo_data=aggregated_device_data,
+                            weather_data=hourly_weather_data,
+                        )
+                    )
+                    calibrated_data = AirQoDataUtils.calibrate_data(
+                        data=air_weather_hourly_data
+                    )
+                except Exception as e:
+                    logger.exception(f"An error occured: {e}")
                     continue
-
-                hourly_weather_data = DataUtils.extract_data_from_bigquery(
-                    DataType.AVERAGED,
-                    start_date_time=row.timestamp,
-                    end_date_time=end_date_time,
-                    frequency=Frequency.HOURLY,
-                    device_category=DeviceCategory.WEATHER,
-                    use_cache=True,
-                )
-                air_weather_hourly_data = AirQoDataUtils.merge_aggregated_weather_data(
-                    airqo_data=aggregated_device_data, weather_data=hourly_weather_data
-                )
-
-                calibrated_data = AirQoDataUtils.calibrate_data(
-                    data=air_weather_hourly_data
-                )
-                yield calibrated_data
-            else:
-                continue
+                else:
+                    yield calibrated_data
