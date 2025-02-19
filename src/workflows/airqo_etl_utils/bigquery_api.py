@@ -8,7 +8,13 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 
 from .config import configuration
-from .constants import JobAction, ColumnDataType, DeviceNetwork, QueryType
+from .constants import (
+    JobAction,
+    ColumnDataType,
+    DeviceNetwork,
+    QueryType,
+    DeviceCategory,
+)
 from .date import date_to_str
 from .utils import Utils
 
@@ -578,7 +584,7 @@ class BigQueryApi:
                     f"Invalid table column. {key} is not among the columns for {table}"
                 )
             if isinstance(value, tuple):
-                where_clause += f" AND {key} in {value}"
+                where_clause += f" AND {key} in {value} "
             else:
                 where_clause += f" AND {key} = '{value}' "
 
@@ -659,7 +665,6 @@ class BigQueryApi:
             where_fields=where_fields,
             null_cols=null_cols,
         )
-
         self.client.query(query=query).result()
 
         self.load_data(dataframe=dataframe, table=table)
@@ -675,6 +680,7 @@ class BigQueryApi:
         where_fields: Optional[Dict[str, Any]] = None,
         null_cols: Optional[List] = None,
         time_granularity: Optional[str] = "HOUR",
+        use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
@@ -712,7 +718,12 @@ class BigQueryApi:
                 time_granularity=time_granularity,
             )
 
-        measurements = self.client.query(query=query).result().to_dataframe()
+        job_config = bigquery.QueryJobConfig(use_query_cache=use_cache)
+        measurements = (
+            self.client.query(query=query, job_config=job_config)
+            .result()
+            .to_dataframe()
+        )
 
         expected_columns = self.get_columns(table=table)
         if measurements.empty:
@@ -1024,11 +1035,11 @@ ORDER BY
         """
         query = f"""
             WITH timestamp_hours AS (
-            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS hour_timestamp 
+            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp 
             FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
             ),
             device_data AS (
-            SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS hour_timestamp
+            SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
             FROM `{table}` 
             WHERE 
             DATE(timestamp) = '{date}'
@@ -1037,13 +1048,13 @@ ORDER BY
             )
             SELECT 
                 dd.device_id,
-                dt.hour_timestamp
+                dt.timestamp
             FROM 
                 device_data dd
             LEFT JOIN 
-                timestamp_hours dt ON dd.hour_timestamp = dt.hour_timestamp
+                timestamp_hours dt ON dd.timestamp = dt.timestamp
             ORDER BY 
-                dt.hour_timestamp, dd.device_id;
+                dt.timestamp, dd.device_id;
             """
         return query
 
