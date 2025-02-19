@@ -17,7 +17,7 @@ from .constants import (
     MetaDataType,
 )
 from .utils import Utils
-from .date import date_to_str
+from .date import date_to_str, DateUtils
 from .data_validator import DataValidationUtils
 from typing import List, Dict, Any, Union, Tuple, Optional
 
@@ -313,6 +313,7 @@ class DataUtils:
         dynamic_query: Optional[bool] = False,
         remove_outliers: Optional[bool] = True,
         data_filter: Optional[Dict[str, Any]] = None,
+        use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
@@ -343,7 +344,7 @@ class DataUtils:
             table = source.get(device_category).get(frequency)
         except KeyError as e:
             logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
             )
         except Exception as e:
             logger.exception(
@@ -360,6 +361,7 @@ class DataUtils:
             network=device_network,
             dynamic_query=dynamic_query,
             where_fields=data_filter,
+            use_cache=use_cache,
         )
 
         if remove_outliers:
@@ -892,28 +894,3 @@ class DataUtils:
             Any: The extracted value or None if not found.
         """
         return data.get(key)
-
-    @staticmethod
-    def extract_devices_with_uncalibrated_data(
-        start_date, table: str = None, network: DeviceNetwork = DeviceNetwork.xxxx
-    ) -> pd.DataFrame:
-        """
-        Extracts devices with uncalibrated data for a given start date from BigQuery.
-
-        Args:
-            start_date (str or datetime): The date for which to check missing uncalibrated data.
-            table (str, optional): The name of the BigQuery table. Defaults to None, in which case the appropriate table is determined dynamically.
-            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.xxxx.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the devices with missing uncalibrated data.
-
-        Raises:
-            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
-        """
-        bigquery_api = BigQueryApi()
-        if not table:
-            source = Config.DataSource.get(DataType.AVERAGED)
-            table = source.get(DeviceCategory.GENERAL).get(Frequency.RAW)
-        query = bigquery_api.generate_missing_data_query(start_date, table, network)
-        return bigquery_api.execute_missing_data_query(query)
