@@ -1,20 +1,19 @@
 from datetime import datetime, timezone
-
+import ast
 import numpy as np
 import pandas as pd
+from typing import List, Dict, Any, Union, Generator, Tuple
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
-from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel
+from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel, DataType
 from .data_validator import DataValidationUtils
-from .date import date_to_str
+from .date import date_to_str, DateUtils
 from .ml_utils import GCSUtils
 from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
-from typing import List, Dict, Any, Union
-import ast
 
 import logging
 
@@ -277,21 +276,30 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
-        group_metadata = (
-            data[["device_id", "site_id", "device_number", "network"]]
-            .drop_duplicates("device_id")
-            .set_index("device_id")
-        )
+        group_metadata = data[
+            ["device_id", "site_id", "device_number", "network"]
+        ].drop_duplicates("device_id")
+        group_metadata.set_index("device_id", inplace=True)
+
         numeric_columns = data.select_dtypes(include=["number"]).columns
         numeric_columns = numeric_columns.difference(["device_number"])
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        aggregated = (
-            data_for_aggregation.groupby("device_id")
-            .apply(lambda group: group.resample("1H", on="timestamp").mean())
-            .reset_index()
-        )
-
-        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+        try:
+            aggregated = (
+                data_for_aggregation.set_index("timestamp")
+                .groupby("device_id")
+                .resample("1H")
+                .mean()
+                .reset_index()
+            )
+            aggregated = pd.concat(
+                [aggregated.set_index("device_id"), group_metadata],
+                axis=1,
+                join="inner",
+            ).reset_index()
+        except Exception as e:
+            logger.exception(f"An error occured: No data passed - {e}")
+            aggregated = pd.DataFrame(columns=data.columns)
 
         return aggregated
 
@@ -785,3 +793,109 @@ class AirQoDataUtils:
             devices.drop_duplicates(subset=["device_id"], keep="last")
 
         return devices
+
+    @staticmethod
+    def extract_devices_with_uncalibrated_data(
+        start_date, table: str = None, network: DeviceNetwork = DeviceNetwork.AIRQO
+    ) -> pd.DataFrame:
+        """
+        Extracts devices with uncalibrated data for a given start date from BigQuery.
+
+        Args:
+            start_date (str or datetime): The date for which to check missing uncalibrated data.
+            table (str, optional): The name of the BigQuery table. Defaults to None, in which case the appropriate table is determined dynamically.
+            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.xxxx.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the devices with missing uncalibrated data.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+        """
+        bigquery_api = BigQueryApi()
+        if not table:
+            source = Config.DataSource.get(DataType.AVERAGED)
+            table = source.get(DeviceCategory.GENERAL).get(Frequency.HOURLY)
+        query = bigquery_api.generate_missing_data_query(start_date, table, network)
+        return bigquery_api.execute_missing_data_query(query)
+
+    @staticmethod
+    def extract_aggregate_calibrate_raw_data(
+        devices: pd.DataFrame,
+    ) -> Generator[pd.DataFrame, None, None]:
+        """
+        Extracts and aggregates raw sensor data for each device in the provided DataFrame.
+
+        This function iterates through the provided devices, extracts raw data from BigQuery,
+        removes duplicates, aggregates low-cost sensor data, merges it with weather data,
+        and finally calibrates the data before yielding it.
+
+        Parameters:
+            devices (pd.DataFrame): A DataFrame containing device records, including 'device_id' and 'timestamp'.
+
+        Yields:
+            pd.DataFrame: A DataFrame containing processed and calibrated data for each device.
+        """
+
+        exclude_cols = None
+
+        devices.drop_duplicates(
+            subset=["device_id", "timestamp"], keep="first", inplace=True
+        )
+        for _, row in devices.iterrows():
+            end_date_time = DateUtils.format_datetime_by_unit_str(
+                row.timestamp, "hours_end"
+            )
+            raw_device_data = DataUtils.extract_data_from_bigquery(
+                DataType.RAW,
+                start_date_time=row.timestamp,
+                end_date_time=end_date_time,
+                frequency=Frequency.RAW,
+                device_category=DeviceCategory.GENERAL,
+                use_cache=True,
+                data_filter={
+                    "device_id": row.device_id,
+                    "device_category": DeviceCategory.LOWCOST.str,
+                },
+            )
+
+            # Initialize `exclude_cols` only once
+            if not exclude_cols:
+                exclude_cols = [
+                    raw_device_data.device_number.name,
+                    raw_device_data.latitude.name,
+                    raw_device_data.longitude.name,
+                    raw_device_data.network.name,
+                ]
+            if not raw_device_data.empty:
+                clean_raw = DataUtils.remove_duplicates(
+                    raw_device_data,
+                    timestamp_col=raw_device_data.timestamp.name,
+                    id_col=raw_device_data.device_id.name,
+                    group_col=raw_device_data.site_id.name,
+                    exclude_cols=exclude_cols,
+                )
+                aggregated_device_data = AirQoDataUtils.aggregate_low_cost_sensors_data(
+                    data=clean_raw
+                )
+                if aggregated_device_data.empty:
+                    continue
+
+                hourly_weather_data = DataUtils.extract_data_from_bigquery(
+                    DataType.AVERAGED,
+                    start_date_time=row.timestamp,
+                    end_date_time=end_date_time,
+                    frequency=Frequency.HOURLY,
+                    device_category=DeviceCategory.WEATHER,
+                    use_cache=True,
+                )
+                air_weather_hourly_data = AirQoDataUtils.merge_aggregated_weather_data(
+                    airqo_data=aggregated_device_data, weather_data=hourly_weather_data
+                )
+
+                calibrated_data = AirQoDataUtils.calibrate_data(
+                    data=air_weather_hourly_data
+                )
+                yield calibrated_data
+            else:
+                continue
