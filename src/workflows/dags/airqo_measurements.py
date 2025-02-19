@@ -690,7 +690,7 @@ def airqo_bigquery_data_measurements_to_api():
 
 
 @dag(
-    "Re_calibrate_missing_calibrated_data_doc",
+    "Re-calibrate-missing-calibrated-data",
     schedule="0 0 * * *",
     catchup=False,
     doc_md=re_calibrate_missing_calibrated_data_doc,
@@ -716,7 +716,7 @@ def calibrate_missing_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_calibrate_send_hourly_measurements_to_bigquery(
-        data: pd.DataFrame,
+        devices: pd.DataFrame,
     ) -> None:
         big_query_api = BigQueryApi()
         for calibrated_data in AirQoDataUtils.extract_aggregate_calibrate_raw_data(
