@@ -400,6 +400,11 @@ const processCohortIds = async (cohort_ids, request) => {
         cohort_id,
       });
 
+      logObject(
+        "responseFromGetDevicesOfCohort",
+        responseFromGetDevicesOfCohort
+      );
+
       if (responseFromGetDevicesOfCohort.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
@@ -1314,12 +1319,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1405,7 +1410,7 @@ const createEvent = {
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Bad Request",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1491,7 +1496,7 @@ const createEvent = {
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Bad Request",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1577,7 +1582,7 @@ const createEvent = {
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Bad Request",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1653,12 +1658,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
-            message: `Unable to process measurements for the provided measurement IDs`,
+            message: `Unable to process measurements - crosscheck if provided IDs exist`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2463,12 +2468,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided AirQloud IDs ${airqloud_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2542,12 +2547,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided AirQloud IDs ${airqloud_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2623,12 +2628,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Grid IDs ${grid_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2703,12 +2708,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Grid IDs ${grid_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2784,12 +2789,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Cohort IDs ${cohort_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2865,12 +2870,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Cohort IDs ${cohort_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
