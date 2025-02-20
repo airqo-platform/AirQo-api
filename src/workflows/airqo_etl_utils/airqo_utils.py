@@ -286,17 +286,11 @@ class AirQoDataUtils:
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
         try:
             aggregated = (
-                data_for_aggregation.set_index("timestamp")
-                .groupby("device_id")
-                .resample("1H")
-                .mean()
+                data_for_aggregation.groupby("device_id")
+                .apply(lambda group: group.resample("1H", on="timestamp").mean())
                 .reset_index()
             )
-            aggregated = pd.concat(
-                [aggregated.set_index("device_id"), group_metadata],
-                axis=1,
-                join="inner",
-            ).reset_index()
+            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
         except Exception as e:
             logger.exception(f"An error occured: No data passed - {e}")
             aggregated = pd.DataFrame(columns=data.columns)
@@ -845,8 +839,9 @@ class AirQoDataUtils:
 
         # TODO Might have to change approach to group by device_id depending on performance.
         for _, row in devices.iterrows():
+            end_date_time = datetime.strptime(row.timestamp, "%Y-%m-%dT%H:%M:%SZ")
             end_date_time = DateUtils.format_datetime_by_unit_str(
-                row.timestamp, "hours_end"
+                end_date_time, "hours_end"
             )
             raw_device_data = DataUtils.extract_data_from_bigquery(
                 DataType.RAW,
