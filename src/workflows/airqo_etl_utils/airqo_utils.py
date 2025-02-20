@@ -286,17 +286,11 @@ class AirQoDataUtils:
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
         try:
             aggregated = (
-                data_for_aggregation.set_index("timestamp")
-                .groupby("device_id")
-                .resample("1H")
-                .mean()
+                data_for_aggregation.groupby("device_id")
+                .apply(lambda group: group.resample("1H", on="timestamp").mean())
                 .reset_index()
             )
-            aggregated = pd.concat(
-                [aggregated.set_index("device_id"), group_metadata],
-                axis=1,
-                join="inner",
-            ).reset_index()
+            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
         except Exception as e:
             logger.exception(f"An error occured: No data passed - {e}")
             aggregated = pd.DataFrame(columns=data.columns)
