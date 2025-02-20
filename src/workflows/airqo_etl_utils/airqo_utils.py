@@ -839,9 +839,8 @@ class AirQoDataUtils:
 
         # TODO Might have to change approach to group by device_id depending on performance.
         for _, row in devices.iterrows():
-            end_date_time = DateUtils.format_datetime_by_unit_str(
-                row.timestamp, "hours_end"
-            )
+            end_data = datetime.strptime(row.timestamp, "%Y-%m-%dT%H:%M:%SZ")
+            end_date_time = DateUtils.format_datetime_by_unit_str(end_data, "hours_end")
             raw_device_data = DataUtils.extract_data_from_bigquery(
                 DataType.RAW,
                 start_date_time=row.timestamp,
