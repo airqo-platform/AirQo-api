@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
-  tag: stage-b9f9a78f-1739993465
+  tag: stage-ea0fbf40-1740000507
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -52,6 +52,7 @@ affinity:
               operator: In
               values:
                 - high-cpu
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
