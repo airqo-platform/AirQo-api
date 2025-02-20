@@ -29,6 +29,7 @@ affinity:
         weight: 1
 nodeSelector:
   role: control-plane
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

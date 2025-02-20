@@ -52,6 +52,7 @@ affinity:
               operator: In
               values:
                 - high-cpu
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
