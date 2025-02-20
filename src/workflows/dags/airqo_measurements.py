@@ -262,7 +262,7 @@ def airqo_cleanup_measurements():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=3, **kwargs
+            days=7, **kwargs
         )
 
         data = DataUtils.extract_data_from_bigquery(
