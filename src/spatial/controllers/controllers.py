@@ -1,5 +1,6 @@
 # controller/controller.py
 from flask import Blueprint, request, jsonify
+
 from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
@@ -13,6 +14,8 @@ from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView
+
+from views.pollutant_views import PollutantApis
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -67,7 +70,7 @@ def site_selection():
 @controller_bp.route("/satellite_prediction", methods=["POST"])
 def get_satellite_prediction():
     return SatellitePredictionView.make_predictions()
-
+    
 @controller_bp.route("/air_quality_report", methods=["POST"])
 def fetch_air_quality():
     return ReportView.generate_air_quality_report_with_gemini()
@@ -79,3 +82,18 @@ def fetch_air_quality_without_llm():
 @controller_bp.route("/air_quality_report_with_customised_prompt", methods=["POST"])
 def fetch_air_quality_with_customised_prompt():
     return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
+
+@controller_bp.route('/upload-image', methods=['POST'])
+def upload_image_for_prediction():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    return PollutantApis.upload_image()
+
+@controller_bp.route('/get-data-by-confidence', methods=['GET'])
+def get_data_by_confidence():
+    return PollutantApis.get_data_by_confidence()
+
+@controller_bp.route('/get-all-data', methods=['GET'])
+def get_all_data():
+    return PollutantApis.get_all_data()
+
