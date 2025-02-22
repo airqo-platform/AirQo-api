@@ -43,7 +43,10 @@ This authentication microservice is a crucial component of our application's sec
 - Node.js v18 or higher
 - npm (or yarn)
 - MongoDB (local or remote; configure `DB_URL` if remote)
-- [Other services/dependencies like Redis, Mailchimp, Google Cloud, Paddle - if used] Provide setup details.
+- Redis
+- Mailchimp
+- Google Cloud
+- Paddle
 
 ### Installation
 
