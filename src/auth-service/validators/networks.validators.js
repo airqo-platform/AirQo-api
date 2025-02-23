@@ -374,7 +374,13 @@ const update = [
       .optional()
       .notEmpty()
       .withMessage("the net_name should not be empty IF provided")
-      .trim(),
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the net_name can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     body("net_users")
       .optional()
       .custom((value) => {
@@ -489,7 +495,13 @@ const refresh = [
       .if(body("net_name").exists())
       .notEmpty()
       .withMessage("the net_name should not be empty")
-      .trim(),
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the net_name can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     body("net_users")
       .optional()
       .custom((value) => {
