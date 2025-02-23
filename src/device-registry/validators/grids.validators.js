@@ -97,7 +97,13 @@ const commonValidations = {
       .bail()
       .notEmpty()
       .withMessage("The name should not be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
 
   nameQuery: [
@@ -105,7 +111,13 @@ const commonValidations = {
       .optional()
       .notEmpty()
       .withMessage("name cannot be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
 
   adminLevel: [
@@ -571,7 +583,13 @@ const gridsValidations = {
       .optional()
       .not()
       .exists()
-      .withMessage("admin level names cannot be updated"),
+      .withMessage("admin level names cannot be updated")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
