@@ -73,7 +73,14 @@ const validateDeviceIdentifier = oneOf([
     .withMessage("device name should be lower case")
     .bail()
     .matches(constants.WHITE_SPACES_REGEX, "i")
-    .withMessage("the device names do not have spaces in them"),
+    .withMessage("the device names do not have spaces in them")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+    )
+    .bail(),
 ]);
 
 const validateDeviceIdParam = [
@@ -98,7 +105,14 @@ const validateCreateDevice = [
       .bail()
       .trim()
       .notEmpty()
-      .withMessage("the name should not be empty if provided"),
+      .withMessage("the name should not be empty if provided")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     body("long_name")
       .exists()
       .withMessage(
@@ -107,7 +121,13 @@ const validateCreateDevice = [
       .bail()
       .trim()
       .notEmpty()
-      .withMessage("the long_name should not be empty if provided"),
+      .withMessage("the long_name should not be empty if provided")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the device long_name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ]),
   oneOf([
     [
@@ -388,7 +408,13 @@ const validateUpdateDevice = [
   body("long_name")
     .optional()
     .notEmpty()
-    .trim(),
+    .withMessage("the long_name should not be empty if provided")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the device long_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
   body("mountType")
     .optional()
     .notEmpty()
@@ -616,7 +642,14 @@ const validateListDevices = oneOf([
     query("name")
       .optional()
       .notEmpty()
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     query("online_status")
       .optional()
       .notEmpty()
