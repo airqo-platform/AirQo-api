@@ -141,7 +141,7 @@ def airqo_historical_hourly_measurements():
         from datetime import datetime
 
         now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
@@ -262,7 +262,7 @@ def airqo_cleanup_measurements():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, **kwargs
+            days=5, **kwargs
         )
 
         data = DataUtils.extract_data_from_bigquery(
@@ -433,7 +433,7 @@ def airqo_realtime_measurements():
         from datetime import datetime
 
         now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
@@ -441,7 +441,7 @@ def airqo_realtime_measurements():
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
-        if not data:
+        if data.empty:
             raise AirflowFailException(
                 "Processing for message broker failed. Please check if kafka is up and running."
             )
@@ -477,7 +477,7 @@ def airqo_realtime_measurements():
         from datetime import datetime
 
         now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOWCOST
