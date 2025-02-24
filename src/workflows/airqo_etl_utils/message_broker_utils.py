@@ -124,8 +124,8 @@ class MessageBrokerUtils:
         self,
         topic: str,
         data: pd.DataFrame,
-        column_key: str = None,
-        auto_partition: bool = True,
+        column_key: Optional[str] = None,
+        auto_partition: Optional[bool] = True,
     ):
         """
         Publishes data to a Kafka topic. If a `column_key` is provided, each row's key will be
@@ -200,7 +200,7 @@ class MessageBrokerUtils:
         self,
         topic: str,
         group_id: str,
-        auto_offset_reset: str = "latest",
+        auto_offset_reset: Optional[str] = "latest",
         max_messages: Optional[int] = None,
         auto_commit: bool = True,
         offset: Optional[int] = None,

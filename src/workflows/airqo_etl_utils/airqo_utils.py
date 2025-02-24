@@ -741,7 +741,7 @@ class AirQoDataUtils:
         import json
 
         broker = MessageBrokerUtils()
-        devices_list: list = []
+        devices_list: List = []
 
         for message in broker.consume_from_topic(
             topic="devices-topic",
@@ -770,12 +770,6 @@ class AirQoDataUtils:
 
         try:
             devices = pd.DataFrame(devices_list)
-            # Will be removed in the future. Just here for initial tests.
-            devices.drop(
-                devices.columns[devices.columns.str.contains("^Unnamed")],
-                axis=1,
-                inplace=True,
-            )
         except Exception as e:
             logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
             # Return empty DataFrame on failure

@@ -7,7 +7,6 @@ from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
