@@ -32,7 +32,7 @@ def retrieve_satellite_data():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data_to_bigquery(data, Config.BIGQUERY_SATELLITE_DATA_TABLE)
+        big_query_api.load_data(data, Config.BIGQUERY_SATELLITE_DATA_TABLE)
 
     data = fetch_data()
     save_to_bigquery(data)
