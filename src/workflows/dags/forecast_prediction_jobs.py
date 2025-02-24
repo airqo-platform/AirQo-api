@@ -6,7 +6,7 @@ from airflow.decorators import dag, task
 from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.config import configuration
+from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 
@@ -18,8 +18,8 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     tags=["airqo", "hourly-forecast", "daily-forecast", "prediction-job"],
 )
 def make_forecasts():
-    bucket = configuration.FORECAST_MODELS_BUCKET
-    project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+    bucket = Config.FORECAST_MODELS_BUCKET
+    project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
     ### Hourly forecast tasks
     @task()
@@ -27,7 +27,7 @@ def make_forecasts():
         from datetime import datetime, timedelta, timezone
 
         start_date = datetime.now(timezone.utc) - timedelta(
-            hours=int(configuration.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
+            hours=int(Config.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         from airqo_etl_utils.date import date_to_str
 
@@ -64,9 +64,8 @@ def make_forecasts():
 
     @task()
     def save_hourly_forecasts_to_bigquery(data):
-        BigQueryApi().save_data_to_bigquery(
-            data, configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
-        )
+        bigquery_api = BigQueryApi()
+        bigquery_api.load_data(data, Config.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE)
 
     @task()
     def save_hourly_forecasts_to_mongo(data):
@@ -79,7 +78,7 @@ def make_forecasts():
         from airqo_etl_utils.date import date_to_str
 
         start_date = datetime.now(timezone.utc) - timedelta(
-            days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
+            days=int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
@@ -114,9 +113,8 @@ def make_forecasts():
 
     @task()
     def save_daily_forecasts_to_bigquery(data):
-        BigQueryApi().save_data_to_bigquery(
-            data, configuration.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE
-        )
+        bigquery_api = BigQueryApi()
+        bigquery_api.load_data(data, Config.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE)
 
     @task()
     def save_daily_forecasts_to_mongo(data):

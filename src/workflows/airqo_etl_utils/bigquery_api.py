@@ -227,6 +227,7 @@ class BigQueryApi:
                 "airqo_mobile_measurements",
                 "bam_measurements",
                 "bam_raw_measurements",
+                "daily_24_hourly_forecasts",
             ]:
                 file_schema = Utils.load_schema(file_name=f"{file}.json")
                 schema.extend(file_schema)
@@ -251,8 +252,20 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        job_action: JobAction = JobAction.APPEND,
+        job_action: Optional[JobAction] = JobAction.APPEND,
     ) -> None:
+        """
+        Loads a Pandas DataFrame into a specified BigQuery table.
+
+        Args:
+            dataframe (pd.DataFrame): The DataFrame containing the data to be loaded.
+            table (str): The fully qualified BigQuery table ID (e.g., "project.dataset.table").
+            job_action (JobAction, optional): The job action determining the write mode.
+                Defaults to JobAction.APPEND.
+
+        Raises:
+            google.cloud.exceptions.GoogleCloudError: If the job fails.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
@@ -266,8 +279,8 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {len(dataframe)} rows to {table}")
-        print(f"Total rows after load :  {destination_table.num_rows}")
+        logger.info(f"Loaded {len(dataframe)} rows to {table}")
+        logger.info(f"Total rows after load :  {destination_table.num_rows}")
 
     @staticmethod
     def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
@@ -1002,21 +1015,7 @@ ORDER BY
             df = self.client.query(query, job_config).result().to_dataframe()
             return df
         except Exception as e:
-            print("Error fetching data from bigquery", {e})
-
-    @staticmethod
-    def save_data_to_bigquery(data: pd.DataFrame, table: str):
-        """saves the dataframes to the bigquery tables"""
-        credentials = service_account.Credentials.from_service_account_file(
-            configuration.GOOGLE_APPLICATION_CREDENTIALS
-        )
-        data.to_gbq(
-            destination_table=f"{table}",
-            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
-            if_exists="append",
-            credentials=credentials,
-        )
-        print(" data saved to bigquery")
+            logger.info(f"Error fetching data from bigquery", {e})
 
     def generate_missing_data_query(
         self, date: str, table: str, network: DeviceNetwork

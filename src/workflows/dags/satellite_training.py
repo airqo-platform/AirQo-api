@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 from airflow.decorators import dag, task
@@ -20,7 +20,6 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 def train_satellite_model():
     @task()
     def fetch_historical_satellite_data():
-        from datetime import datetime, timezone
 
         start_date = datetime.now(timezone.utc) - relativedelta(
             months=int(configuration.SATELLITE_TRAINING_SCOPE)
@@ -41,7 +40,7 @@ def train_satellite_model():
 
     @task()
     def merge_datasets(
-            ground_data: pd.DataFrame, satellite_data: pd.DataFrame
+        ground_data: pd.DataFrame, satellite_data: pd.DataFrame
     ) -> pd.DataFrame:
         ground_data["timestamp"] = pd.to_datetime(ground_data["timestamp"])
         satellite_data["timestamp"] = pd.to_datetime(satellite_data["timestamp"])
