@@ -10,22 +10,79 @@ The AirQo project aims to measure and quantify the scale of air pollution in and
 
 **AirQo platform** is composed of many microservices written in different languages that talk to each other using Istio.
 
-[![Architecture of
-microservices](./docs/img/architecture-diagram.png)](./docs/img/architecture-diagram.png)
-
 The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki/System-Architecture) uses a mono repo for faster shipping. Each service has its own database. Consistency across these databases is maintained using an event driven approach. There is also an API gateway (Nginx) which clients use to access ther rest of the services. The state of the miscroservices is monitored using PM2. Deployment pattern is one service per container using Docker.
 
-| Service                                        | Language               | Description                                                                                                                                                         |
-| ---------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [analytics](./src/analytics)           | Flask/Python & MongoDB | This is the one to be used for all analytics work                                                                                                                   |
-| [auth-service](./src/auth-service)             | Node.js                | Authentication services for this endpoint                                                                                                                           |
-| [data-mgt](./src/data-mgt)                     | Node.js & MongoDB      | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness |
-| [device-registry](./src/device-registry) .     | Node.js                | Carry out the management of the devices.                                                                                                                            |
-| [incentives](./src/incentives)           | Node.js                | The payment service to incetivise various stakeholders                                                                                                              |
-| [predict](./src/predict)                       | Flask/Python & MongoDB | microservice to handle predictions or forecasts of air quality                                                                                                      |
-| [device-monitoring](./src/device-monitoring)   | Flask/Python & MongoDB | Monitoring the status of all devices on the network.                                                                                                                |
-| [locate](./src/locate)                         | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |
-| [calibrate](./src/calibrate)                      | Flask/Python & MongoDB | microservice that consumes the model which recommend locations for placing devices                                                                                  |                                                                                          |
+## Folder Organisation
+```
+.
+├── LICENSE
+├── README.md
+├── codecov.yml
+├── contributing.md
+├── docs
+│   ├── img
+│   └── system-architecture.md
+├── infra
+│   ├── ansible
+│   └── terraform
+├── k8s
+│   ├── access-control
+│   ├── analytics
+│   ├── argo-cd
+│   ├── auth-service
+│   ├── calibrate
+│   ├── cilium
+│   ├── data-mgt
+│   ├── device-monitor
+│   ├── device-registry
+│   ├── device-status
+│   ├── device-uptime
+│   ├── exceedance
+│   ├── gp-model
+│   ├── grafana
+│   ├── incentives
+│   ├── insights
+│   ├── jenkins
+│   ├── kafka
+│   ├── locate
+│   ├── meta-data
+│   ├── mlflow
+│   ├── namespaces
+│   ├── new-relic
+│   ├── nginx
+│   ├── nodes
+│   ├── predict
+│   ├── redis
+│   ├── spatial
+│   ├── streams
+│   ├── view
+│   ├── website
+│   └── workflows
+└── src
+    ├── analytics
+    ├── auth-service
+    ├── blog-content-manager
+    ├── calibrate
+    ├── data-mgt
+    ├── data-proxy
+    ├── device-monitoring
+    ├── device-registry
+    ├── device-status
+    ├── device-uptime
+    ├── exceedances
+    ├── firebase
+    ├── gp-model
+    ├── incentives
+    ├── insights
+    ├── kafka-connectors
+    ├── locate
+    ├── meta-data
+    ├── predict
+    ├── spatial
+    ├── view
+    ├── website
+    └── workflows
+```
 
 ## Features
 
