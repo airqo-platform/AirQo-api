@@ -149,7 +149,13 @@ const create = [
       .bail()
       .notEmpty()
       .withMessage("the grp_title should not be empty")
-      .trim(),
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the grp_title can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     body("grp_description")
       .exists()
       .withMessage("the grp_description is required")
