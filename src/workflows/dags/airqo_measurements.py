@@ -488,7 +488,7 @@ def airqo_realtime_measurements():
             topic=Config.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 
-        if not data:
+        if data.empty:
             raise AirflowFailException(
                 "Processing for message broker failed. Please check if kafka is up and running."
             )
