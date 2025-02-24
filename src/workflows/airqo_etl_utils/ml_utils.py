@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Dict, List, Any
 
 import gcsfs
 import joblib
@@ -11,11 +12,13 @@ from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
+from .config import configuration, db
+from .constants import Frequency
+
 import logging
 
 logger = logging.getLogger(__name__)
 
-from .config import configuration, db
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
@@ -470,19 +473,16 @@ class ForecastUtils(BaseMlUtils):
     #     upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
 
     @staticmethod
-    def generate_forecasts(data, project_name, bucket_name, frequency):
-        data = data.dropna(subset=["device_id"])
+    def generate_forecasts(
+        data: pd.DataFrame, project_name: str, bucket_name: str, frequency: Frequency
+    ) -> pd.DataFrame:
+        data = data.dropna(subset=["site_id", "device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
 
         # data["margin_of_error"] = data["adjusted_forecast"] = 0
 
-        def get_forecasts(
-            df_tmp,
-            forecast_model,
-            frequency,
-            horizon,
-        ):
+        def get_forecasts(df_tmp, forecast_model, frequency, horizon):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
             for i in range(int(horizon)):
                 df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
@@ -599,7 +599,7 @@ class ForecastUtils(BaseMlUtils):
             device_forecasts = get_forecasts(
                 test_copy,
                 forecast_model,
-                frequency,
+                frequency.str,
                 horizon,
             )
 
@@ -621,26 +621,43 @@ class ForecastUtils(BaseMlUtils):
 
     @staticmethod
     def save_forecasts_to_mongo(data, frequency):
-        device_ids = data["device_id"].unique()
-        created_at = pd.to_datetime(datetime.now()).isoformat()
+        """
+        Saves forecast data to a MongoDB collection based on the given frequency.
 
-        forecast_results = []
-        for i in device_ids:
-            doc = {
-                "device_id": i,
-                "created_at": created_at,
-                "site_id": data[data["device_id"] == i]["site_id"].unique()[0],
-                "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
-                "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
-            }
-            forecast_results.append(doc)
+        Args:
+            data (pd.DataFrame): A DataFrame containing forecast data with columns:
+                - device_id(str)
+                - site_id(str)
+                - pm2_5(float)
+                - timestamp(datetime)
+            frequency(Frequency): The forecast frequency, either "hourly" or "daily".
+
+        Raises:
+            ValueError: If an invalid frequency is provided.
+        """
 
         if frequency == "hourly":
             collection = db.hourly_forecasts_1
         elif frequency == "daily":
             collection = db.daily_forecasts_1
         else:
-            raise ValueError("Invalid frequency argument")
+            raise ValueError("Invalid frequency argument. Must be 'hourly' or 'daily'.")
+
+        device_ids = data["device_id"].unique()
+        created_at = pd.to_datetime(datetime.now()).isoformat()
+
+        forecast_results: List[Dict[str, Any]] = [
+            {
+                "device_id": device_id,
+                "created_at": created_at,
+                "site_id": data.loc[data["device_id"] == device_id, "site_id"].iloc[0],
+                "pm2_5": data.loc[data["device_id"] == device_id, "pm2_5"].tolist(),
+                "timestamp": data.loc[
+                    data["device_id"] == device_id, "timestamp"
+                ].tolist(),
+            }
+            for device_id in device_ids
+        ]
 
         for doc in forecast_results:
             try:
@@ -657,8 +674,8 @@ class ForecastUtils(BaseMlUtils):
                 }
                 collection.update_one(filter_query, update_query, upsert=True)
             except Exception as e:
-                print(
-                    f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
+                logger.exception(
+                    f"Failed to update forecast for device {doc['device_id']}: {e}"
                 )
 
 
