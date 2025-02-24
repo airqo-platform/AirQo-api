@@ -41,8 +41,8 @@ def airqo_devices_data():
         if not devices.empty:
             broker = MessageBrokerUtils()
             broker.publish_to_topic(
-                data=devices,
                 topic=configuration.DEVICES_TOPIC,
+                data=devices,
                 column_key="device_name",
             )
 
