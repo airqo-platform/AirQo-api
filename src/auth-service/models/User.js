@@ -18,6 +18,8 @@ const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 
+const maxLengthOfProfilePictures = 1024;
+
 function oneMonthFromNow() {
   var d = new Date();
   var targetMonth = d.getMonth() + 1;
@@ -35,10 +37,10 @@ function validateProfilePicture(profilePicture) {
     logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
     return false;
   }
-  if (profilePicture.length > 200) {
-    logText("longer than 200 chars");
+  if (profilePicture.length > maxLengthOfProfilePictures) {
+    logText(`longer than ${maxLengthOfProfilePictures} chars`);
     logger.error(
-      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds ${maxLengthOfProfilePictures} characters`
     );
     return false;
   }
@@ -219,15 +221,14 @@ const UserSchema = new Schema(
     },
     profilePicture: {
       type: String,
-      maxLength: 200,
+      maxLength: maxLengthOfProfilePictures,
       validate: {
         validator: function (v) {
           const urlRegex =
             /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
           return urlRegex.test(v);
         },
-        message:
-          "Profile picture URL must be a valid URL & must not exceed 200 characters.",
+        message: `Profile picture URL must be a valid URL & must not exceed ${maxLengthOfProfilePictures} characters.`,
       },
     },
     google_id: { type: String, trim: true },
@@ -417,8 +418,11 @@ UserSchema.pre(
           !validateProfilePicture(this.profilePicture)
         ) {
           // Truncate if too long
-          if (this.profilePicture.length > 200) {
-            this.profilePicture = this.profilePicture.substring(0, 200);
+          if (this.profilePicture.length > maxLengthOfProfilePictures) {
+            this.profilePicture = this.profilePicture.substring(
+              0,
+              maxLengthOfProfilePictures
+            );
           }
           //validate again after truncating
           if (!validateProfilePicture(this.profilePicture)) {
