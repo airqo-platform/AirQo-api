@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 from pathlib import Path
+import json
+from confluent_kafka import KafkaException
+from typing import List, Dict, Any, Union, Tuple, Optional
+
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs
@@ -16,10 +20,11 @@ from .constants import (
     DataType,
     MetaDataType,
 )
+from .message_broker_utils import MessageBrokerUtils
+
 from .utils import Utils
-from .date import date_to_str, DateUtils
+from .date import date_to_str
 from .data_validator import DataValidationUtils
-from typing import List, Dict, Any, Union, Tuple, Optional
 
 import logging
 
@@ -894,3 +899,57 @@ class DataUtils:
             Any: The extracted value or None if not found.
         """
         return data.get(key)
+
+    @staticmethod
+    def get_devices_kafka(group_id: str) -> pd.DataFrame:
+        """
+        Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
+
+        Args:
+            group_id (str): The consumer group ID used to track message consumption from the topic.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the list of devices, where each device is represented as a row.
+                      If any errors occur during the process, an empty DataFrame is returned.
+        """
+        broker = MessageBrokerUtils()
+        devices_list: List = []
+
+        for message in broker.consume_from_topic(
+            topic="devices-topic",
+            group_id=group_id,
+            auto_offset_reset="earliest",
+            auto_commit=False,
+        ):
+            try:
+                key = message.get("key", None)
+                try:
+                    value = json.loads(message.get("value", None))
+                except json.JSONDecodeError as e:
+                    logger.exception(f"Error decoding JSON: {e}")
+                    continue
+
+                if not key or not value.get("device_id"):
+                    logger.warning(
+                        f"Skipping message with key: {key}, missing 'device_id'."
+                    )
+                    continue
+
+                devices_list.append(value)
+            except KafkaException as e:
+                logger.exception(f"Error while consuming message: {e}")
+            continue
+
+        try:
+            devices = pd.DataFrame(devices_list)
+        except Exception as e:
+            logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
+            # Return empty DataFrame on failure
+            devices = pd.DataFrame()
+
+        if "device_name" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_name"], keep="last")
+        elif "device_id" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_id"], keep="last")
+
+        return devices
