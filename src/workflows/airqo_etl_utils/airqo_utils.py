@@ -11,8 +11,8 @@ from .constants import (
     DeviceCategory,
     DeviceNetwork,
     Frequency,
-    CityModel,
     DataType,
+    CityModels,
     CountryModels,
 )
 from .data_validator import DataValidationUtils
@@ -623,7 +623,7 @@ class AirQoDataUtils:
         data["error_pm10"] = np.abs(data["s1_pm10"] - data["s2_pm10"])
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
-        data["hour"] = data["timestamp"].dt.__getattribute__("hour")
+        data["hour"] = data["timestamp"].dt.hour
 
         input_variables = [
             "avg_pm2_5",
@@ -636,6 +636,15 @@ class AirQoDataUtils:
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
         ]
+
+        calibrate_by: Dict[str, Union[CityModels, CountryModels]] = {
+            "city": CityModels,
+            "country": CountryModels,
+        }
+
+        model: Union[CityModels, CountryModels] = calibrate_by.get(
+            groupby, CountryModels
+        )
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
         # Explicitly filter data to calibrate. At the moment, only calibrating on AirQo data.
@@ -646,36 +655,32 @@ class AirQoDataUtils:
         default_rf_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(
-                CountryModels.DEFAULT, "pm2_5"
-            ),
+            source_blob_name=Utils.get_calibration_model_path(model.DEFAULT, "pm2_5"),
         )
         default_lasso_model = GCSUtils.get_trained_model_from_gcs(
             project_name=project_id,
             bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(
-                CountryModels.DEFAULT, "pm10"
-            ),
+            source_blob_name=Utils.get_calibration_model_path(model.DEFAULT, "pm10"),
         )
 
-        available_models = [c.value for c in CountryModels]
+        available_models = [c.value for c in model]
 
-        for country, group in grouped_df:
+        for groupedby, group in grouped_df:
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
-            if country and country.lower() in available_models:
+            if groupedby and groupedby.lower() in available_models:
                 try:
                     current_rf_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(
-                            country.lower(), "pm2_5"
+                            groupedby.lower(), "pm2_5"
                         ),
                     )
                     current_lasso_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(
-                            country.lower(), "pm10"
+                            groupedby.lower(), "pm10"
                         ),
                     )
 

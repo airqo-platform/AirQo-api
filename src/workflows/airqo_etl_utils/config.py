@@ -626,6 +626,7 @@ class Config:
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
+    CALIBRATEBY = os.getenv("CALIBRATEBY")
 
     # Twitter bot
     TWITTER_BOT_API_KEY = os.getenv("TWITTER_BOT_API_KEY")

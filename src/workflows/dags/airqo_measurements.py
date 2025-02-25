@@ -105,7 +105,7 @@ def airqo_historical_hourly_measurements():
 
     @task(retries=2, retry_delay=timedelta(minutes=2))
     def calibrate_data(measurements: pd.DataFrame) -> pd.DataFrame:
-        return AirQoDataUtils.calibrate_data(data=measurements, groupby="country")
+        return AirQoDataUtils.calibrate_data(data=measurements, groupby="city")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame) -> None:
@@ -416,7 +416,7 @@ def airqo_realtime_measurements():
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.calibrate_data(data=data, groupby="country")
+        return AirQoDataUtils.calibrate_data(data=data, groupby="city")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
