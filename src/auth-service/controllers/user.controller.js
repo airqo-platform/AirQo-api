@@ -397,6 +397,15 @@ const createUser = {
         secure: true, // Enable if using HTTPS
       });
 
+      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+        // Create a temporary, non-httpOnly cookie for debugging:
+        res.cookie("temp_access_token", token, {
+          httpOnly: false, // Set to false for debugging
+          secure: true, // But keep secure: true (if using HTTPS)
+          // maxAge: 60 * 1000, //Expires in 60 seconds.
+        });
+      }
+
       res.redirect(
         `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}?success=google`
       );
