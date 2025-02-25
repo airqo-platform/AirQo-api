@@ -143,7 +143,7 @@ def airqo_historical_hourly_measurements():
         now = datetime.now()
         unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
@@ -435,7 +435,7 @@ def airqo_realtime_measurements():
         now = datetime.now()
         unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
@@ -482,7 +482,7 @@ def airqo_realtime_measurements():
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOWCOST
         )
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,

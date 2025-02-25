@@ -5,6 +5,7 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.exceptions import AirflowFailException
 from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.datautils import DataUtils
 
 
 @dag(
@@ -48,12 +49,11 @@ def kcca_hourly_measurements():
 
     @task()
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         now = datetime.now()
         unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
