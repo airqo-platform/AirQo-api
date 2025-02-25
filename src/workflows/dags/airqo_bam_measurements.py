@@ -136,7 +136,7 @@ def airqo_bam_realtime_measurements():
         from datetime import datetime
 
         now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
