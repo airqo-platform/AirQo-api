@@ -276,3 +276,25 @@ class CityModel(Enum):
             instance.str
         """
         return self.__str__()
+
+
+class CountryModels(Enum):
+    KENYA = "kenya"
+    UGANDA = "uganda"
+    NIGERIA = "nigeria"
+    GHANA = "ghana"
+    MADAGASCAR = "madagascar"
+    DEFAULT = "default"
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the CountryModels.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
