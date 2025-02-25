@@ -453,7 +453,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             }
           );
           cb(null, user);
-          //return next();
+          return next();
         } else {
           // profilePicture: profile._json.picture,
           const responseFromRegisterUser = await UserModel(tenant).register(
@@ -518,7 +518,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             }
             cb(null, user);
 
-            // return next();
+            return next();
           }
         }
       } catch (error) {
