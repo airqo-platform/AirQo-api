@@ -258,7 +258,7 @@ class Pollutant(Enum):
         return self.__str__()
 
 
-class CityModel(Enum):
+class CityModels(Enum):
     NAIROBI = "nairobi"
     KAMPALA = "kampala"
     MOMBASA = "mombasa"
