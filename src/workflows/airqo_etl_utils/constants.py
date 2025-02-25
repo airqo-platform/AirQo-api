@@ -217,7 +217,7 @@ class ColumnDataType(Enum):
         return self.__str__()
 
 
-class AirQuality(Enum):
+class QualityCategorization(Enum):
     GOOD = 1
     MODERATE = 2
     UNHEALTHY_FSGs = 3
@@ -231,7 +231,7 @@ class AirQuality(Enum):
     @property
     def str(self) -> str:
         """
-        Returns the string representation of the airquality type.
+        Returns the string representation of the QualityCategorization type.
 
         Usage:
             instance.str
