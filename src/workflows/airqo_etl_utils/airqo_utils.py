@@ -667,7 +667,7 @@ class AirQoDataUtils:
 
         for groupedby, group in grouped_df:
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
-            if groupedby and groupedby.lower() in available_models:
+            if not np.isnan(groupedby) and groupedby.lower() in available_models:
                 try:
                     current_rf_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,

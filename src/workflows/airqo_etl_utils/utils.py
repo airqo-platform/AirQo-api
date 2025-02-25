@@ -1,30 +1,47 @@
 import json
 import os
 from datetime import datetime, timedelta, timezone
-
 import pandas as pd
 import requests
 from requests import Response
-from google.cloud import storage
-import joblib
+from typing import List, Any, Dict, Tuple
 
 from .constants import (
     ColumnDataType,
     Pollutant,
-    AirQuality,
     DataSource,
-    Frequency,
     CountryModels,
     CityModels,
+    QualityCategorization,
 )
 from .date import date_to_str
+from .config import configuration as Config
 
-from typing import List, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Utils:
     @staticmethod
-    def get_country_boundaries(country):
+    def get_country_boundaries(country: str) -> Dict[str, Any]:
+        """
+        Fetch the geographic bounding box of a given country using the Nominatim OpenStreetMap API.
+
+        Args:
+            country(str): The name of the country to retrieve boundaries for.
+
+        Returns:
+            Dict: A dictionary containing the country's bounding box coordinates with keys:
+                - "west" (float): Western boundary longitude
+                - "east" (float): Eastern boundary longitude
+                - "south" (float): Southern boundary latitude
+                - "north" (float): Northern boundary latitude
+
+        Raises:
+            IndexError: If the API response does not contain valid bounding box data.
+            requests.RequestException: If the API request fails.
+        """
         response = requests.get(
             f"https://nominatim.openstreetmap.org/search?q={country}&format=json"
         )
@@ -45,50 +62,37 @@ class Utils:
 
     @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
-        if not value:
+        """
+        Classifies air quality based on pollutant concentration using EPA standards.
+
+        Args:
+            value (float | None): The concentration of the pollutant.
+            pollutant (Pollutant): The type of pollutant (PM10, PM2.5, NO2).
+
+        Returns:
+            str: The air quality category as defined by the EPA.
+
+        Air Quality Categories:
+            - GOOD
+            - MODERATE
+            - UNHEALTHY FOR SENSITIVE GROUPS (FSGs)
+            - UNHEALTHY
+            - VERY UNHEALTHY
+            - HAZARDOUS
+
+        If the pollutant is not recognized, an empty string is returned.
+        """
+        if value is None:
             return ""
 
-        if pollutant == Pollutant.PM10:
-            if value < 55:
-                return str(AirQuality.GOOD)
-            elif 55 <= value < 155:
-                return str(AirQuality.MODERATE)
-            elif 155 <= value < 255:
-                return str(AirQuality.UNHEALTHY_FSGs)
-            elif 255 <= value < 355:
-                return str(AirQuality.UNHEALTHY)
-            elif 355 <= value < 425:
-                return str(AirQuality.VERY_UNHEALTHY)
-            elif value >= 425:
-                return str(AirQuality.HAZARDOUS)
+        categories: Dict[
+            Tuple[float, QualityCategorization]
+        ] = Config.AIR_QUALITY_CATEGORY
 
-        elif pollutant == Pollutant.PM2_5:
-            if value < 12.1:
-                return str(AirQuality.GOOD)
-            elif 12.1 <= value < 35.5:
-                return str(AirQuality.MODERATE)
-            elif 35.5 <= value < 55.5:
-                return str(AirQuality.UNHEALTHY_FSGs)
-            elif 55.5 <= value < 150.5:
-                return str(AirQuality.UNHEALTHY)
-            elif 150.5 <= value < 250.5:
-                return str(AirQuality.VERY_UNHEALTHY)
-            elif value >= 250.5:
-                return str(AirQuality.HAZARDOUS)
-
-        elif pollutant == Pollutant.NO2:
-            if value < 54:
-                return str(AirQuality.GOOD)
-            elif 54 <= value < 101:
-                return str(AirQuality.MODERATE)
-            elif 101 <= value < 361:
-                return str(AirQuality.UNHEALTHY_FSGs)
-            elif 361 <= value < 650:
-                return str(AirQuality.UNHEALTHY)
-            elif 650 <= value < 1250:
-                return str(AirQuality.VERY_UNHEALTHY)
-            elif value >= 1250:
-                return str(AirQuality.HAZARDOUS)
+        if pollutant in categories:
+            for threshold, category in categories.get(pollutant):
+                if value < threshold:
+                    return category.str
 
         return ""
 
@@ -169,13 +173,26 @@ class Utils:
         return dataframe
 
     @staticmethod
-    def load_schema(file_name: str):
+    def load_schema(file_name: str) -> Dict:
+        """
+        Load a JSON schema file from the "schema" directory or the given file path.
+
+        Args:
+            file_name(str): The name of the schema file to load.
+
+        Returns:
+            Dict: The parsed JSON content of the schema file.
+
+        Raises:
+            FileNotFoundError: If the file is not found in either the "schema" directory or the given path.
+        """
         path, _ = os.path.split(__file__)
         file_name_path = f"schema/{file_name}"
         try:
             file_json = open(os.path.join(path, file_name_path))
         except FileNotFoundError:
             file_json = open(os.path.join(path, file_name))
+            logger.exception(f"Schema not found at {file_name_path}")
 
         return json.load(file_json)
 

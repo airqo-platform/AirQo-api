@@ -365,6 +365,30 @@ const createUser = {
 
       logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
       const token = req.user.toAuthJSON().token;
+      logger.info(`the user token after login with Google is : ${token}`);
+
+      // Update user fields
+      const currentDate = new Date();
+      try {
+        await UserModel(request.query.tenant) // Use the tenant from the request.
+          .findOneAndUpdate(
+            { _id: req.user._id }, // Access the correct user ID
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              // Add any other updates as needed (e.g., verified)
+              // ...(req.user.analyticsVersion !== 3 && req.user.verified === false ? { $set: { verified: true } } : {}), // Example (if you have these fields)
+            },
+            { new: true, upsert: false, runValidators: true }
+          )
+          .then(() => {})
+          .catch((error) => {
+            logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+          });
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+      }
+
       // Set the token as an HTTP-only cookie
       res.cookie("access_token", token, {
         httpOnly: true,
