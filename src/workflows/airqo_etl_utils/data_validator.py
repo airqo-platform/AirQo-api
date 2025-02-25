@@ -5,7 +5,6 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.airqo_api import AirQoApi
-from .datautils import DataUtils
 from airqo_etl_utils.constants import ColumnDataType, Frequency, MetaDataType
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
@@ -205,57 +204,6 @@ class DataValidationUtils:
         dataframe = DataValidationUtils.remove_outliers(dataframe)
 
         return dataframe[columns]
-
-    @staticmethod
-    def process_data_for_message_broker(
-        data: pd.DataFrame,
-        frequency: Frequency = Frequency.HOURLY,
-    ) -> pd.DataFrame:
-        """
-        Processes the input DataFrame for message broker consumption based on the specified network, frequency.
-
-        Args:
-            data (pd.DataFrame): The input data to be processed.
-            frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
-
-        Returns:
-            pd.DataFrame: The processed DataFrame ready for message broker consumption.
-        """
-
-        data["frequency"] = frequency.str
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        devices, _ = DataUtils.get_devices()
-
-        data.rename(columns={"device_id": "device_name"}, inplace=True)
-        devices.rename(columns={"name": "device_name"}, inplace=True)
-        try:
-            devices = devices[
-                [
-                    "device_name",
-                    "site_id",
-                    "device_latitude",
-                    "device_longitude",
-                    "network",
-                ]
-            ]
-
-            data = pd.merge(
-                left=data,
-                right=devices,
-                on=["device_name", "site_id", "network"],
-                how="left",
-            )
-        except KeyError as e:
-            logger.exception(
-                f"KeyError: The key(s) '{e.args}' are not available in the returned devices data."
-            )
-            return None
-        except Exception as e:
-            logger.exception(f"An error occured: {e}")
-            return None
-        return data
 
     @staticmethod
     def convert_pressure_values(value):

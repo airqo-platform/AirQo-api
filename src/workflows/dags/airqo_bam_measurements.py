@@ -141,7 +141,7 @@ def airqo_bam_realtime_measurements():
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
             caller=kwargs["dag"].dag_id + unique_str,
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
