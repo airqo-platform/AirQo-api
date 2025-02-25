@@ -455,6 +455,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           cb(null, user);
           //return next();
         } else {
+          // profilePicture: profile._json.picture,
           const responseFromRegisterUser = await UserModel(tenant).register(
             {
               google_id: profile._json.sub,
@@ -462,7 +463,6 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               lastName: profile._json.family_name,
               email: profile._json.email,
               userName: profile._json.email,
-              profilePicture: profile._json.picture,
               website: profile._json.hd,
               password: accessCodeGenerator.generate(
                 constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
