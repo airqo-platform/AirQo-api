@@ -5,6 +5,7 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.airqo_api import AirQoApi
+from .datautils import DataUtils
 from airqo_etl_utils.constants import ColumnDataType, Frequency, MetaDataType
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
@@ -14,32 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class DataValidationUtils:
-    VALID_SENSOR_RANGES = {
-        "pm2_5": (1, 1000),
-        "pm10": (1, 1000),
-        "pm2_5_calibrated_value": (1, 1000),
-        "pm2_5_raw_value": (1, 1000),
-        "pm10_calibrated_value": (1, 1000),
-        "pm10_raw_value": (1, 1000),
-        "latitude": (-90, 90),
-        "longitude": (-180, 180),
-        "battery": (2.7, 5),
-        "no2": (0, 2049),
-        "no2_calibrated_value": (0, 2049),
-        "no2_raw_value": (0, 2049),
-        "altitude": (0, float("inf")),
-        "hdop": (0, float("inf")),
-        "satellites": (1, 50),
-        "temperature": (0, 45),
-        "humidity": (0, 99),
-        "pressure": (30, 110),
-        "tvoc": (0, 10),
-        "co2": (400, 3000),
-        "hcho": (0, float("inf")),
-        "intaketemperature": (0, 45),
-        "intakehumidity": (0, 99),
-    }
-
     @staticmethod
     def format_data_types(
         data: pd.DataFrame,
@@ -234,32 +209,27 @@ class DataValidationUtils:
     @staticmethod
     def process_data_for_message_broker(
         data: pd.DataFrame,
-        caller: str,
-        topic: str = None,
         frequency: Frequency = Frequency.HOURLY,
     ) -> pd.DataFrame:
         """
-        Processes the input DataFrame for message broker consumption based on the specified tenant, frequency, and topic.
+        Processes the input DataFrame for message broker consumption based on the specified network, frequency.
 
         Args:
             data (pd.DataFrame): The input data to be processed.
-            tenant (Tenant): The tenant filter for the data, defaults to Tenant.ALL.
-            topic (str): The Kafka topic being processed, defaults to None.
-            caller (str): The group ID or identifier for devices processing, defaults to None.
             frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
 
         Returns:
             pd.DataFrame: The processed DataFrame ready for message broker consumption.
         """
-        from .airqo_utils import AirQoDataUtils
 
         data["frequency"] = frequency.str
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        data.rename(columns={"device_id": "device_name"}, inplace=True)
+        devices, _ = DataUtils.get_devices()
 
-        devices = AirQoDataUtils.get_devices_kafka(group_id=caller)
+        data.rename(columns={"device_id": "device_name"}, inplace=True)
+        devices.rename(columns={"name": "device_name"}, inplace=True)
         try:
             devices = devices[
                 [

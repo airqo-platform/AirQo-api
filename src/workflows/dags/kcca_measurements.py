@@ -1,4 +1,5 @@
 from airflow.decorators import dag, task
+from datetime import datetime, timedelta, timezone
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airflow.exceptions import AirflowFailException
@@ -20,7 +21,6 @@ def kcca_hourly_measurements():
     def extract():
         from airqo_etl_utils.kcca_utils import KccaUtils
         from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta, timezone
 
         hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
         start_date_time = date_to_str_hours(hour_of_day)
@@ -51,9 +51,11 @@ def kcca_hourly_measurements():
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
+        now = datetime.now()
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id,
+            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 

@@ -41,7 +41,7 @@ def airnow_bam_historical_data():
         from datetime import datetime
 
         now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
@@ -121,7 +121,7 @@ def airnow_bam_realtime_data():
         from datetime import datetime
 
         now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
+        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataValidationUtils.process_data_for_message_broker(
             data=data,
@@ -129,9 +129,9 @@ def airnow_bam_realtime_data():
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
-        if not data:
+        if data.empty:
             raise AirflowFailException(
-                "Processing for message broker failed. Please check if kafka is up and running."
+                f"Processing for message broker failed. Please check if kafka is up and running. Data: {data.info}"
             )
 
         broker = MessageBrokerUtils()
