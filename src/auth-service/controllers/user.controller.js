@@ -365,6 +365,7 @@ const createUser = {
 
       logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
       const token = req.user.toAuthJSON().token;
+      logger.info(`the user token after login with Google is : ${token}`);
       // Set the token as an HTTP-only cookie
       res.cookie("access_token", token, {
         httpOnly: true,
