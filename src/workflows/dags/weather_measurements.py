@@ -264,7 +264,7 @@ def openweathermap_data():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         bigquery_api = BigQueryApi()
-        bigquery_api.load_data(data=data, table=bigquery_api.openweathermap_table)
+        bigquery_api.load_data(dataframe=data, table=bigquery_api.openweathermap_table)
 
     sites = retrieve_sites()
     weather_data = retrieve_weather_data(sites=sites)

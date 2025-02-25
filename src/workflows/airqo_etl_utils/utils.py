@@ -8,10 +8,17 @@ from requests import Response
 from google.cloud import storage
 import joblib
 
-from .constants import ColumnDataType, Pollutant, AirQuality, DataSource, Frequency
+from .constants import (
+    ColumnDataType,
+    Pollutant,
+    AirQuality,
+    DataSource,
+    Frequency,
+    CountryModels,
+)
 from .date import date_to_str
 
-from typing import List, Optional
+from typing import List, Optional, Any
 
 
 class Utils:
@@ -298,9 +305,9 @@ class Utils:
         )
 
     @staticmethod
-    def get_calibration_model_path(city, pollutant: str):
+    def get_calibration_model_path(calibrateby: Any, pollutant: str) -> str:
         """
-        Constructs the file path for the calibration model based on the given city and pollutant.
+        Constructs the file path for the calibration model based on the given  or country and pollutant.
 
         For the pollutant "pm2_5", the calibration model file is assumed to be a random forest model
         with the suffix "_rf.pkl". For any other pollutant, the model file is assumed to be a lasso
@@ -308,7 +315,7 @@ class Utils:
         the city's value (assumed to be accessible via the 'value' attribute) with the corresponding model suffix.
 
         Args:
-            city: An object representing a city. This object is expected to have a 'value' attribute that
+            calibrateby: An object representing a city or country. This object is expected to have a 'value' attribute that
                 serves as the base for the model path.
             pollutant (str): The pollutant identifier (e.g., "pm2_5") used to determine the type of calibration model.
 
@@ -316,4 +323,6 @@ class Utils:
             str: The constructed calibration model file path.
         """
         model_type = "_rf.pkl" if pollutant == "pm2_5" else "_lasso.pkl"
-        return f"{city.value}{model_type}"
+        if isinstance(calibrateby, CountryModels):
+            return f"{calibrateby.value}{model_type}"
+        return f"{calibrateby}{model_type}"
