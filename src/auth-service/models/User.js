@@ -416,11 +416,18 @@ UserSchema.pre(
           this.profilePicture &&
           !validateProfilePicture(this.profilePicture)
         ) {
-          return next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: "Invalid profile picture URL",
-            })
-          );
+          // Truncate if too long
+          if (this.profilePicture.length > 200) {
+            this.profilePicture = this.profilePicture.substring(0, 200);
+          }
+          //validate again after truncating
+          if (!validateProfilePicture(this.profilePicture)) {
+            return next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "Invalid profile picture URL",
+              })
+            );
+          }
         }
 
         // Network roles handling - only for new documents
