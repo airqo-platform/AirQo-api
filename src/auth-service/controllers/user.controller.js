@@ -407,7 +407,7 @@ const createUser = {
       }
 
       res.redirect(
-        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}?success=google`
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`
       );
 
       /***
