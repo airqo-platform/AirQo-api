@@ -395,7 +395,9 @@ const createUser = {
         secure: true, // Enable if using HTTPS
       });
 
-      res.redirect(`${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}`);
+      res.redirect(
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}?success=google`
+      );
 
       /***
        * in the FRONTEND, access the cookie:
