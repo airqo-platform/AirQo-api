@@ -363,21 +363,23 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
-      const token = req.user.toAuthJSON().token;
+      const userDetails = await req.user.toAuthJSON();
+      logObject("userDetails", userDetails);
+      const token = userDetails.token;
       logger.info(`the user token after login with Google is : ${token}`);
 
       // Update user fields
       const currentDate = new Date();
       try {
-        await UserModel(request.query.tenant) // Use the tenant from the request.
+        await UserModel(request.query.tenant)
           .findOneAndUpdate(
-            { _id: req.user._id }, // Access the correct user ID
+            { _id: req.user._id },
             {
               $set: { lastLogin: currentDate, isActive: true },
               $inc: { loginCount: 1 },
-              // Add any other updates as needed (e.g., verified)
-              // ...(req.user.analyticsVersion !== 3 && req.user.verified === false ? { $set: { verified: true } } : {}), // Example (if you have these fields)
+              ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
             },
             { new: true, upsert: false, runValidators: true }
           )
