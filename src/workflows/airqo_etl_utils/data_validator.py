@@ -5,7 +5,6 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.airqo_api import AirQoApi
-from .datautils import DataUtils
 from airqo_etl_utils.constants import ColumnDataType, Frequency, MetaDataType
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
