@@ -80,10 +80,16 @@ let blacklistQueue = async.queue(async (task, callback) => {
       .then(() => {
         logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
         // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        // callback();
+        callback();
+      })
+      .catch((error) => {
+        logObject("kafka producer send error", error);
+        callback();
       });
-    await kafkaProducer.disconnect();
-    callback();
+    await kafkaProducer.disconnect().catch((error) => {
+      logObject("kafka producer disconnect error", error);
+    });
+    // callback();
   } catch (error) {
     logObject("error", error);
     // logger.error(
