@@ -16,6 +16,7 @@ from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView
 
 from views.pollutant_views import PollutantApis
+from views.pollutant_profile_view import PollutantProfileApis
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -96,4 +97,8 @@ def get_data_by_confidence():
 @controller_bp.route('/get-all-data', methods=['GET'])
 def get_all_data():
     return PollutantApis.get_all_data()
+
+@controller_bp.route('/get-all-data-location', methods=['GET'])
+def get_all_location_data():
+    return PollutantProfileApis.get_all_data()
 
