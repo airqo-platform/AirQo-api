@@ -132,7 +132,6 @@ def airqo_bam_realtime_measurements():
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from datetime import datetime
 
         now = datetime.now()
