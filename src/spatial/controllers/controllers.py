@@ -100,5 +100,5 @@ def get_all_data():
 
 @controller_bp.route('/get-all-data-location', methods=['GET'])
 def get_all_location_data():
-    return PollutantProfileApis.get_all_data()
+    return PollutantProfileApis.add_location_profile()
 

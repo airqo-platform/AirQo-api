@@ -37,6 +37,7 @@ def connect_mongo():
 
 db = connect_mongo()
 collection = db["combined_data"]
+location_profile_collection = db["location_profile"]
 
 
 class PollutantProfileApis:
@@ -61,8 +62,34 @@ class PollutantProfileApis:
                 ]
 
                 # Return the simplified data
-                return jsonify(simplified_data)
+                return simplified_data
 
             except Exception as e:
-                return jsonify({"error": f"Failed to fetch data: {e}"}), 500
-            
+                return jsonify({"error": f"Failed to fetch data: {e}"}), 500         
+
+        
+        @staticmethod
+        def add_location_profile():
+            radius = 150
+            data = PollutantProfileApis.get_all_data()
+
+            if isinstance(data, dict) and "error" in data:
+                return jsonify(data), 404
+
+            combined_data = []
+            for item in data:
+                location_data = GetLocationProfile.process_location(item["latitude"], item["longitude"], radius)
+                combined_item = {
+                    "item_id": item["item_id"],
+                    "latitude": item["latitude"],
+                    "longitude": item["longitude"],
+                    "confidence_score": item["confidence_score"],
+                    "radius": radius,
+                    "location_profile": location_data
+                }
+                combined_data.append(combined_item)
+            try:
+                location_profile_collection.insert_many(combined_data)
+                return jsonify({"message": "Combined data saved to location_profile collection."})
+            except Exception as e:
+                return jsonify({"error": f"Failed to insert data: {e}"}), 500
