@@ -80,14 +80,16 @@ let blacklistQueue = async.queue(async (task, callback) => {
       .then(() => {
         logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
         // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        callback();
+        // callback();
       });
     await kafkaProducer.disconnect();
+    callback();
   } catch (error) {
     logObject("error", error);
     // logger.error(
     //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
     // );
+    callback();
   }
 }, 1); // Limit the number of concurrent tasks to 1
 
