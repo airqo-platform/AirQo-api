@@ -427,6 +427,7 @@ class Config:
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
+        BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         "all": None,
     }
     DataSource = {

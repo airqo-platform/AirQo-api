@@ -1,0 +1,77 @@
+[
+  {
+    "mode": "NULLABLE",
+    "name": "timestamp",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "latitude",
+    "type": "FLOAT"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "longitude",
+    "type": "FLOAT"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "temperature",
+    "type": "FLOAT"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "humidity",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "pressure",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "wind_speed",
+    "type": "FLOAT"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "wind_direction",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "wind_gust",
+    "type": "FLOAT"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "weather_description",
+    "type": "STRING"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "sea_level",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "ground_level",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "visibility",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "cloudiness",
+    "type": "INTEGER"
+  },
+  {
+    "mode": "NULLABLE",
+    "name": "rain",
+    "type": "FLOAT"
+  }
+]
