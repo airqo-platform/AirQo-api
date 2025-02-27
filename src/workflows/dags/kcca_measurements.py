@@ -51,11 +51,8 @@ def kcca_hourly_measurements():
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 

@@ -132,18 +132,12 @@ def airqo_bam_realtime_measurements():
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
-        from datetime import datetime
-
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 

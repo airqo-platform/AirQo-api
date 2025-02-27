@@ -366,27 +366,6 @@ class BaseMlUtils:
 
         return df
 
-    #     df_tmp = get_lag_features(df_tmp, target_column, data_frequency)
-    #     df_tmp = get_time_and_cyclic_features(df_tmp, data_frequency)
-    #     df_tmp = get_location_cord(df_tmp)
-    #     if job_type == "train":
-    #         df_tmp = DecodingUtils.encode_categorical_training_features(
-    #             df_tmp, data_frequency
-    #         )
-    #     elif job_type == "predict":
-    #         df_tmp = DecodingUtils.decode_categorical_features_pred(
-    #             df_tmp, data_frequency
-    #         )
-    #         df_tmp.dropna(
-    #             subset=["device_id", "site_id", "device_category"], inplace=True
-    #         )  # only 1 row, not sure why
-    #
-    #         df_tmp["device_id"] = df_tmp["device_id"].astype(int)
-    #         df_tmp["site_id"] = df_tmp["site_id"].astype(int)
-    #         df_tmp["device_category"] = df_tmp["device_category"].astype(int)
-    #
-    #     return df_tmp
-
 
 class ForecastUtils(BaseMlUtils):
     @staticmethod
@@ -727,8 +706,9 @@ class ForecastUtils(BaseMlUtils):
 
         return forecasts[
             [
-                "device_id",
                 "site_id",
+                "device_id",
+                "device_number",
                 "timestamp",
                 "pm2_5",
                 # "margin_of_error",
@@ -743,8 +723,9 @@ class ForecastUtils(BaseMlUtils):
 
         Args:
             data (pd.DataFrame): A DataFrame containing forecast data with columns:
-                - device_id(str)
                 - site_id(str)
+                - device_id(str)
+                - device_number(int)
                 - pm2_5(float)
                 - timestamp(datetime)
             frequency(Frequency): The forecast frequency, either "hourly" or "daily".
@@ -760,20 +741,17 @@ class ForecastUtils(BaseMlUtils):
         else:
             raise ValueError("Invalid frequency argument. Must be 'hourly' or 'daily'.")
 
-        device_ids = data["device_id"].unique()
-        created_at = pd.to_datetime(datetime.now()).isoformat()
-
+        created_at = pd.Timestamp.now().isoformat()
         forecast_results: List[Dict[str, Any]] = [
             {
                 "device_id": device_id,
+                "device_number": group["device_number"].iloc[0],
                 "created_at": created_at,
-                "site_id": data.loc[data["device_id"] == device_id, "site_id"].iloc[0],
-                "pm2_5": data.loc[data["device_id"] == device_id, "pm2_5"].tolist(),
-                "timestamp": data.loc[
-                    data["device_id"] == device_id, "timestamp"
-                ].tolist(),
+                "site_id": group["site_id"].iloc[0],
+                "pm2_5": group["pm2_5"].tolist(),
+                "timestamp": group["timestamp"].tolist(),
             }
-            for device_id in device_ids
+            for device_id, group in data.groupby("device_id")
         ]
 
         for doc in forecast_results:
