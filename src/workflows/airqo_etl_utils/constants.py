@@ -120,7 +120,7 @@ class MetaDataType(Enum):
 
 class Frequency(Enum):
     """
-    RAW -> Raw current data returned from devices
+    RAW -> Raw current data returned from all devices
     RAW-LOW-COST -> Raw data returned from the low-cost devices
     HOURLY -> Aggregated hourly data
     DAILY -> Aggregated daily data
