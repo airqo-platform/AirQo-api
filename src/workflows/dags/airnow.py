@@ -38,14 +38,9 @@ def airnow_bam_historical_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from datetime import datetime
-
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
         if not data:
@@ -117,14 +112,9 @@ def airnow_bam_realtime_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from datetime import datetime
-
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 

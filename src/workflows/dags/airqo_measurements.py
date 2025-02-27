@@ -138,14 +138,9 @@ def airqo_historical_hourly_measurements():
         data: pd.DataFrame, **kwargs
     ) -> None:
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from datetime import datetime
-
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
@@ -430,14 +425,9 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from datetime import datetime
-
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
@@ -474,17 +464,12 @@ def airqo_realtime_measurements():
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from datetime import datetime
-
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour) + "-" + str(now.second)
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOWCOST
         )
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
             topic=Config.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 
