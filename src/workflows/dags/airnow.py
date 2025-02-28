@@ -41,7 +41,6 @@ def airnow_bam_historical_data():
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
         if not data:
             raise AirflowFailException(
@@ -115,7 +114,6 @@ def airnow_bam_realtime_data():
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if data.empty:
