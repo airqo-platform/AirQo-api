@@ -138,7 +138,6 @@ def airqo_bam_realtime_measurements():
         )
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            topic=configuration.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:

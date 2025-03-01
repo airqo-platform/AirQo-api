@@ -649,6 +649,7 @@ class ForecastUtils(BaseMlUtils):
                 excluded_columns = [
                     "device_id",
                     "site_id",
+                    "device_number",
                     "pm2_5",
                     "timestamp",
                     "latitude",
