@@ -965,44 +965,58 @@ class BigQueryApi:
         start_date_time: str,
         job_type: str,
     ) -> pd.DataFrame:
+        """
+        Fetches device data for a satellite-based job from BigQuery.
+
+        Args:
+            start_date_time (str): The start date-time in string format (YYYY-MM-DD HH:MM:SS).
+            job_type (str): The type of job (not currently used but can be extended for future logic).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing aggregated device data.
+
+        Raises:
+            ValueError: If the provided start_date_time is invalid.
+            RuntimeError: If there is an error fetching data from BigQuery.
+        """
         try:
             pd.to_datetime(start_date_time)
         except ValueError as e:
             raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
         query = f"""
-SELECT DISTINCT 
-    TIMESTAMP_TRUNC(t1.timestamp, DAY) as timestamp,
-    t2.city,
-    t1.device_id,
-    t2.latitude,
-    t2.longitude,
-    AVG(t1.pm2_5_calibrated_value) as pm2_5
-FROM {self.hourly_measurements_table} as t1 
-INNER JOIN {self.sites_table} as t2 
-    ON t1.site_id = t2.id 
-WHERE 
-    t1.timestamp > '{start_date_time}' 
-    AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
-    AND t1.device_id IS NOT NULL
-GROUP BY 
-    timestamp,
-    t1.device_id,
-    t2.city,
-    t2.latitude,
-    t2.longitude
-ORDER BY 
-    t1.device_id,
-    timestamp;
+        SELECT DISTINCT 
+            TIMESTAMP_TRUNC(t1.timestamp, DAY) AS timestamp,
+            t2.city,
+            t1.device_id,
+            t2.latitude,
+            t2.longitude,
+            AVG(t1.pm2_5_calibrated_value) AS pm2_5
+        FROM `{self.hourly_measurements_table}` AS t1 
+        INNER JOIN `{self.sites_table}` AS t2 
+            ON t1.site_id = t2.id 
+        WHERE 
+            t1.timestamp > '{start_date_time}' 
+            AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
+            AND t1.device_id IS NOT NULL
+        GROUP BY 
+            timestamp,
+            t1.device_id,
+            t2.city,
+            t2.latitude,
+            t2.longitude
+        ORDER BY 
+            t1.device_id,
+            timestamp;
         """
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
+        job_config = bigquery.QueryJobConfig(use_query_cache=True)
         try:
-            df = self.client.query(query, job_config).result().to_dataframe()
-            return df
+            return (
+                self.client.query(query, job_config=job_config).result().to_dataframe()
+            )
         except Exception as e:
-            print("Error fetching data from bigquery", {e})
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
     def fetch_satellite_readings(
         self,
