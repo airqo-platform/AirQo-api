@@ -141,7 +141,6 @@ def airqo_historical_hourly_measurements():
 
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if not data:
@@ -470,7 +469,6 @@ def airqo_realtime_measurements():
         )
         data = DataUtils.process_data_for_message_broker(
             data=data,
-            topic=Config.AVERAGED_HOURLY_MEASUREMENTS_TOPIC,
         )
 
         if data.empty:
