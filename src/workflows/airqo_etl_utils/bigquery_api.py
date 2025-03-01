@@ -910,39 +910,55 @@ class BigQueryApi:
         start_date_time: str,
         job_type: str,
     ) -> pd.DataFrame:
+        """
+        Fetches device data for a forecasting job from BigQuery.
+
+        Args:
+            start_date_time(str): The start date-time in string format (YYYY-MM-DD).
+            job_type(str): The type of job ("train" or "predict).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the device data.
+
+        Raises:
+            ValueError: If the provided start_date_time is invalid.
+            RuntimeError: If there is an error fetching data from BigQuery.
+        """
         try:
             pd.to_datetime(start_date_time)
         except ValueError:
             raise ValueError(f"Invalid start date time: {start_date_time}")
 
-        query = f"""
-        SELECT DISTINCT 
-            t1.device_id, 
+        select_fields = """
+            t1.device_id,
+            t1.device_number,
             t1.timestamp,  
             t1.pm2_5_calibrated_value as pm2_5, 
             t2.latitude, 
-            t2.longitude,"""
-
-        if job_type != "train":
-            query += """
-            t1.site_id,
+            t2.longitude
             """
 
-        query += f"""
+        if job_type != "train":
+            select_fields += ", t1.site_id"
+
+        query = f"""
+        SELECT DISTINCT {select_fields}
         FROM `{self.hourly_measurements_table}` t1 
-        JOIN `{self.sites_table}` t2 on t1.site_id = t2.id """
+        JOIN `{self.sites_table}` t2 
+        ON t1.site_id = t2.id
+        WHERE DATE(t1.timestamp) >= '{start_date_time}'
+        AND t1.device_id IS NOT NULL 
+        ORDER BY t1.device_id, t1.timestamp
+        """
 
-        query += f"""
-        WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
-        ORDER BY device_id, timestamp"""
+        job_config = bigquery.QueryJobConfig(use_query_cache=True)
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
         try:
-            df = self.client.query(query, job_config).result().to_dataframe()
-            return df
+            return (
+                self.client.query(query, job_config=job_config).result().to_dataframe()
+            )
         except Exception as e:
-            print("Error fetching data from bigquery", {e})
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
     def fetch_device_data_for_satellite_job(
         self,
