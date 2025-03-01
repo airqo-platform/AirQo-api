@@ -398,6 +398,60 @@ const analytics = {
       );
     }
   },
+  async getSystemUsageStats(req, res, next) {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_req, res, errors)
+        );
+        return;
+      }
+      const { tenant, timeframe } = req.query; // Get tenant and timeframe from query
+
+      const result = await analyticsUtil.getSystemStatistics({
+        tenant,
+        timeframe,
+      });
+
+      if (result.success) {
+        res.status(result.status).json(result);
+      } else {
+        next(new HttpError(result.message, result.status, result.errors));
+      }
+    } catch (error) {
+      next(error); // Pass the error to the error handling middleware
+    }
+  },
+
+  async getEngagementStatistics(req, res, next) {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_req, res, errors)
+        );
+        return;
+      }
+      const { email, tenant, timeframe } = req.query;
+      const result = await analyticsUtil.getUserStatistics({ email, tenant });
+      handleResponse({
+        result,
+        key: "engagement_statistics",
+        res,
+      });
+    } catch (error) {
+      logObject("error in controller", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 
   getEngagementMetrics: async (req, res, next) => {
     try {
@@ -414,7 +468,10 @@ const analytics = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await analyticsUtil.getEngagementMetrics(request, next);
+      const result = await analyticsUtil.getEngagementMetrics(
+        { email, tenant, timeframe },
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -426,6 +483,7 @@ const analytics = {
         });
       }
     } catch (error) {
+      logObject("error in controller", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
