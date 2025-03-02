@@ -4,6 +4,7 @@ const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const accessCodeGenerator = require("generate-password");
 const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- guest-user-model`
