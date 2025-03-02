@@ -27,6 +27,7 @@ router.use("/campaigns", require("@routes/v2/campaign.routes"));
 router.use("/groups", require("@routes/v2/groups.routes"));
 router.use("/locationHistory", require("@routes/v2/location-history.routes"));
 router.use("/searchHistory", require("@routes/v2/search-history.routes"));
+router.use("/guests", require("@routes/v2/guests.routes"));
 router.use("/", require("@routes/v2/users.routes"));
 
 module.exports = router;

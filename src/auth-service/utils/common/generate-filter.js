@@ -96,6 +96,35 @@ const filter = {
       );
     }
   },
+  guest_users: (req, next) => {
+    try {
+      let { tenant, id, guest_id } = {
+        ...req.body,
+        ...req.query,
+        ...req.params,
+      };
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (guest_id) {
+        filter["guest_id"] = guest_id;
+      }
+      if (tenant) {
+        filter["tenant"] = tenant.toLowerCase();
+      }
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   networks: (req, next) => {
     try {
       const {
