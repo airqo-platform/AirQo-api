@@ -14,8 +14,8 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
-const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI;
-const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI;
+const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
+const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI || "";
 
 const options = {
   useCreateIndex: true,
