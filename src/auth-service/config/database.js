@@ -14,8 +14,8 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
-const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI;
-const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI;
+const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
+const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI || "";
 
 const options = {
   useCreateIndex: true,
@@ -56,7 +56,7 @@ const setupConnectionHandlers = (db, dbType) => {
     logger.error(`${dbType} database connection error: ${err.message}`);
   });
 
-  db.on("disconnection", (err) => {
+  db.on("disconnected", () => {
     logger.warn(`${dbType} database disconnected`);
   });
 };
@@ -107,7 +107,8 @@ function getCommandTenantDB(tenantId, modelName, schema) {
  * Get a tenant-specific database from query DB (for read operations)
  */
 function getQueryTenantDB(tenantId, modelName, schema) {
-  const dbName = `${constants.DB_NAME}_query_${tenantId}`;
+  // const dbName = `${constants.DB_NAME}_query_${tenantId}`;
+  const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (queryMongoDB) {
     const db = queryMongoDB.useDb(dbName, { useCache: true });
     db.model(modelName, schema);

@@ -120,7 +120,7 @@ class MetaDataType(Enum):
 
 class Frequency(Enum):
     """
-    RAW -> Raw current data returned from devices
+    RAW -> Raw current data returned from all devices
     RAW-LOW-COST -> Raw data returned from the low-cost devices
     HOURLY -> Aggregated hourly data
     DAILY -> Aggregated daily data
@@ -217,7 +217,7 @@ class ColumnDataType(Enum):
         return self.__str__()
 
 
-class AirQuality(Enum):
+class QualityCategorization(Enum):
     GOOD = 1
     MODERATE = 2
     UNHEALTHY_FSGs = 3
@@ -231,7 +231,7 @@ class AirQuality(Enum):
     @property
     def str(self) -> str:
         """
-        Returns the string representation of the airquality type.
+        Returns the string representation of the QualityCategorization type.
 
         Usage:
             instance.str
@@ -258,7 +258,7 @@ class Pollutant(Enum):
         return self.__str__()
 
 
-class CityModel(Enum):
+class CityModels(Enum):
     NAIROBI = "nairobi"
     KAMPALA = "kampala"
     MOMBASA = "mombasa"
@@ -271,6 +271,28 @@ class CityModel(Enum):
     def str(self) -> str:
         """
         Returns the string representation of the CityModel.
+
+        Usage:
+            instance.str
+        """
+        return self.__str__()
+
+
+class CountryModels(Enum):
+    KENYA = "kenya"
+    UGANDA = "uganda"
+    NIGERIA = "nigeria"
+    GHANA = "ghana"
+    MADAGASCAR = "madagascar"
+    DEFAULT = "default"
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+    @property
+    def str(self) -> str:
+        """
+        Returns the string representation of the CountryModels.
 
         Usage:
             instance.str

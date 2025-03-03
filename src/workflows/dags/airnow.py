@@ -2,6 +2,7 @@ import pandas as pd
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airqo_etl_utils.date import DateUtils
+from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from datetime import timedelta
 from airqo_etl_utils.config import configuration as Config
@@ -37,16 +38,9 @@ def airnow_bam_historical_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
-        from datetime import datetime
 
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
-
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
-            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
         if not data:
             raise AirflowFailException(
@@ -117,21 +111,14 @@ def airnow_bam_realtime_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
-        from datetime import datetime
 
-        now = datetime.now()
-        unique_str = str(now.date()) + "-" + str(now.hour)
-
-        data = DataValidationUtils.process_data_for_message_broker(
+        data = DataUtils.process_data_for_message_broker(
             data=data,
-            caller=kwargs["dag"].dag_id + unique_str,
-            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
         )
 
-        if not data:
+        if data.empty:
             raise AirflowFailException(
-                "Processing for message broker failed. Please check if kafka is up and running."
+                f"Processing for message broker failed. Please check if kafka is up and running. Data: {data.info}"
             )
 
         broker = MessageBrokerUtils()

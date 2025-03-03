@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 from pathlib import Path
+import json
+from confluent_kafka import KafkaException
+from typing import List, Dict, Any, Union, Tuple, Optional
+
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs
@@ -16,10 +20,11 @@ from .constants import (
     DataType,
     MetaDataType,
 )
+from .message_broker_utils import MessageBrokerUtils
+
 from .utils import Utils
 from .date import date_to_str
 from .data_validator import DataValidationUtils
-from typing import List, Dict, Any, Union, Tuple, Optional
 
 import logging
 
@@ -312,6 +317,8 @@ class DataUtils:
         device_network: Optional[DeviceNetwork] = None,
         dynamic_query: Optional[bool] = False,
         remove_outliers: Optional[bool] = True,
+        data_filter: Optional[Dict[str, Any]] = None,
+        use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
@@ -342,7 +349,7 @@ class DataUtils:
             table = source.get(device_category).get(frequency)
         except KeyError as e:
             logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category}, {frequency}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
             )
         except Exception as e:
             logger.exception(
@@ -358,6 +365,8 @@ class DataUtils:
             end_date_time=end_date_time,
             network=device_network,
             dynamic_query=dynamic_query,
+            where_fields=data_filter,
+            use_cache=use_cache,
         )
 
         if remove_outliers:
@@ -890,3 +899,108 @@ class DataUtils:
             Any: The extracted value or None if not found.
         """
         return data.get(key)
+
+    @staticmethod
+    def get_devices_kafka(group_id: str) -> pd.DataFrame:
+        """
+        Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
+
+        Args:
+            group_id (str): The consumer group ID used to track message consumption from the topic.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the list of devices, where each device is represented as a row.
+                      If any errors occur during the process, an empty DataFrame is returned.
+        """
+        broker = MessageBrokerUtils()
+        devices_list: List = []
+
+        for message in broker.consume_from_topic(
+            topic="devices-topic",
+            group_id=group_id,
+            auto_offset_reset="earliest",
+            auto_commit=False,
+        ):
+            try:
+                key = message.get("key", None)
+                try:
+                    value = json.loads(message.get("value", None))
+                except json.JSONDecodeError as e:
+                    logger.exception(f"Error decoding JSON: {e}")
+                    continue
+
+                if not key or not value.get("device_id"):
+                    logger.warning(
+                        f"Skipping message with key: {key}, missing 'device_id'."
+                    )
+                    continue
+
+                devices_list.append(value)
+            except KafkaException as e:
+                logger.exception(f"Error while consuming message: {e}")
+            continue
+
+        try:
+            devices = pd.DataFrame(devices_list)
+        except Exception as e:
+            logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
+            # Return empty DataFrame on failure
+            devices = pd.DataFrame()
+
+        if "device_name" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_name"], keep="last")
+        elif "device_id" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_id"], keep="last")
+
+        return devices
+
+    @staticmethod
+    def process_data_for_message_broker(
+        data: pd.DataFrame,
+        frequency: Frequency = Frequency.HOURLY,
+    ) -> pd.DataFrame:
+        """
+        Processes the input DataFrame for message broker consumption based on the specified network, frequency.
+
+        Args:
+            data (pd.DataFrame): The input data to be processed.
+            frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame ready for message broker consumption.
+        """
+
+        data["frequency"] = frequency.str
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        devices, _ = DataUtils.get_devices()
+
+        data.rename(columns={"device_id": "device_name"}, inplace=True)
+        devices.rename(columns={"name": "device_name"}, inplace=True)
+        try:
+            devices = devices[
+                [
+                    "device_name",
+                    "site_id",
+                    "device_latitude",
+                    "device_longitude",
+                    "network",
+                ]
+            ]
+
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "network"],
+                how="left",
+            )
+        except KeyError as e:
+            logger.exception(
+                f"KeyError: The key(s) '{e.args}' are not available in the returned devices data."
+            )
+            return None
+        except Exception as e:
+            logger.exception(f"An error occured: {e}")
+            return None
+        return data

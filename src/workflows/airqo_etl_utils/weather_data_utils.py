@@ -172,10 +172,31 @@ class WeatherDataUtils:
         return measurements
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(
-        sites: List[Dict[str, Any]]
-    ) -> pd.DataFrame:
+    def fetch_openweathermap_data_for_sites(sites: pd.DataFrame) -> pd.DataFrame:
+        """
+        A utility class for fetching weather data from OpenWeatherMap API
+        for multiple sites in parallel batches.
+        """
+
         def process_batch(batch_of_coordinates: List[Dict[str, Any]]):
+            """
+            Fetches weather data from OpenWeatherMap API for a given list of sites.
+
+            This function processes site coordinates in batches, makes concurrent API
+            requests to OpenWeatherMap, and returns the results as a pandas DataFrame.
+
+            Args:
+                sites (pd.DataFrame): A DataFrame containing site information with "latitude"
+                                    and "longitude" columns.
+
+            Returns:
+                pd.DataFrame: A DataFrame containing weather data for each site, including
+                            temperature, humidity, pressure, wind speed, and other parameters.
+
+            Raises:
+                ValueError: If the `sites` DataFrame does not contain the required columns.
+            """
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 results = executor.map(
                     OpenWeatherApi.get_current_weather_for_each_site,
@@ -210,7 +231,7 @@ class WeatherDataUtils:
             ]
 
         coordinates_tuples = []
-        for site in sites:
+        for _, site in sites.iterrows():
             coordinates_tuples.append((site.get("latitude"), site.get("longitude")))
 
         weather_data = []
