@@ -125,6 +125,30 @@ const filter = {
       );
     }
   },
+  tenantSettings: (req, next) => {
+    try {
+      const { query, params } = req;
+      const { tenant, id } = { ...query, ...params };
+
+      let filter = {};
+      if (tenant) {
+        filter.tenant = tenant.toLowerCase();
+      }
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   networks: (req, next) => {
     try {
       const {
