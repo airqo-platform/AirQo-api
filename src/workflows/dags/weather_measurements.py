@@ -2,7 +2,7 @@ from datetime import timedelta, datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.constants import DataType, Frequency, DeviceNetwork
+from airqo_etl_utils.constants import DataType, Frequency
 from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
@@ -252,8 +252,7 @@ def weather_data_realtime():
 def openweathermap_data():
     @task()
     def retrieve_sites():
-
-        return DataUtils.get_sites(network=DeviceNetwork.AIRQO)
+        return DataUtils.get_sites()
 
     @task()
     def retrieve_weather_data(sites):
@@ -264,9 +263,8 @@ def openweathermap_data():
     def save_weather_data(data):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        BigQueryApi.save_data_to_bigquery(
-            data=data, table=BigQueryApi().openweathermap_table
-        )
+        bigquery_api = BigQueryApi()
+        bigquery_api.load_data(dataframe=data, table=bigquery_api.openweathermap_table)
 
     sites = retrieve_sites()
     weather_data = retrieve_weather_data(sites=sites)

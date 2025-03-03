@@ -474,60 +474,6 @@ UserSchema.pre(
           ];
         }
 
-        // // Network roles handling - only for new documents
-        // if (!this.network_roles || this.network_roles.length === 0) {
-        //   if (
-        //     !constants ||
-        //     !constants.DEFAULT_NETWORK ||
-        //     !constants.DEFAULT_NETWORK_ROLE
-        //   ) {
-        //     throw new HttpError(
-        //       "Internal Server Error",
-        //       httpStatus.INTERNAL_SERVER_ERROR,
-        //       {
-        //         message:
-        //           "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
-        //       }
-        //     );
-        //   }
-
-        //   this.network_roles = [
-        //     {
-        //       network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-        //       userType: "guest",
-        //       createdAt: new Date(),
-        //       role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
-        //     },
-        //   ];
-        // }
-
-        // // Group roles handling - only for new documents
-        // if (!this.group_roles || this.group_roles.length === 0) {
-        //   if (
-        //     !constants ||
-        //     !constants.DEFAULT_GROUP ||
-        //     !constants.DEFAULT_GROUP_ROLE
-        //   ) {
-        //     throw new HttpError(
-        //       "Internal Server Error",
-        //       httpStatus.INTERNAL_SERVER_ERROR,
-        //       {
-        //         message:
-        //           "Contact support@airqo.net -- unable to retrieve the default Group or Role",
-        //       }
-        //     );
-        //   }
-
-        //   this.group_roles = [
-        //     {
-        //       group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
-        //       userType: "guest",
-        //       createdAt: new Date(),
-        //       role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
-        //     },
-        //   ];
-        // }
-
         // Permissions handling for new documents
         if (this.permissions && this.permissions.length > 0) {
           this.permissions = [...new Set(this.permissions)];
@@ -921,6 +867,14 @@ UserSchema.statics = {
           foreignField: "_id",
           as: "group_role",
         })
+        .unwind({
+          path: "$network_role",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$group_role",
+          preserveNullAndEmptyArrays: true,
+        })
         .lookup({
           from: "permissions",
           localField: "network_role.role_permissions",
@@ -958,8 +912,6 @@ UserSchema.statics = {
           phoneNumber: { $first: "$phoneNumber" },
           group_roles: { $first: "$group_roles" },
           network_roles: { $first: "$network_roles" },
-          group_role: { $first: "$group_role" },
-          network_role: { $first: "$network_role" },
           clients: { $first: "$clients" },
           groups: {
             $addToSet: {
@@ -971,8 +923,8 @@ UserSchema.statics = {
                 $cond: {
                   if: { $ifNull: ["$group_role", false] },
                   then: {
-                    _id: { $arrayElemAt: ["$group_role._id", 0] },
-                    role_name: { $arrayElemAt: ["$group_role.role_name", 0] },
+                    _id: "$group_role._id",
+                    role_name: "$group_role.role_name",
                     role_permissions: "$group_role_permissions",
                   },
                   else: null,
@@ -1000,8 +952,8 @@ UserSchema.statics = {
                 $cond: {
                   if: { $ifNull: ["$network_role", false] },
                   then: {
-                    _id: { $arrayElemAt: ["$network_role._id", 0] },
-                    role_name: { $arrayElemAt: ["$network_role.role_name", 0] },
+                    _id: "$network_role._id",
+                    role_name: "$network_role.role_name",
                     role_permissions: "$network_role_permissions",
                   },
                   else: null,
@@ -1025,6 +977,7 @@ UserSchema.statics = {
         .skip(skip ? parseInt(skip) : 0)
         .limit(limit ? parseInt(limit) : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
+
       if (!isEmpty(response)) {
         return {
           success: true,

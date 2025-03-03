@@ -1,20 +1,26 @@
 from datetime import datetime, timezone
-
+import ast
 import numpy as np
 import pandas as pd
+from typing import List, Dict, Any, Union, Generator
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
-from .constants import DeviceCategory, DeviceNetwork, Frequency, CityModel
+from .constants import (
+    DeviceCategory,
+    DeviceNetwork,
+    Frequency,
+    DataType,
+    CityModels,
+    CountryModels,
+)
 from .data_validator import DataValidationUtils
-from .date import date_to_str
+from .date import date_to_str, DateUtils
 from .ml_utils import GCSUtils
 from .utils import Utils
 from .datautils import DataUtils
 from .weather_data_utils import WeatherDataUtils
-from typing import List, Dict, Any, Union
-import ast
 
 import logging
 
@@ -277,22 +283,23 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
-        group_metadata = (
-            data[["device_id", "site_id", "device_number", "network"]]
-            .drop_duplicates("device_id")
-            .set_index("device_id")
-        )
+        group_metadata = data[
+            ["device_id", "site_id", "device_number", "network"]
+        ].drop_duplicates("device_id")
+        group_metadata.set_index("device_id", inplace=True)
         numeric_columns = data.select_dtypes(include=["number"]).columns
         numeric_columns = numeric_columns.difference(["device_number"])
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        aggregated = (
-            data_for_aggregation.groupby("device_id")
-            .apply(lambda group: group.resample("1H", on="timestamp").mean())
-            .reset_index()
-        )
-
-        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-
+        try:
+            aggregated = (
+                data_for_aggregation.groupby("device_id")
+                .apply(lambda group: group.resample("1H", on="timestamp").mean())
+                .reset_index()
+            )
+            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+        except Exception as e:
+            logger.exception(f"An error occured: No data passed - {e}")
+            aggregated = pd.DataFrame(columns=data.columns)
         return aggregated
 
     @staticmethod
@@ -562,7 +569,7 @@ class AirQoDataUtils:
         return data
 
     @staticmethod
-    def calibrate_data(data: pd.DataFrame) -> pd.DataFrame:
+    def calibrate_data(data: pd.DataFrame, groupby: str) -> pd.DataFrame:
         """
         Calibrates air quality sensor data by applying machine learning models to adjust sensor readings.
 
@@ -591,9 +598,10 @@ class AirQoDataUtils:
         project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        sites = sites[["site_id", "city"]]
+        sites = sites[["site_id", groupby]]
         data = pd.merge(data, sites, on="site_id", how="left")
         data.dropna(subset=["device_id", "timestamp"], inplace=True)
+
         columns_to_fill = [
             "s1_pm2_5",
             "s1_pm10",
@@ -602,20 +610,6 @@ class AirQoDataUtils:
             "temperature",
             "humidity",
         ]
-
-        # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
-        # Fill nas for the specified fields.
-        data[columns_to_fill] = data[columns_to_fill].fillna(0)
-
-        # additional input columns for calibration
-        data["avg_pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
-        data["avg_pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1).round(2)
-        data["error_pm2_5"] = np.abs(data["s1_pm2_5"] - data["s2_pm2_5"])
-        data["error_pm10"] = np.abs(data["s1_pm10"] - data["s2_pm10"])
-        data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
-        data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
-        data["hour"] = data["timestamp"].dt.__getattribute__("hour")
-
         input_variables = [
             "avg_pm2_5",
             "avg_pm10",
@@ -627,45 +621,98 @@ class AirQoDataUtils:
             "pm2_5_pm10",
             "pm2_5_pm10_mod",
         ]
-        data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
-        # Explicitly filter data to calibrate. At the moment, only calibrating on AirQo data.
+        # TODO: Need to opt for a different approach eg forward fill, can't do here as df only has data of last 1 hour. Perhaps use raw data only?
+        # Fill nas for the specified fields.
+        if "airqo" not in pd.unique(data.network):
+            data = data.reindex(
+                columns=data.columns.union(columns_to_fill, sort=False),
+                fill_value=np.nan,
+            )
+
         to_calibrate = data["network"] == "airqo"
         data_to_calibrate = data.loc[to_calibrate]
+        data_to_calibrate[columns_to_fill] = data_to_calibrate[columns_to_fill].fillna(
+            0
+        )
+
+        # additional input columns for calibration
+        data_to_calibrate["avg_pm2_5"] = (
+            data_to_calibrate[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1).round(2)
+        )
+        data_to_calibrate["avg_pm10"] = (
+            data_to_calibrate[["s1_pm10", "s2_pm10"]].mean(axis=1).round(2)
+        )
+        data_to_calibrate["error_pm2_5"] = np.abs(
+            data_to_calibrate["s1_pm2_5"] - data_to_calibrate["s2_pm2_5"]
+        )
+        data_to_calibrate["error_pm10"] = np.abs(
+            data_to_calibrate["s1_pm10"] - data_to_calibrate["s2_pm10"]
+        )
+        data_to_calibrate["pm2_5_pm10"] = (
+            data_to_calibrate["avg_pm2_5"] - data_to_calibrate["avg_pm10"]
+        )
+        data_to_calibrate["pm2_5_pm10_mod"] = (
+            data_to_calibrate["avg_pm2_5"] / data_to_calibrate["avg_pm10"]
+        )
+        data_to_calibrate["hour"] = data_to_calibrate["timestamp"].dt.hour
+
+        data_to_calibrate[input_variables] = data_to_calibrate[input_variables].replace(
+            [np.inf, -np.inf], 0
+        )
+
+        calibrate_by: Dict[str, Union[CityModels, CountryModels]] = {
+            "city": CityModels,
+            "country": CountryModels,
+        }
+
+        models: Union[CityModels, CountryModels] = calibrate_by.get(
+            groupby, CountryModels
+        )
+
+        # Explicitly filter data to calibrate. At the moment, only calibrating on AirQo data.
+
         data_to_calibrate.dropna(subset=input_variables, inplace=True)
-        grouped_df = data_to_calibrate.groupby("city", dropna=False)
-        default_rf_model = GCSUtils.get_trained_model_from_gcs(
-            project_name=project_id,
-            bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(
-                CityModel.DEFAULT, "pm2_5"
-            ),
-        )
-        default_lasso_model = GCSUtils.get_trained_model_from_gcs(
-            project_name=project_id,
-            bucket_name=bucket,
-            source_blob_name=Utils.get_calibration_model_path(
-                CityModel.DEFAULT, "pm10"
-            ),
-        )
-        for city, group in grouped_df:
+        grouped_df = data_to_calibrate.groupby(groupby, dropna=False)
+        if not data_to_calibrate.empty:
+            default_rf_model = GCSUtils.get_trained_model_from_gcs(
+                project_name=project_id,
+                bucket_name=bucket,
+                source_blob_name=Utils.get_calibration_model_path(
+                    models.DEFAULT, "pm2_5"
+                ),
+            )
+            default_lasso_model = GCSUtils.get_trained_model_from_gcs(
+                project_name=project_id,
+                bucket_name=bucket,
+                source_blob_name=Utils.get_calibration_model_path(
+                    models.DEFAULT, "pm10"
+                ),
+            )
+
+        available_models = [c.value for c in models]
+
+        for groupedby, group in grouped_df:
             # If the below condition fails, the rf_model and lasso_model default to the previously ones used and the ones set as "default" outside the forloop.
-            if str(city).lower() in [c.str for c in CityModel]:
+            if (
+                groupedby
+                and not pd.isna(groupedby)
+                and groupedby.lower() in available_models
+            ):
                 try:
                     current_rf_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
                         source_blob_name=Utils.get_calibration_model_path(
-                            city, "pm2_5"
+                            groupedby.lower(), "pm2_5"
                         ),
                     )
                     current_lasso_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
-                        source_blob_name=Utils.get_calibration_model_path(city, "pm10"),
-                    )
-                    logger.info(
-                        f"Got 1st models {current_rf_model} and {current_lasso_model} for {city}"
+                        source_blob_name=Utils.get_calibration_model_path(
+                            groupedby.lower(), "pm10"
+                        ),
                     )
                 except Exception as e:
                     logger.exception(
@@ -673,15 +720,9 @@ class AirQoDataUtils:
                     )
                     current_rf_model = default_rf_model
                     current_lasso_model = default_lasso_model
-                    logger.info(
-                        f"Got 2nd models {current_rf_model} and {current_lasso_model} for {city}"
-                    )
             else:
                 current_rf_model = default_rf_model
                 current_lasso_model = default_lasso_model
-                logger.info(
-                    f"Got default models {current_rf_model} and {current_lasso_model} for {city}"
-                )
 
             group["pm2_5_calibrated_value"] = current_rf_model.predict(
                 group[input_variables]
@@ -719,69 +760,118 @@ class AirQoDataUtils:
                 "pm2_5_pm10_mod",
                 "hour",
                 "city",
-            ]
+            ],
+            errors="ignore",
         )
 
     @staticmethod
-    def get_devices_kafka(group_id: str) -> pd.DataFrame:
+    def extract_devices_with_uncalibrated_data(
+        start_date, table: str = None, network: DeviceNetwork = DeviceNetwork.AIRQO
+    ) -> pd.DataFrame:
         """
-        Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
+        Extracts devices with uncalibrated data for a given start date from BigQuery.
 
         Args:
-            group_id (str): The consumer group ID used to track message consumption from the topic.
+            start_date (str or datetime): The date for which to check missing uncalibrated data.
+            table (str, optional): The name of the BigQuery table. Defaults to None, in which case the appropriate table is determined dynamically.
+            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.xxxx.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the list of devices, where each device is represented as a row.
-                      If any errors occur during the process, an empty DataFrame is returned.
+            pd.DataFrame: A DataFrame containing the devices with missing uncalibrated data.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
         """
-        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from confluent_kafka import KafkaException
-        import json
+        bigquery_api = BigQueryApi()
+        if not table:
+            source = Config.DataSource.get(DataType.AVERAGED)
+            table = source.get(DeviceCategory.GENERAL).get(Frequency.HOURLY)
+        query = bigquery_api.generate_missing_data_query(start_date, table, network)
+        return bigquery_api.execute_missing_data_query(query)
 
-        broker = MessageBrokerUtils()
-        devices_list: list = []
+    @staticmethod
+    def extract_aggregate_calibrate_raw_data(
+        devices: pd.DataFrame,
+    ) -> Generator[pd.DataFrame, None, None]:
+        """
+        Extracts and aggregates raw sensor data for each device in the provided DataFrame.
 
-        for message in broker.consume_from_topic(
-            topic="devices-topic",
-            group_id=group_id,
-            auto_offset_reset="earliest",
-            auto_commit=False,
-        ):
-            try:
-                key = message.get("key", None)
-                try:
-                    value = json.loads(message.get("value", None))
-                except json.JSONDecodeError as e:
-                    logger.exception(f"Error decoding JSON: {e}")
-                    continue
+        This function iterates through the provided devices, extracts raw data from BigQuery,
+        removes duplicates, aggregates low-cost sensor data, merges it with weather data,
+        and finally calibrates the data before yielding it.
 
-                if not key or not value.get("device_id"):
-                    logger.warning(
-                        f"Skipping message with key: {key}, missing 'device_id'."
-                    )
-                    continue
+        Parameters:
+            devices (pd.DataFrame): A DataFrame containing device records, including 'device_id' and 'timestamp'.
 
-                devices_list.append(value)
-            except KafkaException as e:
-                logger.exception(f"Error while consuming message: {e}")
-            continue
+        Yields:
+            pd.DataFrame: A DataFrame containing processed and calibrated data for each device.
+        """
 
-        try:
-            devices = pd.DataFrame(devices_list)
-            # Will be removed in the future. Just here for initial tests.
-            devices.drop(
-                devices.columns[devices.columns.str.contains("^Unnamed")],
-                axis=1,
-                inplace=True,
+        exclude_cols = None
+
+        devices.drop_duplicates(
+            subset=["device_id", "timestamp"], keep="first", inplace=True
+        )
+        devices.dropna(subset=["timestamp"], inplace=True)
+
+        # TODO Might have to change approach to group by device_id depending on performance.
+        for _, row in devices.iterrows():
+            end_date_time = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S%z")
+            end_date_time = DateUtils.format_datetime_by_unit_str(
+                end_date_time, "hours_end"
             )
-        except Exception as e:
-            logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
-            # Return empty DataFrame on failure
-            devices = pd.DataFrame()
+            raw_device_data = DataUtils.extract_data_from_bigquery(
+                DataType.RAW,
+                start_date_time=row.timestamp,
+                end_date_time=end_date_time,
+                frequency=Frequency.RAW,
+                device_category=DeviceCategory.GENERAL,
+                use_cache=True,
+                data_filter={
+                    "device_id": row.device_id,
+                    "device_category": DeviceCategory.LOWCOST.str,
+                },
+            )
 
-        if "device_name" in devices.columns.tolist():
-            devices.drop_duplicates(subset=["device_name"], keep="last")
-        elif "device_id" in devices.columns.tolist():
-            devices.drop_duplicates(subset=["device_id"], keep="last")
-
-        return devices
+            # Initialize `exclude_cols` only once
+            if not exclude_cols:
+                exclude_cols = [
+                    raw_device_data.device_number.name,
+                    raw_device_data.latitude.name,
+                    raw_device_data.longitude.name,
+                    raw_device_data.network.name,
+                ]
+            if not raw_device_data.empty:
+                try:
+                    clean_raw = DataUtils.remove_duplicates(
+                        raw_device_data,
+                        timestamp_col=raw_device_data.timestamp.name,
+                        id_col=raw_device_data.device_id.name,
+                        group_col=raw_device_data.site_id.name,
+                        exclude_cols=exclude_cols,
+                    )
+                    aggregated_device_data = (
+                        AirQoDataUtils.aggregate_low_cost_sensors_data(data=clean_raw)
+                    )
+                    hourly_weather_data = DataUtils.extract_data_from_bigquery(
+                        DataType.AVERAGED,
+                        start_date_time=row.timestamp,
+                        end_date_time=end_date_time,
+                        frequency=Frequency.HOURLY,
+                        device_category=DeviceCategory.WEATHER,
+                        use_cache=True,
+                    )
+                    air_weather_hourly_data = (
+                        AirQoDataUtils.merge_aggregated_weather_data(
+                            airqo_data=aggregated_device_data,
+                            weather_data=hourly_weather_data,
+                        )
+                    )
+                    calibrated_data = AirQoDataUtils.calibrate_data(
+                        data=air_weather_hourly_data, groupby="city"
+                    )
+                except Exception as e:
+                    logger.exception(f"An error occured: {e}")
+                    continue
+                else:
+                    yield calibrated_data

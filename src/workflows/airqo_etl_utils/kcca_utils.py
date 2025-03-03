@@ -94,7 +94,7 @@ class KccaUtils:
 
             return pd.Series({"latitude": coordinates[1], "longitude": coordinates[0]})
         except Exception as ex:
-            print(ex)
+            logger.exception(ex)
             return pd.Series({"latitude": None, "longitude": None})
 
     @staticmethod
