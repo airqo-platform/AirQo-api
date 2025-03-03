@@ -1004,3 +1004,128 @@ class DataUtils:
             logger.exception(f"An error occured: {e}")
             return None
         return data
+
+    # Clarity
+    def _flatten_location_coordinates_clarity(coordinates: str) -> pd.Series:
+        """
+        Extracts latitude and longitude from a coordinate string.
+
+        The function expects a string representation of coordinates in the format "[longitude, latitude]". It removes square brackets and spaces, splits
+        the values, and returns them as a Pandas Series.
+
+        Args:
+            coordinates(str): A string containing coordinates in the format "[longitude, latitude]".
+
+        Returns:
+            pd.Series: A Pandas Series with 'latitude' and 'longitude' as keys. Returns None for both values if an error occurs.
+
+        Example:
+            >>> _flatten_location_coordinates("[-73.935242, 40.730610]")
+            latitude     40.730610
+            longitude   -73.935242
+            dtype: object
+        """
+
+        try:
+            coords = coordinates.strip("[] ").split(",")
+            return pd.Series(
+                {"latitude": coords[1].strip(), "longitude": coords[0].strip()}
+            )
+        except Exception as ex:
+            logger.exception("Error parsing coordinates: %s", ex)
+            return pd.Series({"latitude": None, "longitude": None})
+
+    def _transform_clarity_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transforms Clarity API data by renaming columns, extracting location details,
+        mapping devices, and ensuring required columns are present.
+
+        Args:
+            data(pd.DataFrame): The input data frame containing raw Clarity API data.
+
+        Returns:
+            pd.DataFrame: The transformed data frame with cleaned and formatted data.
+
+        Processing Steps:
+        1. Renames columns for consistency.
+        2. Extracts latitude and longitude from the `location.coordinates` field.
+        3. Adds site and device details from the `device_id` field.
+        4. Retrieves required columns from BigQuery and fills missing ones.
+        5. Removes outliers before returning the final dataset.
+        """
+        data.rename(
+            columns={
+                "time": "timestamp",
+                "deviceCode": "device_id",
+                "characteristics.pm2_5ConcMass.value": "pm2_5",
+                "characteristics.pm2_5ConcMass.raw": "pm2_5_raw_value",
+                "characteristics.pm2_5ConcMass.calibratedValue": "pm2_5_calibrated_value",
+                "characteristics.pm10ConcMass.value": "pm10",
+                "characteristics.pm10ConcMass.raw": "pm10_raw_value",
+                "characteristics.pm10ConcMass.calibratedValue": "pm10_calibrated_value",
+                "characteristics.pm1ConcMass.value": "pm1",
+                "characteristics.pm1ConcMass.raw": "pm1_raw_value",
+                "characteristics.pm1ConcMass.calibratedValue": "pm1_calibrated_value",
+                "characteristics.no2Conc.value": "no2",
+                "characteristics.no2Conc.raw": "no2_raw_value",
+                "characteristics.no2Conc.calibratedValue": "no2_calibrated_value",
+                "characteristics.windSpeed.value": "wind_speed",
+                "characteristics.temperature.value": "temperature",
+                "characteristics.relHumid.value": "humidity",
+                "characteristics.altitude.value": "altitude",
+            },
+            inplace=True,
+        )
+
+        data[["latitude", "longitude"]] = data["location.coordinates"].apply(
+            DataUtils._flatten_location_coordinates
+        )
+
+        devices, _ = DataUtils.get_devices()
+        data[["site_id", "device_number"]] = data["device_id"].apply(
+            lambda device_id: DataUtils._add_site_and_device_details(
+                devices=devices, device_id=device_id
+            )
+        )
+
+        big_query_api = BigQueryApi()
+        required_cols = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table
+        )
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
+
+        return DataValidationUtils.remove_outliers(data)
+
+    def _add_site_and_device_details(devices: pd.DataFrame, device_id) -> pd.Series:
+        """
+        Retrieves site and device details for a given device ID from the provided DataFrame.
+
+        This function filters the `devices` DataFrame to find a row matching the specified `device_id`.
+        If a matching device is found, it returns a pandas Series containing the `site_id` and
+        `device_number` associated with that device. If no matching device is found or an error occurs,
+        it returns a Series with None values.
+
+        Args:
+            devices (pd.DataFrame): A DataFrame containing device information, including 'device_id'.
+            device_id: The ID of the device to search for in the DataFrame.
+
+        Returns:
+            pd.Series: A Series containing 'site_id' and 'device_number' for the specified device ID,
+                    or None values if the device is not found or an error occurs.
+        """
+        try:
+            filtered_devices = devices.loc[devices.name == device_id]
+            if not filtered_devices.empty:
+                result = filtered_devices.iloc[0]
+                return pd.Series(
+                    {
+                        "site_id": result.get("site_id", None),
+                        "device_number": result.get("device_number", None),
+                    }
+                )
+        except Exception as e:
+            logger.exception(f"An erro has occurred: {e}")
+
+        logger.info("No matching device_id found.")
+        return pd.Series({"site_id": None, "device_number": None})
