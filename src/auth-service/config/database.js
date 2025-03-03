@@ -107,7 +107,8 @@ function getCommandTenantDB(tenantId, modelName, schema) {
  * Get a tenant-specific database from query DB (for read operations)
  */
 function getQueryTenantDB(tenantId, modelName, schema) {
-  const dbName = `${constants.DB_NAME}_query_${tenantId}`;
+  // const dbName = `${constants.DB_NAME}_query_${tenantId}`;
+  const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (queryMongoDB) {
     const db = queryMongoDB.useDb(dbName, { useCache: true });
     db.model(modelName, schema);
