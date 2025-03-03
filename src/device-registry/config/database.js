@@ -10,8 +10,8 @@ const logger = log4js.getLogger(
 );
 
 // Database URIs for CQRS pattern
-const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI;
-const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI;
+const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
+const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI || "";
 
 const options = {
   useCreateIndex: true,
@@ -37,7 +37,7 @@ const createCommandConnection = () =>
 const createQueryConnection = () =>
   mongoose.createConnection(QUERY_URI, {
     ...options,
-    dbName: `${constants.DB_NAME}_query`,
+    dbName: `${constants.DB_NAME}`,
   });
 
 // Store database connections
@@ -54,7 +54,7 @@ const setupConnectionHandlers = (db, dbType) => {
     logger.error(`${dbType} database connection error: ${err.message}`);
   });
 
-  db.on("disconnection", (err) => {
+  db.on("disconnected", (err) => {
     logger.warn(
       `${dbType} database disconnected: ${err ? err.message : "Unknown reason"}`
     );
@@ -107,7 +107,8 @@ function getCommandTenantDB(tenantId, modelName, schema) {
  * Get a tenant-specific query database (for read operations)
  */
 function getQueryTenantDB(tenantId, modelName, schema) {
-  const dbName = `${constants.DB_NAME}_query_${tenantId}`;
+  // const dbName = `${constants.DB_NAME}_query_${tenantId}`;
+  const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (queryMongoDB) {
     const db = queryMongoDB.useDb(dbName, { useCache: true });
     db.model(modelName, schema);
