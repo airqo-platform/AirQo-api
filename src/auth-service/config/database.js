@@ -40,7 +40,7 @@ const createCommandConnection = () =>
 const createQueryConnection = () =>
   mongoose.createConnection(QUERY_URI, {
     ...options,
-    dbName: `${constants.DB_NAME}_query`,
+    dbName: `${constants.DB_NAME}`,
   });
 
 // Connection storage
