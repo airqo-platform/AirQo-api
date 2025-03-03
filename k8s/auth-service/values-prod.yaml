@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-auth-api
-  tag: prod-d9efd80f-1739880640
+  tag: prod-1cfefd36-1740828978
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -27,6 +27,7 @@ affinity:
               values:
                 - moderate-usage
         weight: 1
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

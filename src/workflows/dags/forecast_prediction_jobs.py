@@ -6,10 +6,11 @@ from airflow.decorators import dag, task
 from dateutil.relativedelta import relativedelta
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.ml_utils import BaseMlUtils, ForecastUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+
+from airqo_etl_utils.constants import Frequency
 
 
 @dag(
@@ -19,8 +20,8 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     tags=["airqo", "hourly-forecast", "daily-forecast", "prediction-job"],
 )
 def make_forecasts():
-    bucket = configuration.FORECAST_MODELS_BUCKET
-    project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+    bucket = Config.FORECAST_MODELS_BUCKET
+    project_id = Config.GOOGLE_CLOUD_PROJECT_ID
 
     ### Hourly forecast tasks
     @task()
@@ -28,7 +29,7 @@ def make_forecasts():
         from datetime import datetime, timedelta, timezone
 
         start_date = datetime.now(timezone.utc) - timedelta(
-            hours=int(configuration.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
+            hours=int(Config.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         from airqo_etl_utils.date import date_to_str
 
@@ -39,19 +40,21 @@ def make_forecasts():
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
-        return BaseMlUtils.preprocess_data(data, "hourly", job_type="prediction")
+        return BaseMlUtils.preprocess_data(
+            data, Frequency.HOURLY, job_type="prediction"
+        )
 
     @task
     def generate_lag_and_rolling_features_hourly_forecast(data):
-        return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", "hourly")
+        return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.HOURLY)
 
     @task()
     def get_time_features_hourly_forecast(data):
-        return BaseMlUtils.get_time_features(data, "hourly")
+        return BaseMlUtils.get_time_features(data, Frequency.HOURLY)
 
     @task()
     def get_cyclic_features_hourly_forecast(data):
-        return BaseMlUtils.get_cyclic_features(data, "hourly")
+        return BaseMlUtils.get_cyclic_features(data, Frequency.HOURLY)
 
     @task()
     def get_location_features_hourly_forecast(data):
@@ -60,18 +63,20 @@ def make_forecasts():
     @task()
     def make_hourly_forecasts(data):
         return ForecastUtils.generate_forecasts(
-            data=data, project_name=project_id, bucket_name=bucket, frequency="hourly"
+            data=data,
+            project_name=project_id,
+            bucket_name=bucket,
+            frequency=Frequency.HOURLY,
         )
 
     @task()
     def save_hourly_forecasts_to_bigquery(data):
-        BigQueryApi().save_data_to_bigquery(
-            data, configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
-        )
+        bigquery_api = BigQueryApi()
+        bigquery_api.load_data(data, Config.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE)
 
     @task()
     def save_hourly_forecasts_to_mongo(data):
-        ForecastUtils.save_forecasts_to_mongo(data, "hourly")
+        ForecastUtils.save_forecasts_to_mongo(data, Frequency.HOURLY)
 
     # Daily forecast tasks
     @task()
@@ -80,7 +85,7 @@ def make_forecasts():
         from airqo_etl_utils.date import date_to_str
 
         start_date = datetime.now(timezone.utc) - timedelta(
-            days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
+            days=int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
@@ -89,19 +94,19 @@ def make_forecasts():
 
     @task()
     def preprocess_historical_data_daily_forecast(data):
-        return BaseMlUtils.preprocess_data(data, "daily", job_type="prediction")
+        return BaseMlUtils.preprocess_data(data, Frequency.DAILY, job_type="prediction")
 
     @task()
     def generate_lag_and_rolling_features_daily_forecast(data):
-        return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", "daily")
+        return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.DAILY)
 
     @task()
     def get_time_features_daily_forecast(data):
-        return BaseMlUtils.get_time_features(data, "daily")
+        return BaseMlUtils.get_time_features(data, Frequency.DAILY)
 
     @task()
     def get_cyclic_features_daily_forecast(data):
-        return BaseMlUtils.get_cyclic_features(data, "daily")
+        return BaseMlUtils.get_cyclic_features(data, Frequency.DAILY)
 
     @task()
     def get_location_features_daily_forecast(data):
@@ -110,18 +115,20 @@ def make_forecasts():
     @task()
     def make_daily_forecasts(data):
         return ForecastUtils.generate_forecasts(
-            data=data, project_name=project_id, bucket_name=bucket, frequency="daily"
+            data=data,
+            project_name=project_id,
+            bucket_name=bucket,
+            frequency=Frequency.DAILY,
         )
 
     @task()
     def save_daily_forecasts_to_bigquery(data):
-        BigQueryApi().save_data_to_bigquery(
-            data, configuration.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE
-        )
+        bigquery_api = BigQueryApi()
+        bigquery_api.load_data(data, Config.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE)
 
     @task()
     def save_daily_forecasts_to_mongo(data):
-        ForecastUtils.save_forecasts_to_mongo(data, "daily")
+        ForecastUtils.save_forecasts_to_mongo(data, Frequency.DAILY)
 
     # Hourly forecast pipeline
     hourly_data = get_historical_data_for_hourly_forecasts()

@@ -44,3 +44,11 @@ Extracts hourly averaged data from BigQuery for a specified time window.
 #### Notes
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+extract_devices_missing_calibrated_data_doc = """
+#### Purpose
+Extracts devices that are missing calibrated data from bigquery
+
+- This is in preparation to extract, merge and re-calibrate missed air quality and weather data..
+#### Notes
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""

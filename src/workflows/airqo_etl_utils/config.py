@@ -1,7 +1,13 @@
 import os
 from pathlib import Path
 
-from .constants import DataType, DeviceCategory, Frequency
+from .constants import (
+    DataType,
+    DeviceCategory,
+    Frequency,
+    QualityCategorization,
+    Pollutant,
+)
 import pymongo as pm
 import tweepy
 import urllib3
@@ -169,6 +175,29 @@ class Config:
     PURPLE_AIR_BASE_URL = os.getenv("PURPLE_AIR_BASE_URL")
     PURPLE_AIR_API_KEY = os.getenv("PURPLE_AIR_API_KEY")
 
+    AIR_QUALITY_CATEGORY = {
+        Pollutant.PM10: [
+            (55, QualityCategorization.GOOD),
+            (155, QualityCategorization.MODERATE),
+            (255, QualityCategorization.UNHEALTHY_FSGs),
+            (355, QualityCategorization.UNHEALTHY),
+            (425, QualityCategorization.VERY_UNHEALTHY),
+            (float("inf"), QualityCategorization.HAZARDOUS),
+        ],
+        Pollutant.PM2_5: [
+            (12.1, QualityCategorization.GOOD),
+            (35.5, QualityCategorization.MODERATE),
+            (55.5, QualityCategorization.UNHEALTHY_FSGs),
+            (150.5, QualityCategorization.UNHEALTHY),
+            (250.5, QualityCategorization.VERY_UNHEALTHY),
+            (float("inf"), QualityCategorization.HAZARDOUS),
+        ],
+        Pollutant.NO2: [
+            (54, QualityCategorization.GOOD),
+            (101, QualityCategorization.MODERATE),
+            (361, QualityCategorization.UNHEALTHY_FSGs),
+        ],
+    }
     AIRQO_BAM_CONFIG = {
         0: "timestamp",
         1: "realtime_conc",
@@ -397,6 +426,8 @@ class Config:
         BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE: "airqo_mobile_measurements.json",
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
+        BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
+        BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         "all": None,
     }
     DataSource = {
@@ -409,6 +440,7 @@ class Config:
         },
         DataType.AVERAGED: {
             DeviceCategory.GENERAL: {
+                Frequency.RAW: BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE,
                 Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
                 Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
             },
@@ -624,6 +656,7 @@ class Config:
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
+    CALIBRATEBY = os.getenv("CALIBRATEBY", "country")
 
     # Twitter bot
     TWITTER_BOT_API_KEY = os.getenv("TWITTER_BOT_API_KEY")
