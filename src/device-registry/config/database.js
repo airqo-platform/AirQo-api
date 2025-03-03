@@ -56,7 +56,9 @@ const setupConnectionHandlers = (db, dbType) => {
 
   db.on("disconnected", (err) => {
     logger.warn(
-      `${dbType} database disconnected: ${err ? err.message : "Unknown reason"}`
+      `${dbType} database disconnected: ${
+        err && err.message ? err.message : "Unknown reason"
+      }`
     );
   });
 };
