@@ -8,6 +8,8 @@ const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 const devConfig = {
   DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_DEV,
+  COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_DEV,
+  QUERY_MONGO_URI: process.env.QUERY_MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
