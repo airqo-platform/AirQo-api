@@ -7,6 +7,8 @@ const devConfig = {
   DEFAULT_NETWORK: process.env.DEV_DEFAULT_NETWORK,
   DEFAULT_NETWORK_ROLE: process.env.DEV_DEFAULT_NETWORK_ROLE,
   MONGO_URI: process.env.MONGO_DEV_URI,
+  COMMAND_MONGO_URI: process.env.COMMAND_MONGO_DEV_URI,
+  QUERY_MONGO_URI: process.env.QUERY_MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
   PWD_RESET: `${process.env.PLATFORM_DEV_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/login`,
