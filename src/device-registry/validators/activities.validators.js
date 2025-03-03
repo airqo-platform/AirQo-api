@@ -3,6 +3,7 @@ const { oneOf, query, body, param } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
+const moment = require("moment");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const commonValidations = {
@@ -175,7 +176,21 @@ const commonValidations = {
       .trim()
       .toDate()
       .isISO8601({ strict: true, strictSeparator: true })
-      .withMessage("date must be a valid datetime."),
+      .withMessage("date must be a valid datetime.")
+      .bail()
+      .custom((date) => {
+        const now = moment();
+        const oneMonthAgo = moment().subtract(1, "month");
+        const inputDate = moment(date);
+
+        if (inputDate.isAfter(now)) {
+          throw new Error("date cannot be in the future");
+        }
+        if (inputDate.isBefore(oneMonthAgo)) {
+          throw new Error("date cannot be more than one month in the past");
+        }
+        return true;
+      }),
   ],
   description: [
     body("description")
@@ -331,12 +346,7 @@ const activitiesValidations = {
       .isIn(constants.RECALL_TYPES)
       .withMessage("Invalid recallType"),
     commonValidations.objectId("user_id", body),
-    body("date")
-      .optional()
-      .trim()
-      .toDate()
-      .isISO8601({ strict: true, strictSeparator: true })
-      .withMessage("Invalid date format"),
+    ...commonValidations.date,
     ...commonValidations.firstName,
     ...commonValidations.lastName,
     ...commonValidations.userName,
@@ -380,13 +390,7 @@ const activitiesValidations = {
       .toLowerCase()
       .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
       .withMessage("Invalid mountType"),
-    body("date")
-      .exists()
-      .withMessage("date is required")
-      .trim()
-      .toDate()
-      .isISO8601({ strict: true, strictSeparator: true })
-      .withMessage("Invalid date format"),
+    ...commonValidations.date,
     //Optional fields validation if provided
     body("isPrimaryInLocation")
       .optional()
@@ -506,7 +510,21 @@ const activitiesValidations = {
       .trim()
       .toDate()
       .isISO8601({ strict: true, strictSeparator: true })
-      .withMessage("Invalid date format"),
+      .withMessage("Invalid date format")
+      .bail()
+      .custom((date) => {
+        const now = moment();
+        const oneMonthAgo = moment().subtract(1, "month");
+        const inputDate = moment(date);
+
+        if (inputDate.isAfter(now)) {
+          throw new Error("date cannot be in the future");
+        }
+        if (inputDate.isBefore(oneMonthAgo)) {
+          throw new Error("date cannot be more than one month in the past");
+        }
+        return true;
+      }),
     commonValidations.objectId("*.user_id", body),
     commonValidations.objectId("*.host_id", body),
   ],
