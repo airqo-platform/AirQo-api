@@ -6,6 +6,20 @@ const constants = require("@config/constants");
 const moment = require("moment");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
+const validateDateRange = (date) => {
+  const now = moment();
+  const oneMonthAgo = moment().subtract(1, "month");
+  const inputDate = moment(date);
+
+  if (inputDate.isAfter(now)) {
+    throw new Error("date cannot be in the future");
+  }
+  if (inputDate.isBefore(oneMonthAgo)) {
+    throw new Error("date cannot be more than one month in the past");
+  }
+  return true;
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -178,19 +192,19 @@ const commonValidations = {
       .isISO8601({ strict: true, strictSeparator: true })
       .withMessage("date must be a valid datetime.")
       .bail()
-      .custom((date) => {
-        const now = moment();
-        const oneMonthAgo = moment().subtract(1, "month");
-        const inputDate = moment(date);
-
-        if (inputDate.isAfter(now)) {
-          throw new Error("date cannot be in the future");
-        }
-        if (inputDate.isBefore(oneMonthAgo)) {
-          throw new Error("date cannot be more than one month in the past");
-        }
-        return true;
-      }),
+      .custom(validateDateRange),
+  ],
+  eachDate: [
+    body("*.date")
+      .exists()
+      .withMessage("date is missing")
+      .bail()
+      .trim()
+      .toDate()
+      .isISO8601({ strict: true, strictSeparator: true })
+      .withMessage("date must be a valid datetime.")
+      .bail()
+      .custom(validateDateRange),
   ],
   description: [
     body("description")
@@ -504,27 +518,7 @@ const activitiesValidations = {
       .withMessage("network is required")
       .trim()
       .custom(validateNetwork),
-    body("*.date")
-      .exists()
-      .withMessage("date is required")
-      .trim()
-      .toDate()
-      .isISO8601({ strict: true, strictSeparator: true })
-      .withMessage("Invalid date format")
-      .bail()
-      .custom((date) => {
-        const now = moment();
-        const oneMonthAgo = moment().subtract(1, "month");
-        const inputDate = moment(date);
-
-        if (inputDate.isAfter(now)) {
-          throw new Error("date cannot be in the future");
-        }
-        if (inputDate.isBefore(oneMonthAgo)) {
-          throw new Error("date cannot be more than one month in the past");
-        }
-        return true;
-      }),
+    ...commonValidations.eachDate,
     commonValidations.objectId("*.user_id", body),
     commonValidations.objectId("*.host_id", body),
   ],
