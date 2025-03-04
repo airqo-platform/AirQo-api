@@ -19,6 +19,14 @@ const GuestUserSchema = new Schema(
       index: true,
     },
     lastActive: { type: Date, default: Date.now, index: true },
+    firstName: {
+      type: String,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      trim: true,
+    },
   },
   { timestamps: true }
 );
@@ -63,16 +71,12 @@ GuestUserSchema.statics = {
   },
   async list({ filter = {}, limit = 100, skip = 0, next } = {}) {
     try {
-      logObject("filter", filter);
-
       const guestUsers = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
-
-      logObject("guestUsers", guestUsers);
 
       if (!isEmpty(guestUsers)) {
         return {
