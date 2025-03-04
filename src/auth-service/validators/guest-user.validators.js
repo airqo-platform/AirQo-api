@@ -57,7 +57,10 @@ const list = [validateTenant];
 const getOne = [validateTenant, validateIdParam];
 const create = [
   validateTenant,
-  [body("firstName").optional().trim(), body("lastName").optional().trim()],
+  oneOf([
+    body("firstName").optional().trim(),
+    body("lastName").optional().trim(),
+  ]),
 ];
 const update = [validateTenant, validateIdParam];
 const deleteGuest = [validateTenant, validateIdParam];

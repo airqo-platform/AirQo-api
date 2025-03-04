@@ -98,7 +98,7 @@ const filter = {
   },
   guest_users: (req, next) => {
     try {
-      let { tenant, id, guest_id } = {
+      let { id, guest_id } = {
         ...req.body,
         ...req.query,
         ...req.params,
@@ -110,9 +110,7 @@ const filter = {
       if (guest_id) {
         filter["guest_id"] = guest_id;
       }
-      if (tenant) {
-        filter["tenant"] = tenant.toLowerCase();
-      }
+
       return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
