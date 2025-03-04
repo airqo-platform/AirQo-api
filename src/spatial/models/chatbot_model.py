@@ -53,7 +53,7 @@ class AirQualityChatbot:
         self.endtime = data.get('airquality', {}).get('period', {}).get('endTime', '')[:10] or 'N/A'
 
         self.annual_pm2_5 = self.annual_data.get("pm2_5_calibrated_value", 'N/A')
-        self.gemini_model = genai.GenerativeModel('gemini-pro')
+        self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
         self.lock = threading.Lock()
 
         # Precompute for rule-based speed
