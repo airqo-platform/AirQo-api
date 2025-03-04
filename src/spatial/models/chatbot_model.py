@@ -26,7 +26,6 @@ class DataFetcher:
 
         url = f"{analytics_url}?token={token}"
         payload = {"grid_id": grid_id, "start_time": start_time, "end_time": end_time}
-
        
         try:
             response = requests.post(url, json=payload, timeout=5)
@@ -80,7 +79,7 @@ class AirQualityChatbot:
                 return f"Pollution peaks at {self.peak_diurnal.get('hour', 'N/A')}:00 with {self.peak_diurnal.get('pm2_5_calibrated_value', 'N/A')} µg/m³."
             return "No diurnal data available."
 
-        if re.search(r"how.*many.*(sites|monitors)", prompt):
+        if re.search(r"how.*many.*(site|sites|monitors)", prompt):
             return f"There are {self.num_sites} monitoring sites in {self.grid_name}."
 
         if re.search(r"(year|annual).*average", prompt):
