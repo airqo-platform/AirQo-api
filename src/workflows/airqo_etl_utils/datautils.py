@@ -66,7 +66,27 @@ class DataUtils:
                 local_file_path, MetaDataType.DEVICES.str
             )
             if not devices.empty:
-                devices["device_number"] = devices["device_number"].fillna(-1)
+                devices["device_number"] = (
+                    devices["device_number"].fillna(-1).astype(int)
+                )
+
+                if device_category:
+                    devices = devices.loc[
+                        devices.device_category == device_category.str
+                    ]
+
+                if device_network:
+                    devices = devices.loc[devices.network == device_network.str]
+
+                keys = dict(
+                    zip(
+                        devices.loc[
+                            devices.network == "airqo", "device_number"
+                        ].to_numpy(),
+                        devices.loc[devices.network == "airqo", "key"].to_numpy(),
+                    )
+                )
+
         except Exception as e:
             logger.exception(f"No devices currently cached: {e}")
 
