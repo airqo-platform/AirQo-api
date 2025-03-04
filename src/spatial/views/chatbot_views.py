@@ -75,7 +75,6 @@ class ChatbotView:
         except Exception as e:
             logger.error(f"Unhandled exception: {str(e)}")
             return jsonify({
-                "error": "Internal server error",
-                "status": "failure",
-                "details": str(e)
+                "error": "Internal server error", 
+                "status": "failure"
             }), 500
