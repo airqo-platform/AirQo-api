@@ -76,5 +76,5 @@ class SatellitePredictionModel:
         result["day"] = current_time.day
         result["dayofweek"] = current_time.weekday()
         result["week"] = int(current_time.strftime("%V"))
-
+            
         return result
