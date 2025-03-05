@@ -73,7 +73,7 @@ class AirnowDataUtils:
         )
         bam_data = pd.DataFrame()
 
-        if not devices:
+        if devices.empty:
             raise ValueError("No devices found for the BAM network.")
 
         dates = Utils.query_dates_array(
