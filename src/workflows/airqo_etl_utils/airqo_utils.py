@@ -262,7 +262,7 @@ class AirQoDataUtils:
     @staticmethod
     def restructure_airqo_mobile_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["network"] = "airqo"
+        data["network"] = DeviceNetwork.AIRQO.str
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(
             table=big_query_api.airqo_mobile_measurements_table
@@ -468,7 +468,7 @@ class AirQoDataUtils:
         for _, device in devices.iterrows():
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
-                    network=device.get("network", "airqo"),
+                    network=device.get("network", DeviceNetwork.AIRQO.str),
                     device=device.get("name", None),
                     activity_type="deployment",
                 )
@@ -583,7 +583,7 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
-        to_calibrate = data["network"] == "airqo"
+        to_calibrate = data["network"] == DeviceNetwork.AIRQO.str
 
         calibrated_data = AirQoDataUtils._airqo_calibrate(
             data.loc[to_calibrate], groupby

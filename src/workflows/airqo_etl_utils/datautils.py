@@ -269,7 +269,11 @@ class DataUtils:
         api_data = []
         data_source_api = DataSourcesApis()
 
-        if device_number and not np.isnan(device_number) and network == "airqo":
+        if (
+            device_number
+            and not np.isnan(device_number)
+            and network == DeviceNetwork.AIRQO.str
+        ):
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
                     device_number=int(device_number),
@@ -282,7 +286,7 @@ class DataUtils:
             if api_data:
                 mapping = config["mapping"][network]
                 return DataUtils.map_and_extract_data(mapping, api_data), meta_data
-        elif network == "iqair":
+        elif network == DeviceNetwork.IQAIR.str:
             mapping = config["mapping"][network]
             try:
                 iqair_data = data_source_api.iqair(device, resolution=resolution)
