@@ -583,7 +583,7 @@ class AirQoDataUtils:
 
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
-        to_calibrate = data["network"] == "xxxx"
+        to_calibrate = data["network"] == "airqo"
 
         calibrated_data = AirQoDataUtils._airqo_calibrate(
             data.loc[to_calibrate], groupby
@@ -745,7 +745,7 @@ class AirQoDataUtils:
         Args:
             start_date (str or datetime): The date for which to check missing uncalibrated data.
             table (str, optional): The name of the BigQuery table. Defaults to None, in which case the appropriate table is determined dynamically.
-            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.xxxx.
+            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.AIRQO.
 
         Returns:
             pd.DataFrame: A DataFrame containing the devices with missing uncalibrated data.
