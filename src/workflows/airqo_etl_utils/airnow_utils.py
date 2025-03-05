@@ -68,9 +68,6 @@ class AirnowDataUtils:
         Raises:
             ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
         """
-        devices = AirQoApi().get_devices_by_network(
-            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
-        )
         devices, _ = DataUtils.get_devices(
             device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
         )
