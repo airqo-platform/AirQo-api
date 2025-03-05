@@ -41,7 +41,7 @@ class ChatbotView:
         try:
             # Fetch air quality data with logging
             logger.info(f"Fetching data for grid_id: {grid_id}, {start_time} to {end_time}")
-            air_quality_data = DataFetcher.fetch_air_quality_data_a(grid_id, start_time, end_time)
+            air_quality_data = DataFetcher.fetch_air_quality_data(grid_id, start_time, end_time)
             
             if not air_quality_data or 'airquality' not in air_quality_data:
                 logger.error(f"No valid air quality data returned for grid_id: {grid_id}")
