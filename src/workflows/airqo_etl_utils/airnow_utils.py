@@ -8,7 +8,7 @@ from .constants import DataSource, DeviceCategory, Frequency, DeviceNetwork
 from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
-
+from .datautils import DataUtils
 from .config import configuration
 import logging
 
@@ -68,8 +68,8 @@ class AirnowDataUtils:
         Raises:
             ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
         """
-        devices = AirQoApi().get_devices_by_network(
-            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
+        devices, _ = DataUtils.get_devices(
+            device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
         )
         bam_data = pd.DataFrame()
 
