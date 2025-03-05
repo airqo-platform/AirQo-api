@@ -679,6 +679,7 @@ class AirQoDataUtils:
         data["pm2_5_pm10"] = data["avg_pm2_5"] - data["avg_pm10"]
         data["pm2_5_pm10_mod"] = data["avg_pm2_5"] / data["avg_pm10"]
         data["hour"] = data["timestamp"].dt.hour
+        data.dropna(subset=input_variables, inplace=True)
 
         data[input_variables] = data[input_variables].replace([np.inf, -np.inf], 0)
 
@@ -696,7 +697,7 @@ class AirQoDataUtils:
 
         calibrated_data = pd.DataFrame(index=data.index)
 
-        for groupedby, group in data.groupby(groupby, dropna=False):
+        for groupedby, group in data.groupby(groupby):
             current_rf_model = default_rf_model
             current_lasso_model = default_lasso_model
             if (
