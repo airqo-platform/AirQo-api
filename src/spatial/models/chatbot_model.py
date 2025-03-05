@@ -45,6 +45,7 @@ class DataFetcher:
         query_params = {'token': token}  
         url = f"{analytics_url}?{urlencode(query_params)}"
         payload = {"grid_id": grid_id, "start_time": start_time, "end_time": end_time}
+        logging.info(f"Fetching air quality data: {payload}")  
         print("Fetching air quality data: ", payload)
         try:
             response = requests.post(url, json=payload, timeout=5)
@@ -54,6 +55,7 @@ class DataFetcher:
             # Cache response in Redis for 1 hour
             redis_client.setex(cache_key, 3600, json.dumps(data))
             print("Data fetched: ", data)
+            logging.info(f"Data fetched successfully for grid_id: {grid_id}")
             return data
             
         except requests.exceptions.HTTPError as http_err:
@@ -90,7 +92,10 @@ class AirQualityChatbot:
         self.endtime = self.data.get('airquality', {}).get('period', {}).get('endTime', '')[:10] or 'N/A'
 
         self.annual_pm2_5 = self.annual_data.get("pm2_5_calibrated_value", 'N/A')
-        self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+        try:
+            self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+        except Exception as e:
+            logging.error(f"Failed to initialize Gemini model: {e}")
         self.lock = threading.Lock()
 
         # Precompute for rule-based speed
