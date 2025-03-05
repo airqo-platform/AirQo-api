@@ -7,6 +7,10 @@ from .config import configuration as Config
 
 from .utils import Utils
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class AirNowApi:
     def __init__(self):
@@ -57,7 +61,6 @@ class AirNowApi:
         try:
             response = http.request("GET", url, fields=params)
             response_data = response.data
-            print(response._request_url)
 
             if response.status == 200:
                 return json.loads(response_data)
@@ -66,5 +69,5 @@ class AirNowApi:
                 return None
 
         except urllib3.exceptions.HTTPError as e:
-            print(f"HTTPError: {e}")
+            logger.exception(f"HTTPError: {e}")
             return None
