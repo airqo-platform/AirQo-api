@@ -208,10 +208,7 @@ class DataUtils:
                 is_airqo_network, "vapor_pressure"
             ].apply(DataValidationUtils.convert_pressure_values)
 
-        return devices_data.dropna(
-            subset=["pm2_5", "pm10", "s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"],
-            how="all",
-        )
+        return devices_data
 
     @staticmethod
     def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
@@ -774,6 +771,11 @@ class DataUtils:
             case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
+            data.dropna(
+                subset=["pm2_5", "pm10", "s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"],
+                how="all",
+                inplace=True,
+            )
             data.dropna(subset=["timestamp"], inplace=True)
             data["timestamp"] = pd.to_datetime(data["timestamp"])
         except Exception as e:
