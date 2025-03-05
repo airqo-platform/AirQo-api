@@ -82,8 +82,32 @@ class ForumEventAdmin(NestedModelAdmin):
     readonly_fields = ('unique_title',)
     list_per_page = 12
     inlines = [EngagementInline, SupportInline]
-    fields = ('title', 'unique_title', 'start_date', 'end_date', 'order',
-              'background_image', 'location_name', 'location_link')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('title', 'unique_title', 'order')
+        }),
+        ('Dates and Times', {
+            'fields': ('start_date', 'end_date', 'start_time', 'end_time')
+        }),
+        ('Details', {
+            'fields': (
+                'introduction', 'speakers_text_section', 'committee_text_section',
+                'partners_text_section', 'registration_link', 'schedule_details',
+                'registration_details'
+            )
+        }),
+        ('Sponsorship & Travel', {
+            'fields': (
+                'sponsorship_opportunities_about', 'sponsorship_opportunities_schedule',
+                'sponsorship_opportunities_partners', 'sponsorship_packages',
+                'travel_logistics_vaccination_details', 'travel_logistics_visa_details',
+                'travel_logistics_accommodation_details'
+            )
+        }),
+        ('Additional Info', {
+            'fields': ('glossary_details', 'background_image', 'location_name', 'location_link')
+        }),
+    )
 
     def save_model(self, request, obj, form, change):
         # If you want to automatically update unique_title on save, even if the admin hasn't
