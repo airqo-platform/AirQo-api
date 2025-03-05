@@ -1,5 +1,4 @@
-import traceback
-
+import ast
 import pandas as pd
 
 from .airnow_api import AirNowApi
@@ -68,13 +67,7 @@ class AirnowDataUtils:
         Raises:
             ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
         """
-        devices, _ = DataUtils.get_devices(
-            device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
-        )
         bam_data = pd.DataFrame()
-
-        if devices.empty:
-            raise ValueError("No devices found for the BAM network.")
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -88,18 +81,17 @@ class AirnowDataUtils:
         api_key = configuration.US_EMBASSY_API_KEY
 
         all_device_data = []
-        for device in devices:
-            device_data = []
-            for start, end in dates:
-                query_data = AirnowDataUtils.query_bam_data(
-                    api_key=api_key, start_date_time=start, end_date_time=end
-                )
-                if not query_data.empty:
-                    device_data.append(query_data)
-            if device_data:
-                device_df = pd.concat(device_data, ignore_index=True)
-                device_df["network"] = device["network"]
-                all_device_data.append(device_df)
+        device_data = []
+        for start, end in dates:
+            query_data = AirnowDataUtils.query_bam_data(
+                api_key=api_key, start_date_time=start, end_date_time=end
+            )
+            if not query_data.empty:
+                device_data.append(query_data)
+        if device_data:
+            device_df = pd.concat(device_data, ignore_index=True)
+            device_df["network"] = DeviceNetwork.METONE.str
+            all_device_data.append(device_df)
 
         if not all_device_data:
             logger.info("No BAM data found for the specified date range.")
@@ -128,18 +120,17 @@ class AirnowDataUtils:
         """
         air_now_data = []
 
-        devices = AirQoApi().get_devices_by_network(
-            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
+        devices, _ = DataUtils.get_devices(
+            device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
         )
 
         pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
 
         device_mapping = {
             device_code: device
-            for device in devices
-            for device_code in device["device_codes"]
+            for device in devices.to_dict(orient="records")
+            for device_code in ast.literal_eval(device.get("device_codes", []))
         }
-
         for _, row in data.iterrows():
             try:
                 # Temp external device id  # Lookup device details based on FullAQSCode

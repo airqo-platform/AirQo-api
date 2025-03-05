@@ -123,7 +123,11 @@ class DateUtils:
                 - The formatted start datetime.
                 - The formatted end datetime.
         """
-        execution_date = kwargs["dag_run"].execution_date
+        execution_date = (
+            kwargs["dag_run"].execution_date
+            if kwargs.get("dag_run", None)
+            else datetime.now(timezone.utc)
+        )
 
         delta = timedelta(days=days) if days else timedelta(hours=hours)
         start_date_time = execution_date - delta
