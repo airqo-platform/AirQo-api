@@ -178,7 +178,9 @@ class WeatherDataUtils:
         for multiple sites in parallel batches.
         """
 
-        def process_batch(batch_of_coordinates: List[Dict[str, Any]]):
+        def process_batch(
+            batch_of_coordinates: List[Dict[str, Any]]
+        ) -> List[Dict[str, Any]]:
             """
             Fetches weather data from OpenWeatherMap API for a given list of sites.
 
