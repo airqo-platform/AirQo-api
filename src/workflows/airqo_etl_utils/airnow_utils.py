@@ -2,13 +2,12 @@ import ast
 import pandas as pd
 
 from .airnow_api import AirNowApi
-from .airqo_api import AirQoApi
 from .constants import DataSource, DeviceCategory, Frequency, DeviceNetwork
-from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
+from .data_validator import DataValidationUtils
 from .datautils import DataUtils
-from .config import configuration
+from .config import configuration as Config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,28 +15,33 @@ logger = logging.getLogger(__name__)
 
 class AirnowDataUtils:
     @staticmethod
-    def parameter_column_name(parameter: str) -> str:
-        parameter = parameter.lower()
-        if parameter == "pm2.5":
-            return "pm2_5"
-        elif parameter == "pm10":
-            return "pm10"
-        elif parameter == "no2":
-            return "no2"
-        else:
-            raise Exception(f"Unknown parameter {parameter}")
-
-    @staticmethod
     def query_bam_data(
         api_key: str, start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
+        """
+        Queries BAM (Beta Attenuation Monitor) data from the AirNow API within the given date range.
+
+        This function converts the input date strings into the required format for the API,
+        retrieves air quality data, and returns it as a Pandas DataFrame.
+
+        Args:
+            api_key(str): The API key required for authentication with AirNow.
+            start_date_time(str): The start datetime in string format (expected format: "YYYY-MM-DD HH:MM").
+            end_date_time(str): The end datetime in string format (expected format: "YYYY-MM-DD HH:MM").
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the air quality data retrieved from the AirNow API.
+
+        Example:
+            >>> df = query_bam_data("your_api_key", "2024-03-01 00:00", "2024-03-02 23:59")
+            >>> print(df.head())
+        """
         airnow_api = AirNowApi()
+        date_format = "%Y-%m-%dT%H:%M"
         start_date_time = date_to_str(
-            str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
+            str_to_date(start_date_time), str_format=date_format
         )
-        end_date_time = date_to_str(
-            str_to_date(end_date_time), str_format="%Y-%m-%dT%H:%M"
-        )
+        end_date_time = date_to_str(str_to_date(end_date_time), str_format=date_format)
 
         data = airnow_api.get_data(
             api_key=api_key,
@@ -46,7 +50,7 @@ class AirnowDataUtils:
             end_date_time=end_date_time,
         )
 
-        return pd.DataFrame(data)
+        return pd.DataFrame(data) if data else pd.DataFrame()
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
@@ -78,7 +82,7 @@ class AirnowDataUtils:
         if not dates:
             raise ValueError("Invalid or empty date range provided.")
 
-        api_key = configuration.US_EMBASSY_API_KEY
+        api_key = Config.US_EMBASSY_API_KEY
 
         all_device_data = []
         device_data = []
@@ -141,10 +145,11 @@ class AirnowDataUtils:
                     logger.exception(f"Device with ID {device_id_} not found")
                     continue
 
-                parameter_col_name = AirnowDataUtils.parameter_column_name(
-                    row["Parameter"]
-                )
-                if parameter_col_name in pollutant_value:
+                parameter_col_name = Config.device_config_mapping.get(
+                    DeviceCategory.BAM.str, {}
+                ).get(row["Parameter"].lower(), None)
+
+                if parameter_col_name and parameter_col_name in pollutant_value:
                     pollutant_value[parameter_col_name] = row["Value"]
 
                 if row["network"] != device_details.get("network"):

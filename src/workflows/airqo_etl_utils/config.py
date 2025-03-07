@@ -305,6 +305,8 @@ class Config:
         "ts": "timestamp",
     }
 
+    AIRBEAM_BAM_FIELD_MAPPING = {"pm2.5": "pm2_5", "pm10": "pm10", "no2": "no2"}
+
     DATA_RESOLUTION_MAPPING = {
         "iqair": {"hourly": "instant", "raw": "instant", "current": "current"}
     }
@@ -363,7 +365,10 @@ class Config:
     device_config_mapping = {
         "bam": {
             "field_8_cols": list(AIRQO_BAM_MAPPING_NEW.get("field8", {}).values()),
-            "mapping": {"airqo": AIRQO_BAM_MAPPING_NEW},
+            "mapping": {
+                "airqo": AIRQO_BAM_MAPPING_NEW,
+                "airbeam": AIRBEAM_BAM_FIELD_MAPPING,
+            },
             "other_fields_cols": [],
         },
         "gas": {
