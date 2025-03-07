@@ -1583,6 +1583,118 @@ const createEvent = {
       return;
     }
   },
+  getWorstReadingForSites: async (req, res, next) => {
+    try {
+      const siteIds = req.body.siteIds; // Assuming you pass the siteIds in the request body
+
+      const result = await ReadingModel("airqo").getWorstPm2_5Reading({
+        siteIds,
+        next,
+      });
+
+      if (result.success) {
+        res.status(result.status).json(result);
+      } else {
+        // Handle errors based on result.message and result.errors
+        next(result);
+      }
+    } catch (error) {
+      // Handle unexpected errors
+      next(error);
+    }
+  },
+  getWorstReadingForDevices: async ({ deviceIds = [], next } = {}) => {
+    try {
+      if (isEmpty(deviceIds) || !Array.isArray(deviceIds)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "deviceIds array is required",
+          })
+        );
+        return;
+      }
+      if (deviceIds.length === 0) {
+        return {
+          success: true,
+          message: "No device_ids were provided",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      // Validate deviceIds type
+      if (!deviceIds.every((id) => typeof id === "string")) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "deviceIds must be an array of strings",
+          })
+        );
+        return;
+      }
+
+      const formattedDeviceIds = deviceIds.map((id) => id.toString());
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const pipeline = ReadingModel("airqo")
+        .aggregate([
+          {
+            $match: {
+              device_id: { $in: formattedDeviceIds },
+              time: { $gte: threeDaysAgo },
+              "pm2_5.value": { $exists: true }, // Ensure pm2_5.value exists
+            },
+          },
+          {
+            $sort: { "pm2_5.value": -1, time: -1 }, // Sort by pm2_5 descending, then by time
+          },
+          {
+            $limit: 1, // Take only the worst reading
+          },
+          {
+            $project: {
+              _id: 0, // Exclude the MongoDB-generated _id
+              device_id: 1,
+              time: 1,
+              pm2_5: 1,
+              device: 1,
+              siteDetails: 1,
+            },
+          },
+        ])
+        .allowDiskUse(true);
+
+      const worstReading = await pipeline.exec();
+
+      if (!isEmpty(worstReading)) {
+        return {
+          success: true,
+          message: "Successfully retrieved the worst pm2_5 reading.",
+          data: worstReading[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message:
+            "No pm2_5 readings found for the specified device_ids in the last three days.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
   listReadingAverages: async (request, next) => {
     try {
       let missingDataMessage = "";

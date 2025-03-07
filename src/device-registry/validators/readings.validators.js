@@ -338,6 +338,15 @@ const commonValidations = {
         return true;
       }),
   ],
+  atLeastOneRequired: (fields, message) => [
+    query().custom((value, { req }) => {
+      const hasAtLeastOne = fields.some((field) => req.query[field]);
+      if (!hasAtLeastOne) {
+        throw new Error(message);
+      }
+      return true;
+    }),
+  ],
 };
 
 const readingsValidations = {
@@ -413,6 +422,26 @@ const readingsValidations = {
     ...commonValidations.test,
   ],
   listRecent: [...commonValidations.tenant],
+  worstReadingForDevices: [
+    ...commonValidations.atLeastOneRequired(
+      ["cohort_id", "device_id"],
+      "At least one of cohort_id or device_id is required."
+    ),
+    commonValidations.objectId("cohort_id"),
+    commonValidations.objectId("device_id"),
+    ...commonValidations.checkConflictingParams("cohort_id", "device_id"),
+    ...commonValidations.checkForEmptyArrays(["cohort_id", "device_id"]),
+  ],
+  worstReadingForSites: [
+    ...commonValidations.atLeastOneRequired(
+      ["grid_id", "site_id"],
+      "At least one of grid_id or site_id is required."
+    ),
+    commonValidations.objectId("grid_id"),
+    commonValidations.objectId("site_id"),
+    ...commonValidations.checkConflictingParams("grid_id", "site_id"),
+    ...commonValidations.checkForEmptyArrays(["grid_id", "site_id"]),
+  ],
 };
 
 module.exports = {
