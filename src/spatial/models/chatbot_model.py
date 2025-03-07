@@ -16,8 +16,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
 genai.configure(api_key=GOOGLE_API_KEY)
 
- 
-
 # Initialize Redis client
 try:
     redis_client = redis.StrictRedis(
@@ -33,13 +31,24 @@ try:
 except Exception as e:
     logging.error(f"Error connecting to Redis: {e}")
     redis_client = None
+# lock for thread safety to prevent race conditions when multiple users request the same data.
+data_fetch_lock = threading.Lock()
 
 class DataFetcher:
     @staticmethod
     def fetch_air_quality_data(grid_id, start_time, end_time):
         """Fetch air quality data and cache it in Redis to avoid redundant API calls."""
         cache_key = f"air_quality:{grid_id}:{start_time}:{end_time}"
-        cached_data = redis_client.get(cache_key)
+        
+        # Check if data is cached in Redis
+        cached_data = None
+        if redis_client:
+            try:
+                cached_data = redis_client.get(cache_key)
+            except Exception as e:
+                logging.error(f"Error retrieving data from Redis: {e}")
+        else:
+            logging.error("Redis client not available, skipping cache check")
 
         if cached_data:
             logging.info(f"Retrieved cached data for {cache_key}")
@@ -61,7 +70,10 @@ class DataFetcher:
             response.raise_for_status()
             data = response.json()
             # Cache response in Redis for 1 hour
-            redis_client.setex(cache_key, 3600, json.dumps(data))
+            # setex is 
+            with data_fetch_lock:
+                if redis_client:
+                    redis_client.setex(cache_key, 3600, json.dumps(data))
             logging.info(f"Data fetched and cached for grid_id: {grid_id}")
             return data
         except requests.exceptions.HTTPError as http_err:
@@ -71,10 +83,10 @@ class DataFetcher:
         except ValueError as json_err:
             logging.error(f"JSON error: {json_err}")
         return None
-
+    
 class AirQualityChatbot:
     def __init__(self, air_quality_data):
-        self.data = air_quality_data or {}
+        self.data = air_quality_data or {} 
         self.grid_name = self.data.get('airquality', {}).get('sites', {}).get('grid name', ['Unknown'])[0]
         self.annual_data = self.data.get('airquality', {}).get('annual_pm', [{}])[0] or {}
         self.daily_mean_data = self.data.get('airquality', {}).get('daily_mean_pm', []) or []
@@ -98,6 +110,7 @@ class AirQualityChatbot:
         self.peak_diurnal = max(self.diurnal, key=lambda x: x.get('pm2_5_calibrated_value', 0)) if self.diurnal else {}
         
         try:
+            # Gemini model
             self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
         except Exception as e:
             logging.error(f"Failed to initialize Gemini model: {e}")
