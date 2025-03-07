@@ -16,17 +16,23 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# Initialize Flask app
-app = Flask(__name__)
+ 
 
 # Initialize Redis client
-redis_client = redis.StrictRedis(
-    host=Config.REDIS_HOST or 'localhost',
-    port=Config.REDIS_PORT or 6379,
-    db=Config.REDIS_DB or 0,
-    password=Config.REDIS_PASSWORD or None,
-    decode_responses=True
-)
+try:
+    redis_client = redis.StrictRedis(
+        host=Config.REDIS_HOST or 'localhost',
+        port=Config.REDIS_PORT or 6379,
+        db=Config.REDIS_DB or 0,
+        password=Config.REDIS_PASSWORD or None,
+        decode_responses=True
+    )
+    # Test the connection 
+    redis_client.ping()
+    logging.info("Connected to Redis")
+except Exception as e:
+    logging.error(f"Error connecting to Redis: {e}")
+    redis_client = None
 
 class DataFetcher:
     @staticmethod
