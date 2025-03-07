@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import json
+import ast
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 
@@ -1036,32 +1037,26 @@ class DataUtils:
     # Clarity
     def _flatten_location_coordinates_clarity(coordinates: str) -> pd.Series:
         """
-        Extracts latitude and longitude from a coordinate string.
-
-        The function expects a string representation of coordinates in the format "[longitude, latitude]". It removes square brackets and spaces, splits
-        the values, and returns them as a Pandas Series.
+        Extracts latitude and longitude from a string representation of coordinates.
 
         Args:
-            coordinates(str): A string containing coordinates in the format "[longitude, latitude]".
+            coordinates(str): A string containing a list or tuple with two numeric values representing latitude and longitude (e.g., "[37.7749, -122.4194]").
 
         Returns:
-            pd.Series: A Pandas Series with 'latitude' and 'longitude' as keys. Returns None for both values if an error occurs.
-
-        Example:
-            >>> _flatten_location_coordinates("[-73.935242, 40.730610]")
-            latitude     40.730610
-            longitude   -73.935242
-            dtype: object
+            pd.Series: A Pandas Series containing two values:
+                    - latitude (float) at index 0
+                    - longitude (float) at index 1
+                    If parsing fails or the format is invalid, returns Series([None, None]).
         """
-
         try:
-            coords = coordinates.strip("[] ").split(",")
-            return pd.Series(
-                {"latitude": coords[1].strip(), "longitude": coords[0].strip()}
-            )
-        except Exception as ex:
-            logger.exception("Error parsing coordinates: %s", ex)
-            return pd.Series({"latitude": None, "longitude": None})
+            coords = ast.literal_eval(coordinates)
+
+            if isinstance(coords, (list, tuple)) and len(coords) == 2:
+                return pd.Series(coords)
+        except (ValueError, SyntaxError):
+            logger.exception("Error occurred while cleaning up coordinates")
+
+        return pd.Series([None, None])
 
     def _transform_clarity_data(data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -1106,7 +1101,7 @@ class DataUtils:
         )
 
         data[["latitude", "longitude"]] = data["location.coordinates"].apply(
-            DataUtils._flatten_location_coordinates
+            DataUtils._flatten_location_coordinates_clarity
         )
 
         devices, _ = DataUtils.get_devices()

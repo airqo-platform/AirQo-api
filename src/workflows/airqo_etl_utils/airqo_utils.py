@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import ast
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Union, Generator
+from typing import List, Dict, Any, Union, Generator, Optional
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
@@ -738,15 +738,17 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_devices_with_uncalibrated_data(
-        start_date, table: str = None, network: DeviceNetwork = DeviceNetwork.AIRQO
+        start_date: str,
+        table: Optional[str] = None,
+        network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ) -> pd.DataFrame:
         """
         Extracts devices with uncalibrated data for a given start date from BigQuery.
 
         Args:
-            start_date (str or datetime): The date for which to check missing uncalibrated data.
-            table (str, optional): The name of the BigQuery table. Defaults to None, in which case the appropriate table is determined dynamically.
-            network (DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.AIRQO.
+            start_date(datetime like string): The date for which to check missing uncalibrated data.
+            table(str, optional): The name of the BigQuery table. Defaults to None, in which case the appropriate table is determined dynamically.
+            network(DeviceNetwork, optional): The device network to filter by. Defaults to DeviceNetwork.AIRQO.
 
         Returns:
             pd.DataFrame: A DataFrame containing the devices with missing uncalibrated data.
@@ -788,9 +790,8 @@ class AirQoDataUtils:
 
         # TODO Might have to change approach to group by device_id depending on performance.
         for _, row in devices.iterrows():
-            end_date_time = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S%z")
             end_date_time = DateUtils.format_datetime_by_unit_str(
-                end_date_time, "hours_end"
+                row.timestamp, "hours_end"
             )
             raw_device_data = DataUtils.extract_data_from_bigquery(
                 DataType.RAW,

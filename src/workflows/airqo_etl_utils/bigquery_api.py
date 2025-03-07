@@ -1048,7 +1048,10 @@ class BigQueryApi:
             logger.info(f"Error fetching data from bigquery", {e})
 
     def generate_missing_data_query(
-        self, date: str, table: str, network: DeviceNetwork
+        self,
+        date: str,
+        table: str,
+        network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ) -> str:
         """
         Generates a BigQuery SQL query to find missing hourly air quality data for devices.
@@ -1071,7 +1074,11 @@ class BigQueryApi:
             SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
             FROM `{table}` 
             WHERE 
-            DATE(timestamp) = '{date}'
+            TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
+            AND s1_pm2_5 IS NOT NULL
+            AND s2_pm2_5 IS NOT NULL
+            AND s1_pm10 IS NOT NULL
+            AND s2_pm10 IS NOT NULL
             AND pm2_5_calibrated_value IS NULL
             AND network = '{network.str}'
             )
