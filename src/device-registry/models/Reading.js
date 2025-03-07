@@ -766,6 +766,97 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
   }
 };
 
+ReadingsSchema.statics.getWorstPm2_5Reading = async function({
+  siteIds = [],
+  next,
+} = {}) {
+  try {
+    if (isEmpty(siteIds) || !Array.isArray(siteIds)) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "siteIds array is required",
+        })
+      );
+      return;
+    }
+    if (siteIds.length === 0) {
+      return {
+        success: true,
+        message: "No site_ids were provided",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+
+    // Validate siteIds type
+    if (!siteIds.every((id) => typeof id === "string")) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: "siteIds must be an array of strings",
+        })
+      );
+      return;
+    }
+
+    const formattedSiteIds = siteIds.map((id) => id.toString());
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const pipeline = this.aggregate([
+      {
+        $match: {
+          site_id: { $in: formattedSiteIds },
+          time: { $gte: threeDaysAgo },
+          "pm2_5.value": { $exists: true }, // Ensure pm2_5.value exists
+        },
+      },
+      {
+        $sort: { "pm2_5.value": -1, time: -1 }, // Sort by pm2_5 descending, then by time
+      },
+      {
+        $limit: 1, // Take only the worst reading
+      },
+      {
+        $project: {
+          _id: 0, // Exclude the MongoDB-generated _id
+          site_id: 1,
+          time: 1,
+          pm2_5: 1,
+          device: 1,
+          device_id: 1,
+          siteDetails: 1,
+        },
+      },
+    ]).allowDiskUse(true);
+
+    const worstReading = await pipeline.exec();
+
+    if (!isEmpty(worstReading)) {
+      return {
+        success: true,
+        message: "Successfully retrieved the worst pm2_5 reading.",
+        data: worstReading[0],
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: true,
+        message:
+          "No pm2_5 readings found for the specified site_ids in the last three days.",
+        data: {},
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+};
+
 const ReadingModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
