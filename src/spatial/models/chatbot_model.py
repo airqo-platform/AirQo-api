@@ -9,6 +9,9 @@ from flask import Flask
 from urllib.parse import urlencode
 from configure import Config
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # Configure API keys
 GOOGLE_API_KEY = Config.GOOGLE_API_KEY
 genai.configure(api_key=GOOGLE_API_KEY)
@@ -16,48 +19,45 @@ genai.configure(api_key=GOOGLE_API_KEY)
 # Initialize Flask app
 app = Flask(__name__)
 
-# Initialize Redis
-# Redis connection
-
+# Initialize Redis client
 redis_client = redis.StrictRedis(
     host=Config.REDIS_HOST or 'localhost',
     port=Config.REDIS_PORT or 6379,
     db=Config.REDIS_DB or 0,
-    password=Config.REDIS_PASSWORD or None,  # Add if password is set
+    password=Config.REDIS_PASSWORD or None,
     decode_responses=True
 )
+
 class DataFetcher:
     @staticmethod
     def fetch_air_quality_data(grid_id, start_time, end_time):
-        """Fetch air quality data, store in Redis to prevent redundant API calls."""
+        """Fetch air quality data and cache it in Redis to avoid redundant API calls."""
         cache_key = f"air_quality:{grid_id}:{start_time}:{end_time}"
         cached_data = redis_client.get(cache_key)
 
         if cached_data:
-            return json.loads(cached_data)  # Return cached data if available
+            logging.info(f"Retrieved cached data for {cache_key}")
+            return json.loads(cached_data)
 
         token = Config.AIRQO_API_TOKEN
         analytics_url = Config.ANALTICS_URL
-        if token is None:
-            logging.error("AIRQO_API_TOKEN not set.")
+        if not token:
+            logging.error("AIRQO_API_TOKEN is not set.")
             return None
 
-        query_params = {'token': token}  
+        query_params = {'token': token}
         url = f"{analytics_url}?{urlencode(query_params)}"
         payload = {"grid_id": grid_id, "start_time": start_time, "end_time": end_time}
-        logging.info(f"Fetching air quality data: {payload}")  
-        print("Fetching air quality data: ", payload)
+        logging.info(f"Fetching air quality data with payload: {payload}")
+
         try:
             response = requests.post(url, json=payload, timeout=5)
             response.raise_for_status()
             data = response.json()
-
             # Cache response in Redis for 1 hour
             redis_client.setex(cache_key, 3600, json.dumps(data))
-            print("Data fetched: ", data)
-            logging.info(f"Data fetched successfully for grid_id: {grid_id}")
+            logging.info(f"Data fetched and cached for grid_id: {grid_id}")
             return data
-            
         except requests.exceptions.HTTPError as http_err:
             logging.error(f"HTTP error: {http_err}")
         except requests.exceptions.RequestException as req_err:
@@ -67,20 +67,8 @@ class DataFetcher:
         return None
 
 class AirQualityChatbot:
-    def __init__(self, grid_id, start_time, end_time):
-        cache_key = f"chatbot_data:{grid_id}:{start_time}:{end_time}"
-        cached_data = redis_client.get(cache_key)
-
-        if cached_data:
-            data = json.loads(cached_data)  # Load cached chatbot data
-        else:
-            data = DataFetcher.fetch_air_quality_data(grid_id, start_time, end_time)
-            if data:
-                redis_client.setex(cache_key, 3600, json.dumps(data))  # Cache for 1 hour
-
-        self.data = data or {}
-
-        # Extract and store key data
+    def __init__(self, air_quality_data):
+        self.data = air_quality_data or {}
         self.grid_name = self.data.get('airquality', {}).get('sites', {}).get('grid name', ['Unknown'])[0]
         self.annual_data = self.data.get('airquality', {}).get('annual_pm', [{}])[0] or {}
         self.daily_mean_data = self.data.get('airquality', {}).get('daily_mean_pm', []) or []
@@ -90,34 +78,44 @@ class AirQualityChatbot:
         self.num_sites = self.data.get('airquality', {}).get('sites', {}).get('number_of_sites', 'Unknown')
         self.starttime = self.data.get('airquality', {}).get('period', {}).get('startTime', '')[:10] or 'N/A'
         self.endtime = self.data.get('airquality', {}).get('period', {}).get('endTime', '')[:10] or 'N/A'
-
         self.annual_pm2_5 = self.annual_data.get("pm2_5_calibrated_value", 'N/A')
+
+        # Sort daily_mean_data to get the most recent measurement
+        if self.daily_mean_data:
+            sorted_daily = sorted(self.daily_mean_data, key=lambda x: x.get('date', ''), reverse=True)
+            self.today_pm2_5 = sorted_daily[0].get('pm2_5_calibrated_value', 'N/A') if sorted_daily else 'N/A'
+            self.today_date = sorted_daily[0].get('date', 'N/A') if sorted_daily else 'N/A'
+        else:
+            self.today_pm2_5 = 'N/A'
+            self.today_date = 'N/A'
+
+        self.peak_diurnal = max(self.diurnal, key=lambda x: x.get('pm2_5_calibrated_value', 0)) if self.diurnal else {}
+        
         try:
             self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
         except Exception as e:
             logging.error(f"Failed to initialize Gemini model: {e}")
+            self.gemini_model = None
         self.lock = threading.Lock()
 
-        # Precompute for rule-based speed
-        self.today_pm2_5 = self.daily_mean_data[0].get('pm2_5_calibrated_value', 'N/A') if self.daily_mean_data else 'N/A'
-        self.peak_diurnal = max(self.diurnal, key=lambda x: x.get('pm2_5_calibrated_value', 0)) if self.diurnal else {}
-
-        # Cache processed chatbot data for faster retrieval
-        redis_client.setex(cache_key, 3600, json.dumps(self.__dict__))
-
     def _prepare_data_context(self):
+        """Prepare a concise data context for the LLM."""
         return (
             f"AirQo data for {self.grid_name} ({self.starttime}-{self.endtime}): "
             f"Annual PM2.5={self.annual_pm2_5} µg/m³, Sites={self.num_sites}, "
-            f"Daily sample={self.daily_mean_data[:1]}, Diurnal sample={self.diurnal[:1]}, "
-            f"Monthly sample={self.monthly_data[:1]}, Site names={self.site_names}."
+            f"Most recent daily PM2.5={self.today_pm2_5} µg/m³ on {self.today_date}, "
+            f"Diurnal peak={self.peak_diurnal.get('pm2_5_calibrated_value', 'N/A')} µg/m³ at {self.peak_diurnal.get('hour', 'N/A')}:00, "
+            f"Site names={self.site_names}."
         )
 
     def _rule_based_response(self, user_prompt):
+        """Handle common queries with precomputed responses."""
         prompt = user_prompt.lower()
 
         if re.search(r"(today|now).*air.*quality", prompt):
-            return f"Today’s PM2.5 in {self.grid_name} is {self.today_pm2_5} µg/m³."
+            if self.today_pm2_5 != 'N/A':
+                return f"The most recent PM2.5 in {self.grid_name} is {self.today_pm2_5} µg/m³ on {self.today_date}."
+            return "No recent air quality data available."
 
         if re.search(r"(worst|highest|peak).*time", prompt):
             if self.peak_diurnal:
@@ -125,29 +123,32 @@ class AirQualityChatbot:
             return "No diurnal data available."
 
         if re.search(r"how.*many.*(site|sites|monitors)", prompt):
-            return f"There are {self.num_sites} monitoring sites in {self.grid_name}."
+            if self.num_sites != 'Unknown':
+                return f"There are {self.num_sites} monitoring sites in {self.grid_name}."
+            return "Number of sites is not available."
 
         if re.search(r"(year|annual).*average", prompt):
-            return f"The annual PM2.5 average in {self.grid_name} is {self.annual_pm2_5} µg/m³."
+            if self.annual_pm2_5 != 'N/A':
+                return f"The annual PM2.5 average in {self.grid_name} is {self.annual_pm2_5} µg/m³."
+            return "Annual air quality data is not available."
 
         if re.search(r"(where|which|list).*site|sites|locations", prompt):
-            return f"Monitoring sites in {self.grid_name}: {', '.join(self.site_names)}."
+            if self.site_names != ['Unknown']:
+                return f"Monitoring sites in {self.grid_name}: {', '.join(self.site_names)}."
+            return "Site information is not available."
 
         return None
 
     def _llm_response(self, user_prompt):
-        if re.search(r"(report|summary|detailed|analysis|conclusion)", user_prompt.lower()):
-            full_prompt = (
-                f"Data: {self._prepare_data_context()}\n"
-                f"User: {user_prompt}\n"
-                "Generate a concise conclusion or report based on the data. Focus on key insights."
-            )
-        else:
-            full_prompt = (
-                f"Data: {self._prepare_data_context()}\n"
-                f"User: {user_prompt}\n"
-                "Respond concisely and accurately based on the data."
-            )
+        """Generate a response using the Gemini model for complex queries."""
+        if not self.gemini_model:
+            return "Language model is not available."
+
+        full_prompt = (
+            f"Data: {self._prepare_data_context()}\n"
+            f"User: {user_prompt}\n"
+            "Respond concisely and accurately based on the data."
+        )
 
         try:
             response = self.gemini_model.generate_content(full_prompt)
@@ -157,6 +158,9 @@ class AirQualityChatbot:
             return "Sorry, I couldn't generate a response."
 
     def chat(self, user_prompt):
+        """Process user queries and return appropriate responses."""
+        if not self.data:
+            return "Air quality data is not available for the specified grid and time period."
         if not user_prompt or not isinstance(user_prompt, str):
             return "Please provide a valid question about air quality."
         if len(user_prompt) > 500:
