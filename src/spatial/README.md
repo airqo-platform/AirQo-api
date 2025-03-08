@@ -133,5 +133,23 @@ Ensure latitude and longitude have high precision (up to six decimal places) for
 
 ---
 
+### **Chatbot Tool**
+
+The Chatbot Tool provides a conversational interface for users to interact with the AirQo platform and receive information about air quality and related topics.
+
+```http
+POST http://127.0.0.1:5000/api/v2/spatial/chat
+```
+
+##### Example Request Body
+```json
+{
+    "grid_id": "659d036497e611001236cd1b",
+    "start_time": "2024-12-01T00:00",
+    "end_time": "2025-03-06T00:00",
+    "prompt":"with 300 words, write the air quality report "
+}
+```
+
 This README provides an overview of the setup, API endpoints, and example requests. For further details, consult the official AirQo API documentation.
 
