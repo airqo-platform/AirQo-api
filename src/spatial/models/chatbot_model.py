@@ -155,7 +155,7 @@ class AirQualityChatbot:
             if self.site_names != ['Unknown']:
                 return f"Monitoring sites in {self.grid_name}: {', '.join(self.site_names)}."
             return "Site information is not available."
-
+    
         return None
 
     def _llm_response(self, user_prompt):
