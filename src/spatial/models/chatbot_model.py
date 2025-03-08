@@ -69,8 +69,8 @@ class DataFetcher:
             response = requests.post(url, json=payload, timeout=5)
             response.raise_for_status()
             data = response.json()
-            # Cache response in Redis for 1 hour
-            # setex is 
+            # Cache response in Redis for 1 hour 
+            # setex is redis command to set a key with an expiration time
             with data_fetch_lock:
                 if redis_client:
                     redis_client.setex(cache_key, 3600, json.dumps(data))
