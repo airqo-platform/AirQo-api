@@ -117,6 +117,11 @@ class BatchProcessor {
         upsert: true,
       });
     } catch (error) {
+      if (error.code === 11000) {
+        // Duplicate key error, log and continue
+        // logger.warn(`🙀🙀 Duplicate key error: ${error.message}`);
+        return; // Skip to the next document
+      }
       logger.error(`🐛🐛 Error processing document: ${error.message}`);
       throw error;
     }
