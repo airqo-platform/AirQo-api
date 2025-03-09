@@ -84,7 +84,7 @@ const createGroup = {
       }
 
       if (isEmpty(request.user) && isEmpty(user_id)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "creator's account is not provided",
           })
@@ -92,7 +92,7 @@ const createGroup = {
       }
 
       if (isEmpty(user)) {
-        next(
+        return next(
           new HttpError(
             "Your account is not registered",
             httpStatus.BAD_REQUEST,
@@ -123,7 +123,7 @@ const createGroup = {
       ) {
         const grp_id = responseFromRegisterGroup.data._doc._id;
         if (isEmpty(grp_id)) {
-          next(
+          return next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
@@ -156,7 +156,7 @@ const createGroup = {
           logObject("responseFromCreateRole", responseFromCreateRole);
           const role_id = responseFromCreateRole.data._id;
           if (isEmpty(role_id)) {
-            next(
+            return next(
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
