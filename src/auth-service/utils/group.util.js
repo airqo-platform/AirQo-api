@@ -76,9 +76,12 @@ const createGroup = {
       const { tenant } = query;
       const { user_id } = body;
 
-      const user = user_id
-        ? await UserModel(tenant).findById(user_id)
-        : request.user;
+      let user;
+      if (user_id) {
+        user = await UserModel(tenant).findById(user_id).lean();
+      } else {
+        user = request.user;
+      }
 
       if (isEmpty(request.user) && isEmpty(user_id)) {
         next(
