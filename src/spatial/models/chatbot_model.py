@@ -5,7 +5,6 @@ import google.generativeai as genai
 import logging
 import re
 import threading
-from flask import Flask
 from urllib.parse import urlencode
 from configure import Config
 
@@ -66,7 +65,7 @@ class DataFetcher:
         logging.info(f"Fetching air quality data with payload: {payload}")
 
         try:
-            response = requests.post(url, json=payload, timeout=5)
+            response = requests.post(url, json=payload, timeout=10)
             response.raise_for_status()
             data = response.json()
             # Cache response in Redis for 1 hour 
@@ -151,7 +150,7 @@ class AirQualityChatbot:
                 return f"The annual PM2.5 average in {self.grid_name} is {self.annual_pm2_5} µg/m³."
             return "Annual air quality data is not available."
 
-        if re.search(r"(where|which|list).*site|sites|locations", prompt):
+        if re.search(r"(?:where|which|list).*(?:site|sites|locations)", prompt):
             if self.site_names != ['Unknown']:
                 return f"Monitoring sites in {self.grid_name}: {', '.join(self.site_names)}."
             return "Site information is not available."
