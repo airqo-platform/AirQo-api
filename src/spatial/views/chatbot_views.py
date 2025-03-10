@@ -1,23 +1,24 @@
+# views/chatbot_views.py
 from flask import request, jsonify
-# Assuming these are in models/chatbot_model.py based on the import
 from models.chatbot_model import AirQualityChatbot, DataFetcher  
 import numpy as np
 import logging
+import uuid  # For generating session IDs if not provided
 
-#logging.basicConfig(filename="report_log.log", level=logging.INFO, filemode="w")
 logger = logging.getLogger(__name__)
 
 class ChatbotView:
     @staticmethod
     def chat_endpoint():
         """
-        Handles chatbot API requests for air quality information
-        Expects JSON payload with grid_id, start_time, end_time, and prompt
-        Returns JSON response with chatbot's answer or error message
+        Handles chatbot API requests for air quality information with session management.
+        Expects JSON payload with grid_id, start_time, end_time, prompt, and optional session_id, session_title.
+        Returns JSON response with chatbot's answer and session metadata.
         """
         # Validate request payload
         payload = request.json
-        if not payload or not all(key in payload for key in ["grid_id", "start_time", "end_time", "prompt"]):
+        required_fields = ["grid_id", "start_time", "end_time", "prompt"]
+        if not payload or not all(key in payload for key in required_fields):
             logger.error("Invalid payload: missing required fields")
             return jsonify({
                 "error": "Missing required fields: grid_id, start_time, end_time, prompt",
@@ -29,6 +30,10 @@ class ChatbotView:
         start_time = payload["start_time"]
         end_time = payload["end_time"]
         user_prompt = payload["prompt"]
+        
+        # Session metadata (optional)
+        session_id = payload.get("session_id", str(uuid.uuid4()))  # Generate if not provided
+        session_title = payload.get("session_title", "Untitled Session")  # Default title
 
         # Validate prompt
         if not user_prompt or not isinstance(user_prompt, str):
@@ -39,7 +44,7 @@ class ChatbotView:
             }), 400
 
         try:
-            # Fetch air quality data with logging
+            # Fetch air quality data
             logger.info(f"Fetching data for grid_id: {grid_id}, {start_time} to {end_time}")
             air_quality_data = DataFetcher.fetch_air_quality_data(grid_id, start_time, end_time)
             
@@ -61,7 +66,7 @@ class ChatbotView:
                     "status": "failure"
                 }), 500
 
-            logger.info(f"Successfully processed request for {grid_id}")
+            logger.info(f"Successfully processed request for {grid_id}, session_id: {session_id}")
             return jsonify({
                 "response": response,
                 "status": "success",
@@ -69,6 +74,11 @@ class ChatbotView:
                 "period": {
                     "start_time": start_time,
                     "end_time": end_time
+                },
+                "session": {
+                    "session_id": session_id,
+                    "session_title": session_title,
+                    "timestamp": start_time  # Optional: to track when the session started
                 }
             }), 200
 
