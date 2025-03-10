@@ -1,7 +1,6 @@
 # views/chatbot_views.py
 from flask import request, jsonify
 from models.chatbot_model import AirQualityChatbot, DataFetcher  
-import numpy as np
 import logging
 import uuid  # For generating session IDs if not provided
 
