@@ -58,8 +58,9 @@ class MetaDataUtils:
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
             for airqloud in airqlouds
         ]
-
-        return pd.DataFrame(airqlouds)
+        airqlouds = pd.DataFrame(airqlouds)
+        airqlouds["last_updated"] = datetime.now(timezone.utc)
+        return airqlouds
 
     @staticmethod
     def extract_grids_from_api(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -79,8 +80,9 @@ class MetaDataUtils:
             {**grid, **{"sites": ",".join(map(str, grid.get("sites", [""])))}}
             for grid in grids
         ]
-
-        return pd.DataFrame(grids)
+        grids = pd.DataFrame(grids)
+        grids["last_updated"] = datetime.now(timezone.utc)
+        return grids
 
     @staticmethod
     def extract_cohorts_from_api(
@@ -102,8 +104,9 @@ class MetaDataUtils:
             {**cohort, **{"devices": ",".join(map(str, cohort.get("devices", [""])))}}
             for cohort in cohorts
         ]
-
-        return pd.DataFrame(cohorts)
+        cohorts = pd.DataFrame(cohorts)
+        cohorts["last_updated"] = datetime.now(timezone.utc)
+        return cohorts
 
     @staticmethod
     def merge_airqlouds_and_sites(data: pd.DataFrame) -> pd.DataFrame:
@@ -120,8 +123,9 @@ class MetaDataUtils:
                     for site in row["sites"].split(",")
                 ]
             )
-
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def merge_grids_and_sites(data: pd.DataFrame) -> pd.DataFrame:
@@ -147,8 +151,9 @@ class MetaDataUtils:
                     for site in row["sites"].split(",")
                 ]
             )
-
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def merge_cohorts_and_devices(data: pd.DataFrame) -> pd.DataFrame:
@@ -175,7 +180,9 @@ class MetaDataUtils:
                 ]
             )
 
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def extract_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
