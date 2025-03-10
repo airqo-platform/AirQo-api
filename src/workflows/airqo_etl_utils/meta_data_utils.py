@@ -42,7 +42,7 @@ class MetaDataUtils:
                 "device_category",
             ]
         ]
-        devices.rename(columns={"isActive": "active", "status": "deployed"})
+        devices.rename(columns={"isActive": "active", "status": "deployed"}, inplace=True))
         devices["device_id"] = devices["name"]
         devices["last_updated"] = datetime.now(timezone.utc)
 
