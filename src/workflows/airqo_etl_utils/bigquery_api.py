@@ -373,6 +373,9 @@ class BigQueryApi:
 
         unique_id = unique_ids.get(component.str, None)
 
+        if unique_id is None:
+            raise Exception(f"Invalid metadata component: {component.str}")
+            
         dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
 
         q = "SELECT * FROM `{table}` "
