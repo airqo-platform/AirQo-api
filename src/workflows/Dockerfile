@@ -1,7 +1,7 @@
 FROM python:3.10.14-slim-bullseye as utils-package
 RUN pip install --upgrade pip setuptools wheel
 WORKDIR airqo_etl_utils
-COPY airqo_etl_utils/* airqo_etl_utils/
+COPY airqo_etl_utils/ airqo_etl_utils/
 
 #TODO: Update to use the toml script, may requires updated dags to use relative imports
 RUN python airqo_etl_utils/setup.py bdist_wheel

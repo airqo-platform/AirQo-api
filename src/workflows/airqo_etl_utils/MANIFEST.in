@@ -1,0 +1,1 @@
+recursive-include airqo_etl_utils/schema *
