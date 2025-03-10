@@ -4,6 +4,7 @@ from .bigquery_api import BigQueryApi
 from .constants import DataSource, DeviceNetwork
 from .purple_air_api import PurpleAirApi
 from .utils import Utils
+from .datautils import DataUtils
 
 
 class PurpleDataUtils:
@@ -27,8 +28,7 @@ class PurpleDataUtils:
     @staticmethod
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         data = pd.DataFrame()
-        bigquery_api = BigQueryApi()
-        devices = bigquery_api.query_devices(network=DeviceNetwork.NASA)
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
