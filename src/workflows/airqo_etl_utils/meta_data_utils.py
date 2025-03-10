@@ -24,9 +24,14 @@ class MetaDataUtils:
             pd.DataFrame: A DataFrame containing device information.
         """
         devices, _ = DataUtils.get_devices()
-        dataframe = devices[
+        devices["status"] = devices["status"].replace(
+            {"deployed": True, "not deployed": False}
+        )
+        devices = devices[
             [
                 "network",
+                "status",
+                "isActive",
                 "latitude",
                 "longitude",
                 "site_id",
@@ -37,10 +42,11 @@ class MetaDataUtils:
                 "device_category",
             ]
         ]
-        dataframe["device_id"] = dataframe["name"]
-        dataframe["last_updated"] = datetime.now(timezone.utc)
+        devices.rename(columns={"isActive": "active", "status": "deployed"})
+        devices["device_id"] = devices["name"]
+        devices["last_updated"] = datetime.now(timezone.utc)
 
-        return dataframe
+        return devices
 
     @staticmethod
     def extract_airqlouds_from_api(

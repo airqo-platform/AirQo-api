@@ -435,16 +435,25 @@ class BigQueryApi:
         table: str,
         component: str,
     ) -> None:
+        """
+        Updates the site or device data by validating, deduplicating, and merging it with existing records.
+
+        Args:
+            dataframe(pd.DataFrame): The input data containing site or device information.
+            table(str): The database table name to update.
+            component(str): Specifies whether the data is for 'sites' or 'devices'.
+
+        Raises:
+            Exception: If an invalid component is provided.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
         if component == "sites":
             unique_id = "id"
-
         elif component == "devices":
             unique_id = "unique_id"
             dataframe = self.add_unique_id(dataframe)
-
         else:
             raise Exception("Invalid component. Valid values are sites and devices.")
 
