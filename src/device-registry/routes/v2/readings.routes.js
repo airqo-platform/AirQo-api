@@ -24,6 +24,18 @@ router.get(
 );
 
 router.get(
+  "/worst/devices",
+  readingsValidations.worstReadingForDevices,
+  eventController.getWorstReadingForDevices
+);
+
+router.get(
+  "/worst/sites",
+  readingsValidations.worstReadingForSites,
+  eventController.getWorstReadingForSites
+);
+
+router.get(
   "/sites/:site_id/averages",
   readingsValidations.listAverages,
   pagination(),
