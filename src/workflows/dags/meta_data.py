@@ -29,8 +29,10 @@ def update_big_query_airqlouds_sites_and_devices():
 
     @task()
     def load_airqlouds(data: pd.DataFrame):
-
-        BigQueryApi().update_airqlouds(data)
+        bigq_api = BigQueryApi()
+        bigq_api.update_meta_data(
+            data, bigq_api.airqlouds_table, MetaDataType.AIRQLOUDS
+        )
 
     @task()
     def update_airqloud_sites_table(data: pd.DataFrame):
@@ -49,10 +51,10 @@ def update_big_query_airqlouds_sites_and_devices():
     def load_sites(data: pd.DataFrame):
 
         big_query_api = BigQueryApi()
-        big_query_api.update_sites_and_devices(
+        big_query_api.update_meta_data(
             dataframe=data,
             table=big_query_api.sites_table,
-            component="sites",
+            component=MetaDataType.SITES,
         )
 
     @task()
@@ -63,8 +65,6 @@ def update_big_query_airqlouds_sites_and_devices():
 
     @task()
     def load_sites_meta_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
         BigQueryApi().update_sites_meta_data(dataframe=data)
 
     @task()
@@ -78,10 +78,10 @@ def update_big_query_airqlouds_sites_and_devices():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        big_query_api.update_sites_and_devices(
+        big_query_api.update_meta_data(
             dataframe=data,
             table=big_query_api.devices_table,
-            component="devices",
+            component=MetaDataType.DEVICES,
         )
 
     airqlouds = extract_airqlouds()
@@ -111,9 +111,8 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def load_grids(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
-        BigQueryApi().update_grids(data)
+        bigq_api = BigQueryApi()
+        bigq_api.update_meta_data(data, bigq_api.grids_table, MetaDataType.GRIDS)
 
     @task()
     def extract_cohorts() -> pd.DataFrame:
@@ -123,13 +122,11 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def load_cohorts(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
-        BigQueryApi().update_cohorts(data)
+        bigq_api = BigQueryApi()
+        bigq_api.update_meta_data(data, bigq_api.cohorts_table, MetaDataType.COHORTS)
 
     @task()
     def update_grid_sites_table(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
         data = MetaDataUtils.merge_grids_and_sites(data)
@@ -137,7 +134,6 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def update_cohort_devices_table(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
         data = MetaDataUtils.merge_cohorts_and_devices(data)
@@ -151,13 +147,11 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def load_sites(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
         big_query_api = BigQueryApi()
-        big_query_api.update_sites_and_devices(
+        big_query_api.update_meta_data(
             dataframe=data,
             table=big_query_api.sites_table,
-            component="sites",
+            component=MetaDataType.SITES,
         )
 
     @task()
@@ -168,8 +162,6 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def load_sites_meta_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
         BigQueryApi().update_sites_meta_data(dataframe=data)
 
     @task()
@@ -180,13 +172,11 @@ def update_big_query_grids_cohorts_sites_and_devices():
 
     @task()
     def load_devices(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
         big_query_api = BigQueryApi()
-        big_query_api.update_sites_and_devices(
+        big_query_api.update_meta_data(
             dataframe=data,
             table=big_query_api.devices_table,
-            component="devices",
+            component=MetaDataType.DEVICES,
         )
 
     grids = extract_grids()
