@@ -33,7 +33,11 @@ class ChatbotView:
         
         # Session metadata (optional)
         session_id = payload.get("session_id", str(uuid.uuid4()))  # Generate if not provided
-        session_title = payload.get("session_title", "Untitled Session")  # Default title
+        
+        # Automatically generate session_title from prompt (truncate to reasonable length)
+        session_title = payload.get("session_title")  # Check if provided
+        if not session_title:  # If not provided, generate from prompt
+            session_title = (user_prompt[:50] + "...") if len(user_prompt) > 50 else user_prompt
 
         # Validate prompt
         if not user_prompt or not isinstance(user_prompt, str):
