@@ -378,7 +378,7 @@ class BigQueryApi:
             
         dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
 
-        q = "SELECT * FROM `{table}` "
+        q = f"SELECT * FROM `{table}` "
 
         if "last_updated" in dataframe.columns.to_list():
             q += "ORDER BY last_updated"
