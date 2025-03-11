@@ -96,6 +96,7 @@ class AirQualityChatbot:
         self.starttime = self.data.get('airquality', {}).get('period', {}).get('startTime', '')[:10] or 'N/A'
         self.endtime = self.data.get('airquality', {}).get('period', {}).get('endTime', '')[:10] or 'N/A'
         self.annual_pm2_5 = self.annual_data.get("pm2_5_calibrated_value", 'N/A')
+        self.mean_pm2_5_by_site = self.data.get('airquality', {}).get('site_annual_mean_pm', [])
 
         # Sort daily_mean_data to get the most recent measurement
         if self.daily_mean_data:
@@ -124,6 +125,9 @@ class AirQualityChatbot:
             f"Most recent daily PM2.5={self.today_pm2_5} µg/m³ on {self.today_date}, "
             f"Diurnal peak={self.peak_diurnal.get('pm2_5_calibrated_value', 'N/A')} µg/m³ at {self.peak_diurnal.get('hour', 'N/A')}:00, "
             f"Site names={self.site_names}."
+            f"Monthly data={self.monthly_data}."
+            f"Daily mean data={self.daily_mean_data}."
+            f"Site annual mean data={self.mean_pm2_5_by_site}."
         )
 
     def _rule_based_response(self, user_prompt):
