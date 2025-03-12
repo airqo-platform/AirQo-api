@@ -1,7 +1,4 @@
 ## This module contains DAGS for prediction/inference jobs of AirQo.
-
-from datetime import datetime
-
 from airflow.decorators import dag, task
 from datetime import datetime, timedelta, timezone
 
