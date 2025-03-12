@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from airflow.decorators import dag, task
-from dateutil.relativedelta import relativedelta
+from datetime import datetime, timedelta, timezone
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration as Config
@@ -26,8 +26,6 @@ def make_forecasts():
     ### Hourly forecast tasks
     @task()
     def get_historical_data_for_hourly_forecasts():
-        from datetime import datetime, timedelta, timezone
-
         start_date = datetime.now(timezone.utc) - timedelta(
             hours=int(Config.HOURLY_FORECAST_PREDICTION_JOB_SCOPE)
         )
@@ -79,40 +77,41 @@ def make_forecasts():
         ForecastUtils.save_forecasts_to_mongo(data, Frequency.HOURLY)
 
     # Daily forecast tasks
-    @task()
-    def get_historical_data_for_daily_forecasts():
-        from datetime import datetime, timedelta, timezone
+    @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
+    def get_historical_data_for_daily_forecasts(**kwargs):
         from airqo_etl_utils.date import date_to_str
 
-        start_date = datetime.now(timezone.utc) - timedelta(
+        execution_date = kwargs["dag_run"].execution_date
+        start_date = execution_date - timedelta(
             days=int(Config.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
+
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_device_data_for_forecast_job(
             start_date, "prediction"
         )
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def preprocess_historical_data_daily_forecast(data):
         return BaseMlUtils.preprocess_data(data, Frequency.DAILY, job_type="prediction")
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def generate_lag_and_rolling_features_daily_forecast(data):
         return BaseMlUtils.get_lag_and_roll_features(data, "pm2_5", Frequency.DAILY)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def get_time_features_daily_forecast(data):
         return BaseMlUtils.get_time_features(data, Frequency.DAILY)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def get_cyclic_features_daily_forecast(data):
         return BaseMlUtils.get_cyclic_features(data, Frequency.DAILY)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def get_location_features_daily_forecast(data):
         return BaseMlUtils.get_location_features(data)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def make_daily_forecasts(data):
         return ForecastUtils.generate_forecasts(
             data=data,
@@ -121,12 +120,12 @@ def make_forecasts():
             frequency=Frequency.DAILY,
         )
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_daily_forecasts_to_bigquery(data):
         bigquery_api = BigQueryApi()
         bigquery_api.load_data(data, Config.BIGQUERY_DAILY_FORECAST_EVENTS_TABLE)
 
-    @task()
+    @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_daily_forecasts_to_mongo(data):
         ForecastUtils.save_forecasts_to_mongo(data, Frequency.DAILY)
 
