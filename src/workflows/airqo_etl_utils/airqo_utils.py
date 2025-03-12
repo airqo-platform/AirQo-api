@@ -284,7 +284,7 @@ class AirQoDataUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         group_metadata = data[
-            ["device_id", "site_id", "device_number", "network"]
+            ["device_id", "site_id", "device_number", "network", "device_category"]
         ].drop_duplicates("device_id")
         group_metadata.set_index("device_id", inplace=True)
         numeric_columns = data.select_dtypes(include=["number"]).columns
