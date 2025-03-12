@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime, timezone
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.data_validator import DataValidationUtils
@@ -51,7 +52,7 @@ class DailyDataUtils:
             averaged_data_list.append(device_averages)
 
         averaged_data = pd.concat(averaged_data_list, ignore_index=True)
-
+        averaged_data["last_updated"] = datetime.now(timezone.utc)
         return averaged_data
 
     @staticmethod
@@ -77,10 +78,12 @@ class DailyDataUtils:
         Returns:
             None
         """
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["last_updated"] = pd.to_datetime(data["last_updated"])
+        data.sort_values(by="last_updated", ascending=True, inplace=True)
         data.drop_duplicates(
             subset=["device_number", "device_id", "timestamp"],
-            keep="first",
+            keep="last",
             inplace=True,
         )
 
