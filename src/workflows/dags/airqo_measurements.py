@@ -242,7 +242,7 @@ def airqo_cleanup_measurements():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_raw_data(**kwargs) -> pd.DataFrame:
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            hours=1, **kwargs
+            hours=2, **kwargs
         )
 
         return DataUtils.extract_data_from_bigquery(
@@ -698,36 +698,33 @@ def calibrate_missing_measurements():
         return devices
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def extract_calibrate_data(devices: pd.DataFrame):
-        return AirQoDataUtils.extract_aggregate_calibrate_raw_data(devices)
+    def extract_calibrate_data(devices: pd.DataFrame) -> list:
+        calibrated_data = AirQoDataUtils.extract_aggregate_calibrate_raw_data(devices)
+        return calibrated_data
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(
         calibrated_data: Generator,
     ) -> None:
         big_query_api = BigQueryApi()
-        for data_ in calibrated_data:
-            data = DataUtils.format_data_for_bigquery(
-                data_,
-                DataType.AVERAGED,
-                DeviceCategory.GENERAL,
-                Frequency.HOURLY,
-            )
-            big_query_api.reload_data(
-                dataframe=data,
-                table=big_query_api.hourly_measurements_table,
-                where_fields={"device_id": data.iloc[0].device_id},
-            )
+        data = DataUtils.format_data_for_bigquery(
+            calibrated_data,
+            DataType.AVERAGED,
+            DeviceCategory.GENERAL,
+            Frequency.HOURLY,
+        )
+        big_query_api.load_data(
+            dataframe=data, table=big_query_api.hourly_measurements_table
+        )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_hourly_measurements_to_api(calibrated_data: Generator) -> None:
+    def send_hourly_measurements_to_api(calibrated_data: pd.DataFrame) -> None:
         from airqo_etl_utils.airqo_api import AirQoApi
 
+        airqo_api = AirQoApi()
         data = DataUtils.process_data_for_api(
             calibrated_data, frequency=Frequency.HOURLY
         )
-
-        airqo_api = AirQoApi()
         airqo_api.save_events(measurements=data)
 
     devices = extract_devices_missing_calibrated_data()
