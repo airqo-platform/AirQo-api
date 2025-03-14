@@ -121,10 +121,61 @@ const getById = [
   ],
 ];
 
+const createBulk = [
+  validateTenant,
+  [
+    body("scopes")
+      .exists()
+      .withMessage("scopes array is missing in your request")
+      .bail()
+      .isArray()
+      .withMessage("scopes must be an array")
+      .bail()
+      .notEmpty()
+      .withMessage("scopes array must not be empty"),
+    body("scopes.*.scope")
+      .exists()
+      .withMessage("scope is missing for one or more items")
+      .bail()
+      .notEmpty()
+      .withMessage("the scope must not be empty")
+      .bail()
+      .trim()
+      .escape()
+      .customSanitizer((value) => {
+        return value.replace(/ /g, "_").toUpperCase();
+      }),
+    body("scopes.*.network_id")
+      .optional()
+      .notEmpty()
+      .withMessage("network_id should not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("network_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    body("scopes.*.description")
+      .exists()
+      .withMessage("description is missing for one or more items")
+      .bail()
+      .trim(),
+    body("scopes.*.tier")
+      .exists()
+      .withMessage("subscription tier is missing for one or more items")
+      .bail()
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("tier must be one of: Free, Standard, Premium"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
   list,
+  createBulk,
   create,
   update,
   deleteScope,

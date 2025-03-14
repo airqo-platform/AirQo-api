@@ -5,6 +5,7 @@ const UnknownIPModel = require("@models/UnknownIP");
 const WhitelistedIPModel = require("@models/WhitelistedIP");
 const BlacklistedIPRangeModel = require("@models/BlacklistedIPRange");
 const ClientModel = require("@models/Client");
+const ScopeModel = require("@models/Scope");
 const AccessTokenModel = require("@models/AccessToken");
 const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
@@ -31,6 +32,122 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+
+/************************ New Functions for Resource Access ****************************/
+
+/**
+ * Checks if an access token has the required permissions to access a specific resource.
+ * @param {object} request - The HTTP request object.
+ * @param {object} accessToken - The AccessToken document.
+ * @param {object} user - The User document.
+ * @param {function} next - The next middleware function.
+ * @returns {boolean} - True if access is allowed, false otherwise.
+ */
+const checkResourceAccess = async (request, accessToken, user, next) => {
+  const { path, query } = request;
+  const { cohort_id, grid_id, device_id, site_id } = query;
+
+  // Determine the requested resource based on the path
+  let resourceType = null;
+  if (path.includes("/cohorts")) {
+    resourceType = "cohorts";
+  } else if (path.includes("/grids")) {
+    resourceType = "grids";
+  } else if (path.includes("/devices")) {
+    resourceType = "devices";
+  } else if (path.includes("/sites")) {
+    resourceType = "sites";
+  } else if (
+    path.includes("/measurements/recent") ||
+    path.includes("/measurements")
+  ) {
+    resourceType = "measurements";
+  } else if (path.includes("/forecasts")) {
+    resourceType = "forecasts";
+  } else if (path.includes("/insights")) {
+    resourceType = "insights";
+  }
+
+  if (!resourceType) {
+    // Unknown resource or no specific check needed
+    return true;
+  }
+  const tier = accessToken.tier;
+  const scopes = accessToken.scopes;
+
+  if (resourceType === "measurements") {
+    if (
+      !scopes.includes("read:recent_measurements") &&
+      !scopes.includes("read:historical_measurements")
+    ) {
+      logger.error(
+        `🐛🐛  Access Token does not have the required scopes to access Measurements`
+      );
+      return false;
+    }
+  }
+
+  if (resourceType === "forecasts" || resourceType === "insights") {
+    if (
+      !scopes.includes("read:forecasts") &&
+      !scopes.includes("read:insights")
+    ) {
+      logger.error(
+        `🐛🐛  Access Token does not have the required scopes to access Forecasts/Insights`
+      );
+      return false;
+    }
+  }
+
+  if (
+    resourceType !== "measurements" &&
+    resourceType !== "forecasts" &&
+    resourceType !== "insights"
+  ) {
+    if (!scopes.includes(`read:${resourceType}`)) {
+      logger.error(
+        `🐛🐛  Access Token does not have the required scopes to access ${resourceType}`
+      );
+      return false;
+    }
+  }
+
+  // Check if the user has access to the specific resource if an Id has been provided
+  if (resourceType === "cohorts" && cohort_id) {
+    if (!user.cohorts.map(String).includes(cohort_id)) {
+      logger.error(
+        `🐛🐛 User ${user._id} does not have access to cohort ${cohort_id}`
+      );
+      return false;
+    }
+  }
+  if (resourceType === "grids" && grid_id) {
+    if (!user.grids.map(String).includes(grid_id)) {
+      logger.error(
+        `🐛🐛 User ${user._id} does not have access to grid ${grid_id}`
+      );
+      return false;
+    }
+  }
+  if (resourceType === "devices" && device_id) {
+    if (!user.devices.map(String).includes(device_id)) {
+      logger.error(
+        `🐛🐛 User ${user._id} does not have access to device ${device_id}`
+      );
+      return false;
+    }
+  }
+  if (resourceType === "sites" && site_id) {
+    if (!user.sites.map(String).includes(site_id)) {
+      logger.error(
+        `🐛🐛 User ${user._id} does not have access to site ${site_id}`
+      );
+      return false;
+    }
+  }
+
+  return true; // Access allowed
+};
 
 const getDay = () => {
   const now = new Date();
@@ -321,7 +438,18 @@ const isIPBlacklistedHelper = async (
         logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       }
       return true;
-    } else if (whitelistedIP) {
+    }
+
+    // Load the user from the AccessToken
+
+    const user = await UserModel("airqo").findById(accessToken.user_id).lean();
+
+    if (!user) {
+      logger.error(`🐛🐛 User not found for Access Token ${accessToken.token}`);
+      return true; // Or handle this case as you prefer
+    }
+
+    if (whitelistedIP) {
       return false;
     } else if (blockedIpPrefixes.includes(ipPrefix)) {
       return true;
@@ -377,6 +505,17 @@ const isIPBlacklistedHelper = async (
 
       return true;
     } else {
+      // --- Access Control Check ---
+      const isAllowed = await checkResourceAccess(
+        request,
+        accessToken,
+        user,
+        next
+      );
+      logText("I have now returned back to the verifyToken() function");
+      if (!isAllowed) {
+        return true;
+      }
       Promise.resolve().then(() =>
         postProcessing({ ip, token, name, client_id, endpoint, day })
       );
@@ -636,8 +775,40 @@ const token = {
         )
         .toUpperCase();
 
+      const existingToken = await AccessTokenModel(tenant)
+        .findOne(filter)
+        .lean();
+      if (!existingToken) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid request, token does not exist",
+          })
+        );
+        return;
+      }
+
+      const userId = existingToken.user_id;
+
+      const user = await UserModel(tenant).findById(userId).lean();
+      if (!user) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid request, the user does not exist",
+          })
+        );
+        return;
+      }
+
+      const subscriptionTier = user.subscriptionTier;
+      const scopes = await ScopeModel(tenant)
+        .find({ tier: subscriptionTier })
+        .select("scope");
+      const scopeNames = scopes.map((scope) => scope.scope);
+
       let update = Object.assign({}, body);
       update.token = token;
+      update.scopes = scopeNames;
+      update.tier = subscriptionTier;
 
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
@@ -821,6 +992,27 @@ const token = {
       //   status: httpStatus.SERVICE_UNAVAILABLE,
       // };
       const { tenant, client_id } = { ...request.body, ...request.query };
+      const userId = request.body.user_id || request.query.user_id;
+      if (!userId) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Invalid request, user_id is required`,
+          })
+        );
+        return;
+      }
+
+      const user = await UserModel(tenant).findById(userId).lean();
+      if (!user) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Invalid request, the user does not exist`,
+          })
+        );
+        return;
+      }
+      // Retrieve the subscription tier from the user details
+      const subscriptionTier = user.subscriptionTier;
 
       const client = await ClientModel(tenant)
         .findById(ObjectId(client_id))
@@ -854,9 +1046,15 @@ const token = {
         .toUpperCase();
 
       let tokenCreationBody = Object.assign(
-        { token, client_id: ObjectId(client_id) },
+        { token, client_id: ObjectId(client_id), user_id: ObjectId(userId) },
         request.body
       );
+      const scopes = await ScopeModel(tenant)
+        .find({ tier: subscriptionTier })
+        .select("scope");
+      const scopeNames = scopes.map((scope) => scope.scope);
+      tokenCreationBody.scopes = scopeNames;
+      tokenCreationBody.tier = subscriptionTier;
       tokenCreationBody.category = "api";
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
@@ -1880,6 +2078,119 @@ const token = {
         )
       );
     }
+  },
+  /**
+   * Checks if an access token has the required permissions to access a specific resource.
+   * @param {object} request - The HTTP request object.
+   * @param {object} accessToken - The AccessToken document.
+   * @param {object} user - The User document.
+   * @param {function} next - The next middleware function.
+   * @returns {boolean} - True if access is allowed, false otherwise.
+   */
+  checkResourceAccess: async (request, accessToken, user, next) => {
+    const { path, query } = request;
+    const { cohort_id, grid_id, device_id, site_id } = query;
+
+    // Determine the requested resource based on the path
+    let resourceType = null;
+    if (path.includes("/cohorts")) {
+      resourceType = "cohorts";
+    } else if (path.includes("/grids")) {
+      resourceType = "grids";
+    } else if (path.includes("/devices")) {
+      resourceType = "devices";
+    } else if (path.includes("/sites")) {
+      resourceType = "sites";
+    } else if (
+      path.includes("/measurements/recent") ||
+      path.includes("/measurements")
+    ) {
+      resourceType = "measurements";
+    } else if (path.includes("/forecasts")) {
+      resourceType = "forecasts";
+    } else if (path.includes("/insights")) {
+      resourceType = "insights";
+    }
+
+    if (!resourceType) {
+      // Unknown resource or no specific check needed
+      return true;
+    }
+    const tier = accessToken.tier;
+    const scopes = accessToken.scopes;
+
+    if (resourceType === "measurements") {
+      if (
+        !scopes.includes("read:recent_measurements") &&
+        !scopes.includes("read:historical_measurements")
+      ) {
+        logger.error(
+          `🐛🐛  Access Token does not have the required scopes to access Measurements`
+        );
+        return false;
+      }
+    }
+
+    if (resourceType === "forecasts" || resourceType === "insights") {
+      if (
+        !scopes.includes("read:forecasts") &&
+        !scopes.includes("read:insights")
+      ) {
+        logger.error(
+          `🐛🐛  Access Token does not have the required scopes to access Forecasts/Insights`
+        );
+        return false;
+      }
+    }
+
+    if (
+      resourceType !== "measurements" &&
+      resourceType !== "forecasts" &&
+      resourceType !== "insights"
+    ) {
+      if (!scopes.includes(`read:${resourceType}`)) {
+        logger.error(
+          `🐛🐛  Access Token does not have the required scopes to access ${resourceType}`
+        );
+        return false;
+      }
+    }
+
+    // Check if the user has access to the specific resource if an Id has been provided
+    if (resourceType === "cohorts" && cohort_id) {
+      if (!user.cohorts.map(String).includes(cohort_id)) {
+        logger.error(
+          `🐛🐛 User ${user._id} does not have access to cohort ${cohort_id}`
+        );
+        return false;
+      }
+    }
+    if (resourceType === "grids" && grid_id) {
+      if (!user.grids.map(String).includes(grid_id)) {
+        logger.error(
+          `🐛🐛 User ${user._id} does not have access to grid ${grid_id}`
+        );
+        return false;
+      }
+    }
+    if (resourceType === "devices" && device_id) {
+      if (!user.devices.map(String).includes(device_id)) {
+        logger.error(
+          `🐛🐛 User ${user._id} does not have access to device ${device_id}`
+        );
+        return false;
+      }
+    }
+    if (resourceType === "sites" && site_id) {
+      if (!user.sites.map(String).includes(site_id)) {
+        logger.error(
+          `🐛🐛 User ${user._id} does not have access to site ${site_id}`
+        );
+        return false;
+      }
+    }
+
+    return true; // Access allowed
   },
 };
 

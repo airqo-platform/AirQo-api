@@ -3,6 +3,8 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
+const constants = require("@config/constants");
+const logger = require("log4js").getLogger(`${constants.ENVIRONMENT} -- Scope`);
 const {
   logObject,
   logText,
@@ -21,9 +23,14 @@ const ScopeSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network ID is required"],
+      default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
     },
     description: { type: String, required: [true, "description is required"] },
+    tier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      required: [true, "subscription tier is required"],
+    },
   },
   { timestamps: true }
 );

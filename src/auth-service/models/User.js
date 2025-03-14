@@ -83,6 +83,10 @@ const UserSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    cohorts: [{ type: ObjectId, ref: "cohort" }], // IDs of associated cohorts
+    grids: [{ type: ObjectId, ref: "grid" }], // IDs of associated grids
+    devices: [{ type: ObjectId, ref: "device" }], // IDs of associated devices
+    sites: [{ type: ObjectId, ref: "site" }], // IDs of associated sites
     analyticsVersion: { type: Number, default: 2 },
     firstName: {
       type: String,
@@ -624,6 +628,15 @@ UserSchema.index({ userName: 1 }, { unique: true });
 UserSchema.statics = {
   async register(args, next) {
     try {
+      const { subscriptionTier } = args;
+      if (!subscriptionTier) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid request, subscriptionTier is required",
+          })
+        );
+        return;
+      }
       const data = await this.create({
         ...args,
       });
@@ -1015,6 +1028,16 @@ UserSchema.statics = {
       const options = { new: true };
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
+
+      const { subscriptionTier } = update;
+      if (!subscriptionTier) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid request, subscriptionTier is required",
+          })
+        );
+        return;
+      }
 
       // Find and update user
       const updatedUser = await this.findOneAndUpdate(
