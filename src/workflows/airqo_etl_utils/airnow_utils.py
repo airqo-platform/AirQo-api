@@ -1,5 +1,6 @@
 import ast
 import pandas as pd
+from typing import List
 
 from .airnow_api import AirNowApi
 from .constants import DataSource, DeviceCategory, Frequency, DeviceNetwork
@@ -73,7 +74,7 @@ class AirnowDataUtils:
         """
         bam_data = pd.DataFrame()
 
-        dates = Utils.query_dates_array(
+        dates: List[str] = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             data_source=DataSource.AIRNOW,
@@ -84,23 +85,20 @@ class AirnowDataUtils:
 
         api_key = Config.US_EMBASSY_API_KEY
 
-        all_device_data = []
-        device_data = []
+        device_data: List[pd.DataFrame] = []
         for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
                 api_key=api_key, start_date_time=start, end_date_time=end
             )
             if not query_data.empty:
                 device_data.append(query_data)
+
         if device_data:
-            device_df = pd.concat(device_data, ignore_index=True)
-            device_df["network"] = DeviceNetwork.METONE.str
-            all_device_data.append(device_df)
+            bam_data = pd.concat(device_data, ignore_index=True)
+            bam_data["network"] = DeviceNetwork.METONE.str
 
-        if not all_device_data:
+        if bam_data.empty:
             logger.info("No BAM data found for the specified date range.")
-
-        bam_data = pd.concat(all_device_data, ignore_index=True)
 
         return bam_data
 
