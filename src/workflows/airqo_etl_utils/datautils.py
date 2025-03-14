@@ -6,7 +6,6 @@ import ast
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 
-
 from .config import configuration as Config
 from .commons import download_file_from_gcs
 from .bigquery_api import BigQueryApi
@@ -208,7 +207,6 @@ class DataUtils:
             devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
                 is_airqo_network, "vapor_pressure"
             ].apply(DataValidationUtils.convert_pressure_values)
-
         return devices_data
 
     @staticmethod
@@ -216,13 +214,13 @@ class DataUtils:
         """Download and load the cached CSV from GCS if available."""
         try:
             file = Path(local_file_path)
-            if not file.exists():
+            if not file.exists() or file.stat().st_size == 0:
                 download_file_from_gcs(
                     bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                    source_file=file_name + ".csv",
+                    source_file=f"{file_name}.csv",
                     destination_file=local_file_path,
                 )
-            data = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            data = pd.read_csv(local_file_path)
             if not data.empty:
                 return data
         except Exception as e:

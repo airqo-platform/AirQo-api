@@ -182,5 +182,15 @@
     "name": "altitude",
     "type": "FLOAT",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "last_updated",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_category",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
