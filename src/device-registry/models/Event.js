@@ -1880,8 +1880,16 @@ eventSchema.statics.list = async function(
 
     logObject("filter", filter);
 
-    const startTime = filter["values.time"]["$gte"];
-    const endTime = filter["values.time"]["$lte"];
+    // Extract startTime and endTime but convert them to ISO strings for meta object
+    const startTime =
+      filter["values.time"] && filter["values.time"]["$gte"]
+        ? filter["values.time"]["$gte"].toISOString()
+        : undefined;
+    const endTime =
+      filter["values.time"] && filter["values.time"]["$lte"]
+        ? filter["values.time"]["$lte"].toISOString()
+        : undefined;
+
     let idField;
     // const visibilityFilter = true;
 
@@ -1919,8 +1927,9 @@ eventSchema.statics.list = async function(
           1,
         ],
       },
-      startTime,
-      endTime,
+      // Convert Date objects to strings for the meta object
+      startTime: { $literal: startTime },
+      endTime: { $literal: endTime },
     };
     let siteProjection = {};
     let deviceProjection = {};
@@ -2700,6 +2709,7 @@ eventSchema.statics.list = async function(
     );
   }
 };
+
 eventSchema.statics.view = async function(filter, next) {
   try {
     const request = filter;
