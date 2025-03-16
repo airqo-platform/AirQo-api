@@ -30,11 +30,11 @@ const options = {
 };
 
 // Create separate connection functions for command and query databases
-// const createCommandConnection = () =>
-//   mongoose.createConnection(COMMAND_URI, {
-//     ...options,
-//     dbName: `${constants.DB_NAME}_command`,
-//   });
+const createCommandConnection = () =>
+  mongoose.createConnection(COMMAND_URI, {
+    ...options,
+    dbName: `${constants.DB_NAME}_command`,
+  });
 
 const createQueryConnection = () =>
   mongoose.createConnection(QUERY_URI, {
@@ -43,7 +43,7 @@ const createQueryConnection = () =>
   });
 
 // Store database connections
-// let commandDB = null;
+let commandDB = null;
 let queryDB = null;
 
 // Helper function to set up connection event handlers
@@ -68,8 +68,8 @@ const setupConnectionHandlers = (db, dbType) => {
 const connectToMongoDB = () => {
   try {
     // Establish command database connection
-    // commandDB = createCommandConnection();
-    // setupConnectionHandlers(commandDB, "command");
+    commandDB = createCommandConnection();
+    setupConnectionHandlers(commandDB, "command");
 
     // Establish query database connection
     queryDB = createQueryConnection();
@@ -84,8 +84,7 @@ const connectToMongoDB = () => {
       logger.error("There was an uncaught error", err);
     });
 
-    // return { commandDB, queryDB };
-    return { queryDB };
+    return { commandDB, queryDB };
   } catch (error) {
     logger.error(`Database connection error: ${error.message}`);
     throw error;
@@ -93,21 +92,19 @@ const connectToMongoDB = () => {
 };
 
 // Initialize both database connections
-// const { commandDB: commandMongoDB, queryDB: queryMongoDB } = connectToMongoDB();
-const { queryDB: queryMongoDB } = connectToMongoDB();
+const { commandDB: commandMongoDB, queryDB: queryMongoDB } = connectToMongoDB();
 
 /**
  * Get a tenant-specific command database (for write operations)
  */
 function getCommandTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_command_${tenantId}`;
-  // if (commandMongoDB) {
-  //   const db = commandMongoDB.useDb(dbName, { useCache: true });
-  //   db.model(modelName, schema);
-  //   return db;
-  // }
-  // throw new Error("Command database connection not established");
-  return null;
+  if (commandMongoDB) {
+    const db = commandMongoDB.useDb(dbName, { useCache: true });
+    db.model(modelName, schema);
+    return db;
+  }
+  throw new Error("Command database connection not established");
 }
 
 /**
@@ -128,9 +125,8 @@ function getQueryTenantDB(tenantId, modelName, schema) {
  * Get a command model (for write operations) for a specific tenant
  */
 function getCommandModelByTenant(tenantId, modelName, schema) {
-  // const tenantDb = getCommandTenantDB(tenantId, modelName, schema);
-  // return tenantDb.model(modelName);
-  return null;
+  const tenantDb = getCommandTenantDB(tenantId, modelName, schema);
+  return tenantDb.model(modelName);
 }
 
 /**
@@ -143,7 +139,7 @@ function getQueryModelByTenant(tenantId, modelName, schema) {
 
 /**
  * Backward compatible function to get tenant database
- * Now accepts an optional operationType parameter
+ * Accepts an optional operationType parameter
  */
 function getTenantDB(tenantId, modelName, schema, operationType = "query") {
   if (operationType === "command") {
@@ -154,7 +150,7 @@ function getTenantDB(tenantId, modelName, schema, operationType = "query") {
 
 /**
  * Backward compatible function to get tenant model
- * Now accepts an optional operationType parameter
+ * Accepts an optional operationType parameter
  */
 function getModelByTenant(
   tenantId,
@@ -163,8 +159,7 @@ function getModelByTenant(
   operationType = "query"
 ) {
   if (operationType === "command") {
-    return null;
-    // return getCommandModelByTenant(tenantId, modelName, schema);
+    return getCommandModelByTenant(tenantId, modelName, schema);
   }
   return getQueryModelByTenant(tenantId, modelName, schema);
 }
