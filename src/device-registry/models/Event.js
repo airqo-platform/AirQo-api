@@ -1880,15 +1880,8 @@ eventSchema.statics.list = async function(
 
     logObject("filter", filter);
 
-    // Extract startTime and endTime but convert them to ISO strings for meta object
-    const startTime =
-      filter["values.time"] && filter["values.time"]["$gte"]
-        ? filter["values.time"]["$gte"].toISOString()
-        : undefined;
-    const endTime =
-      filter["values.time"] && filter["values.time"]["$lte"]
-        ? filter["values.time"]["$lte"].toISOString()
-        : undefined;
+    const startTime = filter["values.time"]["$gte"];
+    const endTime = filter["values.time"]["$lte"];
 
     let idField;
     // const visibilityFilter = true;
@@ -1927,9 +1920,8 @@ eventSchema.statics.list = async function(
           1,
         ],
       },
-      // Convert Date objects to strings for the meta object
-      startTime: { $literal: startTime },
-      endTime: { $literal: endTime },
+      startTime,
+      endTime,
     };
     let siteProjection = {};
     let deviceProjection = {};
