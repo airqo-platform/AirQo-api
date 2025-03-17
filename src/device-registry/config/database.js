@@ -18,7 +18,7 @@ const options = {
   useNewUrlParser: true,
   useFindAndModify: false,
   useUnifiedTopology: true,
-  autoIndex: false,
+  autoIndex: true,
   keepAlive: true,
   keepAliveInitialDelay: 300000,
   poolSize: 20,
