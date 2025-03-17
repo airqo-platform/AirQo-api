@@ -375,8 +375,8 @@ class BigQueryApi:
 
         if unique_id is None:
             raise Exception(f"Invalid metadata component: {component.str}")
-            
-        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+
+        dataframe.drop_duplicates(subset=[unique_id[0]], inplace=True, keep="first")
 
         q = f"SELECT * FROM `{table}` "
 

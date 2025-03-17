@@ -31,10 +31,6 @@ from airqo_etl_utils.constants import DeviceNetwork, DeviceCategory, Frequency, 
 from datetime import datetime, timedelta
 from airqo_etl_utils.date import date_to_str_hours
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 @dag(
     "AirQo-Historical-Hourly-Measurements",

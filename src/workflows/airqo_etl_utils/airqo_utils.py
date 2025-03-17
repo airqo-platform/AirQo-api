@@ -811,45 +811,48 @@ class AirQoDataUtils:
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
-        # Initialize `exclude_cols` only once
-        if not exclude_cols:
-            exclude_cols = [
-                devices_data.device_number.name,
-                devices_data.latitude.name,
-                devices_data.longitude.name,
-                devices_data.network.name,
-            ]
-        if not devices_data.empty:
-            try:
-                clean_raw = DataUtils.remove_duplicates(
-                    devices_data,
-                    timestamp_col=devices_data.timestamp.name,
-                    id_col=devices_data.device_id.name,
-                    group_col=devices_data.site_id.name,
-                    exclude_cols=exclude_cols,
-                )
-                aggregated_device_data = AirQoDataUtils.aggregate_low_cost_sensors_data(
-                    data=clean_raw
-                )
-                start_date = devices.timestamp.min()
-                end_date = devices.timestamp.min()
-                hourly_weather_data = DataUtils.extract_data_from_bigquery(
-                    DataType.AVERAGED,
-                    start_date_time=start_date,
-                    end_date_time=end_date,
-                    frequency=Frequency.HOURLY,
-                    device_category=DeviceCategory.WEATHER,
-                    use_cache=True,
-                )
-                air_weather_hourly_data = AirQoDataUtils.merge_aggregated_weather_data(
-                    airqo_data=aggregated_device_data,
-                    weather_data=hourly_weather_data,
-                )
-                calibrated_data = AirQoDataUtils.calibrate_data(
-                    data=air_weather_hourly_data, groupby="city"
-                )
-            except Exception as e:
-                logger.exception(f"An error occured: {e}")
-            else:
-                return calibrated_data
+
+            # Initialize `exclude_cols` only once
+            if not exclude_cols:
+                exclude_cols = [
+                    devices_data.device_number.name,
+                    devices_data.latitude.name,
+                    devices_data.longitude.name,
+                    devices_data.network.name,
+                ]
+            if not devices_data.empty:
+                try:
+                    clean_raw = DataUtils.remove_duplicates(
+                        devices_data,
+                        timestamp_col=devices_data.timestamp.name,
+                        id_col=devices_data.device_id.name,
+                        group_col=devices_data.site_id.name,
+                        exclude_cols=exclude_cols,
+                    )
+                    aggregated_device_data = (
+                        AirQoDataUtils.aggregate_low_cost_sensors_data(data=clean_raw)
+                    )
+                    start_date = devices.timestamp.min()
+                    end_date = devices.timestamp.min()
+                    hourly_weather_data = DataUtils.extract_data_from_bigquery(
+                        DataType.AVERAGED,
+                        start_date_time=start_date,
+                        end_date_time=end_date,
+                        frequency=Frequency.HOURLY,
+                        device_category=DeviceCategory.WEATHER,
+                        use_cache=True,
+                    )
+                    air_weather_hourly_data = (
+                        AirQoDataUtils.merge_aggregated_weather_data(
+                            airqo_data=aggregated_device_data,
+                            weather_data=hourly_weather_data,
+                        )
+                    )
+                    calibrated_data = AirQoDataUtils.calibrate_data(
+                        data=air_weather_hourly_data, groupby="city"
+                    )
+                except Exception as e:
+                    logger.exception(f"An error occured: {e}")
+                else:
+                    return calibrated_data
         return pd.DataFrame()
