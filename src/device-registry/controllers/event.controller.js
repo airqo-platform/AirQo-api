@@ -1274,7 +1274,7 @@ const createEvent = {
       request.query.recent = "yes";
       request.query.metadata = "site_id";
       request.query.brief = "yes";
-      const { cohort_id, grid_id } = { ...req.query, ...req.params };
+      const { cohort_id, grid_id, site_id } = { ...req.query, ...req.params };
 
       let locationErrors = 0;
 
@@ -1288,6 +1288,8 @@ const createEvent = {
         if (isEmpty(request.query.site_id)) {
           locationErrors++;
         }
+      } else if (!isEmpty(site_id)) {
+        request.query.site_id = site_id;
       }
 
       if (locationErrors === 0) {
