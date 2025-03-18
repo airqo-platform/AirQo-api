@@ -12,7 +12,7 @@ from .constants import DeviceCategory, DeviceNetwork
 from .utils import Utils
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirQoApi:
@@ -51,6 +51,7 @@ class AirQoApi:
                     method="post",
                     body=data,
                 )
+            logger.info(f"{len(data)} records sent to the events api")
 
     def get_maintenance_logs(
         self, network: str, device: str, activity_type: str = None

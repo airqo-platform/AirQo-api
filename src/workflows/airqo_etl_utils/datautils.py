@@ -28,7 +28,7 @@ from .data_validator import DataValidationUtils
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DataUtils:
@@ -421,8 +421,8 @@ class DataUtils:
             Exception: For unexpected errors during column retrieval or data processing.
         """
         bigquery = BigQueryApi()
-        data.dropna(subset=["timestamp"], inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        data.dropna(subset=["timestamp"], inplace=True)
 
         try:
             datasource = Config.DataSource

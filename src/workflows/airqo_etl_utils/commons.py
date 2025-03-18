@@ -2,7 +2,7 @@ import pandas as pd
 from google.cloud import storage
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):

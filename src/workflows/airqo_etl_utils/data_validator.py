@@ -10,7 +10,7 @@ from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
 from .config import configuration as Config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DataValidationUtils:
