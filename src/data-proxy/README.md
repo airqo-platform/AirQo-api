@@ -1,11 +1,11 @@
-# Data Management Microservice.
+# Data Proxy Microservice.
 
 ![Node.js](https://img.shields.io/badge/node-%3E%3D%2012.0.0-brightgreen.svg)
 ![Docker](https://img.shields.io/docker/v/<your_docker_username>/iot-measurements-microservice)
 
 ## Overview
 
-This data management microservice is a Node.js-based application deployed using Docker. It retrieves measurements from another system related to devices and performs various transformations to enhance the data with more descriptive field names. Additionally, the microservice monitors faults in the device data and appropriately flags them.
+This data Proxy microservice is a Node.js-based application deployed using Docker. It retrieves measurements from another system related to devices and performs various transformations to enhance the data with more descriptive field names. Additionally, the microservice monitors faults in the device data and appropriately flags them.
 
 ## Features
 
