@@ -8,7 +8,7 @@ from typing import Dict, List, Any
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirQoTweetsUtils:

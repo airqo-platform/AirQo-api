@@ -24,7 +24,7 @@ from .weather_data_utils import WeatherDataUtils
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirQoDataUtils:

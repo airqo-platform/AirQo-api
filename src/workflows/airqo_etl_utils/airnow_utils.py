@@ -11,7 +11,7 @@ from .datautils import DataUtils
 from .config import configuration as Config
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirnowDataUtils:

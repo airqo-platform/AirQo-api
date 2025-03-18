@@ -28,7 +28,7 @@ from .data_validator import DataValidationUtils
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DataUtils:

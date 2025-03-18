@@ -7,7 +7,7 @@ from .config import configuration
 import logging
 from typing import Any, Dict, List, Union, Tuple, Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DataSourcesApis:

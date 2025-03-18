@@ -24,7 +24,7 @@ from .email_templates import forecast_email
 from typing import Tuple, Optional
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 cred = credentials.Certificate(
     {

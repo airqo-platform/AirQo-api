@@ -7,12 +7,10 @@ import pandas as pd
 from confluent_kafka import Producer, Consumer, TopicPartition
 
 from .config import configuration
-from airqo_etl_utils.airqo_api import AirQoApi
-from .date import date_to_str
 
 from typing import Any, Generator, Optional, List
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class MessageBrokerUtils:

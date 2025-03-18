@@ -12,7 +12,7 @@ from .constants import DeviceCategory, DeviceNetwork
 from .utils import Utils
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirQoApi:
