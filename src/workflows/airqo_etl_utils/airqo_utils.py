@@ -786,17 +786,21 @@ class AirQoDataUtils:
         devices.drop_duplicates(
             subset=["device_id", "timestamp"], keep="first", inplace=True
         )
+        devices["timestamp"] = pd.to_datetime(devices.timestamp, errors="coerce")
         devices.dropna(subset=["timestamp"], inplace=True)
 
         data_store: List[pd.DataFrame] = []
         # TODO Might have to change approach to group by device_id depending on performance.
         for _, row in devices.iterrows():
+            start_date_time = DateUtils.format_datetime_by_unit_str(
+                row.timestamp, "hours_start"
+            )
             end_date_time = DateUtils.format_datetime_by_unit_str(
                 row.timestamp, "hours_end"
             )
             raw_device_data = DataUtils.extract_data_from_bigquery(
                 DataType.RAW,
-                start_date_time=row.timestamp,
+                start_date_time=start_date_time,
                 end_date_time=end_date_time,
                 frequency=Frequency.RAW,
                 device_category=DeviceCategory.GENERAL,
