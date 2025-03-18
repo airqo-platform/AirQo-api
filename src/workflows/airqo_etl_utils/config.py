@@ -368,6 +368,7 @@ class Config:
             "mapping": {
                 "airqo": AIRQO_BAM_MAPPING_NEW,
                 "airbeam": AIRBEAM_BAM_FIELD_MAPPING,
+                "metone": AIRBEAM_BAM_FIELD_MAPPING,
             },
             "other_fields_cols": [],
         },
