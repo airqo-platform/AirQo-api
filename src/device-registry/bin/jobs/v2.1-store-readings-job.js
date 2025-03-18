@@ -21,7 +21,16 @@ const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 
-// Helper function to update entity status (previously undefined)
+// Utility function to check if an error is a duplicate key error
+function isDuplicateKeyError(error) {
+  return (
+    error &&
+    (error.code === 11000 ||
+      (error.name === "MongoError" && error.code === 11000))
+  );
+}
+
+// Helper function to update entity status
 async function updateEntityStatus(Model, filter, time, entityType) {
   try {
     const entity = await Model.findOne(filter);
@@ -40,6 +49,9 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       );
     }
   } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
     logger.error(
       `🐛🐛 Error updating ${entityType}'s status: ${error.message}`
     );
@@ -117,9 +129,8 @@ class BatchProcessor {
         upsert: true,
       });
     } catch (error) {
-      if (error.code === 11000) {
-        // Duplicate key error, log and continue
-        // logger.warn(`🙀🙀 Duplicate key error: ${error.message}`);
+      if (isDuplicateKeyError(error)) {
+        // Silently ignore duplicate key errors - no logging
         return; // Skip to the next document
       }
       logger.error(`🐛🐛 Error processing document: ${error.message}`);
@@ -129,7 +140,6 @@ class BatchProcessor {
 
   async getOrQueueAverages(siteId) {
     // Check cache first
-    // logObject("the siteId", siteId);
     const cachedAverages = siteAveragesCache.get(siteId);
     if (cachedAverages) {
       return cachedAverages;
@@ -162,6 +172,9 @@ class BatchProcessor {
       const averages = await EventModel("airqo").getAirQualityAverages(siteId);
       return averages?.success ? averages.data : null;
     } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        return null; // Silently ignore duplicate key errors
+      }
       logger.error(
         `🐛🐛 Error calculating averages for site ${siteId}: ${error.message}`
       );
@@ -172,34 +185,50 @@ class BatchProcessor {
 
 // Helper function to update offline devices
 async function updateOfflineDevices(data) {
-  const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
-  const thresholdTime = moment()
-    .subtract(INACTIVE_THRESHOLD, "milliseconds")
-    .toDate();
+  try {
+    const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
+    const thresholdTime = moment()
+      .subtract(INACTIVE_THRESHOLD, "milliseconds")
+      .toDate();
 
-  await DeviceModel("airqo").updateMany(
-    {
-      _id: { $nin: Array.from(activeDeviceIds) },
-      lastActive: { $lt: thresholdTime },
-    },
-    { isOnline: false }
-  );
+    await DeviceModel("airqo").updateMany(
+      {
+        _id: { $nin: Array.from(activeDeviceIds) },
+        lastActive: { $lt: thresholdTime },
+      },
+      { isOnline: false }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
+    logger.error(`🐛🐛 Error updating offline devices: ${error.message}`);
+  }
 }
 
 // Helper function to update offline sites
 async function updateOfflineSites(data) {
-  const activeSiteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
-  const thresholdTime = moment()
-    .subtract(INACTIVE_THRESHOLD, "milliseconds")
-    .toDate();
+  try {
+    const activeSiteIds = new Set(
+      data.map((doc) => doc.site_id).filter(Boolean)
+    );
+    const thresholdTime = moment()
+      .subtract(INACTIVE_THRESHOLD, "milliseconds")
+      .toDate();
 
-  await SiteModel("airqo").updateMany(
-    {
-      _id: { $nin: Array.from(activeSiteIds) },
-      lastActive: { $lt: thresholdTime },
-    },
-    { isOnline: false }
-  );
+    await SiteModel("airqo").updateMany(
+      {
+        _id: { $nin: Array.from(activeSiteIds) },
+        lastActive: { $lt: thresholdTime },
+      },
+      { isOnline: false }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
+    logger.error(`🐛🐛 Error updating offline sites: ${error.message}`);
+  }
 }
 
 // Main function to fetch and store data
@@ -223,6 +252,10 @@ async function fetchAndStoreDataIntoReadingsModel() {
       viewEventsResponse = await EventModel("airqo").fetch(filter);
       logText("Running the data insertion script");
     } catch (fetchError) {
+      if (isDuplicateKeyError(fetchError)) {
+        logText("Ignoring duplicate key error in fetch operation");
+        return;
+      }
       logger.error(`🐛🐛 Error fetching events: ${stringify(fetchError)}`);
       return;
     }
@@ -255,7 +288,11 @@ async function fetchAndStoreDataIntoReadingsModel() {
               try {
                 await batchProcessor.processDocument(doc);
               } catch (error) {
-                if (error.name === "MongoError" && error.code !== 11000) {
+                if (isDuplicateKeyError(error)) {
+                  // Silently ignore duplicate key errors
+                  return;
+                }
+                if (error.name === "MongoError") {
                   logger.error(
                     `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
                       error
@@ -263,10 +300,11 @@ async function fetchAndStoreDataIntoReadingsModel() {
                   );
                   throw error; // Retry non-duplicate errors
                 }
-                // Log duplicate errors but don't retry
-                console.warn(
-                  `🙀🙀 Duplicate key error for document: ${stringify(doc)}`
+                // Log other errors
+                logger.error(
+                  `🐛🐛 Error processing document: ${error.message}`
                 );
+                throw error;
               }
             },
             {
@@ -284,6 +322,10 @@ async function fetchAndStoreDataIntoReadingsModel() {
 
     logText("All data inserted successfully and offline devices updated");
   } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      logText("Completed with some duplicate key errors (ignored)");
+      return;
+    }
     logger.error(`🐛🐛 Internal Server Error ${stringify(error)}`);
   }
 }
@@ -303,4 +345,5 @@ module.exports = {
   isEntityActive,
   updateOfflineDevices,
   updateOfflineSites,
+  isDuplicateKeyError, // Export the utility function for testing
 };
