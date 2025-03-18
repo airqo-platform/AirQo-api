@@ -143,10 +143,12 @@ class AirnowDataUtils:
                     logger.exception(f"Device with ID {device_id_} not found")
                     continue
 
-                parameter_col_name = Config.device_config_mapping.get(
-                    DeviceCategory.BAM.str, {}
-                ).get(row["Parameter"].lower(), None)
-
+                parameter_col_name = (
+                    Config.device_config_mapping.get(DeviceCategory.BAM.str, {})
+                    .get("mapping", {})
+                    .get(DeviceNetwork.METONE.str, {})
+                    .get(row["Parameter"].lower(), None)
+                )
                 if parameter_col_name and parameter_col_name in pollutant_value:
                     pollutant_value[parameter_col_name] = row["Value"]
 
