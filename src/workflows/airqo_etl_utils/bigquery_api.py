@@ -1,11 +1,10 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 import pandas as pd
 from google.cloud import bigquery
-from google.oauth2 import service_account
 
 from .config import configuration
 from .constants import (
@@ -13,13 +12,12 @@ from .constants import (
     ColumnDataType,
     DeviceNetwork,
     QueryType,
-    DeviceCategory,
     MetaDataType,
 )
 from .date import date_to_str
 from .utils import Utils
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class BigQueryApi:

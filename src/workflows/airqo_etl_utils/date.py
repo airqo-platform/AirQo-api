@@ -3,7 +3,7 @@ from typing import Tuple, Optional, Dict, Any
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DateUtils:
