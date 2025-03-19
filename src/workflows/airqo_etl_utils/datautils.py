@@ -1000,15 +1000,13 @@ class DataUtils:
         devices, _ = DataUtils.get_devices(
             device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
         )
-
-        pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
-
         device_mapping = {
             device_code: device
             for device in devices.to_dict(orient="records")
             for device_code in ast.literal_eval(device.get("device_codes", []))
         }
         for _, row in data.iterrows():
+            pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
             try:
                 # Temp external device id  # Lookup device details based on FullAQSCode
                 device_id_ = str(row["FullAQSCode"])

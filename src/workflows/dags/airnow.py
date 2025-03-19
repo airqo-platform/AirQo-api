@@ -38,7 +38,7 @@ def airnow_bam_historical_data():
         data = DataUtils.process_data_for_message_broker(
             data=data,
         )
-        if not isinstance(pd.DataFrame, data):
+        if not isinstance(data, pd.DataFrame):
             raise AirflowFailException(
                 "Processing for message broker failed. Please check if kafka is up and running."
             )
@@ -105,7 +105,7 @@ def airnow_bam_realtime_data():
 
         data = DataUtils.process_data_for_message_broker(data=data)
 
-        if not isinstance(pd.DataFrame, data.empty):
+        if not isinstance(data, pd.DataFrame):
             raise AirflowFailException(
                 f"Processing for message broker failed. Please check if kafka is up and running. Data: {data.info}"
             )
