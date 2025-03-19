@@ -3,6 +3,7 @@ from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airqo_etl_utils.date import DateUtils
 from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.airnow_utils import AirnowDataUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from datetime import timedelta
 from airqo_etl_utils.config import configuration as Config
@@ -20,10 +21,7 @@ from airflow.exceptions import AirflowFailException
 def airnow_bam_historical_data():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
         return AirnowDataUtils.extract_bam_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -31,8 +29,6 @@ def airnow_bam_historical_data():
 
     @task()
     def process_data(data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
         return AirnowDataUtils.process_bam_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -42,7 +38,7 @@ def airnow_bam_historical_data():
         data = DataUtils.process_data_for_message_broker(
             data=data,
         )
-        if not data:
+        if not isinstance(data, pd.DataFrame):
             raise AirflowFailException(
                 "Processing for message broker failed. Please check if kafka is up and running."
             )
@@ -68,11 +64,11 @@ def airnow_bam_historical_data():
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
             from airqo_etl_utils.data_validator import DataValidationUtils
-            from airqo_etl_utils.airqo_api import AirQoApi
+            from airqo_etl_utils.data_api import DataApi
 
             data = DataValidationUtils.process_data_for_api(data)
-            airqo_api = AirQoApi()
-            airqo_api.save_events(measurements=data)
+            data_api = DataApi()
+            data_api.save_events(measurements=data)
         else:
             print("The send to API parameter has been set to false")
 
@@ -94,29 +90,22 @@ def airnow_bam_historical_data():
 def airnow_bam_realtime_data():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
         start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
         return AirnowDataUtils.extract_bam_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()
     def process_data(data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
         return AirnowDataUtils.process_bam_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
-        data = DataUtils.process_data_for_message_broker(
-            data=data,
-        )
+        data = DataUtils.process_data_for_message_broker(data=data)
 
-        if data.empty:
+        if not isinstance(data, pd.DataFrame):
             raise AirflowFailException(
                 f"Processing for message broker failed. Please check if kafka is up and running. Data: {data.info}"
             )
@@ -140,11 +129,11 @@ def airnow_bam_realtime_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame):
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.data_api import DataApi
 
         data = DataValidationUtils.process_data_for_api(data)
-        airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=data)
+        data_api = DataApi()
+        data_api.save_events(measurements=data)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)

@@ -118,16 +118,14 @@ def airqo_historical_hourly_measurements():
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs) -> None:
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
-            from airqo_etl_utils.airqo_api import AirQoApi
+            from airqo_etl_utils.data_api import DataApi
 
             data = DataUtils.process_data_for_api(
                 airqo_data, frequency=Frequency.HOURLY
             )
 
-            airqo_api = AirQoApi()
-            airqo_api.save_events(measurements=data)
-        else:
-            print("The send to API parameter has been set to false")
+            data_api = DataApi()
+            data_api.save_events(measurements=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_message_broker(
@@ -410,12 +408,12 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.data_api import DataApi
 
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
-        airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=data)
+        data_api = DataApi()
+        data_api.save_events(measurements=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame, **kwargs):
@@ -652,12 +650,12 @@ def airqo_bigquery_data_measurements_to_api():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.data_api import DataApi
 
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
-        airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=data)
+        data_api = DataApi()
+        data_api.save_events(measurements=data)
         previous_date = datetime.strptime(
             Variable.get("new_date_2021"), "%Y-%m-%dT%H:%M:%SZ"
         )
@@ -715,13 +713,13 @@ def calibrate_missing_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(calibrated_data: pd.DataFrame) -> None:
-        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.data_api import DataApi
 
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         data = DataUtils.process_data_for_api(
             calibrated_data, frequency=Frequency.HOURLY
         )
-        airqo_api.save_events(measurements=data)
+        data_api.save_events(measurements=data)
 
     devices = extract_devices_missing_calibrated_data()
     calibrated_data = extract_calibrate_data(devices)
