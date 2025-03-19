@@ -18,7 +18,7 @@ from typing import List, Dict, Any
 )
 def airqo_devices_data():
     import pandas as pd
-    from airqo_etl_utils.airqo_utils import DataApi
+    from airqo_etl_utils.data_api import DataApi
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_devices() -> pd.DataFrame:
