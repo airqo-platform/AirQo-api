@@ -2,12 +2,9 @@ import pandas as pd
 from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
 from airqo_etl_utils.date import DateUtils
-from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.airnow_utils import AirnowDataUtils
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 from datetime import timedelta
-from airqo_etl_utils.config import configuration as Config
-from airflow.exceptions import AirflowFailException
 
 
 @dag(
@@ -33,44 +30,15 @@ def airnow_bam_historical_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_message_broker(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-
-        data = DataUtils.process_data_for_message_broker(
-            data=data,
-        )
-        if not isinstance(data, pd.DataFrame):
-            raise AirflowFailException(
-                "Processing for message broker failed. Please check if kafka is up and running."
-            )
-
-        broker = MessageBrokerUtils()
-        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)
+        return AirnowDataUtils.send_to_broker(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_bigquery(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.hourly_measurements_table
-
-        processed_data = DataValidationUtils.process_for_big_query(
-            dataframe=data, table=table
-        )
-        big_query_api.load_data(dataframe=processed_data, table=table)
+        return AirnowDataUtils.send_to_bigquery(data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame, **kwargs):
-        send_to_api_param = kwargs.get("params", {}).get("send_to_api")
-        if send_to_api_param:
-            from airqo_etl_utils.data_validator import DataValidationUtils
-            from airqo_etl_utils.data_api import DataApi
-
-            data = DataValidationUtils.process_data_for_api(data)
-            data_api = DataApi()
-            data_api.save_events(measurements=data)
-        else:
-            print("The send to API parameter has been set to false")
+        return AirnowDataUtils.send_to_api(data, kwargs)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
@@ -100,40 +68,16 @@ def airnow_bam_realtime_data():
         return AirnowDataUtils.process_bam_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_to_message_broker(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-
-        data = DataUtils.process_data_for_message_broker(data=data)
-
-        if not isinstance(data, pd.DataFrame):
-            raise AirflowFailException(
-                f"Processing for message broker failed. Please check if kafka is up and running. Data: {data.info}"
-            )
-
-        broker = MessageBrokerUtils()
-        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)
+    def send_to_message_broker(data: pd.DataFrame):
+        return AirnowDataUtils.send_to_broker(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_bigquery(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.hourly_measurements_table
-
-        processed_data = DataValidationUtils.process_for_big_query(
-            dataframe=data, table=table
-        )
-        big_query_api.load_data(dataframe=processed_data, table=table)
+        return AirnowDataUtils.send_to_bigquery(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_to_api(data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.data_api import DataApi
-
-        data = DataValidationUtils.process_data_for_api(data)
-        data_api = DataApi()
-        data_api.save_events(measurements=data)
+    def send_to_api(data: pd.DataFrame, **kwargs):
+        return AirnowDataUtils.send_to_api(data=data)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
