@@ -29,7 +29,7 @@ def airnow_bam_historical_data():
         return AirnowDataUtils.process_bam_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_to_message_broker(data: pd.DataFrame, **kwargs):
+    def send_to_message_broker(data: pd.DataFrame):
         return AirnowDataUtils.send_to_broker(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -38,7 +38,7 @@ def airnow_bam_historical_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame, **kwargs):
-        return AirnowDataUtils.send_to_api(data, kwargs)
+        return AirnowDataUtils.send_to_api(data, **kwargs)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
@@ -77,7 +77,7 @@ def airnow_bam_realtime_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame, **kwargs):
-        return AirnowDataUtils.send_to_api(data=data)
+        return AirnowDataUtils.send_to_api(data=data, **kwargs)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
