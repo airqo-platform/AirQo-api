@@ -98,7 +98,15 @@ def get_data_by_confidence():
 def get_all_data():
     return PollutantApis.get_all_data()
 
+@controller_bp.route('/save-all-location', methods=['GET'])
+def save_all_location_data():
+    try:
+        return PollutantProfileApis.add_location_profile()
+    except Exception as e:
+        logging.error(f"Error handling request: {e}")
+        return jsonify({"error": f"Internal Server Error: {e}"}), 500
+
 @controller_bp.route('/get-all-data-location', methods=['GET'])
 def get_all_location_data():
-    return PollutantProfileApis.add_location_profile()
+    return PollutantProfileApis.get_location_profile_data()
 

@@ -1,3 +1,5 @@
+import logging
+
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 
@@ -5,6 +7,17 @@ import ee
 from google.oauth2 import service_account
 
 from configure import Config
+import osmnx as ox
+
+import logging
+from pyproj import Transformer, CRS
+from shapely.geometry import Point
+import osmnx as ox
+import math
+from collections import defaultdict
+import requests
+
+
 
 
 class GetEnviromentProfile:
@@ -45,18 +58,17 @@ class GetLocationProfile:
     def create_buffer(latitude, longitude, radius):
         transformer = Transformer.from_crs(CRS("epsg:4326"), CRS("epsg:3857"), always_xy=True)
         point = Point(longitude, latitude)
-        point_transformed = transform(transformer.transform, point)
+        point_transformed = transformer.transform(point.x, point.y)
         buffer = point_transformed.buffer(radius)
-        buffer_transformed_back = transform(Transformer.from_crs(CRS("epsg:3857"), CRS("epsg:4326"), always_xy=True).transform, buffer)
+        buffer_transformed_back = transformer.transform(buffer.x, buffer.y)
         return buffer_transformed_back  
-        
+    
     @staticmethod
     def flatten_highway(highway):
         if isinstance(highway, list):
             return highway
         return [highway]
 
-    @staticmethod
     def process_location(latitude: float, longitude: float, radius: int):
         try:
             # Get the road network within the specified radius
@@ -92,9 +104,9 @@ class GetLocationProfile:
                 building_density = number_of_buildings / buffer_area
                 building_types = buildings['building'].unique() if 'building' in buildings.columns else []
             except Exception as e:
-                number_of_buildings = 'Error'
-                building_density = 'Error'
-                building_types = 'Error'
+                number_of_buildings = 0
+                building_density = 0
+                building_types = 0
             # Compile the result for the given location
             result = {
             'latitude': latitude,
@@ -107,14 +119,15 @@ class GetLocationProfile:
             #'building_types': ', '.join(building_types) if isinstance(building_types, list) else building_types
             }
 
-            #print(result)
 
             # Convert any ndarrays or other non-serializable types to lists or simple types
             result.update(road_type_lengths)
 
             return result
-
+        
+        except requests.exceptions.RequestException as e:
+            return {'error': f"Network-related error: {e}"}
+        except ValueError as e:
+            return {'error': f"Data format error: {e}"}
         except Exception as e:
-            return {'error': f"Error processing location: {e}"}
-
-
+            return {'error': f"Unexpected error: {e}"}
