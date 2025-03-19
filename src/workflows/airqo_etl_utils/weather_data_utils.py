@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from .airqo_api import AirQoApi
+from .data_api import DataApi
 from .config import configuration as Config
 from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .datautils import DataUtils
@@ -63,10 +63,10 @@ class WeatherDataUtils:
 
         """
         data = []
-        airqo_api = AirQoApi()
+        data_api = DataApi()
 
         for _, record in records.iterrows():
-            weather_stations = airqo_api.get_nearest_weather_stations(
+            weather_stations = data_api.get_nearest_weather_stations(
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )
@@ -96,10 +96,10 @@ class WeatherDataUtils:
             pd.DataFrame: A DataFrame containing the original metadata along with the nearest weather station information. The resulting DataFrame includes columns such as `station_code` and `distance` to the station.
         """
         data = []
-        airqo_api = AirQoApi()
+        data_api = DataApi()
 
         for record in meta_data:
-            weather_stations = airqo_api.get_nearest_weather_stations(
+            weather_stations = data_api.get_nearest_weather_stations(
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )

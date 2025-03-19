@@ -1,10 +1,10 @@
 import random
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.config import twitter_client
 
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 import logging
 
@@ -44,7 +44,7 @@ class AirQoTweetsUtils:
         all_site_forecasts = {}
         for site_name, site_id in sites_dict.items():
             try:
-                site_forecast = AirQoApi().get_forecast(
+                site_forecast = DataApi().get_forecast(
                     frequency="daily", site_id=site_id
                 )[0]
             except IndexError:
