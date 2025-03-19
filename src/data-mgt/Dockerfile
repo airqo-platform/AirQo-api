@@ -27,4 +27,4 @@ CMD [ "npm", "run", "stage" ]
 FROM base as production
 
 RUN npm ci --only=production
-CMD [ "npm", "start" ]
+CMD [ "npm", "run","start" ] 
