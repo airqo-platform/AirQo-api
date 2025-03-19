@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Union, Generator, Optional
 
-from .airqo_api import AirQoApi
+from .data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
 from .constants import (
@@ -462,12 +462,12 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
         for _, device in devices.iterrows():
             try:
-                maintenance_logs = airqo_api.get_maintenance_logs(
+                maintenance_logs = data_api.get_maintenance_logs(
                     network=device.get("network", DeviceNetwork.AIRQO.str),
                     device=device.get("name", None),
                     activity_type="deployment",

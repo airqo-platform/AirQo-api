@@ -64,11 +64,11 @@ def airnow_bam_historical_data():
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
             from airqo_etl_utils.data_validator import DataValidationUtils
-            from airqo_etl_utils.airqo_api import DataApi
+            from airqo_etl_utils.data_api import DataApi
 
             data = DataValidationUtils.process_data_for_api(data)
-            airqo_api = DataApi()
-            airqo_api.save_events(measurements=data)
+            data_api = DataApi()
+            data_api.save_events(measurements=data)
         else:
             print("The send to API parameter has been set to false")
 
@@ -129,11 +129,11 @@ def airnow_bam_realtime_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_to_api(data: pd.DataFrame):
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.airqo_api import DataApi
+        from airqo_etl_utils.data_api import DataApi
 
         data = DataValidationUtils.process_data_for_api(data)
-        airqo_api = DataApi()
-        airqo_api.save_events(measurements=data)
+        data_api = DataApi()
+        data_api.save_events(measurements=data)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)

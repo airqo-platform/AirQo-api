@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.constants import ColumnDataType, Frequency, MetaDataType
+from airqo_etl_utils.data_api import DataApi
+from airqo_etl_utils.constants import ColumnDataType, MetaDataType
 from airqo_etl_utils.date import date_to_str
 from typing import Any, Dict, List
 from .config import configuration as Config
@@ -372,10 +372,10 @@ class DataValidationUtils:
         Returns:
             pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
         """
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         endpoints: Dict[str, Any] = {
-            "devices": airqo_api.get_devices_by_network(),
-            "sites": airqo_api.get_sites(),
+            "devices": data_api.get_devices_by_network(),
+            "sites": data_api.get_sites(),
         }
         result: pd.DataFrame = pd.DataFrame()
         match metadata_type:
@@ -383,7 +383,7 @@ class DataValidationUtils:
                 devices_raw = endpoints.get(metadata_type.str)
                 if devices_raw:
                     devices_df = pd.DataFrame(devices_raw)
-                    keys = airqo_api.get_thingspeak_read_keys(devices_df)
+                    keys = data_api.get_thingspeak_read_keys(devices_df)
                     if keys:
                         devices_df["key"] = (
                             devices_df["device_number"].map(keys).fillna(-1)
