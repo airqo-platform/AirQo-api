@@ -17,7 +17,7 @@ from .constants import Frequency
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID

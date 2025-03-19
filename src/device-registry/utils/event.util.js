@@ -865,6 +865,17 @@ const createEvent = {
       let missingDataMessage = "";
       const { query } = request;
       let { limit, skip } = query;
+      limit = Number(limit);
+      skip = Number(skip);
+
+      if (Number.isNaN(limit) || limit < 0) {
+        limit = 30;
+      }
+
+      if (Number.isNaN(skip) || skip < 0) {
+        skip = 0;
+      }
+
       const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
@@ -906,6 +917,20 @@ const createEvent = {
         },
         next
       );
+
+      if (!responseFromListEvents) {
+        // Handle cases where responseFromListEvents is null or undefined
+        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Error retrieving events from the database",
+            }
+          )
+        );
+      }
 
       if (
         language !== undefined &&

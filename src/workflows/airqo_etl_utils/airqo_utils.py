@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Union, Generator, Optional
 
-from .airqo_api import AirQoApi
+from .data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
 from .constants import (
@@ -24,7 +24,7 @@ from .weather_data_utils import WeatherDataUtils
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirQoDataUtils:
@@ -284,7 +284,7 @@ class AirQoDataUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
 
         group_metadata = data[
-            ["device_id", "site_id", "device_number", "network"]
+            ["device_id", "site_id", "device_number", "network", "device_category"]
         ].drop_duplicates("device_id")
         group_metadata.set_index("device_id", inplace=True)
         numeric_columns = data.select_dtypes(include=["number"]).columns
@@ -462,12 +462,12 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.AIRQO)
         devices_history = pd.DataFrame()
         for _, device in devices.iterrows():
             try:
-                maintenance_logs = airqo_api.get_maintenance_logs(
+                maintenance_logs = data_api.get_maintenance_logs(
                     network=device.get("network", DeviceNetwork.AIRQO.str),
                     device=device.get("name", None),
                     activity_type="deployment",
@@ -766,7 +766,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_aggregate_calibrate_raw_data(
         devices: pd.DataFrame,
-    ) -> Generator[pd.DataFrame, None, None]:
+    ) -> pd.DataFrame:
         """
         Extracts and aggregates raw sensor data for each device in the provided DataFrame.
 
@@ -786,16 +786,21 @@ class AirQoDataUtils:
         devices.drop_duplicates(
             subset=["device_id", "timestamp"], keep="first", inplace=True
         )
+        devices["timestamp"] = pd.to_datetime(devices.timestamp, errors="coerce")
         devices.dropna(subset=["timestamp"], inplace=True)
 
+        data_store: List[pd.DataFrame] = []
         # TODO Might have to change approach to group by device_id depending on performance.
         for _, row in devices.iterrows():
+            start_date_time = DateUtils.format_datetime_by_unit_str(
+                row.timestamp, "hours_start"
+            )
             end_date_time = DateUtils.format_datetime_by_unit_str(
                 row.timestamp, "hours_end"
             )
             raw_device_data = DataUtils.extract_data_from_bigquery(
                 DataType.RAW,
-                start_date_time=row.timestamp,
+                start_date_time=start_date_time,
                 end_date_time=end_date_time,
                 frequency=Frequency.RAW,
                 device_category=DeviceCategory.GENERAL,
@@ -805,31 +810,38 @@ class AirQoDataUtils:
                     "device_category": DeviceCategory.LOWCOST.str,
                 },
             )
+            if not raw_device_data.empty:
+                data_store.append(raw_device_data)
+
+        if data_store:
+            devices_data = pd.concat(data_store, ignore_index=True)
 
             # Initialize `exclude_cols` only once
             if not exclude_cols:
                 exclude_cols = [
-                    raw_device_data.device_number.name,
-                    raw_device_data.latitude.name,
-                    raw_device_data.longitude.name,
-                    raw_device_data.network.name,
+                    devices_data.device_number.name,
+                    devices_data.latitude.name,
+                    devices_data.longitude.name,
+                    devices_data.network.name,
                 ]
-            if not raw_device_data.empty:
+            if not devices_data.empty:
                 try:
                     clean_raw = DataUtils.remove_duplicates(
-                        raw_device_data,
-                        timestamp_col=raw_device_data.timestamp.name,
-                        id_col=raw_device_data.device_id.name,
-                        group_col=raw_device_data.site_id.name,
+                        devices_data,
+                        timestamp_col=devices_data.timestamp.name,
+                        id_col=devices_data.device_id.name,
+                        group_col=devices_data.site_id.name,
                         exclude_cols=exclude_cols,
                     )
                     aggregated_device_data = (
                         AirQoDataUtils.aggregate_low_cost_sensors_data(data=clean_raw)
                     )
+                    start_date = devices.timestamp.min()
+                    end_date = devices.timestamp.min()
                     hourly_weather_data = DataUtils.extract_data_from_bigquery(
                         DataType.AVERAGED,
-                        start_date_time=row.timestamp,
-                        end_date_time=end_date_time,
+                        start_date_time=start_date,
+                        end_date_time=end_date,
                         frequency=Frequency.HOURLY,
                         device_category=DeviceCategory.WEATHER,
                         use_cache=True,
@@ -845,6 +857,6 @@ class AirQoDataUtils:
                     )
                 except Exception as e:
                     logger.exception(f"An error occured: {e}")
-                    continue
                 else:
-                    yield calibrated_data
+                    return calibrated_data
+        return pd.DataFrame()

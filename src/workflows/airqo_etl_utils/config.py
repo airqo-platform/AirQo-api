@@ -132,9 +132,6 @@ class Config:
     # Airnow
     AIRNOW_BASE_URL = os.getenv("AIRNOW_BASE_URL")
     AIRNOW_API_KEY = os.getenv("AIRNOW_API_KEY")
-    AIRNOW_COUNTRIES_METADATA_JSON_FILE = os.getenv(
-        "AIRNOW_COUNTRIES_METADATA_JSON_FILE"
-    )
 
     # US Embassy
     US_EMBASSY_API_KEY = os.getenv("US_EMBASSY_API_KEY")
@@ -175,6 +172,40 @@ class Config:
     PURPLE_AIR_BASE_URL = os.getenv("PURPLE_AIR_BASE_URL")
     PURPLE_AIR_API_KEY = os.getenv("PURPLE_AIR_API_KEY")
 
+    # Integrations:
+    INTEGRATION_DETAILS = {
+        "airqo": {
+            "url": AIRQO_BASE_URL_V2,
+            "auth": {"Authorization": f"JWT {AIRQO_API_KEY}"},
+            "token": AIRQO_API_TOKEN,
+            "endpoints": {},
+        },
+        "metone": {
+            "url": AIRNOW_BASE_URL,
+            "auth": {"API_KEY": US_EMBASSY_API_KEY},
+            "endpoints": {"get_data": "/aq/data"},
+            "extras": {
+                "boundary_box": "-16.9530804676,-33.957634112,54.8058474018,37.2697926495",
+                "parameters": "pm25,pm10,ozone,co,no2,so2",
+            },
+        },
+        "tahmo": {
+            "url": TAHMO_BASE_URL,
+            "auth": {"API_KEY": TAHMO_API_KEY},
+            "secret": TAHMO_API_SECRET,
+            "endpoints": {},
+        },
+        "openweather": {
+            "url": OPENWEATHER_BASE_URL,
+            "auth": {"appid": OPENWEATHER_API_KEY},
+            "endpoints": {},
+        },
+    }
+
+    # ---------------------------------------------------------------------
+    # Mapping
+    # ----------------------------------------------------------------------
+    # AirQuality Categories
     AIR_QUALITY_CATEGORY = {
         Pollutant.PM10: [
             (55, QualityCategorization.GOOD),
@@ -198,6 +229,7 @@ class Config:
             (361, QualityCategorization.UNHEALTHY_FSGs),
         ],
     }
+
     AIRQO_BAM_CONFIG = {
         0: "timestamp",
         1: "realtime_conc",
@@ -368,6 +400,7 @@ class Config:
             "mapping": {
                 "airqo": AIRQO_BAM_MAPPING_NEW,
                 "airbeam": AIRBEAM_BAM_FIELD_MAPPING,
+                "metone": AIRBEAM_BAM_FIELD_MAPPING,
             },
             "other_fields_cols": [],
         },

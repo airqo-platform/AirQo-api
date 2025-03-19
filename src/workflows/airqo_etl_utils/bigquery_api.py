@@ -1,11 +1,10 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 import pandas as pd
 from google.cloud import bigquery
-from google.oauth2 import service_account
 
 from .config import configuration
 from .constants import (
@@ -13,12 +12,12 @@ from .constants import (
     ColumnDataType,
     DeviceNetwork,
     QueryType,
-    DeviceCategory,
+    MetaDataType,
 )
 from .date import date_to_str
 from .utils import Utils
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class BigQueryApi:
@@ -282,95 +281,11 @@ class BigQueryApi:
         logger.info(f"Loaded {len(dataframe)} rows to {table}")
         logger.info(f"Total rows after load :  {destination_table.num_rows}")
 
-    @staticmethod
-    def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
-        dataframe[id_column] = dataframe.apply(
-            lambda row: BigQueryApi.device_unique_col(
-                network=row["network"],
-                device_number=row["device_number"],
-                device_id=row["device_id"],
-            ),
-            axis=1,
-        )
-        return dataframe
-
-    @staticmethod
-    def device_unique_col(network: DeviceNetwork, device_id: str, device_number: int):
-        return str(f"{str(network)}:{device_id}:{device_number}").lower()
-
-    def update_airqlouds(self, dataframe: pd.DataFrame, table=None) -> None:
-        if table is None:
-            table = self.airqlouds_table
-        unique_cols = ["id", "network"]
-
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            table=table,
-        )
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
-    def update_grids(self, dataframe: pd.DataFrame, table=None) -> None:
-        if table is None:
-            table = self.grids_table
-        unique_cols = ["id", "network"]
-
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            table=table,
-        )
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
-    def update_cohorts(self, dataframe: pd.DataFrame, table=None) -> None:
-        if table is None:
-            table = self.cohorts_table
-        unique_cols = ["id", "network"]
-
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            table=table,
-        )
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.airqlouds_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -392,7 +307,6 @@ class BigQueryApi:
             table = self.grids_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -413,7 +327,6 @@ class BigQueryApi:
             table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -429,55 +342,70 @@ class BigQueryApi:
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
 
-    def update_sites_and_devices(
+    def update_meta_data(
         self,
         dataframe: pd.DataFrame,
         table: str,
-        component: str,
+        component: MetaDataType,
     ) -> None:
+        """
+        Updates the site or device data by validating, deduplicating, and merging it with existing records.
+
+        Args:
+            dataframe(pd.DataFrame): The input data containing site or device information.
+            table(str): The database table name to update.
+            component(str): Specifies whether the data is for 'sites' or 'devices'.
+
+        Raises:
+            Exception: If an invalid component is provided.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
+        unique_ids = {
+            "sites": ["id"],
+            "devices": ["device_id"],
+            "grids": ["id", "network"],
+            "airqlouds": ["id", "network"],
+            "cohorts": ["id", "network"],
+        }
 
-        if component == "sites":
-            unique_id = "id"
+        unique_id = unique_ids.get(component.str, None)
 
-        elif component == "devices":
-            unique_id = "unique_id"
-            dataframe = self.add_unique_id(dataframe)
+        if unique_id is None:
+            raise Exception(f"Invalid metadata component: {component.str}")
 
-        else:
-            raise Exception("Invalid component. Valid values are sites and devices.")
+        dataframe.drop_duplicates(subset=[unique_id[0]], inplace=True, keep="first")
 
-        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+        q = f"SELECT * FROM `{table}` "
 
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
+        if "last_updated" in dataframe.columns.to_list():
+            q += "ORDER BY last_updated"
 
-        if available_data.empty:
-            up_to_date_data = dataframe
-        else:
-            if component == "devices":
-                available_data = self.add_unique_id(available_data)
+        available_data = self.client.query(query=q).result().to_dataframe()
 
-            available_data.drop_duplicates(
-                subset=[unique_id], inplace=True, keep="first"
-            )
+        if not available_data.empty:
+            available_data.drop_duplicates(subset=unique_id, inplace=True, keep="first")
             data_not_for_updating = available_data.loc[
-                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+                ~available_data[unique_id[0]].isin(dataframe[unique_id[0]].to_list())
             ]
-            up_to_date_data = pd.concat(
-                [data_not_for_updating, dataframe], ignore_index=True
-            )
+            dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
-        if component == "devices":
-            del up_to_date_data[unique_id]
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
+        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
 
     def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
+        """
+        Updates the site metadata by validating, deduplicating, and merging it with existing records.
+
+        Args:
+            dataframe (pd.DataFrame): The input data containing site metadata.
+
+        Returns:
+            None
+
+        This function ensures that the provided dataframe is validated, removes duplicates based on 'site_id',
+        and merges it with existing site metadata in the database. The updated data is then loaded back
+        into the database with an overwrite operation.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         table = self.sites_meta_data_table
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -502,45 +430,6 @@ class BigQueryApi:
             up_to_date_data = pd.concat(
                 [data_not_for_updating, dataframe], ignore_index=True
             )
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
-    def update_data(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
-    ) -> None:
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe = self.validate_data(dataframe=dataframe, table=table)
-        dataframe = self.add_unique_id(dataframe=dataframe)
-        dataframe.drop_duplicates(subset=["unique_id"], inplace=True, keep="first")
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        if available_data.empty:
-            up_to_date_data = dataframe
-        else:
-            available_data["timestamp"] = available_data["timestamp"].apply(
-                pd.to_datetime
-            )
-            available_data = self.add_unique_id(dataframe=available_data)
-
-            available_data.drop_duplicates(
-                subset=["unique_id"], inplace=True, keep="first"
-            )
-            data_not_for_updating = available_data.loc[
-                ~available_data["unique_id"].isin(dataframe["unique_id"].to_list())
-            ]
-            up_to_date_data = pd.concat(
-                [data_not_for_updating, dataframe], ignore_index=True
-            )
-
-        up_to_date_data["timestamp"] = up_to_date_data["timestamp"].apply(date_to_str)
-        del up_to_date_data["unique_id"]
 
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
@@ -834,32 +723,6 @@ class BigQueryApi:
         query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
-
-    def query_devices(self, network: DeviceNetwork = None) -> pd.DataFrame:
-        if not network:
-            query = f"""
-              SELECT * FROM `{self.devices_table}`
-          """
-        else:
-            query = f"""
-                SELECT * FROM `{self.devices_table}` WHERE network = '{network.str}'
-            """
-
-        dataframe = self.client.query(query=query).result().to_dataframe()
-        return dataframe.drop_duplicates(keep="first")
-
-    def query_sites(self, network: DeviceNetwork = None) -> pd.DataFrame:
-        if not network:
-            query = f"""
-              SELECT * FROM `{self.sites_table}`
-          """
-        else:
-            query = f"""
-                SELECT * FROM `{self.sites_table}` WHERE network = '{network.str}'
-            """
-
-        dataframe = self.client.query(query=query).result().to_dataframe()
-        return dataframe.drop_duplicates(keep="first")
 
     def fetch_raw_readings(self) -> pd.DataFrame:
         """

@@ -1882,6 +1882,7 @@ eventSchema.statics.list = async function(
 
     const startTime = filter["values.time"]["$gte"];
     const endTime = filter["values.time"]["$lte"];
+
     let idField;
     // const visibilityFilter = true;
 
@@ -2700,6 +2701,7 @@ eventSchema.statics.list = async function(
     );
   }
 };
+
 eventSchema.statics.view = async function(filter, next) {
   try {
     const request = filter;

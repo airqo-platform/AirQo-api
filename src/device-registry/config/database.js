@@ -20,7 +20,9 @@ const options = {
   useUnifiedTopology: true,
   autoIndex: true,
   keepAlive: true,
-  poolSize: 10,
+  keepAliveInitialDelay: 300000,
+  poolSize: 20,
+  maxPoolSize: 100,
   bufferMaxEntries: 0,
   connectTimeoutMS: 1200000,
   socketTimeoutMS: 600000,
@@ -137,7 +139,7 @@ function getQueryModelByTenant(tenantId, modelName, schema) {
 
 /**
  * Backward compatible function to get tenant database
- * Now accepts an optional operationType parameter
+ * Accepts an optional operationType parameter
  */
 function getTenantDB(tenantId, modelName, schema, operationType = "query") {
   if (operationType === "command") {
@@ -148,7 +150,7 @@ function getTenantDB(tenantId, modelName, schema, operationType = "query") {
 
 /**
  * Backward compatible function to get tenant model
- * Now accepts an optional operationType parameter
+ * Accepts an optional operationType parameter
  */
 function getModelByTenant(
   tenantId,

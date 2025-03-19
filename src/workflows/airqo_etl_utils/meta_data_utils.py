@@ -1,6 +1,6 @@
 import pandas as pd
 
-from .airqo_api import AirQoApi
+from .data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .constants import DeviceNetwork
 from .datautils import DataUtils
@@ -24,9 +24,14 @@ class MetaDataUtils:
             pd.DataFrame: A DataFrame containing device information.
         """
         devices, _ = DataUtils.get_devices()
-        dataframe = devices[
+        devices["status"] = devices["status"].replace(
+            {"deployed": True, "not deployed": False}
+        )
+        devices = devices[
             [
                 "network",
+                "status",
+                "isActive",
                 "latitude",
                 "longitude",
                 "site_id",
@@ -37,23 +42,27 @@ class MetaDataUtils:
                 "device_category",
             ]
         ]
-        dataframe["device_id"] = dataframe["name"]
-        dataframe["last_updated"] = datetime.now(timezone.utc)
+        devices.rename(
+            columns={"isActive": "active", "status": "deployed"}, inplace=True
+        )
+        devices["device_id"] = devices["name"]
+        devices["last_updated"] = datetime.now(timezone.utc)
 
-        return dataframe
+        return devices
 
     @staticmethod
     def extract_airqlouds_from_api(
         network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
         # Airclouds are deprecated.
-        airqlouds = AirQoApi().get_airqlouds(network=network)
+        airqlouds = DataApi().get_airqlouds(network=network)
         airqlouds = [
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
             for airqloud in airqlouds
         ]
-
-        return pd.DataFrame(airqlouds)
+        airqlouds = pd.DataFrame(airqlouds)
+        airqlouds["last_updated"] = datetime.now(timezone.utc)
+        return airqlouds
 
     @staticmethod
     def extract_grids_from_api(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -68,13 +77,14 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the grid data, with site lists represented as comma-separated strings.
         """
-        grids = AirQoApi().get_grids(network=network)
+        grids = DataApi().get_grids(network=network)
         grids = [
             {**grid, **{"sites": ",".join(map(str, grid.get("sites", [""])))}}
             for grid in grids
         ]
-
-        return pd.DataFrame(grids)
+        grids = pd.DataFrame(grids)
+        grids["last_updated"] = datetime.now(timezone.utc)
+        return grids
 
     @staticmethod
     def extract_cohorts_from_api(
@@ -91,13 +101,14 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the cohort data, with device lists represented as comma-separated strings.
         """
-        cohorts = AirQoApi().get_cohorts(network=network)
+        cohorts = DataApi().get_cohorts(network=network)
         cohorts = [
             {**cohort, **{"devices": ",".join(map(str, cohort.get("devices", [""])))}}
             for cohort in cohorts
         ]
-
-        return pd.DataFrame(cohorts)
+        cohorts = pd.DataFrame(cohorts)
+        cohorts["last_updated"] = datetime.now(timezone.utc)
+        return cohorts
 
     @staticmethod
     def merge_airqlouds_and_sites(data: pd.DataFrame) -> pd.DataFrame:
@@ -114,8 +125,9 @@ class MetaDataUtils:
                     for site in row["sites"].split(",")
                 ]
             )
-
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def merge_grids_and_sites(data: pd.DataFrame) -> pd.DataFrame:
@@ -141,8 +153,9 @@ class MetaDataUtils:
                     for site in row["sites"].split(",")
                 ]
             )
-
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def merge_cohorts_and_devices(data: pd.DataFrame) -> pd.DataFrame:
@@ -169,7 +182,9 @@ class MetaDataUtils:
                 ]
             )
 
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def extract_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -257,7 +272,7 @@ class MetaDataUtils:
         Returns:
             None: This function updates site data in place and does not return a value.
         """
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         sites_data = DataUtils.get_sites(network=network)
         sites_data.rename(
             columns={
@@ -276,7 +291,7 @@ class MetaDataUtils:
             }
             for site in updated_sites
         ]
-        airqo_api.update_sites(updated_sites)
+        data_api.update_sites(updated_sites)
 
     @staticmethod
     def update_sites_distance_measures(network: Optional[DeviceNetwork] = None) -> None:
@@ -291,7 +306,7 @@ class MetaDataUtils:
         Returns:
             None: This function updates site data in place and does not return a value.
         """
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         sites = DataUtils.get_sites(network=network)
         updated_sites = []
         for _, site in sites.iterrows():
@@ -303,7 +318,7 @@ class MetaDataUtils:
                 "latitude": latitude,
                 "longitude": longitude,
             }
-            meta_data = airqo_api.get_meta_data(
+            meta_data = data_api.get_meta_data(
                 latitude=latitude,
                 longitude=longitude,
             )
@@ -316,20 +331,20 @@ class MetaDataUtils:
                     }
                 )
 
-        airqo_api.update_sites(updated_sites)
+        data_api.update_sites(updated_sites)
 
     @staticmethod
     def refresh_airqlouds(network: DeviceNetwork) -> None:
-        airqo_api = AirQoApi()
-        airqlouds = airqo_api.get_airqlouds(network=network)
+        data_api = DataApi()
+        airqlouds = data_api.get_airqlouds(network=network)
 
         for airqloud in airqlouds:
-            airqo_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
+            data_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
 
     @staticmethod
     def refresh_grids(network: DeviceNetwork) -> None:
-        airqo_api = AirQoApi()
-        grids = airqo_api.get_grids(network=network)
+        data_api = DataApi()
+        grids = data_api.get_grids(network=network)
 
         for grid in grids:
-            airqo_api.refresh_grid(grid_id=grid.get("id"))
+            data_api.refresh_grid(grid_id=grid.get("id"))

@@ -19,7 +19,7 @@ from .config import configuration as Config
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class Utils:
@@ -113,7 +113,7 @@ class Utils:
         data_cols = data.columns.to_list()
         for column in columns:
             if column not in data_cols:
-                print(f"{column} missing in dataset")
+                logger.warning(f"{column} missing in dataset")
                 data[column] = None
         return data
 

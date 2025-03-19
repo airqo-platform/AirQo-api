@@ -15,7 +15,7 @@ from firebase_admin import credentials, messaging
 from firebase_admin import firestore
 from firebase_admin.exceptions import NotFoundError
 
-from .airqo_api import AirQoApi
+from .data_api import DataApi
 from .config import configuration as Config
 from .datautils import DataUtils
 
@@ -24,7 +24,7 @@ from .email_templates import forecast_email
 from typing import Tuple, Optional
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 cred = credentials.Certificate(
     {
@@ -131,7 +131,7 @@ def get_random_measurement() -> Tuple[
             name = target_place.get("search_name")
             location = target_place.get("location_name")
             place_id = target_place.get("site_id")
-            pm_value = AirQoApi().get_site_measurement(place_id)
+            pm_value = DataApi().get_site_measurement(place_id)
             attempt += 1
 
         if pm_value is None or pd.isna(pm_value):
@@ -156,12 +156,12 @@ def group_users(users, reading_type):
                 None,
                 None,
             )
-            place_groupings = AirQoApi().get_favorites(user_id)
+            place_groupings = DataApi().get_favorites(user_id)
             if len(place_groupings) == 0:
-                place_groupings = AirQoApi().get_location_history(user_id)
+                place_groupings = DataApi().get_location_history(user_id)
 
                 if len(place_groupings) == 0:
-                    place_groupings = AirQoApi().get_search_history(user_id)
+                    place_groupings = DataApi().get_search_history(user_id)
 
             if len(place_groupings) != 0:
                 random_index = random.randint(0, len(place_groupings) - 1)
@@ -173,7 +173,7 @@ def group_users(users, reading_type):
                 place_id = target_place.get("place_id")
 
             if reading_type == "forecast":
-                forecasts = AirQoApi().get_forecast(frequency="daily", site_id=place_id)
+                forecasts = DataApi().get_forecast(frequency="daily", site_id=place_id)
                 if len(forecasts) == 0:
                     continue
                 pm_values = [forecast["pm2_5"] for forecast in forecasts]
@@ -432,7 +432,7 @@ def create_notification_messages(
 
 
 def send_notification_messages(messages: pd.DataFrame):
-    print(f"Messages to be sent : {len(messages)}")
+    logger.info(f"Messages to be sent : {len(messages)}")
 
     notifications = []
     for _, message in messages.iterrows():
@@ -452,16 +452,9 @@ def send_notification_messages(messages: pd.DataFrame):
         messages = notifications[i : i + 500]
 
         try:
-            for message in messages:
-                print(
-                    f"Message to be sent to {message.token} =>  "
-                    f"title : {message.notification.title} ; "
-                    f"body : {message.notification.body}"
-                )
             response = messaging.send_all(messages)
-            print(
+            logger.info(
                 f"{response.success_count} messages were sent successfully out of {len(messages)}"
             )
         except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+            logger.exception(f"An exception occurred: {ex}")

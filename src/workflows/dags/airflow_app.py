@@ -3,7 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 @dag(
