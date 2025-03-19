@@ -1,11 +1,11 @@
-import traceback
 from urllib.parse import urlencode
 
 import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any, Union, Generator, Tuple, Optional
+from typing import List, Dict, Any, Generator, Tuple, Optional
+from .date import str_to_date, date_to_str
 
 from .config import configuration
 from .constants import DeviceCategory, DeviceNetwork
@@ -15,12 +15,12 @@ import logging
 logger = logging.getLogger("airflow.task")
 
 
-class AirQoApi:
+class DataApi:
     def __init__(self) -> None:
-        self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
         self.AIRQO_BASE_URL_V2 = Utils.remove_suffix(
             configuration.AIRQO_BASE_URL_V2, suffix="/"
         )
+
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
         self.AIRQO_API_TOKEN = configuration.AIRQO_API_TOKEN
 
@@ -39,9 +39,6 @@ class AirQoApi:
         Returns:
             None
         """
-        #  Temporarily disabling usage of the API to store measurements.
-        # if "staging" in self.AIRQO_BASE_URL_V2.lower():
-        #     return
         # TODO Findout if there is a bulk post api option greater than 5.
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
@@ -543,7 +540,7 @@ class AirQoApi:
         favorites_with_pm = []
         for favorite in response.get("favorites", []):
             place_id = favorite.get("place_id")
-            pm_value = AirQoApi().get_site_measurement(place_id)
+            pm_value = DataApi().get_site_measurement(place_id)
             if pm_value is not None:
                 favorites_with_pm.append(
                     {
@@ -567,7 +564,7 @@ class AirQoApi:
         locations_with_measurements = []
         for location in response.get("location_histories", []):
             place_id = location.get("place_id")
-            pm_value = AirQoApi().get_site_measurement(place_id)
+            pm_value = DataApi().get_site_measurement(place_id)
             if pm_value is not None:
                 locations_with_measurements.append(
                     {
@@ -589,7 +586,7 @@ class AirQoApi:
         search_histories_with_measurements = []
         for location in response.get("search_histories", []):
             place_id = location.get("place_id")
-            pm_value = AirQoApi().get_site_measurement(place_id)
+            pm_value = DataApi().get_site_measurement(place_id)
             if pm_value is not None:
                 search_histories_with_measurements.append(
                     {
@@ -799,7 +796,55 @@ class AirQoApi:
 
             self.__request("devices/sites", params, site, "put")
 
-    def __request(self, endpoint, params=None, body=None, method="get", base_url=None):
+    def get_airnow_data(
+        self, start_date_time: str, end_date_time: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetches air quality data from the AirNow API within a specified time range.
+
+        Args:
+            start_date_time (str): The start date and time in string format.
+            end_date_time (str): The end date and time in string format.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing air quality data.
+
+        Notes:
+            - The function retrieves integration details from the configuration.
+            - It formats the date-time inputs to match the API's expected format.
+            - The request parameters include spatial and pollutant filters.
+            - The API response is fetched using `self.__request()`.
+        """
+        integration = configuration.INTEGRATION_DETAILS.get(
+            DeviceNetwork.METONE.str, None
+        )
+        boundary_box = integration.get("extras", {}).get("boundary_box", "")
+        parameters = integration.get("extras", {}).get("parameters", "")
+        endpoint = "aq/data"
+        params = {
+            "startDate": start_date_time,
+            "endDate": end_date_time,
+            "parameters": parameters,
+            "BBOX": boundary_box,
+            "format": "application/json",
+            "verbose": 1,
+            "nowcastonly": 1,
+            "includerawconcentrations": 1,
+            "dataType": "B",
+        }
+
+        params.update(integration.get("auth", None))
+        return self.__request(endpoint, params, network=DeviceNetwork.METONE)
+
+    def __request(
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = {},
+        body: Optional[Dict[str, Any]] = None,
+        method: Optional[str] = "get",
+        base_url=None,
+        network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
+    ):
         """
         Executes API request and returns the response.
 
@@ -816,19 +861,19 @@ class AirQoApi:
         Raises:
             HTTPError if an error occurs when executing the request. The error is logged and None is returned.
         """
-        if base_url is None:
-            base_url = self.AIRQO_BASE_URL_V2
+        headers: Dict[str, Any] = {}
+        params: Dict[str, Any] = params
+        integration = configuration.INTEGRATION_DETAILS.get(network.str)
+        base_url = integration.get("url", None)
 
-        headers = {"Authorization": self.AIRQO_API_KEY}
-        if params is None:
-            params = {}
-        params.update({"token": self.AIRQO_API_TOKEN})
+        if auth := integration.get("auth", None) and network == DeviceNetwork.AIRQO:
+            headers[auth] = integration.get("key", None)
+            params["token"] = integration.get("token", None)
 
         retry_strategy = Retry(
             total=5,
             backoff_factor=5,
         )
-
         http = urllib3.PoolManager(retries=retry_strategy)
 
         url = f"{base_url}/{endpoint}"
