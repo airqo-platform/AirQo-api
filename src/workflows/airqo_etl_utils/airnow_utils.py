@@ -1,12 +1,14 @@
 import pandas as pd
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
+from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 from airflow.exceptions import AirflowFailException
+from airqo_etl_utils.constants import Frequency
 from .date import str_to_date, date_to_str
-from .datautils import DataUtils
+
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -92,7 +94,7 @@ class AirnowDataUtils:
         """
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
-            data = DataValidationUtils.process_data_for_api(data)
+            data = DataUtils.process_data_for_api(data, Frequency.HOURLY)
             data_api = DataApi()
             data_api.save_events(measurements=data)
 

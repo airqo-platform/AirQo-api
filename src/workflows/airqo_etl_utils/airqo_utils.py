@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Union, Generator, Optional
 
-from .data_api import DataApi
+from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
 from .constants import (

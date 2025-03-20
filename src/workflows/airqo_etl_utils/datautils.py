@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Union, Tuple, Optional
 from .config import configuration as Config
 from .commons import download_file_from_gcs
 from .bigquery_api import BigQueryApi
-from .data_api import DataApi
+from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
