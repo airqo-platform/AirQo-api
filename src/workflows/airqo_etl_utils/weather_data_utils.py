@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from .data_api import DataApi
+from airqo_etl_utils.data_api import DataApi
 from .config import configuration as Config
 from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .datautils import DataUtils

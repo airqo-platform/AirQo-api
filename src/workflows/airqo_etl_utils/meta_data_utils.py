@@ -1,14 +1,19 @@
 import pandas as pd
+import ast
+from typing import Optional, Callable, List, Dict, Any
+from datetime import datetime, timezone
 
-from .data_api import DataApi
+from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .constants import DeviceNetwork
 from .datautils import DataUtils
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
-from datetime import datetime, timezone
-from typing import Optional
-import ast
+from .constants import MetaDataType
+
+import logging
+
+logger = logging.getLogger("airflow.task")
 
 
 class MetaDataUtils:
@@ -348,3 +353,86 @@ class MetaDataUtils:
 
         for grid in grids:
             data_api.refresh_grid(grid_id=grid.get("id"))
+
+    def extract_transform_and_decrypt_metadata(
+        metadata_type: MetaDataType,
+    ) -> pd.DataFrame:
+        """
+        Extracts, transforms, and decrypts metadata for a given type.
+
+        For metadata type 'DEVICES':
+        - Retrieves devices data,
+        - Decrypts read keys,
+        - Adds a 'key' column to the DataFrame.
+
+        For metadata type 'SITES':
+        - Retrieves site data and converts it to a DataFrame.
+
+        Returns:
+            pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
+        """
+        data_api = DataApi()
+        endpoints: Dict[str, Callable[[], Any]] = {
+            "devices": lambda: data_api.get_devices_by_network(),
+            "sites": lambda: data_api.get_sites(),
+        }
+        result: pd.DataFrame = pd.DataFrame()
+        match metadata_type:
+            case MetaDataType.DEVICES:
+                devices_raw = endpoints.get(metadata_type.str)()
+                if devices_raw:
+                    devices_df = pd.DataFrame(devices_raw)
+                    keys = data_api.get_thingspeak_read_keys(devices_df)
+                    if keys:
+                        devices_df["key"] = (
+                            devices_df["device_number"].map(keys).fillna(-1)
+                        )
+                    result = devices_df
+            case MetaDataType.SITES:
+                sites_raw = endpoints.get(metadata_type.str)()
+                if sites_raw:
+                    result = pd.DataFrame(sites_raw)
+        return result
+
+    def transform_devices(devices: List[Dict[str, Any]], taskinstance) -> pd.DataFrame:
+        """
+        Transforms and processes the devices DataFrame. If the checksum of the
+        devices data has not changed since the last execution, it returns an empty DataFrame.
+        Otherwise, it updates the checksum in XCom and returns the transformed DataFrame.
+
+        Args:
+            devices (pd.DataFrame): A Pandas DataFrame containing the devices data.
+            task_instance: The Airflow task instance used to pull and push XCom values.
+
+        Returns:
+            pd.DataFrame: Transformed DataFrame if the devices data has changed since
+                        the last execution; otherwise, an empty DataFrame.
+        """
+        import hashlib
+
+        devices = pd.DataFrame(devices)
+        devices.rename(
+            columns={
+                "device_id": "device_name",
+                "_id": "device_id",
+                "latitude": "device_latitude",
+                "longitude": "device_longitude",
+            },
+            inplace=True,
+        )
+
+        # Convert devices DataFrame to JSON for consistency since JSON stores metadata and compute checksum
+        if not devices.empty:
+            devices_json = devices.to_json(orient="records", date_format="iso")
+            api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
+
+            previous_checksum = taskinstance.xcom_pull(key="devices_checksum")
+
+            if previous_checksum == api_devices_checksum:
+                return pd.DataFrame()
+
+            taskinstance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+        else:
+            logger.warning("No devices returned.")
+
+        return devices
