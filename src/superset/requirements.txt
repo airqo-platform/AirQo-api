@@ -1,0 +1,11 @@
+apache-superset
+flask
+flask-caching
+flask-appbuilder
+pandas
+sqlalchemy
+psycopg2
+redis
+celery
+gunicorn
+pillow
