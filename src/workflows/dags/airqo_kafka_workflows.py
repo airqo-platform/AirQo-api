@@ -27,9 +27,9 @@ def airqo_devices_data():
 
     @task()
     def transform_devices(devices: List[Dict[str, Any]], **kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        devices = DataValidationUtils.transform_devices(
+        devices = MetaDataUtils.transform_devices(
             devices=devices, taskinstance=kwargs["ti"]
         )
         return devices

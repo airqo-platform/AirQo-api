@@ -210,9 +210,9 @@ def cache_devices_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_devices() -> pd.DataFrame:
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return DataValidationUtils.extract_transform_and_decrypt_metadata(
+        return MetaDataUtils.extract_transform_and_decrypt_metadata(
             MetaDataType.DEVICES
         )
 
@@ -242,11 +242,9 @@ def cache_sites_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_sites() -> pd.DataFrame:
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return DataValidationUtils.extract_transform_and_decrypt_metadata(
-            MetaDataType.SITES
-        )
+        return MetaDataUtils.extract_transform_and_decrypt_metadata(MetaDataType.SITES)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def store_sites(sites: pd.DataFrame) -> None:
