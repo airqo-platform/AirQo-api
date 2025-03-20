@@ -24,7 +24,7 @@ COPY .env /app/.env
 RUN superset db upgrade
 
 # Create an admin user
-RUN superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@example.com --password adminpassword
+# RUN superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@example.com --password adminpassword
 
 RUN superset load_examples
 RUN superset init
