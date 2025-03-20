@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
+import ast
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs
