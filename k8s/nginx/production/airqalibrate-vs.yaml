@@ -13,4 +13,23 @@ spec:
     - path: /
       action:
         pass: airqalibrate
+    - path: /superset
+      route: superset/superset
 # Adding a comment to trigger the application without changing the functionality
+
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: superset
+  namespace: superset
+spec:
+  host: airqalibrate.airqo.net
+  upstreams:
+    - name: superset
+      service: superset-svc
+      port: 8088
+  subroutes:
+    - path: /superset
+      action:
+        pass: superset
