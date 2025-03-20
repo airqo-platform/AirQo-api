@@ -883,7 +883,7 @@ class DataApi:
         headers: Dict[str, Any] = {}
         params: Dict[str, Any] = params
         integration = configuration.INTEGRATION_DETAILS.get(network.str)
-        base_url = integration.get("url", None)
+        base_url = integration.get("url", "").rstrip("/")
         auth = integration.get("auth", None)
         if auth and network == DeviceNetwork.AIRQO:
             headers.update(auth)

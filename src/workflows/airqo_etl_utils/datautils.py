@@ -769,8 +769,14 @@ class DataUtils:
             case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
+            dropna_subset = ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"]
+            if (
+                DeviceNetwork.AIRQO.str in data.network.unique()
+                and data.network.nunique() > 1
+            ):
+                dropna_subset.extend(["pm2_5", "pm10"])
             data.dropna(
-                subset=["pm2_5", "pm10", "s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"],
+                subset=dropna_subset,
                 how="all",
                 inplace=True,
             )
