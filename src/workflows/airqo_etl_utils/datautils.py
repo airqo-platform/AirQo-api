@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
 from pathlib import Path
-import json
-import ast
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
+import ast
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs
@@ -23,7 +22,7 @@ from .constants import (
 from .message_broker_utils import MessageBrokerUtils
 
 from .utils import Utils
-from .date import date_to_str
+from .date import date_to_str, str_to_date
 from .data_validator import DataValidationUtils
 
 import logging
@@ -960,6 +959,13 @@ class DataUtils:
         if not dates:
             raise ValueError("Invalid or empty date range provided.")
 
+        dates = [
+            (
+                str_to_date(sdate).strftime("%Y-%m-%dT%H:%M"),
+                str_to_date(edate).strftime("%Y-%m-%dT%H:%M"),
+            )
+            for sdate, edate in dates
+        ]
         device_data: List[pd.DataFrame] = []
         for start, end in dates:
             query_data = data_api.get_airnow_data(
