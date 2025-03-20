@@ -35,11 +35,6 @@ class AirnowDataUtils:
             >>> df = query_bam_data("your_api_key", "2024-03-01 00:00", "2024-03-02 23:59")
             >>> print(df.head())
         """
-        date_format = "%Y-%m-%dT%H:%M"
-        start_date_time = date_to_str(
-            str_to_date(start_date_time), str_format=date_format
-        )
-        end_date_time = date_to_str(str_to_date(end_date_time), str_format=date_format)
         data = DataUtils.extract_bam_data_airnow(start_date_time, end_date_time)
         return data
 
