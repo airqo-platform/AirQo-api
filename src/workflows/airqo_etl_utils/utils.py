@@ -263,16 +263,15 @@ class Utils:
             dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
 
         dates = [pd.to_datetime(str(date)) for date in dates.values]
-        return_dates = []
+        dates_new = []
 
         array_last_date_time = dates.pop()
         for date in dates:
             end = date + timedelta(hours=frequency.n)
             if end > array_last_date_time:
                 end = array_last_date_time
-            return_dates.append((date_to_str(date), date_to_str(end)))
-
-        return return_dates
+            dates_new.append((date_to_str(date), date_to_str(end)))
+        return dates_new
 
     @staticmethod
     def year_months_query_array(year: int):

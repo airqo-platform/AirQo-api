@@ -16,9 +16,7 @@ logger = logging.getLogger("airflow.task")
 
 class DataApi:
     def __init__(self) -> None:
-        self.AIRQO_BASE_URL_V2 = Utils.remove_suffix(
-            configuration.AIRQO_BASE_URL_V2, suffix="/"
-        )
+        pass
 
     def save_events(self, measurements: List) -> None:
         """
@@ -470,18 +468,42 @@ class DataApi:
         return meta_data
 
     def refresh_airqloud(self, airqloud_id: str) -> None:
+        """
+        Triggers a refresh for a specific AirQloud.
+
+        Args:
+            airqloud_id (str): The unique identifier of the AirQloud to be refreshed.
+
+        Raises:
+            Exception: Logs an exception if the request fails.
+
+        This function sends a PUT request to refresh the specified AirQloud using the provided ID.
+        The request includes query parameters that specify the device network and AirQloud ID.
+        """
         # TODO Update doc string.
         query_params = {"network": DeviceNetwork.AIRQO.str, "id": airqloud_id}
 
         try:
-            self.__request(
+            response = self.__request(
                 endpoint="devices/airqlouds/refresh", params=query_params, method="put"
             )
+            logger.info(f"The request status is: {response.status}")
         except Exception:
-            logger.exception()
+            logger.exception("Failed to refresh the airqloud.")
 
     def refresh_grid(self, grid_id: str) -> None:
-        # TODO Update doc string.
+        """
+        Refreshes a specific grid by triggering an update request.
+
+        Args:
+            grid_id (str): The unique identifier of the grid to be refreshed.
+
+        Raises:
+            Exception: Logs an exception if the request fails.
+
+        This function sends a PUT request to refresh the specified grid based on the provided grid ID.
+        The request includes query parameters that specify the device network.
+        """
         query_params = {"network": DeviceNetwork.AIRQO.str}
 
         try:
@@ -490,8 +512,9 @@ class DataApi:
                 params=query_params,
                 method="put",
             )
+            logger.info(f"The request status is: {response.status}")
         except Exception:
-            logger.exception()
+            logger.exception("Failed to refresh the grid.")
 
     def get_airqlouds(self, network: DeviceNetwork = None) -> List[Dict[str, Any]]:
         """
@@ -872,7 +895,7 @@ class DataApi:
         )
         http = urllib3.PoolManager(retries=retry_strategy)
 
-        url = f"{base_url}{endpoint}"
+        url = f"{base_url}/{endpoint}"
         try:
             if method == "put" or method == "post":
                 headers["Content-Type"] = "application/json"
