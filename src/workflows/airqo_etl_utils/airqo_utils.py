@@ -713,6 +713,12 @@ class AirQoDataUtils:
                             groupedby.lower(), "pm2_5"
                         ),
                     )
+                except Exception as e:
+                    logger.exception(
+                        f"Error getting custom pm2_5 model. Will default to generic one: {e}"
+                    )
+                    current_rf_model = default_rf_model
+                try:
                     current_lasso_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
@@ -722,9 +728,8 @@ class AirQoDataUtils:
                     )
                 except Exception as e:
                     logger.exception(
-                        f"Error getting custom model. Will default to generic one: {e}"
+                        f"Error getting custom pm10 model. Will default to generic one: {e}"
                     )
-                    current_rf_model = default_rf_model
                     current_lasso_model = default_lasso_model
 
             calibrated_data.loc[
@@ -853,7 +858,7 @@ class AirQoDataUtils:
                         )
                     )
                     calibrated_data = AirQoDataUtils.calibrate_data(
-                        data=air_weather_hourly_data, groupby="city"
+                        data=air_weather_hourly_data, groupby="country"
                     )
                 except Exception as e:
                     logger.exception(f"An error occured: {e}")
