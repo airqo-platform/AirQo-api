@@ -5,7 +5,7 @@ const redis = require("@config/redis");
 const { generateDateFormatWithoutHrs, isDate } = require("@utils/common");
 const cleanDeep = require("clean-deep");
 const { logObject, logText, logElement } = require("@utils/shared");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-feed-util`);
 const createDevice = require("@utils/device.util");
@@ -30,7 +30,7 @@ const createFeed = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -47,20 +47,20 @@ const createFeed = {
     const readings = data.feeds[0];
     if (isEmpty(readings)) {
       return {
-        status: HTTPStatus.NOT_FOUND,
+        status: httpStatus.NOT_FOUND,
         data: {
           success: true,
           message: "No recent measurements for this device",
         },
       };
     }
-    return { status: HTTPStatus.OK, data: { isCache: false, ...readings } };
+    return { status: httpStatus.OK, data: { isCache: false, ...readings } };
   },
 
   processDeviceMeasurements: async (readings, metadata) => {
     if (isEmpty(readings)) {
       return {
-        status: HTTPStatus.NOT_FOUND,
+        status: httpStatus.NOT_FOUND,
         data: {
           success: true,
           message: "no recent measurements for this device",
@@ -73,7 +73,7 @@ const createFeed = {
 
     if (isEmpty(fieldOneValue)) {
       return {
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         data: {
           success: false,
           message: "unable to categorise device",
@@ -118,14 +118,14 @@ const createFeed = {
       } else {
         return {
           status:
-            pressureConversionResult.status || HTTPStatus.INTERNAL_SERVER_ERROR,
+            pressureConversionResult.status || httpStatus.INTERNAL_SERVER_ERROR,
           data: pressureConversionResult,
         };
       }
     }
 
     return {
-      status: HTTPStatus.OK,
+      status: httpStatus.OK,
       data: { isCache: false, ...cleanedFinalTransformation },
     };
   },
@@ -373,7 +373,7 @@ const createFeed = {
         success: false,
         errors: { message: error.message },
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
