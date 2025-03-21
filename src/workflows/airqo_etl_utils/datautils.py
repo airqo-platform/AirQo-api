@@ -435,8 +435,9 @@ class DataUtils:
             logger.exception(
                 f"An unexpected error occurred during column retrieval: {e}"
             )
-
-        return Utils.populate_missing_columns(data=data, columns=cols)
+        data = Utils.populate_missing_columns(data=data, columns=cols)
+        dataframe = DataValidationUtils.remove_outliers(data)
+        return dataframe[cols]
 
     @staticmethod
     def remove_duplicates(
@@ -807,6 +808,39 @@ class DataUtils:
         return data
 
     @staticmethod
+    def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Cleans and transforms BAM data for BigQuery insertion.
+
+        This function processes the input DataFrame by removing outliers, dropping duplicate entries based on timestamp and device number, and renaming columns according to a
+        specified mapping. It also adds a network identifier and ensures that all required columns for the BigQuery BAM hourly measurements table are present.
+
+        Args:
+            data(pd.DataFrame): The input DataFrame containing BAM data with columns such as 'timestamp' and 'device_number'.
+
+        Returns:
+            pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
+        """
+        # TODO Merge bam data cleanup functionality
+        data = DataValidationUtils.remove_outliers(data)
+        data.drop_duplicates(
+            subset=["timestamp", "device_number"], keep="first", inplace=True
+        )
+
+        data["network"] = DeviceNetwork.AIRQO.str
+        data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
+
+        big_query_api = BigQueryApi()
+        required_cols = big_query_api.get_columns(
+            table=big_query_api.bam_hourly_measurements_table
+        )
+
+        data = Utils.populate_missing_columns(data=data, columns=required_cols)
+        data = data[required_cols]
+
+        return data
+
+    @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
         """
         Resamples and averages out the numeric type fields on an hourly basis.
@@ -1125,6 +1159,39 @@ class DataUtils:
             devices.drop_duplicates(subset=["device_id"], keep="last")
 
         return devices
+
+    @staticmethod
+    def process_for_big_query(dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
+        """
+        Prepares a pandas DataFrame for insertion into a BigQuery table by aligning columns
+        with the target table schema and performing necessary data validation.
+
+        Steps:
+        1. Ensures that the DataFrame contains all the columns required by the target BigQuery table.
+        2. Removes outliers from the DataFrame.
+        3. Selects and returns only the columns present in the target BigQuery table schema.
+
+        Args:
+            dataframe (pd.DataFrame): The input DataFrame containing the data to be processed.
+            table (str): The name of the target BigQuery table to align the DataFrame schema with.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame with validated columns and outliers removed.
+
+        Notes:
+            - Columns missing in the input DataFrame are added with `None` as their default value.
+            - Only the columns that exist in the BigQuery table schema are retained in the output DataFrame.
+        """
+        big_query_api = BigQueryApi()
+        columns = big_query_api.get_columns(table)
+
+        dataframe = DataValidationUtils.fill_missing_columns(
+            data=dataframe, cols=columns
+        )
+
+        dataframe = DataValidationUtils.remove_outliers(dataframe)
+
+        return dataframe[columns]
 
     @staticmethod
     def process_data_for_message_broker(
