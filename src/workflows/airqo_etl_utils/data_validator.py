@@ -172,38 +172,6 @@ class DataValidationUtils:
         return data
 
     @staticmethod
-    def process_for_big_query(dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
-        """
-        Prepares a pandas DataFrame for insertion into a BigQuery table by aligning columns
-        with the target table schema and performing necessary data validation.
-
-        Steps:
-        1. Ensures that the DataFrame contains all the columns required by the target BigQuery table.
-        2. Removes outliers from the DataFrame.
-        3. Selects and returns only the columns present in the target BigQuery table schema.
-
-        Args:
-            dataframe (pd.DataFrame): The input DataFrame containing the data to be processed.
-            table (str): The name of the target BigQuery table to align the DataFrame schema with.
-
-        Returns:
-            pd.DataFrame: The processed DataFrame with validated columns and outliers removed.
-
-        Notes:
-            - Columns missing in the input DataFrame are added with `None` as their default value.
-            - Only the columns that exist in the BigQuery table schema are retained in the output DataFrame.
-        """
-        columns = BigQueryApi().get_columns(table)
-
-        dataframe = DataValidationUtils.fill_missing_columns(
-            data=dataframe, cols=columns
-        )
-
-        dataframe = DataValidationUtils.remove_outliers(dataframe)
-
-        return dataframe[columns]
-
-    @staticmethod
     def convert_pressure_values(value):
         try:
             return float(value) * 0.1
