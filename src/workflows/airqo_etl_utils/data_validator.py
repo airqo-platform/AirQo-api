@@ -5,7 +5,7 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
-from typing import Any
+from typing import Any, Optional, Union
 from .config import configuration as Config
 
 logger = logging.getLogger("airflow.task")
@@ -42,7 +42,6 @@ class DataValidationUtils:
         floats = floats or []
         integers = integers or []
         timestamps = timestamps or []
-
         if floats:
             data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
 
@@ -70,25 +69,28 @@ class DataValidationUtils:
                     .fillna(-1)  # Replace NaN with -1 for invalid/missing values
                     .astype(np.int64)  # Convert to integer type
                 )
-
         return data
 
     @staticmethod
-    def get_valid_value(column_name: str, row_value: Any) -> Any:
+    def get_valid_value(column_name: str, row_value: int | float) -> int | float | None:
         """
-        Checks if column values fall with in specific ranges.
+        Processes the given row value and returns a valid int, float, or None.
 
         Args:
-            column_name(str): Name of column to validate
-            row_value(Any): Actual value to validate against valid sensor ranges.
+            column_name(str): The name of the column being processed.
+            row_value(int | float): The row value to validate.
 
-        Return:
-            None if value does not fall with in the valid range otherwise returns the value passed.
+        Returns:int | float | None: The valid value or None if invalid.
         """
-        if column_name in Config.VALID_SENSOR_RANGES:
-            min_val, max_val = Config.VALID_SENSOR_RANGES[column_name]
-            if not (min_val <= row_value <= max_val):
-                return None
+        if row_value is None or isinstance(row_value, str):
+            logger.warning(
+                f"There might be a data type issue with the value type {type(row_value)}: {row_value}"
+            )
+            return None
+
+        if range_values := Config.VALID_SENSOR_RANGES.get(column_name):
+            min_val, max_val = range_values
+            return row_value if min_val <= row_value <= max_val else None
 
         return row_value
 
@@ -120,32 +122,22 @@ class DataValidationUtils:
             dtype: list(set(columns) & set(data.columns))
             for dtype, columns in column_types.items()
         }
+        validated_columns = list(chain.from_iterable(filtered_columns.values()))
+        for col in validated_columns:
+            mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
+            data[col] = data[col].apply(
+                lambda x: DataValidationUtils.get_valid_value(
+                    column_name=mapped_name, row_value=x
+                )
+            )
+
+        # Fix data types after filling nas
         data = DataValidationUtils.format_data_types(
             data=data,
             floats=filtered_columns[ColumnDataType.FLOAT],
             integers=filtered_columns[ColumnDataType.INTEGER],
             timestamps=filtered_columns[ColumnDataType.TIMESTAMP],
         )
-
-        validated_columns = list(chain.from_iterable(filtered_columns.values()))
-        for col in validated_columns:
-            mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-            if (
-                "network" in data.columns
-                and (is_airqo_network := data["network"] == "airqo").any()
-            ):
-                data.loc[is_airqo_network, col] = data.loc[is_airqo_network, col].apply(
-                    lambda x: DataValidationUtils.get_valid_value(
-                        column_name=mapped_name, row_value=x
-                    )
-                )
-            else:
-                data[col] = data[col].apply(
-                    lambda x: DataValidationUtils.get_valid_value(
-                        column_name=mapped_name, row_value=x
-                    )
-                )
-
         return data
 
     @staticmethod
