@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs
+from .commons import download_file_from_gcs, drop_rows_with_bad_data
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
@@ -770,12 +770,10 @@ class DataUtils:
             case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
-            dropna_subset = ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"]
-            if (
-                DeviceNetwork.AIRQO.str in data.network.unique()
-                and data.network.nunique() > 1
-            ):
-                dropna_subset.extend(["pm2_5", "pm10"])
+            dropna_subset = ["pm2_5", "pm10"]
+            if DeviceNetwork.AIRQO.str in data.network.unique():
+                dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
+
             data.dropna(
                 subset=dropna_subset,
                 how="all",
@@ -792,19 +790,6 @@ class DataUtils:
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
-        # TODO Find an appropriate place to put this
-        if device_category == DeviceCategory.LOWCOST:
-            is_airqo_network = data["network"] == "airqo"
-
-            pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
-                axis=1
-            )
-            pm10_mean = data.loc[is_airqo_network, ["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-            data.loc[is_airqo_network, "pm2_5_raw_value"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm2_5"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
-            data.loc[is_airqo_network, "pm10"] = pm10_mean
         return data
 
     @staticmethod
@@ -853,22 +838,28 @@ class DataUtils:
         """
 
         data["timestamp"] = pd.to_datetime(data["timestamp"], format="mixed")
-
         group_metadata = (
-            data[["device_id", "site_id", "device_number", "network"]]
+            data[
+                ["device_id", "site_id", "device_number", "network", "device_category"]
+            ]
             .drop_duplicates("device_id")
             .set_index("device_id")
         )
         numeric_columns = data.select_dtypes(include=["number"]).columns
         numeric_columns = numeric_columns.difference(["device_number"])
         data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        aggregated = (
-            data_for_aggregation.groupby("device_id")
-            .apply(lambda group: group.resample("1H", on="timestamp").mean())
-            .reset_index()
-        )
-        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-        return aggregated
+        try:
+            aggregated = (
+                data_for_aggregation.groupby("device_id")
+                .apply(lambda group: group.resample("1H", on="timestamp").mean())
+                .reset_index()
+            )
+            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+        except Exception as e:
+            logger.exception(f"An error occured: No data passed - {e}")
+            aggregated = pd.DataFrame(columns=data.columns)
+
+        return drop_rows_with_bad_data("number", aggregated, exclude=["device_number"])
 
     @staticmethod
     def map_and_extract_data(
