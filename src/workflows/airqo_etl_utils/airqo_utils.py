@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Union, Optional
 
+from .commons import drop_rows_with_bad_data
 from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
@@ -174,72 +175,6 @@ class AirQoDataUtils:
         return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
-    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Resamples and averages out the numeric type fields on an hourly basis.
-
-        Args:
-            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
-
-        Returns:
-            A pandas DataFrame object containing hourly averages of data.
-        """
-
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        group_metadata = data[
-            ["device_id", "site_id", "device_number", "network", "device_category"]
-        ].drop_duplicates("device_id")
-        group_metadata.set_index("device_id", inplace=True)
-        numeric_columns = data.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
-        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        try:
-            aggregated = (
-                data_for_aggregation.groupby("device_id")
-                .apply(lambda group: group.resample("1H", on="timestamp").mean())
-                .reset_index()
-            )
-            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-        except Exception as e:
-            logger.exception(f"An error occured: No data passed - {e}")
-            aggregated = pd.DataFrame(columns=data.columns)
-        return aggregated
-
-    @staticmethod
-    def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Cleans and transforms BAM data for BigQuery insertion.
-
-        This function processes the input DataFrame by removing outliers, dropping duplicate entries based on timestamp and device number, and renaming columns according to a
-        specified mapping. It also adds a network identifier and ensures that all required columns for the BigQuery BAM hourly measurements table are present.
-
-        Args:
-            data(pd.DataFrame): The input DataFrame containing BAM data with columns such as 'timestamp' and 'device_number'.
-
-        Returns:
-            pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
-        """
-        # TODO Merge bam data cleanup functionality
-        data = DataValidationUtils.remove_outliers(data)
-        data.drop_duplicates(
-            subset=["timestamp", "device_number"], keep="first", inplace=True
-        )
-
-        data["network"] = DeviceNetwork.AIRQO.str
-        data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
-
-        big_query_api = BigQueryApi()
-        required_cols = big_query_api.get_columns(
-            table=big_query_api.bam_hourly_measurements_table
-        )
-
-        data = Utils.populate_missing_columns(data=data, columns=required_cols)
-        data = data[required_cols]
-
-        return data
-
-    @staticmethod
     def process_latest_data(
         data: pd.DataFrame, device_category: DeviceCategory
     ) -> pd.DataFrame:
@@ -356,13 +291,9 @@ class AirQoDataUtils:
                 measurements[f"device_reading_{col}_col"], inplace=True
             )
             del measurements[f"device_reading_{col}_col"]
-
-        numeric_columns = measurements.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
-        numeric_counts = measurements[numeric_columns].notna().sum(axis=1)
-        # Raws with more than 1 numeric values
-        measurements = measurements[numeric_counts > 1]
-        return measurements
+        return drop_rows_with_bad_data(
+            "number", measurements, exclude=["device_number"]
+        )
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
@@ -742,8 +673,8 @@ class AirQoDataUtils:
                         group_col=devices_data.site_id.name,
                         exclude_cols=exclude_cols,
                     )
-                    aggregated_device_data = (
-                        AirQoDataUtils.aggregate_low_cost_sensors_data(data=clean_raw)
+                    aggregated_device_data = DataUtils.aggregate_low_cost_sensors_data(
+                        data=clean_raw
                     )
                     start_date = devices.timestamp.min()
                     end_date = devices.timestamp.min()
