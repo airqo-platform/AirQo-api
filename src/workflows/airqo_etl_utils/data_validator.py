@@ -82,15 +82,14 @@ class DataValidationUtils:
 
         Returns:int | float | None: The valid value or None if invalid.
         """
-        if row_value is None or isinstance(row_value, str):
-            logger.warning(
+        if isinstance(row_value, (int, float)):
+            if range_values := Config.VALID_SENSOR_RANGES.get(column_name):
+                min_val, max_val = range_values
+                return row_value if min_val <= row_value <= max_val else None
+        else:
+            logger.exception(
                 f"There might be a data type issue with the value type {type(row_value)}: {row_value}"
             )
-            return None
-
-        if range_values := Config.VALID_SENSOR_RANGES.get(column_name):
-            min_val, max_val = range_values
-            return row_value if min_val <= row_value <= max_val else None
 
         return row_value
 
@@ -143,8 +142,7 @@ class DataValidationUtils:
     @staticmethod
     def fill_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
         """
-        Ensures that all specified columns exist in the given DataFrame.
-        If a column is missing, it is added to the DataFrame with `None` as its default value.
+        Ensures that all specified columns exist in the given DataFrame. If a column is missing, it is added to the DataFrame with `None` as its default value.
 
         Args:
             data (pd.DataFrame): The input DataFrame to check and update.
@@ -156,11 +154,11 @@ class DataValidationUtils:
         Logs:
             Warns if a column in the `cols` list is missing from the DataFrame.
         """
-        for col in cols:
-            if col not in data.columns.to_list():
-                logger.warning(f"{col} missing in DataFrame")
-                data.loc[:, col] = None
-
+        data_cols = data.columns.to_list()
+        for column in cols:
+            if column not in data_cols:
+                logger.warning(f"{column} missing in dataset")
+                data[column] = None
         return data
 
     @staticmethod
