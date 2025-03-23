@@ -41,16 +41,17 @@ module.exports = {
   emailVerification: (firstName, user_id, token) => {
     return `
 <h3>Dear ${firstName}</h3>
-<p> Thank you for signing up for AirQo Analytics! We are excited to have you on board.</p>
-<p> Before you can fully access all of the features and services offered by AirQo Analytics, we need to verify your account. </p>
+<p> Thank you for signing up for AirQo! We are excited to have you on board.</p>
+<p> Before you can fully access all of the features and services offered by AirQo, we need to verify your account. </p>
 <p> This is a quick and easy process that helps us ensure the security and privacy of our users. </p>
 <br>
-<p> To verify your account, please click on the following link: <a href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>verification link</a></p>
+<p> If you are using the AirQo web platform, please click on the following link to verify your account: <a href="${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}">verification link</a></p>
+<p> If you are using the AirQo mobile app, you can verify your account directly within the app.</p>
 <p> This verification link will be valid for ${constants.EMAIL_VERIFICATION_HOURS} hour(s). If you do not verify your email within this time, you will need to request a new verification email.</p>
 <br>
 <p> If you have any questions or need assistance with the verification process, please don't hesitate to reach out to our support team: support@airqo.net.</p>
 <br>
-<p> Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals</p>
+<p> Thank you for choosing AirQo, and we look forward to helping you achieve your goals</p>
 <br>
 <p> Sincerely,</p>
 <p> The AirQo Data Team</p>
@@ -71,9 +72,11 @@ module.exports = {
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Welcome to AirQo Analytics 🎉
+                                    Welcome to AirQo 🎉
                                     <br />
-                                    Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:
+                                    Thanks for signing up; we can't wait for you to get started!
+                                    <br /><br />
+                                    If you are using the AirQo web platform, click the button to verify your email:
                                     <br /><br />
                                     <a href=${url} target="_blank">
                                         <div
@@ -84,13 +87,15 @@ module.exports = {
                                         </div>
                                     </a>
                                     <br /><br />
+                                    If you are using the AirQo mobile app, you can verify your email directly within the app.
+                                    <br /><br />
                                     Trouble logging in? Paste this URL into your browser:
                                     </br>
                                     <a href=${url} target="_blank">${url}</a>
                                     <br /><br />
                                     <div
                                         style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                        You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
+                                        You can set a permanent password anytime within your AirQo personal settings<br />Didn't make this
                                         request? You can safely ignore and delete this email</div>
                                     <br />
                                     <br />
@@ -117,9 +122,11 @@ module.exports = {
                                       entity_title
                                     )}, ${inviterEmail} has invited you to collaborate in ${processString(
       entity_title
-    )} on AirQo Analytics
+    )} on AirQo
                                     <br /><br />
-                                    Use AirQo Analytics to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
+                                    Use AirQo to access real-time air pollution location data for research and gain access to device management tools. Drive meaningful change, city location at a time.
+                                    <br /><br />
+                                    If you are using the AirQo web platform, click the button to join:
                                     <br /><br />
                                     <a href=${url} target="_blank">
                                         <div
@@ -132,13 +139,15 @@ module.exports = {
                                         </div>
                                     </a>
                                     <br /><br />
+                                    If you are using the AirQo mobile app, you can accept the invitation directly within the app.
+                                    <br /><br />
                                     Trouble logging in? Paste this URL into your browser:
                                     </br>
                                     <a href=${url} target="_blank">${url}</a>
                                     <br /><br />
                                     <div
                                         style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
-                                        You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
+                                        You can set a permanent password anytime within your AirQo personal settings<br />Didn't make this
                                         request? You can safely ignore and delete this email</div>
                                     <br />
                                     <br />
@@ -172,8 +181,9 @@ module.exports = {
       // other user types (web app)
       content = ` <tr>
             <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                <p>Congratulations! Your account has been successfully verified.</p>
-                <p>We are pleased to inform you that you can now fully access all of the features and services offered by AirQo Analytics.</p>
+                <p>Congratulations! Your AirQo account has been successfully verified.</p>
+                <p>We are pleased to inform you that you can now fully access all of the features and services offered by AirQo.</p>
+                <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                 <ul>
                     <li>YOUR USERNAME: ${username}</li>
                     <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
@@ -181,7 +191,7 @@ module.exports = {
                 <br />
                 <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
                 <br />
-                <p>Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals</p>
+                <p>Thank you for choosing AirQo, and we look forward to helping you achieve your goals</p>
                 <br />
                 <br />
                 <p>Sincerely,</p>
@@ -199,10 +209,11 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Congratulations! You have successfully joined ${entity_title} organisation on AirQo Analytics.
+                                Congratulations! You have successfully joined ${entity_title} organisation on AirQo.
                                 <br />
-                                We are pleased to inform you that you can now access ${entity_title} data, insights and visualisations on AirQo Analytics.
+                                We are pleased to inform you that you can now access ${entity_title} data, insights and visualisations on AirQo.
                                 <br />
+                                <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
                                     <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
@@ -211,7 +222,7 @@ module.exports = {
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support
                                 team. We are here to help.
                                 <br />
-                                Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals
+                                Thank you for choosing AirQo, and we look forward to helping you achieve your goals
                                 <br />
                                 <br />
                                 Sincerely,
@@ -229,7 +240,7 @@ module.exports = {
                                     the instructions below:
                                     <br />
                                     <ol>
-                                        <li>Open the app.</li>
+                                        <li>Open the AirQo mobile app.</li>
                                         <li>Enter the verification code: ${token}</li>
                                     </ol>
                                     
