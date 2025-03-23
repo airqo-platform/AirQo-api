@@ -97,5 +97,6 @@ const envs = {
   INTER_CORRELATION_PARAMETER:
     process.env.INTER_CORRELATION_PARAMETER || "pm2_5",
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+  THINGSPEAK_BASE_URL: process.env.THINGSPEAK_BASE_URL,
 };
 module.exports = envs;
