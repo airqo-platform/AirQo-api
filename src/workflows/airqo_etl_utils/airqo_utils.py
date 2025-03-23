@@ -172,7 +172,7 @@ class AirQoDataUtils:
         cols = big_query_api.get_columns(
             table=big_query_api.airqo_mobile_measurements_table
         )
-        return Utils.populate_missing_columns(data=data, columns=cols)
+        return DataValidationUtils.fill_missing_columns(data=data, cols=cols)
 
     @staticmethod
     def process_latest_data(

@@ -53,7 +53,7 @@ def airnow_bam_historical_data():
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     start_date=days_ago(1),
-    tags=["bam", "airnow", "realtime"],
+    tags=["bam", "airnow", "realtime", "hourly"],
 )
 def airnow_bam_realtime_data():
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))

@@ -3,7 +3,7 @@ import pandas as pd
 from .bigquery_api import BigQueryApi
 from .constants import DataSource, DeviceNetwork
 from .purple_air_api import PurpleAirApi
-from .utils import Utils
+from .data_validator import DataValidationUtils
 from .datautils import DataUtils
 
 
@@ -86,4 +86,4 @@ class PurpleDataUtils:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
+        return DataValidationUtils.fill_missing_columns(data=data, cols=cols)

@@ -13,9 +13,7 @@ from .utils import Utils
 
 class AirBeamApi:
     def __init__(self):
-        self.AIR_BEAM_BASE_URL = Utils.remove_suffix(
-            configuration.AIR_BEAM_BASE_URL, suffix="/"
-        )
+        self.AIR_BEAM_BASE_URL = configuration.AIR_BEAM_BASE_URL.rstrip("/")
 
     def get_stream_ids(
         self,
