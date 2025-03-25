@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime, timezone
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.constants import DataType, Frequency, DeviceCategory
 from airqo_etl_utils.config import configuration as Config
 from typing import Optional
@@ -78,6 +78,7 @@ class DailyDataUtils:
         Returns:
             None
         """
+        bigquery_api = BigQueryApi()
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["last_updated"] = pd.to_datetime(data["last_updated"])
         data.sort_values(by="last_updated", ascending=True, inplace=True)
@@ -87,14 +88,8 @@ class DailyDataUtils:
             inplace=True,
         )
 
-        bigquery_api = BigQueryApi()
-
-        source = Config.DataSource.get(DataType.AVERAGED)
-        table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.DAILY
         )
         bigquery_api.reload_data(
             table=table,
@@ -123,9 +118,8 @@ class DailyDataUtils:
 
         source = Config.DataSource.get(DataType.AVERAGED)
         table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.DAILY
         )
 
         bigquery_api.load_data(

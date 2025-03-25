@@ -371,7 +371,7 @@ def airqo_realtime_measurements():
     def aggregate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.aggregate_low_cost_sensors_data(data=data)
+        return DataUtils.aggregate_low_cost_sensors_data(data=data)
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):

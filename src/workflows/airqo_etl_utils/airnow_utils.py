@@ -6,7 +6,7 @@ from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 from airflow.exceptions import AirflowFailException
-from airqo_etl_utils.constants import Frequency
+from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 from .date import str_to_date, date_to_str
 
 import logging
@@ -70,9 +70,8 @@ class AirnowDataUtils:
             None
         """
         big_query_api = BigQueryApi()
-        table = big_query_api.hourly_measurements_table
-        processed_data = DataValidationUtils.process_for_big_query(
-            dataframe=data, table=table
+        processed_data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
         big_query_api.load_data(dataframe=processed_data, table=table)
 

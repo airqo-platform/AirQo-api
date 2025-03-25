@@ -1,11 +1,14 @@
 import pandas as pd
 from google.cloud import storage
+from typing import List, Optional
 import logging
 
 logger = logging.getLogger("airflow.task")
 
 
-def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):
+def download_file_from_gcs(
+    bucket_name: str, source_file: str, destination_file: str
+) -> str:
     """
     Downloads a file from a Google Cloud Storage (GCS) bucket.
 
@@ -29,7 +32,7 @@ def download_file_from_gcs(bucket_name: str, source_file: str, destination_file:
 
 def upload_dataframe_to_gcs(
     bucket_name: str, contents: pd.DataFrame, destination_file: str
-):
+) -> str:
     """
     Uploads a pandas DataFrame as a CSV file to a Google Cloud Storage (GCS) bucket.
 
@@ -54,3 +57,24 @@ def upload_dataframe_to_gcs(
     )
 
     return f"gs://{bucket_name}/{blob.name}"
+
+
+def drop_rows_with_bad_data(
+    data_type: str, data: pd.DataFrame, exclude: Optional[List[str]] = None
+) -> pd.DataFrame:
+    """
+    Removes rows from a DataFrame where most numeric values are missing.
+
+    Args:
+        data_type(str): The data type to filter columns by (e.g., "number" for numeric columns).
+        data(pd.DataFrame): The input DataFrame to process.
+        exclude(Optional[List[str]]): A list of column names to exclude from the check.
+
+    Returns:
+        pd.DataFrame: A filtered DataFrame where rows with at least two non-null values in the selected numeric columns are retained.
+    """
+    # TODO Update to be more dynamic
+    numeric_columns = data.select_dtypes(include=[data_type]).columns.difference(
+        exclude or []
+    )
+    return data[data[numeric_columns].count(axis=1) > 1]

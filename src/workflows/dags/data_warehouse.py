@@ -73,13 +73,10 @@ def data_warehouse_consolidated_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
 
         big_query_api = BigQueryApi()
-        table = big_query_api.consolidated_data_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.CONSOLIDATED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
 
         big_query_api.load_data(
@@ -235,13 +232,10 @@ def data_warehouse_historical_consolidated_data():
     )
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
 
         big_query_api = BigQueryApi()
-        table = big_query_api.consolidated_data_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.CONSOLIDATED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
 
         big_query_api.load_data(

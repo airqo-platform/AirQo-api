@@ -22,9 +22,7 @@ class AirflowUtils:
 
     def __init__(self) -> None:
         super().__init__()
-        self.base_url = Utils.remove_suffix(
-            os.getenv("AIRFLOW__WEBSERVER__BASE_URL"), suffix="/"
-        )
+        self.base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").rstrip("/")
         self.headers = {
             "Authorization": f"Basic {AirflowUtils.authentication_string()}",
             "Content-Type": "application/json",
@@ -66,9 +64,7 @@ class AirflowUtils:
     @staticmethod
     def dag_success_notification(context):
         log_url = f"{context.get('task_instance').log_url}"
-        base_url = Utils.remove_suffix(
-            os.getenv("AIRFLOW__WEBSERVER__BASE_URL"), suffix="/"
-        )
+        base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").rstrip("/")
         log_url = f"{base_url}/{log_url[log_url.find('log'):]}"
         msg = f"""
                       :red_circle: Task Failed. 

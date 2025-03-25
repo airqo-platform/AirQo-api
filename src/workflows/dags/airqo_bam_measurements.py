@@ -48,7 +48,7 @@ def airqo_bam_historical_measurements():
 
     @task()
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-        return AirQoDataUtils.clean_bam_data(data=data)
+        return DataUtils.clean_bam_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
@@ -112,7 +112,7 @@ def airqo_bam_realtime_measurements():
     def clean_bam_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.clean_bam_data(data=data)
+        return DataUtils.clean_bam_data(data=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
