@@ -95,8 +95,8 @@ const createMailOptions = ({
 } = {}) => {
   const subject =
     activityType === "recall"
-      ? "AirQo Analytics: Device Recall Notification"
-      : "AirQo Analytics: Device Deployment Notification";
+      ? "Your AirQo Account: Device Recall Notification"
+      : "Your AirQo Account: Device Deployment Notification";
 
   return {
     from: {
@@ -172,7 +172,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics JOIN request",
+        subject: "Your AirQo Account JOIN request",
         html: msgs.joinRequest(firstName, lastName, email),
         bcc,
         attachments: attachments,
@@ -254,7 +254,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${processString(
+        subject: `Your AirQo Account Request to Access ${processString(
           entity_title
         )} Team`,
         html: msgs.joinEntityRequest(email, entity_title),
@@ -316,7 +316,7 @@ const mailer = {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        subject: "Your AirQo Analytics 2024 Year in Review 🌍",
+        subject: "Your Your AirQo Account 2024 Year in Review 🌍",
         html: msgs.yearEndSummary(userStat),
         attachments: attachments,
       };
@@ -398,7 +398,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: `AirQo Analytics Request to Access ${processString(
+        subject: `Your AirQo Account Request to Access ${processString(
           entity_title
         )} Team`,
         html: msgTemplates.acceptInvitation({
@@ -702,7 +702,7 @@ const mailer = {
             address: constants.EMAIL,
           },
           to: `${email}`,
-          subject: "Welcome to AirQo Analytics",
+          subject: "Welcome to Your AirQo Account",
           html: msgs.welcome_general(firstName, lastName, password, email),
           bcc,
           attachments,
@@ -797,7 +797,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Verify your AirQo Analytics account",
+        subject: "Verify your Your AirQo Account account",
         html: msgTemplates.v2_emailVerification({
           email,
           firstName,
@@ -1701,7 +1701,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics account updated",
+        subject: "Your AirQo Account account updated",
         html: `${msgs.user_updated({
           firstName,
           lastName,
@@ -1760,7 +1760,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Welcome to Your New Group/Network at AirQo Analytics",
+        subject: "Welcome to Your New Group/Network at Your AirQo Account",
         html: `${msgs.user_assigned(firstName, lastName, assignedTo, email)}`,
         attachments: attachments,
       };
@@ -1814,7 +1814,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics Password Reset Successful",
+        subject: "Your AirQo Account Password Reset Successful",
         html: `${msgs.forgotten_password_updated(firstName, lastName, email)}`,
         attachments: attachments,
       };
@@ -1868,7 +1868,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics Password Update Successful",
+        subject: "Your AirQo Account Password Update Successful",
         html: `${msgs.known_password_updated(firstName, lastName, email)}`,
         attachments: attachments,
       };
@@ -2142,7 +2142,7 @@ const mailer = {
             name: constants.EMAIL_NAME,
             address: constants.EMAIL,
           },
-          subject: "AirQo Analytics Report",
+          subject: "Your AirQo Account Report",
           html: msgs.report(senderEmail, recepientEmail, formart),
           to: recepientEmail,
           attachments: reportAttachments,
@@ -2245,7 +2245,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics: Monitor Deployment/Recall Alert",
+        subject: "Your AirQo Account: Monitor Deployment/Recall Alert",
         html: `${msgs.site_activity({
           firstName,
           lastName,
@@ -2626,7 +2626,8 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics: Update Your Name to Enhance Your Experience",
+        subject:
+          "Your AirQo Account: Update Your Name to Enhance Your Experience",
         html: `${msgs.updateProfilePrompt({
           firstName,
           lastName,
@@ -2702,7 +2703,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics: Existing User Access Request",
+        subject: "Your AirQo Account: Existing User Access Request",
         html: `${msgs.existing_user({
           firstName,
           lastName,
@@ -2785,7 +2786,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Analytics: Existing User Registration Request",
+        subject: "Your AirQo Account: Existing User Registration Request",
         html: `${msgs.existing_user({
           firstName,
           lastName,
