@@ -397,57 +397,6 @@ class DataUtils:
 
         return raw_data
 
-    def format_data_for_bigquery(
-        data: pd.DataFrame,
-        datatype: DataType,
-        device_category: DeviceCategory,
-        frequency: Frequency,
-        device_network: Optional[DeviceNetwork] = None,
-        extra_type: Optional[Any] = None,
-    ) -> Tuple[pd.DataFrame, str]:
-        """
-        Formats a pandas DataFrame for BigQuery by ensuring all required columns are present
-        and the timestamp column is correctly parsed to datetime.
-
-        Args:
-            data (pd.DataFrame): The input DataFrame to be formatted.
-            data_type (DataType): The type of data (e.g., raw, averaged or processed).
-            device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
-            frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
-            device_network(DeviceNetwork):
-            extra_type(Any):
-
-        Returns:
-            pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
-            str: Name of the table.
-
-        Raises:
-            KeyError: If the combination of data_type, device_category, and frequency is invalid.
-            Exception: For unexpected errors during column retrieval or data processing.
-        """
-        bigquery = BigQueryApi()
-        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
-        data.dropna(subset=["timestamp"], inplace=True)
-
-        try:
-            datasource = Config.DataSource
-            if datatype == DataType.EXTRAS:
-                table = datasource.get(datatype).get(device_network).get(extra_type)
-            else:
-                table = datasource.get(datatype).get(device_category).get(frequency)
-            cols = bigquery.get_columns(table=table)
-        except KeyError:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
-        data = DataValidationUtils.fill_missing_columns(data=data, cols=cols)
-        dataframe = DataValidationUtils.remove_outliers(data)
-        return dataframe[cols], table
-
     @staticmethod
     def remove_duplicates(
         data: pd.DataFrame,
@@ -914,7 +863,9 @@ class DataUtils:
             logger.exception(
                 f"There is an issue with the timestamp column. Shape of data: {data.shape}"
             )
-            raise KeyError(f"An error has occurred with the 'timestamp' column: {e}")
+            raise KeyError(
+                f"An error has occurred with the 'timestamp' column: {e}"
+            ) from e
 
         data.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True

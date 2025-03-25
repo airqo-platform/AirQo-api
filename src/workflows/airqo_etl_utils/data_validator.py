@@ -5,7 +5,6 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
-from typing import Any, Optional, Union
 from .config import configuration as Config
 
 logger = logging.getLogger("airflow.task")
