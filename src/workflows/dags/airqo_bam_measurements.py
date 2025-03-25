@@ -37,13 +37,13 @@ def airqo_bam_historical_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_unclean_data(data: pd.DataFrame):
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.BAM, Frequency.RAW
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.raw_bam_measurements_table,
+            table=table,
         )
 
     @task()
@@ -52,13 +52,13 @@ def airqo_bam_historical_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.BAM, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.bam_hourly_measurements_table,
+            table=table,
         )
 
     unclean_data = extract_bam_data()
@@ -99,13 +99,13 @@ def airqo_bam_realtime_measurements():
     def save_unclean_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.BAM, Frequency.RAW
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.raw_bam_measurements_table,
+            table=table,
         )
 
     @task()
@@ -119,13 +119,13 @@ def airqo_bam_realtime_measurements():
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.BAM, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.bam_hourly_measurements_table,
+            table=table,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))

@@ -92,8 +92,8 @@ class DailyDataUtils:
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.DAILY
         )
         bigquery_api.reload_data(
-            table=table,
             dataframe=data,
+            table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
@@ -116,13 +116,8 @@ class DailyDataUtils:
         """
         bigquery_api = BigQueryApi()
 
-        source = Config.DataSource.get(DataType.AVERAGED)
-        table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
         data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.DAILY
         )
 
-        bigquery_api.load_data(
-            table=table,
-            dataframe=data,
-        )
+        bigquery_api.load_data(dataframe=data, table=table)
