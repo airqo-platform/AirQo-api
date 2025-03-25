@@ -106,13 +106,11 @@ def airqo_historical_hourly_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame) -> None:
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
-            dataframe=data, table=big_query_api.hourly_measurements_table
-        )
+        big_query_api.load_data(dataframe=data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs) -> None:
@@ -204,14 +202,14 @@ def airqo_historical_raw_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_data(airqo_data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.raw_measurements_table,
+            table=table,
         )
 
     raw_data = extract_raw_data()
@@ -435,7 +433,7 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
@@ -447,11 +445,11 @@ def airqo_realtime_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_raw_measurements_to_bigquery(data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+        big_query_api.load_data(data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
@@ -537,11 +535,11 @@ def airqo_raw_data_measurements():
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+        big_query_api.load_data(data, table=table)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
@@ -594,11 +592,11 @@ def airqo_gaseous_realtime_measurements():
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+        big_query_api.load_data(data, table=table)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
@@ -701,15 +699,13 @@ def calibrate_missing_measurements():
         calibrated_data: Generator,
     ) -> None:
         big_query_api = BigQueryApi()
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             calibrated_data,
             DataType.AVERAGED,
             DeviceCategory.GENERAL,
             Frequency.HOURLY,
         )
-        big_query_api.load_data(
-            dataframe=data, table=big_query_api.hourly_measurements_table
-        )
+        big_query_api.load_data(dataframe=data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(calibrated_data: pd.DataFrame) -> None:

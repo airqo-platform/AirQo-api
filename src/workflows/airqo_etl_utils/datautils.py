@@ -784,7 +784,7 @@ class DataUtils:
             A pandas DataFrame object containing hourly averages of data.
         """
 
-        data["timestamp"] = pd.to_datetime(data["timestamp"], format="mixed")
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         group_metadata = (
             data[
                 ["device_id", "site_id", "device_number", "network", "device_category"]
