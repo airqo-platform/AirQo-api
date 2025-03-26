@@ -398,6 +398,17 @@ def airqo_realtime_measurements():
             airqo_data=averaged_hourly_data, weather_data=weather_data
         )
 
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def save_merged_data(merged_air_weather_data: pd.DataFrame):
+        data, table = DataUtils.format_data_for_bigquery(
+            merged_air_weather_data,
+            DataType.AVERAGED,
+            DeviceCategory.GENERAL,
+            Frequency.RAW,
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=table)
+
     @task()
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
@@ -414,7 +425,7 @@ def airqo_realtime_measurements():
         data_api.save_events(measurements=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_hourly_measurements_to_message_broker(data: pd.DataFrame, **kwargs):
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         data = DataUtils.process_data_for_message_broker(
@@ -432,14 +443,13 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(data: pd.DataFrame):
-
         data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.hourly_measurements_table,
+            table=table,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -483,6 +493,7 @@ def airqo_realtime_measurements():
     merged_data = merge_data(
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
+    save_merged_data(merged_data)
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
