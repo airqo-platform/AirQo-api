@@ -29,6 +29,126 @@ const kafka = new Kafka({
 });
 
 const createSite = {
+  getSiteById: async (req, next) => {
+    try {
+      const { id } = req.params;
+      const { tenant } = req.query;
+
+      const site = await SiteModel(tenant.toLowerCase()).findById(id);
+
+      if (!site) {
+        throw new HttpError("site not found", httpStatus.NOT_FOUND);
+      }
+
+      return {
+        success: true,
+        message: "site details fetched successfully",
+        data: site,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      if (error instanceof HttpError) {
+        next(error);
+        return;
+      }
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  fetchSiteDetails: async (tenant, req, next) => {
+    const filter = generateFilter.sites(req, next);
+    logObject("the filter being used to filter", filter);
+
+    const responseFromListSite = await SiteModel(tenant).list({ filter }, next);
+
+    if (!responseFromListSite.success) return responseFromListSite;
+
+    if (isEmpty(responseFromListSite.data[0])) {
+      return {
+        success: false,
+        message: "Site Not Found",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "Site Not Found, Crosschek Query Parameters" },
+      };
+    }
+
+    return responseFromListSite;
+  },
+  prepareSiteRequestBody: (siteDetails, tenant, next) => {
+    let request = { ...siteDetails };
+    delete request._id;
+    delete request.devices;
+
+    let { name, parish, county, district, latitude, longitude } = request;
+
+    if (!name) {
+      const siteNames = { name, parish, county, district };
+      const availableName = createSite.pickAvailableValue(siteNames, next);
+      const isNameValid = createSite.validateSiteName(availableName, next);
+
+      request.name = isNameValid
+        ? availableName
+        : createSite.sanitiseName(availableName, next);
+    }
+
+    request.lat_long = createSite.generateLatLong(latitude, longitude);
+
+    if (isEmpty(request.generated_name)) {
+      const responseFromGenerateName = createSite.generateName(tenant, next);
+
+      if (responseFromGenerateName.success) {
+        request.generated_name = responseFromGenerateName.data;
+      } else {
+        throw responseFromGenerateName;
+      }
+    }
+
+    return request;
+  },
+  fetchAdditionalSiteDetails: async (tenant, id, next) => {
+    const baseQuery = { query: { tenant, id } };
+    const additionalDetails = {};
+
+    const [airQloudsResponse, weatherStationResponse] = await Promise.all([
+      createSite.findAirQlouds(baseQuery, next),
+      createSite.findNearestWeatherStation(baseQuery, next),
+    ]);
+
+    if (airQloudsResponse.success) {
+      additionalDetails.airqlouds = airQloudsResponse.data;
+    }
+
+    if (weatherStationResponse.success) {
+      const station = weatherStationResponse.data;
+      const cleanedStation = createSite.cleanWeatherStationData(station);
+      additionalDetails.nearest_tahmo_station = cleanedStation;
+    }
+
+    return additionalDetails;
+  },
+
+  cleanWeatherStationData: (station) => {
+    const fieldsToRemove = [
+      "elevation",
+      "countrycode",
+      "timezoneoffset",
+      "name",
+      "type",
+    ];
+
+    return Object.keys(station)
+      .filter((key) => !fieldsToRemove.includes(key))
+      .reduce((acc, key) => {
+        acc[key] = station[key];
+        return acc;
+      }, {});
+  },
   hasWhiteSpace: (name, next) => {
     try {
       return name.indexOf(" ") >= 0;
@@ -765,159 +885,48 @@ const createSite = {
   },
   refresh: async (req, next) => {
     try {
+      logObject("the req coming in...", req);
       const { tenant, id } = req.query;
-      let filter = generateFilter.sites(req, next);
-      let update = {};
-      let request = {};
-      request["query"] = {};
-      let generated_name = null;
-      logObject("the filter being used to filter", filter);
 
-      const responseFromListSite = await SiteModel(tenant).list(
-        {
-          filter,
-        },
-        next
-      );
-      if (responseFromListSite.success === true) {
-        let siteDetails = { ...responseFromListSite.data[0] };
-        request["body"] = siteDetails;
-        delete request.body._id;
-        delete request.body.devices;
-      } else if (responseFromListSite.success === false) {
-        return responseFromListSite;
-      }
+      const siteDetails = await createSite.fetchSiteDetails(tenant, req, next);
+      if (!siteDetails.success) return siteDetails;
 
-      // logger.info(`refresh -- responseFromListSite -- ${responseFromListSite}`);
-
-      let {
-        name,
-        parish,
-        county,
-        district,
-        latitude,
-        longitude,
-      } = request.body;
-
-      if (!name) {
-        let siteNames = { name, parish, county, district };
-        let availableName = createSite.pickAvailableValue(siteNames, next);
-        let isNameValid = createSite.validateSiteName(availableName, next);
-        if (!isNameValid) {
-          let sanitisedName = createSite.sanitiseName(availableName, next);
-          request["body"]["name"] = sanitisedName;
-        }
-        request["body"]["name"] = availableName;
-      }
-
-      let lat_long = createSite.generateLatLong(latitude, longitude);
-      request["body"]["lat_long"] = lat_long;
-
-      if (isEmpty(request["body"]["generated_name"])) {
-        let responseFromGenerateName = await createSite.generateName(
-          tenant,
-          next
-        );
-        logObject("responseFromGenerateName", responseFromGenerateName);
-        if (responseFromGenerateName.success === true) {
-          generated_name = responseFromGenerateName.data;
-          request["body"]["generated_name"] = generated_name;
-        } else if (responseFromGenerateName.success === false) {
-          return responseFromGenerateName;
-        }
-      }
-
-      let requestForAirQloudsAndWeatherStations = {};
-      requestForAirQloudsAndWeatherStations["query"] = {};
-      requestForAirQloudsAndWeatherStations["query"]["tenant"] = tenant;
-      requestForAirQloudsAndWeatherStations["query"]["id"] = id;
-      let responseFromFindAirQlouds = await createSite.findAirQlouds(
-        requestForAirQloudsAndWeatherStations,
+      const requestBody = createSite.prepareSiteRequestBody(
+        siteDetails.data[0],
+        tenant,
         next
       );
 
-      logObject("responseFromFindAirQlouds", responseFromFindAirQlouds);
-      if (responseFromFindAirQlouds.success === true) {
-        request["body"]["airqlouds"] = responseFromFindAirQlouds.data;
-      } else if (responseFromFindAirQlouds.success === false) {
-        logObject(
-          "responseFromFindAirQlouds was unsuccessful",
-          responseFromFindAirQlouds
-        );
-      }
+      const airQloudsAndWeatherStations = await createSite.fetchAdditionalSiteDetails(
+        tenant,
+        id,
+        next
+      );
+      Object.assign(requestBody, airQloudsAndWeatherStations);
 
-      const responseFromNearestWeatherStation = await createSite.findNearestWeatherStation(
-        requestForAirQloudsAndWeatherStations,
+      const metadataResponse = await createSite.generateMetadata(
+        { query: { tenant }, body: requestBody },
         next
       );
 
-      if (responseFromNearestWeatherStation.success === true) {
-        let nearest_tahmo_station = responseFromNearestWeatherStation.data;
-        delete nearest_tahmo_station.elevation;
-        delete nearest_tahmo_station.countrycode;
-        delete nearest_tahmo_station.timezoneoffset;
-        delete nearest_tahmo_station.name;
-        delete nearest_tahmo_station.type;
-        request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
-      } else if (responseFromNearestWeatherStation.success === false) {
-        logObject(
-          "unable to find the nearest weather station",
-          responseFromNearestWeatherStation
-        );
-      }
+      if (!metadataResponse.success) return metadataResponse;
 
-      // if (
-      //   !isEmpty(request["body"]["site_codes"]) &&
-      //   request["body"]["site_codes"].length < 7
-      // ) {
-      //   const siteCodeValues = [
-      //     "site_id",
-      //     "name",
-      //     "_id",
-      //     "lat_long",
-      //     "generated name",
-      //     "location_name",
-      //     "search_name",
-      //     "formatted_name",
-      //   ];
-
-      //   for (const siteCode of siteCodeValues) {
-      //     request["body"]["site_codes"].push(siteCode);
-      //   }
-      // }
-
-      request["query"]["tenant"] = tenant;
-      const responseFromGenerateMetadata = await createSite.generateMetadata(
-        request,
-        next
-      );
-
-      if (responseFromGenerateMetadata.success === true) {
-        update = responseFromGenerateMetadata.data;
-      } else if (responseFromGenerateMetadata.success === false) {
-        return responseFromGenerateMetadata;
-      }
-
-      const requestForUpdate = {
+      const updateRequest = {
         ...req,
-        body: { ...update },
+        body: { ...metadataResponse.data },
       };
 
-      const responseFromModifySite = await createSite.update(
-        requestForUpdate,
-        next
-      );
+      const updateResponse = await createSite.update(updateRequest, next);
 
-      if (responseFromModifySite.success === true) {
-        return {
-          success: true,
-          message: "Site details successfully refreshed",
-          data: responseFromModifySite.data,
-        };
-      } else if (responseFromModifySite.success === false) {
-        return responseFromModifySite;
-      }
+      return updateResponse.success
+        ? {
+            success: true,
+            message: "Site details successfully refreshed",
+            data: updateResponse.data,
+          }
+        : updateResponse;
     } catch (error) {
+      logObject("util errors", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -1132,6 +1141,7 @@ const createSite = {
           }
         })
         .catch((error) => {
+          logObject("error in the reverse Geocode util", error);
           try {
             logger.error(`internal server error -- ${JSON.stringify(error)}`);
           } catch (error) {

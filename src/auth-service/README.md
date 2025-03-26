@@ -12,3 +12,70 @@ This authentication microservice is a crucial component of our application's sec
 - Token Validation: Verifies the authenticity and validity of tokens during authentication and authorization processes.
 - User Profile Management: Allows users to update their profile information, including personal details and preferences.
 - Security Measures: Implements industry-standard security practices, such as password hashing and encryption, to protect user data and prevent unauthorized access to AirQo Analytics.
+
+## Folder Structure
+
+```
+.
+├── bin
+│   └── jobs
+├── config
+│   ├── environments
+│   ├── global
+│   └── images
+├── controllers
+├── middleware
+├── models
+├── routes
+│   ├── v1
+│   └── v2
+├── utils
+│   ├── common
+│   ├── scripts
+│   └── shared
+└── validators
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js v18 or higher
+- npm (or yarn)
+- MongoDB (local or remote; configure `DB_URL` if remote)
+- Redis
+- Mailchimp
+- Google Cloud
+- Paddle
+
+### Installation
+
+1.  Clone the repository: `git clone https://github.com/airqo-platform/AirQo-api.git`
+2.  Navigate to the project directory: `cd auth-service`
+3.  Install dependencies: `npm install`
+
+### Running Locally
+
+1.  Create a `.env` file in the project root (see `.env.example` if available or create your own) and set the environment variables appropriately.
+2.  Start the development server: `npm run dev`
+
+### Running in Production (Docker)
+
+1.  Build the Docker image: `docker build -t auth-service .`
+2.  Run the Docker container (setting `NODE_ENV`): `docker run -d -p 3000:3000 -e NODE_ENV=production auth-service`
+
+## Testing
+
+Run tests using: `npm test`
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Code of Conduct
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+## License
+
+[MIT](LICENSE)

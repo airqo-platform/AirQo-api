@@ -3,7 +3,7 @@ import datetime
 import pandas as pd
 
 from .air_quality_utils import AirQualityUtils
-from .constants import Tenant
+from .constants import DeviceNetwork
 from .data_validator import DataValidationUtils
 from .date import str_to_date
 from .plume_labs_api import PlumeLabsApi
@@ -12,14 +12,14 @@ from .plume_labs_api import PlumeLabsApi
 class PlumeLabsUtils:
     @staticmethod
     def extract_sensor_measures(
-        start_date_time: str, end_date_time: str, tenant: Tenant
+        start_date_time: str, end_date_time: str, network: DeviceNetwork
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
         data = pd.DataFrame()
         records = plume_labs_api.get_sensor_measures(
             start_date_time=str_to_date(start_date_time),
             end_date_time=str_to_date(end_date_time),
-            tenant=tenant,
+            network=network,
         )
 
         for record in records:
@@ -47,7 +47,7 @@ class PlumeLabsUtils:
             inplace=True,
         )
         data["timestamp"] = data["timestamp"].apply(datetime.datetime.fromtimestamp)
-        data.loc[:, "tenant"] = str(tenant)
+        data.loc[:, "network"] = network.str
         return data[
             [
                 "no2",
@@ -63,20 +63,20 @@ class PlumeLabsUtils:
                 "timestamp",
                 "device_number",
                 "device_id",
-                "tenant",
+                "network",
             ]
         ]
 
     @staticmethod
     def extract_sensor_positions(
-        start_date_time: str, end_date_time: str, tenant: Tenant
+        start_date_time: str, end_date_time: str, network: DeviceNetwork
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
         data = pd.DataFrame()
         records = plume_labs_api.get_sensor_positions(
             start_date_time=str_to_date(start_date_time),
             end_date_time=str_to_date(end_date_time),
-            tenant=tenant,
+            network=network,
         )
 
         for record in records:
@@ -94,7 +94,7 @@ class PlumeLabsUtils:
             inplace=True,
         )
         data["timestamp"] = data["timestamp"].apply(datetime.datetime.fromtimestamp)
-        data.loc[:, "tenant"] = str(tenant)
+        data.loc[:, "network"] = network.str
         return data[
             [
                 "horizontal_accuracy",
@@ -182,7 +182,7 @@ class PlumeLabsUtils:
 
             data = pd.concat([data, device_data], ignore_index=True)
 
-        data.loc[:, "tenant"] = str(Tenant.URBAN_BETTER)
+        data.loc[:, "network"] = DeviceNetwork.URBAN_BETTER.str
         return data
 
     @staticmethod

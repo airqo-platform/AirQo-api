@@ -100,6 +100,11 @@ const getSelectedSites = async (method = "featured") => {
   }
 };
 
+// Helper function to check if an error is a duplicate key error (E11000)
+const isDuplicateKeyError = (error) => {
+  return error && error.name === "MongoError" && error.code === 11000;
+};
+
 const updatePreferences = async (siteSelectionMethod = "featured") => {
   // Validate default values before proceeding
   if (!validateDefaultValues()) {
@@ -170,19 +175,22 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
 
         if (!preference) {
           // No preference exists for the user in the default group, create a new one
-          await PreferenceModel("airqo")
-            .create(defaultPreferenceWithGroupId)
-            .catch((error) => {
+          try {
+            await PreferenceModel("airqo").create(defaultPreferenceWithGroupId);
+          } catch (error) {
+            // Only log the error if it's not a duplicate key error
+            if (!isDuplicateKeyError(error)) {
               logger.error(
                 `🐛🐛 Failed to create preference for user ${userIdStr}: ${stringify(
                   error
                 )}`
               );
-            });
+            }
+          }
         } else if (isEmpty(preference.selected_sites)) {
           // Preference exists but selected_sites is empty, update it
-          await PreferenceModel("airqo")
-            .findOneAndUpdate(
+          try {
+            await PreferenceModel("airqo").findOneAndUpdate(
               {
                 user_id: user._id,
                 group_id: defaultGroupId,
@@ -198,22 +206,28 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
                 upsert: true,
                 setDefaultsOnInsert: true,
               }
-            )
-            .catch((error) => {
+            );
+          } catch (error) {
+            // Only log the error if it's not a duplicate key error
+            if (!isDuplicateKeyError(error)) {
               logger.error(
                 `🐛🐛 Failed to update preference for user ${userIdStr}: ${stringify(
                   error
                 )}`
               );
-            });
+            }
+          }
         }
       }
 
       skip += batchSize;
     }
   } catch (error) {
-    logObject("error", error);
-    logger.error(`🐛🐛 Error in updatePreferences: ${stringify(error)}`);
+    // Only log the error if it's not a duplicate key error
+    if (!isDuplicateKeyError(error)) {
+      logObject("error", error);
+      logger.error(`🐛🐛 Error in updatePreferences: ${stringify(error)}`);
+    }
   }
 };
 

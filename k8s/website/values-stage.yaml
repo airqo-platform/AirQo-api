@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-website-api
-  tag: stage-db46fe65-1737478850
+  tag: stage-b778e8c2-1741195623
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -29,6 +29,7 @@ affinity:
         weight: 1
 nodeSelector:
   role: control-plane
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

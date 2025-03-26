@@ -24,14 +24,16 @@ function handleResponse({
   res,
 } = {}) {
   if (!result) {
-    return;
+    return res.status(500).json({
+      message: "Internal Server Error",
+      errors: { message: "No result provided" },
+    });
   }
 
   const isSuccess = result.success;
   const defaultStatus = isSuccess
     ? httpStatus.OK
     : httpStatus.INTERNAL_SERVER_ERROR;
-
   const defaultMessage = isSuccess
     ? "Operation Successful"
     : "Internal Server Error";
@@ -39,15 +41,59 @@ function handleResponse({
   const status = result.status !== undefined ? result.status : defaultStatus;
   const message =
     result.message !== undefined ? result.message : defaultMessage;
-  const data = result.data !== undefined ? result.data : [];
+
+  let data = result.data;
+  let additionalData = {};
+
+  if (isSuccess && data === undefined) {
+    data = {}; // Initialize data as an empty object to hold any unique fields
+
+    for (const field in result) {
+      if (
+        field !== "success" &&
+        field !== "message" &&
+        field !== "status" &&
+        field !== "errors"
+      ) {
+        data[field] = result[field]; // Include the additional fields under the specified key
+      }
+    }
+  } else if (
+    isSuccess &&
+    Array.isArray(result.data) &&
+    result.data.length === 0
+  ) {
+    data = null; // Or an empty object {} if you prefer for other successful requests with empty arrays
+  } else if (isSuccess) {
+    // Existing logic to copy any unique fields that are not the standard fields remains the same.
+    for (const field in result) {
+      if (
+        field !== "success" &&
+        field !== "message" &&
+        field !== "status" &&
+        field !== "data" &&
+        field !== "errors"
+      ) {
+        additionalData[field] = result[field];
+      }
+    }
+  }
+
   const errors = isSuccess
-    ? undefined
+    ? null
     : result.errors !== undefined
     ? result.errors
     : { message: "Internal Server Error" };
 
-  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
+  let response = { message, [key]: data, [errorKey]: errors };
+
+  if (isSuccess) {
+    response = { ...response, ...additionalData }; // adds any unique fields present in the result object other than the standard ones.
+  }
+
+  return res.status(status).json(response);
 }
+
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
     const airQloud = await AirQloudModel(tenant)
@@ -354,6 +400,11 @@ const processCohortIds = async (cohort_ids, request) => {
         cohort_id,
       });
 
+      logObject(
+        "responseFromGetDevicesOfCohort",
+        responseFromGetDevicesOfCohort
+      );
+
       if (responseFromGetDevicesOfCohort.success === false) {
         logger.error(
           `🐛🐛 Internal Server Error --- ${JSON.stringify(
@@ -397,6 +448,9 @@ const processCohortIds = async (cohort_ids, request) => {
   const validDeviceIdResults = deviceIdsResults.filter(
     (result) => !(result.success === false)
   );
+
+  // join the array of arrays into a single array
+  const flattened = [].concat(...validDeviceIdResults);
 
   if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
     request.query.device_id = validDeviceIdResults.join(",");
@@ -537,6 +591,43 @@ const createEvent = {
         )
       );
       return;
+    }
+  },
+  delete: async (req, res, next) => {
+    try {
+      const { tenant, startTime, endTime, device, site } = req.query; // Get query parameters
+      const errors = extractErrorsFromRequest(req); //extract errors from the request if any
+
+      if (errors) {
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+      if (!startTime || !endTime) {
+        return next(
+          new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+            message: "startTime and endTime are required",
+          })
+        );
+      }
+      const result = await createEventUtil.deleteEvents(
+        tenant,
+        startTime,
+        endTime,
+        device,
+        site,
+        next
+      );
+
+      handleResponse({ result, res, key: "events" });
+    } catch (error) {
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
   listFromBigQuery: async (req, res, next) => {
@@ -1183,7 +1274,7 @@ const createEvent = {
       request.query.recent = "yes";
       request.query.metadata = "site_id";
       request.query.brief = "yes";
-      const { cohort_id, grid_id } = { ...req.query, ...req.params };
+      const { cohort_id, grid_id, site_id } = { ...req.query, ...req.params };
 
       let locationErrors = 0;
 
@@ -1197,6 +1288,8 @@ const createEvent = {
         if (isEmpty(request.query.site_id)) {
           locationErrors++;
         }
+      } else if (!isEmpty(site_id)) {
+        request.query.site_id = site_id;
       }
 
       if (locationErrors === 0) {
@@ -1231,12 +1324,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1322,7 +1415,7 @@ const createEvent = {
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Bad Request",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1408,7 +1501,7 @@ const createEvent = {
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Bad Request",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1494,7 +1587,7 @@ const createEvent = {
           errors: {
             message: `Unable to process measurements for the provided measurement IDs`,
           },
-          message: "Bad Request",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -1570,12 +1663,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
-            message: `Unable to process measurements for the provided measurement IDs`,
+            message: `Unable to process measurements - crosscheck if provided IDs exist`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2268,57 +2361,7 @@ const createEvent = {
       return;
     }
   },
-  deleteValuesOnPlatform: async (req, res, next) => {
-    try {
-      logText("the delete values operation starts....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createEventUtil.clearEventsOnPlatform(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.error ? result.error : { message: "" },
-        });
-      } else if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          data: result.data,
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
   addEvents: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -2430,12 +2473,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided AirQloud IDs ${airqloud_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2509,12 +2552,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided AirQloud IDs ${airqloud_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2590,12 +2633,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Grid IDs ${grid_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2670,12 +2713,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Grid IDs ${grid_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2751,12 +2794,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Cohort IDs ${cohort_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2832,12 +2875,12 @@ const createEvent = {
           });
         }
       } else {
-        res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           errors: {
             message: `Unable to process measurements for the provided Cohort IDs ${cohort_id}`,
           },
-          message: "Internal Server Error",
+          message: "Bad Request Error",
         });
       }
     } catch (error) {
@@ -2924,6 +2967,168 @@ const createEvent = {
             });
           }
         }
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  getWorstReadingForSites: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const { site_id, grid_id } = { ...req.query, ...req.params };
+      let locationErrors = 0;
+
+      let siteIds = [];
+      if (Array.isArray(site_id)) {
+        siteIds = site_id.map(String);
+      } else if (site_id) {
+        siteIds = [String(site_id)];
+      }
+
+      if (isEmpty(siteIds) && !isEmpty(grid_id)) {
+        await processGridIds(grid_id, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        } else {
+          siteIds = request.query.site_id.split(",");
+        }
+      }
+
+      if (locationErrors === 0) {
+        const result = await createEventUtil.getWorstReadingForSites({
+          siteIds,
+          next,
+        });
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
+
+        if (result.success === true) {
+          const status = result.status || httpStatus.OK;
+          res.status(status).json({
+            success: true,
+            message: result.message,
+            data: result.data,
+          });
+        } else {
+          const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+          res.status(errorStatus).json({
+            success: false,
+            errors: result.errors || { message: "" },
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          errors: {
+            message: `Unable to process measurements for the provided site IDs`,
+          },
+          message: "Bad Request Error",
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  getWorstReadingForDevices: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const { device_id, cohort_id } = { ...req.query, ...req.params };
+      let locationErrors = 0;
+
+      let deviceIds = [];
+      if (Array.isArray(device_id)) {
+        deviceIds = device_id.map(String);
+      } else if (device_id) {
+        deviceIds = [String(device_id)];
+      }
+
+      if (isEmpty(deviceIds) && !isEmpty(cohort_id)) {
+        await processCohortIds(cohort_id, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        } else {
+          deviceIds = request.query.device_id.split(",");
+        }
+      }
+      logObject("deviceIds", deviceIds);
+      if (locationErrors === 0) {
+        const result = await createEventUtil.getWorstReadingForDevices({
+          deviceIds,
+          next,
+        });
+
+        if (isEmpty(result) || res.headersSent) {
+          return;
+        }
+
+        if (result.success === true) {
+          const status = result.status || httpStatus.OK;
+          res.status(status).json({
+            success: true,
+            message: result.message,
+            data: result.data,
+          });
+        } else {
+          const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+          res.status(errorStatus).json({
+            success: false,
+            errors: result.errors || { message: "" },
+            message: result.message,
+          });
+        }
+      } else {
+        res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          errors: {
+            message: `Unable to process measurements for the provided device IDs`,
+          },
+          message: "Bad Request Error",
+        });
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

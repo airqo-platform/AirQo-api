@@ -37,6 +37,7 @@ spec:
                   operator: In
                   values:
                   - high-cpu
+              weight: 1
       containers:
         - env:
             - name: GET_HOSTS_FROM

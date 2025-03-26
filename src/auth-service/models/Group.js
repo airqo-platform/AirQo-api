@@ -187,12 +187,13 @@ GroupSchema.statics = {
       } else if (isEmpty(data)) {
         return {
           success: true,
-          data,
+          data: null,
           message: "group NOT successfully created but operation successful",
           status: httpStatus.ACCEPTED,
         };
       }
     } catch (err) {
+      logObject("the error for registering a group", err);
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
@@ -213,7 +214,13 @@ GroupSchema.statics = {
         });
       }
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return {
+        success: false,
+        data: null,
+        message,
+        errors,
+        status,
+      };
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
@@ -266,6 +273,7 @@ GroupSchema.statics = {
         };
       }
     } catch (err) {
+      logObject("the error for listing a group", err);
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
@@ -402,6 +410,7 @@ GroupSchema.statics = {
 };
 
 const GroupModel = (tenant) => {
+  logObject("the tenant value being used in the group model creation", tenant);
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {

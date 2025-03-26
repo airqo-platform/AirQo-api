@@ -1,9 +1,10 @@
 import pandas as pd
 
 from .bigquery_api import BigQueryApi
-from .constants import Tenant, DataSource
+from .constants import DataSource, DeviceNetwork
 from .purple_air_api import PurpleAirApi
-from .utils import Utils
+from .data_validator import DataValidationUtils
+from .datautils import DataUtils
 
 
 class PurpleDataUtils:
@@ -27,8 +28,7 @@ class PurpleDataUtils:
     @staticmethod
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         data = pd.DataFrame()
-        bigquery_api = BigQueryApi()
-        devices = bigquery_api.query_devices(tenant=Tenant.NASA)
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -78,7 +78,7 @@ class PurpleDataUtils:
             },
             inplace=True,
         )
-        data["tenant"] = str(Tenant.NASA)
+        data["network"] = DeviceNetwork.NASA
         return data
 
     @staticmethod
@@ -86,4 +86,4 @@ class PurpleDataUtils:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
+        return DataValidationUtils.fill_missing_columns(data=data, cols=cols)

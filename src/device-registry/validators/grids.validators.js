@@ -97,7 +97,13 @@ const commonValidations = {
       .bail()
       .notEmpty()
       .withMessage("The name should not be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
 
   nameQuery: [
@@ -105,7 +111,13 @@ const commonValidations = {
       .optional()
       .notEmpty()
       .withMessage("name cannot be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
 
   adminLevel: [
@@ -140,14 +152,11 @@ const commonValidations = {
   validObjectId: (field) => {
     return query(field)
       .optional()
+      .if(query(field).exists())
       .notEmpty()
       .withMessage("id cannot be empty")
       .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      });
+      .withMessage("id must be an object ID");
   },
 
   paramObjectId: (field, location = param) => {
@@ -315,24 +324,9 @@ const gridsValidations = {
   ],
   listGridSummary: [
     ...commonValidations.tenant,
-    oneOf([
-      commonValidations.validObjectId("id"),
-      commonValidations.nameQuery,
-      commonValidations.adminLevelQuery,
-    ]),
-    (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return next(
-          new HttpError(
-            "Validation error",
-            httpStatus.BAD_REQUEST,
-            errors.mapped()
-          )
-        );
-      }
-      next();
-    },
+    commonValidations.validObjectId("id"),
+    commonValidations.nameQuery,
+    commonValidations.adminLevelQuery,
   ],
   deleteGrid: [
     ...commonValidations.tenant,
@@ -589,7 +583,13 @@ const gridsValidations = {
       .optional()
       .not()
       .exists()
-      .withMessage("admin level names cannot be updated"),
+      .withMessage("admin level names cannot be updated")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

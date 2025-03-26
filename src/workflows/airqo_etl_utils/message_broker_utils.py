@@ -7,12 +7,10 @@ import pandas as pd
 from confluent_kafka import Producer, Consumer, TopicPartition
 
 from .config import configuration
-from airqo_etl_utils.airqo_api import AirQoApi
-from .date import date_to_str
 
 from typing import Any, Generator, Optional, List
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class MessageBrokerUtils:
@@ -124,8 +122,8 @@ class MessageBrokerUtils:
         self,
         topic: str,
         data: pd.DataFrame,
-        column_key: str = None,
-        auto_partition: bool = True,
+        column_key: Optional[str] = None,
+        auto_partition: Optional[bool] = True,
     ):
         """
         Publishes data to a Kafka topic. If a `column_key` is provided, each row's key will be
@@ -200,7 +198,7 @@ class MessageBrokerUtils:
         self,
         topic: str,
         group_id: str,
-        auto_offset_reset: str = "latest",
+        auto_offset_reset: Optional[str] = "latest",
         max_messages: Optional[int] = None,
         auto_commit: bool = True,
         offset: Optional[int] = None,

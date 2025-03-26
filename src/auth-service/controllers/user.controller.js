@@ -363,15 +363,52 @@ const createUser = {
         ? defaultTenant
         : req.query.tenant;
 
-      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
-      const token = req.user.toAuthJSON().token;
+      const userDetails = await req.user.toAuthJSON();
+      logObject("userDetails", userDetails);
+      const token = userDetails.token;
+      logger.info(`the user token after login with Google is : ${token}`);
+
+      // Update user fields
+      const currentDate = new Date();
+      try {
+        await UserModel(request.query.tenant)
+          .findOneAndUpdate(
+            { _id: req.user._id },
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              ...(req.user.analyticsVersion !== 3 && req.user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
+            },
+            { new: true, upsert: false, runValidators: true }
+          )
+          .then(() => {})
+          .catch((error) => {
+            logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+          });
+      } catch (error) {
+        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+      }
+
       // Set the token as an HTTP-only cookie
       res.cookie("access_token", token, {
         httpOnly: true,
         secure: true, // Enable if using HTTPS
       });
 
-      res.redirect(`${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}`);
+      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+        // Create a temporary, non-httpOnly cookie for debugging:
+        res.cookie("temp_access_token", token, {
+          httpOnly: false, // Set to false for debugging
+          secure: true, // But keep secure: true (if using HTTPS)
+          // maxAge: 60 * 1000, //Expires in 60 seconds.
+        });
+      }
+
+      res.redirect(
+        `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`
+      );
 
       /***
        * in the FRONTEND, access the cookie:
@@ -518,47 +555,53 @@ const createUser = {
   },
   emailReport: async (req, res, next) => {
     try {
+      // Check if at least one file is uploaded
       if (!req.files || Object.keys(req.files).length === 0) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "No PDF or CSV file attached",
+            message: "Please attach a PDF or CSV file.",
           })
         );
-        return;
       }
 
-      const pdfFile = req.files.pdf;
-      if (pdfFile && !pdfFile.mimetype.includes("pdf")) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Invalid PDF file",
-          })
-        );
-        return;
+      let pdfFile, csvFile;
+
+      if (req.files.pdf) {
+        pdfFile = req.files.pdf;
+        if (!pdfFile.mimetype.includes("pdf")) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid PDF file",
+            })
+          );
+        }
       }
 
-      const csvFile = req.files.csv;
-      if (csvFile && !csvFile.mimetype.includes("csv")) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Invalid CSV file",
-          })
-        );
-        return;
+      if (req.files.csv) {
+        csvFile = req.files.csv;
+        if (!csvFile.mimetype.includes("csv")) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid CSV file",
+            })
+          );
+        }
       }
 
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        next(
+        return next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return;
       }
+
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+      request.pdfFile = pdfFile; // Attach files to the request object
+      request.csvFile = csvFile;
 
       const result = await userUtil.emailReport(request, next);
 
@@ -566,22 +609,18 @@ const createUser = {
         return;
       }
 
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
+      if (result.success) {
+        const status = result.status || httpStatus.OK;
         res.status(status).json({
           success: true,
-          message: "Report Emailed sucessfully",
+          message: "Report Emailed successfully",
         });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
+      } else {
+        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
           success: false,
           message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
+          errors: result.errors || { message: "Internal Server Error" },
         });
       }
     } catch (error) {
@@ -593,7 +632,6 @@ const createUser = {
           { message: error.message }
         )
       );
-      return;
     }
   },
   lookUpFirebaseUser: async (req, res, next) => {

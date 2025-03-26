@@ -18,18 +18,18 @@ from typing import List, Dict, Any
 )
 def airqo_devices_data():
     import pandas as pd
-    from airqo_etl_utils.airqo_utils import AirQoApi
+    from airqo_etl_utils.data_api import DataApi
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_devices() -> pd.DataFrame:
-        airqo_api = AirQoApi()
+        airqo_api = DataApi()
         return airqo_api.get_devices()
 
     @task()
     def transform_devices(devices: List[Dict[str, Any]], **kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        devices = DataValidationUtils.transform_devices(
+        devices = MetaDataUtils.transform_devices(
             devices=devices, taskinstance=kwargs["ti"]
         )
         return devices
@@ -41,8 +41,8 @@ def airqo_devices_data():
         if not devices.empty:
             broker = MessageBrokerUtils()
             broker.publish_to_topic(
-                data=devices,
                 topic=configuration.DEVICES_TOPIC,
+                data=devices,
                 column_key="device_name",
             )
 

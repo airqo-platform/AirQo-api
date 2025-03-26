@@ -81,13 +81,21 @@ let blacklistQueue = async.queue(async (task, callback) => {
         logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
         // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
         callback();
+      })
+      .catch((error) => {
+        logObject("kafka producer send error", error);
+        callback();
       });
-    await kafkaProducer.disconnect();
+    await kafkaProducer.disconnect().catch((error) => {
+      logObject("kafka producer disconnect error", error);
+    });
+    // callback();
   } catch (error) {
     logObject("error", error);
     // logger.error(
     //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
     // );
+    callback();
   }
 }, 1); // Limit the number of concurrent tasks to 1
 
@@ -693,8 +701,8 @@ const token = {
         const client = await ClientModel("airqo")
           .findById(accessToken.client_id)
           .select("isActive");
-        logObject("client.isActive", client.isActive);
-        if (isEmpty(client) || !client.isActive) {
+
+        if (isEmpty(client) || (client && !client.isActive)) {
           logger.error(
             `🚨🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
           );

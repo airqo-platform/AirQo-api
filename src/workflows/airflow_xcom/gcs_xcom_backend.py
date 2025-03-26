@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 from airflow.models.xcom import BaseXCom
@@ -64,7 +64,10 @@ class GCSXComBackend(BaseXCom):
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(destination_file)
         contents.reset_index(drop=True, inplace=True)
-        blob.upload_from_string(contents.to_csv(index=False), "text/csv")
+        # "\" to escape any special characters
+        blob.upload_from_string(
+            contents.to_csv(index=False, escapechar="\\"), "text/csv"
+        )
 
         print(
             "{} with contents {} has been uploaded to {}.".format(
@@ -75,13 +78,25 @@ class GCSXComBackend(BaseXCom):
         return f"gs://{bucket_name}/{blob.name}"
 
     @staticmethod
-    def serialize_value(value: Any) -> Any:
+    def serialize_value(
+        value: Any,
+        key: Optional[str] = None,
+        task_id: Optional[str] = None,
+        dag_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        map_index: Optional[int] = None,
+    ) -> Any:
         """
         Serializes a value to be stored in XCom. If the value is a pandas DataFrame, it is
         uploaded to GCS and the file name is stored in XCom instead.
 
         Args:
-            value(Any): The value to be serialized.
+            value (Any): The value to be serialized.
+            key (str): The XCom key.
+            task_id (str): The ID of the task pushing this XCom.
+            dag_id (str): The DAG ID.
+            run_id (str): The run ID of the DAG.
+            map_index (Optional[int]): The map index for mapped tasks, if applicable.
 
         Returns:
             value(Any): The serialized value.

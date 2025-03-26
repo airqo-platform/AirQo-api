@@ -455,18 +455,21 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           cb(null, user);
           return next();
         } else {
-          const responseFromRegisterUser = await UserModel(tenant).register({
-            google_id: profile._json.sub,
-            firstName: profile._json.given_name,
-            lastName: profile._json.family_name,
-            email: profile._json.email,
-            userName: profile._json.email,
-            profilePicture: profile._json.picture,
-            website: profile._json.hd,
-            password: accessCodeGenerator.generate(
-              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
-            ),
-          });
+          // profilePicture: profile._json.picture,
+          const responseFromRegisterUser = await UserModel(tenant).register(
+            {
+              google_id: profile._json.sub,
+              firstName: profile._json.given_name,
+              lastName: profile._json.family_name,
+              email: profile._json.email,
+              userName: profile._json.email,
+              website: profile._json.hd,
+              password: accessCodeGenerator.generate(
+                constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+              ),
+            },
+            next
+          );
           if (responseFromRegisterUser.success === false) {
             req.auth.success = false;
             req.auth.message = "unable to create user";
@@ -486,6 +489,33 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
+            const currentDate = new Date();
+            try {
+              await UserModel(tenant.toLowerCase())
+                .findOneAndUpdate(
+                  { _id: user._id },
+                  {
+                    $set: { lastLogin: currentDate, isActive: true },
+                    $inc: { loginCount: 1 },
+                    ...(user.analyticsVersion !== 3 && user.verified === false
+                      ? { $set: { verified: true } }
+                      : {}),
+                  },
+                  {
+                    new: true,
+                    upsert: false,
+                    runValidators: true,
+                  }
+                )
+                .then(() => {})
+                .catch((error) => {
+                  logger.error(
+                    `🐛🐛 Internal Server Error -- ${stringify(error)}`
+                  );
+                });
+            } catch (error) {
+              logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
+            }
             cb(null, user);
 
             return next();

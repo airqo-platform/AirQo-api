@@ -15,32 +15,33 @@ from firebase_admin import credentials, messaging
 from firebase_admin import firestore
 from firebase_admin.exceptions import NotFoundError
 
-from .airqo_api import AirQoApi
-from .constants import Tenant
-from .constants import Attachments
+from airqo_etl_utils.data_api import DataApi
+from .config import configuration as Config
+from .datautils import DataUtils
 
-from .config import configuration
 from .date import get_utc_offset_for_hour
 from .email_templates import forecast_email
+from typing import Tuple, Optional
+import logging
+
+logger = logging.getLogger("airflow.task")
 
 cred = credentials.Certificate(
     {
-        "type": configuration.FIREBASE_TYPE,
-        "project_id": configuration.FIREBASE_PROJECT_ID,
-        "private_key_id": configuration.FIREBASE_PRIVATE_KEY_ID,
-        "private_key": configuration.FIREBASE_PRIVATE_KEY.replace("\\n", "\n"),
-        "client_email": configuration.FIREBASE_CLIENT_EMAIL,
-        "client_id": configuration.FIREBASE_CLIENT_ID,
-        "auth_uri": configuration.FIREBASE_AUTH_URI,
-        "token_uri": configuration.FIREBASE_TOKEN_URI,
-        "auth_provider_x509_cert_url": configuration.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
-        "universe_domain": configuration.FIREBASE_UNIVERSE_DOMAIN,
+        "type": Config.FIREBASE_TYPE,
+        "project_id": Config.FIREBASE_PROJECT_ID,
+        "private_key_id": Config.FIREBASE_PRIVATE_KEY_ID,
+        "private_key": Config.FIREBASE_PRIVATE_KEY.replace("\\n", "\n"),
+        "client_email": Config.FIREBASE_CLIENT_EMAIL,
+        "client_id": Config.FIREBASE_CLIENT_ID,
+        "auth_uri": Config.FIREBASE_AUTH_URI,
+        "token_uri": Config.FIREBASE_TOKEN_URI,
+        "auth_provider_x509_cert_url": Config.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+        "universe_domain": Config.FIREBASE_UNIVERSE_DOMAIN,
     }
 )
 
-firebase_admin.initialize_app(
-    cred, {"databaseURL": configuration.FIREBASE_DATABASE_URL}
-)
+firebase_admin.initialize_app(cred, {"databaseURL": Config.FIREBASE_DATABASE_URL})
 
 firestore_db = firestore.client()
 __all__ = ["firestore_db"]
@@ -73,9 +74,7 @@ def check_subscription(user_doc, notifications_type):
 def get_all_users(notifications_type):
     try:
         all_users = []
-        users_snapshot = firestore_db.collection(
-            configuration.FIREBASE_USERS_COLLECTION
-        ).get()
+        users_snapshot = firestore_db.collection(Config.FIREBASE_USERS_COLLECTION).get()
         for user_doc in users_snapshot:
             user_data = user_doc.to_dict()
             userId = user_data.get("userId")
@@ -99,22 +98,48 @@ def get_all_users(notifications_type):
         raise (error)
 
 
-def get_random_measurement():
+def get_random_measurement() -> Tuple[
+    Optional[float], Optional[str], Optional[str], Optional[str]
+]:
+    """
+    Retrieve a random site measurement with a valid pm_value.
+
+    This function obtains the sites DataFrame via DataUtils.get_sites() and then attempts to
+    retrieve a valid (non-NaN) pm_value for a randomly selected site. It repeatedly samples
+    random rows up to a maximum number of attempts equal to the number of rows in the DataFrame.
+    If no valid measurement is found after all attempts, a warning is logged and the default
+    values (None) are returned.
+
+    The measurement for a site is fetched using AirQoApi().get_site_measurement(place_id),
+    where 'place_id' is obtained from the site's data.
+
+    Returns:
+        tuple:
+            - pm_value (Optional[float]): The measurement value if valid; otherwise, None.
+            - name (Optional[str]): The site's search name.
+            - location (Optional[str]): The site's location name.
+            - place_id (Optional[str]): The site's identifier.
+    """
     try:
-        name, location, pm_value = None, None, None
-        sites = AirQoApi().get_sites()
-        while pm_value is None:
-            random_index = random.randint(0, len(sites) - 1)
-            target_place = sites[random_index]
+        sites = DataUtils.get_sites()
+        max_attempts = len(sites)
+        attempt = 0
+        pm_value, name, location, place_id = None, None, None, None
+
+        while (pm_value is None or pd.isna(pm_value)) and attempt < max_attempts:
+            target_place = sites.sample(n=1).iloc[0]
             name = target_place.get("search_name")
             location = target_place.get("location_name")
             place_id = target_place.get("site_id")
-            pm_value = AirQoApi().get_site_measurement(place_id)
+            pm_value = DataApi().get_site_measurement(place_id)
+            attempt += 1
 
+        if pm_value is None or pd.isna(pm_value):
+            logger.warning("No valid measurement found after maximum attempts.")
         return pm_value, name, location, place_id
-    except Exception as error:
-        print("Error getting random measurement", error)
-        traceback.print_exc()
+
+    except Exception as e:
+        logger.exception("Error getting random measurement", exc_info=e)
         return None, None, None, None
 
 
@@ -131,12 +156,12 @@ def group_users(users, reading_type):
                 None,
                 None,
             )
-            place_groupings = AirQoApi().get_favorites(user_id)
+            place_groupings = DataApi().get_favorites(user_id)
             if len(place_groupings) == 0:
-                place_groupings = AirQoApi().get_location_history(user_id)
+                place_groupings = DataApi().get_location_history(user_id)
 
                 if len(place_groupings) == 0:
-                    place_groupings = AirQoApi().get_search_history(user_id)
+                    place_groupings = DataApi().get_search_history(user_id)
 
             if len(place_groupings) != 0:
                 random_index = random.randint(0, len(place_groupings) - 1)
@@ -148,7 +173,7 @@ def group_users(users, reading_type):
                 place_id = target_place.get("place_id")
 
             if reading_type == "forecast":
-                forecasts = AirQoApi().get_forecast(frequency="daily", site_id=place_id)
+                forecasts = DataApi().get_forecast(frequency="daily", site_id=place_id)
                 if len(forecasts) == 0:
                     continue
                 pm_values = [forecast["pm2_5"] for forecast in forecasts]
@@ -212,7 +237,7 @@ def send_push_notifications(grouped_users):
 
         except NotFoundError as e:
             user_ref = firestore_db.collection(
-                configuration.FIREBASE_USERS_COLLECTION
+                Config.FIREBASE_USERS_COLLECTION
             ).document(userId)
             user_ref.update({"device": ""})
             print(f"Token for User {userId} is invalid and has been deleted.")
@@ -227,17 +252,16 @@ def send_email_notifications(grouped_users):
         for user_id, target_places in grouped_users.items():
             place = target_places[0]
             pm_value = place.get("pmValue")
-            attachments = (
-                Attachments.EMOJI_ATTACHMENTS.value
-                + Attachments.EMAIL_ATTACHMENTS.value
-            )
+            attachments = Config.ATTACHMENTS.get(
+                "EMOJI_ATTACHMENTS"
+            ) + Config.ATTACHMENTS.get("EMAIL_ATTACHMENTS")
 
             user_email = place.get("email")
 
             mail_options = {
                 "from": {
                     "name": "AirQo Data Team",
-                    "address": configuration.MAIL_USER,
+                    "address": Config.MAIL_USER,
                 },
                 "to": user_email,
                 "subject": "Air quality of {} is expected to be {} with a concentration level of {:.2f}µg/m3!".format(
@@ -250,7 +274,7 @@ def send_email_notifications(grouped_users):
             try:
                 server = smtplib.SMTP("smtp.gmail.com", 587)
                 server.starttls()
-                server.login(configuration.MAIL_USER, configuration.MAIL_PASS)
+                server.login(Config.MAIL_USER, Config.MAIL_PASS)
 
                 msg = MIMEMultipart()
                 msg["From"] = mail_options["from"]["address"]
@@ -334,7 +358,7 @@ def get_notification_recipients(
     offset = get_utc_offset_for_hour(hour)
     db = firestore.client()
     docs = (
-        db.collection(configuration.APP_USERS_DATABASE)
+        db.collection(Config.APP_USERS_DATABASE)
         .where("utcOffset", "==", offset)
         .stream()
     )
@@ -363,7 +387,7 @@ def get_notification_recipients(
 def get_notification_templates(template_name: str) -> list:
     db = firestore.client()
     value = (
-        db.collection(configuration.APP_NOTIFICATION_TEMPLATES_DATABASE)
+        db.collection(Config.APP_NOTIFICATION_TEMPLATES_DATABASE)
         .document(template_name)
         .get()
         .to_dict()
@@ -408,7 +432,7 @@ def create_notification_messages(
 
 
 def send_notification_messages(messages: pd.DataFrame):
-    print(f"Messages to be sent : {len(messages)}")
+    logger.info(f"Messages to be sent : {len(messages)}")
 
     notifications = []
     for _, message in messages.iterrows():
@@ -428,16 +452,9 @@ def send_notification_messages(messages: pd.DataFrame):
         messages = notifications[i : i + 500]
 
         try:
-            for message in messages:
-                print(
-                    f"Message to be sent to {message.token} =>  "
-                    f"title : {message.notification.title} ; "
-                    f"body : {message.notification.body}"
-                )
             response = messaging.send_all(messages)
-            print(
+            logger.info(
                 f"{response.success_count} messages were sent successfully out of {len(messages)}"
             )
         except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+            logger.exception(f"An exception occurred: {ex}")

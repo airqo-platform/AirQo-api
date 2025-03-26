@@ -37,6 +37,14 @@ function sanitizeObject(obj, invalidKeys) {
   return obj;
 }
 
+const sanitizeName = (name) => {
+  return name
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .slice(0, 41)
+    .trim()
+    .toLowerCase();
+};
+
 const DEVICE_CATEGORIES = Object.freeze({
   GAS: "gas",
   LOWCOST: "lowcost",
@@ -343,23 +351,26 @@ deviceSchema.pre(
           }
         }
 
-        // Sanitize name
-        const sanitizeName = (name) => {
-          return name
-            .replace(/[^a-zA-Z0-9]/g, "_")
-            .slice(0, 41)
-            .trim()
-            .toLowerCase();
-        };
+        if (!this.name && !this.long_name) {
+          return next(
+            new HttpError(
+              "Either name or long_name is required.",
+              httpStatus.BAD_REQUEST
+            )
+          );
+        }
 
         if (this.name) {
           this.name = sanitizeName(this.name);
-        } else if (this.long_name) {
+        } else {
+          // Use long_name if name is not provided
           this.name = sanitizeName(this.long_name);
         }
 
-        // Set long_name if not provided
-        if (!this.long_name && this.name) {
+        if (this.long_name) {
+          this.long_name = sanitizeName(this.long_name);
+        } else {
+          // Use name if long_name is not provided
           this.long_name = this.name;
         }
 
@@ -405,13 +416,6 @@ deviceSchema.pre(
 
       // Sanitize name if modified
       if (updateData.name) {
-        const sanitizeName = (name) => {
-          return name
-            .replace(/[^a-zA-Z0-9]/g, "_")
-            .slice(0, 41)
-            .trim()
-            .toLowerCase();
-        };
         updateData.name = sanitizeName(updateData.name);
       }
 
@@ -505,7 +509,29 @@ deviceSchema.methods = {
 deviceSchema.statics = {
   async register(args, next) {
     try {
-      const createdDevice = await this.create(args);
+      logObject("args", args);
+      if (!args.name && !args.long_name) {
+        // Check if both are missing
+        return next(
+          new HttpError(
+            "Either name or long_name is required.",
+            httpStatus.BAD_REQUEST
+          )
+        );
+      }
+
+      if (args.name) {
+        args.name = sanitizeName(args.name);
+        if (!args.long_name) args.long_name = args.name; // Derive long_name if missing
+      } else {
+        // if args.name is missing
+        args.long_name = sanitizeName(args.long_name);
+        args.name = args.long_name; // derive name from long_name
+      }
+
+      const device = new this(args); // Create instance AFTER processing name/long_name
+      const createdDevice = await device.save();
+      logObject("createdDevice", createdDevice);
 
       if (!createdDevice) {
         logger.error("Operation successful but device is not created");
@@ -704,16 +730,20 @@ deviceSchema.statics = {
           .toUpperCase();
       }
 
+      let updateOperation = { $set: { ...sanitizedUpdate } };
+
+      if (update.groups) {
+        // Check the original update object for groups
+        updateOperation.$addToSet = { groups: { $each: update.groups } }; //Merge $addToSet
+        delete updateOperation.$set.groups; // Delete .groups from the $set
+      }
+
       // Perform bulk update with additional options
-      const bulkUpdateResult = await this.updateMany(
-        filter,
-        { $set: sanitizedUpdate },
-        {
-          new: true,
-          runValidators: true,
-          ...opts,
-        }
-      );
+      const bulkUpdateResult = await this.updateMany(filter, updateOperation, {
+        new: true,
+        runValidators: true,
+        ...opts,
+      });
 
       if (bulkUpdateResult.nModified > 0) {
         return {

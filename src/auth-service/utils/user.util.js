@@ -671,15 +671,25 @@ const createUserModule = {
             { email, firstName, lastName, updatedUserDetails },
             next
           );
-
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: responseFromModifyUser.message,
-              data: responseFromModifyUser.data,
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+          if (responseFromSendEmail) {
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: responseFromModifyUser.message,
+                data: responseFromModifyUser.data,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else {
+            logger.error("mailer.update did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send update email" }
+              )
+            );
           }
         }
       } else if (responseFromModifyUser.success === false) {
@@ -1197,18 +1207,31 @@ const createUserModule = {
               next
             );
 
-            logObject("responseFromSendEmail", responseFromSendEmail);
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: "An Email sent to your account, please verify",
-                data: firebaseUser,
-                status: responseFromSendEmail.status
-                  ? responseFromSendEmail.status
-                  : "",
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
+            if (responseFromSendEmail) {
+              logObject("responseFromSendEmail", responseFromSendEmail);
+              if (responseFromSendEmail.success === true) {
+                return {
+                  success: true,
+                  message: "An Email sent to your account, please verify",
+                  data: firebaseUser,
+                  status: responseFromSendEmail.status
+                    ? responseFromSendEmail.status
+                    : "",
+                };
+              } else if (responseFromSendEmail.success === false) {
+                return responseFromSendEmail;
+              }
+            } else {
+              logger.error(
+                "mailer.verifyMobileEmail did not return a response"
+              );
+              return next(
+                new HttpError(
+                  "Internal Server Error",
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                  { message: "Failed to send after email verification email" }
+                )
+              );
             }
           }
         }
@@ -1248,8 +1271,18 @@ const createUserModule = {
         return cacheID;
       }
 
-      const cachedData = await createUserModule.getMobileUserCache(cacheID);
-      logObject("cachedData", cachedData);
+      const cachedData = await createUserModule.getMobileUserCache(
+        cacheID,
+        next
+      );
+
+      if (!cachedData) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid or expired token",
+          })
+        );
+      }
 
       if (cachedData.success === false) {
         return cachedData;
@@ -1257,7 +1290,7 @@ const createUserModule = {
         logObject("the cachedData", cachedData);
 
         if (!isEmpty(cachedData.token) && cachedData.token !== token) {
-          next(
+          return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Either Token or Email are Incorrect",
             })
@@ -1267,7 +1300,7 @@ const createUserModule = {
         const firebaseUser = cachedData;
 
         if (!firebaseUser.email && !firebaseUser.phoneNumber) {
-          next(
+          return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Email or phoneNumber is required.",
             })
@@ -1303,13 +1336,13 @@ const createUserModule = {
           );
           logObject("updatedUser", updatedUser);
           const responseFromDeleteCachedItem =
-            await createUserModule.deleteCachedItem(cacheID);
+            await createUserModule.deleteCachedItem(cacheID, next);
           logObject(
             "responseFromDeleteCachedItem after updating existing user",
             responseFromDeleteCachedItem
           );
           if (
-            responseFromDeleteCachedItem.success &&
+            responseFromDeleteCachedItem &&
             responseFromDeleteCachedItem.success === true
           ) {
             return {
@@ -1319,7 +1352,7 @@ const createUserModule = {
               data: userExistsLocally.toAuthJSON(),
             };
           } else {
-            next(
+            return next(
               new HttpError(
                 "Internal Sever Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
@@ -1353,13 +1386,13 @@ const createUserModule = {
           });
           logObject("newUser", newUser);
           const responseFromDeleteCachedItem =
-            await createUserModule.deleteCachedItem(cacheID);
+            await createUserModule.deleteCachedItem(cacheID, next);
           logObject(
             "responseFromDeleteCachedItem after creating new user",
             responseFromDeleteCachedItem
           );
           if (
-            responseFromDeleteCachedItem.success &&
+            responseFromDeleteCachedItem &&
             responseFromDeleteCachedItem.success === true
           ) {
             return {
@@ -1369,7 +1402,7 @@ const createUserModule = {
               data: newUser.toAuthJSON(),
             };
           } else {
-            next(
+            return next(
               new HttpError(
                 "Internal Sever Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
@@ -1384,7 +1417,7 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1436,7 +1469,7 @@ const createUserModule = {
         );
       }
 
-      if (responseFromSendEmail.success === true) {
+      if (responseFromSendEmail && responseFromSendEmail.success === true) {
         return {
           success: true,
           message: "process successful, check your email for token",
@@ -1448,12 +1481,13 @@ const createUserModule = {
             emailLinkCode,
           },
         };
-      } else if (responseFromSendEmail.success === false) {
+      } else {
         logger.error(`email sending process unsuccessful`);
-        const errorObject = responseFromSendEmail.errors
-          ? responseFromSendEmail.errors
-          : {};
-        next(
+        const errorObject =
+          responseFromSendEmail && responseFromSendEmail.errors
+            ? responseFromSendEmail.errors
+            : {};
+        return next(
           new HttpError(
             "Internal Sever Error",
             httpStatus.INTERNAL_SERVER_ERROR,
@@ -1466,7 +1500,7 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1475,6 +1509,7 @@ const createUserModule = {
       );
     }
   },
+
   delete: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -1484,7 +1519,10 @@ const createUserModule = {
         { userId, tenant },
         next
       );
-      if (responseFromCascadeDeletion.success === true) {
+      if (
+        responseFromCascadeDeletion &&
+        responseFromCascadeDeletion.success === true
+      ) {
         const responseFromRemoveUser = await UserModel(
           tenant.toLowerCase()
         ).remove(
@@ -1499,7 +1537,7 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1508,6 +1546,7 @@ const createUserModule = {
       );
     }
   },
+
   sendFeedback: async (request, next) => {
     try {
       const { body } = request;
@@ -1523,18 +1562,18 @@ const createUserModule = {
 
       logObject("responseFromSendEmail ....", responseFromSendEmail);
 
-      if (responseFromSendEmail.success === true) {
+      if (responseFromSendEmail && responseFromSendEmail.success === true) {
         return {
           success: true,
           message: "email successfully sent",
           status: httpStatus.OK,
         };
-      } else if (responseFromSendEmail.success === false) {
+      } else {
         return responseFromSendEmail;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1543,6 +1582,7 @@ const createUserModule = {
       );
     }
   },
+
   registerMobileUser: async (request, next) => {
     try {
       const { tenant } = {
@@ -1556,11 +1596,10 @@ const createUserModule = {
 
       const newUserResponse = await UserModel(tenant).register(userData, next);
 
-      if (newUserResponse.success === true) {
+      if (newUserResponse && newUserResponse.success === true) {
         const newUser = newUserResponse.data;
 
-        // Add this block to store the token in the VerifyToken collection:
-        const tokenExpiry = 86400; //24hrs in seconds. Feel free to use any value
+        const tokenExpiry = 86400; //24hrs in seconds.
 
         const tokenCreationBody = {
           token: verificationToken,
@@ -1572,7 +1611,7 @@ const createUserModule = {
           tenant.toLowerCase()
         ).register(tokenCreationBody, next);
 
-        if (verifyTokenResponse.success === false) {
+        if (verifyTokenResponse && verifyTokenResponse.success === false) {
           // Consider rolling back user creation
           logger.error(
             `Failed to create verification token for user ${newUser.email}: ${verifyTokenResponse.message}`
@@ -1632,6 +1671,19 @@ const createUserModule = {
         tenant.toLowerCase()
       ).register(tokenCreationBody, next);
 
+      if (!responseFromCreateToken) {
+        logger.error(
+          `🐛🐛 Error creating verification token: responseFromCreateToken is undefined`
+        );
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Failed to create verification token" }
+          )
+        );
+      }
+
       if (responseFromCreateToken.success === false) {
         return responseFromCreateToken;
       } else {
@@ -1643,25 +1695,37 @@ const createUserModule = {
           },
           next
         );
-        logObject("responseFromSendEmail", responseFromSendEmail);
-        if (responseFromSendEmail.success === true) {
-          const userDetails = {
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            verified: user.verified,
-          };
 
-          return {
-            success: true,
-            message: "An Email sent to your account please verify",
-            data: userDetails,
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "",
-          };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        if (responseFromSendEmail) {
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === true) {
+            const userDetails = {
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              verified: user.verified,
+            };
+
+            return {
+              success: true,
+              message: "An Email sent to your account please verify",
+              data: userDetails,
+              status: responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "",
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else {
+          logger.error("mailer.verifyEmail did not return a response");
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Failed to send after email verification email" }
+            )
+          );
         }
       }
     } catch (error) {
@@ -2080,25 +2144,37 @@ const createUserModule = {
             },
             next
           );
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
-            const userDetails = {
-              firstName: createdUser._doc.firstName,
-              lastName: createdUser._doc.lastName,
-              email: createdUser._doc.email,
-              verified: createdUser._doc.verified,
-            };
 
-            return {
-              success: true,
-              message: "An Email sent to your account please verify",
-              data: userDetails,
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+          if (responseFromSendEmail) {
+            logObject("responseFromSendEmail", responseFromSendEmail);
+            if (responseFromSendEmail.success === true) {
+              const userDetails = {
+                firstName: createdUser._doc.firstName,
+                lastName: createdUser._doc.lastName,
+                email: createdUser._doc.email,
+                verified: createdUser._doc.verified,
+              };
+
+              return {
+                success: true,
+                message: "An Email sent to your account please verify",
+                data: userDetails,
+                status: responseFromSendEmail.status
+                  ? responseFromSendEmail.status
+                  : "",
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else {
+            logger.error("mailer.verifyEmail did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send verification email" }
+              )
+            );
           }
         }
       } else if (responseFromCreateUser.success === false) {
@@ -2164,18 +2240,30 @@ const createUserModule = {
           },
           next
         );
-        logObject("responseFromSendEmail", responseFromSendEmail);
-        if (responseFromSendEmail.success === true) {
-          return {
-            success: true,
-            message: "user successfully created",
-            data: createdUser._doc,
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "",
-          };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+
+        if (responseFromSendEmail) {
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: "user successfully created",
+              data: createdUser._doc,
+              status: responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "",
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else {
+          logger.error("mailer.user did not return a response");
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Failed to send user creation email" }
+            )
+          );
         }
       } else if (responseFromCreateUser.success === false) {
         return responseFromCreateUser;
@@ -2241,15 +2329,27 @@ const createUserModule = {
             },
             next
           );
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "forgot email successfully sent",
-              status: httpStatus.OK,
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+
+          if (responseFromSendEmail) {
+            logObject("responseFromSendEmail", responseFromSendEmail);
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "forgot email successfully sent",
+                status: httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
+          } else {
+            logger.error("mailer.forgot did not return a response");
+            return next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                { message: "Failed to send forgot password email" }
+              )
+            );
           }
         } else if (responseFromModifyUser.success === false) {
           return responseFromModifyUser;
@@ -2420,10 +2520,21 @@ const createUserModule = {
           next
         );
 
-        if (responseFromSendEmail.success === true) {
-          return responseFromUpdateUser;
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        if (responseFromSendEmail) {
+          if (responseFromSendEmail.success === true) {
+            return responseFromUpdateUser;
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else {
+          logger.error("mailer.updateKnownPassword did not return a response");
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Failed to send update password email" }
+            )
+          );
         }
       } else if (responseFromUpdateUser.success === false) {
         return responseFromUpdateUser;
@@ -2513,15 +2624,28 @@ const createUserModule = {
         next
       );
 
-      logObject("responseFromSendEmail", responseFromSendEmail);
+      if (responseFromSendEmail) {
+        logObject("responseFromSendEmail", responseFromSendEmail);
 
-      if (responseFromSendEmail.success === true) {
-        return {
-          success: true,
-          message: "Password reset successful",
-        };
-      } else if (responseFromSendEmail.success === false) {
-        return responseFromSendEmail;
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: "Password reset successful",
+          };
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else {
+        logger.error(
+          "mailer.updateForgottenPassword did not return a response"
+        );
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: "Failed to send update password email" }
+          )
+        );
       }
     } catch (error) {
       logObject("error", error);

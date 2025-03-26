@@ -6,7 +6,7 @@ from cloudinary.utils import cloudinary_url
 from .models import (
     CleanAirResource, ForumEvent, Engagement, Partner, Program,
     Session, Support, Person, Objective, ForumResource,
-    ResourceFile, ResourceSession
+    ResourceFile, ResourceSession, Section
 )
 
 
@@ -114,19 +114,67 @@ class ForumResourceSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class SectionSerializer(serializers.ModelSerializer):
+    forum_events = serializers.PrimaryKeyRelatedField(
+        queryset=ForumEvent.objects.all(),
+        many=True
+    )
+
+    class Meta:
+        model = Section
+        fields = [
+            'id',
+            'forum_events',
+            'title',
+            'content',
+            'section_type',
+            'reverse_order',
+            'pages',
+            'order',
+        ]
+
+
+class ForumEventTitleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ForumEvent
+        fields = ['id', 'title', 'unique_title']
+
+
 class ForumEventSerializer(serializers.ModelSerializer):
+    sections = SectionSerializer(many=True, read_only=True)
     forum_resources = ForumResourceSerializer(many=True, read_only=True)
     engagement = EngagementSerializer(read_only=True)
-    partners = PartnerSerializer(many=True, read_only=True)
+    # Replace the default partners field with a SerializerMethodField.
+    partners = serializers.SerializerMethodField()
     supports = SupportSerializer(many=True, read_only=True)
     programs = CleanAirProgramSerializer(many=True, read_only=True)
-    persons = PersonSerializer(many=True, read_only=True)
+    persons = serializers.SerializerMethodField()
     background_image_url = serializers.SerializerMethodField()
 
     def get_background_image_url(self, obj):
         if obj.background_image:
             return obj.background_image.url
         return None
+
+    def get_persons(self, obj):
+        """
+        Return all Person objects that are explicitly linked to this event plus
+        any Person with no assigned forum_events (interpreted as belonging to all events).
+        """
+        explicit_persons = obj.persons.all()
+        unassigned_persons = Person.objects.filter(forum_events__isnull=True)
+        combined = (explicit_persons | unassigned_persons).distinct()
+        return PersonSerializer(combined, many=True).data
+
+    def get_partners(self, obj):
+        """
+        Return all Partner objects that are explicitly linked to this event plus
+        any Partner with no assigned forum_events (interpreted as belonging to all events).
+        """
+        explicit_partners = obj.partners.all()
+        unassigned_partners = Partner.objects.filter(forum_events__isnull=True)
+        combined = (explicit_partners | unassigned_partners).distinct()
+        return PartnerSerializer(combined, many=True).data
 
     class Meta:
         model = ForumEvent

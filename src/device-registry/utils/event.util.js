@@ -116,6 +116,29 @@ async function transformOneReading(
 ) {
   try {
     const transformedEvent = transform(data, map, context);
+
+    const validValues = transformedEvent.values.filter((value) => {
+      let isValid = true;
+      for (const key in map.item) {
+        // Use the provided map for consistency
+        if (typeof value[key] === "number" && value[key] <= 0) {
+          isValid = false;
+          break;
+        }
+      }
+      return isValid;
+    });
+
+    if (validValues.length === 0) {
+      return {
+        success: false,
+        message: "All values zero or less; discarding.",
+      };
+    }
+    transformedEvent.values = validValues;
+    if (transformedEvent.values.length < transformedEvent.nValues) {
+      transformedEvent.nValues = validValues.length;
+    }
     return {
       success: true,
       message: "successfully transformed the provided event",
@@ -162,7 +185,11 @@ async function transformManyReadings(request, next) {
       for (let i = 0; i < results.length; i++) {
         let result = results[i];
         if (result.status === "fulfilled") {
-          transforms.push(result.value.data);
+          if (result.value.success) {
+            transforms.push(result.value.data);
+          } else {
+            errors.push(result.value); // Collect errors about discarded events if needed
+          }
         } else if (result.status === "rejected") {
           let error = result.reason.errors
             ? result.reason.errors
@@ -239,19 +266,38 @@ async function processEvent(event, next) {
     let filter = cleanDeep(event.filter);
     let update = event.update;
     dot.delete(["filter", "update", "options"], value);
-    update["$push"] = { values: value };
 
-    logObject("event.tenant", event.tenant);
-    logObject("update", update);
-    logObject("filter", filter);
-    logObject("options", options);
+    const validValues = event.values.filter((valItem) => {
+      // Directly access the values property
+      let isValid = true;
+
+      for (const key in constants.EVENT_MAPPINGS.item) {
+        if (typeof valItem[key] === "number" && valItem[key] <= 0) {
+          isValid = false;
+          break;
+        }
+      }
+      return isValid;
+    });
+
+    if (validValues.length === 0) {
+      logger.warn(
+        `Discarding event with all zero/negative values: ${JSON.stringify(
+          value
+        )}`
+      );
+      return { added: false };
+    }
+
+    value.values = validValues;
+    update["$push"] = { values: { $each: value.values } };
+    update["$inc"] = { nValues: validValues.length };
 
     const addedEvents = await EventModel(event.tenant).updateOne(
       filter,
       update,
       options
     );
-    // logObject("addedEvents", addedEvents);
 
     if (addedEvents) {
       return {
@@ -293,6 +339,7 @@ async function processEvent(event, next) {
     };
   }
 }
+
 async function processEvents(events, next) {
   let nAdded = 0;
   let eventsAdded = [];
@@ -818,6 +865,17 @@ const createEvent = {
       let missingDataMessage = "";
       const { query } = request;
       let { limit, skip } = query;
+      limit = Number(limit);
+      skip = Number(skip);
+
+      if (Number.isNaN(limit) || limit < 0) {
+        limit = 30;
+      }
+
+      if (Number.isNaN(skip) || skip < 0) {
+        skip = 0;
+      }
+
       const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
@@ -859,6 +917,20 @@ const createEvent = {
         },
         next
       );
+
+      if (!responseFromListEvents) {
+        // Handle cases where responseFromListEvents is null or undefined
+        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Error retrieving events from the database",
+            }
+          )
+        );
+      }
 
       if (
         language !== undefined &&
@@ -1536,6 +1608,118 @@ const createEvent = {
       return;
     }
   },
+  getWorstReadingForSites: async (req, res, next) => {
+    try {
+      const siteIds = req.body.siteIds; // Assuming you pass the siteIds in the request body
+
+      const result = await ReadingModel("airqo").getWorstPm2_5Reading({
+        siteIds,
+        next,
+      });
+
+      if (result.success) {
+        res.status(result.status).json(result);
+      } else {
+        // Handle errors based on result.message and result.errors
+        next(result);
+      }
+    } catch (error) {
+      // Handle unexpected errors
+      next(error);
+    }
+  },
+  getWorstReadingForDevices: async ({ deviceIds = [], next } = {}) => {
+    try {
+      if (isEmpty(deviceIds) || !Array.isArray(deviceIds)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "deviceIds array is required",
+          })
+        );
+        return;
+      }
+      if (deviceIds.length === 0) {
+        return {
+          success: true,
+          message: "No device_ids were provided",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      // Validate deviceIds type
+      if (!deviceIds.every((id) => typeof id === "string")) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "deviceIds must be an array of strings",
+          })
+        );
+        return;
+      }
+
+      const formattedDeviceIds = deviceIds.map((id) => id.toString());
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const pipeline = ReadingModel("airqo")
+        .aggregate([
+          {
+            $match: {
+              device_id: { $in: formattedDeviceIds },
+              time: { $gte: threeDaysAgo },
+              "pm2_5.value": { $exists: true }, // Ensure pm2_5.value exists
+            },
+          },
+          {
+            $sort: { "pm2_5.value": -1, time: -1 }, // Sort by pm2_5 descending, then by time
+          },
+          {
+            $limit: 1, // Take only the worst reading
+          },
+          {
+            $project: {
+              _id: 0, // Exclude the MongoDB-generated _id
+              device_id: 1,
+              time: 1,
+              pm2_5: 1,
+              device: 1,
+              siteDetails: 1,
+            },
+          },
+        ])
+        .allowDiskUse(true);
+
+      const worstReading = await pipeline.exec();
+
+      if (!isEmpty(worstReading)) {
+        return {
+          success: true,
+          message: "Successfully retrieved the worst pm2_5 reading.",
+          data: worstReading[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message:
+            "No pm2_5 readings found for the specified device_ids in the last three days.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
   listReadingAverages: async (request, next) => {
     try {
       let missingDataMessage = "";
@@ -1977,6 +2161,102 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  deleteEvents: async (
+    tenant,
+    startTime,
+    endTime,
+    device,
+    site,
+    next,
+    limit = 1000
+  ) => {
+    try {
+      let filter = {
+        ...(device ? { device } : {}), // Add device filter if provided
+        ...(site ? { site } : {}), // Add site filter if provided
+      };
+
+      if (startTime && endTime) {
+        filter["values.time"] = {
+          $gte: new Date(startTime),
+          $lte: new Date(endTime),
+        };
+      }
+
+      let deletedCount = 0;
+      let totalDeletedCount = 0;
+      let shouldContinue = true;
+      let lastDeletedEventTime = new Date(endTime); // Initialize with endTime
+
+      do {
+        const eventsToDelete = await EventModel(tenant)
+          .find(filter)
+          .sort({ "values.time": -1 }) //sort in decending order of time to consistently pick the last time in every batch
+          .limit(limit)
+          .lean();
+
+        if (eventsToDelete.length === 0) {
+          shouldContinue = false;
+        } else {
+          const eventIds = eventsToDelete.map((event) => event._id);
+          try {
+            const result = await EventModel(tenant).deleteMany({
+              _id: { $in: eventIds },
+            });
+            deletedCount = result.deletedCount;
+            totalDeletedCount += deletedCount;
+          } catch (error) {
+            logger.error(`Batch deletion failed: ${error.message}`);
+            return {
+              success: false,
+              message: "Batch deletion failed",
+              error: error.message,
+              deletedCount: totalDeletedCount,
+              lastEndTimeProcessed: lastDeletedEventTime,
+            };
+          }
+
+          if (deletedCount > 0) {
+            //pick the minimum time in the current batch since the query sorts in descending order
+            lastDeletedEventTime = Math.min(
+              ...eventsToDelete.map((event) => {
+                if (event.values && Array.isArray(event.values)) {
+                  return Math.min(
+                    ...event.values.map((val) => new Date(val.time))
+                  );
+                }
+                return new Date(); // Return current time if no values to avoid affecting Math.min
+              })
+            );
+
+            filter["values.time"]["$lte"] = lastDeletedEventTime; // Adjust $lte
+          } else {
+            shouldContinue = false; // Stop if nothing deleted in this batch
+          }
+        }
+      } while (shouldContinue);
+
+      logObject("totalDeletedCount", totalDeletedCount);
+      logObject("lastDeletedEventTime", lastDeletedEventTime);
+
+      return {
+        success: true,
+        message: "Events deleted successfully",
+        deletedCount: totalDeletedCount,
+        lastEndTimeProcessed: lastDeletedEventTime,
+      };
+    } catch (error) {
+      logObject("the error in the util", error);
+      logger.error(`Error deleting events: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -2462,7 +2742,7 @@ const createEvent = {
       );
       await redisExpireAsync(
         cacheID,
-        parseInt(constants.EVENTS_CACHE_LIMIT) || 1800
+        parseInt(constants.EVENTS_CACHE_LIMIT) || 0
       );
 
       return {
@@ -2863,31 +3143,6 @@ const createEvent = {
       status: httpStatus.NOT_IMPLEMENTED,
       errors: { message: "coming soon" },
     };
-  },
-  clearEventsOnPlatform: async (request, next) => {
-    try {
-      const { device, name, id, device_number, tenant } = {
-        ...request.query,
-        ...request.params,
-      };
-      const filter = generateFilter.events(request, next);
-      const responseFromClearEvents = {
-        success: false,
-        message: "coming soon",
-        errors: { message: "coming soon" },
-        status: httpStatus.NOT_IMPLEMENTED,
-      };
-      return responseFromClearEvents;
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
   },
   insertMeasurements: async (measurements, next) => {
     try {

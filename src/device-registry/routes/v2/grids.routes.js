@@ -5,7 +5,7 @@ const createGridController = require("@controllers/grid.controller");
 const gridsValidations = require("@validators/grids.validators");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
-const { headers, pagination } = require("@validators/common");
+const { headers, pagination, validate } = require("@validators/common");
 
 router.use(headers);
 
@@ -21,6 +21,7 @@ router.get(
 router.get(
   "/summary",
   gridsValidations.listGridSummary,
+  validate,
   pagination(),
   createGridController.listSummary
 );

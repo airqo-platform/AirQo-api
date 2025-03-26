@@ -7,12 +7,10 @@ const {
   validationResult,
 } = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
-const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
-const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
 const commonValidations = {
   tenant: [

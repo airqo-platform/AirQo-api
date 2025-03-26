@@ -61,13 +61,25 @@ const commonValidations = {
       .bail()
       .notEmpty()
       .withMessage("the name should not be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
   nameOptional: [
     body("name")
       .optional()
       .notEmpty()
-      .withMessage("the name should not be empty if provided"),
+      .withMessage("the name should not be empty if provided")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
   description: [
     body("description")

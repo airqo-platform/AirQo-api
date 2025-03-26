@@ -298,6 +298,18 @@ function threeMonthsFromNow(date) {
   return d;
 }
 
+const isValidDateFormat = (value, format = "YYYY-MM-DDTHH:mm:ss.SSSSZ") => {
+  try {
+    const parsedDate = moment(value, format, true);
+    if (!parsedDate.isValid()) {
+      throw new Error(`Invalid date format. Use ${format}`);
+    }
+    return true;
+  } catch (error) {
+    throw new Error(`Invalid date format. Use ${format}`);
+  }
+};
+
 module.exports = {
   generateDateFormat,
   threeMonthsFromNow,
@@ -312,6 +324,7 @@ module.exports = {
   addDays,
   addMinutes,
   formatDate,
+  isValidDateFormat,
   addHours,
   ConvertDates,
   isDate,
