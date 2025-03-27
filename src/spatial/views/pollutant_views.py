@@ -76,7 +76,7 @@ class PollutantApis:
             centroid_duration = time.time() - start_centroid_time
         except Exception as e:
             # Optionally, return or continue depending on your application's needs
-            return jsonify({"error": f"Error processing centroids: {str(e)}"}), 500
+            return jsonify({"error": "An internal error has occurred"}), 500
         # Handle case when no centroids are detected
         if centroids.empty:
             return jsonify({"error": "No centroids detected in the uploaded image."}), 404
@@ -107,7 +107,7 @@ class PollutantApis:
             insert_result = collection.insert_many(geojson_features)
             
         except Exception as e:
-            return jsonify({"error": f"Error inserting data into MongoDB: {e}"}), 500
+            return jsonify({"error": "An internal error has occurred"}), 500
 
         # Return a success response with durations
         return jsonify({
@@ -122,7 +122,7 @@ class PollutantApis:
         try:
             # Parse the minimum confidence score from query parameters
             min_confidence = float(request.args.get('min_confidence', 0))
-            # Query documents where confidence_score is greater than or equal to min_confidence
+                # Query documents where confidence_score is greater than or equal to min_confidence
             data = list(collection.find({
                 "properties.confidence_score": {"$gte": min_confidence}
             }))
@@ -150,7 +150,7 @@ class PollutantApis:
             )
 
         except Exception as e:
-            return jsonify({"error": f"Failed to fetch data: {e}"}), 500
+            return jsonify({"error": "An internal error has occurred"}), 500
 
     @staticmethod
     def get_all_data():
@@ -184,4 +184,4 @@ class PollutantApis:
             )
 
         except Exception as e:
-            return jsonify({"error": f"Failed to fetch data: {e}"}), 500
+            return jsonify({"error": "An internal error has occurred"}), 500

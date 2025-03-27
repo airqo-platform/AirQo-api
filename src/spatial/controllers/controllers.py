@@ -84,6 +84,7 @@ def fetch_air_quality_without_llm():
 def fetch_air_quality_with_customised_prompt():
     return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
 
+
 @controller_bp.route('/upload-image', methods=['POST'])
 def upload_image_for_prediction():
     if 'file' not in request.files:
@@ -104,9 +105,23 @@ def save_all_location_data():
         return PollutantProfileApis.add_location_profile()
     except Exception as e:
         logging.error(f"Error handling request: {e}")
-        return jsonify({"error": f"Internal Server Error: {e}"}), 500
+        return jsonify({"error": "An unexpected error occurred."}), 500
+
 
 @controller_bp.route('/get-all-data-location', methods=['GET'])
 def get_all_location_data():
     return PollutantProfileApis.get_location_profile_data()
 
+
+
+@controller_bp.route('/save-all-environment_data', methods=['GET'])
+def save_all_environment_data():
+    try:
+        return PollutantProfileApis.add_environment_profile_data()
+    except Exception as e:
+        logging.error(f"Error handling request: {e}")
+        return jsonify({"error": "An unexpected error occurred."}), 500
+
+@controller_bp.route('/get-all-environment_data', methods=['GET'])
+def get_all_environmet_data():
+    return PollutantProfileApis.get_environment_profile_data()
