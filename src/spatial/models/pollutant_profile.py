@@ -1,6 +1,6 @@
 import logging
 
-from datetime import datetime, timezone, timedelta
+from datetime import timezone, timedelta
 from typing import Dict, Any, List
 
 import ee
@@ -17,10 +17,12 @@ import math
 from collections import defaultdict
 import requests
 
+import datetime
 
 
 
-class GetEnviromentProfile:
+
+class GetEnvironmentProfile:
     @staticmethod
     def initialize_earth_engine():
         ee.Initialize(
@@ -30,27 +32,72 @@ class GetEnviromentProfile:
             ),
             project=Config.GOOGLE_CLOUD_PROJECT_ID,
         )
+    @staticmethod
+    def ensure_initialized():
+        if not ee.data._initialized:  # Check if EE is already initialized
+            GetEnvironmentProfile.initialize_earth_engine()
 
     @staticmethod
     def get_environment_profile(latitude, longitude, months, radius):
+        GetEnvironmentProfile.ensure_initialized()
         today = datetime.date.today()
         start_date = ee.Date.fromYMD(today.year, today.month, today.day).advance(-months, 'month')
         end_date = ee.Date.fromYMD(today.year, today.month, today.day)
         point = ee.Geometry.Point(longitude, latitude)
-
+        #print(f'start date{start_date} point {point}')
+        """
         def get_mean(collection, band):
             try:
                 collection = collection.filterDate(start_date, end_date).filterBounds(point).select(band)
-                mean_value = collection.mean().reduceRegion(ee.Reducer.mean(), point.buffer(radius), scale=1000).get(band)
+                mean_value = collection.mean().reduceRegion(
+                    ee.Reducer.mean(),
+                    point.buffer(radius),
+                    scale=1000
+                ).get(band)
+                print(f"This is the mean value{mean_value}")
+
                 return mean_value.getInfo() if mean_value else None
+            except ee.EEException as e:
+                print(f"Error with Earth Engine API: {e}")
+                return None
             except Exception as e:
-                logging.error(f"Error fetching mean value for band {band}: {e}")
+                print(f"An unexpected error occurred: {e}")
+                return None
+        """
+        def get_mean(collection, band):
+            try:
+                collection = collection.filterDate(start_date, end_date).filterBounds(point).select(band)
+                if collection.size().getInfo() == 0:
+                    # Check for empty collection
+                    print(f"No data found for band {band} in the image collection.")
+                    return None
+                mean_value = collection.mean().reduceRegion(
+                    ee.Reducer.mean(),
+                    point.buffer(radius),
+                    scale=1000
+                ).get(band)
+                if mean_value is None: 
+                    # Added None check
+                    print(f"No data returned by reduceRegion for band: {band}")
+                    return None
+                    
+                mean_value_info = mean_value.getInfo() if mean_value else None
+                print(f"Mean value for {band}: {mean_value_info}")  # Improved print statement for clarity
+                return mean_value_info
+            except ee.EEException as e:
+                print(f"Error with Earth Engine API: {e}")
+                return None
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
                 return None
 
         return {
             'mean_AOD': get_mean(ee.ImageCollection('MODIS/061/MCD19A2_GRANULES'), 'Optical_Depth_047'),
             'mean_CO': get_mean(ee.ImageCollection('COPERNICUS/S5P/OFFL/L3_CO'), 'CO_column_number_density'),
-            'mean_NO2': get_mean(ee.ImageCollection('COPERNICUS/S5P/OFFL/L3_NO2'), 'tropospheric_NO2_column_number_density')
+            'mean_NO2': get_mean(ee.ImageCollection('COPERNICUS/S5P/OFFL/L3_NO2'), 'tropospheric_NO2_column_number_density'),
+            'date': end_date.format('YYYY-MM-dd').getInfo(),
+            'months': months
+
         }
 
 class GetLocationProfile:
