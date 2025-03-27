@@ -1,5 +1,3 @@
-import logging
-
 import os
 from configure import Config
 from pymongo import MongoClient  
@@ -40,10 +38,7 @@ import math
 from collections import defaultdict
 from models.pollutant_profile import GetLocationProfile,GetEnvironmentProfile
 
-logging.basicConfig(
-    format='%(levelname)s: %(message)s',
-    level=logging.INFO
-)
+
 def connect_mongo():
     client = MongoClient(Config.MONGO_URI)
     return client[Config.DB_NAME]
@@ -79,7 +74,7 @@ class PollutantProfileApis:
                 return simplified_data
 
             except Exception as e:
-                return jsonify({"error": f"Failed to fetch data: {e}"}), 500         
+                return jsonify({"error": "Failed to fetch data"}), 500         
         @staticmethod
         def get_location_profile_data():
             try:
@@ -110,7 +105,7 @@ class PollutantProfileApis:
             for i, item in enumerate(data):
                 #print(f"Processing item {i+1} of {len(data)}")
                 if not all(k in item for k in ['latitude', 'longitude', 'item_id', 'confidence_score']):
-                    logging.warning(f"Skipping incomplete data item: {item}")
+                    print(f"Skipping incomplete data item: {item}")
                     continue  # Skip items that do not have complete data
 
                 try:
@@ -133,14 +128,14 @@ class PollutantProfileApis:
                     if (i + 1) % 4 == 0:
                         try:
                             location_profile_collection.insert_many(combined_data)
-                            logging.info(f"Saved {len(combined_data)} items to database.")
+                            print(f"Saved {len(combined_data)} items to database.")
                             combined_data = []  # Reset combined_data for the next batch
                         except Exception as e:
-                            logging.error(f"Failed to save data: {e}")
+                            print("Failed to save data")
 
 
                 except Exception as e:
-                    logging.error(f"Error processing location for item {item['item_id']}: {e}")
+                    #logging.error(f"Error processing location for item {item['item_id']}: {e}")
                     continue
 
             if not combined_data:
@@ -152,7 +147,6 @@ class PollutantProfileApis:
                 
                 return jsonify({"message": "Combined data saved to location_profile collection."})
             except Exception as e:
-                logging.error(f"Failed to insert data: {e}")
                 return jsonify({"error": "An internal error has occurred"}), 500
 
         @staticmethod
@@ -163,21 +157,19 @@ class PollutantProfileApis:
             data = PollutantProfileApis.get_all_data()
 
             if isinstance(data, dict) and "error" in data:
-                logging.error(f"Error fetching data: {data['error']}")
                 return jsonify(data), 404
 
             combined_data = []
             for i, item in enumerate(data):
                 #print(f"Processing item {i+1} of {len(data)}")
                 if not all(k in item for k in ['latitude', 'longitude', 'item_id', 'confidence_score']):
-                    logging.warning(f"Skipping incomplete data item: {item}")
                     continue  # Skip items that do not have complete data
 
                 try:
                     environment_data = GetEnvironmentProfile.get_environment_profile(float(item["latitude"]), float(item["longitude"]),months, radius)
                     print(f"this is the env data {environment_data} for lat {i}")        
                     if isinstance(environment_data, dict) and "error" in environment_data:
-                        print(f"Error processing location for item {item['item_id']}: {environment_data['error']}")
+                        print("Error processing location for item {item['item_id']}: {environment_data['error']}")
                         combined_item = {
                             "item_id": item["item_id"],
                             "latitude": item["latitude"],
@@ -206,14 +198,12 @@ class PollutantProfileApis:
                     if (i + 1) % 4 == 0:
                         try:
                             environment_profile_collection.insert_many(combined_data)
-                            logging.info(f"Saved {len(combined_data)} items to database.")
                             combined_data = []  # Reset combined_data for the next batch
                         except Exception as e:
-                            logging.error(f"Failed to save data: {e}")
+                            print("Failed to save data")
 
 
                 except Exception as e:
-                    logging.error(f"Error processing location for item {item['item_id']}: {e}")
                     continue
 
             if not combined_data:
@@ -225,7 +215,6 @@ class PollutantProfileApis:
                 
                 return jsonify({"message": "Combined data saved to location_profile collection."})
             except Exception as e:
-                logging.error(f"Failed to insert data: {e}")
                 return jsonify({"error": "An internal error has occurred"}), 500
         
         

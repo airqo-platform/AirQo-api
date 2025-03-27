@@ -101,11 +101,7 @@ def get_all_data():
 
 @controller_bp.route('/save-all-location', methods=['GET'])
 def save_all_location_data():
-    try:
-        return PollutantProfileApis.add_location_profile()
-    except Exception as e:
-        logging.error(f"Error handling request: {e}")
-        return jsonify({"error": "An unexpected error occurred."}), 500
+    return PollutantProfileApis.add_location_profile()
 
 
 @controller_bp.route('/get-all-data-location', methods=['GET'])
@@ -116,11 +112,8 @@ def get_all_location_data():
 
 @controller_bp.route('/save-all-environment_data', methods=['GET'])
 def save_all_environment_data():
-    try:
-        return PollutantProfileApis.add_environment_profile_data()
-    except Exception as e:
-        logging.error(f"Error handling request: {e}")
-        return jsonify({"error": "An unexpected error occurred."}), 500
+    return PollutantProfileApis.add_environment_profile_data()
+
 
 @controller_bp.route('/get-all-environment_data', methods=['GET'])
 def get_all_environmet_data():
