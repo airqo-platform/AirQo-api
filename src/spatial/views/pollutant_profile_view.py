@@ -96,7 +96,7 @@ class PollutantProfileApis:
             except Exception as e:
                 return jsonify({"error": f"Failed to fetch data: {e}"}), 500   
                     
-       @staticmethod
+        @staticmethod
         def add_location_profile():
             radius = 500
             data = PollutantProfileApis.get_all_data()
