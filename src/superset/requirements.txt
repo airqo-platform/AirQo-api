@@ -9,3 +9,4 @@ redis
 celery
 gunicorn
 pillow
+sqlalchemy-bigquery
