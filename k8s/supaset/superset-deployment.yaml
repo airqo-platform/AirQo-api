@@ -28,9 +28,8 @@ spec:
           ports:
             - containerPort: 8088
           envFrom:
-          - configMapRef:
-              name: superset-config
-              
+            - configMapRef:
+                name: superset-config
 
 ---
 apiVersion: v1
@@ -43,7 +42,7 @@ spec:
   selector:
     app: superset
   ports:
-    - port: 8088
+    - port: 80
       targetPort: 8088
       protocol: TCP
       nodePort: 30144
