@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
+from pymongo.errors import ServerSelectionTimeoutError
 
 import gcsfs
 import joblib
@@ -772,6 +773,10 @@ class ForecastUtils(BaseMlUtils):
             except Exception as e:
                 logger.exception(
                     f"Failed to update forecast for device {doc['device_id']}: {e}"
+                )
+            except ServerSelectionTimeoutError as e:
+                raise ServerSelectionTimeoutError(
+                    "Could not connect to MongoDB server within timeout."
                 )
 
 
