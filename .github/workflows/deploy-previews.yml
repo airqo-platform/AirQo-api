@@ -29,7 +29,6 @@ jobs:
       run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
       run_data_proxy: ${{ steps.check_files.outputs.run_data_proxy }} # data proxy
-      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
       run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # metadata
@@ -60,7 +59,6 @@ jobs:
           echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
           echo "run_data_mgt=false" >>$GITHUB_OUTPUT
           echo "run_data_proxy=false" >>$GITHUB_OUTPUT
-          echo "run_analytics=false" >>$GITHUB_OUTPUT
           echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
@@ -91,10 +89,6 @@ jobs:
 
             if [[ $file == src/data-proxy/* ]]; then
               echo "run_data_proxy=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == src/analytics/* ]]; then
-              echo "run_analytics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/locate/* ]]; then
@@ -522,83 +516,8 @@ jobs:
               body: 'Data Proxy changes in this PR available for preview [here](${{ needs.data-proxy.outputs.url }})'
             })
 
-  ### analytics ###
-  analytics:
-    name: build-push-deploy-analytics
-    needs: [check, branch-name]
-    if: needs.check.outputs.run_analytics == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
 
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/analytics/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }}
-
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} \
-            --port=5000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-analytics:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "url=${service_url}" >>$GITHUB_OUTPUT
-
-  analytics-pr-comment:
-    name: analytics-preview-link-comment
-    if: needs.check.outputs.run_analytics == 'true'
-    needs: [analytics]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Analytics changes in this PR available for preview [here](${{ needs.analytics.outputs.url }})'
-            })
 
   ### locate ###
   locate:
