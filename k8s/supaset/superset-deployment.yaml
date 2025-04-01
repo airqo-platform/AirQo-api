@@ -42,7 +42,7 @@ spec:
   selector:
     app: superset
   ports:
-    - port: 80
+    - port: 8088
       targetPort: 8088
       protocol: TCP
       nodePort: 30144
