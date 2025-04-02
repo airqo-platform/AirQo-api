@@ -43,7 +43,7 @@ class AirQoDataUtils:
             network=DeviceNetwork.AIRQO,
         )
 
-        return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
+        return DataValidationUtils.remove_outliers_fix_types(hourly_uncalibrated_data)
 
     @staticmethod
     def flatten_meta_data(meta_data: list) -> list:

@@ -266,9 +266,7 @@ class Config:
         },
     }
 
-    AIRQO_BAM_MAPPING = {
-        "hourly_conc": "pm2_5",
-    }
+    AIRQO_BAM_MAPPING = {"hourly_conc": "pm2_5", "air_flow": "airflow"}
 
     AIRQO_LOW_COST_GAS_FIELD_MAPPING = {
         "field1": "pm2_5",

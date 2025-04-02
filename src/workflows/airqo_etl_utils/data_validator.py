@@ -2,7 +2,7 @@ from itertools import chain
 import logging
 import numpy as np
 import pandas as pd
-
+from typing import Optional, List
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
 from .config import configuration as Config
@@ -14,9 +14,9 @@ class DataValidationUtils:
     @staticmethod
     def format_data_types(
         data: pd.DataFrame,
-        floats: list = None,
-        integers: list = None,
-        timestamps: list = None,
+        floats: Optional[List] = None,
+        integers: Optional[List] = None,
+        timestamps: Optional[List] = None,
     ) -> pd.DataFrame:
         """
         Formats specified columns in a DataFrame to desired data types: float, integer, and datetime.
@@ -93,7 +93,9 @@ class DataValidationUtils:
         return row_value
 
     @staticmethod
-    def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
+    def remove_outliers_fix_types(
+        data: pd.DataFrame, remove_outliers: Optional[bool] = True
+    ) -> pd.DataFrame:
         """
         Cleans and validates data in a DataFrame by formatting columns to their proper types and removing or correcting outliers based on predefined validation rules.
 
@@ -120,14 +122,15 @@ class DataValidationUtils:
             dtype: list(set(columns) & set(data.columns))
             for dtype, columns in column_types.items()
         }
-        validated_columns = list(chain.from_iterable(filtered_columns.values()))
-        for col in validated_columns:
-            mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-            data[col] = data[col].apply(
-                lambda x: DataValidationUtils.get_valid_value(
-                    column_name=mapped_name, row_value=x
+        if remove_outliers:
+            validated_columns = list(chain.from_iterable(filtered_columns.values()))
+            for col in validated_columns:
+                mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
+                data[col] = data[col].apply(
+                    lambda x: DataValidationUtils.get_valid_value(
+                        column_name=mapped_name, row_value=x
+                    )
                 )
-            )
 
         # Fix data types after filling nas
         data = DataValidationUtils.format_data_types(
