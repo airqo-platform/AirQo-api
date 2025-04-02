@@ -258,7 +258,7 @@ def airqo_cleanup_measurements():
             frequency=Frequency.HOURLY,
             device_category=DeviceCategory.GENERAL,
         )
-        return DataValidationUtils.remove_outliers(data)
+        return DataValidationUtils.remove_outliers_fix_types(data)
 
     @task()
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:

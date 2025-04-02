@@ -207,6 +207,9 @@ class DataUtils:
             devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
                 is_airqo_network, "vapor_pressure"
             ].apply(DataValidationUtils.convert_pressure_values)
+
+        devices_data.dropna(subset=["site_id"], how="any", inplace=True)
+
         return devices_data
 
     @staticmethod
@@ -367,17 +370,10 @@ class DataUtils:
 
         if not device_category:
             device_category = DeviceCategory.GENERAL
-        try:
-            source = Config.DataSource.get(datatype)
-            table = source.get(device_category).get(frequency)
-        except KeyError as e:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
+
+        table, _ = DataUtils._get_table(
+            datatype, device_category, frequency, device_network
+        )
 
         if not table:
             raise ValueError("No table information provided.")
@@ -393,7 +389,7 @@ class DataUtils:
         )
 
         if remove_outliers:
-            raw_data = DataValidationUtils.remove_outliers(raw_data)
+            raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
         return raw_data
 
@@ -535,7 +531,7 @@ class DataUtils:
             data=weather_data, cols=cols
         )
 
-        return DataValidationUtils.remove_outliers(weather_data)
+        return DataValidationUtils.remove_outliers_fix_types(weather_data)
 
     @staticmethod
     def aggregate_weather_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -837,7 +833,7 @@ class DataUtils:
             KeyError: If there are issues with the 'timestamp' column during processing.
         """
         if remove_outliers:
-            data = DataValidationUtils.remove_outliers(data)
+            data = DataValidationUtils.remove_outliers_fix_types(data)
 
         # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
         match device_category:
@@ -876,7 +872,9 @@ class DataUtils:
     # BAM data
     # ----------------------------------------------------------------------------------
     @staticmethod
-    def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
+    def clean_bam_data(
+        data: pd.DataFrame, datatype: DataType, frequency: Frequency
+    ) -> pd.DataFrame:
         """
         Cleans and transforms BAM data for BigQuery insertion.
 
@@ -889,24 +887,26 @@ class DataUtils:
         Returns:
             pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
         """
-        # TODO Merge bam data cleanup functionality
-        data = DataValidationUtils.remove_outliers(data)
+        remove_outliers = True
+        data["network"] = DeviceNetwork.AIRQO.str
+
+        if datatype == DataType.RAW:
+            remove_outliers = False
+        else:
+            data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
+
+        data = DataValidationUtils.remove_outliers_fix_types(
+            data, remove_outliers=remove_outliers
+        )
+
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
-
-        data["network"] = DeviceNetwork.AIRQO.str
-        data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
-
-        big_query_api = BigQueryApi()
-        required_cols = big_query_api.get_columns(
-            table=big_query_api.bam_hourly_measurements_table
-        )
-
+        _, required_cols = DataUtils._get_table(datatype, DeviceCategory.BAM, frequency)
         data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
         data = data[required_cols]
 
-        return data
+        return drop_rows_with_bad_data("number", data, exclude=["device_number"])
 
     @staticmethod
     def extract_bam_data_airnow(
@@ -1044,7 +1044,7 @@ class DataUtils:
                 logger.exception(f"Error processing row: {e}")
 
         air_now_data = pd.DataFrame(air_now_data)
-        air_now_data = DataValidationUtils.remove_outliers(air_now_data)
+        air_now_data = DataValidationUtils.remove_outliers_fix_types(air_now_data)
 
         return air_now_data
 
@@ -1079,28 +1079,14 @@ class DataUtils:
             KeyError: If the combination of data_type, device_category, and frequency is invalid.
             Exception: For unexpected errors during column retrieval or data processing.
         """
-        bigquery = BigQueryApi()
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data.dropna(subset=["timestamp"], inplace=True)
-
-        try:
-            datasource = Config.DataSource
-            if datatype == DataType.EXTRAS:
-                table = datasource.get(datatype).get(device_network).get(extra_type)
-            else:
-                table = datasource.get(datatype).get(device_category).get(frequency)
-            cols = bigquery.get_columns(table=table)
-        except KeyError:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
+        table, cols = DataUtils._get_table(
+            datatype, device_category, frequency, device_network, extra_type
+        )
         data = DataValidationUtils.fill_missing_columns(data=data, cols=cols)
-        dataframe = DataValidationUtils.remove_outliers(data)
-        return dataframe[cols], table
+        data = DataValidationUtils.remove_outliers_fix_types(data)
+        return data[cols], table
 
     @staticmethod
     def transform_for_bigquery_weather(data: pd.DataFrame) -> pd.DataFrame:
@@ -1308,7 +1294,7 @@ class DataUtils:
         data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
         data = data[required_cols]
 
-        return DataValidationUtils.remove_outliers(data)
+        return DataValidationUtils.remove_outliers_fix_types(data)
 
     def _add_site_and_device_details(devices: pd.DataFrame, device_id) -> pd.Series:
         """
@@ -1342,3 +1328,48 @@ class DataUtils:
 
         logger.info("No matching device_id found.")
         return pd.Series({"site_id": None, "device_number": None})
+
+    def _get_table(
+        datatype: DataType,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+        device_network: Optional[DeviceNetwork] = None,
+        extra_type: Optional[Any] = None,
+    ) -> Tuple[str, List[str]]:
+        """
+        Retrieves the appropriate BigQuery table name and its column names based on the given parameters.
+
+        Args:
+            datatype(DataType): The type of data to retrieve (e.g., EXTRAS, AIR_QUALITY).
+            device_category(DeviceCategory): The category of the device.
+            frequency(Frequency): The data collection frequency.
+            device_network(DeviceNetwork, optional): The device network, required for EXTRAS data.
+            extra_type(Any, optional): The specific extra type, required for EXTRAS data.
+
+        Returns:
+            Tuple[str, List[str]]: A tuple containing:
+                - The table name (str) if found, otherwise None.
+                - A list of column names if found, otherwise an empty list.
+
+        Raises:
+            KeyError: If the combination of parameters does not exist in the data source.
+            Exception: Logs and handles unexpected errors during retrieval.
+        """
+        bigquery = BigQueryApi()
+        try:
+            datasource = Config.DataSource
+            if datatype == DataType.EXTRAS:
+                table = datasource.get(datatype).get(device_network).get(extra_type)
+            else:
+                table = datasource.get(datatype).get(device_category).get(frequency)
+            cols = bigquery.get_columns(table=table)
+            return table, cols
+        except KeyError:
+            logger.exception(
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during column retrieval: {e}"
+            )
+        return None, []
