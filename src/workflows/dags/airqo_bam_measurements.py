@@ -37,11 +37,13 @@ def airqo_bam_historical_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_unclean_data(data: pd.DataFrame):
-        data = DataUtils.clean_bam_data(data=data, datatype=DataType.RAW)
+        big_query_api = BigQueryApi()
+        data = DataUtils.clean_bam_data(
+            data=data, datatype=DataType.RAW, frequency=Frequency.RAW
+        )
         data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.BAM, Frequency.RAW
         )
-        big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
             table=table,
@@ -49,7 +51,9 @@ def airqo_bam_historical_measurements():
 
     @task()
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-        return DataUtils.clean_bam_data(data=data)
+        return DataUtils.clean_bam_data(
+            data=data, datatype=DataType.AVERAGED, frequency=Frequency.HOURLY
+        )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
@@ -83,7 +87,6 @@ def airqo_bam_realtime_measurements():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_bam_data(**kwargs):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_query_date_time_values(**kwargs)
@@ -98,9 +101,9 @@ def airqo_bam_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_unclean_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
-        data = DataUtils.clean_bam_data(data=data, datatype=DataType.RAW)
+        data = DataUtils.clean_bam_data(
+            data=data, datatype=DataType.RAW, frequency=Frequency.RAW
+        )
         data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.BAM, Frequency.RAW
         )
@@ -112,16 +115,16 @@ def airqo_bam_realtime_measurements():
 
     @task()
     def clean_bam_data(data: pd.DataFrame):
-        return DataUtils.clean_bam_data(data=data)
+        return DataUtils.clean_bam_data(
+            data=data, datatype=DataType.AVERAGED, frequency=Frequency.HOURLY
+        )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def save_clean_bam_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
+        big_query_api = BigQueryApi()
         data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.BAM, Frequency.HOURLY
         )
-        big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
             table=table,
