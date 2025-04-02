@@ -848,12 +848,19 @@ siteSchema.statics = {
       ];
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
-      let updateOperation = { $set: { ...sanitizedUpdate } };
+      // Create the update operation using $addToSet for groups and $set for other fields
+      let updateOperation = {};
+      if (sanitizedUpdate.groups) {
+        // Handle groups updates using $addToSet to add without replacing
+        updateOperation.$addToSet = {
+          groups: { $each: [...new Set(sanitizedUpdate.groups)] }, //Remove duplicates
+        };
+        delete sanitizedUpdate.groups; // Remove groups from sanitizedUpdate
+      }
 
-      if (update.groups) {
-        // Check the original update object for groups
-        updateOperation.$addToSet = { groups: { $each: update.groups } }; //Merge $addToSet
-        delete updateOperation.$set.groups; // Delete .groups from the $set
+      // Add other fields to $set if needed
+      if (Object.keys(sanitizedUpdate).length > 0) {
+        updateOperation.$set = sanitizedUpdate;
       }
 
       // Perform bulk update with additional options
@@ -896,6 +903,7 @@ siteSchema.statics = {
       );
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {
