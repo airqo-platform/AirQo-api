@@ -1,5 +1,6 @@
 const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
+const GroupModel = require("@models/Group");
 const SelectedSiteModel = require("@models/SelectedSite");
 const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");

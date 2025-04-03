@@ -177,7 +177,7 @@ const PreferenceSchema = new mongoose.Schema(
       ref: "group",
       default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
-    lastAccessed: { type: Date, default: currentDate },
+    lastAccessed: { type: Date },
     group_ids: [
       {
         type: ObjectId,
