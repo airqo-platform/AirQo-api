@@ -177,6 +177,7 @@ const PreferenceSchema = new mongoose.Schema(
       ref: "group",
       default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
+    lastAccessed: { type: Date, default: currentDate },
     group_ids: [
       {
         type: ObjectId,
@@ -424,35 +425,73 @@ PreferenceSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
-      const preferences = await this.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
+      const { tenant, user_id } = filter;
 
-      preferences.forEach((preference) => {
-        preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_airqlouds.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_cohorts.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_devices.sort((a, b) => b.createdAt - a.createdAt);
-      });
+      const groupIdPresent = filter.group_id !== undefined;
 
-      if (!isEmpty(preferences)) {
-        return {
-          success: true,
-          data: preferences,
-          message: "Successfully listed the preferences",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(preferences)) {
-        return {
-          success: true,
-          message: "No preferences found for this search",
-          data: [],
-          status: httpStatus.OK,
-        };
+      let preferences;
+      if (!groupIdPresent) {
+        const defaultGroupId = constants.DEFAULT_GROUP;
+        if (!defaultGroupId) {
+          return {
+            success: false,
+            message:
+              "Internal Server Error: DEFAULT_GROUP constant not defined",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: "DEFAULT_GROUP constant not defined" },
+          };
+        }
+
+        preferences = await this.find({ user_id, group_id: defaultGroupId })
+          .sort({ lastAccessed: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec();
+
+        if (isEmpty(preferences)) {
+          preferences = await this.find({ user_id })
+            .sort({ lastAccessed: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .exec();
+        }
+      } else {
+        preferences = await this.find(filter)
+          .sort({ lastAccessed: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec();
       }
+
+      // Sort selected arrays by createdAt (only if preferences were found)
+      if (!isEmpty(preferences)) {
+        preferences.forEach((preference) => {
+          preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
+          preference.selected_airqlouds.sort(
+            (a, b) => b.createdAt - a.createdAt
+          );
+          preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
+          preference.selected_cohorts.sort((a, b) => b.createdAt - a.createdAt);
+          preference.selected_devices.sort((a, b) => b.createdAt - a.createdAt);
+        });
+
+        // Update lastAccessed timestamp (only if preferences were found)
+        preferences.forEach(async (preference) => {
+          await this.findByIdAndUpdate(preference._id, {
+            lastAccessed: new Date(),
+          });
+        });
+      }
+
+      return {
+        success: true,
+        data: preferences,
+        message: "Successfully listed preferences",
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(

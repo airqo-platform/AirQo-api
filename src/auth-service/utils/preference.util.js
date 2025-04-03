@@ -112,6 +112,41 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   return update;
 };
 
+const handleDefaultGroup = async (tenant, body, next) => {
+  if (!body.group_id) {
+    const defaultGroupId = constants.DEFAULT_GROUP;
+    if (!defaultGroupId) {
+      return handleError(
+        next,
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "DEFAULT_GROUP constant is not defined"
+      );
+    }
+    try {
+      const defaultGroupExists = await GroupModel(tenant).exists({
+        _id: defaultGroupId,
+      });
+      if (!defaultGroupExists) {
+        return handleError(
+          next,
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          "The default group does not exist"
+        );
+      }
+      body.group_id = defaultGroupId;
+    } catch (error) {
+      return handleError(
+        next,
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        `Error checking default group: ${error.message}`
+      );
+    }
+  }
+};
+
 const preferences = {
   list: async (request, next) => {
     try {
@@ -170,6 +205,12 @@ const preferences = {
           httpStatus.CONFLICT,
           "Preferences for this user and group already exist"
         );
+      }
+
+      await handleDefaultGroup(tenant, body, next);
+
+      if (!body.group_id) {
+        body.group_id = constants.DEFAULT_GROUP;
       }
 
       const responseFromRegisterPreference = await PreferenceModel(
@@ -236,6 +277,13 @@ const preferences = {
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
+      await handleDefaultGroup(tenant, body, next);
+
+      // Use default group ID if group_id is not provided
+      if (!update.group_id) {
+        update.group_id = constants.DEFAULT_GROUP;
+      }
+
       const modifyResponse = await PreferenceModel(tenant).modify(
         {
           filter,
@@ -301,6 +349,13 @@ const preferences = {
       }
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
+
+      await handleDefaultGroup(tenant, body, next);
+
+      // Use default group ID if group_id is not provided
+      if (!update.group_id) {
+        update.group_id = constants.DEFAULT_GROUP;
+      }
 
       const options = { upsert: true, new: true };
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
@@ -385,6 +440,13 @@ const preferences = {
       }
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
+
+      await handleDefaultGroup(tenant, body, next);
+
+      // Use default group ID if group_id is not provided
+      if (!update.group_id) {
+        update.group_id = constants.DEFAULT_GROUP;
+      }
 
       const options = { upsert: true, new: true };
 
