@@ -8,7 +8,7 @@ images:
     celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
-  tag: prod-7a884090-1743620721
+  tag: prod-49aac88c-1743673603
 api:
   name: airqo-analytics-api
   label: analytics-api
@@ -17,7 +17,7 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 50m
+      cpu: 250m
       memory: 1000Mi
     requests:
       cpu: 10m
