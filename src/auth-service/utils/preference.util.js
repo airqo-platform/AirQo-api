@@ -675,6 +675,93 @@ const preferences = {
       );
     }
   },
+  getMostRecent: async (request, next) => {
+    try {
+      const {
+        query: { tenant },
+        params: { user_id },
+      } = request;
+
+      const mostRecentPreference = await PreferenceModel(tenant)
+        .find({ user_id: user_id })
+        .sort({ lastAccessed: -1 }) // Sort by lastAccessed descending
+        .limit(1) // Limit to one result
+        .lean()
+        .exec();
+
+      if (!isEmpty(mostRecentPreference)) {
+        // Update lastAccessed timestamp for the retrieved preference
+        await PreferenceModel(tenant).findByIdAndUpdate(
+          mostRecentPreference[0]._id,
+          { lastAccessed: new Date() }
+        );
+
+        return {
+          success: true,
+          data: mostRecentPreference[0], // Return the single preference object
+          message:
+            "Successfully retrieved the most recently accessed preference",
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No preferences found for this user",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  listAll: async (request, next) => {
+    try {
+      const {
+        query: { tenant },
+        params: { user_id },
+      } = request;
+
+      const allPreferences = await PreferenceModel(tenant)
+        .find({ user_id })
+        .sort({ lastAccessed: -1 })
+        .lean()
+        .exec();
+
+      // Update lastAccessed timestamps
+      if (!isEmpty(allPreferences)) {
+        allPreferences.forEach(async (preference) => {
+          await PreferenceModel(tenant).findByIdAndUpdate(preference._id, {
+            lastAccessed: new Date(),
+          });
+        });
+      }
+
+      return {
+        success: true,
+        data: allPreferences,
+        message: "Successfully retrieved all preferences for the user",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = preferences;

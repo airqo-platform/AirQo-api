@@ -425,7 +425,7 @@ PreferenceSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
-      const { tenant, user_id } = filter;
+      const { user_id } = filter;
 
       const groupIdPresent = filter.group_id !== undefined;
 
