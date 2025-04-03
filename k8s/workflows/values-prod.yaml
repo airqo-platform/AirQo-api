@@ -3,16 +3,16 @@ app:
   label: workflows
   namespace: pipeline
   configmap: airflow-config
-replicaCount: 3
+replicaCount: 2
 serviceAccountName: airflow-sa
 images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
-  tag: prod-7a884090-1743620721
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-40319709-1743673470
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   webserver:
