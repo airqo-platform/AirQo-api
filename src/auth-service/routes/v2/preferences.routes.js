@@ -81,7 +81,7 @@ router.get(
   "/recent/:user_id",
   preferenceValidations.getPreferenceByUserId,
   authenticateJWT,
-  createPreferenceController.list
+  createPreferenceController.getMostRecent
 );
 
 router.get(

@@ -210,10 +210,6 @@ const preferences = {
 
       await handleDefaultGroup(tenant, body, next);
 
-      if (!body.group_id) {
-        body.group_id = constants.DEFAULT_GROUP;
-      }
-
       const responseFromRegisterPreference = await PreferenceModel(
         tenant
       ).register(body, next);
@@ -276,14 +272,9 @@ const preferences = {
         );
       }
 
-      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
-
       await handleDefaultGroup(tenant, body, next);
 
-      // Use default group ID if group_id is not provided
-      if (!update.group_id) {
-        update.group_id = constants.DEFAULT_GROUP;
-      }
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       const modifyResponse = await PreferenceModel(tenant).modify(
         {
@@ -349,14 +340,8 @@ const preferences = {
         );
       }
 
-      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
-
       await handleDefaultGroup(tenant, body, next);
-
-      // Use default group ID if group_id is not provided
-      if (!update.group_id) {
-        update.group_id = constants.DEFAULT_GROUP;
-      }
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       const options = { upsert: true, new: true };
       const modifyResponse = await PreferenceModel(tenant).findOneAndUpdate(
@@ -440,14 +425,9 @@ const preferences = {
         };
       }
 
-      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
-
       await handleDefaultGroup(tenant, body, next);
 
-      // Use default group ID if group_id is not provided
-      if (!update.group_id) {
-        update.group_id = constants.DEFAULT_GROUP;
-      }
+      const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       const options = { upsert: true, new: true };
 
