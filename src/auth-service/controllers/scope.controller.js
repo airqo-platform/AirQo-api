@@ -15,6 +15,41 @@ const {
 } = require("@utils/shared");
 
 const createScope = {
+  createBulk: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, {
+            message: errors,
+          })
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const response = await scopeUtil.createBulkScopes(request, next);
+      logObject("response from createBulkScopes", response);
+      if (isEmpty(response) || res.headersSent) {
+        return;
+      }
+      return res.status(httpStatus.OK).json(response);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   create: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

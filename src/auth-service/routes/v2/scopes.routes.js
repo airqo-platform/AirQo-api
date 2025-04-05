@@ -41,6 +41,14 @@ router.put(
   createScopeController.update
 );
 
+router.post(
+  "/bulk",
+  scopeValidations.createBulk,
+  setJWTAuth,
+  authJWT,
+  createScopeController.createBulk
+);
+
 router.delete(
   "/:scope_id",
   scopeValidations.deleteScope,
