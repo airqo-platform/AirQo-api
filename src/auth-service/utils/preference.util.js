@@ -710,6 +710,17 @@ const preferences = {
         params: { user_id },
       } = request;
 
+      // Validate that the user exists
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        return handleError(
+          next,
+          "Bad Request Error",
+          httpStatus.BAD_REQUEST,
+          "The provided User does not exist"
+        );
+      }
+
       const allPreferences = await PreferenceModel(tenant)
         .find({ user_id })
         .sort({ lastAccessed: -1 })
@@ -718,11 +729,14 @@ const preferences = {
 
       // Update lastAccessed timestamps
       if (!isEmpty(allPreferences)) {
-        allPreferences.forEach(async (preference) => {
-          await PreferenceModel(tenant).findByIdAndUpdate(preference._id, {
-            lastAccessed: new Date(),
-          });
-        });
+        // Get all preference IDs
+        const preferenceIds = allPreferences.map((pref) => pref._id);
+
+        // Use updateMany for better performance
+        await PreferenceModel(tenant).updateMany(
+          { _id: { $in: preferenceIds } },
+          { lastAccessed: new Date() }
+        );
       }
 
       return {
