@@ -469,13 +469,28 @@ PreferenceSchema.statics = {
       // Sort selected arrays by createdAt (only if preferences were found)
       if (!isEmpty(preferences)) {
         preferences.forEach((preference) => {
-          preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
-          preference.selected_airqlouds.sort(
-            (a, b) => b.createdAt - a.createdAt
-          );
-          preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
-          preference.selected_cohorts.sort((a, b) => b.createdAt - a.createdAt);
-          preference.selected_devices.sort((a, b) => b.createdAt - a.createdAt);
+          // Check if the field exists and is an array before sorting
+          if (Array.isArray(preference.selected_sites)) {
+            preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
+          }
+          if (Array.isArray(preference.selected_airqlouds)) {
+            preference.selected_airqlouds.sort(
+              (a, b) => b.createdAt - a.createdAt
+            );
+          }
+          if (Array.isArray(preference.selected_grids)) {
+            preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
+          }
+          if (Array.isArray(preference.selected_cohorts)) {
+            preference.selected_cohorts.sort(
+              (a, b) => b.createdAt - a.createdAt
+            );
+          }
+          if (Array.isArray(preference.selected_devices)) {
+            preference.selected_devices.sort(
+              (a, b) => b.createdAt - a.createdAt
+            );
+          }
         });
 
         // Update lastAccessed timestamp (only if preferences were found)
