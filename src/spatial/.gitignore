@@ -27,4 +27,6 @@ google_application_credentials.json
 .gitkeep
 .DS_Store
 
-*json
+*.json
+*.h5
+*.tflite
