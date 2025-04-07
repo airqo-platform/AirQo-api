@@ -1680,7 +1680,7 @@ jobs:
           echo "Applying Kubernetes manifest files for Superset deployment"
           kubectl apply -f k8s/superset-deployment.yaml -n superset
 
-      - name: Retart the deployments
+      - name: Restart the deployments
         run: |
           kubectl rollout restart deployment/superset -n superset
 
