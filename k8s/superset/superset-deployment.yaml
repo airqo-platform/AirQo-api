@@ -29,7 +29,7 @@ spec:
             - containerPort: 8088
           envFrom:
           - configMapRef:
-              name: superset-config
+              name: env-superset-production
               
 
 ---

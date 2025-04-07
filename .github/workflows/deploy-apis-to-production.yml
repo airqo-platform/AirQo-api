@@ -1650,6 +1650,15 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
+      - name: Login to GCP
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
       - name: Update the corresponding k8s configmap(s) for Superset (e.g., credentials, secrets)
         run: |
           cd src/superset/
@@ -1666,14 +1675,14 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:latest
 
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+      - name: Apply Deployment Files
+        run: |
+          echo "Applying Kubernetes manifest files for Superset deployment"
+          kubectl apply -f k8s/superset-deployment.yaml -n superset
 
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-       
+      - name: Retart the deployments
+        run: |
+          kubectl rollout restart deployment/superset -n superset
 
   ### incentives ###
   incentives:
