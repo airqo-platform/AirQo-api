@@ -10,6 +10,11 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "device_category",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "site_id",
     "type": "STRING",
     "mode": "NULLABLE"
@@ -62,5 +67,40 @@
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "μg/m3."
+  },
+  {
+    "name": "temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "°C"
+  },
+  {
+    "name": "humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%"
+  },
+  {
+    "name": "barometric_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "kPa"
+  },
+  {
+    "name": "filter_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "°C"
+  },
+  {
+    "name": "filter_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%"
+  },
+  {
+    "name": "status",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
   }
 ]

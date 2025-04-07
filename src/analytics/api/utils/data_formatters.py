@@ -305,8 +305,11 @@ def filter_non_private_sites_devices(
     if len(filter_value) == 0:
         raise ValueError(f"{filter_type} can't be empty")
 
-    endpoint: Dict = {
-        "devices": "devices/cohorts/filterNonPrivateDevices",
+    endpoint_base = "devices/cohorts/filterNonPrivateDevices"
+    endpoint: Dict[str, str] = {
+        "devices": endpoint_base,
+        "device_ids": endpoint_base,
+        "device_names": endpoint_base,
         "sites": "devices/grids/filterNonPrivateSites",
     }
 
@@ -318,9 +321,10 @@ def filter_non_private_sites_devices(
             method="post",
         )
         if response and response.get("status") == "success":
+            data_type = "sites" if filter_type == "sites" else "devices"
             return airqo_requests.create_response(
                 message="Successfully returned data.",
-                data=response.get("data", {}).get(filter_type, []),
+                data=response.get("data", {}).get(data_type, []),
                 success=True,
             )
         else:

@@ -1,5 +1,6 @@
 const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
+const GroupModel = require("@models/Group");
 const SelectedSiteModel = require("@models/SelectedSite");
 const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
@@ -112,6 +113,41 @@ const prepareUpdate = (body, fieldsToUpdate, fieldsToAddToSet) => {
   return update;
 };
 
+const handleDefaultGroup = async (tenant, body, next) => {
+  if (!body.group_id) {
+    const defaultGroupId = constants.DEFAULT_GROUP;
+    if (!defaultGroupId) {
+      return handleError(
+        next,
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "DEFAULT_GROUP constant is not defined"
+      );
+    }
+    try {
+      const defaultGroupExists = await GroupModel(tenant).exists({
+        _id: defaultGroupId,
+      });
+      if (!defaultGroupExists) {
+        return handleError(
+          next,
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          "The default group does not exist"
+        );
+      }
+      body.group_id = defaultGroupId;
+    } catch (error) {
+      return handleError(
+        next,
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        `Error checking default group: ${error.message}`
+      );
+    }
+  }
+};
+
 const preferences = {
   list: async (request, next) => {
     try {
@@ -171,6 +207,8 @@ const preferences = {
           "Preferences for this user and group already exist"
         );
       }
+
+      await handleDefaultGroup(tenant, body, next);
 
       const responseFromRegisterPreference = await PreferenceModel(
         tenant
@@ -233,6 +271,8 @@ const preferences = {
           )
         );
       }
+
+      await handleDefaultGroup(tenant, body, next);
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
@@ -300,6 +340,7 @@ const preferences = {
         );
       }
 
+      await handleDefaultGroup(tenant, body, next);
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
       const options = { upsert: true, new: true };
@@ -383,6 +424,8 @@ const preferences = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
+
+      await handleDefaultGroup(tenant, body, next);
 
       const update = prepareUpdate(body, fieldsToUpdate, fieldsToAddToSet);
 
@@ -603,6 +646,107 @@ const preferences = {
     } catch (error) {
       logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getMostRecent: async (request, next) => {
+    try {
+      const {
+        query: { tenant },
+        params: { user_id },
+      } = request;
+
+      const mostRecentPreference = await PreferenceModel(tenant)
+        .find({ user_id: user_id })
+        .sort({ lastAccessed: -1 }) // Sort by lastAccessed descending
+        .limit(1) // Limit to one result
+        .lean()
+        .exec();
+
+      if (!isEmpty(mostRecentPreference)) {
+        // Update lastAccessed timestamp for the retrieved preference
+        await PreferenceModel(tenant).findByIdAndUpdate(
+          mostRecentPreference[0]._id,
+          { lastAccessed: new Date() }
+        );
+
+        return {
+          success: true,
+          data: mostRecentPreference[0], // Return the single preference object
+          message:
+            "Successfully retrieved the most recently accessed preference",
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No preferences found for this user",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  listAll: async (request, next) => {
+    try {
+      const {
+        query: { tenant },
+        params: { user_id },
+      } = request;
+
+      // Validate that the user exists
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        return handleError(
+          next,
+          "Bad Request Error",
+          httpStatus.BAD_REQUEST,
+          "The provided User does not exist"
+        );
+      }
+
+      const allPreferences = await PreferenceModel(tenant)
+        .find({ user_id })
+        .sort({ lastAccessed: -1 })
+        .lean()
+        .exec();
+
+      // Update lastAccessed timestamps
+      if (!isEmpty(allPreferences)) {
+        // Get all preference IDs
+        const preferenceIds = allPreferences.map((pref) => pref._id);
+
+        // Use updateMany for better performance
+        await PreferenceModel(tenant).updateMany(
+          { _id: { $in: preferenceIds } },
+          { lastAccessed: new Date() }
+        );
+      }
+
+      return {
+        success: true,
+        data: allPreferences,
+        message: "Successfully retrieved all preferences for the user",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

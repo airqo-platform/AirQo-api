@@ -167,7 +167,6 @@ class DataExportResource(Resource):
                     "hourly",
                     "daily",
                 ] else columns_to_drop
-                print(data_frame.columns.to_list())
                 data_frame.drop(
                     columns=columns_to_drop,
                     inplace=True,
