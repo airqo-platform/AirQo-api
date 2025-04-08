@@ -133,6 +133,13 @@ const healthTipValidations = {
         }
         return true;
       }),
+    body("tag_line")
+      .exists()
+      .withMessage("Tag line is required")
+      .bail()
+      .notEmpty()
+      .withMessage("Tag line cannot be empty")
+      .trim(),
     handleValidationErrors,
   ],
   list: [
@@ -194,6 +201,11 @@ const healthTipValidations = {
         }
         return true;
       }),
+    body("tag_line")
+      .optional()
+      .notEmpty()
+      .withMessage("Tag line cannot be empty if provided")
+      .trim(),
     handleValidationErrors,
   ],
   delete: [
