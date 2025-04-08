@@ -1,4 +1,5 @@
 const UserModel = require("@models/User");
+const RoleModel = require("@models/Role");
 const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
@@ -36,6 +37,84 @@ const findGroupAssignmentIndex = (user, grp_id) => {
   );
 };
 
+// Improved getSuperAdminPermissions function
+const assignPermissionsToRole = async (tenant, role_id, next) => {
+  const superAdminPermissions = getSuperAdminPermissions(tenant);
+  const permissionIds = await getPermissionIds(
+    tenant,
+    superAdminPermissions,
+    next
+  );
+
+  try {
+    await RoleModel(tenant).findByIdAndUpdate(role_id, {
+      $addToSet: { role_permissions: { $each: permissionIds } },
+    });
+  } catch (error) {
+    const errorMessage = `Error assigning permissions to role ${role_id}: ${error.message}`;
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: errorMessage }
+    );
+  }
+};
+
+const getSuperAdminPermissions = (tenant) => {
+  const superAdminPermissions = (
+    process.env[`SUPER_ADMIN_PERMISSIONS_${tenant.toUpperCase()}`] ||
+    process.env.SUPER_ADMIN_PERMISSIONS
+  )
+    ?.split(",")
+    .map((p) => p.trim())
+    .filter((p) => p); // Filter out empty strings
+
+  if (!superAdminPermissions || superAdminPermissions.length === 0) {
+    throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+      message: "SUPER_ADMIN_PERMISSIONS environment variable is not set",
+    });
+  }
+  return superAdminPermissions;
+};
+
+const getPermissionIds = async (tenant, permissions, next) => {
+  try {
+    const existingPermissions = await PermissionModel(tenant)
+      .find({ permission: { $in: permissions } })
+      .lean()
+      .exec();
+
+    const existingPermissionIds = existingPermissions.map((p) => p._id);
+    const existingPermissionNames = existingPermissions.map(
+      (p) => p.permission
+    );
+
+    const missingPermissions = permissions.filter(
+      (permission) => !existingPermissionNames.includes(permission)
+    );
+
+    if (missingPermissions.length > 0) {
+      const errorMessage = `The following permissions do not exist for tenant '${tenant}': ${missingPermissions.join(
+        ", "
+      )}. Please create them using the appropriate API endpoint.`;
+      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: errorMessage,
+      });
+    }
+
+    return existingPermissionIds;
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    logger.error(`Error in getPermissionIds: ${error.message}`);
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: "Failed to retrieve permission IDs" }
+    );
+  }
+};
 const createGroup = {
   removeUniqueConstraint: async (request, next) => {
     try {
@@ -102,6 +181,7 @@ const createGroup = {
           )
         );
       }
+
       const modifiedBody = {
         ...body,
         grp_manager: ObjectId(user._id),
@@ -111,177 +191,96 @@ const createGroup = {
       };
 
       logObject("the user making the request", user);
-      const responseFromRegisterGroup = await GroupModel(
-        tenant.toLowerCase()
-      ).register(modifiedBody, next);
+      const responseFromRegisterGroup = await GroupModel(tenant).register(
+        modifiedBody,
+        next
+      );
 
-      logObject("responseFromRegisterGroup", responseFromRegisterGroup);
+      if (responseFromRegisterGroup.success === false) {
+        return responseFromRegisterGroup;
+      }
 
-      if (
-        responseFromRegisterGroup &&
-        responseFromRegisterGroup.success === true
-      ) {
-        const grp_id = responseFromRegisterGroup.data._doc._id;
-        if (isEmpty(grp_id)) {
+      const grp_id = responseFromRegisterGroup.data._id;
+      if (!grp_id) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Unable to retrieve the group Id of created group",
+            }
+          )
+        );
+      }
+
+      const requestForRole = {
+        query: { tenant },
+        body: {
+          role_code: "SUPER_ADMIN",
+          role_name: "SUPER_ADMIN",
+          group_id: grp_id,
+        },
+      };
+
+      const responseFromCreateRole = await rolePermissionsUtil.createRole(
+        requestForRole,
+        next
+      );
+
+      if (responseFromCreateRole.success === false) {
+        return responseFromCreateRole;
+      }
+
+      const role_id = responseFromCreateRole.data._id;
+      if (!role_id) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Unable to retrieve the role id of the newly created super admin of this group",
+            }
+          )
+        );
+      }
+
+      try {
+        // Attempt to assign permissions; error handling within this function
+        await assignPermissionsToRole(tenant, role_id, next);
+
+        const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+          user._id,
+          {
+            $addToSet: {
+              group_roles: {
+                group: grp_id,
+                role: role_id,
+                userType: "user",
+              },
+            },
+          },
+          { new: true }
+        );
+
+        if (!updatedUser) {
           return next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
               {
-                message: "Unable to retrieve the group Id of created group",
+                message: `Unable to assign the group to the User ${user._id}`,
               }
             )
           );
         }
 
-        const requestForRole = {
-          query: {
-            tenant: tenant,
-          },
-          body: {
-            role_code: "SUPER_ADMIN",
-            role_name: "SUPER_ADMIN",
-            group_id: grp_id,
-          },
-        };
-
-        const responseFromCreateRole = await rolePermissionsUtil.createRole(
-          requestForRole,
-          next
-        );
-
-        if (responseFromCreateRole.success === false) {
-          return responseFromCreateRole;
-        } else if (responseFromCreateRole.success === true) {
-          logObject("responseFromCreateRole", responseFromCreateRole);
-          const role_id = responseFromCreateRole.data._id;
-          if (isEmpty(role_id)) {
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                {
-                  message:
-                    "Unable to retrieve the role id of the newly create super admin of this group",
-                }
-              )
-            );
-          }
-
-          logObject(
-            "constants.SUPER_ADMIN_PERMISSIONS",
-            constants.SUPER_ADMIN_PERMISSIONS
-          );
-
-          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
-            ? constants.SUPER_ADMIN_PERMISSIONS
-            : [];
-          const trimmedPermissions = superAdminPermissions.map((permission) =>
-            permission.trim()
-          );
-
-          const uniquePermissions = [...new Set(trimmedPermissions)];
-
-          const existingPermissionIds = await PermissionModel(tenant)
-            .find({
-              permission: { $in: uniquePermissions },
-            })
-            .distinct("_id");
-
-          const existingPermissionNames = await PermissionModel(tenant)
-            .find({
-              permission: { $in: uniquePermissions },
-            })
-            .distinct("permission");
-
-          logObject("existingPermissionIds", existingPermissionIds);
-
-          const newPermissionDocuments = uniquePermissions
-            .filter(
-              (permission) => !existingPermissionNames.includes(permission)
-            )
-            .map((permission) => ({
-              permission: permission
-                .replace(/[^A-Za-z]/g, " ")
-                .toUpperCase()
-                .replace(/ /g, "_"),
-              description: permission
-                .replace(/[^A-Za-z]/g, " ")
-                .toUpperCase()
-                .replace(/ /g, "_"),
-            }));
-
-          logObject("newPermissionDocuments", newPermissionDocuments);
-
-          // Step 3: Insert the filtered permissions
-          const insertedPermissions = await PermissionModel(tenant).insertMany(
-            newPermissionDocuments
-          );
-          logObject("insertedPermissions", insertedPermissions);
-          const allPermissionIds = [
-            ...existingPermissionIds,
-            ...insertedPermissions.map((permission) => permission._id),
-          ];
-
-          logObject("allPermissionIds", allPermissionIds);
-
-          const requestToAssignPermissions = {
-            body: {
-              permissions: allPermissionIds,
-            },
-            query: {
-              tenant: tenant,
-            },
-            params: {
-              role_id,
-            },
-          };
-
-          const responseFromAssignPermissionsToRole =
-            await rolePermissionsUtil.assignPermissionsToRole(
-              requestToAssignPermissions
-            );
-          if (responseFromAssignPermissionsToRole.success === false) {
-            return responseFromAssignPermissionsToRole;
-          } else if (responseFromAssignPermissionsToRole.success === true) {
-            const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-              user._id,
-              {
-                $addToSet: {
-                  group_roles: {
-                    group: grp_id,
-                    role: role_id,
-                    userType: "user",
-                  },
-                },
-              },
-              { new: true }
-            );
-
-            if (isEmpty(updatedUser)) {
-              next(
-                new HttpError(
-                  "Internal Server Error",
-                  httpStatus.INTERNAL_SERVER_ERROR,
-                  {
-                    message: `Unable to assign the group to the User ${user._id}`,
-                  }
-                )
-              );
-            }
-
-            return responseFromRegisterGroup;
-          }
-        }
-      } else {
-        return (
-          responseFromRegisterGroup || {
-            success: false,
-            message: "unable to create group",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: "unable to create group" },
-          }
-        );
+        return responseFromRegisterGroup;
+      } catch (error) {
+        //Rollback group and role creation if permission assignment fails
+        await GroupModel(tenant).findByIdAndDelete(grp_id);
+        await RoleModel(tenant).findByIdAndDelete(role_id);
+        return next(error); // Re-throw the error for handling by the calling function
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
