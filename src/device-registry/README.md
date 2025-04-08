@@ -30,7 +30,7 @@ It follows the Model-View-Controller (MVC) architectural pattern.
 
 ```
 
-For detailed information on the project's code structure and naming conventions, please refer to [CODEBASE_STRUCTURE.md](CODEBASE_STRUCTURE.md).
+For detailed information on the project's code structure and naming conventions, please refer to [CODEBASE_STRUCTURE.md](CODEBASE_STRUCTURE).
 
 ## Features
 
