@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
-from config import Config
+from config import BaseConfig as Config
 import numpy as np
 from timezonefinder import TimezoneFinder
 import pytz
