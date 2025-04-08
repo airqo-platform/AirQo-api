@@ -35,6 +35,7 @@ class DailyDataUtils:
 
         for (network, device_id), group in data.groupby(["network", "device_id"]):
             network = group["network"].iloc[0]
+            device_category = group["device_category"].iloc[0]
             site_id = group["site_id"].iloc[0]
             device_number = group["device_number"].iloc[0]
 
@@ -45,6 +46,7 @@ class DailyDataUtils:
             )
 
             device_averages["network"] = network
+            device_averages["device_category"] = device_category
             device_averages["device_id"] = device_id
             device_averages["site_id"] = site_id
             device_averages["device_number"] = device_number
