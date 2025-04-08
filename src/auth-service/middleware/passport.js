@@ -26,26 +26,20 @@ const logger = log4js.getLogger(
 
 const setLocalOptions = (req, res, next) => {
   try {
-    if (Validator.isEmpty(req.body.userName)) {
-      next(
-        new HttpError("the userName field is missing", httpStatus.BAD_REQUEST)
+    const userName = req.body.userName;
+
+    if (Validator.isEmpty(userName)) {
+      throw new HttpError(
+        "the userName field is missing",
+        httpStatus.BAD_REQUEST
       );
-      return;
     }
 
-    let authenticationFields = {};
-    if (
-      !Validator.isEmpty(req.body.userName) &&
-      Validator.isEmail(req.body.userName)
-    ) {
+    const authenticationFields = {};
+    if (Validator.isEmail(userName)) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
-    }
-
-    if (
-      !Validator.isEmpty(req.body.userName) &&
-      !Validator.isEmail(req.body.userName)
-    ) {
+    } else {
       authenticationFields.usernameField = "userName";
       authenticationFields.passwordField = "password";
     }
@@ -55,9 +49,17 @@ const setLocalOptions = (req, res, next) => {
       message: "all the auth fields have been set",
       authenticationFields,
     };
-  } catch (e) {
-    next(new HttpError(e.message, httpStatus.BAD_REQUEST));
-    return;
+  } catch (error) {
+    // Handle errors appropriately, including HttpErrors
+    if (error instanceof HttpError) {
+      return next(error);
+    }
+    logger.error(`Error in setLocalOptions: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 
