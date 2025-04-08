@@ -24,6 +24,9 @@ const tipsSchema = new Schema(
       type: String,
       required: [true, "the title is required!"],
     },
+    tag_line: {
+      type: String,
+    },
     description: {
       required: [true, "the description is required!"],
       type: String,
@@ -56,6 +59,7 @@ tipsSchema.methods = {
   toJSON() {
     return {
       title: this.title,
+      tag_line: this.tag_line,
       aqi_category: this.aqi_category,
       description: this.description,
       image: this.image,
@@ -117,6 +121,7 @@ tipsSchema.statics = {
         .project({
           _id: 1,
           title: 1,
+          tag_line: 1,
           aqi_category: 1,
           description: 1,
           image: 1,
@@ -216,6 +221,7 @@ tipsSchema.statics = {
         projection: {
           _id: 1,
           title: 1,
+          tag_line: 1,
           aqi_category: 1,
           description: 1,
           image: 1,
