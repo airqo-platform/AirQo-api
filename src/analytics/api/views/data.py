@@ -186,6 +186,7 @@ class RawDataExportResource(Resource):
                 device_category=device_category,
                 device_network=network,
                 data_filter=data_filter,
+                use_cache=True,
             )
 
             if data_frame.empty:
