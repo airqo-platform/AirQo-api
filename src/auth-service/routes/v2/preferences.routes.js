@@ -120,13 +120,6 @@ router.get(
 );
 
 router.get(
-  "/:deviceId/export",
-  authenticateJWT,
-  preferenceValidations.exportData, // Add new validation
-  createPreferenceController.exportData
-);
-
-router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
   authenticateJWT,

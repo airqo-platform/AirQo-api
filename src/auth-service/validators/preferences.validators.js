@@ -764,19 +764,6 @@ const preferenceValidations = {
       .isMongoId()
       .withMessage("Invalid Device ID"),
   ],
-  exportData: [
-    ...commonValidations.tenant,
-    param("deviceId")
-      .exists()
-      .withMessage("Device ID is required")
-      .isMongoId()
-      .withMessage("Invalid Device ID"),
-    query("fields")
-      .optional()
-      .isString()
-      .withMessage("Fields must be a comma-separated string of field IDs"),
-    query("days").optional().isInt().withMessage("Days must be an integer"),
-  ],
 };
 
 module.exports = preferenceValidations;
