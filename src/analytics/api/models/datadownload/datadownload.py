@@ -51,7 +51,7 @@ data_download_model = Model(
         "weatherFields": fields.List(fields.String, description="List of device names"),
         "datatype": fields.String(
             required=True,
-            description="Type of air quality data to download i.e calibrated or raw",
+            description="Type of air quality data to download i.e calibrated, raw, consolidated",
         ),
         "minimum": fields.Boolean(
             description="Download minimal data with less columns or not"
