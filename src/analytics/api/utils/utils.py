@@ -31,3 +31,20 @@ class Utils:
             logger.exception(f"Schema not found at {file_name_path}")
 
         return json.load(file_json)
+
+    @staticmethod
+    def table_name(table: str) -> str:
+        """
+        Wraps a fully-qualified BigQuery table name in backticks.
+
+        This is useful when dynamically constructing SQL queries to ensure that the
+        table name is correctly interpreted by BigQuery, especially if it contains
+        special characters like dots (`.`).
+
+        Args:
+            table (str): Fully-qualified BigQuery table name in the form 'project.dataset.table'.
+
+        Returns:
+            str: The table name wrapped in backticks (e.g., '`project.dataset.table`').
+        """
+        return f"`{table}`"
