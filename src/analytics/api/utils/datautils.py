@@ -56,14 +56,13 @@ class DataUtils:
             ValueError: If the frequency is unsupported or no table is associated with it.
         """
         table: str = None
-
+        sorting_cols: List[str] = ["site_id", "device_name"]
         bigquery_api = BigQueryApi()
         if not device_category:
             device_category = DeviceCategory.LOWCOST
 
         datasource = Config.data_sources()
         table = datasource.get(datatype).get(device_category).get(frequency)
-
         if not table:
             raise ValueError("No table information provided.")
 
@@ -73,12 +72,35 @@ class DataUtils:
             end_date_time=end_date_time,
             network=device_network,
             frequency=frequency,
-            data_type=datatype.value,
+            data_type=datatype,
             columns=columns,  # Columns of interest i.e pollutants
             where_fields=data_filter,
             dynamic_query=dynamic_query,
             use_cache=use_cache,
         )
+
+        expected_columns = bigquery_api.get_columns(table=table)
+        if raw_data.empty:
+            return pd.DataFrame(columns=expected_columns)
+
+        drop_columns = ["device_name"]
+        if frequency.value in ["weekly", "monthly", "yearly"]:
+            frequency_ = frequency[:-2]
+            drop_columns.append(frequency_)
+            sorting_cols.append(frequency_)
+        else:
+            drop_columns.append("datetime")
+            sorting_cols.append("datetime")
+
+        if dynamic_query and datatype.value == "raw":
+            # This currently being used for data downloads and not the raw-data endpoint
+            DataUtils.drop_zero_rows_and_columns_data_cleaning(raw_data)
+        elif dynamic_query:
+            raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
+            raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
+
+        raw_data["frequency"] = frequency.value
+        raw_data = raw_data.replace(np.nan, None)
 
         return raw_data
 
