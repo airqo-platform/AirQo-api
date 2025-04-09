@@ -53,6 +53,10 @@ class DataDownloadSchema(Schema):
             error="Invalid data frequency.",
         ),
     )
+    # device_category = ma_fields.String(
+    #     required=True,
+    #     validate=validate.OneOf(["bam", "lowcost"], error="Invalid device category."),
+    # )
     sites = ma_fields.List(ma_fields.String())
     device_ids = ma_fields.List(ma_fields.String())
     device_names = ma_fields.List(ma_fields.String())
@@ -60,7 +64,7 @@ class DataDownloadSchema(Schema):
     datatype = ma_fields.String(
         required=True,
         validate=validate.OneOf(
-            ["calibrated", "raw"],
+            ["calibrated", "raw", "consolidated"],
             error="Invalid data type. Must be 'calibrated' or 'raw'.",
         ),
     )
