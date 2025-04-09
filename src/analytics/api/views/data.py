@@ -300,7 +300,7 @@ class DataExportV2Resource(Resource):
             )
 
         except Exception as e:
-            logger.exception("An exception has occurred: {e}")
+            logger.exception(f"An exception has occurred: {e}")
             return (
                 AirQoRequests.create_response(
                     f"An Error occurred while processing your request. Please contact support",
@@ -387,8 +387,8 @@ class DataSummaryResource(Resource):
                 AirQoRequests.Status.HTTP_200_OK,
             )
 
-        except Exception as ex:
-            logger.exception("An exception has occurred: {e}")
+        except Exception as e:
+            logger.exception(f"An exception has occurred: {e}")
             return (
                 AirQoRequests.create_response(
                     "An Error occurred while processing your request. Please contact support",

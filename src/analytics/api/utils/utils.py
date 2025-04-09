@@ -25,12 +25,10 @@ class Utils:
         current_file = Path(__file__).parent.parent.parent
         file_name_path = f"schemas/files/{file_name}"
         try:
-            file_json = open(os.path.join(current_file, file_name_path))
-        except FileNotFoundError as ex:
-            file_json = open(os.path.join(current_file, file_name))
-            logger.exception(f"Schema not found at {file_name_path}")
-
-        return json.load(file_json)
+            with open(os.path.join(current_file, file_name_path)) as file_json:
+                return json.load(file_json)
+        except FileNotFoundError as e:
+            logger.exception(f"Schema not found at {file_name_path} - {e}")
 
     @staticmethod
     def table_name(table: str) -> str:
