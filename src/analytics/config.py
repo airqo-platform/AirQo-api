@@ -67,9 +67,13 @@ class BaseConfig:
     def data_sources(cls):
         return {
             DataType.RAW: {
-                DeviceCategory.LOWCOST: {Frequency.RAW: cls.BIGQUERY_RAW_DATA},
+                DeviceCategory.LOWCOST: {
+                    Frequency.RAW: cls.BIGQUERY_RAW_DATA,
+                    Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,  # For the use case of hourly raw data
+                },
                 DeviceCategory.BAM: {Frequency.RAW: cls.BIGQUERY_RAW_BAM_DATA_TABLE},
             },
+            # Added as a repetition - Accomodates the frontend request parameters as is. Can be cleanup better.
             DataType.CALIBRATED: {
                 DeviceCategory.LOWCOST: {
                     Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,

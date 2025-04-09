@@ -7,4 +7,9 @@ from .dashboard import (
     MonitoringSiteResource,
 )
 
-from .data import DataExportResource, DataSummaryResource, DataExportV2Resource
+from .data import (
+    DataExportResource,
+    DataSummaryResource,
+    DataExportV2Resource,
+    RawDataExportResource,
+)
