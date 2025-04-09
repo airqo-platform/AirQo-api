@@ -487,6 +487,57 @@ const commonValidations = {
   ],
 };
 
+const chartConfigValidation = [
+  body("fieldId").isInt({ min: 1, max: 8 }).withMessage("Invalid fieldId"),
+  body("title").optional().isString().withMessage("Title must be a string"),
+  body("xAxisLabel")
+    .optional()
+    .isString()
+    .withMessage("X-Axis Label must be a string"),
+  body("yAxisLabel")
+    .optional()
+    .isString()
+    .withMessage("Y-Axis Label must be a string"),
+  body("color").optional().isString().withMessage("Color must be a string"),
+  body("backgroundColor")
+    .optional()
+    .isString()
+    .withMessage("Background Color must be a string"),
+  body("chartType")
+    .optional()
+    .isIn(["Column", "Line", "Bar", "Spline", "Step"])
+    .withMessage("Invalid chart type"),
+  body("days").optional().isInt().withMessage("Days must be an integer"),
+  body("results").optional().isInt().withMessage("Results must be an integer"),
+  body("timescale")
+    .optional()
+    .isInt()
+    .withMessage("Timescale must be an integer"),
+  body("average").optional().isInt().withMessage("Average must be an integer"),
+  body("median").optional().isInt().withMessage("Median must be an integer"),
+  body("sum").optional().isInt().withMessage("Sum must be an integer"),
+  body("rounding")
+    .optional()
+    .isInt()
+    .withMessage("Rounding must be an integer"),
+  body("dataMin")
+    .optional()
+    .isNumeric()
+    .withMessage("Data Min must be a number"),
+  body("dataMax")
+    .optional()
+    .isNumeric()
+    .withMessage("Data Max must be a number"),
+  body("yAxisMin")
+    .optional()
+    .isNumeric()
+    .withMessage("Y-Axis Min must be a number"),
+  body("yAxisMax")
+    .optional()
+    .isNumeric()
+    .withMessage("Y-Axis Max must be a number"),
+];
+
 const preferenceValidations = {
   upsert: [
     ...commonValidations.tenant,
@@ -612,6 +663,120 @@ const preferenceValidations = {
       next();
     };
   },
+  createChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    body("chartConfig").isObject().withMessage("chartConfig must be an object"),
+    ...chartConfigValidation,
+  ],
+  updateChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+    body("fieldId")
+      .optional()
+      .isInt({ min: 1, max: 8 })
+      .withMessage("Invalid fieldId"),
+    body("title").optional().isString().withMessage("Title must be a string"),
+    body("xAxisLabel")
+      .optional()
+      .isString()
+      .withMessage("X-Axis Label must be a string"),
+    body("yAxisLabel")
+      .optional()
+      .isString()
+      .withMessage("Y-Axis Label must be a string"),
+    body("color").optional().isString().withMessage("Color must be a string"),
+    body("backgroundColor")
+      .optional()
+      .isString()
+      .withMessage("Background Color must be a string"),
+    body("chartType")
+      .optional()
+      .isIn(["Column", "Line", "Bar", "Spline", "Step"])
+      .withMessage("Invalid chart type"),
+    body("days").optional().isInt().withMessage("Days must be an integer"),
+    body("results")
+      .optional()
+      .isInt()
+      .withMessage("Results must be an integer"),
+    body("timescale")
+      .optional()
+      .isInt()
+      .withMessage("Timescale must be an integer"),
+    body("average")
+      .optional()
+      .isInt()
+      .withMessage("Average must be an integer"),
+    body("median").optional().isInt().withMessage("Median must be an integer"),
+    body("sum").optional().isInt().withMessage("Sum must be an integer"),
+    body("rounding")
+      .optional()
+      .isInt()
+      .withMessage("Rounding must be an integer"),
+    body("dataMin")
+      .optional()
+      .isNumeric()
+      .withMessage("Data Min must be a number"),
+    body("dataMax")
+      .optional()
+      .isNumeric()
+      .withMessage("Data Max must be a number"),
+    body("yAxisMin")
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Min must be a number"),
+    body("yAxisMax")
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Max must be a number"),
+  ],
+  deleteChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+  ],
+  getChartConfigurations: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+  ],
+  exportData: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    query("fields")
+      .optional()
+      .isString()
+      .withMessage("Fields must be a comma-separated string of field IDs"),
+    query("days").optional().isInt().withMessage("Days must be an integer"),
+  ],
 };
 
 module.exports = preferenceValidations;

@@ -702,7 +702,6 @@ const preferences = {
       );
     }
   },
-
   listAll: async (request, next) => {
     try {
       const {
@@ -747,6 +746,245 @@ const preferences = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  createChart: async (request, next) => {
+    try {
+      const { tenant, deviceId, chartConfig } = request.body;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        userId,
+        deviceId,
+      });
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      preference.chartConfigurations.push(chartConfig);
+      await preference.save();
+
+      return { success: true, message: "Chart created", data: chartConfig };
+    } catch (error) {
+      logger.error(`Error creating chart: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateChart: async (request, next) => {
+    try {
+      const { tenant, deviceId, chartId } = request.params;
+      const { body: updates } = request;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        userId,
+        deviceId,
+      });
+
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      const chartIndex = preference.chartConfigurations.findIndex(
+        (chart) => chart._id.toString() === chartId
+      );
+
+      if (chartIndex === -1) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Chart configuration not found"
+        );
+      }
+
+      // Update chart configuration properties
+      Object.keys(updates).forEach((key) => {
+        preference.chartConfigurations[chartIndex][key] = updates[key];
+      });
+
+      await preference.save();
+
+      return {
+        success: true,
+        message: "Chart configuration updated",
+        data: preference.chartConfigurations[chartIndex],
+      };
+    } catch (error) {
+      logger.error(`Error updating chart: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  deleteChart: async (request, next) => {
+    try {
+      const { tenant, deviceId, chartId } = request.params;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        userId,
+        deviceId,
+      });
+
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      const chartIndex = preference.chartConfigurations.findIndex(
+        (chart) => chart._id.toString() === chartId
+      );
+
+      if (chartIndex === -1) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Chart configuration not found"
+        );
+      }
+
+      preference.chartConfigurations.splice(chartIndex, 1);
+      await preference.save();
+
+      return { success: true, message: "Chart configuration deleted" };
+    } catch (error) {
+      logger.error(`Error deleting chart: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getChartConfigurations: async (request, next) => {
+    try {
+      const { tenant, deviceId } = request.params;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        userId,
+        deviceId,
+      });
+
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      return {
+        success: true,
+        message: "Chart configurations retrieved",
+        data: preference.chartConfigurations,
+      };
+    } catch (error) {
+      logger.error(`Error retrieving chart configurations: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  exportData: async (request, next) => {
+    try {
+      const { tenant, deviceId } = request.params;
+      const { fields, days } = request.query;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      // Validate fields parameter
+      const fieldList = fields ? fields.split(",").map(Number) : [];
+      if (fieldList.some((fieldId) => fieldId < 1 || fieldId > 8)) {
+        return handleError(
+          next,
+          "Bad Request",
+          httpStatus.BAD_REQUEST,
+          "Invalid field IDs. Field IDs must be between 1 and 8."
+        );
+      }
+
+      // Validate days parameter
+      const numDays = days ? parseInt(days, 10) : 1;
+      if (isNaN(numDays) || numDays <= 0) {
+        return handleError(
+          next,
+          "Bad Request",
+          httpStatus.BAD_REQUEST,
+          "Invalid number of days. Number of days must be a positive integer."
+        );
+      }
+
+      // Retrieve sensor data (replace with your actual data retrieval logic)
+      const sensorData = await retrieveSensorData(
+        tenant,
+        deviceId,
+        fieldList,
+        numDays
+      );
+
+      if (!sensorData || sensorData.length === 0) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "No data available for the selected device and fields"
+        );
+      }
+
+      // Generate CSV data
+      const csvData = generateCSV(sensorData);
+
+      return {
+        success: true,
+        message: "Sensor data exported to CSV",
+        data: csvData,
+      };
+    } catch (error) {
+      logger.error(`Error exporting data: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

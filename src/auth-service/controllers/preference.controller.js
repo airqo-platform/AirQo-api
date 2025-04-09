@@ -14,6 +14,22 @@ const {
   extractErrorsFromRequest,
 } = require("@utils/shared");
 
+const sendResponse = (res, result) => {
+  if (result.success) {
+    res.status(result.status || httpStatus.OK).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } else {
+    res.status(result.status || httpStatus.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: result.message,
+      errors: result.errors,
+    });
+  }
+};
+
 const preferences = {
   update: async (req, res, next) => {
     try {
@@ -638,6 +654,197 @@ const preferences = {
         )
       );
       return;
+    }
+  },
+  createChart: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = {
+        ...req,
+        body: { ...req.body, deviceId: req.params.deviceId },
+      };
+
+      const result = await preferenceUtil.createChart(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateChart: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = {
+        ...req,
+        body: { ...req.body, deviceId: req.params.deviceId },
+      };
+
+      const result = await preferenceUtil.updateChart(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  deleteChart: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = {
+        ...req,
+        body: { ...req.body, deviceId: req.params.deviceId },
+      };
+
+      const result = await preferenceUtil.deleteChart(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getChartConfigurations: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = {
+        ...req,
+        body: { ...req.body, deviceId: req.params.deviceId },
+      };
+
+      const result = await preferenceUtil.getChartConfigurations(request, next);
+      sendResponse(res, result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  exportData: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const { tenant } = req.query;
+      const { deviceId } = req.params;
+      const { fields, days } = req.query;
+      const userId = req.user._id; // Assuming JWT authentication
+
+      // Validate fields parameter
+      const fieldList = fields ? fields.split(",").map(Number) : [];
+      if (fieldList.some((fieldId) => fieldId < 1 || fieldId > 8)) {
+        return next(
+          new HttpError(
+            "Bad Request",
+            httpStatus.BAD_REQUEST,
+            "Invalid field IDs. Field IDs must be between 1 and 8."
+          )
+        );
+      }
+
+      // Validate days parameter
+      const numDays = days ? parseInt(days, 10) : 1;
+      if (isNaN(numDays) || numDays <= 0) {
+        return next(
+          new HttpError(
+            "Bad Request",
+            httpStatus.BAD_REQUEST,
+            "Invalid number of days. Number of days must be a positive integer."
+          )
+        );
+      }
+
+      // Retrieve sensor data (replace with your actual data retrieval logic)
+      const sensorData = await retrieveSensorData(
+        tenant,
+        deviceId,
+        fieldList,
+        numDays
+      );
+
+      if (!sensorData || sensorData.length === 0) {
+        return next(
+          new HttpError(
+            "Not Found",
+            httpStatus.NOT_FOUND,
+            "No data available for the selected device and fields"
+          )
+        );
+      }
+
+      // Generate CSV data
+      const csvData = generateCSV(sensorData);
+
+      // Set response headers for CSV download
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=sensor_data_${deviceId}.csv`
+      );
+
+      // Send the CSV data as the response
+      res.status(httpStatus.OK).send(csvData);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

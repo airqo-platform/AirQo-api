@@ -91,6 +91,41 @@ router.get(
   createPreferenceController.listAll
 );
 
+router.post(
+  "/:deviceId/charts",
+  authenticateJWT,
+  preferenceValidations.createChart, // Add new validation
+  createPreferenceController.createChart
+);
+
+router.put(
+  "/:deviceId/charts/:chartId",
+  authenticateJWT,
+  preferenceValidations.updateChart, // Add new validation
+  createPreferenceController.updateChart
+);
+
+router.delete(
+  "/:deviceId/charts/:chartId",
+  authenticateJWT,
+  preferenceValidations.deleteChart, // Add new validation
+  createPreferenceController.deleteChart
+);
+
+router.get(
+  "/:deviceId/charts",
+  authenticateJWT,
+  preferenceValidations.getChartConfigurations, // Add new validation
+  createPreferenceController.getChartConfigurations
+);
+
+router.get(
+  "/:deviceId/export",
+  authenticateJWT,
+  preferenceValidations.exportData, // Add new validation
+  createPreferenceController.exportData
+);
+
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
