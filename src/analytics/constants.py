@@ -18,10 +18,10 @@ class DeviceCategory(Enum):
     GENERAL -> All the sensors
     """
 
-    LOWCOST = 0
-    BAM = 1
-    GAS = 2
-    GENERAL = 3
+    LOWCOST = "lowcost"
+    BAM = "bam"
+    GAS = "gas"
+    GENERAL = "general"
 
     def __str__(self) -> str:
         return self.value
@@ -34,11 +34,11 @@ class DataType(Enum):
     CONSOLIDATED -> Air quality data merged for both lowcost(hourly) and bam data(hourly), weather data as well as site data.(datawarehouse table)
     """
 
-    RAW = 0
-    AVERAGED = 1
-    CALIBRATED = 2
-    CONSOLIDATED = 3
-    EXTRAS = 4
+    RAW = "raw"
+    AVERAGED = "averaged"
+    CALIBRATED = "calibrated"
+    CONSOLIDATED = "consolidated"
+    EXTRAS = "extras"
 
     def __str__(self) -> str:
         return self.value
@@ -116,5 +116,5 @@ class DataExportFormat(Enum):
 
 
 class QueryType(Enum):
-    GET = 1
-    DELETE = 2
+    GET = "get"
+    DELETE = "delete"
