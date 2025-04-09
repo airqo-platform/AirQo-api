@@ -6,6 +6,9 @@ metadata:
 spec:
   host: staging-netmanager.airqo.net
   upstreams:
+    - name: netmanager-ui
+      service: airqo-stage-netmanager-app-svc
+      port: 3000  
     - name: platform-ui
       service: airqo-stage-platform-frontend-svc
       port: 80  
@@ -60,7 +63,7 @@ spec:
   routes:
     - path: /
       action:
-        pass: platform-ui 
+        pass: netmanager-ui 
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

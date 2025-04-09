@@ -14,6 +14,11 @@ router.get(
   healthTipController.list
 );
 router.post("/", tipsValidations.createTip, healthTipController.create);
+router.put(
+  "/bulk",
+  tipsValidations.bulkUpdateTips,
+  healthTipController.bulkUpdate
+);
 router.put("/", tipsValidations.updateTip, healthTipController.update);
 router.delete("/", tipsValidations.deleteTip, healthTipController.delete);
 
