@@ -761,8 +761,8 @@ const preferences = {
       const userId = request.user._id; // Assuming JWT authentication
 
       const preference = await PreferenceModel(tenant).findOne({
-        userId,
-        deviceId,
+        user_id: userId,
+        device_id: deviceId,
       });
       if (!preference) {
         return handleError(
