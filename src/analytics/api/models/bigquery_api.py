@@ -1,8 +1,7 @@
 from typing import List, Dict, Any, Optional, Union, Tuple
-from constants import QueryType, DeviceNetwork, ColumnDataType, Frequency
+from constants import QueryType, DeviceNetwork, ColumnDataType, Frequency, DataType
 from api.utils.utils import Utils
 import pandas as pd
-import numpy as np
 from google.cloud import bigquery
 from config import BaseConfig as Config
 from api.utils.pollutants.pm_25 import (
@@ -20,10 +19,10 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.schema_mapping = Config.SCHEMA_FILE_MAPPING
-        self.sites_table = Config.BIGQUERY_SITES_SITES
-        self.airqlouds_sites_table = Config.BIGQUERY_AIRQLOUDS_SITES
-        self.devices_table = Config.BIGQUERY_DEVICES_DEVICES
-        self.airqlouds_table = Config.BIGQUERY_AIRQLOUDS
+        self.sites_table = Utils.table_name(Config.BIGQUERY_SITES_SITES)
+        self.airqlouds_sites_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS_SITES)
+        self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
+        self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
 
     @property
     def device_info_query(self):
@@ -53,8 +52,8 @@ class BigQueryApi:
         Joins device information with a given data query based on device_name.
 
         Args:
-            data_query (str): The data query to join with device information.
-            filter_clause (str): Optional SQL filter clause.
+            data_query(str): The data query to join with device information.
+            filter_clause(str): Optional SQL filter clause.
 
         Returns:
             str: Modified query with device join.
@@ -71,8 +70,8 @@ class BigQueryApi:
         Joins device information with airqloud data based on site_id.
 
         Args:
-            data_query (str): The data query to join with airqloud device information.
-            filter_clause (str): Optional SQL filter clause.
+            data_query(str): The data query to join with airqloud device information.
+            filter_clause(str): Optional SQL filter clause.
 
         Returns:
             str: Modified query with device-airqloud join.
@@ -89,7 +88,7 @@ class BigQueryApi:
         Joins site information with the given data query based on site_id.
 
         Args:
-            data_query (str): The data query to join with site information.
+            data_query(str): The data query to join with site information.
 
         Returns:
             str: Modified query with site join.
@@ -105,7 +104,7 @@ class BigQueryApi:
         Joins Airqloud information with the provided data query based on airqloud_id.
 
         Args:
-            data_query (str): The data query to join with Airqloud information.
+            data_query(str): The data query to join with Airqloud information.
 
         Returns:
             str: Modified query with Airqloud join.
@@ -121,7 +120,7 @@ class BigQueryApi:
         Determines the appropriate time grouping fields based on the frequency.
 
         Args:
-            frequency (str): Frequency like 'raw', 'daily', 'hourly', 'weekly', etc.
+            frequency(str): Frequency like 'raw', 'daily', 'hourly', 'weekly', etc.
 
         Returns:
             str: The time grouping clause for the SQL query.
@@ -136,7 +135,7 @@ class BigQueryApi:
 
     def get_device_query(
         self,
-        data_table,
+        table,
         filter_value,
         pollutants_query,
         bam_pollutants_query,
@@ -149,24 +148,25 @@ class BigQueryApi:
         Constructs a SQL query to retrieve data for specific devices.
 
         Args:
-            data_table (str): The name of the data table containing measurements.
-            filter_value (str): The list of device IDs to filter by.
-            pollutants_query (str): The SQL query for standard pollutants.
-            bam_pollutants_query (str): The SQL query for BAM pollutants.
-            time_grouping (str): The time grouping clause based on frequency.
-            start_date (str): The start date for the query range.
-            end_date (str): The end date for the query range.
-            frequency (str): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
+            table(str): The name of the data table containing measurements.
+            filter_value(str): The list of device IDs to filter by.
+            pollutants_query(str): The SQL query for standard pollutants.
+            bam_pollutants_query(str): The SQL query for BAM pollutants.
+            time_grouping(str): The time grouping clause based on frequency.
+            start_date(str): The start date for the query range.
+            end_date(str): The end date for the query range.
+            frequency(str): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
 
         Returns:
             str: The SQL query string to retrieve device-specific data,
                 including BAM data if applicable.
         """
+        table_name = Utils.table_name(table)
         query = (
             f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
-            f"FROM {data_table} "
-            f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {data_table}.device_id "
-            f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
+            f"FROM {table_name} "
+            f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {table_name}.device_id "
+            f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
             f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
         )
         if frequency in ["weekly", "monthly", "yearly"]:
@@ -174,14 +174,15 @@ class BigQueryApi:
 
         query = self.add_site_join(query)
         if frequency in ["hourly", "weekly", "monthly", "yearly"]:
+            bam_table_name = Utils.table_name(Config.BIGQUERY_BAM_DATA)
             bam_query = (
                 f"{bam_pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
-                f"FROM {Config.BIGQUERY_BAM_DATA} "
-                f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {Config.BIGQUERY_BAM_DATA}.device_id "
-                f"WHERE {Config.BIGQUERY_BAM_DATA}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
+                f"FROM {bam_table_name} "
+                f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {bam_table_name}.device_id "
+                f"WHERE {bam_table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
                 f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
             )
-            if frequency in ["weekly", "monthly", "yearly"]:
+            if frequency.value in ["weekly", "monthly", "yearly"]:
                 bam_query += " GROUP BY ALL"
             bam_query = self.add_site_join(bam_query)
             query = f"{query} UNION ALL {bam_query}"
@@ -190,7 +191,7 @@ class BigQueryApi:
 
     def get_site_query(
         self,
-        data_table,
+        table,
         filter_value,
         pollutants_query,
         time_grouping,
@@ -202,31 +203,32 @@ class BigQueryApi:
         Constructs a SQL query to retrieve data for specific sites.
 
         Args:
-            data_table (str): The name of the data table containing measurements.
-            filter_value (str): The list of site IDs to filter by.
-            pollutants_query (str): The SQL query for pollutants.
-            time_grouping (str): The time grouping clause based on frequency.
-            start_date (str): The start date for the query range.
-            end_date (str): The end date for the query range.
-            frequency (str): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
+            table(str): The name of the data table containing measurements.
+            filter_value(str): The list of site IDs to filter by.
+            pollutants_query(str): The SQL query for pollutants.
+            time_grouping(str): The time grouping clause based on frequency.
+            start_date(str): The start date for the query range.
+            end_date(str): The end date for the query range.
+            frequency(Frequency): The frequency of the data (e.g., Frequency.RAW, Frequency.HOURLY).
 
         Returns:
             str: The SQL query string to retrieve site-specific data.
         """
+        table = Utils.table_name(table)
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.site_info_query}, {data_table}.device_id AS device_name "
-            f"FROM {data_table} "
-            f"JOIN {self.sites_table} ON {self.sites_table}.id = {data_table}.site_id "
-            f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
+            f"{pollutants_query}, {time_grouping}, {self.site_info_query}, {table}.device_id AS device_name "
+            f"FROM {table} "
+            f"JOIN {self.sites_table} ON {self.sites_table}.id = {table}.site_id "
+            f"WHERE {table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
             f"AND {self.sites_table}.id IN UNNEST(@filter_value) "
         )
-        if frequency in ["weekly", "monthly", "yearly"]:
+        if frequency.value in ["weekly", "monthly", "yearly"]:
             query += " GROUP BY ALL"
         return self.add_device_join(query)
 
     def get_airqloud_query(
         self,
-        data_table,
+        table,
         filter_value,
         pollutants_query,
         time_grouping,
@@ -238,7 +240,7 @@ class BigQueryApi:
         Constructs a SQL query to retrieve data for specific AirQlouds.
 
         Args:
-            data_table (str): The name of the data table containing measurements.
+            table (str): The name of the data table containing measurements.
             filter_value (str): The list of AirQloud IDs to filter by.
             pollutants_query (str): The SQL query for pollutants.
             time_grouping (str): The time grouping clause based on frequency.
@@ -249,6 +251,7 @@ class BigQueryApi:
         Returns:
             str: The SQL query string to retrieve AirQloud-specific data.
         """
+        table = Utils.table_name(table)
         meta_data_query = (
             f"SELECT {self.airqlouds_sites_table}.airqloud_id, "
             f"{self.airqlouds_sites_table}.site_id AS site_id "
@@ -260,13 +263,13 @@ class BigQueryApi:
         meta_data_query = self.add_device_join_to_airqlouds(meta_data_query)
 
         query = (
-            f"{pollutants_query}, {time_grouping}, {data_table}.device_id AS device_name, meta_data.* "
-            f"FROM {data_table} "
-            f"RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
-            f"WHERE {data_table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
+            f"{pollutants_query}, {time_grouping}, {table}.device_id AS device_name, meta_data.* "
+            f"FROM {table} "
+            f"RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {table}.site_id "
+            f"WHERE {table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
         )
         order_by_clause = (
-            f"ORDER BY {data_table}.timestamp"
+            f"ORDER BY {table}.timestamp"
             if frequency not in ["weekly", "monthly", "yearly"]
             else "GROUP BY ALL"
         )
@@ -305,6 +308,7 @@ class BigQueryApi:
             Exception: If an invalid column is provided in `where_fields` or `null_cols`,
                       or if the `query_type` is not supported.
         """
+        exclude_columns: List = []
 
         where_fields = {} if where_fields is None else where_fields
 
@@ -316,6 +320,7 @@ class BigQueryApi:
 
         valid_cols = self.get_columns(table=table)
         for key, value in where_fields.items():
+
             if key not in valid_cols:
                 raise Exception(
                     f"Invalid table column. {key} is not among the columns for {table}"
@@ -326,6 +331,7 @@ class BigQueryApi:
 
             if isinstance(value, (str, int)):
                 where_clause += f" AND {key} = '{value}' "
+
             elif isinstance(value, list):
                 where_clause += f" AND {key} in UNNEST({value}) "
 
@@ -333,6 +339,7 @@ class BigQueryApi:
             query = f""" SELECT {columns} FROM `{table}` WHERE {where_clause} """
         else:
             raise Exception(f"Invalid Query Type {str(query_type)}")
+
         return query
 
     def query_data(
@@ -351,11 +358,10 @@ class BigQueryApi:
     ) -> pd.DataFrame:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
-
         Args:
-            table (str): The name of the table from which to retrieve the data.
-            start_date_time (str): The start datetime for the data query in ISO format.
-            end_date_time (str): The end datetime for the data query in ISO format.
+            table(str): The name of the table from which to retrieve the data.
+            start_date_time(str): The start datetime for the data query in ISO format.
+            end_date_time(str): The end datetime for the data query in ISO format.
             network(DeviceNetwork, optional): An Enum representing the site ownership. Defaults to `ALL` if not supplied, representing all networks.
             data_type(str, optional):
             columns(list, optional): A list of column names to include in the query. If None, all columns are included. Defaults to None.
@@ -375,9 +381,9 @@ class BigQueryApi:
             query = self.compose_query(
                 QueryType.GET,
                 table=table,
-                network=network,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
+                network=network,
                 where_fields=where_fields,
                 columns=columns,
             )
@@ -408,20 +414,6 @@ class BigQueryApi:
             .result()
             .to_dataframe()
         )
-
-        expected_columns = self.get_columns(table=table)
-        if measurements.empty:
-            return (
-                pd.DataFrame(columns=expected_columns)
-                if measurements.empty
-                else measurements
-            )
-
-        measurements.rename(
-            columns={time_granularity.lower(): "timestamp"}, inplace=True
-        )
-        measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
-
         return measurements
 
     def dynamic_averaging_query(
@@ -501,7 +493,7 @@ class BigQueryApi:
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
         group_by_clause = ", ".join(group_by + [time_granularity.lower()])
-
+        print(group_by_clause)
         query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
@@ -547,7 +539,7 @@ class BigQueryApi:
 
     def build_filter_query(
         self,
-        data_table,
+        table,
         filter_type,
         filter_value,
         pollutants_query,
@@ -573,22 +565,22 @@ class BigQueryApi:
             str: Final constructed SQL query.
         """
         time_grouping = self.get_time_grouping(frequency)
+        table_name = Utils.table_name(table)
 
         # TODO Find a better way to do this.
         if frequency in ["weekly", "monthly", "yearly"]:
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime",
+                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime",
                 "",
             )
             bam_pollutants_query = bam_pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {Config.BIGQUERY_BAM_DATA}.timestamp) AS datetime",
+                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {Utils.table_name(Config.BIGQUERY_BAM_DATA)}.timestamp) AS datetime",
                 "",
             )
-
         if filter_type in ["devices", "device_ids", "device_names"]:
             return self.get_device_query(
-                data_table,
+                table,
                 filter_value,
                 pollutants_query,
                 bam_pollutants_query,
@@ -599,7 +591,7 @@ class BigQueryApi:
             )
         elif filter_type in ["sites", "site_names", "site_ids"]:
             return self.get_site_query(
-                data_table,
+                table,
                 filter_value,
                 pollutants_query,
                 time_grouping,
@@ -609,7 +601,7 @@ class BigQueryApi:
             )
         elif filter_type == "airqlouds":
             return self.get_airqloud_query(
-                data_table,
+                table,
                 filter_value,
                 pollutants_query,
                 time_grouping,
@@ -620,16 +612,29 @@ class BigQueryApi:
         else:
             raise ValueError("Invalid filter type")
 
-    def get_averaging_columns(
-        self, mapping, frequency, data_type, decimal_places, data_table
-    ):
-        if frequency in ["weekly", "monthly", "yearly"]:
+    def get_averaging_columns(self, mapping, frequency, decimal_places, table):
+        """
+        Constructs a list of SQL expressions to apply rounding and optional averaging to columns for BigQuery queries.
+
+        Depending on the frequency, this method determines whether to directly round values or apply an AVG aggregation before rounding (for grouped time intervals like weekly, monthly, or yearly).
+
+        Args:
+            mapping(list): List of column names to apply rounding/aggregation to.
+            frequency(Frequency): The data frequency (e.g. Frequency.HOURLY, Frequency.DAILY).
+            decimal_places(int): Number of decimal places to round the values to.
+            table(str): Fully-qualified BigQuery table name (e.g., 'project.dataset.table').
+
+        Returns:
+            list: A list of SQL-safe strings representing the columns with rounding and optional averaging applied.
+        """
+        table_name = Utils.table_name(table)
+        if frequency.value in ["weekly", "monthly", "yearly"]:
             return [
-                f"ROUND(AVG({data_table}.{col}), {decimal_places}) AS {col}"
+                f"ROUND(AVG({table_name}.{col}), {decimal_places}) AS {col}"
                 for col in mapping
             ]
         return [
-            f"ROUND({data_table}.{col}, {decimal_places}) AS {col}" for col in mapping
+            f"ROUND({table_name}.{col}, {decimal_places}) AS {col}" for col in mapping
         ]
 
     @cache.memoize()
@@ -640,7 +645,7 @@ class BigQueryApi:
         end_date: str,
         pollutants: List,
         data_filter: Dict[str, Any],  # Either 'devices', 'sites'
-        data_type: str,
+        data_type: DataType,
         frequency: Frequency,
     ) -> pd.DataFrame:
         """
@@ -660,14 +665,14 @@ class BigQueryApi:
             pd.DataFrame: Retrieved data in DataFrame format, with duplicates removed and sorted by timestamp.
         """
         decimal_places = Config.DATA_EXPORT_DECIMAL_PLACES
-
+        table_name = Utils.table_name(table)
         pollutant_columns = []
         bam_pollutant_columns = []
 
         for pollutant in pollutants:
 
-            key = f"{pollutant}_{data_type}"
-            pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency, {}).get(
+            key = f"{pollutant}_{data_type.value}"
+            pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency.value, {}).get(
                 key, []
             )
 
@@ -675,7 +680,6 @@ class BigQueryApi:
                 self.get_averaging_columns(
                     pollutant_mapping,
                     frequency,
-                    data_type,
                     decimal_places,
                     table,
                 )
@@ -683,11 +687,11 @@ class BigQueryApi:
 
             # TODO Clean up by use using `get_columns` helper method
             if pollutant in {"pm2_5", "pm10", "no2"}:
-                if data_type == "raw":
+                if data_type.value == "raw":
                     # Add dummy column to fix union column number missmatch.
                     bam_pollutant_columns.append("-1 as pm2_5")
 
-                if frequency in ["weekly", "monthly", "yearly"]:
+                if frequency.value in ["weekly", "monthly", "yearly"]:
                     bam_pollutant_columns.extend(
                         [f"ROUND(AVG({pollutant}), {decimal_places}) AS {key}_value"]
                     )
@@ -699,7 +703,7 @@ class BigQueryApi:
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
-            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table}.timestamp) AS datetime "
+            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime "
         )
 
         bam_selected_columns = set(bam_pollutant_columns)
@@ -709,6 +713,7 @@ class BigQueryApi:
             + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {Config.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
         )
         filter_type, filter_value = next(iter(data_filter.items()))
+
         query = self.build_filter_query(
             table,
             filter_type,
