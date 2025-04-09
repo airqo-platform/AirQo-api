@@ -206,9 +206,7 @@ const healthTipValidations = {
       .withMessage("description cannot be empty")
       .trim(),
     body("updates.*.tips.*.image")
-      .exists()
-      .withMessage("image is required for each tip")
-      .bail()
+      .optional()
       .notEmpty()
       .withMessage("image cannot be empty")
       .trim(),
