@@ -91,6 +91,129 @@ const commonValidations = {
 };
 
 const healthTipValidations = {
+  bulkUpdate: [
+    ...commonValidations.tenant,
+    body("updates")
+      .exists()
+      .withMessage("the updates array is missing in request")
+      .bail()
+      .isArray()
+      .withMessage("updates must be an array")
+      .bail()
+      .notEmpty()
+      .withMessage("updates array cannot be empty")
+      .custom((updates) => {
+        // Custom validation to check for duplicate title and aqi_category within the updates array
+        const seen = new Set();
+        for (const update of updates) {
+          const key = `${update.title}-${JSON.stringify(update.aqi_category)}`;
+          if (seen.has(key)) {
+            throw new Error(
+              `Duplicate title "${
+                update.title
+              }" and aqi_category "${JSON.stringify(
+                update.aqi_category
+              )}" found within the updates array`
+            );
+          }
+          seen.add(key);
+        }
+        return true;
+      }),
+    body("updates.*.aqi_category")
+      .exists()
+      .withMessage("aqi_category is required for each update")
+      .bail()
+      .isObject()
+      .withMessage("aqi_category must be an object")
+      .bail(),
+    body("updates.*.aqi_category.min")
+      .exists()
+      .withMessage("aqi_category.min is required")
+      .bail()
+      .isNumeric()
+      .withMessage("aqi_category.min must be a number"),
+    body("updates.*.aqi_category.max")
+      .exists()
+      .withMessage("aqi_category.max is required")
+      .bail()
+      .isNumeric()
+      .withMessage("aqi_category.max must be a number")
+      .custom((value, { req }) => {
+        if (
+          value <=
+          req.body.updates[
+            req.body.updates.indexOf(
+              req.body.updates.find(
+                (update) => update.aqi_category.max === value
+              )
+            )
+          ].aqi_category.min
+        ) {
+          throw new Error("max value must be greater than min value");
+        }
+        return true;
+      }),
+    body("updates.*.tips")
+      .exists()
+      .withMessage("tips array is required for each update")
+      .bail()
+      .isArray()
+      .withMessage("tips must be an array")
+      .bail()
+      .notEmpty()
+      .withMessage("tips array cannot be empty")
+      .custom((tips, { req, location, path }) => {
+        // Custom validation to check for duplicate title and aqi_category within the tips array
+        const seen = new Set();
+        for (const tip of tips) {
+          const updateIndex = req.body.updates.indexOf(
+            req.body.updates.find((update) => update.tips === tips)
+          );
+          const key = `${tip.title}-${JSON.stringify(
+            req.body.updates[updateIndex].aqi_category
+          )}`;
+          if (seen.has(key)) {
+            throw new Error(
+              `Duplicate title "${
+                tip.title
+              }" and aqi_category "${JSON.stringify(
+                req.body.updates[updateIndex].aqi_category
+              )}" found within the tips array`
+            );
+          }
+          seen.add(key);
+        }
+        return true;
+      }),
+    body("updates.*.tips.*.title")
+      .exists()
+      .withMessage("title is required for each tip")
+      .bail()
+      .notEmpty()
+      .withMessage("title cannot be empty")
+      .trim(),
+    body("updates.*.tips.*.tag_line")
+      .optional()
+      .notEmpty()
+      .withMessage("tag_line cannot be empty if provided")
+      .trim(),
+    body("updates.*.tips.*.description")
+      .exists()
+      .withMessage("description is required for each tip")
+      .bail()
+      .notEmpty()
+      .withMessage("description cannot be empty")
+      .trim(),
+    body("updates.*.tips.*.image")
+      .exists()
+      .withMessage("image is required for each tip")
+      .bail()
+      .notEmpty()
+      .withMessage("image cannot be empty")
+      .trim(),
+    handleValidationErrors,
+  ],
   create: [
     ...commonValidations.tenant,
     body("description")
@@ -221,6 +344,7 @@ const tipsValidations = {
   updateTip: healthTipValidations.update,
   deleteTip: healthTipValidations.delete,
   pagination: commonValidations.pagination,
+  bulkUpdateTips: healthTipValidations.bulkUpdate,
 };
 
 module.exports = tipsValidations;
