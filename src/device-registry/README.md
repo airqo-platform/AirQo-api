@@ -30,6 +30,8 @@ It follows the Model-View-Controller (MVC) architectural pattern.
 
 ```
 
+For detailed information on the project's code structure and naming conventions, please refer to the [CODEBASE_STRUCTURE](CODEBASE_STRUCTURE.md).
+
 ## Features
 
 - **Device Management**: Create, edit, and delete devices.
