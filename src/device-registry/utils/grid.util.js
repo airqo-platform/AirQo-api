@@ -163,6 +163,12 @@ const createGrid = {
   },
   delete: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "feature temporarily disabled --coming soon",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       const { query } = request;
       const { tenant } = query;
       const filter = generateFilter.grids(request, next);
@@ -556,6 +562,12 @@ const createGrid = {
   },
   deleteAdminLevel: async (request, next) => {
     try {
+      return {
+        success: false,
+        message: "feature temporarily disabled --coming soon",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       const { tenant } = request.query;
       const filter = generateFilter.admin_levels(request, next);
 
