@@ -4,7 +4,7 @@ app:
   configmap: env-device-uptime-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-uptime-job
-  tag: prod-63793ad8-1744195778
+  tag: prod-8302346a-1744281832
 nameOverride: ''
 fullnameOverride: ''
 resources:
