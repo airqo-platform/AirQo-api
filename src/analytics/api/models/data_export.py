@@ -2,7 +2,6 @@ import json
 import traceback
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from enum import Enum
 
 import pandas as pd
 import pymongo
@@ -13,26 +12,8 @@ from google.cloud import bigquery, storage
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
 from api.utils.exceptions import ExportRequestNotFound
-from config import Config
-
-
-class DataExportStatus(Enum):
-    SCHEDULED = "scheduled"
-    PROCESSING = "processing"
-    READY = "ready"
-    FAILED = "failed"
-    NO_DATA = "no_data"
-
-
-class Frequency(Enum):
-    RAW = "raw"
-    HOURLY = "hourly"
-    DAILY = "daily"
-
-
-class DataExportFormat(Enum):
-    JSON = "json"
-    CSV = "csv"
+from config import BaseConfig as Config
+from constants import DataExportStatus, DataExportFormat, Frequency
 
 
 @dataclass
@@ -49,9 +30,8 @@ class DataExportRequest:
     request_id: str
     user_id: str
 
-    sites: list[str]
-    devices: list[str]
-    airqlouds: list[str]
+    filter_type: str
+    filter_value: list[str]
     pollutants: list[str]
     retries: int
     meta_data: dict
@@ -108,7 +88,6 @@ class DataExportModel(BasePyMongoModel):
             devices=doc["devices"],
             start_date=doc["start_date"],
             end_date=doc["end_date"],
-            airqlouds=doc["airqlouds"],
             sites=doc["sites"],
             data_links=doc["data_links"],
             request_date=doc["request_date"],

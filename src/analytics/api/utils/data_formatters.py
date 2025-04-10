@@ -331,3 +331,51 @@ def filter_non_private_sites_devices(
             return airqo_requests.create_response(response, success=False)
     except Exception as e:
         logger.exception(f"Error while filtering non private {filter_type}: {e}")
+
+
+def get_validated_filter(json_data):
+    """
+    Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
+    and applies filtering if necessary.
+
+    Args:
+        json_data (dict): JSON payload from the request.
+
+    Returns:
+        tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
+
+    Raises:
+        ValueError: If more than one or none of the filters are provided.
+    """
+    filter_type: str = None
+    validated_value: Dict[str, Any] = None
+    validated_data: List[str] = None
+    error_message: str = ""
+
+    # TODO Lias with device registry to cleanup this makeshift implementation
+    devices = ["device_ids", "device_names"]
+    sites = [
+        "sites",
+    ]
+
+    valid_filters = [
+        "sites",
+        "device_ids",
+        "device_names",
+    ]
+
+    provided_filters = [key for key in valid_filters if json_data.get(key)]
+    filter_type = provided_filters[0]
+    filter_value = json_data.get(filter_type)
+
+    if filter_type in sites:
+        validated_value = filter_non_private_sites_devices(filter_type, filter_value)
+    elif filter_type in devices:
+        validated_value = filter_non_private_sites_devices(filter_type, filter_value)
+
+    if validated_value and validated_value.get("status") == "success":
+        validated_data = validated_value.get("data", [])
+    else:
+        error_message = validated_value.get("message", "Data filter validation failed")
+
+    return filter_type, validated_data, error_message
