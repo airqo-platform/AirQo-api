@@ -519,6 +519,7 @@ siteSchema.methods = {
     return {
       _id: this._id,
       grids: this.grids,
+      devices: this.devices,
       name: this.name,
       site_category: this.site_category,
       visibility: this.visibility,
