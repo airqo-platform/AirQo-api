@@ -358,6 +358,8 @@ class DataUtils:
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
             dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
             remove_outliers(bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
+            use_cach(bool, optional): Use biqquery cache
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.

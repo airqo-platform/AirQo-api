@@ -1,4 +1,4 @@
-from config import Config as Configuration
+from config import BaseConfig as Config
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
@@ -101,8 +101,8 @@ class AirQoRequests:
         """
         Initialize the AirQoRequests instance.
         """
-        self.AIRQO_API_TOKEN = Configuration.AIRQO_API_TOKEN
-        self.BASE_URL_V2 = Configuration.AIRQO_API_BASE_URL
+        self.AIRQO_API_TOKEN = Config.AIRQO_API_TOKEN
+        self.BASE_URL_V2 = Config.AIRQO_API_BASE_URL
 
     def request(self, endpoint, params=None, body=None, method="get", base_url=None):
         """
