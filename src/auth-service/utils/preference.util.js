@@ -760,6 +760,15 @@ const preferences = {
       const { tenant, deviceId, chartConfig } = request.body;
       const userId = request.user._id; // Assuming JWT authentication
 
+      if (!chartConfig.title || !chartConfig.chartType) {
+        return handleError(
+          next,
+          "Bad Request",
+          httpStatus.BAD_REQUEST,
+          "Chart configuration must include title and chartType"
+        );
+      }
+
       const preference = await PreferenceModel(tenant).findOne({
         user_id: userId,
         device_id: deviceId,
@@ -823,9 +832,11 @@ const preferences = {
       }
 
       // Update chart configuration properties
-      Object.keys(updates).forEach((key) => {
-        preference.chartConfigurations[chartIndex][key] = updates[key];
-      });
+      Object.keys(updates)
+        .filter((key) => allowedProperties.includes(key))
+        .forEach((key) => {
+          preference.chartConfigurations[chartIndex][key] = updates[key];
+        });
 
       await preference.save();
 
