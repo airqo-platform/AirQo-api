@@ -818,6 +818,47 @@ class EventsModel(BasePyMongoModel):
         return data
 
     def get_events(self, sites, start_date, end_date, frequency):
+        """
+        Retrieves and aggregates air quality event data for the specified sites and date range,
+        grouped by site and time, based on the provided frequency.
+
+        The method performs the following operations:
+            - Filters documents within a given date range
+            - Filters by frequency (defaults to "raw")
+            - Unwinds nested `values` field
+            - Looks up related site data
+            - Formats the timestamp based on frequency
+            - Projects selected pollutant fields and site metadata
+            - Groups data by site and formatted timestamp
+            - Averages pollutant values
+            - Sorts by time
+
+        Args:
+            sites(list): List of site IDs to filter results by.
+            start_date(str): The start date (inclusive) in ISO format.
+            end_date(str): The end date (inclusive) in ISO format.
+            frequency(str): The frequency of data aggregation (e.g., "raw", "hourly", "daily", "monthly").
+
+        Returns:
+            list: A list of dictionaries containing grouped and averaged pollutant data per site and time window.
+
+        Example Return Structure:
+            [
+                {
+                    "_id": {"site_id": "123", "time": "2024-01-01"},
+                    "frequency": "daily",
+                    "pm2_5": 13.4,
+                    "pm10": 22.1,
+                    "no2": 7.8,
+                    "sites": {
+                        "name": "Site A",
+                        "description": "Near market",
+                        "generated_name": "site_a_01"
+                    }
+                },
+                ...
+            ]
+        """
         time_format_mapper = {
             "raw": "%Y-%m-%dT%H:%M:%S%z",
             "hourly": "%Y-%m-%d %H:00",
