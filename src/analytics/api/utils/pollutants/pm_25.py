@@ -48,12 +48,6 @@ AQCSV_QC_CODE_MAPPER = {
 
 FREQUENCY_MAPPER = {"hourly": 60, "daily": 1440, "raw": 1}
 
-POLLUTANT_BIGQUERY_MAPPER = {
-    "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
-    "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
-    "no2": ["no2_calibrated_value", "no2_raw_value"],
-}
-
 COMMON_POLLUTANT_MAPPING = {
     "pm2_5_calibrated": ["pm2_5_calibrated_value"],
     "pm2_5_raw": ["pm2_5_raw_value", "pm2_5"],
@@ -64,6 +58,7 @@ COMMON_POLLUTANT_MAPPING = {
 }
 
 BIGQUERY_FREQUENCY_MAPPER = {
+    "raw": COMMON_POLLUTANT_MAPPING,
     "daily": COMMON_POLLUTANT_MAPPING,
     "hourly": COMMON_POLLUTANT_MAPPING,
     "weekly": COMMON_POLLUTANT_MAPPING,
