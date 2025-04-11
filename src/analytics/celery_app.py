@@ -9,7 +9,7 @@ from flask_pymongo import PyMongo
 
 from celery import Celery
 
-from config import Config, CONFIGURATIONS
+from config import BaseConfig as Config, CONFIGURATIONS
 from api.models import DataExportModel, DataExportStatus, DataExportRequest, EventsModel
 
 celery_logger = get_task_logger(__name__)
