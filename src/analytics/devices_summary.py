@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from api.models import EventsModel
 from api.utils.data_formatters import compute_devices_summary
 from api.utils.dates import str_to_date
-from config import Config
+from config import BaseConfig as Config
 
 
 def create_date_list(start_date: datetime, end_date: datetime):

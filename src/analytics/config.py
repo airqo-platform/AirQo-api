@@ -2,10 +2,14 @@ import os
 
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 from decouple import config as env_var
 from flasgger import LazyString
 from constants import DataType, DeviceCategory, Frequency
 
+
+env_path = Path(".") / ".env"
+load_dotenv(dotenv_path=env_path, verbose=True)
 TWO_HOURS = 7200  # seconds
 
 API_V2_BASE_URL = "/api/v2/analytics"
@@ -20,6 +24,7 @@ class BaseConfig:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
+    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
     # Cache
     CACHE_TYPE = "RedisCache"
