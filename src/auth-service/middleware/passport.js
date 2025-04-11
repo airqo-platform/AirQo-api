@@ -1198,7 +1198,11 @@ function setLocalAuth(req, res, next) {
       next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
-    setLocalStrategy("airqo", req, res, next);
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
     logger.error(`the error in setLocalAuth is: ${e.message}`);
@@ -1237,7 +1241,11 @@ function setJWTAuth(req, res, next) {
       next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
-    setJWTStrategy("airqo", req, res, next);
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setJWTStrategy(tenant, req, res, next);
     next();
   } catch (e) {
     logger.error(`the error in setLocalAuth is: ${e.message}`);
