@@ -702,7 +702,6 @@ const preferences = {
       );
     }
   },
-
   listAll: async (request, next) => {
     try {
       const {
@@ -747,6 +746,191 @@ const preferences = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  createChart: async (request, next) => {
+    try {
+      const { tenant, deviceId, chartConfig } = request.body;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      if (!chartConfig.title || !chartConfig.chartType) {
+        return handleError(
+          next,
+          "Bad Request",
+          httpStatus.BAD_REQUEST,
+          "Chart configuration must include title and chartType"
+        );
+      }
+
+      const preference = await PreferenceModel(tenant).findOne({
+        user_id: userId,
+        device_id: deviceId,
+      });
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      preference.chartConfigurations.push(chartConfig);
+      await preference.save();
+
+      return { success: true, message: "Chart created", data: chartConfig };
+    } catch (error) {
+      logger.error(`Error creating chart: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateChart: async (request, next) => {
+    try {
+      const { tenant, deviceId, chartId } = request.params;
+      const { body: updates } = request;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        user_id: userId,
+        device_id: deviceId,
+      });
+
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      const chartIndex = preference.chartConfigurations.findIndex(
+        (chart) => chart._id.toString() === chartId
+      );
+
+      if (chartIndex === -1) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Chart configuration not found"
+        );
+      }
+
+      // Update chart configuration properties
+      Object.keys(updates)
+        .filter((key) => allowedProperties.includes(key))
+        .forEach((key) => {
+          preference.chartConfigurations[chartIndex][key] = updates[key];
+        });
+
+      await preference.save();
+
+      return {
+        success: true,
+        message: "Chart configuration updated",
+        data: preference.chartConfigurations[chartIndex],
+      };
+    } catch (error) {
+      logger.error(`Error updating chart: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  deleteChart: async (request, next) => {
+    try {
+      const { tenant, deviceId, chartId } = request.params;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        user_id: userId,
+        device_id: deviceId,
+      });
+
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      const chartIndex = preference.chartConfigurations.findIndex(
+        (chart) => chart._id.toString() === chartId
+      );
+
+      if (chartIndex === -1) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Chart configuration not found"
+        );
+      }
+
+      preference.chartConfigurations.splice(chartIndex, 1);
+      await preference.save();
+
+      return { success: true, message: "Chart configuration deleted" };
+    } catch (error) {
+      logger.error(`Error deleting chart: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getChartConfigurations: async (request, next) => {
+    try {
+      const { tenant, deviceId } = request.params;
+      const userId = request.user._id; // Assuming JWT authentication
+
+      const preference = await PreferenceModel(tenant).findOne({
+        user_id: userId,
+        device_id: deviceId,
+      });
+
+      if (!preference) {
+        return handleError(
+          next,
+          "Not Found",
+          httpStatus.NOT_FOUND,
+          "Preference not found"
+        );
+      }
+
+      return {
+        success: true,
+        message: "Chart configurations retrieved",
+        data: preference.chartConfigurations,
+      };
+    } catch (error) {
+      logger.error(`Error retrieving chart configurations: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

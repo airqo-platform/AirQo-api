@@ -1,4 +1,5 @@
 const mongoose = require("mongoose").set("debug", true);
+const Schema = mongoose.Schema;
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
@@ -18,6 +19,31 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
+
+const chartConfigSchema = new Schema({
+  fieldId: { type: Number, required: true, min: 1, max: 8 }, // ThingSpeak field ID
+  title: { type: String, default: "Chart Title" },
+  xAxisLabel: { type: String, default: "Time" },
+  yAxisLabel: { type: String, default: "Value" },
+  color: { type: String, default: "#d62020" },
+  backgroundColor: { type: String, default: "#ffffff" },
+  chartType: {
+    type: String,
+    enum: ["Column", "Line", "Bar", "Spline", "Step"],
+    default: "line",
+  },
+  days: { type: Number, default: 1 },
+  results: { type: Number, default: 20 },
+  timescale: { type: Number, default: 10 }, // Or String for named intervals
+  average: { type: Number, default: 10 }, // Or String
+  median: { type: Number, default: 10 }, // Or String
+  sum: { type: Number, default: 10 }, // Or String
+  rounding: { type: Number, default: 2 },
+  dataMin: { type: Number },
+  dataMax: { type: Number },
+  yAxisMin: { type: Number },
+  yAxisMax: { type: Number },
+});
 
 const periodSchema = new mongoose.Schema(
   {
@@ -208,6 +234,7 @@ const PreferenceSchema = new mongoose.Schema(
       },
     ],
     period: { type: periodSchema, required: [true, "period is required!"] },
+    chartConfigurations: [chartConfigSchema],
   },
   {
     timestamps: true,
