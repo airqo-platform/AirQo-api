@@ -57,6 +57,9 @@ class DataDownloadSchema(Schema):
     #     required=True,
     #     validate=validate.OneOf(["bam", "lowcost"], error="Invalid device category."),
     # )
+    network = ma_fields.String(
+        validate=validate.OneOf(["airqo", "iqair", "metone"], error="Invalid network."),
+    )
     sites = ma_fields.List(ma_fields.String())
     device_ids = ma_fields.List(ma_fields.String())
     device_names = ma_fields.List(ma_fields.String())
