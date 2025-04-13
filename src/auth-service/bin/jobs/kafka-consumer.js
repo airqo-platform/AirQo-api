@@ -339,6 +339,22 @@ const operationForSiteCreated = async (messageData) => {
 
     if (event.groupId) {
       const { siteId, groupId, tenant } = event;
+      // Validate that IDs are proper ObjectIds before proceeding
+      if (!ObjectId.isValid(siteId) || !ObjectId.isValid(groupId)) {
+        logger.error(
+          `🛑 Invalid ObjectId format - siteId: ${siteId}, groupId: ${groupId}`
+        );
+        return;
+      }
+
+      // Check if the group exists before attempting to update
+      const groupExists = await GroupModel(tenant).findOne({ _id: groupId });
+      if (!groupExists) {
+        logger.error(
+          `🛑 Group with ID ${groupId} not found for tenant ${tenant}`
+        );
+        return;
+      }
       const filter = { _id: groupId };
       const update = { $addToSet: { grp_sites: siteId } };
       const options = { new: true };
