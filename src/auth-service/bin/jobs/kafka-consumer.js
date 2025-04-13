@@ -384,7 +384,7 @@ const kafkaConsumer = async () => {
       ["ip-address"]: operationForBlacklistedIPs,
       ["deploy-topic"]: emailsForDeployedDevices,
       ["recall-topic"]: emailsForRecalledDevices,
-      ["site.events"]: operationForSiteCreated,
+      ["sites-topic"]: operationForSiteCreated,
     };
 
     await consumer.connect();
