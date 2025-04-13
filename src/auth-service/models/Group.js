@@ -48,6 +48,7 @@ const GroupSchema = new Schema(
       required: [true, "grp_description is required"],
     },
     grp_manager: { type: ObjectId },
+    grp_sites: [{ type: ObjectId }],
     grp_manager_username: { type: String },
     grp_manager_firstname: { type: String },
     grp_manager_lastname: { type: String },
