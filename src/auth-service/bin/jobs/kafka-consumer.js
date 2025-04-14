@@ -15,6 +15,7 @@ const asyncRetry = require("async-retry");
 const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const ObjectId = mongoose.Types.ObjectId;
+const GroupModel = require("@models/Group");
 const {
   logObject,
   logText,
@@ -331,6 +332,56 @@ const emailsForRecalledDevices = async (messageData) => {
   }
 };
 
+const operationForSiteCreated = async (messageData) => {
+  try {
+    const event = JSON.parse(messageData);
+    logObject("site.created event", event);
+
+    if (event.groupId) {
+      const { siteId, groupId, tenant } = event;
+      // Validate that IDs are proper ObjectIds before proceeding
+      if (!ObjectId.isValid(siteId) || !ObjectId.isValid(groupId)) {
+        logger.error(
+          `🛑 Invalid ObjectId format - siteId: ${siteId}, groupId: ${groupId}`
+        );
+        return;
+      }
+
+      // Check if the group exists before attempting to update
+      const groupExists = await GroupModel(tenant).findOne({ _id: groupId });
+      if (!groupExists) {
+        logger.error(
+          `🛑 Group with ID ${groupId} not found for tenant ${tenant}`
+        );
+        return;
+      }
+      const filter = { _id: groupId };
+      const update = { $addToSet: { grp_sites: siteId } };
+      const options = { new: true };
+      const responseFromModifyGroup = await GroupModel(tenant).modify(
+        { filter, update },
+        (error) => {
+          if (error) {
+            logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+          }
+        }
+      );
+      logObject("responseFromModifyGroup", responseFromModifyGroup);
+      if (responseFromModifyGroup.success === false) {
+        logger.error(
+          `🐛🐛 Internal Server Error -- ${responseFromModifyGroup.message}`
+        );
+      }
+    }
+  } catch (error) {
+    logger.error(
+      `🐛🐛 KAFKA: Internal Server Error -- operationForSiteCreated() -- ${stringify(
+        error
+      )}`
+    );
+  }
+};
+
 const kafkaConsumer = async () => {
   try {
     const kafka = new Kafka({
@@ -349,6 +400,7 @@ const kafkaConsumer = async () => {
       ["ip-address"]: operationForBlacklistedIPs,
       ["deploy-topic"]: emailsForDeployedDevices,
       ["recall-topic"]: emailsForRecalledDevices,
+      ["sites-topic"]: operationForSiteCreated,
     };
 
     await consumer.connect();

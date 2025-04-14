@@ -80,6 +80,29 @@ const update = [
       .withMessage("the grp_industry should not be empty if provided")
       .bail()
       .trim(),
+    body("grp_sites")
+      .optional()
+      .custom((value) => {
+        return Array.isArray(value);
+      })
+      .withMessage("grp_sites must be an array if provided")
+      .bail()
+      .custom((value) => {
+        // Check for duplicates in the array
+        if (Array.isArray(value)) {
+          return new Set(value).size === value.length;
+        }
+        return true;
+      })
+      .withMessage("Duplicate site IDs are not allowed in grp_sites"),
+    body("grp_sites.*")
+      .optional()
+      .isMongoId()
+      .withMessage("Each site ID in grp_sites must be a valid ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
     body("grp_image")
       .optional()
       .notEmpty()
@@ -156,6 +179,29 @@ const create = [
         "the grp_title can only contain letters, numbers, spaces, hyphens and underscores"
       )
       .bail(),
+    body("grp_sites")
+      .optional()
+      .custom((value) => {
+        return Array.isArray(value);
+      })
+      .withMessage("grp_sites must be an array if provided")
+      .bail()
+      .custom((value) => {
+        // Check for duplicates in the array
+        if (Array.isArray(value)) {
+          return new Set(value).size === value.length;
+        }
+        return true;
+      })
+      .withMessage("Duplicate site IDs are not allowed in grp_sites"),
+    body("grp_sites.*")
+      .optional()
+      .isMongoId()
+      .withMessage("Each site ID in grp_sites must be a valid ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
     body("grp_description")
       .exists()
       .withMessage("the grp_description is required")
