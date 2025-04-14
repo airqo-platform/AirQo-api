@@ -179,4 +179,5 @@ module.exports = {
   healthScoreValidators,
   behaviorValidators,
   emailValidators,
+  validateDateRange,
 };

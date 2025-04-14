@@ -40,5 +40,14 @@ const prodConfig = {
   PADDLE_SECRET_KEY: process.env.PROD_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.PROD_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.PROD_PADDLE_API_KEY,
+
+  // Presto connection configuration
+  PRESTO_HOST: process.env.PROD_PRESTO_HOST,
+  PRESTO_PORT: process.env.PROD_PRESTO_PORT,
+  PRESTO_USER: process.env.PROD_PRESTO_USER,
+  PRESTO_PASSWORD: process.env.PROD_PRESTO_PASSWORD,
+  PRESTO_DATABASE: process.env.PROD_PRESTO_DATABASE,
+  PRESTO_AUTH_USER: process.env.PROD_PRESTO_AUTH_USER,
+  PRESTO_AUTH_PASSWORD: process.env.PROD_PRESTO_AUTH_PASSWORD,
 };
 module.exports = prodConfig;

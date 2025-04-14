@@ -86,6 +86,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.0",
     "passport-local": "^1.0.0",
+    "presto-client": "^1.1.0",
     "redis": "^4.6.7",
     "saslprep": "^1.0.3",
     "serve-favicon": "~2.4.5",

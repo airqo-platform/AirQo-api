@@ -129,4 +129,35 @@ router.get(
   createAnalyticsController.validateEnvironment
 );
 
+router.get(
+  "/presto/user-stats",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getPrestoUserStats
+);
+router.get(
+  "/presto/new-api-users",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getNewAPIUsers
+);
+router.get(
+  "/presto/active-api-users",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getActiveAPIUsers
+);
+router.get(
+  "/presto/recent-users",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getRecentUsers
+);
+router.get(
+  "/presto/new-users",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getNewUsers
+);
+
 module.exports = router;
