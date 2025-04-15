@@ -53,10 +53,9 @@ class DataDownloadSchema(Schema):
             error="Invalid data frequency.",
         ),
     )
-    # device_category = ma_fields.String(
-    #     required=True,
-    #     validate=validate.OneOf(["bam", "lowcost"], error="Invalid device category."),
-    # )
+    device_category = ma_fields.String(
+        validate=validate.OneOf(["bam", "lowcost"], error="Invalid device category."),
+    )
     network = ma_fields.String(
         validate=validate.OneOf(["airqo", "iqair", "metone"], error="Invalid network."),
     )
