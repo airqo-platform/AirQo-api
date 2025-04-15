@@ -7,7 +7,7 @@ if [ -f /app/.env ]; then
 else
   echo "⚠️  No .env file found at /app/.env"
 fi
-# set +a
+set +a
 
 echo "🚀 Running DB upgrade..."
 superset db upgrade
