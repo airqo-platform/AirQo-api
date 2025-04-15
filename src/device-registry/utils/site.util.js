@@ -592,7 +592,11 @@ const createSite = {
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(createdSite),
+                value: JSON.stringify({
+                  ...createdSite,
+                  groupId: group,
+                  tenant: request.query.tenant,
+                }),
               },
             ],
           });
