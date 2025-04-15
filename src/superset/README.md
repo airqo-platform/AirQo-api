@@ -27,12 +27,14 @@ This image uses Python 3.9 as a base and includes common system dependencies nee
 
 ## Project Structure
 
+```text
 .
-├── Dockerfile # Builds the Superset image
-├── requirements.txt # Python dependencies (e.g., DB drivers)
-├── superset_config.py # Custom Superset configuration
-├── .env.docker # Environment variables for the container
-└── entrypoint.sh # Initialization and startup script
+├── Dockerfile          # Builds the Superset image
+├── requirements.txt    # Python dependencies (e.g., DB drivers)
+├── superset_config.py  # Custom Superset configuration
+├── .env.docker         # Environment variables for the container
+└── entrypoint.sh       # Initialization and startup script
+```
 
 ## Configuration Files
 
