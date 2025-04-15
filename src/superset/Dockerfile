@@ -18,10 +18,10 @@ RUN pip install --upgrade pip && \
     pip install apache-superset
 
 # Copy config
-COPY superset_config.py /app/superset_config.py
+COPY --chown=superset superset_config.py /app/superset_config.py
 ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 
-COPY .env /app/.env
+COPY .env.docker /app/.env
 
 # Create entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
