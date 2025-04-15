@@ -1672,7 +1672,6 @@ jobs:
         with:
           push: true
           context: src/superset
-          target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:latest
 
       - name: Apply Deployment Files
