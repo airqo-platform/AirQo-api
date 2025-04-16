@@ -399,8 +399,7 @@ class BigQueryApi:
                 frequency=frequency,
                 # time_granularity=time_granularity,
             )
-            # Log result query
-            logger.info(query)
+
             query_parameters = [
                 bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
             ]
