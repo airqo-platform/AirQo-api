@@ -1,4 +1,4 @@
-Clone project from GitHub.
+Clone project from GitHub..
 
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
