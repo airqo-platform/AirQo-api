@@ -1,4 +1,4 @@
-# Apache Superset Docker Image
+# Apache Superset Docker Image .
 
 This repository contains the necessary files to build a Docker image for running a customized instance of Apache Superset, a modern data exploration and visualization platform.
 
