@@ -21,7 +21,8 @@ CMD ["flask", "run", "--host=0.0.0.0"]
 
 FROM base as staging
 ENV FLASK_ENV=staging
-CMD ["flask", "run", "--host=0.0.0.0"]
+ENV FLASK_DEBUG=1
+CMD ["flask", "run", "--host=0.0.0.0:5000"]
 
 FROM base as production
 ENV FLASK_ENV=production
