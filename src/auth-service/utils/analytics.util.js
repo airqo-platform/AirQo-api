@@ -1565,7 +1565,6 @@ const analytics = {
       );
     }
   },
-
   getEngagementMetrics: async (request, next) => {
     try {
       const { email, tenant, timeframe = "last30days" } = request.query;
@@ -1603,7 +1602,6 @@ const analytics = {
       );
     }
   },
-
   // Activity Analysis Functions
   getActivityReport: async (request, next) => {
     try {
@@ -1642,7 +1640,6 @@ const analytics = {
       );
     }
   },
-
   // Cohort Analysis Functions
   getCohortAnalysis: async (request, next) => {
     try {
@@ -1670,7 +1667,6 @@ const analytics = {
       );
     }
   },
-
   // Predictive Analytics Functions
   getPredictiveAnalytics: async (request, next) => {
     try {
@@ -1708,7 +1704,6 @@ const analytics = {
       );
     }
   },
-
   // Service Adoption Functions
   getServiceAdoption: async (request, next) => {
     try {
@@ -1746,7 +1741,6 @@ const analytics = {
       );
     }
   },
-
   // Benchmark Functions
   getBenchmarks: async (request, next) => {
     try {
@@ -1774,7 +1768,6 @@ const analytics = {
       );
     }
   },
-
   // Top Users Functions
   getTopUsers: async (request, next) => {
     try {
@@ -1802,7 +1795,6 @@ const analytics = {
       );
     }
   },
-
   // Aggregated Analytics Functions
   getAggregatedAnalytics: async (request, next) => {
     try {
@@ -1840,7 +1832,6 @@ const analytics = {
       );
     }
   },
-
   // Retention Analysis Functions
   getRetentionAnalysis: async (request, next) => {
     try {
@@ -1871,7 +1862,6 @@ const analytics = {
       );
     }
   },
-
   // Health Score Functions
   getEngagementHealth: async (request, next) => {
     try {
@@ -1911,7 +1901,6 @@ const analytics = {
       );
     }
   },
-
   // Behavior Pattern Functions
   getBehaviorPatterns: async (request, next) => {
     try {
@@ -2857,6 +2846,528 @@ const analytics = {
         return {
           success: true,
           message: "No new users found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get a list of recently active users using Presto
+  getRecentUsers: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          COUNT(*) AS recentUsers
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".users
+        WHERE
+          lastLogin >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND lastLogin <= TIMESTAMP '${new Date(endDate).toISOString()}'
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved recent users from Presto",
+          data: responseFromPresto[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No recent users found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get user engagement metrics using Presto
+  getUserEngagementMetricsPresto: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          COUNT(DISTINCT log.meta.endpoint) AS uniqueEndpoints,
+          COUNT(DISTINCT log.meta.service) AS uniqueServices,
+          COUNT(*) AS totalActions
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".logs AS log
+        WHERE
+          log.timestamp >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND log.timestamp <= TIMESTAMP '${new Date(endDate).toISOString()}'
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved user engagement metrics from Presto",
+          data: responseFromPresto[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No user engagement metrics found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get activity summary using Presto
+  getActivitySummaryPresto: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          COUNT(DISTINCT log.meta.email) AS uniqueUsers,
+          COUNT(*) AS totalEvents
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".logs AS log
+        WHERE
+          log.timestamp >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND log.timestamp <= TIMESTAMP '${new Date(endDate).toISOString()}'
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved activity summary from Presto",
+          data: responseFromPresto[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No activity summary found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get top devices using Presto
+  getTopDevicesPresto: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate, limit = 10 } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          log.meta.device AS device,
+          COUNT(*) AS eventCount
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".logs AS log
+        WHERE
+          log.timestamp >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND log.timestamp <= TIMESTAMP '${new Date(endDate).toISOString()}'
+        GROUP BY
+          log.meta.device
+        ORDER BY
+          eventCount DESC
+        LIMIT ${limit}
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved top devices from Presto",
+          data: responseFromPresto,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No top devices found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get location data using Presto
+  getLocationDataPresto: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          users.country AS country,
+          COUNT(*) AS userCount
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".users AS users
+        WHERE
+          users.createdAt >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND users.createdAt <= TIMESTAMP '${new Date(endDate).toISOString()}'
+        GROUP BY
+          users.country
+        ORDER BY
+          userCount DESC
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved location data from Presto",
+          data: responseFromPresto,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No location data found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to execute a custom Presto query
+  executeCustomQueryPresto: async (request, next) => {
+    try {
+      const { tenant, prestoQuery } = request.body;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully executed custom query from Presto",
+          data: responseFromPresto,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No results found for the custom query",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get daily active users using Presto
+  getDailyActiveUsers: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          COUNT(DISTINCT user_id) AS dailyActiveUsers
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".clients
+        WHERE
+          lastActive >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND lastActive <= TIMESTAMP '${new Date(endDate).toISOString()}'
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved daily active users from Presto",
+          data: responseFromPresto[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No daily active users found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get monthly active users using Presto
+  getMonthlyActiveUsers: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          COUNT(DISTINCT user_id) AS monthlyActiveUsers
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".clients
+        WHERE
+          lastActive >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND lastActive <= TIMESTAMP '${new Date(endDate).toISOString()}'
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved monthly active users from Presto",
+          data: responseFromPresto[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No monthly active users found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get average usage time per user using Presto
+  getAverageUsageTimePerUser: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          AVG(CAST(lastActive - createdAt AS DOUBLE)) AS averageUsageTime
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".clients
+        WHERE
+          lastActive >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND lastActive <= TIMESTAMP '${new Date(endDate).toISOString()}'
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message:
+            "Successfully retrieved average usage time per user from Presto",
+          data: responseFromPresto[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No average usage time per user found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get most used features using Presto
+  getMostUsedFeatures: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate, limit = 10 } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          log.meta.endpoint AS endpoint,
+          COUNT(*) AS usageCount
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".logs AS log
+        WHERE
+          log.timestamp >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND log.timestamp <= TIMESTAMP '${new Date(endDate).toISOString()}'
+        GROUP BY
+          log.meta.endpoint
+        ORDER BY
+          usageCount DESC
+        LIMIT ${limit}
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved most used features from Presto",
+          data: responseFromPresto,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No most used features found",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  // New function to get least used features using Presto
+  getLeastUsedFeatures: async (request, next) => {
+    try {
+      const { tenant, startDate, endDate, limit = 10 } = request.query;
+
+      // Construct the Presto query
+      const prestoQuery = `
+        SELECT
+          log.meta.endpoint AS endpoint,
+          COUNT(*) AS usageCount
+        FROM
+          mongodb."${constants.DB_NAME}_${tenant.toLowerCase()}".logs AS log
+        WHERE
+          log.timestamp >= TIMESTAMP '${new Date(startDate).toISOString()}'
+          AND log.timestamp <= TIMESTAMP '${new Date(endDate).toISOString()}'
+        GROUP BY
+          log.meta.endpoint
+        ORDER BY
+          usageCount ASC
+        LIMIT ${limit}
+      `;
+
+      // Execute the Presto query
+      const { executeFederatedQuery } = require("@config/database");
+      const responseFromPresto = await executeFederatedQuery(prestoQuery);
+
+      if (responseFromPresto && responseFromPresto.length > 0) {
+        return {
+          success: true,
+          message: "Successfully retrieved least used features from Presto",
+          data: responseFromPresto,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "No least used features found",
           data: {},
           status: httpStatus.OK,
         };

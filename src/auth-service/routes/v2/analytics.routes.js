@@ -160,4 +160,75 @@ router.get(
   createAnalyticsController.getNewUsers
 );
 
+// New routes for Presto analytics
+router.get(
+  "/presto/user-engagement",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getUserEngagementMetricsPresto
+);
+
+router.get(
+  "/presto/activity-summary",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getActivitySummaryPresto
+);
+
+router.get(
+  "/presto/top-devices",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getTopDevicesPresto
+);
+
+router.get(
+  "/presto/location-data",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getLocationDataPresto
+);
+
+router.post(
+  "/presto/custom-query",
+  analyticsValidations.tenant,
+  analyticsValidations.validateCustomQuery,
+  createAnalyticsController.executeCustomQueryPresto
+);
+
+router.get(
+  "/presto/daily-active-users",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getDailyActiveUsers
+);
+
+router.get(
+  "/presto/monthly-active-users",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getMonthlyActiveUsers
+);
+
+router.get(
+  "/presto/average-usage-time",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getAverageUsageTimePerUser
+);
+
+router.get(
+  "/presto/most-used-features",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getMostUsedFeatures
+);
+
+router.get(
+  "/presto/least-used-features",
+  analyticsValidations.tenant,
+  analyticsValidations.validateDateRange,
+  createAnalyticsController.getLeastUsedFeatures
+);
+
 module.exports = router;

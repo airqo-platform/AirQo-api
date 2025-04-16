@@ -398,7 +398,6 @@ const analytics = {
       );
     }
   },
-
   getEngagementMetrics: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -436,7 +435,6 @@ const analytics = {
       );
     }
   },
-
   // Activity Analysis Functions
   getActivityReport: async (req, res, next) => {
     try {
@@ -475,7 +473,6 @@ const analytics = {
       );
     }
   },
-
   // Cohort Analysis Functions
   getCohortAnalysis: async (req, res, next) => {
     try {
@@ -515,7 +512,6 @@ const analytics = {
       );
     }
   },
-
   // Predictive Analytics Functions
   getPredictiveAnalytics: async (req, res, next) => {
     try {
@@ -554,7 +550,6 @@ const analytics = {
       );
     }
   },
-
   // Service Adoption Functions
   getServiceAdoption: async (req, res, next) => {
     try {
@@ -593,7 +588,6 @@ const analytics = {
       );
     }
   },
-
   // Benchmark Functions
   getBenchmarks: async (req, res, next) => {
     try {
@@ -632,7 +626,6 @@ const analytics = {
       );
     }
   },
-
   // Top Users Functions
   getTopUsers: async (req, res, next) => {
     try {
@@ -671,7 +664,6 @@ const analytics = {
       );
     }
   },
-
   // Aggregated Analytics Functions
   getAggregatedAnalytics: async (req, res, next) => {
     try {
@@ -710,7 +702,6 @@ const analytics = {
       );
     }
   },
-
   // Retention Analysis Functions
   getRetentionAnalysis: async (req, res, next) => {
     try {
@@ -749,7 +740,6 @@ const analytics = {
       );
     }
   },
-
   // Health Score Functions
   getEngagementHealth: async (req, res, next) => {
     try {
@@ -788,7 +778,6 @@ const analytics = {
       );
     }
   },
-
   // Behavior Pattern Functions
   getBehaviorPatterns: async (req, res, next) => {
     try {
@@ -994,6 +983,414 @@ const analytics = {
       }
 
       handleResponse({ result, key: "new_users", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get recent users using Presto
+  getRecentUsers: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getRecentUsers(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "recent_users", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get user engagement metrics using Presto
+  getUserEngagementMetricsPresto: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getUserEngagementMetricsPresto(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "engagement_metrics", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get activity summary using Presto
+  getActivitySummaryPresto: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getActivitySummaryPresto(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "activity_summary", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get top devices using Presto
+  getTopDevicesPresto: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getTopDevicesPresto(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "top_devices", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get location data using Presto
+  getLocationDataPresto: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getLocationDataPresto(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "location_data", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to execute a custom Presto query
+  executeCustomQueryPresto: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.executeCustomQueryPresto(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "custom_query_result", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get daily active users using Presto
+  getDailyActiveUsers: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getDailyActiveUsers(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "daily_active_users", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get monthly active users using Presto
+  getMonthlyActiveUsers: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getMonthlyActiveUsers(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "monthly_active_users", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get average usage time per user using Presto
+  getAverageUsageTimePerUser: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getAverageUsageTimePerUser(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "average_usage_time", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get most used features using Presto
+  getMostUsedFeatures: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getMostUsedFeatures(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "most_used_features", res });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  // New controller function to get least used features using Presto
+  getLeastUsedFeatures: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await analyticsUtil.getLeastUsedFeatures(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse({ result, key: "least_used_features", res });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

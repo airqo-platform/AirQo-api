@@ -64,6 +64,45 @@ const validateEmailsArray = body("emails")
   .notEmpty()
   .withMessage("the provided emails array cannot be empty");
 
+const validateCustomQuery = [
+  body("prestoQuery")
+    .exists()
+    .withMessage("prestoQuery is required")
+    .bail()
+    .notEmpty()
+    .withMessage("prestoQuery cannot be empty")
+    .bail()
+    .trim()
+    .custom((value) => {
+      // Whitelist of allowed queries (example)
+      const allowedQueries = [
+        /^SELECT\s+COUNT\(\*\)\s+AS\s+totalUsers\s+FROM\s+mongodb\."airqo_.*"\.users$/i,
+        /^SELECT\s+AVG\(age\)\s+AS\s+averageAge\s+FROM\s+mongodb\."airqo_.*"\.users$/i,
+        /^SELECT\s+COUNT\(\*\)\s+AS\s+activeUsers\s+FROM\s+mongodb\."airqo_.*"\.users\s+WHERE\s+isActive\s*=\s*true$/i,
+        /^SELECT\s+log\.meta\.endpoint,\s+COUNT\(\*\)\s+AS\s+usageCount\s+FROM\s+mongodb\."airqo_.*"\.logs\s+GROUP\s+BY\s+log\.meta\.endpoint\s+ORDER\s+BY\s+usageCount\s+DESC\s+LIMIT\s+\d+$/i,
+        /^SELECT\s+COUNT\(\*\)\s+AS\s+recentUsers\s+FROM\s+mongodb\."airqo_.*"\.users\s+WHERE\s+lastLogin\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+lastLogin\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+COUNT\(\*\)\s+AS\s+newUsers\s+FROM\s+mongodb\."airqo_.*"\.users\s+WHERE\s+createdAt\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+createdAt\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+COUNT\(DISTINCT\s+user_id\)\s+AS\s+newAPIUsers\s+FROM\s+mongodb\."airqo_.*"\.clients\s+WHERE\s+createdAt\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+createdAt\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+COUNT\(DISTINCT\s+user_id\)\s+AS\s+activeAPIUsers\s+FROM\s+mongodb\."airqo_.*"\.clients\s+WHERE\s+lastActive\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+lastActive\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+log\.meta\.device\s+AS\s+device,\s+COUNT\(\*\)\s+AS\s+eventCount\s+FROM\s+mongodb\."airqo_.*"\.logs\s+WHERE\s+log\.timestamp\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+log\.timestamp\s*<=\s*TIMESTAMP\s+'.*'\s+GROUP\s+BY\s+log\.meta\.device\s+ORDER\s+BY\s+eventCount\s+DESC\s+LIMIT\s+\d+$/i,
+        /^SELECT\s+users\.country\s+AS\s+country,\s+COUNT\(\*\)\s+AS\s+userCount\s+FROM\s+mongodb\."airqo_.*"\.users\s+WHERE\s+users\.createdAt\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+users\.createdAt\s*<=\s*TIMESTAMP\s+'.*'\s+GROUP\s+BY\s+users\.country\s+ORDER\s+BY\s+userCount\s+DESC$/i,
+        /^SELECT\s+COUNT\(DISTINCT\s+log\.meta\.endpoint\)\s+AS\s+uniqueEndpoints,\s+COUNT\(DISTINCT\s+log\.meta\.service\)\s+AS\s+uniqueServices,\s+COUNT\(\*\)\s+AS\s+totalActions\s+FROM\s+mongodb\."airqo_.*"\.logs\s+WHERE\s+log\.timestamp\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+log\.timestamp\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+COUNT\(DISTINCT\s+log\.meta\.email\)\s+AS\s+uniqueUsers,\s+COUNT\(\*\)\s+AS\s+totalEvents\s+FROM\s+mongodb\."airqo_.*"\.logs\s+WHERE\s+log\.timestamp\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+log\.timestamp\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+AVG\(CAST\(lastActive\s*-\s*createdAt\s+AS\s+DOUBLE\)\)\s+AS\s+averageUsageTime\s+FROM\s+mongodb\."airqo_.*"\.clients\s+WHERE\s+lastActive\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+lastActive\s*<=\s*TIMESTAMP\s+'.*'$/i,
+        /^SELECT\s+log\.meta\.endpoint\s+AS\s+endpoint,\s+COUNT\(\*\)\s+AS\s+usageCount\s+FROM\s+mongodb\."airqo_.*"\.logs\s+WHERE\s+log\.timestamp\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+log\.timestamp\s*<=\s*TIMESTAMP\s+'.*'\s+GROUP\s+BY\s+log\.meta\.endpoint\s+ORDER\s+BY\s+usageCount\s+DESC\s+LIMIT\s+\d+$/i,
+        /^SELECT\s+log\.meta\.endpoint\s+AS\s+endpoint,\s+COUNT\(\*\)\s+AS\s+usageCount\s+FROM\s+mongodb\."airqo_.*"\.logs\s+WHERE\s+log\.timestamp\s*>=\s*TIMESTAMP\s+'.*'\s+AND\s+log\.timestamp\s*<=\s*TIMESTAMP\s+'.*'\s+GROUP\s+BY\s+log\.meta\.endpoint\s+ORDER\s+BY\s+usageCount\s+ASC\s+LIMIT\s+\d+$/i,
+      ];
+
+      const isValid = allowedQueries.some((regex) => regex.test(value));
+      if (!isValid) {
+        throw new Error(
+          "prestoQuery is not valid or is not in the allowed list of queries"
+        );
+      }
+      return true;
+    }),
+];
+
 // Grouped validation rules for different endpoints
 const userEngagementValidators = {
   getEngagement: [validateUserEmail, validateTimeframe, ...validateDateRange],
@@ -180,4 +219,5 @@ module.exports = {
   behaviorValidators,
   emailValidators,
   validateDateRange,
+  validateCustomQuery,
 };
