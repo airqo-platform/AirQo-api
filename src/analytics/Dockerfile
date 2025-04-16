@@ -21,8 +21,7 @@ CMD ["flask", "run", "--host=0.0.0.0"]
 
 FROM base as staging
 ENV FLASK_ENV=staging
-ENV FLASK_DEBUG=1
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "manage:app"]
 
 FROM base as production
 ENV FLASK_ENV=production
