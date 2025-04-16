@@ -1,6 +1,7 @@
 import os
-
+import logging
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from dotenv import load_dotenv
 from decouple import config as env_var
@@ -20,9 +21,9 @@ APP_ENV = env_var("FLASK_ENV", "production")
 class BaseConfig:
     """Base configuration shared across all environments."""
 
-    DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
+    FLASK_APP = env_var("FLASK_APP")
     SECRET_KEY = env_var("SECRET_KEY")
     GOOGLE_APPLICATION_CREDENTIALS = env_var("GOOGLE_APPLICATION_CREDENTIALS")
 
@@ -98,6 +99,36 @@ class BaseConfig:
                 },
             },
         }
+
+    @classmethod
+    def init_logging(cls, log_dir="logs", level=logging.INFO):
+        """Initializes file logging for the application."""
+        os.makedirs(log_dir, exist_ok=True)
+        log_filename = f"analytics-api-{datetime.now().strftime('%Y-%m-%d')}.log"
+        log_file_path = os.path.join(log_dir, log_filename)
+
+        file_handler = TimedRotatingFileHandler(
+            filename=log_file_path,
+            when="midnight",
+            interval=1,
+            backupCount=7,  # keeps logs for the last 7 days
+            encoding="utf-8",
+            utc=True,
+        )
+        file_handler.suffix = "%Y-%m-%d"
+        file_handler.setFormatter(
+            logging.Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s")
+        )
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(
+            logging.Formatter("[%(asctime)s] %(levelname)s in %(module)s: %(message)s")
+        )
+
+        logging.basicConfig(level=level, handlers=[file_handler, stream_handler])
+
+        logger = logging.getLogger(__name__)
+        return logger
 
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {
