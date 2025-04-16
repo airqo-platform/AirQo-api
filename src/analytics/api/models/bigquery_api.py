@@ -387,6 +387,8 @@ class BigQueryApi:
                 where_fields=where_fields,
                 columns=columns,
             )
+            # Log result query
+            logger.info(query)
         else:
             # Device, sites specific data
             query = self.compose_dynamic_query(
