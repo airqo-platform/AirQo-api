@@ -387,8 +387,6 @@ class BigQueryApi:
                 where_fields=where_fields,
                 columns=columns,
             )
-            # Log result query
-            print(query)
         else:
             # Device, sites specific data
             query = self.compose_dynamic_query(
@@ -401,7 +399,8 @@ class BigQueryApi:
                 frequency=frequency,
                 # time_granularity=time_granularity,
             )
-
+            # Log result query
+            logger.info(query)
             query_parameters = [
                 bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
             ]
@@ -495,7 +494,6 @@ class BigQueryApi:
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
         group_by_clause = ", ".join(group_by + [time_granularity.lower()])
-        print(group_by_clause)
         query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
