@@ -76,7 +76,7 @@ class DataExportResource(Resource):
         except ValidationError as err:
             return {"errors": err.messages}, 400
         # Log request data for debug
-        logger.info(json_data)
+        print(json_data)
         startDateTime = json_data["startDateTime"]
         endDateTime = json_data["endDateTime"]
         try:
@@ -119,7 +119,7 @@ class DataExportResource(Resource):
                 use_cache=True,
             )
             # Log response data for debug
-            logger.info(data_frame.head())
+            print(data_frame.head())
             if data_frame.empty:
                 return (
                     AirQoRequests.create_response("No data found", data=[]),
