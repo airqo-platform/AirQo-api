@@ -144,7 +144,7 @@ class ProductionConfig(BaseConfig):
 class DevelopmentConfig(BaseConfig):
     """Development environment settings."""
 
-    DEBUG = True
+    DEBUG = env_var("DEBUG")
     DEVELOPMENT = True
     MONGO_URI = env_var("MONGO_LOCAL_URI")
     DB_NAME = env_var("MONGO_DEV")
@@ -156,7 +156,7 @@ class TestingConfig(BaseConfig):
     """Testing / Staging environment settings."""
 
     TESTING = True
-    DEBUG = True
+    DEBUG = env_var("DEBUG")
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
