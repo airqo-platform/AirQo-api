@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-external
+  namespace: message-broker-rabbit
+  labels:
+    app.kubernetes.io/instance: rabbitmq
+    app.kubernetes.io/name: rabbitmq
+spec:
+  type: NodePort
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+      nodePort: 31094
+    - name: epmd
+      port: 4369
+      targetPort: epmd
+      nodePort: 31095
+    - name: dist
+      port: 25672
+      targetPort: dist
+      nodePort: 31096
+    - name: http-stats
+      port: 15672
+      targetPort: stats
+      nodePort: 31097
+  selector:
+    app.kubernetes.io/instance: rabbitmq
+    app.kubernetes.io/name: rabbitmq
