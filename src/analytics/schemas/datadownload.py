@@ -7,6 +7,31 @@ from marshmallow import (
 )
 
 
+def validate_mutually_exclusive_sites_devices_fields(data):
+    """
+    Ensures that exactly one of 'sites', 'device_ids', or 'device_names' is provided in the input data.
+
+    This validation enforces mutual exclusivity — if none or more than one of the fields are provided
+    and non-empty, a ValidationError is raised.
+
+    Args:
+        data (dict): The input data being validated.
+
+    Raises:
+        ValidationError: If zero or more than one of the mutually exclusive fields are present and non-empty.
+    """
+    provided = [
+        field
+        for field in ["sites", "device_ids", "device_names"]
+        if field in data and data[field]
+    ]
+    if len(provided) != 1:
+        raise ValidationError(
+            "Exactly one of 'sites', 'device_ids', or 'device_names' must be provided.",
+            field_names=["sites", "device_ids", "device_names"],
+        )
+
+
 class RawDataSchema(Schema):
     network = ma_fields.String(
         required=True,
@@ -46,6 +71,13 @@ class DataDownloadSchema(Schema):
         required=True,
         validate=validate.ContainsOnly(["pm2_5", "pm10"], error="Invalid pollutant."),
     )
+    datatype = ma_fields.String(
+        required=True,
+        validate=validate.OneOf(
+            ["calibrated", "raw", "consolidated"],
+            error="Invalid data type. Must be 'calibrated' or 'raw'.",
+        ),
+    )
     frequency = ma_fields.String(
         required=True,
         validate=validate.OneOf(
@@ -63,28 +95,35 @@ class DataDownloadSchema(Schema):
     device_ids = ma_fields.List(ma_fields.String())
     device_names = ma_fields.List(ma_fields.String())
     weatherFields = ma_fields.List(ma_fields.String())
-    datatype = ma_fields.String(
-        required=True,
-        validate=validate.OneOf(
-            ["calibrated", "raw", "consolidated"],
-            error="Invalid data type. Must be 'calibrated' or 'raw'.",
-        ),
-    )
     minimum = ma_fields.Boolean()
 
     @validates_schema
-    def validate_mutually_exclusive_fields(self, data, **kwargs):
-        provided = [
-            field
-            for field in ["sites", "device_ids", "device_names"]
-            if field in data and data[field]
-        ]
+    def validate_data_filter(self, data, **kwargs):
+        validate_mutually_exclusive_sites_devices_fields(data)
 
-        if len(provided) != 1:
-            raise ValidationError(
-                "Exactly one of 'sites', 'device_ids', or 'device_names' must be provided.",
-                field_names=["sites", "device_ids", "device_names"],
-            )
+    @validates_schema
+    def validate_calibrated_frequency(self, data, **kwargs):
+        """
+        Validates that the 'frequency' field has an acceptable value when 'datatype' is 'calibrated'.
+
+        When 'datatype' is set to 'calibrated', the 'frequency' must be one of the following:
+        'hourly', 'daily', 'weekly', or 'yearly'. If 'frequency' is not within this set, a
+        ValidationError is raised.
+
+        Args:
+            data (dict): The input data containing 'datatype' and 'frequency' fields.
+
+        Raises:
+            ValidationError: If 'datatype' is 'calibrated' and 'frequency' is not an allowed value.
+        """
+        if data.get("datatype") == "calibrated":
+            allowed_freq = {"hourly", "daily", "weekly", "yearly"}
+            freq = data.get("frequency")
+            if freq not in allowed_freq:
+                raise ValidationError(
+                    f"Invalid frequency '{freq}' for datatype 'calibrated'. Must be one of {sorted(allowed_freq)}.",
+                    field_name="frequency",
+                )
 
 
 class DataExportSchema(Schema):
@@ -116,15 +155,5 @@ class DataExportSchema(Schema):
     metadata = ma_fields.List(ma_fields.String())
 
     @validates_schema
-    def validate_mutually_exclusive_fields(self, data, **kwargs):
-        provided = [
-            field
-            for field in ["sites", "device_ids", "device_names"]
-            if field in data and data[field]
-        ]
-
-        if len(provided) != 1:
-            raise ValidationError(
-                "Exactly one of 'sites', 'device_ids', or 'device_names' must be provided.",
-                field_names=["sites", "device_ids", "device_names"],
-            )
+    def validate_data_filter(self, data, **kwargs):
+        validate_mutually_exclusive_sites_devices_fields(data)
