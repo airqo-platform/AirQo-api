@@ -62,8 +62,18 @@ class DataUtils:
             device_category = DeviceCategory.LOWCOST
 
         datasource = Config.data_sources()
+
+        if dynamic_query:
+            # Temporary fix for raw data downloads. This only works for the /data-download endpoint and allow it to download raw data from the average table.
+            # TODO Come up with permanent solutions.
+            datatype = DataType.CALIBRATED
+            frequency = Frequency.HOURLY if frequency == Frequency.RAW else frequency
+
         table = datasource.get(datatype).get(device_category).get(frequency)
         if not table:
+            logger.exception(
+                f"Wrong table information provided: {datatype}, {device_category}, {frequency}"
+            )
             raise ValueError("No table information provided.")
 
         raw_data = bigquery_api.query_data(
