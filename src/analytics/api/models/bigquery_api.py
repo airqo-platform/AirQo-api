@@ -609,6 +609,7 @@ class BigQueryApi:
                 frequency,
             )
         else:
+            logger.exception(f"Invalid filter type: {filter_type}")
             raise ValueError("Invalid filter type")
 
     def get_averaging_columns(self, mapping, frequency, decimal_places, table):
