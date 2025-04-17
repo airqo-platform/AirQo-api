@@ -69,6 +69,15 @@ class BigQueryApi:
         self,
         day: datetime,
     ) -> pd.DataFrame:
+        """
+        Retrieves hourly air quality data for all devices from the specified date onward.
+
+        Parameters:
+            day(datetime): The starting date from which to fetch hourly data. Data from this day and onwards will be included.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the distinct hourly measurements for each device, including calibrated and raw PM2.5 values, site ID, device ID, and timestamp.
+        """
         query = (
             f" SELECT `{self.hourly_measurements_table}`.pm2_5_calibrated_value , "
             f" `{self.hourly_measurements_table}`.pm2_5_raw_value ,"
@@ -729,13 +738,13 @@ class BigQueryApi:
         TODO: Document
         """
         query = f"""
-        SELECT DISTINCT 
+        SELECT DISTINCT
         raw_device_data_table.timestamp AS timestamp,
-         raw_device_data_table.device_id AS device_id, 
+         raw_device_data_table.device_id AS device_id,
          raw_device_data_table.latitude AS latitude,
          raw_device_data_table.longitude AS longitude,
 -- review model performance with and without location
-         raw_device_data_table.s1_pm2_5 AS s1_pm2_5, 
+         raw_device_data_table.s1_pm2_5 AS s1_pm2_5,
          raw_device_data_table.s2_pm2_5 AS s2_pm2_5,
          raw_device_data_table.pm2_5 AS pm2_5,
          raw_device_data_table.battery AS battery
@@ -743,7 +752,7 @@ class BigQueryApi:
            `{self.raw_measurements_table}` AS raw_device_data_table
            WHERE
            DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL 21 DAY) 
+               CURRENT_DATE(), INTERVAL 21 DAY)
             ORDER BY device_id, timestamp
            """
         # TODO: May need to review frequency
@@ -795,9 +804,9 @@ class BigQueryApi:
         select_fields = """
             t1.device_id,
             t1.device_number,
-            t1.timestamp,  
-            t1.pm2_5_calibrated_value as pm2_5, 
-            t2.latitude, 
+            t1.timestamp,
+            t1.pm2_5_calibrated_value as pm2_5,
+            t2.latitude,
             t2.longitude
             """
 
@@ -806,11 +815,11 @@ class BigQueryApi:
 
         query = f"""
         SELECT DISTINCT {select_fields}
-        FROM `{self.hourly_measurements_table}` t1 
-        JOIN `{self.sites_table}` t2 
+        FROM `{self.hourly_measurements_table}` t1
+        JOIN `{self.sites_table}` t2
         ON t1.site_id = t2.id
         WHERE DATE(t1.timestamp) >= '{start_date_time}'
-        AND t1.device_id IS NOT NULL 
+        AND t1.device_id IS NOT NULL
         ORDER BY t1.device_id, t1.timestamp
         """
 
@@ -848,27 +857,27 @@ class BigQueryApi:
             raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
         query = f"""
-        SELECT DISTINCT 
+        SELECT DISTINCT
             TIMESTAMP_TRUNC(t1.timestamp, DAY) AS timestamp,
             t2.city,
             t1.device_id,
             t2.latitude,
             t2.longitude,
             AVG(t1.pm2_5_calibrated_value) AS pm2_5
-        FROM `{self.hourly_measurements_table}` AS t1 
-        INNER JOIN `{self.sites_table}` AS t2 
-            ON t1.site_id = t2.id 
-        WHERE 
-            t1.timestamp > '{start_date_time}' 
+        FROM `{self.hourly_measurements_table}` AS t1
+        INNER JOIN `{self.sites_table}` AS t2
+            ON t1.site_id = t2.id
+        WHERE
+            t1.timestamp > '{start_date_time}'
             AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
             AND t1.device_id IS NOT NULL
-        GROUP BY 
+        GROUP BY
             timestamp,
             t1.device_id,
             t2.city,
             t2.latitude,
             t2.longitude
-        ORDER BY 
+        ORDER BY
             t1.device_id,
             timestamp;
         """
@@ -897,7 +906,7 @@ class BigQueryApi:
 
         if job_type == "train":
             query += f"""
-            WHERE date(timestamp) >= '{start_date_time}' 
+            WHERE date(timestamp) >= '{start_date_time}'
             """
 
         query += "ORDER BY timestamp" ""
@@ -930,13 +939,13 @@ class BigQueryApi:
         """
         query = f"""
             WITH timestamp_hours AS (
-            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp 
+            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp
             FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
             ),
             device_data AS (
             SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
-            FROM `{table}` 
-            WHERE 
+            FROM `{table}`
+            WHERE
             TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
             AND s1_pm2_5 IS NOT NULL
             AND s2_pm2_5 IS NOT NULL
@@ -945,14 +954,14 @@ class BigQueryApi:
             AND pm2_5_calibrated_value IS NULL
             AND network = '{network.str}'
             )
-            SELECT 
+            SELECT
                 dd.device_id,
                 dt.timestamp
-            FROM 
+            FROM
                 device_data dd
-            LEFT JOIN 
+            LEFT JOIN
                 timestamp_hours dt ON dd.timestamp = dt.timestamp
-            ORDER BY 
+            ORDER BY
                 dt.timestamp, dd.device_id;
             """
         return query
