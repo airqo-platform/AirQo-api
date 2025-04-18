@@ -1794,6 +1794,31 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging          
 
+  ### RabbitMQ ###
+  rabbitmq-deploy:
+    name: build-deploy-rabbitmq
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3.5.3
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Deploy RabbitMQ Helm Chart
+        run: |
+          helm upgrade --install rabbitmq oci://registry-1.docker.io/bitnamicharts/rabbitmq \
+            --namespace message-broker-rabbit \
+            --values k8s/message-broker/rabbitmq/values.yaml
+
+      - name: Check RabbitMQ Pods Status
+        run: |
+          kubectl get pods -n message-broker-rabbit -o wide
+
   ### apply nginx ###
   nginx:
     name: apply-nginx

@@ -1,0 +1,83 @@
+# RabbitMQ Deployment & Maintenance Guide
+
+Welcome to the AirQo message broker setup using RabbitMQ on Kubernetes. This document provides a clear, step-by-step guide on how to deploy, expose, and maintain the RabbitMQ instance in the `message-broker-rabbit` namespace.
+
+---
+
+## 📦 Deployment Procedure
+
+### 1️⃣ Install RabbitMQ via Helm
+
+We use the Bitnami RabbitMQ Helm chart hosted on Docker Hub's OCI registry.
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install rabbitmq oci://registry-1.docker.io/bitnamicharts/rabbitmq \
+  --version 15.5.3 \
+  --namespace message-broker-rabbit \
+  --create-namespace \
+  -f k8s/message-broker/rabbitmq/values.yaml
+```
+
+---
+
+### 2️⃣ Expose RabbitMQ Dashboard via NodePort
+
+Apply the `nodeport-dashboard.yaml` to expose the management UI externally:
+
+```bash
+kubectl apply -f k8s/message-broker/rabbitmq/svc.yaml
+```
+
+Access it via:
+
+```
+http://<node-ip>:<nodeport>
+```
+
+To get the NodePort:
+
+```bash
+kubectl get svc rabbitmq-external -n message-broker-rabbit
+```
+
+---
+
+### 3️⃣ CI/CD Workflow Deployment (via GitHub Actions)
+
+On each merge to `main` (or triggered manually):
+
+- Deploy RabbitMQ  helm resources.
+
+---
+
+## 🔧 Maintenance Procedure
+
+### 🐰 Check RabbitMQ Pod Status
+
+```bash
+kubectl get pods -n message-broker-rabbit
+```
+
+### 📊 Access Management UI
+
+Via NodePort URL (as above) or future Ingress URL.
+
+### 📄 View Logs
+
+```bash
+kubectl logs <rabbitmq-pod-name> -n message-broker-rabbit
+```
+
+### 🔄 Restart RabbitMQ Deployment
+
+```bash
+kubectl rollout restart statefulset rabbitmq -n message-broker-rabbit
+```
+
+### 🗑️ Remove RabbitMQ Deployment
+
+```bash
+helm uninstall rabbitmq -n message-broker-rabbit
+kubectl delete ns message-broker-rabbit
+```
