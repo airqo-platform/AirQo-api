@@ -82,7 +82,6 @@ class ProjectionFactory {
         inclusion: {
           _id: 1,
           name: 1,
-          site_category: 1,
           latitude: 1,
           longitude: 1,
           grids: 1,
@@ -243,7 +242,6 @@ class ProjectionFactory {
           "site.parish": 0,
           "site.county": 0,
           "site.altitude": 0,
-          "site.altitude": 0,
           "site.greenness": 0,
           "site.landform_90": 0,
           "site.landform_270": 0,
@@ -259,7 +257,6 @@ class ProjectionFactory {
           "site.bearing_to_capital_city_center": 0,
           "site.distance_to_capital_city_center": 0,
           "site.generated_name": 0,
-          "site.updatedAt": 0,
           "site.updatedAt": 0,
           "site.city": 0,
           "site.formatted_name": 0,
@@ -291,7 +288,6 @@ class ProjectionFactory {
           "previous_sites.sub_county": 0,
           "previous_sites.parish": 0,
           "previous_sites.county": 0,
-          "previous_sites.altitude": 0,
           "previous_sites.altitude": 0,
           "previous_sites.greenness": 0,
           "previous_sites.landform_90": 0,
@@ -425,7 +421,6 @@ class ProjectionFactory {
           "devices.site.parish": 0,
           "devices.site.county": 0,
           "devices.site.altitude": 0,
-          "devices.site.altitude": 0,
           "devices.site.greenness": 0,
           "devices.site.landform_90": 0,
           "devices.site.landform_270": 0,
@@ -441,7 +436,6 @@ class ProjectionFactory {
           "devices.site.bearing_to_capital_city_center": 0,
           "devices.site.distance_to_capital_city_center": 0,
           "devices.site.generated_name": 0,
-          "devices.site.updatedAt": 0,
           "devices.site.updatedAt": 0,
           "devices.site.city": 0,
           "devices.site.formatted_name": 0,
@@ -617,7 +611,7 @@ class ProjectionFactory {
         inclusion: { description: 1, name: 1, _id: 1 },
         exclusion: { nothing: 0 },
       },
-      siteAcivities: {
+      siteActivities: {
         inclusion: {
           _id: 1,
           device: 1,
