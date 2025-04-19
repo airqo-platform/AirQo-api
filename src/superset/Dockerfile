@@ -21,7 +21,7 @@ RUN pip install --upgrade pip && \
 COPY --chown=superset superset_config.py /app/superset_config.py
 ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 
-COPY .env.docker /app/.env
+COPY .env /app/.env
 
 # Create entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
