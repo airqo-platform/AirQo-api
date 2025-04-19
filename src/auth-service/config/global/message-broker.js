@@ -16,6 +16,14 @@ const messageBrokerConfig = {
     process.env.MESSAGE_PROCESSING_MAX_RETRIES || 3,
     10
   ),
+  MESSAGE_BROKER_CONNECTION_TIMEOUT_MS: parseInt(
+    process.env.MESSAGE_BROKER_CONNECTION_TIMEOUT_MS || "5000",
+    10
+  ),
+  MESSAGE_CONSUMER_STARTUP_TIMEOUT_MS: parseInt(
+    process.env.MESSAGE_CONSUMER_STARTUP_TIMEOUT_MS || "10000",
+    10
+  ),
 };
 
 module.exports = messageBrokerConfig;

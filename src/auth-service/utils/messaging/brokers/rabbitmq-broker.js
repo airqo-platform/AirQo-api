@@ -13,6 +13,8 @@ class RabbitMQBroker extends BaseBroker {
     this.consumers = new Map();
     this.reconnectTimer = null;
     this.reconnectDelay = config.reconnectDelay || 5000; // 5 seconds
+    this.connectionTimeout =
+      constants.MESSAGE_BROKER_CONNECTION_TIMEOUT_MS || 5000;
   }
 
   getName() {
@@ -38,7 +40,22 @@ class RabbitMQBroker extends BaseBroker {
       }
 
       const url = this.getConnectionString();
-      this.connection = await amqp.connect(url);
+
+      // Connect with timeout
+      const connectPromise = amqp.connect(url);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `RabbitMQ connection timed out after ${this.connectionTimeout}ms`
+              )
+            ),
+          this.connectionTimeout
+        )
+      );
+
+      this.connection = await Promise.race([connectPromise, timeoutPromise]);
 
       // Handle connection loss
       this.connection.on("error", (err) => {
@@ -51,8 +68,25 @@ class RabbitMQBroker extends BaseBroker {
         this.handleDisconnect();
       });
 
-      // Create channel
-      this.channel = await this.connection.createChannel();
+      // Create channel with timeout
+      const channelPromise = this.connection.createChannel();
+      const channelTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `RabbitMQ channel creation timed out after ${this.connectionTimeout}ms`
+              )
+            ),
+          this.connectionTimeout
+        )
+      );
+
+      this.channel = await Promise.race([
+        channelPromise,
+        channelTimeoutPromise,
+      ]);
+
       this.isConnected = true;
 
       logger.info("Connected to RabbitMQ");
@@ -61,7 +95,7 @@ class RabbitMQBroker extends BaseBroker {
       logger.error(`Failed to connect to RabbitMQ: ${error.message}`);
       this.isConnected = false;
       this.handleDisconnect();
-      throw error;
+      return false;
     }
   }
 
@@ -77,14 +111,22 @@ class RabbitMQBroker extends BaseBroker {
     this.reconnectTimer = setTimeout(async () => {
       try {
         logger.info("Attempting to reconnect to RabbitMQ...");
-        await this.connect();
+        const connected = await this.connect();
 
-        // Restore all consumers
-        for (const [queue, consumerInfo] of this.consumers.entries()) {
-          await this.setupQueue(queue);
-          await this.channel.consume(queue, consumerInfo.handler, {
-            noAck: true,
-          });
+        if (connected) {
+          // Restore all consumers
+          for (const [queue, consumerInfo] of this.consumers.entries()) {
+            try {
+              await this.setupQueue(queue);
+              await this.channel.consume(queue, consumerInfo.handler, {
+                noAck: true,
+              });
+            } catch (error) {
+              logger.error(
+                `Failed to restore consumer for queue ${queue}: ${error.message}`
+              );
+            }
+          }
         }
       } catch (error) {
         logger.error(`Failed to reconnect to RabbitMQ: ${error.message}`);
@@ -114,21 +156,33 @@ class RabbitMQBroker extends BaseBroker {
       return true;
     } catch (error) {
       logger.error(`Failed to disconnect from RabbitMQ: ${error.message}`);
-      throw error;
+      return false; // Don't throw, just return false
     }
   }
 
   async setupQueue(topic) {
     try {
       if (!this.isConnected) {
-        await this.connect();
+        const connected = await this.connect();
+        if (!connected) {
+          throw new Error("Not connected to RabbitMQ");
+        }
       }
 
       // Ensure queue exists with durability
-      await this.channel.assertQueue(topic, {
+      const queuePromise = this.channel.assertQueue(topic, {
         durable: true,
         // Additional queue options can be added here
       });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Queue setup timed out for ${topic}`)),
+          this.connectionTimeout
+        )
+      );
+
+      await Promise.race([queuePromise, timeoutPromise]);
     } catch (error) {
       logger.error(`Failed to setup RabbitMQ queue: ${error.message}`);
       throw error;
@@ -138,7 +192,10 @@ class RabbitMQBroker extends BaseBroker {
   async publishMessage(topic, message, messageId = null) {
     try {
       if (!this.isConnected) {
-        await this.connect();
+        const connected = await this.connect();
+        if (!connected) {
+          throw new Error("Failed to connect to RabbitMQ");
+        }
       }
 
       // Ensure queue exists
@@ -153,7 +210,16 @@ class RabbitMQBroker extends BaseBroker {
         ...(messageId && { messageId }),
       };
 
-      await this.channel.sendToQueue(topic, payload, options);
+      // Send message with timeout
+      const sendPromise = this.channel.sendToQueue(topic, payload, options);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Publish to ${topic} timed out`)),
+          this.connectionTimeout
+        )
+      );
+
+      await Promise.race([sendPromise, timeoutPromise]);
       return true;
     } catch (error) {
       logger.error(`Failed to publish message to RabbitMQ: ${error.message}`);
@@ -165,7 +231,10 @@ class RabbitMQBroker extends BaseBroker {
   async subscribe(topics, groupId, messageHandler) {
     try {
       if (!this.isConnected) {
-        await this.connect();
+        const connected = await this.connect();
+        if (!connected) {
+          throw new Error("Failed to connect to RabbitMQ");
+        }
       }
 
       const topicsList = Array.isArray(topics) ? topics : [topics];
@@ -188,15 +257,25 @@ class RabbitMQBroker extends BaseBroker {
         // Save handler for reconnection scenarios
         this.consumers.set(topic, { handler });
 
-        // Start consuming
-        await this.channel.consume(topic, handler, { noAck: true });
+        // Start consuming with timeout
+        const consumePromise = this.channel.consume(topic, handler, {
+          noAck: true,
+        });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Subscribe to ${topic} timed out`)),
+            this.connectionTimeout
+          )
+        );
+
+        await Promise.race([consumePromise, timeoutPromise]);
       }
 
       return true;
     } catch (error) {
       logger.error(`Failed to subscribe to RabbitMQ topics: ${error.message}`);
       this.isConnected = false;
-      throw error;
+      return false; // Don't throw, just return false
     }
   }
 

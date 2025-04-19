@@ -11,12 +11,15 @@ class KafkaBroker extends BaseBroker {
     this.kafka = new Kafka({
       clientId: config.clientId || constants.KAFKA_CLIENT_ID,
       brokers: config.brokers || constants.KAFKA_BOOTSTRAP_SERVERS,
+      connectionTimeout: constants.MESSAGE_BROKER_CONNECTION_TIMEOUT_MS || 5000,
       ...config.kafkaOptions,
     });
     this.producer = null;
     this.consumer = null;
     this.consumerConnected = false;
     this.producerConnected = false;
+    this.connectionTimeout =
+      constants.MESSAGE_BROKER_CONNECTION_TIMEOUT_MS || 5000;
   }
 
   getName() {
@@ -36,14 +39,28 @@ class KafkaBroker extends BaseBroker {
     } catch (error) {
       logger.error(`Failed to initialize Kafka broker: ${error.message}`);
       this.isConnected = false;
-      throw error;
+      return false;
     }
   }
 
   async ensureProducerConnected() {
     if (!this.producerConnected) {
       try {
-        await this.producer.connect();
+        // Connect with timeout
+        const connectPromise = this.producer.connect();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Kafka producer connection timed out after ${this.connectionTimeout}ms`
+                )
+              ),
+            this.connectionTimeout
+          )
+        );
+
+        await Promise.race([connectPromise, timeoutPromise]);
         this.producerConnected = true;
       } catch (error) {
         logger.error(`Failed to connect Kafka producer: ${error.message}`);
@@ -56,12 +73,40 @@ class KafkaBroker extends BaseBroker {
   async disconnect() {
     try {
       if (this.producerConnected && this.producer) {
-        await this.producer.disconnect();
+        // Disconnect with timeout
+        const disconnectPromise = this.producer.disconnect();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Kafka producer disconnect timed out after ${this.connectionTimeout}ms`
+                )
+              ),
+            this.connectionTimeout
+          )
+        );
+
+        await Promise.race([disconnectPromise, timeoutPromise]);
         this.producerConnected = false;
       }
 
       if (this.consumerConnected && this.consumer) {
-        await this.consumer.disconnect();
+        // Disconnect with timeout
+        const disconnectPromise = this.consumer.disconnect();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Kafka consumer disconnect timed out after ${this.connectionTimeout}ms`
+                )
+              ),
+            this.connectionTimeout
+          )
+        );
+
+        await Promise.race([disconnectPromise, timeoutPromise]);
         this.consumerConnected = false;
       }
 
@@ -69,7 +114,7 @@ class KafkaBroker extends BaseBroker {
       return true;
     } catch (error) {
       logger.error(`Failed to disconnect from Kafka: ${error.message}`);
-      throw error;
+      return false; // Don't throw, just return false
     }
   }
 
@@ -88,7 +133,21 @@ class KafkaBroker extends BaseBroker {
         ],
       };
 
-      await this.producer.send(payload);
+      // Send with timeout
+      const sendPromise = this.producer.send(payload);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Kafka publish to ${topic} timed out after ${this.connectionTimeout}ms`
+              )
+            ),
+          this.connectionTimeout
+        )
+      );
+
+      await Promise.race([sendPromise, timeoutPromise]);
       return true;
     } catch (error) {
       logger.error(`Failed to publish message to Kafka: ${error.message}`);
@@ -104,19 +163,50 @@ class KafkaBroker extends BaseBroker {
         groupId: groupId || constants.UNIQUE_CONSUMER_GROUP,
       });
 
-      await this.consumer.connect();
+      // Connect with timeout
+      const connectPromise = this.consumer.connect();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Kafka consumer connection timed out after ${this.connectionTimeout}ms`
+              )
+            ),
+          this.connectionTimeout
+        )
+      );
+
+      await Promise.race([connectPromise, timeoutPromise]);
       this.consumerConnected = true;
 
       // Subscribe to all provided topics
       const topicsList = Array.isArray(topics) ? topics : [topics];
       await Promise.all(
-        topicsList.map((topic) =>
-          this.consumer.subscribe({ topic, fromBeginning: true })
-        )
+        topicsList.map(async (topic) => {
+          // Subscribe with timeout
+          const subscribePromise = this.consumer.subscribe({
+            topic,
+            fromBeginning: true,
+          });
+          const subTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    `Kafka subscribe to ${topic} timed out after ${this.connectionTimeout}ms`
+                  )
+                ),
+              this.connectionTimeout
+            )
+          );
+
+          await Promise.race([subscribePromise, subTimeoutPromise]);
+        })
       );
 
       // Start consuming
-      await this.consumer.run({
+      const runPromise = this.consumer.run({
         eachMessage: async ({ topic, partition, message }) => {
           try {
             const messageValue = message.value.toString();
@@ -127,11 +217,25 @@ class KafkaBroker extends BaseBroker {
         },
       });
 
+      const runTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Kafka consumer.run timed out after ${this.connectionTimeout}ms`
+              )
+            ),
+          this.connectionTimeout
+        )
+      );
+
+      await Promise.race([runPromise, runTimeoutPromise]);
+
       return true;
     } catch (error) {
       logger.error(`Failed to subscribe to Kafka topics: ${error.message}`);
       this.consumerConnected = false;
-      throw error;
+      return false; // Don't throw, just return false
     }
   }
 

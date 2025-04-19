@@ -545,6 +545,7 @@ const messageConsumer = async () => {
       activeBroker: messagingService.getActiveBrokerType(),
     };
   } catch (error) {
+    logObject("Error in messageConsumer()", error);
     logger.error(`📶📶 Error starting message consumer: ${stringify(error)}`);
 
     // Implement auto-restart after delay
@@ -552,6 +553,7 @@ const messageConsumer = async () => {
     setTimeout(() => {
       logger.info("Attempting to restart message consumer...");
       messageConsumer().catch((e) => {
+        logObject("Error in messageConsumer() restart", e);
         logger.error(`Failed to restart message consumer: ${e.message}`);
       });
     }, 30000);

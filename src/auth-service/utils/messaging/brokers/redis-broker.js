@@ -14,6 +14,8 @@ class RedisBroker extends BaseBroker {
     this.retryAttempts = 0;
     this.maxRetryAttempts = config.maxRetryAttempts || 5;
     this.retryDelay = config.retryDelay || 5000; // 5 seconds
+    this.connectionTimeout =
+      constants.MESSAGE_BROKER_CONNECTION_TIMEOUT_MS || 5000;
   }
 
   getName() {
@@ -27,6 +29,7 @@ class RedisBroker extends BaseBroker {
         port: this.config.port || constants.REDIS_PORT || 6379,
         password: this.config.password || constants.REDIS_PASSWORD,
         db: this.config.db || constants.REDIS_DB || 0,
+        connectTimeout: this.connectionTimeout,
         retryStrategy: (times) => {
           if (times > this.maxRetryAttempts) {
             return null; // Stop retrying
@@ -50,22 +53,32 @@ class RedisBroker extends BaseBroker {
       });
 
       return new Promise((resolve, reject) => {
+        // Set up a timeout for the connection attempt
+        const connectionTimer = setTimeout(() => {
+          if (!this.isConnected) {
+            logger.error(
+              `Redis connection timed out after ${this.connectionTimeout}ms`
+            );
+            reject(new Error("Redis connection timeout"));
+          }
+        }, this.connectionTimeout);
+
         this.publishClient.once("ready", () => {
+          clearTimeout(connectionTimer);
           this.isConnected = true;
           resolve(true);
         });
 
-        // Set a timeout in case connection hangs
-        setTimeout(() => {
-          if (!this.isConnected) {
-            reject(new Error("Redis connection timeout"));
-          }
-        }, 5000);
+        this.publishClient.once("error", (err) => {
+          clearTimeout(connectionTimer);
+          logger.error(`Redis connection error: ${err.message}`);
+          reject(err);
+        });
       });
     } catch (error) {
       logger.error(`Failed to connect to Redis: ${error.message}`);
       this.isConnected = false;
-      throw error;
+      return false;
     }
   }
 
@@ -83,14 +96,17 @@ class RedisBroker extends BaseBroker {
       return true;
     } catch (error) {
       logger.error(`Failed to disconnect from Redis: ${error.message}`);
-      throw error;
+      return false; // Don't throw, just return false
     }
   }
 
   async publishMessage(topic, message, messageId = null) {
     try {
       if (!this.isConnected) {
-        await this.connect();
+        const connected = await this.connect();
+        if (!connected) {
+          throw new Error("Failed to connect to Redis");
+        }
       }
 
       const payload =
@@ -107,8 +123,16 @@ class RedisBroker extends BaseBroker {
         await this.publishClient.expire(messageKey, 86400);
       }
 
-      // Publish to Redis channel
-      await this.publishClient.publish(topic, payload);
+      // Publish to Redis channel with timeout
+      const publishPromise = this.publishClient.publish(topic, payload);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Publish operation timeout")),
+          this.connectionTimeout
+        )
+      );
+
+      await Promise.race([publishPromise, timeoutPromise]);
       return true;
     } catch (error) {
       logger.error(`Failed to publish message to Redis: ${error.message}`);
@@ -126,6 +150,7 @@ class RedisBroker extends BaseBroker {
           port: this.config.port || constants.REDIS_PORT || 6379,
           password: this.config.password || constants.REDIS_PASSWORD,
           db: this.config.db || constants.REDIS_DB || 0,
+          connectTimeout: this.connectionTimeout,
         };
 
         this.subscribeClient = new Redis(redisOptions);
@@ -135,15 +160,23 @@ class RedisBroker extends BaseBroker {
         });
       }
 
-      // Subscribe to all provided topics
+      // Subscribe to all provided topics with timeout
       const topicsList = Array.isArray(topics) ? topics : [topics];
 
       for (const topic of topicsList) {
         // Save the handler to our map
         this.subscribers.set(topic, messageHandler);
 
-        // Subscribe to the topic
-        await this.subscribeClient.subscribe(topic);
+        // Subscribe to the topic with timeout
+        const subscribePromise = this.subscribeClient.subscribe(topic);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Subscribe to ${topic} timed out`)),
+            this.connectionTimeout
+          )
+        );
+
+        await Promise.race([subscribePromise, timeoutPromise]);
       }
 
       // Set up the message handler once
@@ -165,7 +198,7 @@ class RedisBroker extends BaseBroker {
       return true;
     } catch (error) {
       logger.error(`Failed to subscribe to Redis topics: ${error.message}`);
-      throw error;
+      return false; // Don't throw, just return false
     }
   }
 

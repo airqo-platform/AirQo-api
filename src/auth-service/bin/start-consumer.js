@@ -7,44 +7,77 @@ const logger = log4js.getLogger(
 const messageConsumer = require("./jobs/message-consumer");
 
 /**
- * Start the message consumer with error handling
+ * Start the message consumer with error handling and timeout protection
  */
 const startConsumer = async () => {
   try {
     logger.info("Starting message consumer service...");
 
-    const result = await messageConsumer();
+    // Add timeout to ensure consumer initialization doesn't block indefinitely
+    const consumerPromise = messageConsumer();
+    const timeoutPromise = new Promise((resolve) => {
+      const timeoutMs = constants.MESSAGE_CONSUMER_STARTUP_TIMEOUT_MS || 10000; // Default 10 seconds
+      setTimeout(() => {
+        logger.warn(
+          `Message consumer initialization timed out after ${timeoutMs}ms, but continuing application startup`
+        );
+        resolve({
+          success: false,
+          message: "Initialization timed out",
+          activeBroker: null,
+        });
+      }, timeoutMs);
+    });
 
-    if (result.success) {
+    const result = await Promise.race([consumerPromise, timeoutPromise]);
+
+    if (result && result.success) {
       logger.info(
         `Message consumer service started successfully using ${result.activeBroker} broker`
       );
+      return result;
     } else {
-      logger.error(`Failed to start message consumer: ${result.message}`);
+      logger.warn(
+        `Message consumer may not have started properly: ${
+          result ? result.message : "Unknown error"
+        }`
+      );
+      return {
+        success: false,
+        message: result ? result.message : "Unknown error",
+        activeBroker: null,
+      };
     }
   } catch (error) {
     logger.error(
       `Unexpected error starting message consumer: ${error.message}`
     );
+    logger.error(error.stack);
 
-    // Attempt to restart after delay
-    setTimeout(() => {
-      logger.info("Attempting to restart message consumer...");
-      startConsumer().catch((e) => {
-        logger.fatal(
-          `Critical failure in message consumer restart: ${e.message}`
-        );
-      });
-    }, 30000);
+    // Return a structured error result instead of throwing
+    return {
+      success: false,
+      message: error.message,
+      error: error,
+      activeBroker: null,
+    };
   }
 };
 
 // Start the consumer if this file is run directly
 if (require.main === module) {
-  startConsumer().catch((error) => {
-    logger.fatal(`Fatal error in message consumer: ${error.message}`);
-    process.exit(1);
-  });
+  startConsumer()
+    .then((result) => {
+      if (!result.success) {
+        logger.warn(
+          `Message consumer startup completed with warnings: ${result.message}`
+        );
+      }
+    })
+    .catch((error) => {
+      logger.error(`Error in message consumer startup: ${error.message}`);
+      // Don't exit process, just log the error
+    });
 }
 
 module.exports = { startConsumer };

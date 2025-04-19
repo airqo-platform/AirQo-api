@@ -69,7 +69,14 @@ const devConfig = {
   RABBITMQ_PASSWORD: process.env.DEV_RABBITMQ_PASSWORD || "guest",
   RABBITMQ_VHOST: process.env.DEV_RABBITMQ_VHOST || "/",
 
-  ENABLE_MESSAGE_CONSUMER: process.env.DEV_ENABLE_MESSAGE_CONSUMER,
+  ENABLE_MESSAGE_CONSUMER: process.env.DEV_ENABLE_MESSAGE_CONSUMER || false,
+
+  MESSAGE_BROKER_ALLOW_NO_CONNECTION:
+    process.env.DEV_MESSAGE_BROKER_ALLOW_NO_CONNECTION === "true",
+  MESSAGE_BROKER_INITIAL_DELAY_MS: parseInt(
+    process.env.DEV_MESSAGE_BROKER_INITIAL_DELAY_MS || "0",
+    10
+  ),
 };
 
 module.exports = devConfig;

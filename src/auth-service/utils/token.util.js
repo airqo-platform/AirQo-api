@@ -70,16 +70,16 @@ const trampoline = (fn) => {
   try {
     if (!messagingService.initialized) {
       await messagingService.initialize();
-      logger.info(
-        `Token utils messaging service initialized using ${messagingService.getActiveBrokerType()} broker`
-      );
+      // logger.info(
+      //   `Token utils messaging service initialized using ${messagingService.getActiveBrokerType()} broker`
+      // );
     }
   } catch (error) {
-    logger.error(`Failed to initialize messaging service: ${error.message}`);
+    logObject("we have a runtime error", error);
+    // logger.error(`Failed to initialize messaging service: ${error.message}`);
   }
 })();
 
-// Replace the entire blacklistQueue implementation with this version:
 let blacklistQueue = async.queue(async (task, callback) => {
   let { ip } = task;
   logText("we are in the IP range checker.....");
@@ -89,15 +89,15 @@ let blacklistQueue = async.queue(async (task, callback) => {
     // Use the messaging service to publish the message with redundancy
     const result = await messagingService.publish("ip-address", { ip });
 
-    logger.info(
-      `🤩🤩 Published IP ${ip} to the "ip-address" topic using ${result.broker} broker`
-    );
+    // logger.info(
+    //   `🤩🤩 Published IP ${ip} to the "ip-address" topic using ${result.broker} broker`
+    // );
     callback();
   } catch (error) {
     logObject("Message publishing error", error);
-    logger.error(
-      `🐛🐛 Error publishing IP address: ${ip} --- ${error.message}`
-    );
+    // logger.error(
+    //   `🐛🐛 Error publishing IP address: ${ip} --- ${error.message}`
+    // );
     callback();
   }
 }, 1); // Limit the number of concurrent tasks to 1

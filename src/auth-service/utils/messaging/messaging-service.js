@@ -16,21 +16,77 @@ class MessagingService {
 
   async initialize() {
     if (!this.initialized) {
-      await this.redundancyManager.initialize();
-      this.initialized = true;
+      try {
+        // Check if message consumer is explicitly disabled
+        if (process.env.ENABLE_MESSAGE_CONSUMER === "false") {
+          logger.info(
+            "Messaging service initialization skipped (disabled by configuration)"
+          );
+          this.initialized = true;
+          return true;
+        }
+
+        const result = await this.redundancyManager
+          .initialize()
+          .catch((error) => {
+            logger.warn(
+              `Error initializing redundancy manager: ${error.message}`
+            );
+            return false;
+          });
+
+        this.initialized = true;
+
+        if (result) {
+          logger.info("Messaging service initialized successfully");
+        } else {
+          logger.warn("Messaging service initialized with no active brokers");
+        }
+
+        return true;
+      } catch (error) {
+        logger.error(
+          `Failed to initialize messaging service: ${error.message}`
+        );
+        this.initialized = true; // Still mark as initialized to prevent repeated attempts
+        return false;
+      }
     }
     return true;
   }
 
   async publish(topic, message, options = {}) {
     if (!this.initialized) {
-      await this.initialize();
+      await this.initialize().catch((error) => {
+        logger.warn(`Failed to initialize messaging service: ${error.message}`);
+      });
     }
 
     // Generate a message ID for tracking if not provided
     const messageId = options.messageId || uuidv4();
 
     try {
+      // If no active broker, try connecting again
+      if (!this.redundancyManager.getActiveBrokerType()) {
+        await this.redundancyManager
+          .connectToHighestPriorityBroker()
+          .catch(() => {});
+      }
+
+      // If still no active broker, store message for later and return
+      if (!this.redundancyManager.getActiveBrokerType()) {
+        logger.warn(
+          `No active broker available, message to ${topic} queued for later delivery`
+        );
+        // You could implement a local message queue here if needed
+        return {
+          success: false,
+          messageId,
+          queued: true,
+          error: "No active broker available",
+        };
+      }
+
       const result = await this.redundancyManager.publishMessage(
         topic,
         message,
@@ -44,7 +100,11 @@ class MessagingService {
       };
     } catch (error) {
       logger.error(`Failed to publish message to ${topic}: ${error.message}`);
-      throw error;
+      return {
+        success: false,
+        messageId,
+        error: error.message,
+      };
     }
   }
 

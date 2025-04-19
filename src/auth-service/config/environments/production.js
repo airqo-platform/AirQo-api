@@ -67,5 +67,12 @@ const prodConfig = {
   RABBITMQ_VHOST: process.env.PROD_RABBITMQ_VHOST || "/",
 
   ENABLE_MESSAGE_CONSUMER: process.env.PROD_ENABLE_MESSAGE_CONSUMER || true,
+
+  MESSAGE_BROKER_ALLOW_NO_CONNECTION:
+    process.env.PROD_MESSAGE_BROKER_ALLOW_NO_CONNECTION === "true",
+  MESSAGE_BROKER_INITIAL_DELAY_MS: parseInt(
+    process.env.PROD_MESSAGE_BROKER_INITIAL_DELAY_MS || "0",
+    10
+  ),
 };
 module.exports = prodConfig;
