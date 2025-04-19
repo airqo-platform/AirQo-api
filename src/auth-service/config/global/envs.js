@@ -67,5 +67,11 @@ const envs = {
     process.env.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID,
   DEFAULT_ORGANISATION_PROFILE_PICTURE:
     process.env.DEFAULT_ORGANISATION_PROFILE_PICTURE,
+  // Server configuration
+  PORT: process.env.PORT || "3000",
+  SERVER_STARTUP_TIMEOUT_MS: parseInt(
+    process.env.SERVER_STARTUP_TIMEOUT_MS || "15000",
+    10
+  ),
 };
 module.exports = envs;
