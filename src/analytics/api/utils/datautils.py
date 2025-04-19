@@ -58,6 +58,7 @@ class DataUtils:
         table: str = None
         sorting_cols: List[str] = ["site_id", "device_name"]
         bigquery_api = BigQueryApi()
+        data_table_freq = frequency
         if not device_category:
             device_category = DeviceCategory.LOWCOST
 
@@ -69,7 +70,11 @@ class DataUtils:
             datatype = DataType.CALIBRATED
             frequency = Frequency.HOURLY if frequency == Frequency.RAW else frequency
 
-        table = datasource.get(datatype).get(device_category).get(frequency)
+        if data_table_freq.value in {"weekly", "monthly", "yearly"}:
+            data_table_freq = Frequency.HOURLY
+
+        table = datasource.get(datatype).get(device_category).get(data_table_freq)
+
         if not table:
             logger.exception(
                 f"Wrong table information provided: {datatype}, {device_category}, {frequency}"
@@ -95,7 +100,7 @@ class DataUtils:
 
         drop_columns = ["device_name"]
         if frequency.value in ["weekly", "monthly", "yearly"]:
-            frequency_ = frequency[:-2]
+            frequency_ = frequency.value[:-2]
             drop_columns.append(frequency_)
             sorting_cols.append(frequency_)
         else:
