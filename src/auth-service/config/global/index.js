@@ -9,8 +9,10 @@ const strings = require("./strings");
 const urls = require("./urls");
 const emailTemplates = require("./email-templates");
 const firebase = require("./firebase");
+const messageBrokerConfig = require("./message-broker");
 
 const configurations = {
+  ...messageBrokerConfig,
   ...dbProjections,
   ...envs,
   ...mappings,

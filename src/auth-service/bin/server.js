@@ -41,6 +41,8 @@ const logger = log4js.getLogger(
 );
 const fileUpload = require("express-fileupload");
 const { stringify } = require("@utils/common");
+const messagingService =
+  require("@utils/messaging/messaging-service").getInstance();
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -104,6 +106,30 @@ app.use("/api/v2/users/transactions", transactionLimiter);
 
 // app.use("/api/v1/users", require("@routes/v1"));
 app.use("/api/v2/users", require("@routes/v2"));
+
+// Create a health check endpoint for the message broker
+app.get("/api/v2/health/message-broker", async (req, res) => {
+  try {
+    const activeBroker = messagingService.getActiveBrokerType();
+    const isInitialized = messagingService.initialized;
+
+    res.status(200).json({
+      success: true,
+      message: "Message broker health check",
+      data: {
+        active_broker: activeBroker || "none",
+        initialized: isInitialized,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error checking message broker health",
+      errors: { message: error.message },
+    });
+  }
+});
 
 // default error handling
 app.use((req, res, next) => {
@@ -254,7 +280,49 @@ const createServer = () => {
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+
+    // Log which message broker is active after server start
+    if (messagingService.initialized) {
+      const activeBroker = messagingService.getActiveBrokerType();
+      logger.info(`🌟 Active message broker: ${activeBroker || "none"}`);
+    }
   });
+
+  // Graceful shutdown handling
+  const gracefulShutdown = async () => {
+    logger.info("Received kill signal, shutting down gracefully");
+
+    // First attempt to close the message service
+    if (messagingService.initialized) {
+      try {
+        logger.info("Shutting down message consumer...");
+        await messagingService.shutdown();
+        logger.info("Message consumer shut down successfully");
+      } catch (error) {
+        logger.error(`Error shutting down message consumer: ${error.message}`);
+      }
+    }
+
+    // Now close the HTTP server
+    server.close(() => {
+      logger.info("HTTP server closed");
+      process.exit(0);
+    });
+
+    // Force close if graceful shutdown fails
+    setTimeout(() => {
+      logger.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      process.exit(1);
+    }, 10000);
+  };
+
+  // Listen for termination signals
+  process.on("SIGTERM", gracefulShutdown);
+  process.on("SIGINT", gracefulShutdown);
+
+  return server;
 };
 
 module.exports = createServer;

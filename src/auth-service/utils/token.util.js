@@ -9,6 +9,8 @@ const AccessTokenModel = require("@models/AccessToken");
 const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const httpStatus = require("http-status");
+const messagingService =
+  require("@utils/messaging/messaging-service").getInstance();
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
 const { logObject, logText, HttpError } = require("@utils/shared");
@@ -63,38 +65,39 @@ const trampoline = (fn) => {
   return fn;
 };
 
+// initialization function, after utility functions but before queue definitions
+(async function initializeMessaging() {
+  try {
+    if (!messagingService.initialized) {
+      await messagingService.initialize();
+      logger.info(
+        `Token utils messaging service initialized using ${messagingService.getActiveBrokerType()} broker`
+      );
+    }
+  } catch (error) {
+    logger.error(`Failed to initialize messaging service: ${error.message}`);
+  }
+})();
+
+// Replace the entire blacklistQueue implementation with this version:
 let blacklistQueue = async.queue(async (task, callback) => {
   let { ip } = task;
   logText("we are in the IP range checker.....");
+
   // If the IP falls within the range, publish it to the "ip-address" topic
   try {
-    const kafkaProducer = kafka.producer({
-      groupId: constants.UNIQUE_PRODUCER_GROUP,
-    });
-    await kafkaProducer.connect();
-    await kafkaProducer
-      .send({
-        topic: "ip-address",
-        messages: [{ value: stringify({ ip }) }],
-      })
-      .then(() => {
-        logObject(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        // logger.info(`🤩🤩 Published IP ${ip} to the "ip-address" topic.`);
-        callback();
-      })
-      .catch((error) => {
-        logObject("kafka producer send error", error);
-        callback();
-      });
-    await kafkaProducer.disconnect().catch((error) => {
-      logObject("kafka producer disconnect error", error);
-    });
-    // callback();
+    // Use the messaging service to publish the message with redundancy
+    const result = await messagingService.publish("ip-address", { ip });
+
+    logger.info(
+      `🤩🤩 Published IP ${ip} to the "ip-address" topic using ${result.broker} broker`
+    );
+    callback();
   } catch (error) {
-    logObject("error", error);
-    // logger.error(
-    //   `🐛🐛 KAFKA Producer Internal Server Error --- IP_ADDRESS: ${ip} --- ${error.message}`
-    // );
+    logObject("Message publishing error", error);
+    logger.error(
+      `🐛🐛 Error publishing IP address: ${ip} --- ${error.message}`
+    );
     callback();
   }
 }, 1); // Limit the number of concurrent tasks to 1
@@ -1870,6 +1873,42 @@ const token = {
         next
       );
       return responseFromListUnkownIP;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  getMessagingServiceHealth: async (request, next) => {
+    try {
+      // Check if messaging service is initialized
+      if (!messagingService.initialized) {
+        return {
+          success: false,
+          message: "Messaging service not initialized",
+          status: httpStatus.SERVICE_UNAVAILABLE,
+          errors: { message: "Messaging service not initialized" },
+        };
+      }
+
+      // Get the active broker type
+      const activeBroker = messagingService.getActiveBrokerType();
+
+      return {
+        success: true,
+        message: "Messaging service health status",
+        data: {
+          active_broker: activeBroker,
+          initialized: messagingService.initialized,
+          timestamp: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

@@ -40,5 +40,32 @@ const prodConfig = {
   PADDLE_SECRET_KEY: process.env.PROD_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.PROD_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.PROD_PADDLE_API_KEY,
+
+  //kafka
+  KAFKA_CLIENT_ID:
+    process.env.PROD_KAFKA_CLIENT_ID || "prod-auth-service-client-id",
+  KAFKA_BOOTSTRAP_SERVERS: process.env.PROD_KAFKA_BOOTSTRAP_SERVERS
+    ? process.env.PROD_KAFKA_BOOTSTRAP_SERVERS.split(",")
+    : ["localhost:9092"],
+  UNIQUE_PRODUCER_GROUP:
+    process.env.PROD_UNIQUE_PRODUCER_GROUP ||
+    "prod-device-registry-producer-group",
+  UNIQUE_CONSUMER_GROUP:
+    process.env.PROD_UNIQUE_CONSUMER_GROUP || "prod-auth-service-client-group",
+
+  //redis
+  REDIS_HOST: process.env.PROD_REDIS_HOST || "localhost",
+  REDIS_PORT: parseInt(process.env.PROD_REDIS_PORT || "6379", 10),
+  REDIS_PASSWORD: process.env.PROD_REDIS_PASSWORD || null,
+  REDIS_DB: parseInt(process.env.PROD_REDIS_DB || "0", 10),
+
+  //rabbitMQ
+  RABBITMQ_HOST: process.env.PROD_RABBITMQ_HOST || "localhost",
+  RABBITMQ_PORT: parseInt(process.env.PROD_RABBITMQ_PORT || "5672", 10),
+  RABBITMQ_USERNAME: process.env.PROD_RABBITMQ_USERNAME || "guest",
+  RABBITMQ_PASSWORD: process.env.PROD_RABBITMQ_PASSWORD || "guest",
+  RABBITMQ_VHOST: process.env.PROD_RABBITMQ_VHOST || "/",
+
+  ENABLE_MESSAGE_CONSUMER: process.env.PROD_ENABLE_MESSAGE_CONSUMER || true,
 };
 module.exports = prodConfig;

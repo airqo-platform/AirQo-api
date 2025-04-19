@@ -27,8 +27,6 @@ const stageConfig = {
     process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
-  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
-  REDIS_PORT: process.env.STAGE_REDIS_PORT,
   SELECTED_SITES: process.env.SELECTED_SITES_STAGING
     ? process.env.SELECTED_SITES_STAGING.split(",").filter(
         (value) => value.trim() !== ""
@@ -41,6 +39,35 @@ const stageConfig = {
   PADDLE_SECRET_KEY: process.env.STAGE_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.STAGE_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.STAGE_PADDLE_API_KEY,
+
+  //kafka
+  KAFKA_CLIENT_ID:
+    process.env.STAGE_KAFKA_CLIENT_ID || "stage-auth-service-client-id",
+  KAFKA_BOOTSTRAP_SERVERS: process.env.STAGE_KAFKA_BOOTSTRAP_SERVERS
+    ? process.env.STAGE_KAFKA_BOOTSTRAP_SERVERS.split(",")
+    : ["localhost:9092"],
+  UNIQUE_PRODUCER_GROUP:
+    process.env.STAGE_UNIQUE_PRODUCER_GROUP ||
+    "stage-device-registry-producer-group",
+  UNIQUE_CONSUMER_GROUP:
+    process.env.STAGE_UNIQUE_CONSUMER_GROUP ||
+    "stage-auth-service-client-group",
+
+  //redis
+  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
+  REDIS_HOST: process.env.STAGE_REDIS_HOST || "localhost",
+  REDIS_PORT: parseInt(process.env.STAGE_REDIS_PORT || "6379", 10),
+  REDIS_PASSWORD: process.env.STAGE_REDIS_PASSWORD || null,
+  REDIS_DB: parseInt(process.env.STAGE_REDIS_DB || "0", 10),
+
+  //rabbitMQ
+  RABBITMQ_HOST: process.env.STAGE_RABBITMQ_HOST || "localhost",
+  RABBITMQ_PORT: parseInt(process.env.STAGE_RABBITMQ_PORT || "5672", 10),
+  RABBITMQ_USERNAME: process.env.STAGE_RABBITMQ_USERNAME || "guest",
+  RABBITMQ_PASSWORD: process.env.STAGE_RABBITMQ_PASSWORD || "guest",
+  RABBITMQ_VHOST: process.env.STAGE_RABBITMQ_VHOST || "/",
+
+  ENABLE_MESSAGE_CONSUMER: process.env.STAGE_ENABLE_MESSAGE_CONSUMER || true,
 };
 
 module.exports = stageConfig;
