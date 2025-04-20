@@ -76,6 +76,10 @@ const devConfig = {
     process.env.DEV_MESSAGE_BROKER_INITIAL_DELAY_MS || "0",
     10
   ),
+
+  // health checks
+  INTERNAL_API_KEY:
+    process.env.DEV_INTERNAL_API_KEY || "default-internal-api-key-for-dev",
 };
 
 module.exports = devConfig;

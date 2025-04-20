@@ -18,6 +18,7 @@ router.use(
 );
 router.use("/maintenances", require("@routes/v2/maintenance.routes"));
 router.use("/types", require("@routes/v2/types.routes"));
+router.use("/health", require("@routes/v2/health.routes"));
 router.use("/tokens", require("@routes/v2/tokens.routes"));
 router.use("/clients", require("@routes/v2/clients.routes"));
 router.use("/scopes", require("@routes/v2/scopes.routes"));

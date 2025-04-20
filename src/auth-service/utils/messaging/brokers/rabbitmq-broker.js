@@ -31,10 +31,7 @@ class RabbitMQBroker extends BaseBroker {
 
     const rawVhost = this.config.vhost || constants.RABBITMQ_VHOST || "/";
     const vhost = rawVhost.startsWith("/") ? rawVhost : `/${rawVhost}`;
-    return `amqp://${username}:${password}@${host}:${port}${encodeURIComponent(
-      vhost
-    )}`;
-    // return `amqp://${username}:${password}@${host}:${port}${vhost}`;
+    return `amqp://${username}:${password}@${host}:${port}${vhost}`;
   }
 
   async connect() {

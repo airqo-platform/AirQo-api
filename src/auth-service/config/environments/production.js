@@ -76,5 +76,8 @@ const prodConfig = {
     process.env.PROD_MESSAGE_BROKER_INITIAL_DELAY_MS || "0",
     10
   ),
+
+  // health checks
+  INTERNAL_API_KEY: process.env.PROD_INTERNAL_API_KEY,
 };
 module.exports = prodConfig;

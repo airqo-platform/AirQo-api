@@ -75,6 +75,9 @@ const stageConfig = {
     process.env.STAGE_MESSAGE_BROKER_INITIAL_DELAY_MS || "0",
     10
   ),
+
+  // health checks
+  INTERNAL_API_KEY: process.env.STAGE_INTERNAL_API_KEY,
 };
 
 module.exports = stageConfig;

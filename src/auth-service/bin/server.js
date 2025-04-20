@@ -173,11 +173,6 @@ try {
   // Continue without rate limiting
 }
 
-// Add a basic health check endpoint that will always work
-app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
 // Routes
 try {
   app.use("/api/v2/users", require("@routes/v2"));
@@ -193,35 +188,13 @@ try {
   });
 }
 
-// Create a health check endpoint for the message broker
-app.get("/api/v2/health/message-broker", async (req, res) => {
+// Basic health check endpoint that's always accessible
+app.get("/api/health", (req, res) => {
   try {
-    // Safely get broker status
-    let activeBroker = null;
-    let isInitialized = false;
-
-    try {
-      activeBroker = messagingService.getActiveBrokerType();
-      isInitialized = messagingService.initialized;
-    } catch (error) {
-      logger.error(`Error getting message broker status: ${error.message}`);
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Message broker health check",
-      data: {
-        active_broker: activeBroker || "none",
-        initialized: isInitialized,
-        timestamp: new Date().toISOString(),
-      },
-    });
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error checking message broker health",
-      errors: { message: error.message },
-    });
+    console.error("Error in health endpoint:", error);
+    res.status(500).json({ status: "error", message: "Internal server error" });
   }
 });
 
