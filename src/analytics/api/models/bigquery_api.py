@@ -493,7 +493,6 @@ class BigQueryApi:
         # Include time granularity in both SELECT and GROUP BY
         timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
         group_by_clause = ", ".join(group_by + [time_granularity.lower()])
-        print(group_by_clause)
         query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
 
         return query
@@ -610,6 +609,7 @@ class BigQueryApi:
                 frequency,
             )
         else:
+            logger.exception(f"Invalid filter type: {filter_type}")
             raise ValueError("Invalid filter type")
 
     def get_averaging_columns(self, mapping, frequency, decimal_places, table):

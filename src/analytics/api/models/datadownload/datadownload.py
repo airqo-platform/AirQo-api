@@ -31,6 +31,8 @@ data_download_model = Model(
         "endDateTime": fields.DateTime(
             required=True, description="End date and time for data extraction"
         ),
+        "network": fields.String(description="Network identifier"),
+        "device_category": fields.String(description="Category of the device"),
         "downloadType": fields.String(
             required=True, description="Data download format i.e csv"
         ),

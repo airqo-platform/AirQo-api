@@ -101,7 +101,11 @@ class DataExportResource(Resource):
         frequency = Frequency[frequency.upper()]
 
         try:
-            device_category = DeviceCategory.LOWCOST
+            device_category = (
+                DeviceCategory[device_category.upper()]
+                if device_category
+                else DeviceCategory.LOWCOST
+            )
             data_frame = DataUtils.extract_data_from_bigquery(
                 datatype=data_type,
                 start_date_time=startDateTime,
@@ -151,7 +155,7 @@ class DataExportResource(Resource):
             logger.exception(f"An error occurred: {e}")
             return (
                 AirQoRequests.create_response(
-                    f"An Error occurred while processing your request. Please contact support. {e}",
+                    f"An Error occurred while processing your request. Please contact support.",
                     success=False,
                 ),
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,

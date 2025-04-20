@@ -1,0 +1,106 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "network",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_category",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_number",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm10",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "no2",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "pm1",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "°C"
+  },
+  {
+    "name": "humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%"
+  },
+  {
+    "name": "barometric_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "kPa"
+  },
+  {
+    "name": "filter_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "°C"
+  },
+  {
+    "name": "filter_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%"
+  },
+  {
+    "name": "status",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  }
+]

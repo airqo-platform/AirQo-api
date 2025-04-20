@@ -34,16 +34,49 @@ const createSite = {
       const { id } = req.params;
       const { tenant } = req.query;
 
-      const site = await SiteModel(tenant.toLowerCase()).findById(id);
+      const site = await SiteModel(tenant.toLowerCase())
+        .findById(id)
+        .lean(); // Use lean() for faster query
 
       if (!site) {
         throw new HttpError("site not found", httpStatus.NOT_FOUND);
       }
 
+      // Define the device projection
+      const deviceProjection = {
+        _id: 1,
+        cohorts: 1,
+        groups: 1,
+        authRequired: 1,
+        isOnline: 1,
+        device_codes: 1,
+        previous_sites: 1,
+        status: 1,
+        category: 1,
+        isActive: 1,
+        long_name: 1,
+        network: 1,
+        description: 1,
+        serial_number: 1,
+        name: 1,
+        createdAt: 1,
+        latitude: 1,
+        longitude: 1,
+        grids: 1,
+      };
+
+      // Fetch devices associated with the site, applying the projection
+      const DeviceModel = require("@models/Device"); // Import Device model here to avoid circular dependency
+      const devices = await DeviceModel(tenant.toLowerCase())
+        .find({ site_id: id }, deviceProjection)
+        .lean(); // Use lean() for faster query
+
+      const siteWithDevices = { ...site, devices };
+
       return {
         success: true,
         message: "site details fetched successfully",
-        data: site,
+        data: siteWithDevices,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -559,7 +592,11 @@ const createSite = {
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(createdSite),
+                value: JSON.stringify({
+                  ...createdSite,
+                  groupId: group,
+                  tenant: request.query.tenant,
+                }),
               },
             ],
           });

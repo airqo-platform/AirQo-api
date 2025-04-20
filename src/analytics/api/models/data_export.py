@@ -210,6 +210,17 @@ class DataExportModel(BasePyMongoModel):
         ]
 
     def has_data(self, query) -> bool:
+        """
+        Checks whether a given BigQuery SQL query returns any rows.
+
+        Executes the query with a `LIMIT 1` clause for efficiency and uses the query cache if available.
+
+        Args:
+            query(str): The SQL query to check for results.
+
+        Returns:
+            bool: True if the query returns at least one row, False otherwise.
+        """
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
         total_rows = (
