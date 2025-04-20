@@ -142,85 +142,69 @@ const operationForBlacklistedIPs = async (topic, messageData) => {
       return;
     }
 
+    // Check if IP is already blacklisted to avoid unnecessary processing
+    const existingBlacklistedIP = await BlacklistedIPModel("airqo").findOne({
+      ip,
+    });
+    if (existingBlacklistedIP) {
+      logger.info(`IP ${ip} is already blacklisted, skipping processing`);
+      return;
+    }
+
+    // Efficiently check if IP belongs to any range with pagination and early exit
     let pageNumber = 1;
-    let blacklistedRanges = [];
-    let ipsToBlacklist = [];
+    let shouldBlacklist = false;
+    const pageSize = 1000;
 
-    // Keep fetching and checking until we have gone through all records
-    while (true) {
-      // Fetch the next page of blacklisted ranges
-      blacklistedRanges = await Promise.all([
-        BlacklistedIPRangeModel("airqo")
-          .find()
-          .skip((pageNumber - 1) * 1000)
-          .limit(1000),
-      ]);
+    // Process ranges in batches until we find a match or exhaust the collection
+    while (!shouldBlacklist) {
+      const blacklistedRanges = await BlacklistedIPRangeModel("airqo")
+        .find()
+        .skip((pageNumber - 1) * pageSize)
+        .limit(pageSize);
 
-      if (blacklistedRanges.length === 0 || blacklistedRanges[0].length === 0) {
-        // If no more ranges, break the loop
+      // If no more ranges to check, exit the loop
+      if (blacklistedRanges.length === 0) {
         break;
       }
 
-      // Iterate over each range
-      for (const range of blacklistedRanges[0]) {
-        // Check if the IP falls within the range
+      // Check if IP falls into any range in this batch
+      for (const range of blacklistedRanges) {
         if (rangeCheck(ip, range.range)) {
-          // If the IP falls within the range, add it to the list of IPs to blacklist
-          ipsToBlacklist.push(ip);
-          logger.info(`💪💪 IP ${ip} has been queued for blacklisting...`);
-          break;
+          shouldBlacklist = true;
+          logger.info(
+            `💪💪 IP ${ip} falls within range ${range.range}, will be blacklisted`
+          );
+          break; // Exit the loop as soon as we find a match
         }
+      }
+
+      // If we found a match, no need to check more pages
+      if (shouldBlacklist) {
+        break;
       }
 
       pageNumber++;
     }
 
-    if (ipsToBlacklist.length > 0) {
-      //prepare for batch operations....
-      const batchSize = 20;
-      const batches = [];
-      for (let i = 0; i < ipsToBlacklist.length; i += batchSize) {
-        batches.push(ipsToBlacklist.slice(i, i + batchSize));
-      }
-
-      for (const batch of batches) {
-        for (const ip of batch) {
-          const doc = { ip: ip };
-          await asyncRetry(
-            async (bail) => {
-              try {
-                const res = await BlacklistedIPModel("airqo").updateOne(
-                  doc,
-                  doc,
-                  {
-                    upsert: true,
-                  }
-                );
-                logObject("res", res);
-              } catch (error) {
-                if (error.name === "MongoError" && error.code !== 11000) {
-                  logger.error(
-                    `🐛🐛 MongoError -- operationForBlacklistedIPs -- ${stringify(
-                      error
-                    )}`
-                  );
-                  throw error; // Retry the operation
-                } else if (error.code === 11000) {
-                  // Ignore duplicate key errors
-                  console.warn(
-                    `Duplicate key error for document: ${stringify(doc)}`
-                  );
-                }
-              }
-            },
-            {
-              retries: 5, // Number of retry attempts
-              minTimeout: 1000, // Initial delay between retries (in milliseconds)
-              factor: 2, // Exponential factor for increasing delay between retries
-            }
-          );
-        }
-      }
+    // Only proceed with blacklisting if needed
+    if (shouldBlacklist) {
+      // Use upsert to avoid race conditions and duplicate inserts
+      await BlacklistedIPModel("airqo")
+        .updateOne({ ip }, { ip }, { upsert: true })
+        .then((result) => {
+          if (result.upserted || result.nModified > 0) {
+            logger.info(`✅ Successfully blacklisted IP ${ip}`);
+          } else {
+            logger.info(
+              `IP ${ip} was already blacklisted (concurrent operation)`
+            );
+          }
+        });
+    } else {
+      logger.info(
+        `IP ${ip} doesn't match any blacklisted ranges, no action taken`
+      );
     }
   } catch (error) {
     logger.error(
@@ -458,7 +442,7 @@ const withRetry = async (fn, options = {}) => {
     },
   };
 
-  return asyncRetry(retryOptions, fn);
+  return asyncRetry(fn, retryOptions);
 };
 
 /**
