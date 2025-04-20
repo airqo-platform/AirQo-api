@@ -28,9 +28,13 @@ class RabbitMQBroker extends BaseBroker {
       this.config.username || constants.RABBITMQ_USERNAME || "guest";
     const password =
       this.config.password || constants.RABBITMQ_PASSWORD || "guest";
-    const vhost = this.config.vhost || constants.RABBITMQ_VHOST || "/";
 
-    return `amqp://${username}:${password}@${host}:${port}${vhost}`;
+    const rawVhost = this.config.vhost || constants.RABBITMQ_VHOST || "/";
+    const vhost = rawVhost.startsWith("/") ? rawVhost : `/${rawVhost}`;
+    return `amqp://${username}:${password}@${host}:${port}${encodeURIComponent(
+      vhost
+    )}`;
+    // return `amqp://${username}:${password}@${host}:${port}${vhost}`;
   }
 
   async connect() {
@@ -108,7 +112,7 @@ class RabbitMQBroker extends BaseBroker {
     }
 
     // Try to reconnect
-    this.reconnectTimer = setTimeout(async () => {
+    const attemptReconnect = async () => {
       try {
         logger.info("Attempting to reconnect to RabbitMQ...");
         const connected = await this.connect();
@@ -130,8 +134,11 @@ class RabbitMQBroker extends BaseBroker {
         }
       } catch (error) {
         logger.error(`Failed to reconnect to RabbitMQ: ${error.message}`);
+        // Schedule another reconnection attempt
+        this.reconnectTimer = setTimeout(attemptReconnect, this.reconnectDelay);
       }
-    }, this.reconnectDelay);
+    }; // Start the reconnection process
+    this.reconnectTimer = setTimeout(attemptReconnect, this.reconnectDelay);
   }
 
   async disconnect() {

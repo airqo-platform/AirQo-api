@@ -28,9 +28,7 @@ const devConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
-  //redis
-  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
-  REDIS_PORT: process.env.DEV_REDIS_PORT,
+
   SELECTED_SITES: process.env.SELECTED_SITES_DEVELOPMENT
     ? process.env.SELECTED_SITES_DEVELOPMENT.split(",").filter(
         (value) => value.trim() !== ""
@@ -57,6 +55,7 @@ const devConfig = {
     process.env.DEV_UNIQUE_CONSUMER_GROUP || "dev-auth-service-client-group",
 
   //redis
+  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
   REDIS_HOST: process.env.DEV_REDIS_HOST || "localhost",
   REDIS_PORT: parseInt(process.env.DEV_REDIS_PORT || "6379", 10),
   REDIS_PASSWORD: process.env.DEV_REDIS_PASSWORD || null,
