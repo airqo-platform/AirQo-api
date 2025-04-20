@@ -1,13 +1,14 @@
-import ast
 import pandas as pd
-from typing import List
-
-from .constants import DataSource, DeviceCategory, Frequency, DeviceNetwork
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.data_api import DataApi
+from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+from airflow.exceptions import AirflowFailException
+from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 from .date import str_to_date, date_to_str
-from .utils import Utils
-from .data_validator import DataValidationUtils
-from .datautils import DataUtils
-from .config import configuration as Config
+
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -34,11 +35,6 @@ class AirnowDataUtils:
             >>> df = query_bam_data("your_api_key", "2024-03-01 00:00", "2024-03-02 23:59")
             >>> print(df.head())
         """
-        date_format = "%Y-%m-%dT%H:%M"
-        start_date_time = date_to_str(
-            str_to_date(start_date_time), str_format=date_format
-        )
-        end_date_time = date_to_str(str_to_date(end_date_time), str_format=date_format)
         data = DataUtils.extract_bam_data_airnow(start_date_time, end_date_time)
         return data
 
@@ -61,3 +57,57 @@ class AirnowDataUtils:
             pd.DataFrame: A cleaned and structured DataFrame containing processed air quality data. The resulting DataFrame includes columns such as 'timestamp', 'network', 'site_id', 'device_id', and pollutant values ('pm2_5', 'pm10', 'no2', etc.).
         """
         return DataUtils.process_bam_data_airnow(data=data)
+
+    @staticmethod
+    def send_to_bigquery(data: pd.DataFrame) -> None:
+        """
+        Sends the provided DataFrame to BigQuery after processing.
+
+        Args:
+            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
+
+        Returns:
+            None
+        """
+        big_query_api = BigQueryApi()
+        processed_data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
+        )
+        big_query_api.load_data(dataframe=processed_data, table=table)
+
+    @staticmethod
+    def send_to_api(data: pd.DataFrame, **kwargs) -> None:
+        """
+        Sends the provided DataFrame to the api after processing.
+
+        Args:
+            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
+
+        Returns:
+            None
+        """
+        send_to_api_param = kwargs.get("params", {}).get("send_to_api")
+        if send_to_api_param:
+            data = DataUtils.process_data_for_api(data, Frequency.HOURLY)
+            data_api = DataApi()
+            data_api.save_events(measurements=data)
+
+    @staticmethod
+    def send_to_broker(data: pd.DataFrame) -> None:
+        """
+        Sends the provided DataFrame to kafka after processing.
+
+        Args:
+            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
+
+        Returns:
+            None
+        """
+        data = DataUtils.process_data_for_message_broker(data=data)
+        if not isinstance(data, pd.DataFrame):
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
+
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)

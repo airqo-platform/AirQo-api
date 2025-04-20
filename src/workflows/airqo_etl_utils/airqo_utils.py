@@ -2,9 +2,10 @@ from datetime import datetime, timezone
 import ast
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Union, Generator, Optional
+from typing import List, Dict, Any, Union, Optional
 
-from .data_api import DataApi
+from .commons import drop_rows_with_bad_data
+from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .config import configuration as Config
 from .constants import (
@@ -42,103 +43,7 @@ class AirQoDataUtils:
             network=DeviceNetwork.AIRQO,
         )
 
-        return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
-
-    @staticmethod
-    def map_and_extract_data(
-        data_mapping: Dict[str, Union[str, Dict[str, List[str]]]],
-        data: Union[List[Any], Dict[str, Any]],
-    ) -> pd.DataFrame:
-        """
-        Map and extract specified fields from input data based on a provided mapping and extraction fields.
-
-        Args:
-            data_mapping (Dict[str, str]): A dictionary mapping source keys to target keys.
-                Example: {"pm25": "pm2_5", "pm10": "pm10", "tp": "temperature"}
-            data (Dict[str, Any]|): Input data containing raw key-value pairs to map and extract.
-                Example:
-                {
-                    "pm25": {"conc": 21, "aqius": 73, "aqicn": 30},
-                    "pm10": {"conc": 37, "aqius": 34, "aqicn": 37},
-                    "pr": 100836,
-                    "hm": 28,
-                    "tp": 39.7,
-                    "ts": "2024-11-24T13:14:40.000Z"
-                }
-
-        Returns:
-            pd.Series: A pandas Series containing the mapped and extracted data.
-        """
-
-        def process_single_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
-            """
-            Process a single dictionary entry and map its data based on the mapping.
-
-            Args:
-                entry (Dict[str, Any]): A single data entry.
-
-            Returns:
-                Dict[str, Any]: A dictionary with the mapped data.
-            """
-            row_data = {}
-
-            # Process 'field8' mapping
-            if "field8" in entry and isinstance(entry["field8"], str):
-                field8_mapping = data_mapping.get("field8")
-                try:
-                    field8_values: List[str] = entry.pop("field8").split(",")
-                    for index, target_key in field8_mapping.items():
-                        if target_key not in row_data:
-                            row_data[target_key] = (
-                                field8_values[index]
-                                if index < len(field8_values)
-                                else None
-                            )
-                except (ValueError, TypeError, AttributeError) as e:
-                    logger.warning(f"Error processing field8: {e}")
-
-            # Process the remaining fields
-            if isinstance(entry, dict):
-                for key, value_data in entry.items():
-                    target_key = data_mapping.get(key, None)
-                    target_value = None
-                    if isinstance(target_key, dict):
-                        target_value = target_key.get("value")
-                        target_key = target_key.get("key")
-
-                    if target_key and target_key not in row_data:
-                        if isinstance(value_data, dict):
-                            extracted_value = AirQoDataUtils._extract_nested_value(
-                                value_data, target_value
-                            )
-                        else:
-                            extracted_value = value_data
-                        row_data[target_key] = extracted_value
-            return row_data
-
-        if isinstance(data, dict):
-            data = [data]
-        elif not isinstance(data, list):
-            raise ValueError(
-                f"Invalid data format. Expected a dictionary or a list of dictionaries got {type(data)}"
-            )
-
-        processed_rows = [process_single_entry(entry) for entry in data]
-
-        return pd.DataFrame(processed_rows)
-
-    def _extract_nested_value(data: Dict[str, Any], key: str) -> Any:
-        """
-        Helper function to extract a nested value from a dictionary.
-
-        Args:
-            data (Dict[str, Any]): The input dictionary containing nested data.
-            key (str): The key to extract the value for.
-
-        Returns:
-            Any: The extracted value or None if not found.
-        """
-        return data.get(key)
+        return DataValidationUtils.remove_outliers_fix_types(hourly_uncalibrated_data)
 
     @staticmethod
     def flatten_meta_data(meta_data: list) -> list:
@@ -267,73 +172,7 @@ class AirQoDataUtils:
         cols = big_query_api.get_columns(
             table=big_query_api.airqo_mobile_measurements_table
         )
-        return Utils.populate_missing_columns(data=data, columns=cols)
-
-    @staticmethod
-    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Resamples and averages out the numeric type fields on an hourly basis.
-
-        Args:
-            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
-
-        Returns:
-            A pandas DataFrame object containing hourly averages of data.
-        """
-
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        group_metadata = data[
-            ["device_id", "site_id", "device_number", "network", "device_category"]
-        ].drop_duplicates("device_id")
-        group_metadata.set_index("device_id", inplace=True)
-        numeric_columns = data.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
-        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        try:
-            aggregated = (
-                data_for_aggregation.groupby("device_id")
-                .apply(lambda group: group.resample("1H", on="timestamp").mean())
-                .reset_index()
-            )
-            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-        except Exception as e:
-            logger.exception(f"An error occured: No data passed - {e}")
-            aggregated = pd.DataFrame(columns=data.columns)
-        return aggregated
-
-    @staticmethod
-    def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Cleans and transforms BAM data for BigQuery insertion.
-
-        This function processes the input DataFrame by removing outliers, dropping duplicate entries based on timestamp and device number, and renaming columns according to a
-        specified mapping. It also adds a network identifier and ensures that all required columns for the BigQuery BAM hourly measurements table are present.
-
-        Args:
-            data(pd.DataFrame): The input DataFrame containing BAM data with columns such as 'timestamp' and 'device_number'.
-
-        Returns:
-            pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
-        """
-        # TODO Merge bam data cleanup functionality
-        data = DataValidationUtils.remove_outliers(data)
-        data.drop_duplicates(
-            subset=["timestamp", "device_number"], keep="first", inplace=True
-        )
-
-        data["network"] = DeviceNetwork.AIRQO.str
-        data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
-
-        big_query_api = BigQueryApi()
-        required_cols = big_query_api.get_columns(
-            table=big_query_api.bam_hourly_measurements_table
-        )
-
-        data = Utils.populate_missing_columns(data=data, columns=required_cols)
-        data = data[required_cols]
-
-        return data
+        return DataValidationUtils.fill_missing_columns(data=data, cols=cols)
 
     @staticmethod
     def process_latest_data(
@@ -452,13 +291,9 @@ class AirQoDataUtils:
                 measurements[f"device_reading_{col}_col"], inplace=True
             )
             del measurements[f"device_reading_{col}_col"]
-
-        numeric_columns = measurements.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
-        numeric_counts = measurements[numeric_columns].notna().sum(axis=1)
-        # Raws with more than 1 numeric values
-        measurements = measurements[numeric_counts > 1]
-        return measurements
+        return drop_rows_with_bad_data(
+            "number", measurements, exclude=["device_number"]
+        )
 
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
@@ -713,6 +548,12 @@ class AirQoDataUtils:
                             groupedby.lower(), "pm2_5"
                         ),
                     )
+                except Exception as e:
+                    logger.exception(
+                        f"Error getting custom pm2_5 model. Will default to generic one: {e}"
+                    )
+                    current_rf_model = default_rf_model
+                try:
                     current_lasso_model = GCSUtils.get_trained_model_from_gcs(
                         project_name=project_id,
                         bucket_name=bucket,
@@ -722,9 +563,8 @@ class AirQoDataUtils:
                     )
                 except Exception as e:
                     logger.exception(
-                        f"Error getting custom model. Will default to generic one: {e}"
+                        f"Error getting custom pm10 model. Will default to generic one: {e}"
                     )
-                    current_rf_model = default_rf_model
                     current_lasso_model = default_lasso_model
 
             calibrated_data.loc[
@@ -833,8 +673,8 @@ class AirQoDataUtils:
                         group_col=devices_data.site_id.name,
                         exclude_cols=exclude_cols,
                     )
-                    aggregated_device_data = (
-                        AirQoDataUtils.aggregate_low_cost_sensors_data(data=clean_raw)
+                    aggregated_device_data = DataUtils.aggregate_low_cost_sensors_data(
+                        data=clean_raw
                     )
                     start_date = devices.timestamp.min()
                     end_date = devices.timestamp.min()
@@ -853,7 +693,7 @@ class AirQoDataUtils:
                         )
                     )
                     calibrated_data = AirQoDataUtils.calibrate_data(
-                        data=air_weather_hourly_data, groupby="city"
+                        data=air_weather_hourly_data, groupby="country"
                     )
                 except Exception as e:
                     logger.exception(f"An error occured: {e}")

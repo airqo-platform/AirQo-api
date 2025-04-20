@@ -5,6 +5,7 @@ from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from datetime import timedelta
 from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
 
 @dag(
@@ -20,20 +21,17 @@ def data_warehouse_consolidated_data():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_low_cost_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
             days=4, **kwargs
         )
-
         return DataWarehouseUtils.extract_hourly_low_cost_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_bam_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -46,7 +44,6 @@ def data_warehouse_consolidated_data():
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
@@ -62,14 +59,10 @@ def data_warehouse_consolidated_data():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def extract_sites_info():
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-
         return DataWarehouseUtils.extract_sites_meta_data()
 
     @task()
     def merge_datasets(low_cost_data, bam_data, weather_data, sites_data):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-
         return DataWarehouseUtils.merge_datasets(
             bam_data=bam_data,
             low_cost_data=low_cost_data,
@@ -80,13 +73,10 @@ def data_warehouse_consolidated_data():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
 
         big_query_api = BigQueryApi()
-        table = big_query_api.consolidated_data_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.CONSOLIDATED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
 
         big_query_api.load_data(
@@ -186,11 +176,9 @@ def data_warehouse_historical_consolidated_data():
         retry_delay=timedelta(minutes=10),
     )
     def extract_hourly_low_cost_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
         return DataWarehouseUtils.extract_hourly_low_cost_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -201,11 +189,9 @@ def data_warehouse_historical_consolidated_data():
         retry_delay=timedelta(minutes=5),
     )
     def extract_hourly_bam_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
         return DataWarehouseUtils.extract_hourly_bam_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -216,7 +202,6 @@ def data_warehouse_historical_consolidated_data():
         retry_delay=timedelta(minutes=5),
     )
     def extract_hourly_weather_data(**kwargs):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
@@ -230,14 +215,10 @@ def data_warehouse_historical_consolidated_data():
         retry_delay=timedelta(minutes=5),
     )
     def extract_sites_info():
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-
         return DataWarehouseUtils.extract_sites_meta_data()
 
     @task()
     def merge_datasets(low_cost_data, bam_data, weather_data, sites_data):
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-
         return DataWarehouseUtils.merge_datasets(
             bam_data=bam_data,
             low_cost_data=low_cost_data,
@@ -251,13 +232,10 @@ def data_warehouse_historical_consolidated_data():
     )
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.data_validator import DataValidationUtils
 
         big_query_api = BigQueryApi()
-        table = big_query_api.consolidated_data_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.CONSOLIDATED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
 
         big_query_api.load_data(
@@ -297,7 +275,6 @@ def data_warehouse_historical_cleanup_consolidated_data():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
-
         return DataUtils.extract_data_from_bigquery(
             DataType.CONSOLIDATED,
             start_date_time,

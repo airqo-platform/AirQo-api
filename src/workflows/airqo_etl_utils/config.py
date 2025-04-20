@@ -3,7 +3,9 @@ from pathlib import Path
 
 from .constants import (
     DataType,
+    MetaDataType,
     DeviceCategory,
+    DeviceNetwork,
     Frequency,
     QualityCategorization,
     Pollutant,
@@ -264,9 +266,7 @@ class Config:
         },
     }
 
-    AIRQO_BAM_MAPPING = {
-        "hourly_conc": "pm2_5",
-    }
+    AIRQO_BAM_MAPPING = {"hourly_conc": "pm2_5", "air_flow": "airflow"}
 
     AIRQO_LOW_COST_GAS_FIELD_MAPPING = {
         "field1": "pm2_5",
@@ -473,6 +473,10 @@ class Config:
             DeviceCategory.GENERAL: {
                 Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
             },
+            DeviceCategory.MOBILE: {
+                Frequency.RAW: BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE,
+                Frequency.NONE: BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE,
+            },
             DeviceCategory.BAM: {Frequency.RAW: BIGQUERY_RAW_BAM_DATA_TABLE},
             DeviceCategory.WEATHER: {Frequency.RAW: BIGQUERY_RAW_WEATHER_TABLE},
         },
@@ -488,6 +492,12 @@ class Config:
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {
                 Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
+            }
+        },
+        # TODO Expand usage
+        DataType.EXTRAS: {
+            DeviceNetwork.URBANBETTER: {
+                MetaDataType.SENSORPOSITIONS: SENSOR_POSITIONS_TABLE
             }
         },
     }

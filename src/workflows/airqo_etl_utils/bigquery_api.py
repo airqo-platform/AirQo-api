@@ -442,7 +442,7 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         network: Optional[DeviceNetwork] = None,
-        where_fields: Optional[Dict] = None,
+        where_fields: Optional[Dict[str, str | int | tuple]] = None,
         null_cols: Optional[List] = None,
         columns: Optional[List] = None,
     ) -> str:
@@ -456,7 +456,7 @@ class BigQueryApi:
             start_date_time (str): The start datetime for filtering records.
             end_date_time (str): The end datetime for filtering records.
             network (DeviceNetwork, optional): The network or ownership information (e.g., to filter data).
-            where_fields (dict, optional):  Dictionary of fields to filter on.
+            where_fields (dict, optional):  Dictionary of fields to filter on i.e {"device_id":["aq_001", "aq_002"]}.
             null_cols (list, optional):  List of columns to check for null values.
             columns (list, optional):  List of columns to select. If None, selects all.
             exclude_columns (list, optional): List of columns to exclude from aggregation if dynamically selecting numeric columns.
@@ -485,10 +485,10 @@ class BigQueryApi:
                 raise Exception(
                     f"Invalid table column. {key} is not among the columns for {table}"
                 )
-            if isinstance(value, tuple):
-                where_clause += f" AND {key} in {value} "
-            else:
+            if isinstance(value, (str, int)):
                 where_clause += f" AND {key} = '{value}' "
+            elif isinstance(value, list):
+                where_clause += f" AND {key} in UNNEST({value}) "
 
         for field in null_cols:
             if field not in valid_cols:
@@ -752,7 +752,7 @@ class BigQueryApi:
             job_config.use_query_cache = True
             results = self.client.query(f"{query}", job_config).result().to_dataframe()
         except Exception as e:
-            print(f"Error when fetching data from bigquery, {e}")
+            logger.exception(f"Error when fetching data from bigquery, {e}")
         else:
             if results.empty:
                 raise Exception("No data found from bigquery")

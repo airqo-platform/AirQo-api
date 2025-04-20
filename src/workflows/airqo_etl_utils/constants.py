@@ -16,6 +16,7 @@ class DeviceCategory(Enum):
     GAS = 3
     WEATHER = 4
     GENERAL = 5
+    MOBILE = 6
     NONE = 20
 
     def __str__(self) -> str:
@@ -71,6 +72,7 @@ class DataType(Enum):
     RAW = 1
     AVERAGED = 2
     CONSOLIDATED = 3
+    EXTRAS = 4
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -103,6 +105,7 @@ class MetaDataType(Enum):
     AIRQLOUDS = 3
     GRIDS = 4
     COHORTS = 5
+    SENSORPOSITIONS = 6
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -138,6 +141,7 @@ class Frequency(Enum):
     MONTHLY = 5
     YEARLY = 6
     HISTORICAL = 7
+    NONE = 8
 
     def __str__(self) -> str:
         return self.name.lower()

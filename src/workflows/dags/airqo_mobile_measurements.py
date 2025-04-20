@@ -28,9 +28,9 @@ def airqo_mobile_devices_measurements():
 
     @task()
     def aggregate_raw_data(raw_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.datautils import DataUtils
 
-        return AirQoDataUtils.aggregate_low_cost_sensors_data(data=raw_data)
+        return DataUtils.aggregate_low_cost_sensors_data(data=raw_data)
 
     @task()
     def extract_weather_stations(**kwargs):
@@ -60,7 +60,7 @@ def airqo_mobile_devices_measurements():
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.calibrate_data(data=data, groupby="city")
+        return AirQoDataUtils.calibrate_data(data=data, groupby="country")
 
     @task()
     def load(data: pd.DataFrame):

@@ -1,7 +1,14 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
-from airqo_etl_utils.constants import DeviceNetwork
+from airqo_etl_utils.constants import (
+    DeviceNetwork,
+    DataType,
+    DeviceCategory,
+    Frequency,
+    MetaDataType,
+)
+from airqo_etl_utils.datautils import DataUtils
 
 
 @dag(
@@ -28,15 +35,12 @@ def historical_raw_measurements_etl__plume_labs():
 
     @task()
     def load_measures(sensor_measures: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=sensor_measures, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            sensor_measures, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
-
         big_query_api.load_data(dataframe=data, table=table)
 
     @task()
@@ -54,13 +58,16 @@ def historical_raw_measurements_etl__plume_labs():
 
     @task()
     def load_sensor_positions(sensor_positions: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.sensor_positions_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=sensor_positions, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            sensor_positions,
+            DataType.EXTRAS,
+            DeviceCategory.LOWCOST,
+            Frequency.NONE,
+            device_network=DeviceNetwork.URBANBETTER,
+            extra_type=MetaDataType.SENSORPOSITIONS,
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -95,15 +102,12 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def load_measures(sensor_measures: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=sensor_measures, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            sensor_measures, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
-
         big_query_api.load_data(dataframe=data, table=table)
 
     @task()
@@ -121,13 +125,16 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def load_sensor_positions(sensor_positions: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.sensor_positions_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=sensor_positions, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            sensor_positions,
+            DataType.EXTRAS,
+            DeviceCategory.LOWCOST,
+            Frequency.NONE,
+            device_network=DeviceNetwork.URBANBETTER,
+            extra_type=MetaDataType.SENSORPOSITIONS,
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -141,13 +148,11 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def load_unclean_data(urban_better_data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.unclean_mobile_raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=urban_better_data, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            urban_better_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -165,13 +170,11 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def load_clean_data(urban_better_data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.clean_mobile_raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=urban_better_data, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            urban_better_data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -217,13 +220,11 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def load_measures(sensor_measures: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=sensor_measures, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            sensor_measures, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -239,13 +240,16 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def load_sensor_positions(sensor_positions: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.sensor_positions_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=sensor_positions, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            sensor_positions,
+            DataType.EXTRAS,
+            DeviceCategory.LOWCOST,
+            Frequency.NONE,
+            device_network=DeviceNetwork.URBANBETTER,
+            extra_type=MetaDataType.SENSORPOSITIONS,
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -259,13 +263,11 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def load_unclean_data(urban_better_data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.unclean_mobile_raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=urban_better_data, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            urban_better_data, DataType.RAW, DeviceCategory.MOBILE, Frequency.NONE
         )
         big_query_api.load_data(dataframe=data, table=table)
 
@@ -283,15 +285,12 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def load_clean_data(urban_better_data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.clean_mobile_raw_measurements_table
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=urban_better_data, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            urban_better_data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
         )
-
         big_query_api.load_data(dataframe=data, table=table)
 
     devices_measures_data = extract_measures()
@@ -341,15 +340,13 @@ def historical_measurements_etl__air_beam():
 
     @task()
     def load(data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.clean_mobile_raw_measurements_table
-        restructured_data = DataValidationUtils.process_for_big_query(
-            dataframe=data, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
         )
-        big_query_api.load_data(dataframe=restructured_data, table=table)
+        big_query_api.load_data(dataframe=data, table=table)
 
     stream_ids = extract_stream_ids()
     measurements = extract_measurements(stream_ids)
@@ -391,15 +388,13 @@ def realtime_measurements_etl__air_beam():
 
     @task()
     def load(data: pd.DataFrame):
-        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        table = big_query_api.clean_mobile_raw_measurements_table
-        restructured_data = DataValidationUtils.process_for_big_query(
-            dataframe=data, table=table, network=DeviceNetwork.URBANBETTER
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
         )
-        big_query_api.load_data(dataframe=restructured_data, table=table)
+        big_query_api.load_data(dataframe=data, table=table)
 
     stream_ids = extract_stream_ids()
     measurements = extract_measurements(stream_ids)

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: superset
+  namespace: superset
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: superset
+  template:
+    metadata:
+      labels:
+        app: superset
+    spec:
+      nodeSelector:
+        role: moderate-usage
+      containers:
+        - name: superset
+          resources:
+            limits:
+              cpu: 800m
+              memory: 600Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          image: eu.gcr.io/airqo-250220/airqo-prod-superset:latest
+          ports:
+            - containerPort: 8088
+          envFrom:
+          - configMapRef:
+              name: env-superset-production
+              
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: superset-svc
+  namespace: superset
+spec:
+  type: NodePort
+  selector:
+    app: superset
+  ports:
+    - port: 8088
+      targetPort: 8088
+      protocol: TCP
+      nodePort: 30144

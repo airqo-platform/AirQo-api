@@ -9,7 +9,7 @@ from flask_pymongo import PyMongo
 
 from celery import Celery
 
-from config import Config, CONFIGURATIONS
+from config import BaseConfig as Config, CONFIGURATIONS
 from api.models import DataExportModel, DataExportStatus, DataExportRequest, EventsModel
 
 celery_logger = get_task_logger(__name__)
@@ -55,6 +55,7 @@ def data_export_task():
     celery_logger.info("Data export periodic task running")
 
     data_export_model = DataExportModel()
+    events_model = EventsModel()
     pending_requests = data_export_model.get_scheduled_and_failed_requests()
 
     if len(pending_requests) == 0:
@@ -73,7 +74,7 @@ def data_export_task():
 
     for request in requests_for_processing:
         try:
-            query = EventsModel.data_export_query(
+            query = events_model.data_export_query(
                 sites=request.sites,
                 devices=request.devices,
                 airqlouds=request.airqlouds,

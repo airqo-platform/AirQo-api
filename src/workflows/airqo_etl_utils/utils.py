@@ -54,13 +54,6 @@ class Utils:
         }
 
     @staticmethod
-    def remove_suffix(string: str, suffix):
-        if string.endswith(suffix):
-            return string[: -len(suffix)]
-        else:
-            return string[:]
-
-    @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
         """
         Classifies air quality based on pollutant concentration using EPA standards.
@@ -95,82 +88,6 @@ class Utils:
                     return category.str
 
         return ""
-
-    @staticmethod
-    def populate_missing_columns(
-        data: pd.DataFrame, columns: List[str]
-    ) -> pd.DataFrame:
-        """
-        Adds columns from `cols` to the `data`, populating them with None if they are not already present in `data`.
-
-        Args:
-            data(pandasDataFrame):
-            cols(list): A list of columns to check/create in the shared dataframe.
-
-        Returns:
-            An updated pandas dataframe with missing columns populated with None if there were any.
-        """
-        data_cols = data.columns.to_list()
-        for column in columns:
-            if column not in data_cols:
-                logger.warning(f"{column} missing in dataset")
-                data[column] = None
-        return data
-
-    @staticmethod
-    def get_hourly_date_time_values():
-        from airqo_etl_utils.date import date_to_str_hours
-        from datetime import datetime, timedelta
-
-        hour_of_day = datetime.now(timezone.utc) - timedelta(hours=1)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
-
-        return start_date_time, end_date_time
-
-    @staticmethod
-    def get_tenant(**kwargs) -> str:
-        try:
-            dag_run = kwargs.get("dag_run")
-            tenant = dag_run.conf["tenant"]
-        except KeyError:
-            tenant = None
-
-        return tenant
-
-    @staticmethod
-    def format_dataframe_column_type(
-        dataframe: pd.DataFrame,
-        data_type: ColumnDataType,
-        columns: list,
-    ) -> pd.DataFrame:
-        if not columns:
-            return dataframe
-        if data_type == ColumnDataType.FLOAT:
-            dataframe[columns] = dataframe[columns].apply(
-                pd.to_numeric, errors="coerce"
-            )
-
-        if data_type == ColumnDataType.TIMESTAMP:
-            dataframe[columns] = dataframe[columns].apply(
-                pd.to_datetime, errors="coerce"
-            )
-
-        if data_type == ColumnDataType.TIMESTAMP_STR:
-            dataframe[columns] = dataframe[columns].apply(
-                pd.to_datetime, errors="coerce"
-            )
-
-            def _date_to_str(date: datetime):
-                try:
-                    return date_to_str(date=date)
-                except Exception:
-                    return None
-
-            for column in columns:
-                dataframe[column] = dataframe[column].apply(_date_to_str)
-
-        return dataframe
 
     @staticmethod
     def load_schema(file_name: str) -> Dict:
@@ -263,16 +180,15 @@ class Utils:
             dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
 
         dates = [pd.to_datetime(str(date)) for date in dates.values]
-        return_dates = []
+        dates_new = []
 
         array_last_date_time = dates.pop()
         for date in dates:
             end = date + timedelta(hours=frequency.n)
             if end > array_last_date_time:
                 end = array_last_date_time
-            return_dates.append((date_to_str(date), date_to_str(end)))
-
-        return return_dates
+            dates_new.append((date_to_str(date), date_to_str(end)))
+        return dates_new
 
     @staticmethod
     def year_months_query_array(year: int):

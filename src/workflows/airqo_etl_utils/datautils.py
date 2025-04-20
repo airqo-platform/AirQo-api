@@ -1,15 +1,15 @@
 import numpy as np
 import pandas as pd
-from pathlib import Path
 import json
-import ast
+from pathlib import Path
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
+import ast
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs
+from .commons import download_file_from_gcs, drop_rows_with_bad_data
 from .bigquery_api import BigQueryApi
-from .data_api import DataApi
+from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
@@ -23,7 +23,7 @@ from .constants import (
 from .message_broker_utils import MessageBrokerUtils
 
 from .utils import Utils
-from .date import date_to_str
+from .date import date_to_str, str_to_date
 from .data_validator import DataValidationUtils
 
 import logging
@@ -207,6 +207,9 @@ class DataUtils:
             devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
                 is_airqo_network, "vapor_pressure"
             ].apply(DataValidationUtils.convert_pressure_values)
+
+        devices_data.dropna(subset=["site_id"], how="any", inplace=True)
+
         return devices_data
 
     @staticmethod
@@ -355,6 +358,8 @@ class DataUtils:
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
             dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
             remove_outliers(bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
+            use_cach(bool, optional): Use biqquery cache
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
@@ -367,17 +372,10 @@ class DataUtils:
 
         if not device_category:
             device_category = DeviceCategory.GENERAL
-        try:
-            source = Config.DataSource.get(datatype)
-            table = source.get(device_category).get(frequency)
-        except KeyError as e:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
+
+        table, _ = DataUtils._get_table(
+            datatype, device_category, frequency, device_network
+        )
 
         if not table:
             raise ValueError("No table information provided.")
@@ -393,51 +391,9 @@ class DataUtils:
         )
 
         if remove_outliers:
-            raw_data = DataValidationUtils.remove_outliers(raw_data)
+            raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
         return raw_data
-
-    def format_data_for_bigquery(
-        data: pd.DataFrame,
-        datatype: DataType,
-        device_category: DeviceCategory,
-        frequency: Frequency,
-    ) -> pd.DataFrame:
-        """
-        Formats a pandas DataFrame for BigQuery by ensuring all required columns are present
-        and the timestamp column is correctly parsed to datetime.
-
-        Args:
-            data (pd.DataFrame): The input DataFrame to be formatted.
-            data_type (DataType): The type of data (e.g., raw, averaged or processed).
-            device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
-            frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
-
-        Returns:
-            pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
-
-        Raises:
-            KeyError: If the combination of data_type, device_category, and frequency is invalid.
-            Exception: For unexpected errors during column retrieval or data processing.
-        """
-        bigquery = BigQueryApi()
-        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
-        data.dropna(subset=["timestamp"], inplace=True)
-
-        try:
-            datasource = Config.DataSource
-            table = datasource.get(datatype).get(device_category).get(frequency)
-            cols = bigquery.get_columns(table=table)
-        except KeyError:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
-
-        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def remove_duplicates(
@@ -573,9 +529,11 @@ class DataUtils:
 
         cols = [value for value in parameter_mappings.values()]
 
-        weather_data = Utils.populate_missing_columns(data=weather_data, columns=cols)
+        weather_data = DataValidationUtils.fill_missing_columns(
+            data=weather_data, cols=cols
+        )
 
-        return DataValidationUtils.remove_outliers(weather_data)
+        return DataValidationUtils.remove_outliers_fix_types(weather_data)
 
     @staticmethod
     def aggregate_weather_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -624,23 +582,6 @@ class DataUtils:
             )
 
         return aggregated_data
-
-    @staticmethod
-    def transform_for_bigquery_weather(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Transforms the input DataFrame to match the schema of the BigQuery hourly weather table.
-
-        This function retrieves the required columns from the BigQuery hourly weather table and populates any missing columns in the input DataFrame.
-
-        Args:
-            data(pd.DataFrame): The input DataFrame containing weather data that needs to be transformed.
-
-        Returns:
-            pd.DataFrame: A transformed DataFrame that includes all required columns for the BigQuery hourly weather table, with missing columns populated.
-        """
-        bigquery = BigQueryApi()
-        cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
@@ -729,107 +670,6 @@ class DataUtils:
                 logger.exception(f"An error occurred: {e}")
 
         return restructured_data
-
-    @staticmethod
-    def clean_low_cost_sensor_data(
-        data: pd.DataFrame,
-        device_category: DeviceCategory,
-        remove_outliers: Optional[bool] = True,
-    ) -> pd.DataFrame:
-        """
-        Cleans low-cost sensor data by performing outlier removal, raw data quality checks,
-        timestamp conversion, duplicate removal, and network-specific calculations.
-
-        The cleaning process includes:
-        1. Optional removal of outliers.
-        2. Device-specific raw data quality checks.
-        3. Conversion of the 'timestamp' column to pandas datetime format.
-        4. Removal of duplicate rows based on 'timestamp' and 'device_id'.
-        5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
-
-        Args:
-            data (pd.DataFrame): The input data to be cleaned.
-            device_category (DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
-            remove_outliers (bool, optional): Determines whether outliers should be removed. Defaults to True.
-
-        Returns:
-            pd.DataFrame: The cleaned DataFrame.
-
-        Raises:
-            KeyError: If there are issues with the 'timestamp' column during processing.
-        """
-        if remove_outliers:
-            data = DataValidationUtils.remove_outliers(data)
-
-        # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
-        match device_category:
-            case DeviceCategory.GAS:
-                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                    data
-                )
-            case DeviceCategory.LOWCOST:
-                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
-        try:
-            data.dropna(
-                subset=["pm2_5", "pm10", "s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"],
-                how="all",
-                inplace=True,
-            )
-            data.dropna(subset=["timestamp"], inplace=True)
-            data["timestamp"] = pd.to_datetime(data["timestamp"])
-        except Exception as e:
-            logger.exception(
-                f"There is an issue with the timestamp column. Shape of data: {data.shape}"
-            )
-            raise KeyError(f"An error has occurred with the 'timestamp' column: {e}")
-
-        data.drop_duplicates(
-            subset=["timestamp", "device_id"], keep="first", inplace=True
-        )
-        # TODO Find an appropriate place to put this
-        if device_category == DeviceCategory.LOWCOST:
-            is_airqo_network = data["network"] == "airqo"
-
-            pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
-                axis=1
-            )
-            pm10_mean = data.loc[is_airqo_network, ["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-            data.loc[is_airqo_network, "pm2_5_raw_value"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm2_5"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
-            data.loc[is_airqo_network, "pm10"] = pm10_mean
-        return data
-
-    @staticmethod
-    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Resamples and averages out the numeric type fields on an hourly basis.
-
-        Args:
-            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
-
-        Returns:
-            A pandas DataFrame object containing hourly averages of data.
-        """
-
-        data["timestamp"] = pd.to_datetime(data["timestamp"], format="mixed")
-
-        group_metadata = (
-            data[["device_id", "site_id", "device_number", "network"]]
-            .drop_duplicates("device_id")
-            .set_index("device_id")
-        )
-        numeric_columns = data.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
-        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        aggregated = (
-            data_for_aggregation.groupby("device_id")
-            .apply(lambda group: group.resample("1H", on="timestamp").mean())
-            .reset_index()
-        )
-        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-        return aggregated
 
     @staticmethod
     def map_and_extract_data(
@@ -927,6 +767,149 @@ class DataUtils:
         """
         return data.get(key)
 
+    # ----------------------------------------------------------------------------------
+    # Lowcost
+    # ----------------------------------------------------------------------------------
+    @staticmethod
+    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Resamples and averages out the numeric type fields on an hourly basis.
+
+        Args:
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
+
+        Returns:
+            A pandas DataFrame object containing hourly averages of data.
+        """
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        group_metadata = (
+            data[
+                ["device_id", "site_id", "device_number", "network", "device_category"]
+            ]
+            .drop_duplicates("device_id")
+            .set_index("device_id")
+        )
+        numeric_columns = data.select_dtypes(include=["number"]).columns
+        numeric_columns = numeric_columns.difference(["device_number"])
+        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
+        try:
+            aggregated = (
+                data_for_aggregation.groupby("device_id")
+                .apply(lambda group: group.resample("1H", on="timestamp").mean())
+                .reset_index()
+            )
+            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+        except Exception as e:
+            logger.exception(f"An error occured: No data passed - {e}")
+            aggregated = pd.DataFrame(columns=data.columns)
+
+        return drop_rows_with_bad_data("number", aggregated, exclude=["device_number"])
+
+    @staticmethod
+    def clean_low_cost_sensor_data(
+        data: pd.DataFrame,
+        device_category: DeviceCategory,
+        remove_outliers: Optional[bool] = True,
+    ) -> pd.DataFrame:
+        """
+        Cleans low-cost sensor data by performing outlier removal, raw data quality checks,
+        timestamp conversion, duplicate removal, and network-specific calculations.
+
+        The cleaning process includes:
+        1. Optional removal of outliers.
+        2. Device-specific raw data quality checks.
+        3. Conversion of the 'timestamp' column to pandas datetime format.
+        4. Removal of duplicate rows based on 'timestamp' and 'device_id'.
+        5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
+
+        Args:
+            data (pd.DataFrame): The input data to be cleaned.
+            device_category (DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
+            remove_outliers (bool, optional): Determines whether outliers should be removed. Defaults to True.
+
+        Returns:
+            pd.DataFrame: The cleaned DataFrame.
+
+        Raises:
+            KeyError: If there are issues with the 'timestamp' column during processing.
+        """
+        if remove_outliers:
+            data = DataValidationUtils.remove_outliers_fix_types(data)
+
+        # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
+        match device_category:
+            case DeviceCategory.GAS:
+                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                    data
+                )
+            case DeviceCategory.LOWCOST:
+                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
+        try:
+            dropna_subset = ["pm2_5", "pm10"]
+            if DeviceNetwork.AIRQO.str in data.network.unique():
+                dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
+
+            data.dropna(
+                subset=dropna_subset,
+                how="all",
+                inplace=True,
+            )
+            data.dropna(subset=["timestamp"], inplace=True)
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
+        except Exception as e:
+            logger.exception(
+                f"There is an issue with the timestamp column. Shape of data: {data.shape}"
+            )
+            raise KeyError(
+                f"An error has occurred with the 'timestamp' column: {e}"
+            ) from e
+
+        data.drop_duplicates(
+            subset=["timestamp", "device_id"], keep="first", inplace=True
+        )
+        return data
+
+    # ----------------------------------------------------------------------------------
+    # BAM data
+    # ----------------------------------------------------------------------------------
+    @staticmethod
+    def clean_bam_data(
+        data: pd.DataFrame, datatype: DataType, frequency: Frequency
+    ) -> pd.DataFrame:
+        """
+        Cleans and transforms BAM data for BigQuery insertion.
+
+        This function processes the input DataFrame by removing outliers, dropping duplicate entries based on timestamp and device number, and renaming columns according to a
+        specified mapping. It also adds a network identifier and ensures that all required columns for the BigQuery BAM hourly measurements table are present.
+
+        Args:
+            data(pd.DataFrame): The input DataFrame containing BAM data with columns such as 'timestamp' and 'device_number'.
+
+        Returns:
+            pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
+        """
+        remove_outliers = True
+        data["network"] = DeviceNetwork.AIRQO.str
+
+        if datatype == DataType.RAW:
+            remove_outliers = False
+        else:
+            data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
+
+        data = DataValidationUtils.remove_outliers_fix_types(
+            data, remove_outliers=remove_outliers
+        )
+
+        data.drop_duplicates(
+            subset=["timestamp", "device_number"], keep="first", inplace=True
+        )
+        _, required_cols = DataUtils._get_table(datatype, DeviceCategory.BAM, frequency)
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
+
+        return drop_rows_with_bad_data("number", data, exclude=["device_number"])
+
     @staticmethod
     def extract_bam_data_airnow(
         start_date_time: str, end_date_time: str
@@ -960,6 +943,13 @@ class DataUtils:
         if not dates:
             raise ValueError("Invalid or empty date range provided.")
 
+        dates = [
+            (
+                str_to_date(sdate).strftime("%Y-%m-%dT%H:%M"),
+                str_to_date(edate).strftime("%Y-%m-%dT%H:%M"),
+            )
+            for sdate, edate in dates
+        ]
         device_data: List[pd.DataFrame] = []
         for start, end in dates:
             query_data = data_api.get_airnow_data(
@@ -1056,9 +1046,66 @@ class DataUtils:
                 logger.exception(f"Error processing row: {e}")
 
         air_now_data = pd.DataFrame(air_now_data)
-        air_now_data = DataValidationUtils.remove_outliers(air_now_data)
+        air_now_data = DataValidationUtils.remove_outliers_fix_types(air_now_data)
 
         return air_now_data
+
+    # ----------------------------------------------------------------------------------
+    # Storage
+    # ----------------------------------------------------------------------------------
+    def format_data_for_bigquery(
+        data: pd.DataFrame,
+        datatype: DataType,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+        device_network: Optional[DeviceNetwork] = None,
+        extra_type: Optional[Any] = None,
+    ) -> Tuple[pd.DataFrame, str]:
+        """
+        Formats a pandas DataFrame for BigQuery by ensuring all required columns are present
+        and the timestamp column is correctly parsed to datetime.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame to be formatted.
+            data_type (DataType): The type of data (e.g., raw, averaged or processed).
+            device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
+            frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
+            device_network(DeviceNetwork):
+            extra_type(Any):
+
+        Returns:
+            pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
+            str: Name of the table.
+
+        Raises:
+            KeyError: If the combination of data_type, device_category, and frequency is invalid.
+            Exception: For unexpected errors during column retrieval or data processing.
+        """
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        data.dropna(subset=["timestamp"], inplace=True)
+        table, cols = DataUtils._get_table(
+            datatype, device_category, frequency, device_network, extra_type
+        )
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=cols)
+        data = DataValidationUtils.remove_outliers_fix_types(data)
+        return data[cols], table
+
+    @staticmethod
+    def transform_for_bigquery_weather(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transforms the input DataFrame to match the schema of the BigQuery hourly weather table.
+
+        This function retrieves the required columns from the BigQuery hourly weather table and populates any missing columns in the input DataFrame.
+
+        Args:
+            data(pd.DataFrame): The input DataFrame containing weather data that needs to be transformed.
+
+        Returns:
+            pd.DataFrame: A transformed DataFrame that includes all required columns for the BigQuery hourly weather table, with missing columns populated.
+        """
+        bigquery = BigQueryApi()
+        cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
+        return DataValidationUtils.fill_missing_columns(data=data, cols=cols)
 
     @staticmethod
     def get_devices_kafka(group_id: str) -> pd.DataFrame:
@@ -1249,7 +1296,7 @@ class DataUtils:
         data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
         data = data[required_cols]
 
-        return DataValidationUtils.remove_outliers(data)
+        return DataValidationUtils.remove_outliers_fix_types(data)
 
     def _add_site_and_device_details(devices: pd.DataFrame, device_id) -> pd.Series:
         """
@@ -1283,3 +1330,48 @@ class DataUtils:
 
         logger.info("No matching device_id found.")
         return pd.Series({"site_id": None, "device_number": None})
+
+    def _get_table(
+        datatype: DataType,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+        device_network: Optional[DeviceNetwork] = None,
+        extra_type: Optional[Any] = None,
+    ) -> Tuple[str, List[str]]:
+        """
+        Retrieves the appropriate BigQuery table name and its column names based on the given parameters.
+
+        Args:
+            datatype(DataType): The type of data to retrieve (e.g., EXTRAS, AIR_QUALITY).
+            device_category(DeviceCategory): The category of the device.
+            frequency(Frequency): The data collection frequency.
+            device_network(DeviceNetwork, optional): The device network, required for EXTRAS data.
+            extra_type(Any, optional): The specific extra type, required for EXTRAS data.
+
+        Returns:
+            Tuple[str, List[str]]: A tuple containing:
+                - The table name (str) if found, otherwise None.
+                - A list of column names if found, otherwise an empty list.
+
+        Raises:
+            KeyError: If the combination of parameters does not exist in the data source.
+            Exception: Logs and handles unexpected errors during retrieval.
+        """
+        bigquery = BigQueryApi()
+        try:
+            datasource = Config.DataSource
+            if datatype == DataType.EXTRAS:
+                table = datasource.get(datatype).get(device_network).get(extra_type)
+            else:
+                table = datasource.get(datatype).get(device_category).get(frequency)
+            cols = bigquery.get_columns(table=table)
+            return table, cols
+        except KeyError:
+            logger.exception(
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during column retrieval: {e}"
+            )
+        return None, []

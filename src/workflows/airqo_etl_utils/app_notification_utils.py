@@ -15,7 +15,7 @@ from firebase_admin import credentials, messaging
 from firebase_admin import firestore
 from firebase_admin.exceptions import NotFoundError
 
-from .data_api import DataApi
+from airqo_etl_utils.data_api import DataApi
 from .config import configuration as Config
 from .datautils import DataUtils
 

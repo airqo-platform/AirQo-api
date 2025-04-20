@@ -16,8 +16,9 @@ from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 
 # Config
-from config import CONFIGURATIONS, API_V2_BASE_URL
+from config import CONFIGURATIONS, API_V2_BASE_URL, BaseConfig
 
+BaseConfig.init_logging()
 rest_api = Api(doc=False)
 rest_api_v2 = Namespace(name="v2", description="API version 2", path=API_V2_BASE_URL)
 rest_api.add_namespace(rest_api_v2)
@@ -35,7 +36,6 @@ def create_app(rest_api, config=CONFIGURATIONS):
 
     app = Flask(__name__)
     app.config.from_object(config)
-
     rest_api.init_app(app)
     cache.init_app(app)
     init_excel(app)

@@ -78,6 +78,20 @@ router.delete(
 );
 
 router.get(
+  "/recent/:user_id",
+  preferenceValidations.getPreferenceByUserId,
+  authenticateJWT,
+  createPreferenceController.getMostRecent
+);
+
+router.get(
+  "/all/:user_id",
+  preferenceValidations.getPreferenceByUserId,
+  authenticateJWT,
+  createPreferenceController.listAll
+);
+
+router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
   authenticateJWT,

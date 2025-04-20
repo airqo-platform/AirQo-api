@@ -11,7 +11,7 @@ from .utils import Utils
 
 class TahmoApi:
     def __init__(self):
-        self.BASE_URL = Utils.remove_suffix(configuration.TAHMO_BASE_URL, suffix="/")
+        self.BASE_URL = configuration.TAHMO_BASE_URL.rstrip("/")
         self.API_MAX_PERIOD = configuration.TAHMO_API_MAX_PERIOD
         self.API_KEY = configuration.TAHMO_API_KEY
         self.API_SECRET = configuration.TAHMO_API_SECRET

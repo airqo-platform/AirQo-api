@@ -21,17 +21,21 @@ module.exports = {
   alreadyConfirmed: "Your email was already confirmed",
   recovery_email: ({ token, email, version }) => {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
+    let instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     if (version && parseInt(version) === 3) {
       PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
+      instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     }
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    You are receiving this because you (or someone else) have requested the reset of the password for your account.
+                                    You are receiving this because you (or someone else) have requested the reset of the password for your AirQo account.
                                     <br />
                                     <br />
-                                    Please click on the following link, or paste this into your browser to complete the process within one hour of receiving
-                                    it: ${PASSWORD_RESET_URL}?token=${token}
+                                    ${instructions}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can also reset your password directly within the app.
                                     <br />
                                     <br />
                                     If you did not request this, please ignore this email and your password will remain unchanged.
@@ -49,6 +53,7 @@ module.exports = {
           <p>Use this code to finish setting up your new password:</p>
           <h1 style="font-size: 36px; font-weight: bold; margin: 20px 0;">${token}</h1>
           <p>This code will expire in 24 hours.</p>
+          <p>If you are using the AirQo mobile app, enter this code directly in the app to reset your password.</p>
         </td>
       </tr>
     `;
@@ -62,6 +67,7 @@ module.exports = {
           <p>Please use the code below to verify your email address (${email}):</p>
           <h1 style="font-size: 36px; font-weight: bold; margin: 20px 0;">${token}</h1>
           <p>This code will expire in 24 hours.</p>
+          <p>If you are using the AirQo mobile app, enter this code directly in the app to verify your email.</p>
           <p>If you did not register for an AirQo account, you can safely ignore this email.</p>
         </td>
       </tr>
@@ -73,14 +79,18 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                    Your request to join AirQo Analytics has been received, we shall get back to you as soon as possible.
+                                    Your request to join AirQo has been received, we shall get back to you as soon as possible.
                                     <br />
                                     <br />
-                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo Analytics
-                                    administration.
+                                    Before utilising the AirQo data, your application record has to undergo the process of approval by AirQo administration.
                                     <br />
-                                    Once your application is approved, you will receive a confirmation email<br />
-                                    <br />Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
+                                    Once your application is approved, you will receive a confirmation email.
+                                    <br />
+                                    <br />
+                                    Whether you use the AirQo web platform or the mobile app, you will be able to access the data once your request is approved.
+                                    <br />
+                                    <br />
+                                    Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
                                     <br />
                                 </td>
                             </tr>`;
@@ -99,8 +109,13 @@ module.exports = {
                                     Before utilising the AirQo data, your application record has to undergo the process of approval by the respective
                                     administration.
                                     <br />
-                                    Once your application is approved, you will receive a confirmation email<br />
-                                    <br />Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
+                                    Once your application is approved, you will receive a confirmation email.
+                                    <br />
+                                    <br />
+                                    Whether you use the AirQo web platform or the mobile app, you will be able to access the data once your request is approved.
+                                    <br />
+                                    <br />
+                                    Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
                                     <br />
                                 </td>
                             </tr>`;
@@ -162,6 +177,7 @@ module.exports = {
                                     <p>If you are interested in Data Science (ML/AI), please reach out to our Data Science Lead, Richard Sserunjogi, at richard.sserunjogi@airqo.net and CC: ds@airqo.net.</p>
                                     <p>For inquiries related to Hardware (Embedded Systems) Engineering, accessing the AirQo API, obtaining AirQo devices, or setting up an Air Quality Monitoring Network, please contact our Hardware Lead, Joel Ssematimba, at joel@airqo.net and CC: network@airqo.net.</p>
                                     <p>To contribute to our open-source community as a software engineer, please fill out this <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7xixPoIo65pe6mlbNVB8jM5F4ZKCz87SmQTY412XbsqWrLQ/viewform?usp=dialog">form</a>.</p>
+                                    <p>You can access our data through the AirQo website or the mobile app.</p>
                                 </td>
                   </tr>`;
         break;
@@ -198,8 +214,7 @@ module.exports = {
     <td
         style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Your request to activate your Client ID <strong>${client_id}</strong> has been received, we shall get back to you as soon as possible.</p>
-        <p>Before utilising the AirQo API, your Client ID <strong>${client_id}</strong> has to undergo the process of approval by AirQo Analytics
-        administration.</p>
+        <p>Before utilising the AirQo API, your Client ID <strong>${client_id}</strong> has to undergo the process of approval by AirQo administration.</p>
         <p>Once your request is approved, you will receive a confirmation email</p>
         <p>Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a></p>
     </td>
@@ -218,7 +233,7 @@ module.exports = {
     const content = `<tr>
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         
-        <p>Congratulations on an amazing year with AirQo Analytics! 🎉</p>
+        <p>Congratulations on an amazing year with AirQo! 🎉</p>
         
         ${
           engagementTier ||
@@ -275,11 +290,12 @@ module.exports = {
         
         <p style="margin-top: 24px;">Thank you for being an incredible part of our community!</p>
         
-        <p>Best wishes,<br/>The AirQo Analytics Team</p>
+        <p>Best wishes,<br/>The AirQo Team</p>
         
         <p style="margin-top: 24px;">
           Please visit our website to learn more about us. <a href="https://airqo.net/" style="color: #0066CC;">AirQo</a>
         </p>
+        <p>You can also access our data through the AirQo mobile app.</p>
       </td>
     </tr>`;
 
@@ -385,7 +401,7 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account details have been updated.
+                                Your AirQo account details have been updated.
                                     <br />
                                     The following fields have been updated:
                                     
@@ -394,7 +410,10 @@ module.exports = {
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
-                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can view your updated details directly within the app.
                                     <br />
                                     <br />
                                 </td>
@@ -426,7 +445,10 @@ module.exports = {
                                     <br />
                                     If this activity sounds suspicious to you, please reach out to your organization's administrator.
                                     <br />
-                                    Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}
+                                    If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can view the activity details directly within the app.
                                     <br />
                                     <br />
                                 </td>
@@ -472,7 +494,9 @@ module.exports = {
                 <br />
                 If you have any questions or concerns regarding this action, please contact your organization's administrator.
                 <br />
-                Access AirQo Analytics here: ${constants.LOGIN_PAGE}
+                If you are using the AirQo web platform, you can access AirQo Analytics here: ${constants.LOGIN_PAGE}
+                <br /><br />
+                If you are using the AirQo mobile app, you can view the activity details directly within the app.
                 <br /><br />
             </td>
         </tr>`;
@@ -493,7 +517,8 @@ module.exports = {
         <p>Suspected unauthorized access detected with your AIRQO API token from <strong>IP address ${ip}</strong>.</p>
         <p>Consider changing your AirQo Account password. Additionally, whitelist your respective IP address by updating the CLIENT associated with your TOKEN.</p>
         <p>Report any further suspicious activities.</p>
-        <p><a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Analytics right now: ${constants.LOGIN_PAGE}</p>
+        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Follow this link</a> to access AirQo Analytics: ${constants.LOGIN_PAGE}</p>
+        <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
       </td>
     </tr>
    `;
@@ -512,7 +537,8 @@ module.exports = {
       <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
         <p>Your AIRQO API token <strong>${token}</strong> has expired.</p>
         <p>Please create a new token to continue accessing our services. You can do so by logging into your account and navigating to the API section under settings.</p>
-        <p><a href="${constants.LOGIN_PAGE}">Click here</a> to log in to your AirQo account.</p>
+        <p>If you are using the AirQo web platform, <a href="${constants.LOGIN_PAGE}">Click here</a> to log in to your AirQo account.</p>
+        <p>If you are using the AirQo mobile app, you can manage your API token settings directly within the app.</p>
       </td>
     </tr>
     `;
@@ -528,6 +554,7 @@ module.exports = {
           <p>Your AIRQO API token is set to expire soon, in less than 1 month from today.</p>
           <p>Please generate a new token to continue accessing our services.</p>
           <p>If you have already done so, please ignore this message.</p>
+          <p>You can manage your API token settings through the AirQo web platform or directly within the mobile app.</p>
         </td>
       </tr>
     `;
@@ -541,7 +568,8 @@ module.exports = {
       <tr>
         <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
           <p>We noticed that your first name and last name are not yet set in your profile. Updating these details will enhance your experience with our service.</p>
-          <p>To proceed, please visit AirQo Analytics and update your profile with your full name.</p>
+          <p>If you are using the AirQo web platform, please visit AirQo Analytics to update your profile with your full name.</p>
+          <p>If you are using the AirQo mobile app, you can update your profile directly within the app.</p>
           <p>If you have already updated your name, please ignore this message.</p>
         </td>
       </tr>
@@ -577,7 +605,10 @@ module.exports = {
                                     <br />
                                     If you have any questions or concerns, please feel free to contact your organization's administrator.
                                     <br />
-                                    Click here to log in: ${constants.LOGIN_PAGE}
+                                    If you are using the AirQo web platform, Click here to log in: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can view your new group or network directly within the app.
                                     <br />
                                     <br />
                                 </td>
@@ -590,14 +621,17 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account password has been successfully reset.
+                                Your AirQo account password has been successfully reset.
                                 <br />
                                 If you did not initiate this password reset, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can log in directly within the app using your new password.
                                     <br />
                                     <br />
                                 </td>
@@ -609,14 +643,17 @@ module.exports = {
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Your AirQo Analytics account password has been successfully updated.
+                                Your AirQo account password has been successfully updated.
                                 <br />
-                                If you did not initiate this password reset, please reach out to your organization's administrator immediately.
+                                If you did not initiate this password update, please reach out to your organization's administrator immediately.
                                     <br />
                                     <br />
-                                    Follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
+                                    If you are using the AirQo web platform, follow this link to access <a href="${constants.LOGIN_PAGE}">AirQo Analytics right now:</a>
                                     <br />
                                     Or Paste this link into your browser: ${constants.LOGIN_PAGE}
+                                    <br />
+                                    <br />
+                                    If you are using the AirQo mobile app, you can log in directly within the app using your new password.
                                     <br />
                                     <br />
                                 </td>
@@ -633,7 +670,9 @@ module.exports = {
                                     <br /><br />
                                     That's it! Once verified, you'll gain access to all the app's features. Enjoy tracking your air quality and making
                                     informed decisions for a healthier life.
-
+                                    <br />
+                                    <br />
+                                    Enter this code directly in the AirQo mobile app to verify your email.
                                     <br />
                                     <br />
                                 </td>
@@ -652,6 +691,10 @@ module.exports = {
                                 Enter the code below in the app.
                                 <br />
                                 The code: ${token}
+                                    <br />
+                                    <br />
+                                    Enter this code directly in the AirQo mobile app to re-authenticate.
+                                    <br />
                                     <br />
                                 </td>
                             </tr>`;
@@ -674,6 +717,11 @@ module.exports = {
                                     <br />
                                     You can access the report under the attachments. If you have any questions or require further clarification regarding
                                     the data presented in the report. Please feel free to reach out to ${senderEmail} directly or contact us.
+                                    <br />
+                                    <br />
+                                    You can access the report data through the AirQo web platform or the mobile app.
+                                    <br />
+                                    <br />
                                 </td>
                             </tr>
   `;

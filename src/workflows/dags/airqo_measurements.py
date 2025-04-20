@@ -101,18 +101,16 @@ def airqo_historical_hourly_measurements():
 
     @task(retries=2, retry_delay=timedelta(minutes=2))
     def calibrate_data(measurements: pd.DataFrame) -> pd.DataFrame:
-        return AirQoDataUtils.calibrate_data(data=measurements, groupby="city")
+        return AirQoDataUtils.calibrate_data(data=measurements, groupby="country")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load(data: pd.DataFrame) -> None:
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
-            dataframe=data, table=big_query_api.hourly_measurements_table
-        )
+        big_query_api.load_data(dataframe=data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs) -> None:
@@ -204,14 +202,14 @@ def airqo_historical_raw_measurements():
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def load_data(airqo_data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.raw_measurements_table,
+            table=table,
         )
 
     raw_data = extract_raw_data()
@@ -260,7 +258,7 @@ def airqo_cleanup_measurements():
             frequency=Frequency.HOURLY,
             device_category=DeviceCategory.GENERAL,
         )
-        return DataValidationUtils.remove_outliers(data)
+        return DataValidationUtils.remove_outliers_fix_types(data)
 
     @task()
     def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -371,7 +369,7 @@ def airqo_realtime_measurements():
     def aggregate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.aggregate_low_cost_sensors_data(data=data)
+        return DataUtils.aggregate_low_cost_sensors_data(data=data)
 
     @task(provide_context=True, retries=3, retry_delay=timedelta(minutes=5))
     def extract_hourly_weather_data(**kwargs):
@@ -400,11 +398,22 @@ def airqo_realtime_measurements():
             airqo_data=averaged_hourly_data, weather_data=weather_data
         )
 
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def save_merged_data(merged_air_weather_data: pd.DataFrame):
+        data, table = DataUtils.format_data_for_bigquery(
+            merged_air_weather_data,
+            DataType.AVERAGED,
+            DeviceCategory.GENERAL,
+            Frequency.RAW,
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=table)
+
     @task()
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.calibrate_data(data=data, groupby="city")
+        return AirQoDataUtils.calibrate_data(data=data, groupby="country")
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
@@ -416,7 +425,7 @@ def airqo_realtime_measurements():
         data_api.save_events(measurements=data)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_hourly_measurements_to_message_broker(data: pd.DataFrame, **kwargs):
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         data = DataUtils.process_data_for_message_broker(
@@ -434,24 +443,23 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_bigquery(data: pd.DataFrame):
-
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.hourly_measurements_table,
+            table=table,
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_raw_measurements_to_bigquery(data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+        big_query_api.load_data(data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def update_latest_data_topic(data: pd.DataFrame, **kwargs):
@@ -485,6 +493,7 @@ def airqo_realtime_measurements():
     merged_data = merge_data(
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
+    save_merged_data(merged_data)
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
@@ -537,11 +546,11 @@ def airqo_raw_data_measurements():
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+        big_query_api.load_data(data, table=table)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
@@ -594,11 +603,11 @@ def airqo_gaseous_realtime_measurements():
     )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
 
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             airqo_data, DataType.RAW, DeviceCategory.GENERAL, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
+        big_query_api.load_data(data, table=table)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
@@ -701,15 +710,13 @@ def calibrate_missing_measurements():
         calibrated_data: Generator,
     ) -> None:
         big_query_api = BigQueryApi()
-        data = DataUtils.format_data_for_bigquery(
+        data, table = DataUtils.format_data_for_bigquery(
             calibrated_data,
             DataType.AVERAGED,
             DeviceCategory.GENERAL,
             Frequency.HOURLY,
         )
-        big_query_api.load_data(
-            dataframe=data, table=big_query_api.hourly_measurements_table
-        )
+        big_query_api.load_data(dataframe=data, table=table)
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(calibrated_data: pd.DataFrame) -> None:
