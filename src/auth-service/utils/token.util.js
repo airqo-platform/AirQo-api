@@ -44,109 +44,450 @@ const kafka = new Kafka({
  * @returns {boolean} - True if access is allowed, false otherwise.
  */
 const checkResourceAccess = async (request, accessToken, user, next) => {
-  const { path, query } = request;
-  const { cohort_id, grid_id, device_id, site_id } = query;
+  try {
+    const { path, query, method } = request;
+    const { cohort_id, grid_id, device_id, site_id } = query;
 
-  // Determine the requested resource based on the path
-  let resourceType = null;
-  if (path.includes("/cohorts")) {
-    resourceType = "cohorts";
-  } else if (path.includes("/grids")) {
-    resourceType = "grids";
-  } else if (path.includes("/devices")) {
-    resourceType = "devices";
-  } else if (path.includes("/sites")) {
-    resourceType = "sites";
-  } else if (
-    path.includes("/measurements/recent") ||
-    path.includes("/measurements")
-  ) {
-    resourceType = "measurements";
-  } else if (path.includes("/forecasts")) {
-    resourceType = "forecasts";
-  } else if (path.includes("/insights")) {
-    resourceType = "insights";
+    // 1. Check subscription status
+    if (!user.subscriptionStatus || user.subscriptionStatus !== "active") {
+      logger.error(
+        `🚨 User ${user._id} has an inactive subscription: ${user.subscriptionStatus}`
+      );
+      return {
+        allowed: false,
+        reason: "inactive_subscription",
+        message:
+          "Your subscription is not active. Please renew your subscription to access this resource.",
+      };
+    }
+
+    // Check if subscription check is outdated (older than 24 hours)
+    const lastCheck = user.lastSubscriptionCheck;
+    const needsCheck =
+      !lastCheck || moment().diff(moment(lastCheck), "hours") > 24;
+
+    if (needsCheck) {
+      // Schedule an async task to update subscription status
+      // This won't block the current request but ensures we regularly check
+      Promise.resolve().then(async () => {
+        try {
+          // Update subscription status from payment provider (this would be implemented separately)
+          // For now, just update the lastSubscriptionCheck timestamp
+          await UserModel("airqo").findByIdAndUpdate(
+            user._id,
+            { lastSubscriptionCheck: new Date() },
+            { new: true }
+          );
+        } catch (error) {
+          logger.error(
+            `Failed to update subscription check for user ${user._id}: ${error.message}`
+          );
+        }
+      });
+    }
+
+    // 2. Determine resource type and access requirements
+    let resourceType = null;
+    let isHistorical = false;
+
+    // Extract resource type and whether it's a historical request
+    if (path.includes("/cohorts")) {
+      resourceType = "cohorts";
+    } else if (path.includes("/grids")) {
+      resourceType = "grids";
+    } else if (path.includes("/devices")) {
+      resourceType = "devices";
+    } else if (path.includes("/sites")) {
+      resourceType = "sites";
+    } else if (path.includes("/measurements")) {
+      resourceType = "measurements";
+      // Check if this is a historical data request
+      isHistorical =
+        !path.includes("/recent") ||
+        (query.startTime && query.endTime) ||
+        query.from ||
+        query.to;
+    } else if (path.includes("/forecasts")) {
+      resourceType = "forecasts";
+    } else if (path.includes("/insights")) {
+      resourceType = "insights";
+    }
+
+    if (!resourceType) {
+      // Unknown resource - default to allowed
+      return { allowed: true };
+    }
+
+    // 3. Check subscription tier permissions
+    const tier = accessToken.tier || user.subscriptionTier;
+    const scopes = accessToken.scopes || [];
+
+    // Tier-specific access control
+    let tierAllowed = false;
+
+    if (resourceType === "measurements") {
+      // All tiers can access recent measurements
+      if (!isHistorical) {
+        tierAllowed = true;
+      } else {
+        // Historical measurements require Standard or Premium
+        tierAllowed = tier === "Standard" || tier === "Premium";
+      }
+    } else if (resourceType === "forecasts" || resourceType === "insights") {
+      // Forecasts and insights require Premium
+      tierAllowed = tier === "Premium";
+    } else {
+      // For other resource types, check scopes
+      tierAllowed = scopes.includes(`read:${resourceType}`);
+    }
+
+    if (!tierAllowed) {
+      logger.error(
+        `🚨 User ${
+          user._id
+        } with tier ${tier} attempted to access ${resourceType} ${
+          isHistorical ? "(historical)" : ""
+        }`
+      );
+      return {
+        allowed: false,
+        reason: "subscription_tier",
+        message: `Your ${tier} subscription does not include access to ${
+          isHistorical ? "historical" : ""
+        } ${resourceType}`,
+      };
+    }
+
+    // 4. Check if user has access to the specific resource ID
+    let resourceAllowed = true;
+
+    if (resourceType === "cohorts" && cohort_id) {
+      resourceAllowed =
+        user.cohorts && user.cohorts.map(String).includes(cohort_id);
+    } else if (resourceType === "grids" && grid_id) {
+      resourceAllowed = user.grids && user.grids.map(String).includes(grid_id);
+    } else if (resourceType === "devices" && device_id) {
+      resourceAllowed =
+        user.devices && user.devices.map(String).includes(device_id);
+    } else if (resourceType === "sites" && site_id) {
+      resourceAllowed = user.sites && user.sites.map(String).includes(site_id);
+    }
+
+    if (!resourceAllowed) {
+      logger.error(
+        `🚨 User ${user._id} attempted to access a resource they don't have permission for`
+      );
+      return {
+        allowed: false,
+        reason: "resource_access",
+        message: `You don't have access to this specific ${resourceType.slice(
+          0,
+          -1
+        )}`,
+      };
+    }
+
+    // 5. Check rate limiting (if applicable)
+    if (user.rateLimit) {
+      // Implement rate limiting check here
+      // This would typically use Redis or similar to track API usage
+
+      // For demonstration purposes, we'll just log the check
+      logger.info(
+        `Rate limit check for user ${user._id} with limit ${user.rateLimit}`
+      );
+
+      // Actual implementation would track usage and reject if over limit
+      // const isOverLimit = await checkRateLimit(user._id, user.rateLimit);
+      // if (isOverLimit) {
+      //   return {
+      //     allowed: false,
+      //     reason: 'rate_limit',
+      //     message: 'You have exceeded your API rate limit for today'
+      //   };
+      // }
+    }
+
+    // All checks passed
+    return { allowed: true };
+  } catch (error) {
+    logger.error(`🐛 Error in checkResourceAccess: ${error.message}`);
+    return {
+      allowed: false,
+      reason: "error",
+      message: "An error occurred while validating your request",
+    };
   }
+};
 
-  if (!resourceType) {
-    // Unknown resource or no specific check needed
+// Enhanced verifyToken function to use the new checkResourceAccess
+const verifyToken = async (request, next) => {
+  try {
+    logText("Entering enhanced verifyToken function");
+    const ip =
+      request.headers["x-client-ip"] || request.headers["x-client-original-ip"];
+    const endpoint = request.headers["x-original-uri"];
+    const { token } = {
+      ...request.params,
+    };
+
+    // 1. Basic token validation
+    const accessToken = await AccessTokenModel("airqo")
+      .findOne({ token })
+      .select("client_id token scopes tier");
+
+    if (isEmpty(accessToken)) {
+      return createUnauthorizedResponse();
+    } else if (isEmpty(ip)) {
+      logText(`🚨 Token is being accessed without an IP address`);
+      logger.error(`🚨 Token is being accessed without an IP address`);
+      return createUnauthorizedResponse();
+    }
+
+    // 2. Check client status
+    const client = await ClientModel("airqo")
+      .findById(accessToken.client_id)
+      .select("isActive user_id");
+
+    if (isEmpty(client) || (client && !client.isActive)) {
+      logger.error(
+        `🚨 Client ${accessToken.client_id} associated with Token ${accessToken.token} is INACTIVE or does not exist`
+      );
+      return createUnauthorizedResponse();
+    }
+
+    // 3. Check IP blacklisting
+    const isBlacklisted = await isIPBlacklisted({
+      request,
+      next,
+    });
+
+    if (isBlacklisted) {
+      return createUnauthorizedResponse();
+    }
+
+    // 4. Load the user data
+    const user = await UserModel("airqo").findById(client.user_id).lean();
+    if (!user) {
+      logger.error(`🚨 User not found for Access Token ${accessToken.token}`);
+      return createUnauthorizedResponse();
+    }
+
+    // 5. Enhanced access control check
+    const accessCheck = await checkResourceAccess(
+      request,
+      accessToken,
+      user,
+      next
+    );
+
+    if (!accessCheck.allowed) {
+      logger.info(
+        `🔒 Access denied: ${accessCheck.reason} - ${accessCheck.message}`
+      );
+      return {
+        success: false,
+        message: accessCheck.message,
+        status: httpStatus.FORBIDDEN,
+        errors: {
+          reason: accessCheck.reason,
+          message: accessCheck.message,
+        },
+      };
+    }
+
+    // 6. Update token usage metadata asynchronously
+    Promise.resolve().then(() => {
+      // Update last_used_at and last_ip_address
+      AccessTokenModel("airqo")
+        .findOneAndUpdate(
+          { token },
+          {
+            last_used_at: new Date(),
+            last_ip_address: ip,
+          },
+          { new: true }
+        )
+        .catch((err) => {
+          logger.error(`Failed to update token usage metadata: ${err.message}`);
+        });
+
+      // Log token usage for analytics
+      postProcessing({
+        ip,
+        token: accessToken.token,
+        name: accessToken.name || "unknown",
+        client_id: accessToken.client_id,
+        endpoint,
+        day: getDay(),
+      });
+    });
+
+    // 7. Log successful token verification
+    winstonLogger.info("verify token", {
+      token: token,
+      service: "verify-token",
+      clientIp: ip,
+      clientOriginalIp: ip,
+      endpoint: endpoint ? endpoint : "unknown",
+    });
+
+    return createValidTokenResponse();
+  } catch (error) {
+    logger.error(`🐛 Internal Server Error in verifyToken: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+// Implement a new function to create access tokens with proper scopes
+const createAccessToken = async (request, next) => {
+  try {
+    const { tenant, client_id } = { ...request.body, ...request.query };
+    const userId = request.body.user_id || request.query.user_id;
+
+    if (!userId) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `Invalid request, user_id is required`,
+        })
+      );
+      return;
+    }
+
+    // Get user and check subscription
+    const user = await UserModel(tenant).findById(userId).lean();
+    if (!user) {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          message: `Invalid request, the user does not exist`,
+        })
+      );
+      return;
+    }
+
+    // Validate client
+    const client = await ClientModel(tenant)
+      .findById(ObjectId(client_id))
+      .lean();
+
+    if (!client) {
+      next(
+        new HttpError("Client not found", httpStatus.BAD_REQUEST, {
+          message: `Invalid request, Client ${client_id} not found`,
+        })
+      );
+      return;
+    }
+
+    if (isEmpty(client.isActive) || client.isActive === false) {
+      next(
+        new HttpError(
+          "Client not yet activated, reach out to Support",
+          httpStatus.BAD_REQUEST,
+          {
+            message: `Invalid request, Client ${client_id} not yet activated, reach out to Support`,
+          }
+        )
+      );
+      return;
+    }
+
+    // Generate a token
+    const token = accessCodeGenerator
+      .generate(constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH))
+      .toUpperCase();
+
+    // Determine the subscription tier
+    const subscriptionTier = user.subscriptionTier || "Free";
+
+    // Get appropriate scopes based on tier
+    const scopes = await ScopeModel(tenant)
+      .find({ tier: subscriptionTier })
+      .select("scope");
+
+    const scopeNames = scopes.map((scope) => scope.scope);
+
+    // Prepare token creation body
+    let tokenCreationBody = {
+      token,
+      client_id: ObjectId(client_id),
+      user_id: ObjectId(userId),
+      scopes: scopeNames,
+      tier: subscriptionTier,
+      category: "api",
+      name: request.body.name || "API Access Token",
+    };
+
+    // Set expiration date (7 months)
+    const expiresIn = 7 * 30 * 24 * 60 * 60 * 1000; // milliseconds
+    tokenCreationBody.expires = new Date(Date.now() + expiresIn);
+
+    // Create the token
+    const responseFromCreateToken = await AccessTokenModel(tenant).register(
+      tokenCreationBody,
+      next
+    );
+
+    return responseFromCreateToken;
+  } catch (error) {
+    logger.error(
+      `🐛 Internal Server Error in createAccessToken: ${error.message}`
+    );
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+// Helper function to check if a path is accessible for a given tier
+const isPathAllowedForTier = (path, tier) => {
+  // Basic path-based permissions
+  if (path.includes("/measurements/recent")) {
+    // All tiers can access recent measurements
     return true;
   }
-  const tier = accessToken.tier;
-  const scopes = accessToken.scopes;
 
-  if (resourceType === "measurements") {
-    if (
-      !scopes.includes("read:recent_measurements") &&
-      !scopes.includes("read:historical_measurements")
-    ) {
-      logger.error(
-        `🐛🐛  Access Token does not have the required scopes to access Measurements`
-      );
-      return false;
-    }
+  if (path.includes("/measurements") && !path.includes("/recent")) {
+    // Historical measurements need Standard or Premium
+    return tier === "Standard" || tier === "Premium";
   }
 
-  if (resourceType === "forecasts" || resourceType === "insights") {
-    if (
-      !scopes.includes("read:forecasts") &&
-      !scopes.includes("read:insights")
-    ) {
-      logger.error(
-        `🐛🐛  Access Token does not have the required scopes to access Forecasts/Insights`
-      );
-      return false;
-    }
+  if (path.includes("/forecasts") || path.includes("/insights")) {
+    // Forecasts and insights need Premium
+    return tier === "Premium";
   }
 
-  if (
-    resourceType !== "measurements" &&
-    resourceType !== "forecasts" &&
-    resourceType !== "insights"
-  ) {
-    if (!scopes.includes(`read:${resourceType}`)) {
-      logger.error(
-        `🐛🐛  Access Token does not have the required scopes to access ${resourceType}`
-      );
-      return false;
-    }
+  // Default to allowed for unspecified paths
+  return true;
+};
+
+// Additional helper: Implement a scope generator function
+const generateScopesForTier = (tier) => {
+  // Base scopes for all tiers
+  const baseScopes = [
+    "read:recent_measurements",
+    "read:devices",
+    "read:sites",
+    "read:cohorts",
+    "read:grids",
+  ];
+
+  // Add tier-specific scopes
+  if (tier === "Standard" || tier === "Premium") {
+    baseScopes.push("read:historical_measurements");
   }
 
-  // Check if the user has access to the specific resource if an Id has been provided
-  if (resourceType === "cohorts" && cohort_id) {
-    if (!user.cohorts.map(String).includes(cohort_id)) {
-      logger.error(
-        `🐛🐛 User ${user._id} does not have access to cohort ${cohort_id}`
-      );
-      return false;
-    }
-  }
-  if (resourceType === "grids" && grid_id) {
-    if (!user.grids.map(String).includes(grid_id)) {
-      logger.error(
-        `🐛🐛 User ${user._id} does not have access to grid ${grid_id}`
-      );
-      return false;
-    }
-  }
-  if (resourceType === "devices" && device_id) {
-    if (!user.devices.map(String).includes(device_id)) {
-      logger.error(
-        `🐛🐛 User ${user._id} does not have access to device ${device_id}`
-      );
-      return false;
-    }
-  }
-  if (resourceType === "sites" && site_id) {
-    if (!user.sites.map(String).includes(site_id)) {
-      logger.error(
-        `🐛🐛 User ${user._id} does not have access to site ${site_id}`
-      );
-      return false;
-    }
+  if (tier === "Premium") {
+    baseScopes.push("read:forecasts", "read:insights");
   }
 
-  return true; // Access allowed
+  return baseScopes;
 };
 
 const getDay = () => {
@@ -2194,4 +2535,11 @@ const token = {
   },
 };
 
-module.exports = token;
+module.exports = {
+  ...token,
+  verifyToken,
+  createAccessToken,
+  checkResourceAccess,
+  isPathAllowedForTier,
+  generateScopesForTier,
+};

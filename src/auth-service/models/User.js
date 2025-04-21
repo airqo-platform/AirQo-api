@@ -83,10 +83,10 @@ const UserSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    cohorts: [{ type: ObjectId, ref: "cohort" }], // IDs of associated cohorts
-    grids: [{ type: ObjectId, ref: "grid" }], // IDs of associated grids
-    devices: [{ type: ObjectId, ref: "device" }], // IDs of associated devices
-    sites: [{ type: ObjectId, ref: "site" }], // IDs of associated sites
+    cohorts: [{ type: ObjectId, ref: "cohort" }],
+    grids: [{ type: ObjectId, ref: "grid" }],
+    devices: [{ type: ObjectId, ref: "device" }],
+    sites: [{ type: ObjectId, ref: "site" }],
     analyticsVersion: { type: Number, default: 2 },
     firstName: {
       type: String,
@@ -243,6 +243,37 @@ const UserSchema = new Schema(
       enum: ["inactive", "active", "past_due", "cancelled"],
       default: "inactive",
     },
+    apiRateLimits: {
+      type: {
+        dailyLimit: { type: Number, default: 1000 },
+        hourlyLimit: { type: Number, default: 100 },
+        monthlyLimit: { type: Number, default: 30000 },
+      },
+      _id: false,
+    },
+    rateLimitNotified: {
+      type: Boolean,
+      default: false,
+    },
+    apiUsage: {
+      type: [
+        {
+          date: { type: Date, required: true },
+          count: { type: Number, default: 0 },
+          endpoints: [
+            {
+              path: String,
+              count: Number,
+            },
+          ],
+        },
+      ],
+      default: [],
+    },
+    lastRateLimitCheck: {
+      type: Date,
+      default: null,
+    },
     currentSubscriptionId: {
       type: String,
     },
@@ -268,6 +299,12 @@ const UserSchema = new Schema(
         currency: String,
         billingCycle: String, // 'monthly', 'annual', etc.
       },
+    },
+    subscriptionTier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      default: "Free",
+      required: [true, "Subscription tier is required"],
     },
   },
   { timestamps: true }
@@ -1174,6 +1211,112 @@ UserSchema.methods = {
       loginCount: this.loginCount,
       timezone: this.timezone,
     };
+  },
+  hasResourceAccess: function (resourceType, resourceId) {
+    if (!resourceId) return true;
+
+    switch (resourceType) {
+      case "cohort":
+      case "cohorts":
+        return (
+          this.cohorts &&
+          this.cohorts.some((id) => id.toString() === resourceId.toString())
+        );
+      case "grid":
+      case "grids":
+        return (
+          this.grids &&
+          this.grids.some((id) => id.toString() === resourceId.toString())
+        );
+      case "device":
+      case "devices":
+        return (
+          this.devices &&
+          this.devices.some((id) => id.toString() === resourceId.toString())
+        );
+      case "site":
+      case "sites":
+        return (
+          this.sites &&
+          this.sites.some((id) => id.toString() === resourceId.toString())
+        );
+      default:
+        return false;
+    }
+  },
+
+  /**
+   * Check if user's subscription allows access to a specific feature
+   */
+  canAccessFeature: function (feature) {
+    const tier = this.subscriptionTier || "Free";
+
+    if (this.subscriptionStatus !== "active") {
+      return false;
+    }
+
+    switch (feature) {
+      case "recent_measurements":
+        return true; // All active tiers can access recent measurements
+      case "historical_measurements":
+        return tier === "Standard" || tier === "Premium";
+      case "forecasts":
+      case "insights":
+        return tier === "Premium";
+      default:
+        return false;
+    }
+  },
+
+  /**
+   * Track API usage
+   */
+  trackApiUsage: async function (endpoint) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let usage = this.apiUsage || [];
+    let todayUsage = usage.find((u) => {
+      const usageDate = new Date(u.date);
+      usageDate.setHours(0, 0, 0, 0);
+      return usageDate.getTime() === today.getTime();
+    });
+
+    if (!todayUsage) {
+      todayUsage = {
+        date: today,
+        count: 0,
+        endpoints: [],
+      };
+      usage.push(todayUsage);
+    }
+
+    // Increment total count
+    todayUsage.count += 1;
+
+    // Track endpoint usage
+    let endpointUsage = todayUsage.endpoints.find((e) => e.path === endpoint);
+    if (!endpointUsage) {
+      endpointUsage = {
+        path: endpoint,
+        count: 0,
+      };
+      todayUsage.endpoints.push(endpointUsage);
+    }
+    endpointUsage.count += 1;
+
+    // Update user
+    this.apiUsage = usage;
+    this.lastRateLimitCheck = new Date();
+
+    // Check if user has exceeded rate limits
+    const dailyLimit = this.apiRateLimits?.dailyLimit || 1000;
+    if (todayUsage.count > dailyLimit) {
+      this.rateLimitNotified = true;
+      return false; // Rate limit exceeded
+    }
+
+    return true; // Rate limit not exceeded
   },
 };
 

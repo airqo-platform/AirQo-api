@@ -1,8 +1,11 @@
-// scopes.validators.js
+// @validators/scopes.validators.js
+
 const { query, body, param, oneOf } = require("express-validator");
+const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+// Validate tenant parameter
 const validateTenant = oneOf([
   query("tenant")
     .optional()
@@ -15,6 +18,7 @@ const validateTenant = oneOf([
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
+// Pagination validation
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -23,161 +27,194 @@ const pagination = (req, res, next) => {
   next();
 };
 
-const list = [validateTenant];
+// Validate scope ID parameter
+const validateScopeIdParam = oneOf([
+  param("scope_id")
+    .exists()
+    .withMessage("the scope_id parameter is missing in the request")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("the scope_id must not be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("scope_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
+]);
 
-const create = [
+// Validate scope creation
+const validateCreate = [
   validateTenant,
   [
     body("scope")
       .exists()
-      .withMessage("scope is missing in your request")
-      .bail()
+      .withMessage("scope is required")
+      .trim()
       .notEmpty()
-      .withMessage("the scope must not be empty")
-      .bail()
-      .trim()
-      .escape()
-      .customSanitizer((value) => {
-        return value.replace(/ /g, "_").toUpperCase();
-      }),
-    body("network_id")
-      .exists()
-      .withMessage("network_id should be provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .withMessage("scope should not be empty"),
     body("description")
       .exists()
-      .withMessage("description is missing in your request")
-      .bail()
-      .trim(),
-  ],
-];
-
-const update = [
-  (req, res, next) => {
-    if (!Object.keys(req.body).length) {
-      return res.status(400).json({ errors: "request body is empty" });
-    }
-    next();
-  },
-  validateTenant,
-  [
-    param("scope_id")
-      .exists()
-      .withMessage("the scope_id param is missing in the request")
-      .bail()
-      .trim(),
-  ],
-  [
-    body("scope")
-      .not()
-      .exists()
-      .withMessage("scope should not exist in the request body"),
-    body("network_id")
-      .optional()
-      .notEmpty()
-      .withMessage("network_id should not be empty if provided")
-      .bail()
+      .withMessage("description is required")
       .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    body("description")
-      .optional()
       .notEmpty()
-      .withMessage("description should not be empty if provided")
-      .trim(),
-  ],
-];
-
-const deleteScope = [
-  validateTenant,
-  [
-    param("scope_id")
+      .withMessage("description should not be empty"),
+    body("tier")
       .exists()
-      .withMessage("the scope_id param is missing in the request")
-      .bail()
-      .trim(),
+      .withMessage("tier is required")
+      .trim()
+      .notEmpty()
+      .withMessage("tier should not be empty")
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("tier must be Free, Standard, or Premium"),
+    body("resource_type")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("resource_type should not be empty if provided")
+      .isIn([
+        "measurements",
+        "sites",
+        "devices",
+        "cohorts",
+        "grids",
+        "forecasts",
+        "insights",
+      ])
+      .withMessage("resource_type must be one of the allowed values"),
+    body("access_type")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("access_type should not be empty if provided")
+      .isIn(["read", "write"])
+      .withMessage("access_type must be read or write"),
+    body("data_timeframe")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("data_timeframe should not be empty if provided")
+      .isIn(["recent", "historical", "all"])
+      .withMessage("data_timeframe must be recent, historical, or all"),
   ],
 ];
 
-const getById = [
-  validateTenant,
-  [
-    param("scope_id")
-      .exists()
-      .withMessage("the scope_id param is missing in the request")
-      .bail()
-      .trim(),
-  ],
-];
-
-const createBulk = [
+// Validate bulk scope creation
+const validateCreateBulk = [
   validateTenant,
   [
     body("scopes")
       .exists()
-      .withMessage("scopes array is missing in your request")
-      .bail()
+      .withMessage("scopes array is required")
       .isArray()
       .withMessage("scopes must be an array")
-      .bail()
       .notEmpty()
-      .withMessage("scopes array must not be empty"),
+      .withMessage("scopes array should not be empty"),
     body("scopes.*.scope")
       .exists()
-      .withMessage("scope is missing for one or more items")
-      .bail()
-      .notEmpty()
-      .withMessage("the scope must not be empty")
-      .bail()
+      .withMessage("scope is required for each item")
       .trim()
-      .escape()
-      .customSanitizer((value) => {
-        return value.replace(/ /g, "_").toUpperCase();
-      }),
-    body("scopes.*.network_id")
-      .optional()
       .notEmpty()
-      .withMessage("network_id should not be empty if provided")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .withMessage("scope should not be empty for any item"),
     body("scopes.*.description")
       .exists()
-      .withMessage("description is missing for one or more items")
-      .bail()
-      .trim(),
+      .withMessage("description is required for each item")
+      .trim()
+      .notEmpty()
+      .withMessage("description should not be empty for any item"),
     body("scopes.*.tier")
       .exists()
-      .withMessage("subscription tier is missing for one or more items")
-      .bail()
+      .withMessage("tier is required for each item")
+      .trim()
+      .notEmpty()
+      .withMessage("tier should not be empty for any item")
       .isIn(["Free", "Standard", "Premium"])
-      .withMessage("tier must be one of: Free, Standard, Premium"),
+      .withMessage("tier must be Free, Standard, or Premium for each item"),
+  ],
+];
+
+// Validate scope update
+const validateUpdate = [
+  validateTenant,
+  validateScopeIdParam,
+  [
+    body("scope")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("scope should not be empty if provided"),
+    body("description")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("description should not be empty if provided"),
+    body("tier")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("tier should not be empty if provided")
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("tier must be Free, Standard, or Premium"),
+    body("resource_type")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("resource_type should not be empty if provided")
+      .isIn([
+        "measurements",
+        "sites",
+        "devices",
+        "cohorts",
+        "grids",
+        "forecasts",
+        "insights",
+      ])
+      .withMessage("resource_type must be one of the allowed values"),
+    body("access_type")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("access_type should not be empty if provided")
+      .isIn(["read", "write"])
+      .withMessage("access_type must be read or write"),
+    body("data_timeframe")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("data_timeframe should not be empty if provided")
+      .isIn(["recent", "historical", "all"])
+      .withMessage("data_timeframe must be recent, historical, or all"),
+  ],
+];
+
+// Validate scope deletion
+const validateDelete = [validateTenant, validateScopeIdParam];
+
+// Validate get by ID
+const validateGetById = [validateTenant, validateScopeIdParam];
+
+// Validate scope listing
+const validateList = [
+  validateTenant,
+  [
+    query("tier")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("tier should not be empty if provided")
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("tier must be Free, Standard, or Premium"),
   ],
 ];
 
 module.exports = {
-  tenant: validateTenant,
   pagination,
-  list,
-  createBulk,
-  create,
-  update,
-  deleteScope,
-  getById,
+  create: validateCreate,
+  update: validateUpdate,
+  deleteScope: validateDelete,
+  getById: validateGetById,
+  list: validateList,
+  createBulk: validateCreateBulk,
 };

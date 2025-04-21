@@ -51,6 +51,16 @@ const AccessTokenSchema = new mongoose.Schema(
       ref: "user",
       required: [true, "userId is required"],
     },
+    tier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      default: "Free",
+    },
+    scopes: [
+      {
+        type: String,
+      },
+    ],
     last_used_at: { type: Date },
     last_ip_address: { type: String },
     expires_in: { type: Number },
