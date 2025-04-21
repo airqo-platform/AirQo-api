@@ -160,6 +160,74 @@ When your request exceeds your subscription tier's permissions or rate limits, y
 }
 ```
 
+## Requesting Access to Specific Resources
+
+AirQo's API provides access to different types of resources (devices, sites, cohorts, and grids), but access to specific resources must be explicitly granted. Here's how to request access:
+
+### Resource Types
+
+AirQo manages several types of resources:
+
+- **Devices**: Individual air quality monitoring devices
+- **Sites**: Physical locations where devices are deployed
+- **Cohorts**: Logical groupings of devices for organizational purposes
+- **Grids**: Geographical groupings of sites for regional analysis
+
+### Requesting Access
+
+To request access to specific resources:
+
+1. **Email Request**: Send an email to support@airqo.net with the following information:
+
+   - Your AirQo account email
+   - Your API client ID
+   - List of resources you need access to (with IDs if known)
+   - Purpose/use case for accessing these resources
+
+2. **Support Portal**: Log in to the AirQo support portal at https://support.airqo.net and create a new ticket in the "API Access" category.
+
+### Checking Your Resource Access
+
+To check which resources you have access to:
+
+1. Use the following API endpoints (requires authentication):
+
+   - `/api/v2/devices` - Lists all devices you have access to
+   - `/api/v2/devices/sites` - Lists all sites you have access to
+   - `/api/v2/devices/cohorts` - Lists all cohorts you have access to
+   - `/api/v2/devices/grids` - Lists all grids you have access to
+
+2. In the AirQo Analytics platform, go to your Account > API Access > Resource Permissions
+
+### Access Control Details
+
+- Access is granted on a per-resource basis
+- Your subscription tier determines what data you can access for each resource
+- Free tier users can only access recent data (last 24 hours) for assigned resources
+- Standard tier users can access historical data for assigned resources
+- Premium tier users can access forecasts and insights for assigned resources
+
+### Resource Access Limitations
+
+- Resource access is tied to your account, not to individual tokens
+- All tokens for your account inherit the same resource permissions
+- Requests for resources not assigned to your account will receive a 403 Forbidden response
+- For security and data privacy reasons, some resource access requests may require additional verification
+
+### Example: Accessing Data for Specific Resources
+
+Once you have been granted access to specific resources, you can access their data using the resource ID in your API requests:
+
+```http
+GET /api/v2/measurements/recent?device_id=5f7b85a1c9a4c80012345678&token=YOUR_TOKEN
+```
+
+or
+
+```http
+httpGET /api/v2/cohorts/5f7b85a1c9a4c80012345678/recent?token=YOUR_TOKEN
+```
+
 ## FAQ
 
 ### How do I upgrade my subscription?

@@ -448,6 +448,12 @@ const createUser = [
       .isIn(["admin", "netmanager", "user", "super"])
       .withMessage("the privilege value is not among the expected ones")
       .trim(),
+    body("subscriptionTier")
+      .optional()
+      .notEmpty()
+      .withMessage("subscriptionTier should not be empty if provided")
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("subscriptionTier must be Free, Standard, or Premium"),
     body("password")
       .exists()
       .withMessage("password is missing in your request")
@@ -552,6 +558,12 @@ const updateUser = [
       .optional()
       .isMongoId()
       .withMessage("each network should be an object ID"),
+    body("subscriptionTier")
+      .optional()
+      .notEmpty()
+      .withMessage("subscriptionTier should not be empty if provided")
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("subscriptionTier must be Free, Standard, or Premium"),
   ],
 ];
 
@@ -911,14 +923,82 @@ const resetPassword = [
     .trim(),
 ];
 
+const updateSubscription = [
+  validateTenant,
+  [
+    body("subscriptionTier")
+      .exists()
+      .withMessage("subscriptionTier is required")
+      .notEmpty()
+      .withMessage("subscriptionTier cannot be empty")
+      .isIn(["Free", "Standard", "Premium"])
+      .withMessage("subscriptionTier must be Free, Standard, or Premium"),
+  ],
+];
+
+const assignResources = [
+  validateTenant,
+  [
+    body("user_id")
+      .exists()
+      .withMessage("user_id is required")
+      .isMongoId()
+      .withMessage("user_id must be a valid ObjectId"),
+    body("resources")
+      .exists()
+      .withMessage("resources is required")
+      .isArray()
+      .withMessage("resources must be an array"),
+    body("resources.*.type")
+      .exists()
+      .withMessage("resource type is required")
+      .isIn(["device", "site", "cohort", "grid"])
+      .withMessage("resource type must be device, site, cohort, or grid"),
+    body("resources.*.id")
+      .exists()
+      .withMessage("resource id is required")
+      .isMongoId()
+      .withMessage("resource id must be a valid ObjectId"),
+  ],
+];
+
+const removeResources = [
+  validateTenant,
+  [
+    body("user_id")
+      .exists()
+      .withMessage("user_id is required")
+      .isMongoId()
+      .withMessage("user_id must be a valid ObjectId"),
+    body("resources")
+      .exists()
+      .withMessage("resources is required")
+      .isArray()
+      .withMessage("resources must be an array"),
+    body("resources.*.type")
+      .exists()
+      .withMessage("resource type is required")
+      .isIn(["device", "site", "cohort", "grid"])
+      .withMessage("resource type must be device, site, cohort, or grid"),
+    body("resources.*.id")
+      .exists()
+      .withMessage("resource id is required")
+      .isMongoId()
+      .withMessage("resource id must be a valid ObjectId"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
   pagination,
   deleteMobileUserData,
+  assignResources,
+  removeResources,
   login,
   emailLogin,
   emailAuth,
+  updateSubscription,
   feedback,
   firebaseLookup,
   firebaseCreate,

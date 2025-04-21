@@ -273,6 +273,20 @@ const verifyToken = async (request, next) => {
       return createUnauthorizedResponse();
     }
 
+    const tokenData = {
+      userId: user._id,
+      clientId: client._id,
+      permissions: user.permissions || [],
+      resources: {
+        devices: user.devices || [],
+        sites: user.sites || [],
+        cohorts: user.cohorts || [],
+        grids: user.grids || [],
+      },
+      scopes: accessToken.scopes || [],
+      tier: accessToken.tier || user.subscriptionTier || "Free",
+    };
+
     // 5. Enhanced access control check
     const accessCheck = await checkResourceAccess(
       request,
@@ -332,7 +346,7 @@ const verifyToken = async (request, next) => {
       endpoint: endpoint ? endpoint : "unknown",
     });
 
-    return createValidTokenResponse();
+    return createValidTokenResponse(tokenData);
   } catch (error) {
     logger.error(`🐛 Internal Server Error in verifyToken: ${error.message}`);
     next(
@@ -506,11 +520,12 @@ const createUnauthorizedResponse = () => {
     errors: { message: "Unauthorized" },
   };
 };
-const createValidTokenResponse = () => {
+const createValidTokenResponse = (tokenData = {}) => {
   return {
     success: true,
     message: "The token is valid",
     status: httpStatus.OK,
+    data: tokenData || {},
   };
 };
 

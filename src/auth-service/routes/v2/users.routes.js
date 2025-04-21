@@ -314,4 +314,54 @@ router.get(
   userController.list
 );
 
+// Subscription management routes
+router.get(
+  "/subscription",
+  userValidations.tenant,
+  setJWTAuth,
+  authJWT,
+  userController.getSubscription
+);
+
+router.put(
+  "/subscription",
+  userValidations.updateSubscription,
+  setJWTAuth,
+  authJWT,
+  userController.updateSubscription
+);
+
+router.get(
+  "/subscription/usage",
+  userValidations.tenant,
+  setJWTAuth,
+  authJWT,
+  userController.getSubscriptionUsage
+);
+
+// Resource assignment routes
+router.post(
+  "/resources",
+  userValidations.assignResources,
+  setJWTAuth,
+  authJWT,
+  userController.assignResources
+);
+
+router.delete(
+  "/resources",
+  userValidations.removeResources,
+  setJWTAuth,
+  authJWT,
+  userController.removeResources
+);
+
+router.get(
+  "/resources",
+  userValidations.tenant,
+  setJWTAuth,
+  authJWT,
+  userController.listResources
+);
+
 module.exports = router;
