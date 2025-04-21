@@ -459,10 +459,37 @@ const createDevice = {
   list: async (request, next) => {
     try {
       const { tenant, path, limit, skip } = request.query;
-      const filter = generateFilter.devices(request, next);
+
+      // Get the base filter from your existing function
+      const baseFilter = generateFilter.devices(request, next);
+
+      // Merge with resource access filter if available
+      let filter = { ...baseFilter };
+
+      // If auth middleware has added resource filters, apply them
+      if (request.resourceFilters && request.resourceFilters.devices) {
+        // Merge the ID filters - if both filters have _id conditions, use $and to combine them
+        if (filter._id && request.resourceFilters.devices._id) {
+          filter = {
+            ...filter,
+            $and: [
+              { _id: filter._id },
+              { _id: request.resourceFilters.devices._id },
+            ],
+          };
+          // Remove the original _id to avoid conflicts
+          delete filter._id;
+        } else if (request.resourceFilters.devices._id) {
+          // Only resource filter has _id condition
+          filter._id = request.resourceFilters.devices._id;
+        }
+        // (If only the base filter has _id, it's already in the filter object)
+      }
+
       if (!isEmpty(path)) {
         filter.path = path;
       }
+
       const responseFromListDevice = await DeviceModel(tenant).list(
         {
           filter,
