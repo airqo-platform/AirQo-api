@@ -99,7 +99,7 @@ class DataUtils:
             return pd.DataFrame(columns=expected_columns)
 
         drop_columns = ["device_name"]
-        if frequency.value in ["weekly", "monthly", "yearly"]:
+        if frequency.value in {"weekly", "monthly", "yearly"}:
             frequency_ = frequency.value[:-2]
             drop_columns.append(frequency_)
             sorting_cols.append(frequency_)
