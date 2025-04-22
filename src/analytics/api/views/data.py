@@ -97,7 +97,7 @@ class DataExportResource(Resource):
         minimum_output = json_data.get("minimum", True)
         postfix = "-" if output_format == "airqo-standard" else "-aqcsv-"
         data_filter = {filter_type: filter_value}
-        data_type = DataType[data_type.upper()]
+        datatype = DataType[data_type.upper()]
         frequency = Frequency[frequency.upper()]
 
         try:
@@ -107,7 +107,7 @@ class DataExportResource(Resource):
                 else DeviceCategory.LOWCOST
             )
             data_frame = DataUtils.extract_data_from_bigquery(
-                datatype=data_type,
+                datatype=datatype,
                 start_date_time=startDateTime,
                 end_date_time=endDateTime,
                 frequency=frequency,

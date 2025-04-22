@@ -9,7 +9,7 @@ from api.utils.dates import date_to_str
 from api.utils.utils import Utils
 from config import BaseConfig as Config
 from api.utils.pollutants.pm_25 import (
-    BIGQUERY_FREQUENCY_MAPPER,
+    BQ_FREQUENCY_MAPPER,
 )
 from main import cache, CONFIGURATIONS
 
@@ -72,11 +72,11 @@ class EventsModel(BasePyMongoModel):
     ) -> str:
         decimal_places = self.DATA_EXPORT_DECIMAL_PLACES
 
-        if frequency == "raw":
+        if frequency.value == "raw":
             data_table = self.raw_data_table
-        elif frequency == "daily":
+        elif frequency.value == "daily":
             data_table = self.daily_data_table
-        elif frequency == "hourly":
+        elif frequency.value == "hourly":
             data_table = self.hourly_data_table
         else:
             raise Exception("Invalid frequency")
@@ -84,7 +84,7 @@ class EventsModel(BasePyMongoModel):
         pollutant_columns = []
         bam_pollutant_columns = []
         for pollutant in pollutants:
-            pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
+            pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value).get(
                 pollutant, []
             )
             pollutant_columns.extend(
@@ -575,7 +575,7 @@ class EventsModel(BasePyMongoModel):
             raise Exception("Invalid pollutant")
 
         query = f"""
-            SELECT AVG({pollutant}) as value, site_id 
+            SELECT AVG({pollutant}) as value, site_id
             FROM {self.BIGQUERY_EVENTS}
             WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
             AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}' GROUP BY site_id
@@ -597,7 +597,7 @@ class EventsModel(BasePyMongoModel):
             raise Exception("Invalid pollutant")
 
         query = f"""
-            SELECT AVG({pollutant}) as value, device_id 
+            SELECT AVG({pollutant}) as value, device_id
             FROM {self.BIGQUERY_EVENTS}
             WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
             AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
@@ -620,7 +620,7 @@ class EventsModel(BasePyMongoModel):
             raise Exception("Invalid pollutant")
 
         query = f"""
-        SELECT 
+        SELECT
     AVG({pollutant}) as {pollutant},
     device_id,
     TIMESTAMP(DATE(timestamp), "UTC") as timestamp
@@ -775,9 +775,9 @@ class EventsModel(BasePyMongoModel):
         ]
 
         query = f"""
-          SELECT {', '.join(map(str, columns))} 
+          SELECT {', '.join(map(str, columns))}
           FROM {self.BIGQUERY_EVENTS}
-          JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
+          JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id
           WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
           AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
           AND {self.BIGQUERY_SITES}.id in UNNEST({sites})

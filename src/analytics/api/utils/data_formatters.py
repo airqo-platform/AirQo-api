@@ -9,10 +9,11 @@ from api.utils.pollutants.pm_25 import (
     FREQUENCY_MAPPER,
     AQCSV_UNIT_MAPPER,
     AQCSV_QC_CODE_MAPPER,
-    BIGQUERY_FREQUENCY_MAPPER,
+    BQ_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
 from api.utils.http import AirQoRequests
+from constants import Frequency
 
 import logging
 
@@ -197,12 +198,12 @@ def compute_airqloud_summary(
 
 
 def format_to_aqcsv(
-    data: List, pollutants: List, frequency: str
+    data: List, pollutants: List, frequency: Frequency
 ) -> Union[List[Any], List[Dict]]:
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
-    pollutant_mappers = BIGQUERY_FREQUENCY_MAPPER.get(frequency)
+    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency.VALUE)
 
     dataframe = pd.DataFrame(data)
     if dataframe.empty:
