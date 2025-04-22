@@ -488,7 +488,10 @@ const commonValidations = {
 };
 
 const chartConfigValidation = [
-  body("fieldId").isInt({ min: 1, max: 8 }).withMessage("Invalid fieldId"),
+  body("fieldId")
+    .optional()
+    .isInt({ min: 1, max: 8 })
+    .withMessage("Invalid fieldId"),
   body("title").optional().isString().withMessage("Title must be a string"),
   body("xAxisLabel")
     .optional()
@@ -503,9 +506,21 @@ const chartConfigValidation = [
     .optional()
     .isString()
     .withMessage("Background Color must be a string"),
+  // Extended chart types
   body("chartType")
     .optional()
-    .isIn(["Column", "Line", "Bar", "Spline", "Step"])
+    .isIn([
+      "Column",
+      "Line",
+      "Bar",
+      "Spline",
+      "Step",
+      "Area",
+      "Scatter",
+      "Bubble",
+      "Heatmap",
+      "Pie",
+    ])
     .withMessage("Invalid chart type"),
   body("days").optional().isInt().withMessage("Days must be an integer"),
   body("results").optional().isInt().withMessage("Results must be an integer"),
@@ -536,6 +551,122 @@ const chartConfigValidation = [
     .optional()
     .isNumeric()
     .withMessage("Y-Axis Max must be a number"),
+
+  // New fields
+  body("showLegend")
+    .optional()
+    .isBoolean()
+    .withMessage("showLegend must be a boolean"),
+  body("showGrid")
+    .optional()
+    .isBoolean()
+    .withMessage("showGrid must be a boolean"),
+  body("showTooltip")
+    .optional()
+    .isBoolean()
+    .withMessage("showTooltip must be a boolean"),
+  body("isPublic")
+    .optional()
+    .isBoolean()
+    .withMessage("isPublic must be a boolean"),
+  body("refreshInterval")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("refreshInterval must be a non-negative integer"),
+  body("showMultipleSeries")
+    .optional()
+    .isBoolean()
+    .withMessage("showMultipleSeries must be a boolean"),
+
+  // Validation for nested objects
+  body("referenceLines")
+    .optional()
+    .isArray()
+    .withMessage("referenceLines must be an array"),
+  body("referenceLines.*.value")
+    .optional()
+    .isNumeric()
+    .withMessage("Reference line value must be a number"),
+  body("referenceLines.*.label")
+    .optional()
+    .isString()
+    .withMessage("Reference line label must be a string"),
+  body("referenceLines.*.color")
+    .optional()
+    .isString()
+    .withMessage("Reference line color must be a string"),
+  body("referenceLines.*.style")
+    .optional()
+    .isIn(["solid", "dashed", "dotted"])
+    .withMessage("Reference line style must be one of: solid, dashed, dotted"),
+
+  body("annotations")
+    .optional()
+    .isArray()
+    .withMessage("annotations must be an array"),
+  body("annotations.*.x")
+    .optional()
+    .isNumeric()
+    .withMessage("Annotation x value must be a number"),
+  body("annotations.*.y")
+    .optional()
+    .isNumeric()
+    .withMessage("Annotation y value must be a number"),
+  body("annotations.*.text")
+    .optional()
+    .isString()
+    .withMessage("Annotation text must be a string"),
+  body("annotations.*.color")
+    .optional()
+    .isString()
+    .withMessage("Annotation color must be a string"),
+
+  body("transformation")
+    .optional()
+    .isObject()
+    .withMessage("transformation must be an object"),
+  body("transformation.type")
+    .optional()
+    .isIn(["none", "log", "sqrt", "pow"])
+    .withMessage("Transformation type must be one of: none, log, sqrt, pow"),
+  body("transformation.factor")
+    .optional()
+    .isNumeric()
+    .withMessage("Transformation factor must be a number"),
+
+  body("comparisonPeriod")
+    .optional()
+    .isObject()
+    .withMessage("comparisonPeriod must be an object"),
+  body("comparisonPeriod.enabled")
+    .optional()
+    .isBoolean()
+    .withMessage("comparisonPeriod.enabled must be a boolean"),
+  body("comparisonPeriod.type")
+    .optional()
+    .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
+    .withMessage(
+      "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+    ),
+
+  body("additionalSeries")
+    .optional()
+    .isArray()
+    .withMessage("additionalSeries must be an array"),
+  body("additionalSeries.*.fieldId")
+    .optional()
+    .isInt({ min: 1, max: 8 })
+    .withMessage(
+      "Additional series fieldId must be an integer between 1 and 8"
+    ),
+  body("additionalSeries.*.label")
+    .optional()
+    .isString()
+    .withMessage("Additional series label must be a string"),
+  body("additionalSeries.*.color")
+    .optional()
+    .isString()
+    .withMessage("Additional series color must be a string"),
 ];
 
 const preferenceValidations = {
@@ -663,15 +794,226 @@ const preferenceValidations = {
       next();
     };
   },
+  // Replace the existing createChart validation with this improved version
   createChart: [
     ...commonValidations.tenant,
     param("deviceId")
       .exists()
       .withMessage("Device ID is required")
+      .bail()
       .isMongoId()
       .withMessage("Invalid Device ID"),
-    body("chartConfig").isObject().withMessage("chartConfig must be an object"),
-    ...chartConfigValidation,
+    body("chartConfig")
+      .exists()
+      .withMessage("chartConfig object is required")
+      .bail()
+      .isObject()
+      .withMessage("chartConfig must be an object"),
+    body("chartConfig.fieldId")
+      .exists()
+      .withMessage("fieldId is required in chartConfig")
+      .bail()
+      .isInt({ min: 1, max: 8 })
+      .withMessage("fieldId must be an integer between 1 and 8"),
+    body("chartConfig.title")
+      .optional()
+      .isString()
+      .withMessage("Title must be a string"),
+    body("chartConfig.xAxisLabel")
+      .optional()
+      .isString()
+      .withMessage("X-Axis Label must be a string"),
+    body("chartConfig.yAxisLabel")
+      .optional()
+      .isString()
+      .withMessage("Y-Axis Label must be a string"),
+    body("chartConfig.color")
+      .optional()
+      .isString()
+      .withMessage("Color must be a string"),
+    body("chartConfig.backgroundColor")
+      .optional()
+      .isString()
+      .withMessage("Background Color must be a string"),
+    body("chartConfig.chartType")
+      .optional()
+      .isIn([
+        "Column",
+        "Line",
+        "Bar",
+        "Spline",
+        "Step",
+        "Area",
+        "Scatter",
+        "Bubble",
+        "Heatmap",
+        "Pie",
+      ])
+      .withMessage(
+        "Chart type must be one of: Column, Line, Bar, Spline, Step, Area, Scatter, Bubble, Heatmap, Pie"
+      ),
+    body("chartConfig.days")
+      .optional()
+      .isInt()
+      .withMessage("Days must be an integer"),
+    body("chartConfig.results")
+      .optional()
+      .isInt()
+      .withMessage("Results must be an integer"),
+    body("chartConfig.timescale")
+      .optional()
+      .isInt()
+      .withMessage("Timescale must be an integer"),
+    body("chartConfig.average")
+      .optional()
+      .isInt()
+      .withMessage("Average must be an integer"),
+    body("chartConfig.median")
+      .optional()
+      .isInt()
+      .withMessage("Median must be an integer"),
+    body("chartConfig.sum")
+      .optional()
+      .isInt()
+      .withMessage("Sum must be an integer"),
+    body("chartConfig.rounding")
+      .optional()
+      .isInt()
+      .withMessage("Rounding must be an integer"),
+    body("chartConfig.dataMin")
+      .optional()
+      .isNumeric()
+      .withMessage("Data Min must be a number"),
+    body("chartConfig.dataMax")
+      .optional()
+      .isNumeric()
+      .withMessage("Data Max must be a number"),
+    body("chartConfig.yAxisMin")
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Min must be a number"),
+    body("chartConfig.yAxisMax")
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Max must be a number"),
+
+    // New fields
+    body("chartConfig.showLegend")
+      .optional()
+      .isBoolean()
+      .withMessage("showLegend must be a boolean"),
+    body("chartConfig.showGrid")
+      .optional()
+      .isBoolean()
+      .withMessage("showGrid must be a boolean"),
+    body("chartConfig.showTooltip")
+      .optional()
+      .isBoolean()
+      .withMessage("showTooltip must be a boolean"),
+    body("chartConfig.isPublic")
+      .optional()
+      .isBoolean()
+      .withMessage("isPublic must be a boolean"),
+    body("chartConfig.refreshInterval")
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("refreshInterval must be a non-negative integer"),
+    body("chartConfig.showMultipleSeries")
+      .optional()
+      .isBoolean()
+      .withMessage("showMultipleSeries must be a boolean"),
+
+    // Validation for nested objects
+    body("chartConfig.referenceLines")
+      .optional()
+      .isArray()
+      .withMessage("referenceLines must be an array"),
+    body("chartConfig.referenceLines.*.value")
+      .optional()
+      .isNumeric()
+      .withMessage("Reference line value must be a number"),
+    body("chartConfig.referenceLines.*.label")
+      .optional()
+      .isString()
+      .withMessage("Reference line label must be a string"),
+    body("chartConfig.referenceLines.*.color")
+      .optional()
+      .isString()
+      .withMessage("Reference line color must be a string"),
+    body("chartConfig.referenceLines.*.style")
+      .optional()
+      .isIn(["solid", "dashed", "dotted"])
+      .withMessage(
+        "Reference line style must be one of: solid, dashed, dotted"
+      ),
+
+    body("chartConfig.annotations")
+      .optional()
+      .isArray()
+      .withMessage("annotations must be an array"),
+    body("chartConfig.annotations.*.x")
+      .optional()
+      .isNumeric()
+      .withMessage("Annotation x value must be a number"),
+    body("chartConfig.annotations.*.y")
+      .optional()
+      .isNumeric()
+      .withMessage("Annotation y value must be a number"),
+    body("chartConfig.annotations.*.text")
+      .optional()
+      .isString()
+      .withMessage("Annotation text must be a string"),
+    body("chartConfig.annotations.*.color")
+      .optional()
+      .isString()
+      .withMessage("Annotation color must be a string"),
+
+    body("chartConfig.transformation")
+      .optional()
+      .isObject()
+      .withMessage("transformation must be an object"),
+    body("chartConfig.transformation.type")
+      .optional()
+      .isIn(["none", "log", "sqrt", "pow"])
+      .withMessage("Transformation type must be one of: none, log, sqrt, pow"),
+    body("chartConfig.transformation.factor")
+      .optional()
+      .isNumeric()
+      .withMessage("Transformation factor must be a number"),
+
+    body("chartConfig.comparisonPeriod")
+      .optional()
+      .isObject()
+      .withMessage("comparisonPeriod must be an object"),
+    body("chartConfig.comparisonPeriod.enabled")
+      .optional()
+      .isBoolean()
+      .withMessage("comparisonPeriod.enabled must be a boolean"),
+    body("chartConfig.comparisonPeriod.type")
+      .optional()
+      .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
+      .withMessage(
+        "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+      ),
+
+    body("chartConfig.additionalSeries")
+      .optional()
+      .isArray()
+      .withMessage("additionalSeries must be an array"),
+    body("chartConfig.additionalSeries.*.fieldId")
+      .optional()
+      .isInt({ min: 1, max: 8 })
+      .withMessage(
+        "Additional series fieldId must be an integer between 1 and 8"
+      ),
+    body("chartConfig.additionalSeries.*.label")
+      .optional()
+      .isString()
+      .withMessage("Additional series label must be a string"),
+    body("chartConfig.additionalSeries.*.color")
+      .optional()
+      .isString()
+      .withMessage("Additional series color must be a string"),
   ],
   updateChart: [
     ...commonValidations.tenant,
@@ -685,63 +1027,8 @@ const preferenceValidations = {
       .withMessage("Chart ID is required")
       .isMongoId()
       .withMessage("Invalid Chart ID"),
-    body("fieldId")
-      .optional()
-      .isInt({ min: 1, max: 8 })
-      .withMessage("Invalid fieldId"),
-    body("title").optional().isString().withMessage("Title must be a string"),
-    body("xAxisLabel")
-      .optional()
-      .isString()
-      .withMessage("X-Axis Label must be a string"),
-    body("yAxisLabel")
-      .optional()
-      .isString()
-      .withMessage("Y-Axis Label must be a string"),
-    body("color").optional().isString().withMessage("Color must be a string"),
-    body("backgroundColor")
-      .optional()
-      .isString()
-      .withMessage("Background Color must be a string"),
-    body("chartType")
-      .optional()
-      .isIn(["Column", "Line", "Bar", "Spline", "Step"])
-      .withMessage("Invalid chart type"),
-    body("days").optional().isInt().withMessage("Days must be an integer"),
-    body("results")
-      .optional()
-      .isInt()
-      .withMessage("Results must be an integer"),
-    body("timescale")
-      .optional()
-      .isInt()
-      .withMessage("Timescale must be an integer"),
-    body("average")
-      .optional()
-      .isInt()
-      .withMessage("Average must be an integer"),
-    body("median").optional().isInt().withMessage("Median must be an integer"),
-    body("sum").optional().isInt().withMessage("Sum must be an integer"),
-    body("rounding")
-      .optional()
-      .isInt()
-      .withMessage("Rounding must be an integer"),
-    body("dataMin")
-      .optional()
-      .isNumeric()
-      .withMessage("Data Min must be a number"),
-    body("dataMax")
-      .optional()
-      .isNumeric()
-      .withMessage("Data Max must be a number"),
-    body("yAxisMin")
-      .optional()
-      .isNumeric()
-      .withMessage("Y-Axis Min must be a number"),
-    body("yAxisMax")
-      .optional()
-      .isNumeric()
-      .withMessage("Y-Axis Max must be a number"),
+    // Use all validations from chartConfigValidation
+    ...chartConfigValidation,
   ],
   deleteChart: [
     ...commonValidations.tenant,
@@ -763,6 +1050,32 @@ const preferenceValidations = {
       .withMessage("Device ID is required")
       .isMongoId()
       .withMessage("Invalid Device ID"),
+  ],
+  getChartConfigurationById: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+  ],
+  copyChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
   ],
 };
 

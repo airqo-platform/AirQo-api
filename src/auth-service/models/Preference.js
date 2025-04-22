@@ -12,13 +12,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- preferences-model`
 );
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject, HttpError } = require("@utils/shared");
 
 const chartConfigSchema = new Schema({
   fieldId: { type: Number, required: true, min: 1, max: 8 }, // ThingSpeak field ID
@@ -43,6 +37,58 @@ const chartConfigSchema = new Schema({
   dataMax: { type: Number },
   yAxisMin: { type: Number },
   yAxisMax: { type: Number },
+  showLegend: { type: Boolean, default: true },
+  showGrid: { type: Boolean, default: true },
+  showTooltip: { type: Boolean, default: true },
+  referenceLines: [
+    {
+      value: { type: Number, required: true },
+      label: { type: String },
+      color: { type: String, default: "#FF0000" },
+      style: {
+        type: String,
+        enum: ["solid", "dashed", "dotted"],
+        default: "dashed",
+      },
+    },
+  ],
+  annotations: [
+    {
+      x: { type: Number }, // x coordinate or timestamp
+      y: { type: Number }, // y coordinate or value
+      text: { type: String },
+      color: { type: String, default: "#000000" },
+    },
+  ],
+  // For data transformations
+  transformation: {
+    type: {
+      type: String,
+      enum: ["none", "log", "sqrt", "pow"],
+      default: "none",
+    },
+    factor: { type: Number, default: 1 }, // For pow transformation
+  },
+  // For comparison with historical data
+  comparisonPeriod: {
+    enabled: { type: Boolean, default: false },
+    type: {
+      type: String,
+      enum: ["previousDay", "previousWeek", "previousMonth", "previousYear"],
+      default: "previousDay",
+    },
+  },
+  // For multi-series charts
+  showMultipleSeries: { type: Boolean, default: false },
+  additionalSeries: [
+    {
+      fieldId: { type: Number, required: true },
+      label: { type: String },
+      color: { type: String },
+    },
+  ],
+  isPublic: { type: Boolean, default: false },
+  refreshInterval: { type: Number, default: 0 }, // 0 means no auto-refresh, value in seconds
 });
 
 const periodSchema = new mongoose.Schema(
@@ -122,9 +168,14 @@ const PreferenceSchema = new mongoose.Schema(
     pollutant: {
       type: String,
       trim: true,
-      required: [true, "pollutant is required!"],
       default: "pm2_5",
     },
+    pollutants: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     frequency: {
       type: String,
       required: [true, "frequency is required!"],
@@ -226,7 +277,6 @@ const PreferenceSchema = new mongoose.Schema(
     selected_devices: [{ type: deviceSchema }],
     selected_cohorts: [{ type: cohortSchema }],
     selected_airqlouds: [{ type: airqloudSchema }],
-
     device_ids: [
       {
         type: ObjectId,
@@ -355,6 +405,7 @@ PreferenceSchema.methods = {
     return {
       _id: this._id,
       pollutant: this.pollutant,
+      pollutants: this.pollutants,
       frequency: this.frequency,
       user_id: this.user_id,
       airqloud_id: this.airqloud_id,
