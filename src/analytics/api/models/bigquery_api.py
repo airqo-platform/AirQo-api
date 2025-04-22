@@ -563,7 +563,7 @@ class BigQueryApi:
         Returns:
             str: Final constructed SQL query.
         """
-        time_grouping = self.get_time_grouping(frequency)
+        time_grouping = self.get_time_grouping(frequency.value)
         table_name = Utils.table_name(table)
 
         # TODO Find a better way to do this.
