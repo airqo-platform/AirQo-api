@@ -1,6 +1,6 @@
 # RabbitMQ Node.js Example
 
-Simple Node.js producer to send a message to a RabbitMQ queue.\
+Simple Node.js producer to send a message to a RabbitMQ queue.
 Use this for testing RabbitMQ connections locally or to a Kubernetes cluster.
 
 ---
