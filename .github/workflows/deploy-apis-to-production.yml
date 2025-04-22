@@ -1832,17 +1832,15 @@ jobs:
   #       uses: azure/k8s-set-context@v3.0
   #       with:
   #         method: kubeconfig
-  #         kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+  #         kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
   #     - name: Deploy RabbitMQ Helm Chart
   #       run: |
-  #         helm upgrade --install rabbitmq oci://registry-1.docker.io/bitnamicharts/rabbitmq \
-  #           --namespace message-broker-rabbit \
-  #           --values k8s/message-broker/rabbitmq/values.yaml
+  #         helm install rabbitmq bitnami/rabbitmq \ --namespace message-broker-rabbit \ -f k8s/message-broker/rabbitmq/values.yaml
 
   #     - name: Check RabbitMQ Pods Status
   #       run: |
-  #         kubectl get pods -n message-broker-rabbit -o wide
+  #         kubectl get pods -n message-broker-rabbit
 
 
   ### website ###

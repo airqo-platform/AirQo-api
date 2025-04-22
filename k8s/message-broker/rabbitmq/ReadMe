@@ -12,11 +12,8 @@ We use the Bitnami RabbitMQ Helm chart hosted on Docker Hub's OCI registry.
 
 ```bash
 helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install rabbitmq oci://registry-1.docker.io/bitnamicharts/rabbitmq \
-  --version 15.5.3 \
-  --namespace message-broker-rabbit \
-  --create-namespace \
-  -f k8s/message-broker/rabbitmq/values.yaml
+helm install rabbitmq bitnami/rabbitmq   --namespace message-broker-rabbit   -f values.yaml
+kubectl apply -f rabbitmq-pv.yaml
 ```
 
 ---
@@ -57,6 +54,19 @@ On each merge to `main` (or triggered manually):
 
 ```bash
 kubectl get pods -n message-broker-rabbit
+```
+
+### Fix Permission errors
+- Exec into pod and change password, then add that as the rabbitmq secret
+```bash
+kubectl exec -it rabbitmq-0 -n message-broker-rabbit -- bash
+rabbitmqctl list_users
+rabbitmqctl change_password user 'your-new-password'
+kubectl create secret generic rabbitmq --namespace message-broker-rabbit \
+  --from-literal=rabbitmq-password='your-new-password' \
+  --from-literal=rabbitmq-username='user' \
+  --from-literal=rabbitmq-erlang-cookie="$(kubectl get secret rabbitmq -n message-broker-rabbit -o jsonpath="{.data.rabbitmq-erlang-cookie}" | base64 -d)" \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ### 📊 Access Management UI
