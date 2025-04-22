@@ -117,7 +117,7 @@ class BigQueryApi:
             f"RIGHT JOIN ({data_query}) data ON data.airqloud_id = {self.airqlouds_table}.id "
         )
 
-    def get_time_grouping(self, frequency):
+    def get_time_grouping(self, frequency: str):
         """
         Determines the appropriate time grouping fields based on the frequency.
 
@@ -137,31 +137,31 @@ class BigQueryApi:
 
     def get_device_query(
         self,
-        table,
-        filter_value,
-        pollutants_query,
-        bam_pollutants_query,
-        time_grouping,
-        start_date,
-        end_date,
-        frequency,
+        table: str,
+        filter_value: List,
+        pollutants_query: str,
+        bam_pollutants_query: str,
+        time_grouping: str,
+        start_date: str,
+        end_date: str,
+        frequency: Frequency,
     ):
         """
-        Constructs a SQL query to retrieve data for specific devices.
+        Constructs a SQL query to retrieve pollutant data for specific devices,
+        including standard and BAM measurements when applicable.
 
         Args:
-            table(str): The name of the data table containing measurements.
-            filter_value(str): The list of device IDs to filter by.
-            pollutants_query(str): The SQL query for standard pollutants.
-            bam_pollutants_query(str): The SQL query for BAM pollutants.
-            time_grouping(str): The time grouping clause based on frequency.
-            start_date(str): The start date for the query range.
-            end_date(str): The end date for the query range.
-            frequency(str): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
+            table (str): Name of the table containing the primary device measurements.
+            filter_value (str): List of device IDs to filter the query (used in UNNEST).
+            pollutants_query (str): SQL fragment for selecting standard pollutants.
+            bam_pollutants_query (str): SQL fragment for selecting BAM pollutants.
+            time_grouping (str): SQL expression for time-based grouping (e.g., by hour, day).
+            start_date (str): Start timestamp (inclusive) for filtering data.
+            end_date (str): End timestamp (inclusive) for filtering data.
+            frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
 
         Returns:
-            str: The SQL query string to retrieve device-specific data,
-                including BAM data if applicable.
+            str: The fully constructed SQL query, combining standard and BAM data if required.
         """
         table_name = Utils.table_name(table)
         query = (
@@ -195,13 +195,13 @@ class BigQueryApi:
 
     def get_site_query(
         self,
-        table,
-        filter_value,
-        pollutants_query,
-        time_grouping,
-        start_date,
-        end_date,
-        frequency,
+        table: str,
+        filter_value: List,
+        pollutants_query: str,
+        time_grouping: str,
+        start_date: str,
+        end_date: str,
+        frequency: Frequency,
     ):
         """
         Constructs a SQL query to retrieve data for specific sites.
@@ -232,25 +232,25 @@ class BigQueryApi:
 
     def get_airqloud_query(
         self,
-        table,
-        filter_value,
-        pollutants_query,
-        time_grouping,
-        start_date,
-        end_date,
-        frequency,
+        table: str,
+        filter_value: List,
+        pollutants_query: str,
+        time_grouping: str,
+        start_date: str,
+        end_date: str,
+        frequency: Frequency,
     ):
         """
         Constructs a SQL query to retrieve data for specific AirQlouds.
 
         Args:
             table (str): The name of the data table containing measurements.
-            filter_value (str): The list of AirQloud IDs to filter by.
-            pollutants_query (str): The SQL query for pollutants.
-            time_grouping (str): The time grouping clause based on frequency.
-            start_date (str): The start date for the query range.
-            end_date (str): The end date for the query range.
-            frequency (str): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
+            filter_value(list): The list of AirQloud IDs to filter by.
+            pollutants_query(str): The SQL query for pollutants.
+            time_grouping(str): The time grouping clause based on frequency.
+            start_date(str): The start date for the query range.
+            end_date(str): The end date for the query range.
+            frequency(Frequency): The frequency of the data (e.g., 'raw', 'daily', 'weekly').
 
         Returns:
             str: The SQL query string to retrieve AirQloud-specific data.
@@ -548,7 +548,7 @@ class BigQueryApi:
         bam_pollutants_query: str,
         start_date: str,
         end_date: str,
-        frequency=Frequency,
+        frequency: Frequency,
     ):
         """
         Builds a SQL query to retrieve pollutant and weather data with associated device or site information.
