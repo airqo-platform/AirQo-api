@@ -4,6 +4,211 @@ const { ObjectId } = require("mongoose").Types;
 const isEmpty = require("is-empty");
 const { isMongoId } = require("validator");
 
+const createNestedValidations = (prefix) => {
+  return [
+    // Basic fields
+    body(`${prefix}.title`)
+      .optional()
+      .isString()
+      .withMessage("Title must be a string"),
+    body(`${prefix}.xAxisLabel`)
+      .optional()
+      .isString()
+      .withMessage("X-Axis Label must be a string"),
+    body(`${prefix}.yAxisLabel`)
+      .optional()
+      .isString()
+      .withMessage("Y-Axis Label must be a string"),
+    body(`${prefix}.color`)
+      .optional()
+      .isString()
+      .withMessage("Color must be a string"),
+    body(`${prefix}.backgroundColor`)
+      .optional()
+      .isString()
+      .withMessage("Background Color must be a string"),
+    body(`${prefix}.chartType`)
+      .optional()
+      .isIn([
+        "Column",
+        "Line",
+        "Bar",
+        "Spline",
+        "Step",
+        "Area",
+        "Scatter",
+        "Bubble",
+        "Heatmap",
+        "Pie",
+      ])
+      .withMessage(
+        "Chart type must be one of: Column, Line, Bar, Spline, Step, Area, Scatter, Bubble, Heatmap, Pie"
+      ),
+    body(`${prefix}.days`)
+      .optional()
+      .isInt()
+      .withMessage("Days must be an integer"),
+    body(`${prefix}.results`)
+      .optional()
+      .isInt()
+      .withMessage("Results must be an integer"),
+    body(`${prefix}.timescale`)
+      .optional()
+      .isInt()
+      .withMessage("Timescale must be an integer"),
+    body(`${prefix}.average`)
+      .optional()
+      .isInt()
+      .withMessage("Average must be an integer"),
+    body(`${prefix}.median`)
+      .optional()
+      .isInt()
+      .withMessage("Median must be an integer"),
+    body(`${prefix}.sum`)
+      .optional()
+      .isInt()
+      .withMessage("Sum must be an integer"),
+    body(`${prefix}.rounding`)
+      .optional()
+      .isInt()
+      .withMessage("Rounding must be an integer"),
+    body(`${prefix}.dataMin`)
+      .optional()
+      .isNumeric()
+      .withMessage("Data Min must be a number"),
+    body(`${prefix}.dataMax`)
+      .optional()
+      .isNumeric()
+      .withMessage("Data Max must be a number"),
+    body(`${prefix}.yAxisMin`)
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Min must be a number"),
+    body(`${prefix}.yAxisMax`)
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Max must be a number"),
+
+    // Boolean fields
+    body(`${prefix}.showLegend`)
+      .optional()
+      .isBoolean()
+      .withMessage("showLegend must be a boolean"),
+    body(`${prefix}.showGrid`)
+      .optional()
+      .isBoolean()
+      .withMessage("showGrid must be a boolean"),
+    body(`${prefix}.showTooltip`)
+      .optional()
+      .isBoolean()
+      .withMessage("showTooltip must be a boolean"),
+    body(`${prefix}.isPublic`)
+      .optional()
+      .isBoolean()
+      .withMessage("isPublic must be a boolean"),
+    body(`${prefix}.showMultipleSeries`)
+      .optional()
+      .isBoolean()
+      .withMessage("showMultipleSeries must be a boolean"),
+    body(`${prefix}.refreshInterval`)
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("refreshInterval must be a non-negative integer"),
+
+    // Complex nested objects
+    body(`${prefix}.referenceLines`)
+      .optional()
+      .isArray()
+      .withMessage("referenceLines must be an array"),
+    body(`${prefix}.referenceLines.*.value`)
+      .optional()
+      .isNumeric()
+      .withMessage("Reference line value must be a number"),
+    body(`${prefix}.referenceLines.*.label`)
+      .optional()
+      .isString()
+      .withMessage("Reference line label must be a string"),
+    body(`${prefix}.referenceLines.*.color`)
+      .optional()
+      .isString()
+      .withMessage("Reference line color must be a string"),
+    body(`${prefix}.referenceLines.*.style`)
+      .optional()
+      .isIn(["solid", "dashed", "dotted"])
+      .withMessage(
+        "Reference line style must be one of: solid, dashed, dotted"
+      ),
+
+    body(`${prefix}.annotations`)
+      .optional()
+      .isArray()
+      .withMessage("annotations must be an array"),
+    body(`${prefix}.annotations.*.x`)
+      .optional()
+      .isNumeric()
+      .withMessage("Annotation x value must be a number"),
+    body(`${prefix}.annotations.*.y`)
+      .optional()
+      .isNumeric()
+      .withMessage("Annotation y value must be a number"),
+    body(`${prefix}.annotations.*.text`)
+      .optional()
+      .isString()
+      .withMessage("Annotation text must be a string"),
+    body(`${prefix}.annotations.*.color`)
+      .optional()
+      .isString()
+      .withMessage("Annotation color must be a string"),
+
+    body(`${prefix}.transformation`)
+      .optional()
+      .isObject()
+      .withMessage("transformation must be an object"),
+    body(`${prefix}.transformation.type`)
+      .optional()
+      .isIn(["none", "log", "sqrt", "pow"])
+      .withMessage("Transformation type must be one of: none, log, sqrt, pow"),
+    body(`${prefix}.transformation.factor`)
+      .optional()
+      .isNumeric()
+      .withMessage("Transformation factor must be a number"),
+
+    body(`${prefix}.comparisonPeriod`)
+      .optional()
+      .isObject()
+      .withMessage("comparisonPeriod must be an object"),
+    body(`${prefix}.comparisonPeriod.enabled`)
+      .optional()
+      .isBoolean()
+      .withMessage("comparisonPeriod.enabled must be a boolean"),
+    body(`${prefix}.comparisonPeriod.type`)
+      .optional()
+      .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
+      .withMessage(
+        "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+      ),
+
+    body(`${prefix}.additionalSeries`)
+      .optional()
+      .isArray()
+      .withMessage("additionalSeries must be an array"),
+    body(`${prefix}.additionalSeries.*.fieldId`)
+      .optional()
+      .isInt({ min: 1, max: 8 })
+      .withMessage(
+        "Additional series fieldId must be an integer between 1 and 8"
+      ),
+    body(`${prefix}.additionalSeries.*.label`)
+      .optional()
+      .isString()
+      .withMessage("Additional series label must be a string"),
+    body(`${prefix}.additionalSeries.*.color`)
+      .optional()
+      .isString()
+      .withMessage("Additional series color must be a string"),
+  ];
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -815,205 +1020,7 @@ const preferenceValidations = {
       .bail()
       .isInt({ min: 1, max: 8 })
       .withMessage("fieldId must be an integer between 1 and 8"),
-    body("chartConfig.title")
-      .optional()
-      .isString()
-      .withMessage("Title must be a string"),
-    body("chartConfig.xAxisLabel")
-      .optional()
-      .isString()
-      .withMessage("X-Axis Label must be a string"),
-    body("chartConfig.yAxisLabel")
-      .optional()
-      .isString()
-      .withMessage("Y-Axis Label must be a string"),
-    body("chartConfig.color")
-      .optional()
-      .isString()
-      .withMessage("Color must be a string"),
-    body("chartConfig.backgroundColor")
-      .optional()
-      .isString()
-      .withMessage("Background Color must be a string"),
-    body("chartConfig.chartType")
-      .optional()
-      .isIn([
-        "Column",
-        "Line",
-        "Bar",
-        "Spline",
-        "Step",
-        "Area",
-        "Scatter",
-        "Bubble",
-        "Heatmap",
-        "Pie",
-      ])
-      .withMessage(
-        "Chart type must be one of: Column, Line, Bar, Spline, Step, Area, Scatter, Bubble, Heatmap, Pie"
-      ),
-    body("chartConfig.days")
-      .optional()
-      .isInt()
-      .withMessage("Days must be an integer"),
-    body("chartConfig.results")
-      .optional()
-      .isInt()
-      .withMessage("Results must be an integer"),
-    body("chartConfig.timescale")
-      .optional()
-      .isInt()
-      .withMessage("Timescale must be an integer"),
-    body("chartConfig.average")
-      .optional()
-      .isInt()
-      .withMessage("Average must be an integer"),
-    body("chartConfig.median")
-      .optional()
-      .isInt()
-      .withMessage("Median must be an integer"),
-    body("chartConfig.sum")
-      .optional()
-      .isInt()
-      .withMessage("Sum must be an integer"),
-    body("chartConfig.rounding")
-      .optional()
-      .isInt()
-      .withMessage("Rounding must be an integer"),
-    body("chartConfig.dataMin")
-      .optional()
-      .isNumeric()
-      .withMessage("Data Min must be a number"),
-    body("chartConfig.dataMax")
-      .optional()
-      .isNumeric()
-      .withMessage("Data Max must be a number"),
-    body("chartConfig.yAxisMin")
-      .optional()
-      .isNumeric()
-      .withMessage("Y-Axis Min must be a number"),
-    body("chartConfig.yAxisMax")
-      .optional()
-      .isNumeric()
-      .withMessage("Y-Axis Max must be a number"),
-
-    // New fields
-    body("chartConfig.showLegend")
-      .optional()
-      .isBoolean()
-      .withMessage("showLegend must be a boolean"),
-    body("chartConfig.showGrid")
-      .optional()
-      .isBoolean()
-      .withMessage("showGrid must be a boolean"),
-    body("chartConfig.showTooltip")
-      .optional()
-      .isBoolean()
-      .withMessage("showTooltip must be a boolean"),
-    body("chartConfig.isPublic")
-      .optional()
-      .isBoolean()
-      .withMessage("isPublic must be a boolean"),
-    body("chartConfig.refreshInterval")
-      .optional()
-      .isInt({ min: 0 })
-      .withMessage("refreshInterval must be a non-negative integer"),
-    body("chartConfig.showMultipleSeries")
-      .optional()
-      .isBoolean()
-      .withMessage("showMultipleSeries must be a boolean"),
-
-    // Validation for nested objects
-    body("chartConfig.referenceLines")
-      .optional()
-      .isArray()
-      .withMessage("referenceLines must be an array"),
-    body("chartConfig.referenceLines.*.value")
-      .optional()
-      .isNumeric()
-      .withMessage("Reference line value must be a number"),
-    body("chartConfig.referenceLines.*.label")
-      .optional()
-      .isString()
-      .withMessage("Reference line label must be a string"),
-    body("chartConfig.referenceLines.*.color")
-      .optional()
-      .isString()
-      .withMessage("Reference line color must be a string"),
-    body("chartConfig.referenceLines.*.style")
-      .optional()
-      .isIn(["solid", "dashed", "dotted"])
-      .withMessage(
-        "Reference line style must be one of: solid, dashed, dotted"
-      ),
-
-    body("chartConfig.annotations")
-      .optional()
-      .isArray()
-      .withMessage("annotations must be an array"),
-    body("chartConfig.annotations.*.x")
-      .optional()
-      .isNumeric()
-      .withMessage("Annotation x value must be a number"),
-    body("chartConfig.annotations.*.y")
-      .optional()
-      .isNumeric()
-      .withMessage("Annotation y value must be a number"),
-    body("chartConfig.annotations.*.text")
-      .optional()
-      .isString()
-      .withMessage("Annotation text must be a string"),
-    body("chartConfig.annotations.*.color")
-      .optional()
-      .isString()
-      .withMessage("Annotation color must be a string"),
-
-    body("chartConfig.transformation")
-      .optional()
-      .isObject()
-      .withMessage("transformation must be an object"),
-    body("chartConfig.transformation.type")
-      .optional()
-      .isIn(["none", "log", "sqrt", "pow"])
-      .withMessage("Transformation type must be one of: none, log, sqrt, pow"),
-    body("chartConfig.transformation.factor")
-      .optional()
-      .isNumeric()
-      .withMessage("Transformation factor must be a number"),
-
-    body("chartConfig.comparisonPeriod")
-      .optional()
-      .isObject()
-      .withMessage("comparisonPeriod must be an object"),
-    body("chartConfig.comparisonPeriod.enabled")
-      .optional()
-      .isBoolean()
-      .withMessage("comparisonPeriod.enabled must be a boolean"),
-    body("chartConfig.comparisonPeriod.type")
-      .optional()
-      .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
-      .withMessage(
-        "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
-      ),
-
-    body("chartConfig.additionalSeries")
-      .optional()
-      .isArray()
-      .withMessage("additionalSeries must be an array"),
-    body("chartConfig.additionalSeries.*.fieldId")
-      .optional()
-      .isInt({ min: 1, max: 8 })
-      .withMessage(
-        "Additional series fieldId must be an integer between 1 and 8"
-      ),
-    body("chartConfig.additionalSeries.*.label")
-      .optional()
-      .isString()
-      .withMessage("Additional series label must be a string"),
-    body("chartConfig.additionalSeries.*.color")
-      .optional()
-      .isString()
-      .withMessage("Additional series color must be a string"),
+    ...createNestedValidations("chartConfig"),
   ],
   updateChart: [
     ...commonValidations.tenant,
