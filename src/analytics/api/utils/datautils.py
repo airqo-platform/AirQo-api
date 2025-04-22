@@ -58,6 +58,7 @@ class DataUtils:
         table: str = None
         sorting_cols: List[str] = ["site_id", "device_name"]
         bigquery_api = BigQueryApi()
+        datatype_ = datatype
         data_table_freq = frequency
         if not device_category:
             device_category = DeviceCategory.LOWCOST
@@ -67,13 +68,13 @@ class DataUtils:
         if dynamic_query:
             # Temporary fix for raw data downloads. This only works for the /data-download endpoint and allow it to download raw data from the average table.
             # TODO Come up with permanent solutions.
-            datatype = DataType.CALIBRATED
+            datatype_ = DataType.CALIBRATED
             frequency = Frequency.HOURLY if frequency == Frequency.RAW else frequency
 
         if data_table_freq.value in {"weekly", "monthly", "yearly"}:
             data_table_freq = Frequency.HOURLY
 
-        table = datasource.get(datatype).get(device_category).get(data_table_freq)
+        table = datasource.get(datatype_).get(device_category).get(data_table_freq)
 
         if not table:
             logger.exception(
@@ -107,10 +108,11 @@ class DataUtils:
             drop_columns.append("datetime")
             sorting_cols.append("datetime")
 
-        if dynamic_query and datatype.value == "raw":
-            # This currently being used for data downloads and not the raw-data endpoint
-            DataUtils.drop_zero_rows_and_columns_data_cleaning(raw_data)
-        elif dynamic_query:
+        if dynamic_query:
+            # This currently being used for the data-downloads endpoint only
+            raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
+                raw_data, datatype
+            )
             raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
             raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
@@ -121,49 +123,63 @@ class DataUtils:
 
     @classmethod
     def drop_zero_rows_and_columns_data_cleaning(
-        cls, data: pd.DataFrame
+        cls, data: pd.DataFrame, datatype: DataType
     ) -> pd.DataFrame:
         """
-        Perform data cleaning on a pandas DataFrame to handle specific conditions
-        related to "pm2_5" and "pm2_5_raw_value" columns.
+        Clean a pandas DataFrame by processing air quality columns like "pm2_5", "pm2_5_raw_value", and "pm2_5_calibrated_value".
 
-        The cleaning process includes:
-        1. Ensuring correct numeric data types for "pm2_5" and "pm2_5_raw_value".
-        2. Removing "pm2_5" values where "pm2_5_raw_value" values are not 0s.
-        3. Dropping the "pm2_5_raw_value" column if all its values are 0s.
-        4. Retaining "pm2_5" values where "pm2_5_raw_value" values are all 0s.
-        5. Dropping any column (including "pm2_5" and "pm2_5_raw_value") if all values are 0s.
+        Cleaning steps:
+        1. Cast required columns to numeric types (invalids become NaN).
+        2. If `datatype` is "raw":
+            - Replace "pm2_5" values with NaN where "pm2_5_raw_value" > 0.
+            - Drop "pm2_5_raw_value" if it only contains 0s or NaNs.
+        3. Drop any column (including "pm2_5") where all values are 0.
+        4. Drop rows where all of the required numeric columns are NaN.
 
         Args:
-            cls: Class reference (used in classmethods).
-            data (pd.DataFrame): Input pandas DataFrame with "pm2_5" and
-                                "pm2_5_raw_value" columns.
+            cls: Class reference (used for class methods).
+            data(pd.DataFrame): Input DataFrame to clean.
+            datatype(DataType): Type of dataset ("raw" or others) determining logic.
 
         Returns:
-            pd.DataFrame: Cleaned DataFrame with updates applied in place.
+            pd.DataFrame: The cleaned DataFrame.
 
         Raises:
-            ValueError: If "pm2_5" or "pm2_5_raw_value" columns are missing.
+            ValueError: If required columns are missing.
         """
-        required_numeric_columns = ["pm2_5", "pm2_5_raw_value"]
+        required_numeric_columns: List = []
+        filter_column: str = None
+
+        networks = list(data.network.unique())
+
+        if datatype.value == "raw":
+            extra_column = (
+                ["pm2_5_raw_value"]
+                if "airqo" in networks and len(networks) == 1
+                else ["pm2_5_raw_value", "pm2_5"]
+            )
+            filter_column = "pm2_5_raw_value"
+        else:
+            extra_column = ["pm2_5_calibrated_value"]
+
+        required_numeric_columns.extend(extra_column)
 
         missing_columns = [
             col for col in required_numeric_columns if col not in data.columns
         ]
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
-
         data[required_numeric_columns] = data[required_numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
 
-        data.loc[data["pm2_5_raw_value"] != 0, "pm2_5"] = np.nan
+        if filter_column:
+            # Fill the pm2_5 column with np.nan where filter_column is > 0 for non
+            data.loc[data[filter_column] > 0, "pm2_5"] = np.nan
+            if ((data[filter_column] == 0) | (data[filter_column].isna())).all():
+                data.drop(columns=[filter_column], inplace=True)
 
-        if ((data["pm2_5_raw_value"] == 0) | (data["pm2_5_raw_value"].isna())).all():
-            data.drop(columns=["pm2_5_raw_value"], inplace=True)
-
-        zero_columns = data.loc[:, (data == 0).all()].columns
+        zero_columns = data.columns[(data == 0).all()]
         data.drop(columns=zero_columns, inplace=True)
-        data.dropna(how="all", axis=1, inplace=True)
 
         return data
