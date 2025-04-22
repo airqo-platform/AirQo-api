@@ -1,0 +1,41 @@
+# RabbitMQ Node.js Example
+
+Simple Node.js producer to send a message to a RabbitMQ queue.
+Use this for testing RabbitMQ connections locally or to a Kubernetes cluster.
+
+---
+
+## Requirements
+
+- Node.js v14+
+- RabbitMQ running (local or external)
+- `amqplib` package
+
+---
+
+##  Install Dependencies
+
+```bash
+npm install amqplib
+```
+
+---
+
+## Run the Producer
+
+Update the RabbitMQ URL in `producer.js` and `consumer.js`:
+
+```javascript
+amqp.connect("amqp://<user>:<password>@<host>:<port>");
+```
+
+Then run:
+
+```bash
+node producer.js
+node consumer.js
+```
+
+---
+
+##
