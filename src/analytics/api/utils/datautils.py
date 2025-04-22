@@ -150,7 +150,8 @@ class DataUtils:
         required_numeric_columns: List = []
         filter_column: str = None
 
-        networks = list(data.columns.unique())
+        networks = list(data.network.unique())
+
         if datatype.value == "raw":
             extra_column = (
                 ["pm2_5_raw_value"]
@@ -180,8 +181,5 @@ class DataUtils:
 
         zero_columns = data.columns[(data == 0).all()]
         data.drop(columns=zero_columns, inplace=True)
-
-        # Drop with no value
-        data.dropna(subset=required_numeric_columns, how="all", inplace=True)
 
         return data

@@ -203,7 +203,7 @@ def format_to_aqcsv(
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
-    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency.VALUE)
+    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency.value)
 
     dataframe = pd.DataFrame(data)
     if dataframe.empty:
