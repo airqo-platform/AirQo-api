@@ -47,7 +47,7 @@ class RawDataSchema(Schema):
     frequency = ma_fields.String(
         required=True,
         validate=validate.OneOf(
-            ["raw", "hourly", "daily", "weekly", "monthly"],
+            ["raw", "hourly", "daily", "weekly", "monthly", "yearly"],
             error="Invalid data frequency.",
         ),
     )
@@ -117,7 +117,7 @@ class DataDownloadSchema(Schema):
             ValidationError: If 'datatype' is 'calibrated' and 'frequency' is not an allowed value.
         """
         if data.get("datatype") == "calibrated":
-            allowed_freq = {"hourly", "daily", "weekly", "yearly"}
+            allowed_freq = {"hourly", "daily", "weekly", "monthly", "yearly"}
             freq = data.get("frequency")
             if freq not in allowed_freq:
                 raise ValidationError(
