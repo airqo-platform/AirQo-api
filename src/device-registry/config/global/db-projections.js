@@ -77,6 +77,21 @@ class ProjectionFactory {
         },
       },
 
+      kyaAnswers: {
+        inclusion: {
+          _id: 1,
+          title: 1,
+          content: 1,
+          kya_question_id: {
+            $arrayElemAt: ["$kyaquestion._id", 0],
+          },
+          kya_question_title: {
+            $arrayElemAt: ["$kyaquestion.title", 0],
+          },
+        },
+        exclusion: { nothing: 0 },
+      },
+
       kyaQuizProgress: {
         inclusion: {
           user_id: 1,
@@ -740,6 +755,69 @@ class ProjectionFactory {
           overrideExclusion: {
             // Add fields to exclude for public path if needed
           },
+        },
+      },
+
+      kyaTasks: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      kyaQuiz: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      kyaQuestions: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      kyaAnswers: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      adminLevel: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      network: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      siteActivities: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
         },
       },
 
