@@ -179,9 +179,15 @@ activitySchema.statics = {
         };
       }
     } catch (error) {
-      logObject("the error", error);
-      const stingifiedMessage = JSON.stringify(error ? error : "");
-      logger.error(`🐛🐛 Internal Server Error -- ${stingifiedMessage}`);
+      logger.error(
+        `🐛🐛 Internal Server Error -- ${
+          error ? error.message : "No error message"
+        }`
+      );
+      logger.error(`Error stack: ${error ? error.stack : "No stack trace"}`);
+      logger.error(
+        `Error in list method with filter: ${JSON.stringify(filter)}`
+      );
 
       next(
         new HttpError(
