@@ -1359,6 +1359,15 @@ const dbProjections = {
     );
     return exclusionProjection;
   },
+  KYA_QUIZ_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaQuiz.inclusion,
+  KYA_QUIZ_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaQuiz",
+      path
+    );
+    return exclusionProjection;
+  },
   KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION:
     projectionFactory.baseProjections.kyaLessonsProgress.inclusion,
   KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (path) => {
