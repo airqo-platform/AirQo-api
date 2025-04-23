@@ -1383,7 +1383,10 @@ const dbProjections = {
     try {
       // Convert entity name to a standard projection key format
       const keyName =
-        entity.toUpperCase().replace(/-/g, "_") + "_EXCLUSION_PROJECTION";
+        entity
+          .replace(/([a-z0-9])([A-Z])/g, "$1_$2") // camelCase → snake_case
+          .replace(/-/g, "_") // kebab-case → snake_case
+          .toUpperCase() + "_EXCLUSION_PROJECTION";
 
       // If the projection exists as a function, call it
       if (typeof this[keyName] === "function") {
