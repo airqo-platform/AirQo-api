@@ -1222,14 +1222,7 @@ class ProjectionFactory {
    */
 
   cleanupDuplicateProperties(projection) {
-    const cleanedProjection = {};
-
-    // Filter out duplicate keys, keeping the last occurrence
-    Object.entries(projection).forEach(([key, value]) => {
-      cleanedProjection[key] = value;
-    });
-
-    return cleanedProjection;
+    return { ...projection };
   }
 
   /**
