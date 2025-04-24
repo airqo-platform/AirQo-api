@@ -1,7 +1,7 @@
 x-common-data: &common-data
   restart: on-failure
   env_file:
-    - .env.docker
+    - .env
 services:
   superset-init:
     <<: *common-data

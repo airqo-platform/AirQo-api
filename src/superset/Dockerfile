@@ -14,19 +14,20 @@ WORKDIR /app
 # Install Superset and Python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    pip install apache-superset
+    pip install -r requirements.txt
 
 # Copy config
-COPY --chown=superset superset_config.py /app/superset_config.py
+COPY superset_config.py /app/superset_config.py
 ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 
-COPY .env.docker /app/.env
+# Uncomment if you are using docker build
+# COPY .env /app/.env
 
 # Create entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+COPY docker /app/docker
+RUN chmod +x /app/docker/*.sh
 
 EXPOSE 8088
 
-CMD ["/app/entrypoint.sh"]
+# Uncomment if you are using docker build
+# CMD ["sh", "-c", "/app/docker/init_superset.sh && /app/docker/start_superset.sh"]
