@@ -163,7 +163,7 @@ def airqo_bam_realtime_measurements():
     "AirQo-BAM-Measurements-Cleanup",
     schedule="*/45 * * * *",
     catchup=False,
-    tags=["airqo", "bam" "raw", "hourly", "cleanup"],
+    tags=["airqo", "bam", "raw", "hourly", "cleanup"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_bam_measurements_cleanup():

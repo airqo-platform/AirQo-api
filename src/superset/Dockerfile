@@ -1,33 +1,32 @@
 FROM python:3.9-slim
 
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -y libpq-dev gcc && \
-    apt-get install -y build-essential libssl-dev libffi-dev python3-dev python3-pip libsasl2-dev libldap2-dev default-libmysqlclient-dev && \
+    apt-get install -y libpq-dev gcc build-essential \
+    libssl-dev libffi-dev python3-dev python3-pip \
+    libsasl2-dev libldap2-dev default-libmysqlclient-dev \
+    curl && \
     rm -rf /var/lib/apt/lists/*
 
-
+# Set working directory
 WORKDIR /app
 
-# Install dependencies and Superset
+# Install Superset and Python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip install apache-superset
 
-RUN pip install apache-superset
+# Copy config
+COPY --chown=superset superset_config.py /app/superset_config.py
+ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 
-# Copy the .env file to the Docker image
-COPY .env /app/.env
+COPY .env.docker /app/.env
 
-# Load environment variables from the .env file
-# RUN set -a && . /app/.env && set +a && echo "SECRET_KEY=${SUPERSET_SECRET_KEY}" 
+# Create entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-RUN superset db upgrade
-
-# Create an admin user
-# RUN superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@example.com --password adminpassword
-
-RUN superset load_examples
-RUN superset init
 EXPOSE 8088
 
-CMD ["superset", "run", "-p", "8088", "--with-threads", "--reload", "--debugger"]
+CMD ["/app/entrypoint.sh"]

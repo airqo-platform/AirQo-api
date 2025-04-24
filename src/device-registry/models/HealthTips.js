@@ -24,6 +24,9 @@ const tipsSchema = new Schema(
       type: String,
       required: [true, "the title is required!"],
     },
+    tag_line: {
+      type: String,
+    },
     description: {
       required: [true, "the description is required!"],
       type: String,
@@ -41,6 +44,12 @@ const tipsSchema = new Schema(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        fields: { title: 1, aqi_category: 1 },
+        unique: true,
+      },
+    ],
   }
 );
 
@@ -49,13 +58,14 @@ tipsSchema.pre("save", function(next) {
 });
 
 tipsSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
+  message: `A health tip with the title '{VALUE}' and this aqi_category already exists!`,
 });
 
 tipsSchema.methods = {
   toJSON() {
     return {
       title: this.title,
+      tag_line: this.tag_line,
       aqi_category: this.aqi_category,
       description: this.description,
       image: this.image,
@@ -64,6 +74,66 @@ tipsSchema.methods = {
 };
 
 tipsSchema.statics = {
+  async bulkModify(updates, next) {
+    try {
+      logText("bulk updating tips....");
+      let updatedCount = 0;
+      const bulkOps = [];
+
+      for (const update of updates) {
+        const { aqi_category, tips } = update;
+        const { min, max } = aqi_category;
+
+        const filter = {
+          "aqi_category.min": { $lte: max },
+          "aqi_category.max": { $gte: min },
+        };
+
+        // Create update operations for each tip in the array
+        for (const tip of tips) {
+          bulkOps.push({
+            updateOne: {
+              filter,
+              update: { $set: tip }, // Update with the specific tip data
+            },
+          });
+        }
+      }
+
+      if (bulkOps.length > 0) {
+        const result = await this.bulkWrite(bulkOps);
+        updatedCount = result.modifiedCount;
+      }
+
+      return {
+        success: true,
+        message: `Successfully updated ${updatedCount} tips`,
+        data: { updatedCount },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
+      if (!isEmpty(error.code) && error.code === 11000) {
+        Object.entries(error.keyPattern).forEach(([key, value]) => {
+          response[key] = "duplicate value";
+          response["message"] = "duplicate value";
+          return response;
+        });
+      } else if (!isEmpty(error.errors)) {
+        Object.entries(error.errors).forEach(([key, value]) => {
+          response[key] = value.message;
+          response["message"] = value.message;
+          return response;
+        });
+      }
+
+      next(new HttpError(message, status, response));
+    }
+  },
   async register(args, next) {
     try {
       logText("registering a new tip....");
@@ -117,6 +187,7 @@ tipsSchema.statics = {
         .project({
           _id: 1,
           title: 1,
+          tag_line: 1,
           aqi_category: 1,
           description: 1,
           image: 1,
@@ -216,6 +287,7 @@ tipsSchema.statics = {
         projection: {
           _id: 1,
           title: 1,
+          tag_line: 1,
           aqi_category: 1,
           description: 1,
           image: 1,

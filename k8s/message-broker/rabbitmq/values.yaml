@@ -1,0 +1,6 @@
+persistence:
+  enabled: true
+  existingClaim: data-rabbitmq-0
+  accessModes:
+    - ReadWriteOnce
+  size: 2Gi

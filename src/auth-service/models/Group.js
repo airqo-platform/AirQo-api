@@ -48,6 +48,16 @@ const GroupSchema = new Schema(
       required: [true, "grp_description is required"],
     },
     grp_manager: { type: ObjectId },
+    grp_sites: {
+      type: [ObjectId],
+      validate: {
+        validator: function (value) {
+          // Check for duplicates in the array
+          return Array.isArray(value) && new Set(value).size === value.length;
+        },
+        message: "Duplicate grp_sites are not allowed.",
+      },
+    },
     grp_manager_username: { type: String },
     grp_manager_firstname: { type: String },
     grp_manager_lastname: { type: String },
@@ -85,6 +95,13 @@ GroupSchema.index({ grp_title: 1 }, { unique: true });
 GroupSchema.pre(
   ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
   async function (next) {
+    // Pre-save hook to normalize grp_sites and remove duplicates
+    if (this.grp_sites && Array.isArray(this.grp_sites)) {
+      this.grp_sites = [...new Set(this.grp_sites.map(String))].map((id) =>
+        mongoose.Types.ObjectId(id)
+      );
+    }
+
     // Determine if this is a new document or an update
     const isNew = this.isNew;
     let updates = this.getUpdate ? this.getUpdate() : this;
@@ -95,6 +112,20 @@ GroupSchema.pre(
         ...(updates || {}),
         ...(updates.$set || {}),
       };
+
+      if (actualUpdates.grp_sites) {
+        const grpSites = actualUpdates.grp_sites;
+        if (
+          Array.isArray(grpSites) &&
+          new Set(grpSites).size !== grpSites.length
+        ) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Duplicate grp_sites are not allowed.",
+            })
+          );
+        }
+      }
 
       // Profile picture validation for both new documents and updates
       if (isNew) {

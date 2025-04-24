@@ -36,6 +36,8 @@ This authentication microservice is a crucial component of our application's sec
 └── validators
 ```
 
+For detailed information on the project's code structure and naming conventions, please refer to the [CODEBASE_STRUCTURE](CODEBASE_STRUCTURE.md).
+
 ## Getting Started
 
 ### Prerequisites
