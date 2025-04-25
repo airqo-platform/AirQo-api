@@ -68,209 +68,95 @@ const AQI_COLOR_NAMES = {
   unknown: "Unknown",
 };
 
-// Helper function to determine AQI range based on pm2_5 value
-function getAqiRangeForValue(pm25Value) {
-  if (pm25Value >= AQI_RANGES.good.min && pm25Value <= AQI_RANGES.good.max) {
-    return "good";
-  } else if (
-    pm25Value >= AQI_RANGES.moderate.min &&
-    pm25Value <= AQI_RANGES.moderate.max
-  ) {
-    return "moderate";
-  } else if (
-    pm25Value >= AQI_RANGES.u4sg.min &&
-    pm25Value <= AQI_RANGES.u4sg.max
-  ) {
-    return "u4sg";
-  } else if (
-    pm25Value >= AQI_RANGES.unhealthy.min &&
-    pm25Value <= AQI_RANGES.unhealthy.max
-  ) {
-    return "unhealthy";
-  } else if (
-    pm25Value >= AQI_RANGES.very_unhealthy.min &&
-    pm25Value <= AQI_RANGES.very_unhealthy.max
-  ) {
-    return "very_unhealthy";
-  } else if (pm25Value >= AQI_RANGES.hazardous.min) {
-    return "hazardous";
-  }
-  return "unknown";
-}
+// Shared AQI condition branches to avoid duplication
+const AQI_BRANCHES = [
+  {
+    case: {
+      $and: [
+        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+      ],
+    },
+    thenColor: AQI_COLORS.good,
+    thenCategory: AQI_CATEGORIES.good,
+    thenColorName: AQI_COLOR_NAMES.good,
+  },
+  {
+    case: {
+      $and: [
+        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
+      ],
+    },
+    thenColor: AQI_COLORS.moderate,
+    thenCategory: AQI_CATEGORIES.moderate,
+    thenColorName: AQI_COLOR_NAMES.moderate,
+  },
+  {
+    case: {
+      $and: [
+        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+      ],
+    },
+    thenColor: AQI_COLORS.u4sg,
+    thenCategory: AQI_CATEGORIES.u4sg,
+    thenColorName: AQI_COLOR_NAMES.u4sg,
+  },
+  {
+    case: {
+      $and: [
+        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
+      ],
+    },
+    thenColor: AQI_COLORS.unhealthy,
+    thenCategory: AQI_CATEGORIES.unhealthy,
+    thenColorName: AQI_COLOR_NAMES.unhealthy,
+  },
+  {
+    case: {
+      $and: [
+        { $gte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.min"] },
+        { $lte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.max"] },
+      ],
+    },
+    thenColor: AQI_COLORS.very_unhealthy,
+    thenCategory: AQI_CATEGORIES.very_unhealthy,
+    thenColorName: AQI_COLOR_NAMES.very_unhealthy,
+  },
+  {
+    case: { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
+    thenColor: AQI_COLORS.hazardous,
+    thenCategory: AQI_CATEGORIES.hazardous,
+    thenColorName: AQI_COLOR_NAMES.hazardous,
+  },
+];
+
+// Helper function to build MongoDB $switch expressions
+// from the shared AQI branches using a specific "then" property
+const buildSwitchExpression = (thenProperty) => ({
+  $switch: {
+    branches: AQI_BRANCHES.map((branch) => ({
+      case: branch.case,
+      then: branch[thenProperty],
+    })),
+    default: {
+      thenColor: AQI_COLORS.unknown,
+      thenCategory: AQI_CATEGORIES.unknown,
+      thenColorName: AQI_COLOR_NAMES.unknown,
+    }[thenProperty],
+  },
+});
 
 // MongoDB switch case expression for AQI color
-const getAqiColorExpression = () => ({
-  $switch: {
-    branches: [
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
-          ],
-        },
-        then: AQI_COLORS.good,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
-          ],
-        },
-        then: AQI_COLORS.moderate,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
-          ],
-        },
-        then: AQI_COLORS.u4sg,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
-          ],
-        },
-        then: AQI_COLORS.unhealthy,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.max"] },
-          ],
-        },
-        then: AQI_COLORS.very_unhealthy,
-      },
-      {
-        case: { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
-        then: AQI_COLORS.hazardous,
-      },
-    ],
-    default: AQI_COLORS.unknown,
-  },
-});
+const getAqiColorExpression = () => buildSwitchExpression("thenColor");
 
-// Switch case expression for AQI category
-const getAqiCategoryExpression = () => ({
-  $switch: {
-    branches: [
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
-          ],
-        },
-        then: AQI_CATEGORIES.good,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
-          ],
-        },
-        then: AQI_CATEGORIES.moderate,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
-          ],
-        },
-        then: AQI_CATEGORIES.u4sg,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
-          ],
-        },
-        then: AQI_CATEGORIES.unhealthy,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.max"] },
-          ],
-        },
-        then: AQI_CATEGORIES.very_unhealthy,
-      },
-      {
-        case: { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
-        then: AQI_CATEGORIES.hazardous,
-      },
-    ],
-    default: AQI_CATEGORIES.unknown,
-  },
-});
+// MongoDB switch case expression for AQI category
+const getAqiCategoryExpression = () => buildSwitchExpression("thenCategory");
 
-// Switch case expression for AQI color name
-const getAqiColorNameExpression = () => ({
-  $switch: {
-    branches: [
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
-          ],
-        },
-        then: AQI_COLOR_NAMES.good,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
-          ],
-        },
-        then: AQI_COLOR_NAMES.moderate,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
-          ],
-        },
-        then: AQI_COLOR_NAMES.u4sg,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
-          ],
-        },
-        then: AQI_COLOR_NAMES.unhealthy,
-      },
-      {
-        case: {
-          $and: [
-            { $gte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.min"] },
-            { $lte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.max"] },
-          ],
-        },
-        then: AQI_COLOR_NAMES.very_unhealthy,
-      },
-      {
-        case: { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
-        then: AQI_COLOR_NAMES.hazardous,
-      },
-    ],
-    default: AQI_COLOR_NAMES.unknown,
-  },
-});
+// MongoDB switch case expression for AQI color name
+const getAqiColorNameExpression = () => buildSwitchExpression("thenColorName");
 
 // Function to generate the AQI addFields for MongoDB aggregation pipelines
 function generateAqiAddFields() {
