@@ -1680,7 +1680,7 @@ jobs:
           push: true
           context: src/superset
           target: redis
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-supeset-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-supeset-redis:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-redis:latest
 
       - name: Build and push Superset Docker Image
         uses: docker/build-push-action@v4.1.1

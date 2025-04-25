@@ -52,7 +52,7 @@ spec:
             requests:
               cpu: 50m
               memory: 10Mi
-          image: eu.gcr.io/airqo-250220/airqo-prod-supeset-redis:latest
+          image: eu.gcr.io/airqo-250220/airqo-prod-superset-redis:latest
           ports:
             - containerPort: 6379
 
