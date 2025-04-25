@@ -13,8 +13,22 @@ spec:
       labels:
         app: superset
     spec:
+      restartPolicy: Always
       nodeSelector:
         role: moderate-usage
+      initContainers:
+        - name: superset-init
+          image: eu.gcr.io/airqo-250220/airqo-prod-superset-init:latest
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 200m
+              memory: 200Mi
+          envFrom:
+            - configMapRef:
+                name: env-superset-production
       containers:
         - name: superset
           resources:
@@ -28,9 +42,19 @@ spec:
           ports:
             - containerPort: 8088
           envFrom:
-          - configMapRef:
-              name: env-superset-production
-              
+            - configMapRef:
+                name: env-superset-production
+        - name: superset-redis
+          resources:
+            limits:
+              cpu: 300m
+              memory: 50Mi
+            requests:
+              cpu: 50m
+              memory: 10Mi
+          image: eu.gcr.io/airqo-250220/airqo-prod-supeset-redis:latest
+          ports:
+            - containerPort: 6379
 
 ---
 apiVersion: v1
@@ -40,10 +64,16 @@ metadata:
   namespace: superset
 spec:
   type: NodePort
-  selector:
-    app: superset
   ports:
-    - port: 8088
+    - name: superset
+      port: 8088
       targetPort: 8088
       protocol: TCP
       nodePort: 30144
+    - name: redis-server
+      port: 6379
+      targetPort: 6379
+      nodePort: 30079
+      protocol: TCP
+  selector:
+    app: superset
