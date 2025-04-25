@@ -156,7 +156,7 @@ const getAqiColorExpression = () => ({
   },
 });
 
-// MongoDB switch case expression for AQI category
+// Switch case expression for AQI category
 const getAqiCategoryExpression = () => ({
   $switch: {
     branches: [
@@ -214,7 +214,7 @@ const getAqiCategoryExpression = () => ({
   },
 });
 
-// MongoDB switch case expression for AQI color name
+// Switch case expression for AQI color name
 const getAqiColorNameExpression = () => ({
   $switch: {
     branches: [
