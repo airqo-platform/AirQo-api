@@ -1,8 +1,7 @@
-const EventModel = require("@models/Event");
-const ReadingModel = require("@models/Reading");
-const SignalModel = require("@models/Signal");
-const DeviceModel = require("@models/Device");
-
+const httpStatus = require("http-status");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-util`);
 const {
   logObject,
   logText,
@@ -10,19 +9,7 @@ const {
   HttpError,
   logTextWithTimestamp,
 } = require("@utils/shared");
-const constants = require("@config/constants");
-const {
-  generateFilter,
-  generateDateFormatWithoutHrs,
-  addMonthsToProvideDateTime,
-  formatDate,
-  translate,
-  stringify,
-} = require("@utils/common");
 const isEmpty = require("is-empty");
-const cryptoJS = require("crypto-js");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-util`);
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
@@ -31,12 +18,213 @@ const axios = require("axios");
 const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
 const { Parser } = require("json2csv");
-const httpStatus = require("http-status");
 const util = require("util");
 const redisGetAsync = util.promisify(redis.get).bind(redis);
 const redisSetAsync = util.promisify(redis.set).bind(redis);
 const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const asyncRetry = require("async-retry");
+const EventModel = require("@models/Event");
+const ReadingModel = require("@models/Reading");
+const {
+  generateFilter,
+  generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime,
+  formatDate,
+  translate,
+  stringify,
+} = require("@utils/common");
+
+const DeviceModel = require("@models/Device");
+const SignalModel = require("@models/Signal");
+const cryptoJS = require("crypto-js");
+
+const {
+  MEASUREMENT_REGISTRY,
+  generateValueSchema,
+  generateEventMappings,
+  generateEventDefaults,
+  getPollutantKeys,
+  getAggregationPollutants,
+  getMeasurementsByCategory,
+  getFieldNameMapping,
+  getProjectionFields,
+} = require("@utils/measurement-registry");
+
+/**
+ * Helper function to build AveragedFields query dynamically
+ */
+function buildAveragedFieldsQuery() {
+  // Build fields dynamically from measurement registry
+  const basicFields = "site_id, device_id, device_number, timestamp, ";
+
+  // Add all pollutant fields from registry
+  const pollutantFields = Object.entries(MEASUREMENT_REGISTRY)
+    .filter(([_, def]) => def.isPollutant)
+    .map(([key, def]) => {
+      // Only include the main value and calibrated value fields
+      const mainField = def.mappings.value;
+      const calibratedField = def.mappings.calibratedValue || null;
+
+      return calibratedField ? `${mainField}, ${calibratedField}` : mainField;
+    })
+    .join(", ");
+
+  // Add environmental fields
+  const envFields = Object.entries(MEASUREMENT_REGISTRY)
+    .filter(([_, def]) => def.category === "environmental")
+    .map(([_, def]) => def.mappings.value)
+    .join(", ");
+
+  return `${basicFields} ${pollutantFields}, ${envFields},`;
+}
+
+/**
+ * Helper function to build Raw Fields query dynamically
+ */
+function buildRawFieldsQuery() {
+  // Dynamic fields from the measurement registry
+  const basicFields = "site_id, name, device_id, device_number, timestamp,";
+
+  // Add all fields from the registry
+  const allFields = Object.entries(MEASUREMENT_REGISTRY)
+    .map(([key, def]) => {
+      return def.mappings.value;
+    })
+    .filter((field) => field) // Remove any undefined fields
+    .join(", ");
+
+  return `${basicFields} ${allFields},`;
+}
+
+/**
+ * Create ThingSpeak request body using measurement registry
+ */
+function createThingSpeakRequestBody(request, next) {
+  try {
+    const { body } = request;
+    const { category } = body;
+
+    // Define appropriate field mapping based on device category
+    let fieldMapping;
+    if (category === "bam") {
+      fieldMapping = constants.BAM_FIELDS_AND_LABELS;
+    } else if (category === "gas") {
+      fieldMapping = constants.THINGSPEAK_GAS_FIELD_DESCRIPTIONS;
+    } else {
+      fieldMapping = constants.FIELDS_AND_LABELS;
+    }
+
+    // Initialize result object
+    let result = {};
+
+    // Map fields using registry
+    for (const [field, label] of Object.entries(fieldMapping)) {
+      // Find corresponding measurement in registry
+      const measurement = Object.entries(MEASUREMENT_REGISTRY).find(
+        ([key, def]) => def.mappings.value === label
+      );
+
+      if (measurement && body[label] !== undefined) {
+        result[field] = body[label];
+      } else if (body[label] !== undefined) {
+        result[field] = body[label];
+      }
+    }
+
+    // Handle special fields like created_at (timestamp)
+    if (body.timestamp || body.time) {
+      result.created_at = body.timestamp || body.time;
+    }
+
+    return {
+      success: true,
+      message: "successfully created the request body",
+      data: result,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+}
+
+/**
+ * Helper function to build mobile fields query dynamically
+ */
+function buildMobileFieldsQuery() {
+  // Start with base fields
+  const baseFields =
+    "tenant, timestamp, device_number, device_id, latitude, longitude, horizontal_accuracy, ";
+
+  // Add mobile-specific pollutant fields
+  const pollutantFields = Object.entries(MEASUREMENT_REGISTRY)
+    .filter(([_, def]) => def.isPollutant)
+    .map(([key, def]) => {
+      const rawField = def.mappings.value;
+      const piField =
+        def.mappings.calibratedValue &&
+        def.mappings.calibratedValue.replace("_calibrated_value", "_pi_value");
+
+      return piField ? `${rawField}, ${piField}` : rawField;
+    })
+    .join(", ");
+
+  // Add GPS fields
+  return `${baseFields} ${pollutantFields}, gps_device_timestamp, timestamp_abs_diff`;
+}
+
+/**
+ * Helper function to build BAM raw fields query
+ */
+function buildBamRawFieldsQuery() {
+  // Add BAM-specific fields
+  const bamFields = [
+    "realtime_conc",
+    "hourly_conc",
+    "short_time_conc",
+    "air_flow",
+    "wind_speed",
+    "wind_direction",
+    "temperature",
+    "humidity",
+    "barometric_pressure",
+    "filter_temperature",
+    "filter_humidity",
+    "status",
+    "timestamp",
+    "device_id",
+    "device_number",
+    "site_id",
+    "latitude",
+    "longitude",
+  ].join(", ");
+
+  return bamFields;
+}
+
+/**
+ * Helper function to build BAM fields query
+ */
+function buildBamFieldsQuery() {
+  // Get pollutant fields specifically for BAM devices
+  const bamPollutants = ["pm10", "pm2_5", "no2", "pm1"]
+    .map((pollutant) => {
+      if (MEASUREMENT_REGISTRY[pollutant]) {
+        return MEASUREMENT_REGISTRY[pollutant].mappings.value.replace(
+          "_raw_value",
+          ""
+        );
+      }
+      return pollutant;
+    })
+    .join(", ");
+
+  return `site_id, device_id, device_number, timestamp, ${bamPollutants}, latitude, longitude`;
+}
 
 const listDevices = async (request, next) => {
   try {
@@ -66,7 +254,6 @@ const listDevices = async (request, next) => {
       return responseFromListDevice;
     } else if (responseFromListDevice.success === true) {
       let data = responseFromListDevice.data;
-      // logger.info(`responseFromListDevice was a success -- ${data}`);
       return responseFromListDevice;
     }
   } catch (error) {
@@ -78,6 +265,8 @@ const listDevices = async (request, next) => {
     );
   }
 };
+
+// Add this helper function for decryption
 const decryptKey = async (encryptedKey, next) => {
   try {
     let bytes = cryptoJS.AES.decrypt(
@@ -110,1170 +299,7 @@ const decryptKey = async (encryptedKey, next) => {
   }
 };
 
-async function transformOneReading(
-  { data = {}, map = {}, context = {} } = {},
-  next
-) {
-  try {
-    const transformedEvent = transform(data, map, context);
-
-    const validValues = transformedEvent.values.filter((value) => {
-      let isValid = true;
-      for (const key in map.item) {
-        // Use the provided map for consistency
-        if (typeof value[key] === "number" && value[key] <= 0) {
-          isValid = false;
-          break;
-        }
-      }
-      return isValid;
-    });
-
-    if (validValues.length === 0) {
-      return {
-        success: false,
-        message: "All values zero or less; discarding.",
-      };
-    }
-    transformedEvent.values = validValues;
-    if (transformedEvent.values.length < transformedEvent.nValues) {
-      transformedEvent.nValues = validValues.length;
-    }
-    return {
-      success: true,
-      message: "successfully transformed the provided event",
-      data: transformedEvent,
-    };
-  } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
-    );
-    return;
-  }
-}
-async function transformManyReadings(request, next) {
-  try {
-    const { body } = request;
-    let promises = body.map(async (event) => {
-      const data = event;
-      const map = constants.EVENT_MAPPINGS;
-      const responseFromTransformEvent = await transformOneReading(
-        {
-          data,
-          map,
-        },
-        next
-      );
-      if (responseFromTransformEvent.success === true) {
-        logger.info(`Transformed event: ${JSON.stringify(event)}`);
-        return responseFromTransformEvent;
-      } else if (responseFromTransformEvent.success === false) {
-        let errors = responseFromTransformEvent.errors
-          ? responseFromTransformEvent.errors
-          : { message: "" };
-        logger.error(`Failed to transform event -- ${stringify(errors)}`);
-        return responseFromTransformEvent;
-      }
-    });
-
-    return Promise.allSettled(promises).then((results) => {
-      let transforms = [];
-      let errors = [];
-      for (let i = 0; i < results.length; i++) {
-        let result = results[i];
-        if (result.status === "fulfilled") {
-          if (result.value.success) {
-            transforms.push(result.value.data);
-          } else {
-            errors.push(result.value); // Collect errors about discarded events if needed
-          }
-        } else if (result.status === "rejected") {
-          let error = result.reason.errors
-            ? result.reason.errors
-            : { message: "" };
-          errors.push(error);
-        }
-      }
-      return buildResponse(errors, transforms);
-    });
-  } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
-    );
-    return;
-  }
-}
-function buildResponse(errors, transforms) {
-  if (errors.length > 0) {
-    return {
-      success: false,
-      errors,
-      message: "Some operational errors occurred while transforming",
-      data: transforms,
-      status: httpStatus.BAD_REQUEST,
-    };
-  } else if (errors.length === 0) {
-    return {
-      success: true,
-      errors,
-      message: "Transformation completed successfully",
-      data: transforms,
-      status: httpStatus.OK,
-    };
-  }
-}
-function determineResponse(nAdded, eventsAdded, eventsRejected, errors) {
-  if (errors.length > 0 && nAdded === 0) {
-    return {
-      success: false,
-      status: httpStatus.CONFLICT,
-      message: "All operations failed with conflicts",
-      errors,
-      eventsAdded,
-      eventsRejected,
-    };
-  } else if (errors.length > 0 && nAdded > 0) {
-    return {
-      success: true,
-      status: httpStatus.OK,
-      message: "Finished the operation with some conflicts",
-      errors,
-      eventsAdded,
-      eventsRejected,
-    };
-  } else if (errors.length === 0 && nAdded > 0) {
-    return {
-      success: true,
-      status: httpStatus.OK,
-      message: "Successfully added all the events",
-      eventsAdded,
-      eventsRejected,
-    };
-  }
-}
-async function processEvent(event, next) {
-  try {
-    logObject("event", event);
-    let value = event;
-    let dot = new Dot(".");
-    let options = event.options;
-    let filter = cleanDeep(event.filter);
-    let update = event.update;
-    dot.delete(["filter", "update", "options"], value);
-
-    const validValues = event.values.filter((valItem) => {
-      // Directly access the values property
-      let isValid = true;
-
-      for (const key in constants.EVENT_MAPPINGS.item) {
-        if (typeof valItem[key] === "number" && valItem[key] <= 0) {
-          isValid = false;
-          break;
-        }
-      }
-      return isValid;
-    });
-
-    if (validValues.length === 0) {
-      logger.warn(
-        `Discarding event with all zero/negative values: ${JSON.stringify(
-          value
-        )}`
-      );
-      return { added: false };
-    }
-
-    value.values = validValues;
-    update["$push"] = { values: { $each: value.values } };
-    update["$inc"] = { nValues: validValues.length };
-
-    const addedEvents = await EventModel(event.tenant).updateOne(
-      filter,
-      update,
-      options
-    );
-
-    if (addedEvents) {
-      return {
-        added: true,
-        error: null,
-      };
-    } else {
-      let errMsg = {
-        message: "Unable to add the events",
-        record: {
-          ...(event.device ? { device: event.device } : {}),
-          ...(event.frequency ? { frequency: event.frequency } : {}),
-          ...(event.time ? { time: event.time } : {}),
-          ...(event.device_id ? { device_id: event.device_id } : {}),
-          ...(event.site_id ? { site_id: event.site_id } : {}),
-        },
-      };
-      return {
-        added: false,
-        error: errMsg,
-      };
-    }
-  } catch (e) {
-    eventsRejected.push(event);
-    let errMsg = {
-      message: "System conflict detected, most likely a duplicate record",
-      more: e.message,
-      record: {
-        ...(event.device ? { device: event.device } : {}),
-        ...(event.frequency ? { frequency: event.frequency } : {}),
-        ...(event.time ? { time: event.time } : {}),
-        ...(event.device_id ? { device_id: event.device_id } : {}),
-        ...(event.site_id ? { site_id: event.site_id } : {}),
-      },
-    };
-    return {
-      added: false,
-      error: errMsg,
-    };
-  }
-}
-
-async function processEvents(events, next) {
-  let nAdded = 0;
-  let eventsAdded = [];
-  let eventsRejected = [];
-  let errors = [];
-
-  for (const event of events) {
-    try {
-      let processedEvent = await processEvent(event, next);
-      if (processedEvent.added) {
-        nAdded += 1;
-        eventsAdded.push(event);
-      } else {
-        eventsRejected.push(event);
-        errors.push(processedEvent.error);
-      }
-    } catch (e) {
-      eventsRejected.push(event);
-      let errMsg = createErrorMessage(event, e);
-      errors.push(errMsg);
-    }
-  }
-
-  return determineResponse(nAdded, eventsAdded, eventsRejected, errors);
-}
-
-class AirQualityService {
-  constructor(tenant) {
-    this.EventModel = EventModel(tenant);
-  }
-
-  async getAirQualityData(request, next, version = "v1") {
-    const { language, site_id } = { ...request.query, ...request.params };
-    let responseFromListEvents;
-
-    try {
-      // Try to get from cache first
-      const cacheResult = await this.tryGetCache(request, next);
-      if (cacheResult.success) {
-        return cacheResult.data;
-      }
-
-      const versionedFunctions = {
-        v2: this.EventModel.v2_getAirQualityAverages,
-        v3: this.EventModel.v3_getAirQualityAverages,
-        // Add more versions as needed
-      };
-
-      const defaultFunction = this.EventModel.getAirQualityAverages;
-
-      const getAveragesFunction =
-        versionedFunctions[version] || defaultFunction;
-
-      responseFromListEvents = await getAveragesFunction.call(
-        this.EventModel,
-        site_id,
-        next
-      ); // Use .call to preserve 'this' context
-
-      // Handle translation if needed (only for v1 as v2 doesn't include health tips)
-      if (version === "v1") {
-        await this.translateHealthTips(responseFromListEvents, language, next);
-      }
-
-      // Set cache if successful
-      if (responseFromListEvents.success) {
-        await this.trySetCache(responseFromListEvents.data, request, next);
-
-        return {
-          success: true,
-          message: isEmpty(responseFromListEvents.data)
-            ? "no measurements for this search"
-            : responseFromListEvents.message,
-          data: responseFromListEvents.data,
-          status: responseFromListEvents.status || "",
-          isCache: false,
-        };
-      }
-
-      logger.error(
-        `Unable to retrieve events --- ${JSON.stringify(
-          responseFromListEvents.errors
-        )}`
-      );
-      return {
-        success: false,
-        message: responseFromListEvents.message,
-        errors: responseFromListEvents.errors || { message: "" },
-        status: responseFromListEvents.status || "",
-        isCache: false,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  }
-
-  async translateHealthTips(response, language, next) {
-    if (
-      language !== undefined &&
-      !isEmpty(response) &&
-      response.success === true &&
-      !isEmpty(response.data)
-    ) {
-      const data = response.data;
-      for (const event of data) {
-        const translatedHealthTips = await translate.translateTips(
-          { healthTips: event.health_tips, targetLanguage: language },
-          next
-        );
-        if (translatedHealthTips.success === true) {
-          event.health_tips = translatedHealthTips.data;
-        }
-      }
-    }
-  }
-
-  async tryGetCache(request, next) {
-    try {
-      return await Promise.race([
-        createEvent.getCache(request, next),
-        this.getCacheTimeout(),
-      ]);
-    } catch (error) {
-      logger.error(`🐛🐛 Cache Get Error -- ${JSON.stringify(error)}`);
-      return { success: false };
-    }
-  }
-
-  async trySetCache(data, request, next) {
-    try {
-      const result = await Promise.race([
-        createEvent.setCache(data, request, next),
-        this.getCacheTimeout(),
-      ]);
-
-      if (!result.success) {
-        logger.error(
-          `🐛🐛 Cache Set Error -- ${JSON.stringify(
-            result.errors || "Unknown error"
-          )}`
-        );
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Cache Set Error -- ${JSON.stringify(error)}`);
-    }
-  }
-
-  getCacheTimeout() {
-    return new Promise((resolve) =>
-      setTimeout(resolve, 60000, {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Cache timeout" },
-      })
-    );
-  }
-}
-
 const createEvent = {
-  getMeasurementsFromBigQuery: async (req, next) => {
-    try {
-      const { query } = req;
-      const {
-        frequency,
-        device,
-        device_name,
-        device_id,
-        device_lat_long,
-        site_id,
-        airqloud_id,
-        airqloud_name,
-        device_number,
-        startTime,
-        endTime,
-        tenant,
-        limit,
-        skip,
-        site,
-        format,
-        access_code,
-      } = query;
-
-      const responseFromGetDeviceDetails = await listDevices(req, next);
-      let deviceDetails = {};
-
-      if (responseFromGetDeviceDetails.success === true) {
-        if (
-          !isEmpty(responseFromGetDeviceDetails.data) &&
-          Array.isArray(responseFromGetDeviceDetails.data) &&
-          responseFromGetDeviceDetails.data.length === 1
-        ) {
-          deviceDetails = responseFromGetDeviceDetails.data[0];
-        } else {
-          // logger.info(`unable to retrieve details for ONE device`);
-        }
-      } else if (responseFromGetDeviceDetails.success === false) {
-        try {
-          logger.error(
-            `unable to retrieve device details --- ${stringify(
-              responseFromGetDeviceDetails.errors
-            )}`
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-      }
-
-      if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
-        if (isEmpty(access_code) || deviceDetails.access_code !== access_code) {
-          // next(
-          //   new HttpError(
-          //     "Unauthorized",
-          //     httpStatus.UNAUTHORIZED,
-          //     { message: "not authorized" }
-          //   )
-          // );
-        }
-      }
-
-      const currentDate = formatDate(new Date());
-
-      const twoMonthsBack = formatDate(
-        addMonthsToProvideDateTime(currentDate, -2)
-      );
-
-      const start = startTime ? startTime : twoMonthsBack;
-
-      const end = endTime ? endTime : currentDate;
-
-      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
-      let averaged_fields =
-        "site_id, device_id, device_number, timestamp, " +
-        "pm2_5_raw_value, pm2_5_calibrated_value, hdop, pm10_raw_value," +
-        "pm10_calibrated_value, no2_raw_value, no2_calibrated_value, pm1_raw_value," +
-        "pm1_calibrated_value, device_temperature, device_humidity, wind_speed," +
-        "humidity, temperature,";
-      let raw_fields = "";
-      let mobile = false;
-
-      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
-        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
-        averaged_fields =
-          "site_id, device_id, device_number, timestamp," +
-          "pm10, pm2_5, no2, pm1, latitude, longitude";
-        raw_fields = "";
-        mobile = false;
-      }
-
-      if (frequency === "raw") {
-        if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
-          raw_fields =
-            "realtime_conc, hourly_conc," +
-            "short_time_conc , air_flow , wind_speed ," +
-            "wind_direction , temperature , humidity," +
-            "barometric_pressure , filter_temperature ," +
-            "filter_humidity, status, timestamp, device_id," +
-            "device_number,site_id, latitude, longitude";
-          averaged_fields = "";
-          table = `${constants.DATAWAREHOUSE_RAW_DATA}.bam_device_measurements`;
-        } else {
-          table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
-          averaged_fields = "";
-          raw_fields =
-            "site_id, name, device_id, device_number, timestamp," +
-            "pm2_5, pm10, s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, no2," +
-            "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
-            "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
-            "device_temperature, device_humidity, battery,";
-          mobile = false;
-        }
-      }
-
-      if (tenant === "urban_better") {
-        table = `${constants.DATAWAREHOUSE_RAW_DATA}.mobile_device_measurements`;
-        mobile = true;
-        raw_fields =
-          "tenant, timestamp, device_number, device_id, latitude, longitude," +
-          "horizontal_accuracy, pm2_5_raw_value, pm1_raw_value, pm10_raw_value," +
-          "no2_raw_value, voc_raw_value, pm1_pi_value, pm2_5_pi_value, pm10_pi_value," +
-          "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
-        averaged_fields = "";
-      }
-      // \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
-      const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
-        constants.DATAWAREHOUSE_METADATA
-      }.sites\`.latitude AS latitude,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
-      
-        FROM \`${table}\` 
-        JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
-        ON \`${
-          constants.DATAWAREHOUSE_METADATA
-        }.sites\`.id = \`${table}\`.site_id 
-        WHERE timestamp 
-       >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
-        end ? end : currentDate
-      }" 
-      ${site ? `AND site_id="${site}"` : ""}
-      ${device ? `AND device="${device}"` : ""}
-      ${device_number ? `AND device_number=${device_number}` : ""}
-      ${device_name ? `AND device_name="${device_name}"` : ""}
-      ${device_id ? `AND device_id="${device_id}"` : ""}
-      ${site_id ? `AND site_id="${site_id}"` : ""}
-      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
-      ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
-      ${
-        tenant
-          ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
-          : ""
-      }
-      ORDER BY timestamp
-      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
-        skip ? skip : constants.DEFAULT_EVENTS_SKIP
-      }`;
-
-      const queryStatementMobile = `SELECT ${averaged_fields} ${raw_fields}
-      FROM \`${table}\` 
-      WHERE timestamp 
-      >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
-        end ? end : currentDate
-      }" 
-      ${site ? `AND site_id="${site}"` : ""}
-      ${device ? `AND device="${device}"` : ""}
-      ${device_number ? `AND device_number=${device_number}` : ""}
-      ${device_name ? `AND device_name="${device_name}"` : ""}
-      ${device_id ? `AND device_id="${device_id}"` : ""}
-      ${site_id ? `AND site_id="${site_id}"` : ""}
-      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
-      ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
-     ${tenant ? `AND tenant="${tenant}"` : ""}
-     ORDER BY timestamp
-     DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
-        skip ? skip : constants.DEFAULT_EVENTS_SKIP
-      }
-     `;
-
-      const queryStatementReference = `SELECT ${averaged_fields} ${raw_fields}
-      FROM \`${table}\` 
-      WHERE timestamp 
-     >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
-        end ? end : currentDate
-      }" 
-    ${site ? `AND site_id="${site}"` : ""}
-    ${device ? `AND device="${device}"` : ""}
-    ${device_number ? `AND device_number=${device_number}` : ""}
-    ${device_name ? `AND device_name="${device_name}"` : ""}
-    ${device_id ? `AND device_id="${device_id}"` : ""}
-    ${site_id ? `AND site_id="${site_id}"` : ""}
-    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
-    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
-    ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
-    ${tenant ? `AND tenant="${tenant}"` : ""}
-    ORDER BY timestamp
-    DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
-        skip ? skip : constants.DEFAULT_EVENTS_SKIP
-      }`;
-
-      let bqQuery = "";
-
-      if (mobile === true) {
-        bqQuery = queryStatementMobile;
-      } else if (
-        (!isEmpty(deviceDetails) &&
-          deviceDetails.category !== "bam" &&
-          mobile === false) ||
-        (isEmpty(deviceDetails) && mobile === false)
-      ) {
-        bqQuery = queryStatement;
-      } else if (
-        !isEmpty(deviceDetails) &&
-        deviceDetails.category === "bam" &&
-        mobile === false
-      ) {
-        bqQuery = queryStatementReference;
-      }
-      // logObject("bqQuery", bqQuery);
-      const options = {
-        query: bqQuery,
-        location: constants.BIG_QUERY_LOCATION,
-      };
-
-      const [job] = await bigquery.createQueryJob(options);
-
-      const [rows] = await job.getQueryResults();
-
-      const sanitizedMeasurements = rows.map((item) => {
-        return {
-          ...item,
-          timestamp: item.timestamp ? item.timestamp.value : "",
-          gps_device_timestamp:
-            item.gps_device_timestamp && item.gps_device_timestamp.value
-              ? item.gps_device_timestamp.value
-              : "",
-        };
-      });
-
-      let data = cleanDeep(sanitizedMeasurements);
-
-      if (format && format === "csv") {
-        try {
-          const parser = new Parser();
-          const csv = parser.parse(sanitizedMeasurements);
-          data = csv;
-        } catch (error) {
-          logger.error(`internal server error --- ${error.message}`);
-        }
-      }
-      return {
-        success: true,
-        data,
-        message: "successfully retrieved the measurements",
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  latestFromBigQuery: async (req, next) => {
-    try {
-      const { query } = req;
-      const {
-        frequency,
-        device,
-        name,
-        startTime,
-        endTime,
-        tenant,
-        limit,
-        skip,
-        site,
-      } = query;
-
-      const currentDate = generateDateFormatWithoutHrs(new Date());
-
-      const twoMonthsBack = generateDateFormatWithoutHrs(
-        addMonthsToProvideDateTime(currentDate, -2)
-      );
-
-      const start = generateDateFormatWithoutHrs(
-        startTime ? startTime : twoMonthsBack
-      );
-      const end = generateDateFormatWithoutHrs(endTime ? endTime : currentDate);
-
-      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
-      let pm2_5 = "";
-      let pm10 = "";
-
-      if (frequency === "raw") {
-        table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
-        pm2_5 = "";
-        pm10 = "";
-      }
-
-      const queryStatement = `SELECT site_id, name, device, \`${
-        constants.DATAWAREHOUSE_METADATA
-      }.sites\`.latitude AS latitude,
-        \`${
-          constants.DATAWAREHOUSE_METADATA
-        }.sites\`.longitude AS longitude, timestamp, pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant 
-        FROM \`${table}\` 
-        JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
-        ON \`${
-          constants.DATAWAREHOUSE_METADATA
-        }.sites\`.id = \`${table}\`.site_id 
-        WHERE timestamp  
-       >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
-        end ? end : currentDate
-      }" 
-      ${site ? `AND site_id="${site}"` : ""}
-      ${device ? `AND device="${device}"` : ""}
-      ${
-        tenant
-          ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
-          : ""
-      }
-       LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
-
-      const options = {
-        query: queryStatement,
-        location: constants.BIG_QUERY_LOCATION,
-      };
-
-      const [job] = await bigquery.createQueryJob(options);
-
-      const [rows] = await job.getQueryResults();
-
-      return {
-        success: true,
-        data: rows,
-        message: "successfully retrieved the measurements",
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  list: async (request, next) => {
-    try {
-      let missingDataMessage = "";
-      const { query } = request;
-      let { limit, skip } = query;
-      limit = Number(limit);
-      skip = Number(skip);
-
-      if (Number.isNaN(limit) || limit < 0) {
-        limit = 30;
-      }
-
-      if (Number.isNaN(skip) || skip < 0) {
-        skip = 0;
-      }
-
-      const { tenant } = query;
-      let page = parseInt(query.page);
-      const language = request.query.language;
-      const filter = generateFilter.events(request, next);
-
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        logObject("Cache result", cacheResult);
-
-        if (cacheResult.success === true) {
-          logText(cacheResult.message);
-          return cacheResult.data;
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
-      if (page) {
-        skip = parseInt((page - 1) * limit);
-      }
-
-      const responseFromListEvents = await EventModel(tenant).list(
-        {
-          skip,
-          limit,
-          filter,
-          page,
-        },
-        next
-      );
-
-      if (!responseFromListEvents) {
-        // Handle cases where responseFromListEvents is null or undefined
-        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "Error retrieving events from the database",
-            }
-          )
-        );
-      }
-
-      if (
-        language !== undefined &&
-        !isEmpty(responseFromListEvents) &&
-        responseFromListEvents.success === true &&
-        !isEmpty(responseFromListEvents.data[0].data)
-      ) {
-        const data = responseFromListEvents.data[0].data;
-        for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
-          }
-        }
-      }
-
-      if (responseFromListEvents.success === true) {
-        const data = responseFromListEvents.data;
-        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
-
-        logText("Setting cache...");
-
-        try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(data, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
-        } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-        }
-
-        logText("Cache set.");
-
-        return {
-          success: true,
-          message: !isEmpty(missingDataMessage)
-            ? missingDataMessage
-            : isEmpty(data[0].data)
-            ? "no measurements for this search"
-            : responseFromListEvents.message,
-          data,
-          status: responseFromListEvents.status || "",
-          isCache: false,
-        };
-      } else {
-        logger.error(
-          `Unable to retrieve events --- ${stringify(
-            responseFromListEvents.errors
-          )}`
-        );
-
-        return {
-          success: false,
-          message: responseFromListEvents.message,
-          errors: responseFromListEvents.errors || { message: "" },
-          status: responseFromListEvents.status || "",
-          isCache: false,
-        };
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  listAveragesV1: async (request, next) => {
-    try {
-      let missingDataMessage = "";
-      const { language, site_id, tenant } = {
-        ...request.query,
-        ...request.params,
-      };
-
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        logObject("Cache result", cacheResult);
-
-        if (cacheResult.success === true) {
-          logText(cacheResult.message);
-          return cacheResult.data;
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
-      const responseFromListEvents = await EventModel(
-        tenant
-      ).getAirQualityAverages(site_id, next);
-
-      if (
-        language !== undefined &&
-        !isEmpty(responseFromListEvents) &&
-        responseFromListEvents.success === true &&
-        !isEmpty(responseFromListEvents.data)
-      ) {
-        const data = responseFromListEvents.data;
-        for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
-          }
-        }
-      }
-
-      if (responseFromListEvents.success === true) {
-        const data = !isEmpty(missingDataMessage)
-          ? []
-          : responseFromListEvents.data;
-
-        logText("Setting cache...");
-
-        try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(data, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
-        } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-        }
-
-        logText("Cache set.");
-
-        return {
-          success: true,
-          message: !isEmpty(missingDataMessage)
-            ? missingDataMessage
-            : isEmpty(data)
-            ? "no measurements for this search"
-            : responseFromListEvents.message,
-          data,
-          status: responseFromListEvents.status || "",
-          isCache: false,
-        };
-      } else {
-        logger.error(
-          `Unable to retrieve events --- ${stringify(
-            responseFromListEvents.errors
-          )}`
-        );
-
-        return {
-          success: false,
-          message: responseFromListEvents.message,
-          errors: responseFromListEvents.errors || { message: "" },
-          status: responseFromListEvents.status || "",
-          isCache: false,
-        };
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-
-  listAverages: async (request, next) => {
-    const service = new AirQualityService(request.query.tenant);
-    return service.getAirQualityData(request, next);
-  },
-
-  listAveragesV2: async (request, next) => {
-    const service = new AirQualityService(request.query.tenant);
-    return service.getAirQualityData(request, next, "v2");
-  },
-  listAveragesV3: async (request, next) => {
-    const service = new AirQualityService(request.query.tenant);
-    return service.getAirQualityData(request, next, "v3");
-  },
-  view: async (request, next) => {
-    try {
-      let missingDataMessage = "";
-      const {
-        query: { tenant, language },
-      } = request;
-      const filter = generateFilter.readings(request, next);
-
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        if (cacheResult.success === true) {
-          logText(cacheResult.message);
-          return cacheResult.data;
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
-      const viewEventsResponse = await EventModel(tenant).view(filter, next);
-
-      if (
-        language !== undefined &&
-        !isEmpty(viewEventsResponse) &&
-        viewEventsResponse.success === true &&
-        !isEmpty(viewEventsResponse.data[0].data)
-      ) {
-        const data = viewEventsResponse.data[0].data;
-        for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
-          }
-        }
-      }
-
-      if (viewEventsResponse.success === true) {
-        // logObject("viewEventsResponse", viewEventsResponse);
-        const data = viewEventsResponse.data;
-        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
-
-        logText("Setting cache...");
-
-        try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(data, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
-        } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-        }
-
-        logText("Cache set.");
-
-        return {
-          success: true,
-          message: !isEmpty(missingDataMessage)
-            ? missingDataMessage
-            : isEmpty(data[0].data)
-            ? "no measurements for this search"
-            : viewEventsResponse.message,
-          data,
-          status: viewEventsResponse.status || "",
-          isCache: false,
-        };
-      } else {
-        logger.error(
-          `Unable to retrieve events --- ${stringify(
-            viewEventsResponse.errors
-          )}`
-        );
-
-        return {
-          success: false,
-          message: viewEventsResponse.message,
-          errors: viewEventsResponse.errors || { message: "" },
-          status: viewEventsResponse.status || "",
-          isCache: false,
-        };
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
   fetchAndStoreData: async (request, next) => {
     try {
       const filter = generateFilter.fetch(request);
@@ -1370,6 +396,30 @@ const createEvent = {
       return;
     }
   },
+  fetch: async function(filter) {
+    try {
+      const request = filter;
+      request.skip = filter.skip ? filter.skip : DEFAULT_SKIP;
+      request.limit = filter.limit ? filter.limit : DEFAULT_LIMIT;
+      request.page = filter.page ? filter.page : DEFAULT_PAGE;
+      const result = await fetchData(this, request);
+      const transformedData = filterNullAndReportOffDevices(result[0].data);
+      result[0].data = transformedData;
+      const calculatedValues = computeAveragePm2_5(transformedData);
+      result[0].meta.pm2_5Avg = calculatedValues;
+      return {
+        success: true,
+        data: result,
+        message: "successfully returned the measurements",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error --- view events -- ${error.message}`
+      );
+      return;
+    }
+  },
   read: async (request, next) => {
     try {
       let missingDataMessage = "";
@@ -1445,7 +495,6 @@ const createEvent = {
               ? resultOfCacheOperation.errors
               : { message: "Internal Server Error" };
             logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
           }
         } catch (error) {
           logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
@@ -1490,435 +539,163 @@ const createEvent = {
       return;
     }
   },
-  readRecentWithFilter: async (request, next) => {
+  getMeasurementsFromBigQuery: async (req, next) => {
     try {
-      let missingDataMessage = "";
+      const { query } = req;
       const {
-        query: { tenant, language, limit, skip },
-      } = request;
-      const filter = generateFilter.telemetry(request);
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
+        frequency,
+        device,
+        device_name,
+        device_id,
+        device_lat_long,
+        site_id,
+        airqloud_id,
+        airqloud_name,
+        device_number,
+        startTime,
+        endTime,
+        tenant,
+        limit,
+        skip,
+        site,
+        format,
+        access_code,
+      } = query;
 
-        if (cacheResult.success === true) {
-          logText(cacheResult.message);
-          return cacheResult.data;
+      const responseFromGetDeviceDetails = await listDevices(req, next);
+      let deviceDetails = {};
+
+      if (responseFromGetDeviceDetails.success === true) {
+        if (
+          !isEmpty(responseFromGetDeviceDetails.data) &&
+          Array.isArray(responseFromGetDeviceDetails.data) &&
+          responseFromGetDeviceDetails.data.length === 1
+        ) {
+          deviceDetails = responseFromGetDeviceDetails.data[0];
         }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
-      const readingsResponse = await ReadingModel(tenant).recent(
-        { filter, skip, limit },
-        next
-      );
-
-      if (
-        language !== undefined &&
-        !isEmpty(readingsResponse) &&
-        readingsResponse.success === true &&
-        !isEmpty(readingsResponse.data)
-      ) {
-        const data = readingsResponse.data;
-        for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
-          }
-        }
-      }
-
-      if (readingsResponse.success === true) {
-        const data = readingsResponse.data;
-
-        logText("Setting cache...");
-
+      } else if (responseFromGetDeviceDetails.success === false) {
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          logger.error(
+            `unable to retrieve device details --- ${stringify(
+              responseFromGetDeviceDetails.errors
+            )}`
+          );
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.error(`internal server error -- ${error.message}`);
         }
-
-        logText("Cache set.");
-
-        return {
-          success: true,
-          message: !isEmpty(missingDataMessage)
-            ? missingDataMessage
-            : isEmpty(data)
-            ? "no measurements for this search"
-            : readingsResponse.message,
-          data,
-          status: readingsResponse.status || "",
-          isCache: false,
-        };
-      } else {
-        logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
-        );
-
-        return {
-          success: false,
-          message: readingsResponse.message,
-          errors: readingsResponse.errors || { message: "" },
-          status: readingsResponse.status || "",
-          isCache: false,
-        };
       }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  getWorstReadingForSites: async (req, res, next) => {
-    try {
-      const siteIds = req.body.siteIds; // Assuming you pass the siteIds in the request body
 
-      const result = await ReadingModel("airqo").getWorstPm2_5Reading({
-        siteIds,
-        next,
+      if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
+        if (isEmpty(access_code) || deviceDetails.access_code !== access_code) {
+          // next(
+          //   new HttpError(
+          //     "Unauthorized",
+          //     httpStatus.UNAUTHORIZED,
+          //     { message: "not authorized" }
+          //   )
+          // );
+        }
+      }
+
+      const currentDate = formatDate(new Date());
+      const twoMonthsBack = formatDate(
+        addMonthsToProvideDateTime(currentDate, -2)
+      );
+      const start = startTime ? startTime : twoMonthsBack;
+      const end = endTime ? endTime : currentDate;
+
+      // Determine the appropriate table and fields based on device type and tenant
+      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
+      let averaged_fields = buildAveragedFieldsQuery();
+      let raw_fields = "";
+      let mobile = false;
+
+      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
+        averaged_fields = buildBamFieldsQuery();
+        raw_fields = "";
+        mobile = false;
+      }
+
+      if (frequency === "raw") {
+        if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+          raw_fields = buildBamRawFieldsQuery();
+          averaged_fields = "";
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.bam_device_measurements`;
+        } else {
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
+          averaged_fields = "";
+          raw_fields = buildRawFieldsQuery();
+          mobile = false;
+        }
+      }
+
+      if (tenant === "urban_better") {
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.mobile_device_measurements`;
+        mobile = true;
+        raw_fields = buildMobileFieldsQuery();
+        averaged_fields = "";
+      }
+
+      // Build the appropriate query based on device type
+      const queryStatement = buildQueryStatement(
+        table,
+        averaged_fields,
+        raw_fields,
+        mobile,
+        start,
+        end,
+        site,
+        device,
+        device_number,
+        device_name,
+        device_id,
+        site_id,
+        airqloud_id,
+        airqloud_name,
+        device_lat_long,
+        tenant,
+        limit,
+        skip
+      );
+
+      // Define query options
+      const options = {
+        query: queryStatement,
+        location: constants.BIG_QUERY_LOCATION,
+      };
+
+      const [job] = await bigquery.createQueryJob(options);
+      const [rows] = await job.getQueryResults();
+
+      const sanitizedMeasurements = rows.map((item) => {
+        return {
+          ...item,
+          timestamp: item.timestamp ? item.timestamp.value : "",
+          gps_device_timestamp:
+            item.gps_device_timestamp && item.gps_device_timestamp.value
+              ? item.gps_device_timestamp.value
+              : "",
+        };
       });
 
-      if (result.success) {
-        res.status(result.status).json(result);
-      } else {
-        // Handle errors based on result.message and result.errors
-        next(result);
-      }
-    } catch (error) {
-      // Handle unexpected errors
-      next(error);
-    }
-  },
-  getWorstReadingForDevices: async ({ deviceIds = [], next } = {}) => {
-    try {
-      if (isEmpty(deviceIds) || !Array.isArray(deviceIds)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "deviceIds array is required",
-          })
-        );
-        return;
-      }
-      if (deviceIds.length === 0) {
-        return {
-          success: true,
-          message: "No device_ids were provided",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      let data = cleanDeep(sanitizedMeasurements);
 
-      // Validate deviceIds type
-      if (!deviceIds.every((id) => typeof id === "string")) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "deviceIds must be an array of strings",
-          })
-        );
-        return;
-      }
-
-      const formattedDeviceIds = deviceIds.map((id) => id.toString());
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      const pipeline = ReadingModel("airqo")
-        .aggregate([
-          {
-            $match: {
-              device_id: { $in: formattedDeviceIds },
-              time: { $gte: threeDaysAgo },
-              "pm2_5.value": { $exists: true }, // Ensure pm2_5.value exists
-            },
-          },
-          {
-            $sort: { "pm2_5.value": -1, time: -1 }, // Sort by pm2_5 descending, then by time
-          },
-          {
-            $limit: 1, // Take only the worst reading
-          },
-          {
-            $project: {
-              _id: 0, // Exclude the MongoDB-generated _id
-              device_id: 1,
-              time: 1,
-              pm2_5: 1,
-              device: 1,
-              siteDetails: 1,
-            },
-          },
-        ])
-        .allowDiskUse(true);
-
-      const worstReading = await pipeline.exec();
-
-      if (!isEmpty(worstReading)) {
-        return {
-          success: true,
-          message: "Successfully retrieved the worst pm2_5 reading.",
-          data: worstReading[0],
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          message:
-            "No pm2_5 readings found for the specified device_ids in the last three days.",
-          data: {},
-          status: httpStatus.OK,
-        };
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-      return;
-    }
-  },
-  listReadingAverages: async (request, next) => {
-    try {
-      let missingDataMessage = "";
-      const { tenant, language, site_id } = {
-        ...request.query,
-        ...request.params,
-      };
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        if (cacheResult.success === true) {
-          logText(cacheResult.message);
-          return cacheResult.data;
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
-      const readingsResponse = await ReadingModel(
-        tenant
-      ).getAirQualityAnalytics(site_id, next);
-
-      if (
-        language !== undefined &&
-        !isEmpty(readingsResponse) &&
-        readingsResponse.success === true &&
-        !isEmpty(readingsResponse.data)
-      ) {
-        const data = readingsResponse.data;
-        for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
-          }
-        }
-      }
-
-      if (readingsResponse.success === true) {
-        const data = readingsResponse.data;
-
-        logText("Setting cache...");
-
+      if (format && format === "csv") {
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          const parser = new Parser();
+          const csv = parser.parse(sanitizedMeasurements);
+          data = csv;
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-        }
-
-        logText("Cache set.");
-
-        return {
-          success: true,
-          message: !isEmpty(missingDataMessage)
-            ? missingDataMessage
-            : isEmpty(data)
-            ? "no measurements for this search"
-            : readingsResponse.message,
-          data,
-          status: readingsResponse.status || "",
-          isCache: false,
-        };
-      } else {
-        logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
-        );
-
-        return {
-          success: false,
-          message: readingsResponse.message,
-          errors: readingsResponse.errors || { message: "" },
-          status: readingsResponse.status || "",
-          isCache: false,
-        };
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  getBestAirQuality: async (request, next) => {
-    try {
-      const {
-        query: { tenant, threshold, pollutant, language, limit, skip },
-      } = request;
-
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        if (cacheResult.success === true) {
-          logText(cacheResult.message);
-          return cacheResult.data;
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
-      const readingsResponse = await ReadingModel(
-        tenant
-      ).getBestAirQualityLocations({ threshold, pollutant, limit, skip }, next);
-
-      // Handle language translation for health tips if applicable
-      if (
-        language !== undefined &&
-        readingsResponse.success === true &&
-        !isEmpty(readingsResponse.data)
-      ) {
-        const data = readingsResponse.data;
-        for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
-          }
+          logger.error(`internal server error --- ${error.message}`);
         }
       }
-
-      try {
-        const resultOfCacheOperation = await Promise.race([
-          createEvent.setCache(readingsResponse, request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-        if (resultOfCacheOperation.success === false) {
-          const errors = resultOfCacheOperation.errors || {
-            message: "Internal Server Error",
-          };
-          logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-        }
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
-      }
-
       return {
         success: true,
-        message:
-          readingsResponse.message ||
-          "Successfully retrieved air quality data.",
-        data: readingsResponse.data,
-        status: readingsResponse.status || "",
-        isCache: false,
+        data,
+        message: "successfully retrieved the measurements",
       };
     } catch (error) {
-      logObject("error", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -1927,15 +704,166 @@ const createEvent = {
           { message: error.message }
         )
       );
-      return;
     }
   },
-  signal: async (request, next) => {
+  /**
+   * Build query fields for different types of data
+   * These helper functions make it easy to add new measurements in the future
+   */
+  buildAveragedFieldsQuery: () => {
+    // Build fields dynamically from measurement registry
+    const basicFields = "site_id, device_id, device_number, timestamp, ";
+
+    // Add all pollutant fields from registry
+    const pollutantFields = Object.entries(MEASUREMENT_REGISTRY)
+      .filter(([_, def]) => def.isPollutant)
+      .map(([key, def]) => {
+        // Only include the main value and calibrated value fields
+        const mainField = def.mappings.value;
+        const calibratedField = def.mappings.calibratedValue || null;
+
+        return calibratedField ? `${mainField}, ${calibratedField}` : mainField;
+      })
+      .join(", ");
+
+    // Add environmental fields
+    const envFields = Object.entries(MEASUREMENT_REGISTRY)
+      .filter(([_, def]) => def.category === "environmental")
+      .map(([_, def]) => def.mappings.value)
+      .join(", ");
+
+    return `${basicFields} ${pollutantFields}, ${envFields},`;
+  },
+  buildBamFieldsQuery: () => {
+    return (
+      "site_id, device_id, device_number, timestamp," +
+      "pm10, pm2_5, no2, pm1, latitude, longitude"
+    );
+  },
+  buildBamRawFieldsQuery: () => {
+    return (
+      "realtime_conc, hourly_conc," +
+      "short_time_conc , air_flow , wind_speed ," +
+      "wind_direction , temperature , humidity," +
+      "barometric_pressure , filter_temperature ," +
+      "filter_humidity, status, timestamp, device_id," +
+      "device_number,site_id, latitude, longitude"
+    );
+  },
+  buildRawFieldsQuery: () => {
+    // Dynamic fields from the measurement registry
+    const basicFields = "site_id, name, device_id, device_number, timestamp,";
+
+    // Add all fields from the registry
+    const allFields = Object.entries(MEASUREMENT_REGISTRY)
+      .map(([key, def]) => {
+        return def.mappings.value;
+      })
+      .filter((field) => field) // Remove any undefined fields
+      .join(", ");
+
+    return `${basicFields} ${allFields},`;
+  },
+  buildMobileFieldsQuery: () => {
+    return (
+      "tenant, timestamp, device_number, device_id, latitude, longitude," +
+      "horizontal_accuracy, pm2_5_raw_value, pm1_raw_value, pm10_raw_value," +
+      "no2_raw_value, voc_raw_value, pm1_pi_value, pm2_5_pi_value, pm10_pi_value," +
+      "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff"
+    );
+  },
+  /**
+   * Helper function to build BigQuery SQL statement
+   */
+  buildQueryStatement: (
+    table,
+    averaged_fields,
+    raw_fields,
+    mobile,
+    start,
+    end,
+    site,
+    device,
+    device_number,
+    device_name,
+    device_id,
+    site_id,
+    airqloud_id,
+    airqloud_name,
+    device_lat_long,
+    tenant,
+    limit = constants.DEFAULT_EVENTS_LIMIT,
+    skip = constants.DEFAULT_EVENTS_SKIP
+  ) => {
+    // Different query types based on whether it's mobile data or not
+    if (mobile) {
+      return `SELECT ${averaged_fields} ${raw_fields}
+    FROM \`${table}\` 
+    WHERE timestamp 
+    >= "${start}" AND timestamp <= "${end}" 
+    ${site ? `AND site_id="${site}"` : ""}
+    ${device ? `AND device="${device}"` : ""}
+    ${device_number ? `AND device_number=${device_number}` : ""}
+    ${device_name ? `AND device_name="${device_name}"` : ""}
+    ${device_id ? `AND device_id="${device_id}"` : ""}
+    ${site_id ? `AND site_id="${site_id}"` : ""}
+    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+    ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+    ${tenant ? `AND tenant="${tenant}"` : ""}
+    ORDER BY timestamp
+    DESC LIMIT ${limit} OFFSET ${skip}`;
+    } else {
+      return `SELECT ${averaged_fields} ${raw_fields}  \`${
+        constants.DATAWAREHOUSE_METADATA
+      }.sites\`.latitude AS latitude,
+      \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
+      \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant
+    FROM \`${table}\` 
+    JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
+    ON \`${constants.DATAWAREHOUSE_METADATA}.sites\`.id = \`${table}\`.site_id 
+    WHERE timestamp 
+    >= "${start}" AND timestamp <= "${end}" 
+    ${site ? `AND site_id="${site}"` : ""}
+    ${device ? `AND device="${device}"` : ""}
+    ${device_number ? `AND device_number=${device_number}` : ""}
+    ${device_name ? `AND device_name="${device_name}"` : ""}
+    ${device_id ? `AND device_id="${device_id}"` : ""}
+    ${site_id ? `AND site_id="${site_id}"` : ""}
+    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+    ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+    ${
+      tenant
+        ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
+        : ""
+    }
+    ORDER BY timestamp
+    DESC LIMIT ${limit} OFFSET ${skip}`;
+    }
+  },
+  list: async (request, next) => {
     try {
       let missingDataMessage = "";
-      const {
-        query: { tenant, language, limit, skip },
-      } = request;
+      const { query } = request;
+      let { limit, skip } = query;
+      limit = Number(limit);
+      skip = Number(skip);
+
+      if (Number.isNaN(limit) || limit < 0) {
+        limit = 30;
+      }
+
+      if (Number.isNaN(skip) || skip < 0) {
+        skip = 0;
+      }
+
+      const { tenant } = query;
+      let page = parseInt(query.page);
+      const language = request.query.language;
+      const filter = generateFilter.events(request, next);
+
+      // Try to get from cache first
       try {
         const cacheResult = await Promise.race([
           createEvent.getCache(request, next),
@@ -1949,6 +877,8 @@ const createEvent = {
           ),
         ]);
 
+        logObject("Cache result", cacheResult);
+
         if (cacheResult.success === true) {
           logText(cacheResult.message);
           return cacheResult.data;
@@ -1957,21 +887,42 @@ const createEvent = {
         logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
       }
 
-      const readingsResponse = await SignalModel(tenant).latest(
+      if (page) {
+        skip = parseInt((page - 1) * limit);
+      }
+
+      const responseFromListEvents = await EventModel(tenant).list(
         {
           skip,
           limit,
+          filter,
+          page,
         },
         next
       );
 
+      if (!responseFromListEvents) {
+        // Handle cases where responseFromListEvents is null or undefined
+        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Error retrieving events from the database",
+            }
+          )
+        );
+      }
+
+      // Handle language translation for health tips
       if (
         language !== undefined &&
-        !isEmpty(readingsResponse) &&
-        readingsResponse.success === true &&
-        !isEmpty(readingsResponse.data)
+        !isEmpty(responseFromListEvents) &&
+        responseFromListEvents.success === true &&
+        !isEmpty(responseFromListEvents.data[0].data)
       ) {
-        const data = readingsResponse.data;
+        const data = responseFromListEvents.data[0].data;
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
@@ -1983,14 +934,15 @@ const createEvent = {
         }
       }
 
-      if (readingsResponse.success === true) {
-        const data = readingsResponse.data;
+      if (responseFromListEvents.success === true) {
+        const data = responseFromListEvents.data;
+        data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
         logText("Setting cache...");
 
         try {
           const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
+            createEvent.setCache(data, request, next),
             new Promise((resolve) =>
               setTimeout(resolve, 60000, {
                 success: false,
@@ -2005,7 +957,6 @@ const createEvent = {
               ? resultOfCacheOperation.errors
               : { message: "Internal Server Error" };
             logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
           }
         } catch (error) {
           logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
@@ -2017,149 +968,29 @@ const createEvent = {
           success: true,
           message: !isEmpty(missingDataMessage)
             ? missingDataMessage
-            : isEmpty(data)
+            : isEmpty(data[0].data)
             ? "no measurements for this search"
-            : readingsResponse.message,
+            : responseFromListEvents.message,
           data,
-          status: readingsResponse.status || "",
+          status: responseFromListEvents.status || "",
           isCache: false,
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
+          `Unable to retrieve events --- ${stringify(
+            responseFromListEvents.errors
+          )}`
         );
 
         return {
           success: false,
-          message: readingsResponse.message,
-          errors: readingsResponse.errors || { message: "" },
-          status: readingsResponse.status || "",
+          message: responseFromListEvents.message,
+          errors: responseFromListEvents.errors || { message: "" },
+          status: responseFromListEvents.status || "",
           isCache: false,
         };
       }
     } catch (error) {
-      logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  create: async (request, next) => {
-    try {
-      const transformEventsResponse = await createEvent.transformManyEvents(
-        request,
-        next
-      );
-      // logObject("transformEventsResponse man", transformEventsResponse);
-      if (transformEventsResponse.success === true) {
-        let transformedEvents = transformEventsResponse.data;
-        let nAdded = 0;
-        let eventsAdded = [];
-        let eventsRejected = [];
-        let errors = [];
-
-        for (const event of transformedEvents) {
-          try {
-            // logObject("event", event);
-            let value = event;
-            let dot = new Dot(".");
-            let options = event.options;
-            let filter = cleanDeep(event.filter);
-            let update = event.update;
-            dot.delete(["filter", "update", "options"], value);
-            update["$push"] = { values: value };
-
-            // logObject("event.tenant", event.tenant);
-            // logObject("update", update);
-            // logObject("filter", filter);
-            // logObject("options", options);
-
-            const addedEvents = await EventModel(event.tenant).updateOne(
-              filter,
-              update,
-              options
-            );
-            // logObject("addedEvents", addedEvents);
-            if (addedEvents) {
-              nAdded += 1;
-              eventsAdded.push(event);
-            } else if (!addedEvents) {
-              let errMsg = {
-                message: "unable to add the events",
-                record: {
-                  ...(event.device ? { device: event.device } : {}),
-                  ...(event.frequency ? { frequency: event.frequency } : {}),
-                  ...(event.time ? { time: event.time } : {}),
-                  ...(event.device_id ? { device_id: event.device_id } : {}),
-                  ...(event.site_id ? { site_id: event.site_id } : {}),
-                },
-              };
-              errors.push(errMsg);
-            } else {
-              eventsRejected.push(event);
-              let errMsg = {
-                message: "unable to add the events",
-                record: {
-                  ...(event.device ? { device: event.device } : {}),
-                  ...(event.frequency ? { frequency: event.frequency } : {}),
-                  ...(event.time ? { time: event.time } : {}),
-                  ...(event.device_id ? { device_id: event.device_id } : {}),
-                  ...(event.site_id ? { site_id: event.site_id } : {}),
-                },
-              };
-              errors.push(errMsg);
-            }
-          } catch (e) {
-            // logger.error(`internal server error -- ${e.message}`);
-            eventsRejected.push(event);
-            let errMsg = {
-              message:
-                "system conflict detected, most likely a duplicate record",
-              more: e.message,
-              record: {
-                ...(event.device ? { device: event.device } : {}),
-                ...(event.frequency ? { frequency: event.frequency } : {}),
-                ...(event.time ? { time: event.time } : {}),
-                ...(event.device_id ? { device_id: event.device_id } : {}),
-                ...(event.site_id ? { site_id: event.site_id } : {}),
-              },
-            };
-            errors.push(errMsg);
-          }
-        }
-
-        if (errors.length > 0 && nAdded === 0) {
-          return {
-            success: false,
-            status: httpStatus.CONFLICT,
-            message: "all operations failed with conflicts",
-            errors,
-          };
-        } else if (errors.length > 0 && nAdded > 0) {
-          return {
-            success: true,
-            status: httpStatus.OK,
-            message: "finished the operation with some conflicts",
-            errors,
-          };
-        } else if (errors.length === 0 && nAdded > 0) {
-          return {
-            success: true,
-            status: httpStatus.OK,
-            message: "successfully added all the events",
-          };
-        }
-      } else if (transformEventsResponse.success === false) {
-        // logText("maan, things have jam!");
-        return transformEventsResponse;
-      }
-    } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -2170,243 +1001,9 @@ const createEvent = {
       );
     }
   },
-  deleteEvents: async (
-    tenant,
-    startTime,
-    endTime,
-    device,
-    site,
-    next,
-    limit = 1000
-  ) => {
-    try {
-      let filter = {
-        ...(device ? { device } : {}), // Add device filter if provided
-        ...(site ? { site } : {}), // Add site filter if provided
-      };
-
-      if (startTime && endTime) {
-        filter["values.time"] = {
-          $gte: new Date(startTime),
-          $lte: new Date(endTime),
-        };
-      }
-
-      let deletedCount = 0;
-      let totalDeletedCount = 0;
-      let shouldContinue = true;
-      let lastDeletedEventTime = new Date(endTime); // Initialize with endTime
-
-      do {
-        const eventsToDelete = await EventModel(tenant)
-          .find(filter)
-          .sort({ "values.time": -1 }) //sort in decending order of time to consistently pick the last time in every batch
-          .limit(limit)
-          .lean();
-
-        if (eventsToDelete.length === 0) {
-          shouldContinue = false;
-        } else {
-          const eventIds = eventsToDelete.map((event) => event._id);
-          try {
-            const result = await EventModel(tenant).deleteMany({
-              _id: { $in: eventIds },
-            });
-            deletedCount = result.deletedCount;
-            totalDeletedCount += deletedCount;
-          } catch (error) {
-            logger.error(`Batch deletion failed: ${error.message}`);
-            return {
-              success: false,
-              message: "Batch deletion failed",
-              error: error.message,
-              deletedCount: totalDeletedCount,
-              lastEndTimeProcessed: lastDeletedEventTime,
-            };
-          }
-
-          if (deletedCount > 0) {
-            //pick the minimum time in the current batch since the query sorts in descending order
-            lastDeletedEventTime = Math.min(
-              ...eventsToDelete.map((event) => {
-                if (event.values && Array.isArray(event.values)) {
-                  return Math.min(
-                    ...event.values.map((val) => new Date(val.time))
-                  );
-                }
-                return new Date(); // Return current time if no values to avoid affecting Math.min
-              })
-            );
-
-            filter["values.time"]["$lte"] = lastDeletedEventTime; // Adjust $lte
-          } else {
-            shouldContinue = false; // Stop if nothing deleted in this batch
-          }
-        }
-      } while (shouldContinue);
-
-      logObject("totalDeletedCount", totalDeletedCount);
-      logObject("lastDeletedEventTime", lastDeletedEventTime);
-
-      return {
-        success: true,
-        message: "Events deleted successfully",
-        deletedCount: totalDeletedCount,
-        lastEndTimeProcessed: lastDeletedEventTime,
-      };
-    } catch (error) {
-      logObject("the error in the util", error);
-      logger.error(`Error deleting events: ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  store: async (request, next) => {
-    try {
-      const transformReadingsResponse = await transformManyReadings(
-        request,
-        next
-      );
-      logObject("transformReadingsResponse man", transformReadingsResponse);
-      if (transformReadingsResponse.success === true) {
-        let transformedReadings = transformReadingsResponse.data;
-        let result = await processEvents(transformedReadings, next);
-        return result;
-      } else if (transformReadingsResponse.success === false) {
-        logText("maan, things have jam!");
-        return transformReadingsResponse;
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  generateOtherDataString: (inputObject, next) => {
-    try {
-      const str = Object.values(inputObject).join(",");
-      return str;
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-    }
-  },
-  createThingSpeakRequestBody: (req, next) => {
-    try {
-      const {
-        api_key,
-        time,
-        s1_pm2_5,
-        s1_pm10,
-        s2_pm2_5,
-        s2_pm10,
-        latitude,
-        longitude,
-        battery,
-        status,
-        altitude,
-        wind_speed,
-        satellites,
-        hdop,
-        internal_temperature,
-        internal_humidity,
-        external_temperature,
-        external_humidity,
-        external_pressure,
-        external_altitude,
-        category,
-        rtc_adc,
-        rtc_v,
-        rtc,
-        stc_adc,
-        stc_v,
-        stc,
-      } = req.body;
-
-      let stringPositionsAndValues = {};
-      stringPositionsAndValues[0] = latitude || null;
-      stringPositionsAndValues[1] = longitude || null;
-      stringPositionsAndValues[2] = altitude || null;
-      stringPositionsAndValues[3] = wind_speed || null;
-      stringPositionsAndValues[4] = satellites || null;
-      stringPositionsAndValues[5] = hdop || null;
-      stringPositionsAndValues[6] = internal_temperature || null;
-      stringPositionsAndValues[7] = internal_humidity || null;
-      stringPositionsAndValues[8] = external_temperature || null;
-      stringPositionsAndValues[9] = external_humidity || null;
-      stringPositionsAndValues[10] = external_pressure || null;
-      stringPositionsAndValues[11] = external_altitude || null;
-      stringPositionsAndValues[12] = category || null;
-
-      const otherDataString = createEvent.generateOtherDataString(
-        stringPositionsAndValues,
-        next
-      );
-      let requestBody = {};
-      const lowCostRequestBody = {
-        api_key: api_key,
-        created_at: time,
-        field1: s1_pm2_5,
-        field2: s1_pm10,
-        field3: s2_pm2_5,
-        field4: s2_pm10,
-        field5: latitude,
-        field6: longitude,
-        field7: battery,
-        field8: otherDataString,
-        latitude: latitude,
-        longitude: longitude,
-        status: status,
-      };
-
-      const bamRequestBody = {
-        api_key: api_key,
-        created_at: time,
-        field1: rtc_adc,
-        field2: rtc_v,
-        field3: rtc,
-        field4: stc_adc,
-        field5: stc_v,
-        field6: stc,
-        field7: battery,
-        field8: otherDataString,
-        latitude: latitude,
-        longitude: longitude,
-        status: status,
-      };
-
-      if (category === "bam") {
-        requestBody = bamRequestBody;
-      } else if (category === "lowcost") {
-        requestBody = lowCostRequestBody;
-      }
-
-      return {
-        success: true,
-        message: "successfully created ThingSpeak body",
-        data: requestBody,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
+  /**
+   * Transmit multiple sensor values to ThingSpeak
+   */
   transmitMultipleSensorValues: async (request, next) => {
     try {
       let requestBody = {};
@@ -2534,6 +1131,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Bulk transmit multiple sensor values to ThingSpeak
+   */
   bulkTransmitMultipleSensorValues: async (request, next) => {
     try {
       logText("bulk write to thing.......");
@@ -2650,6 +1250,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Generate a cache ID for storing and retrieving cache
+   */
   generateCacheID: (request, next) => {
     try {
       const {
@@ -2686,37 +1289,37 @@ const createEvent = {
       const currentTime = new Date().toISOString();
       const day = generateDateFormatWithoutHrs(currentTime);
       return `list_events
-      _${device ? device : "noDevice"}
-      _${tenant}
-      _${skip ? skip : 0}
-      _${limit ? limit : 0}
-      _${recent ? recent : "noRecent"}
-      _${frequency ? frequency : "noFrequency"}
-      _${endTime ? endTime : "noEndTime"}
-      _${startTime ? startTime : "noStartTime"}
-      _${device_id ? device_id : "noDeviceId"}
-      _${site ? site : "noSite"}
-      _${site_id ? site_id : "noSiteId"}
-      _${day ? day : "noDay"}
-      _${device_number ? device_number : "noDeviceNumber"}
-      _${metadata ? metadata : "noMetadata"}
-      _${external ? external : "noExternal"}
-      _${airqloud ? airqloud : "noAirQloud"}
-      _${airqloud_id ? airqloud_id : "noAirQloudID"}
-      _${lat_long ? lat_long : "noLatLong"}
-      _${page ? page : "noPage"}
-      _${running ? running : "noRunning"}
-      _${index ? index : "noIndex"}
-      _${brief ? brief : "noBrief"}
-      _${latitude ? latitude : "noLatitude"}
-      _${longitude ? longitude : "noLongitude"}
-      _${network ? network : "noNetwork"}
-      _${language ? language : "noLanguage"}
-      _${averages ? averages : "noAverages"}
-      _${threshold ? threshold : "noThreshold"}
-      _${pollutant ? pollutant : "noPollutant"}
-      _${quality_checks ? quality_checks : "noQualityChecks"}
-      `;
+    _${device ? device : "noDevice"}
+    _${tenant}
+    _${skip ? skip : 0}
+    _${limit ? limit : 0}
+    _${recent ? recent : "noRecent"}
+    _${frequency ? frequency : "noFrequency"}
+    _${endTime ? endTime : "noEndTime"}
+    _${startTime ? startTime : "noStartTime"}
+    _${device_id ? device_id : "noDeviceId"}
+    _${site ? site : "noSite"}
+    _${site_id ? site_id : "noSiteId"}
+    _${day ? day : "noDay"}
+    _${device_number ? device_number : "noDeviceNumber"}
+    _${metadata ? metadata : "noMetadata"}
+    _${external ? external : "noExternal"}
+    _${airqloud ? airqloud : "noAirQloud"}
+    _${airqloud_id ? airqloud_id : "noAirQloudID"}
+    _${lat_long ? lat_long : "noLatLong"}
+    _${page ? page : "noPage"}
+    _${running ? running : "noRunning"}
+    _${index ? index : "noIndex"}
+    _${brief ? brief : "noBrief"}
+    _${latitude ? latitude : "noLatitude"}
+    _${longitude ? longitude : "noLongitude"}
+    _${network ? network : "noNetwork"}
+    _${language ? language : "noLanguage"}
+    _${averages ? averages : "noAverages"}
+    _${threshold ? threshold : "noThreshold"}
+    _${pollutant ? pollutant : "noPollutant"}
+    _${quality_checks ? quality_checks : "noQualityChecks"}
+    `;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -2728,6 +1331,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Set data in cache with expiration
+   */
   setCache: async (data, request, next) => {
     try {
       const cacheID = createEvent.generateCacheID(request, next);
@@ -2761,6 +1367,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Get data from cache
+   */
   getCache: async (request, next) => {
     try {
       const cacheID = createEvent.generateCacheID(request, next);
@@ -2794,6 +1403,10 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Transform one event using the measurement registry
+   * Makes it easy to add new measurement types
+   */
   transformOneEvent: async (
     { data = {}, map = {}, context = {} } = {},
     next
@@ -2861,6 +1474,10 @@ const createEvent = {
       );
     }
   },
+
+  /**
+   * Enrich an event with device details
+   */
   enrichOneEvent: async (transformedEvent, next) => {
     try {
       let request = {};
@@ -2927,6 +1544,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Transform many events using the measurement registry
+   */
   transformManyEvents: async (request, next) => {
     try {
       const { body } = request;
@@ -3008,14 +1628,12 @@ const createEvent = {
       );
     }
   },
+
+  /**
+   * Add events after transforming them
+   */
   addEvents: async (request, next) => {
     try {
-      // logText("adding the events insertTransformedEvents to the util.....");
-      // logger.info(`adding events in the util.....`);
-      /**
-       * Step One: trasform or prepare for insertion into Events collection -- prepare the nesting expexctation
-       * Step Two: Insert
-       */
       const { tenant } = request.query;
       const transformEventsResponses = await createEvent.transformManyEvents(
         request,
@@ -3023,7 +1641,6 @@ const createEvent = {
       );
 
       if (transformEventsResponses.success === false) {
-        // logElement("transformEventsResponses was false?", true);
         return transformEventsResponses;
       } else if (transformEventsResponses.success === true) {
         const transformedMeasurements = transformEventsResponses.data;
@@ -3045,6 +1662,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Insert transformed events
+   */
   insertTransformedEvents: async (tenant, events, next) => {
     try {
       let errors = [];
@@ -3073,7 +1693,7 @@ const createEvent = {
 
           update["$push"] = { values: value };
 
-          const addedEvents = await Model(tenant).updateOne(
+          const addedEvents = await EventModel(tenant).updateOne(
             modifiedFilter,
             update,
             options
@@ -3136,6 +1756,7 @@ const createEvent = {
       );
     }
   },
+
   clearEventsOnClarity: (request, next) => {
     return {
       success: false,
@@ -3144,6 +1765,9 @@ const createEvent = {
       errors: { message: "coming soon" },
     };
   },
+  /**
+   * Insert measurements
+   */
   insertMeasurements: async (measurements, next) => {
     try {
       const responseFromInsertMeasurements = await createEvent.insert(
@@ -3163,6 +1787,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Insert measurements for a specific tenant
+   */
   insert: async (tenant, measurements, next) => {
     try {
       let nAdded = 0;
@@ -3185,7 +1812,7 @@ const createEvent = {
 
       for (const measurement of responseFromTransformMeasurements.data) {
         try {
-          // logObject("the measurement in the insertion process", measurement);
+          // Create filter using the measurement data
           const eventsFilter = {
             day: measurement.day,
             site_id: measurement.site_id,
@@ -3203,19 +1830,16 @@ const createEvent = {
           let someDeviceDetails = {};
           someDeviceDetails["device_id"] = measurement.device_id;
           someDeviceDetails["site_id"] = measurement.site_id;
-          // logObject("someDeviceDetails", someDeviceDetails);
 
-          // logObject("the measurement", measurement);
-
+          // Define update operation
           const eventsUpdate = {
             $push: { values: measurement },
             $min: { first: measurement.time },
             $max: { last: measurement.time },
             $inc: { nValues: 1 },
           };
-          // logObject("eventsUpdate", eventsUpdate);
-          // logObject("eventsFilter", eventsFilter);
 
+          // Update or insert event
           const addedEvents = await EventModel(tenant).updateOne(
             eventsFilter,
             eventsUpdate,
@@ -3223,7 +1847,7 @@ const createEvent = {
               upsert: true,
             }
           );
-          // logObject("addedEvents", addedEvents);
+
           if (addedEvents) {
             nAdded += 1;
             eventsAdded.push(measurement);
@@ -3267,7 +1891,7 @@ const createEvent = {
             errors.push(errMsg);
           }
         } catch (e) {
-          // logger.error(`internal server serror -- ${e.message}`);
+          // Handle errors
           eventsRejected.push(measurement);
           let errMsg = {
             msg:
@@ -3320,6 +1944,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Transform measurements with device information
+   */
   transformMeasurements: async (device, measurements, next) => {
     let promises = measurements.map(async (measurement) => {
       try {
@@ -3349,6 +1976,10 @@ const createEvent = {
       }
     });
   },
+  /**
+   * Transform measurements version 2
+   * Uses the measurement registry for consistent handling
+   */
   transformMeasurements_v2: async (measurements, next) => {
     try {
       logText("we are transforming version 2....");
@@ -3394,6 +2025,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Transform field names for ThingSpeak API
+   */
   transformField: (field, next) => {
     try {
       switch (field) {
@@ -3426,6 +2060,9 @@ const createEvent = {
       logger.error(`internal server error -- ${error.message}`);
     }
   },
+  /**
+   * Transform measurement fields for ThingSpeak format
+   */
   transformMeasurementFields: async (measurements, next) => {
     try {
       let transformed = [];
@@ -3462,6 +2099,9 @@ const createEvent = {
       );
     }
   },
+  /**
+   * Delete values on ThingSpeak
+   */
   deleteValuesOnThingspeak: async (req, res, next) => {
     try {
       const { device, tenant, chid, name, device_number } = req.query;
