@@ -1666,11 +1666,28 @@ jobs:
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-superset-production | kubectl replace -f - -n superset
 
+      - name: Build and push Superset-Init Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: init-superset
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-init:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-init:latest
+
+      - name: Build and push Superset-Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: redis
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-redis:latest
+
       - name: Build and push Superset Docker Image
         uses: docker/build-push-action@v4.1.1
         with:
           push: true
           context: src/superset
+          target: superset
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:latest
 
       - name: Apply Deployment Files

@@ -25,7 +25,6 @@ const UPTIME_CHECK_THRESHOLD = 168;
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
-// Centralized AQI Range Configuration
 const AQI_RANGES = {
   good: { min: 0, max: 9.1 },
   moderate: { min: 9.101, max: 35.49 },
@@ -34,142 +33,6 @@ const AQI_RANGES = {
   very_unhealthy: { min: 125.491, max: 225.49 },
   hazardous: { min: 225.491, max: null },
 };
-
-// Centralized AQI Color Configuration
-const AQI_COLORS = {
-  good: "34C759",
-  moderate: "ECAA06",
-  u4sg: "FF851F",
-  unhealthy: "F7453C",
-  very_unhealthy: "AC5CD9",
-  hazardous: "D95BA3",
-  unknown: "Unknown",
-};
-
-// Centralized AQI Category Name Configuration
-const AQI_CATEGORIES = {
-  good: "Good",
-  moderate: "Moderate",
-  u4sg: "Unhealthy for Sensitive Groups",
-  unhealthy: "Unhealthy",
-  very_unhealthy: "Very Unhealthy",
-  hazardous: "Hazardous",
-  unknown: "Unknown",
-};
-
-// Centralized AQI Color Name Configuration
-const AQI_COLOR_NAMES = {
-  good: "Green",
-  moderate: "Yellow",
-  u4sg: "Orange",
-  unhealthy: "Red",
-  very_unhealthy: "Purple",
-  hazardous: "Maroon",
-  unknown: "Unknown",
-};
-
-// Shared AQI condition branches to avoid duplication
-const AQI_BRANCHES = [
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.good,
-    thenCategory: AQI_CATEGORIES.good,
-    thenColorName: AQI_COLOR_NAMES.good,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.moderate,
-    thenCategory: AQI_CATEGORIES.moderate,
-    thenColorName: AQI_COLOR_NAMES.moderate,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.u4sg,
-    thenCategory: AQI_CATEGORIES.u4sg,
-    thenColorName: AQI_COLOR_NAMES.u4sg,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.unhealthy,
-    thenCategory: AQI_CATEGORIES.unhealthy,
-    thenColorName: AQI_COLOR_NAMES.unhealthy,
-  },
-  {
-    case: {
-      $and: [
-        { $gte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.min"] },
-        { $lte: ["$pm2_5.value", "$aqi_ranges.very_unhealthy.max"] },
-      ],
-    },
-    thenColor: AQI_COLORS.very_unhealthy,
-    thenCategory: AQI_CATEGORIES.very_unhealthy,
-    thenColorName: AQI_COLOR_NAMES.very_unhealthy,
-  },
-  {
-    case: { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
-    thenColor: AQI_COLORS.hazardous,
-    thenCategory: AQI_CATEGORIES.hazardous,
-    thenColorName: AQI_COLOR_NAMES.hazardous,
-  },
-];
-
-// Helper function to build MongoDB $switch expressions
-// from the shared AQI branches using a specific "then" property
-const buildSwitchExpression = (thenProperty) => ({
-  $switch: {
-    branches: AQI_BRANCHES.map((branch) => ({
-      case: branch.case,
-      then: branch[thenProperty],
-    })),
-    default: {
-      thenColor: AQI_COLORS.unknown,
-      thenCategory: AQI_CATEGORIES.unknown,
-      thenColorName: AQI_COLOR_NAMES.unknown,
-    }[thenProperty],
-  },
-});
-
-// MongoDB switch case expression for AQI color
-const getAqiColorExpression = () => buildSwitchExpression("thenColor");
-
-// MongoDB switch case expression for AQI category
-const getAqiCategoryExpression = () => buildSwitchExpression("thenCategory");
-
-// MongoDB switch case expression for AQI color name
-const getAqiColorNameExpression = () => buildSwitchExpression("thenColorName");
-
-// Function to generate the AQI addFields for MongoDB aggregation pipelines
-function generateAqiAddFields() {
-  return {
-    $addFields: {
-      device: "$device",
-      aqi_color: getAqiColorExpression(),
-      aqi_category: getAqiCategoryExpression(),
-      aqi_color_name: getAqiColorNameExpression(),
-      aqi_ranges: AQI_RANGES,
-    },
-  };
-}
 
 const valueSchema = new Schema({
   time: {
@@ -1019,7 +882,251 @@ async function fetchData(model, filter) {
       })
       .facet({
         total: [{ $count: "device" }],
-        data: [generateAqiAddFields()],
+        data: [
+          {
+            $addFields: {
+              device: "$device",
+              aqi_color: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                        ],
+                      },
+                      then: "00e400",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"],
+                          },
+                        ],
+                      },
+                      then: "ffff00",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                        ],
+                      },
+                      then: "ff7e00",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"],
+                          },
+                        ],
+                      },
+                      then: "ff0000",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.min",
+                            ],
+                          },
+                          {
+                            $lte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.max",
+                            ],
+                          },
+                        ],
+                      },
+                      then: "8f3f97",
+                    },
+                    {
+                      case: {
+                        $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                      },
+                      then: "7e0023",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+
+              aqi_category: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                        ],
+                      },
+                      then: "Good",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"],
+                          },
+                        ],
+                      },
+                      then: "Moderate",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                        ],
+                      },
+                      then: "Unhealthy for Sensitive Groups",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"],
+                          },
+                        ],
+                      },
+                      then: "Unhealthy",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.min",
+                            ],
+                          },
+                          {
+                            $lte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.max",
+                            ],
+                          },
+                        ],
+                      },
+                      then: "Very Unhealthy",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                          },
+                        ],
+                      },
+                      then: "Hazardous",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+              aqi_color_name: {
+                $switch: {
+                  branches: [
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                        ],
+                      },
+                      then: "Green",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"],
+                          },
+                        ],
+                      },
+                      then: "Yellow",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                          { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                        ],
+                      },
+                      then: "Orange",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"],
+                          },
+                          {
+                            $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"],
+                          },
+                        ],
+                      },
+                      then: "Red",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.min",
+                            ],
+                          },
+                          {
+                            $lte: [
+                              "$pm2_5.value",
+                              "$aqi_ranges.very_unhealthy.max",
+                            ],
+                          },
+                        ],
+                      },
+                      then: "Purple",
+                    },
+                    {
+                      case: {
+                        $and: [
+                          {
+                            $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                          },
+                        ],
+                      },
+                      then: "Maroon",
+                    },
+                  ],
+                  default: "Unknown",
+                },
+              },
+              aqi_ranges: "$aqi_ranges",
+            },
+          },
+        ],
       })
       .project({
         meta,
@@ -1453,7 +1560,223 @@ async function signalData(model, filter) {
     })
     .facet({
       total: [{ $count: "device" }],
-      data: [generateAqiAddFields()],
+      data: [
+        {
+          $addFields: {
+            device: "$device",
+            aqi_color: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                      ],
+                    },
+                    then: "00e400",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
+                      ],
+                    },
+                    then: "ffff00",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                      ],
+                    },
+                    then: "ff7e00",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
+                      ],
+                    },
+                    then: "ff0000",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        {
+                          $gte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.min",
+                          ],
+                        },
+                        {
+                          $lte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.max",
+                          ],
+                        },
+                      ],
+                    },
+                    then: "8f3f97",
+                  },
+                  {
+                    case: {
+                      $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                    },
+                    then: "7e0023",
+                  },
+                ],
+                default: "Unknown",
+              },
+            },
+
+            aqi_category: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                      ],
+                    },
+                    then: "Good",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
+                      ],
+                    },
+                    then: "Moderate",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                      ],
+                    },
+                    then: "Unhealthy for Sensitive Groups",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
+                      ],
+                    },
+                    then: "Unhealthy",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        {
+                          $gte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.min",
+                          ],
+                        },
+                        {
+                          $lte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.max",
+                          ],
+                        },
+                      ],
+                    },
+                    then: "Very Unhealthy",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
+                      ],
+                    },
+                    then: "Hazardous",
+                  },
+                ],
+                default: "Unknown",
+              },
+            },
+            aqi_color_name: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                      ],
+                    },
+                    then: "Green",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.moderate.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.moderate.max"] },
+                      ],
+                    },
+                    then: "Yellow",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                      ],
+                    },
+                    then: "Orange",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.unhealthy.min"] },
+                        { $lte: ["$pm2_5.value", "$aqi_ranges.unhealthy.max"] },
+                      ],
+                    },
+                    then: "Red",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        {
+                          $gte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.min",
+                          ],
+                        },
+                        {
+                          $lte: [
+                            "$pm2_5.value",
+                            "$aqi_ranges.very_unhealthy.max",
+                          ],
+                        },
+                      ],
+                    },
+                    then: "Purple",
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"] },
+                      ],
+                    },
+                    then: "Maroon",
+                  },
+                ],
+                default: "Unknown",
+              },
+            },
+            aqi_ranges: "$aqi_ranges",
+          },
+        },
+      ],
     })
     .project({
       meta,
@@ -1918,7 +2241,292 @@ eventSchema.statics.list = async function(
         })
         .facet({
           total: [{ $count: "device" }],
-          data: [generateAqiAddFields()],
+          data: [
+            {
+              $addFields: {
+                device: "$device",
+                aqi_color: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: {
+                          $and: [
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                          ],
+                        },
+                        then: "00e400",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "ffff00",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                          ],
+                        },
+                        then: "ff7e00",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "ff0000",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "8f3f97",
+                      },
+                      {
+                        case: {
+                          $gte: ["$pm2_5.value", "$aqi_ranges.hazardous.min"],
+                        },
+                        then: "7e0023",
+                      },
+                    ],
+                    default: "Unknown",
+                  },
+                },
+                aqi_category: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: {
+                          $and: [
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                          ],
+                        },
+                        then: "Good",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Moderate",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                          ],
+                        },
+                        then: "Unhealthy for Sensitive Groups",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Unhealthy",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Very Unhealthy",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.hazardous.min",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Hazardous",
+                      },
+                    ],
+                    default: "Unknown",
+                  },
+                },
+                aqi_color_name: {
+                  $switch: {
+                    branches: [
+                      {
+                        case: {
+                          $and: [
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.good.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.good.max"] },
+                          ],
+                        },
+                        then: "Green",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.moderate.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Yellow",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            { $gte: ["$pm2_5.value", "$aqi_ranges.u4sg.min"] },
+                            { $lte: ["$pm2_5.value", "$aqi_ranges.u4sg.max"] },
+                          ],
+                        },
+                        then: "Orange",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.unhealthy.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Red",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.min",
+                              ],
+                            },
+                            {
+                              $lte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.very_unhealthy.max",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Purple",
+                      },
+                      {
+                        case: {
+                          $and: [
+                            {
+                              $gte: [
+                                "$pm2_5.value",
+                                "$aqi_ranges.hazardous.min",
+                              ],
+                            },
+                          ],
+                        },
+                        then: "Maroon",
+                      },
+                    ],
+                    default: "Unknown",
+                  },
+                },
+                aqi_ranges: "$aqi_ranges",
+              },
+            },
+          ],
         })
         .project({
           meta,
