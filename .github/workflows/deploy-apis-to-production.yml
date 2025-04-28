@@ -1693,7 +1693,7 @@ jobs:
       - name: Apply Deployment Files
         run: |
           echo "Applying Kubernetes manifest files for Superset deployment"
-          kubectl apply -f k8s/superset-deployment.yaml -n superset
+          kubectl apply -f k8s/superset/superset-deployment.yaml -n superset
 
       - name: Restart the deployments
         run: |
