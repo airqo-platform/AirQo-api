@@ -1,11 +1,12 @@
 #!/bin/bash
-set -aex
+set -ae
 
 # Load env vars
 if [ -f /app/.env ]; then
+  # For local development if using docker build
   source /app/.env
 else
-  echo "⚠️  No .env file found at /app/.env"
+  echo "⚠️  No .env file found at /app/.env. Assuming env vars are set via Docker or Compose."
 fi
 set +a
 
@@ -22,6 +23,3 @@ superset fab create-admin \
 
 echo "🎨 Initializing Superset..."
 superset init
-
-echo "🖥️  Starting Superset server on 0.0.0.0:8088..."
-superset run -h 0.0.0.0 -p 8088
