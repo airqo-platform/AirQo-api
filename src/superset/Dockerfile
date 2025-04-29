@@ -10,6 +10,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+# Install requirements
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt

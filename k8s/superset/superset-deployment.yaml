@@ -73,7 +73,7 @@ spec:
     - name: redis-server
       port: 6379
       targetPort: 6379
-      nodePort: 30079
+      nodePort: 30023
       protocol: TCP
   selector:
     app: superset
