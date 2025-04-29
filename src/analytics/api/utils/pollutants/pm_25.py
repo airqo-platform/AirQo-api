@@ -51,13 +51,19 @@ FREQUENCY_MAPPER = {"hourly": 60, "daily": 1440, "raw": 1}
 COMMON_POLLUTANT_MAPPING = {
     "pm2_5_calibrated": ["pm2_5_calibrated_value"],
     "pm2_5_raw": ["pm2_5_raw_value", "pm2_5"],
+    "pm2_5": [
+        "pm2_5",
+    ],
     "pm10_calibrated": ["pm10_calibrated_value"],
     "pm10_raw": ["pm10_raw_value", "pm10"],
+    "pm10": [
+        "pm10",
+    ],
     "no2_calibrated": ["no2_calibrated_value"],
     "no2_raw": ["no2_raw_value"],
 }
 
-BIGQUERY_FREQUENCY_MAPPER = {
+BQ_FREQUENCY_MAPPER = {
     "raw": COMMON_POLLUTANT_MAPPING,
     "daily": COMMON_POLLUTANT_MAPPING,
     "hourly": COMMON_POLLUTANT_MAPPING,

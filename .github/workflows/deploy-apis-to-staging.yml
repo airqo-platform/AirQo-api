@@ -1741,7 +1741,6 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-spatial-api-config-files | kubectl replace -f - -n staging
 
-
   ### website ###
   website:
     name: build-push-deploy-website
@@ -1799,9 +1798,32 @@ jobs:
           gcloud secrets versions access latest --secret="sta-env-website-backend" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-website-api-config | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging          
-  
-### Redis Staging ###
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging
+
+  ### RabbitMQ ###
+  # rabbitmq-deploy:
+  #   name: build-deploy-rabbitmq
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@v3.5.3
+
+  #     - name: Login to K8S
+  #       uses: azure/k8s-set-context@v3.0
+  #       with:
+  #         method: kubeconfig
+  #         kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+  #     - name: Deploy RabbitMQ Helm Chart
+  #       run: |
+  #         helm install rabbitmq bitnami/rabbitmq \ --namespace message-broker-rabbit \   -f values.yaml
+
+  #     - name: Check RabbitMQ Pods Status
+  #       run: |
+  #         kubectl get pods -n message-broker-rabbit -o wide
+
+  ### Redis Staging ###
   redis:
     name: build-push-deploy-redis
     needs: [check]
@@ -1824,7 +1846,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Deploy Redis via Helm 
+      - name: Deploy Redis via Helm
         run: |
           echo "Deploying Redis to staging..."
           helm upgrade --install redis k8s/redis \

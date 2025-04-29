@@ -57,7 +57,7 @@ jobs:
       run_workflows: ${{ steps.check_files.outputs.run_workflows }} # workflows
       run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
       run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
-      run_website: ${{ steps.check_files.outputs.run_website }} # website      
+      run_website: ${{ steps.check_files.outputs.run_website }} # website
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_redis: ${{ steps.check_files.outputs.run_redis }} # redis
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx
@@ -80,13 +80,13 @@ jobs:
           git diff --name-only HEAD^ HEAD > files.txt
 
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
-          echo "run_device_registry=false" >>$GITHUB_OUTPUT  
-          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT
+          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT
           echo "run_data_mgt=false" >>$GITHUB_OUTPUT
           echo "run_data_proxy=false" >>$GITHUB_OUTPUT
           echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_device_uptime=false" >>$GITHUB_OUTPUT  
-          echo "run_device_status=false" >>$GITHUB_OUTPUT 
+          echo "run_device_uptime=false" >>$GITHUB_OUTPUT
+          echo "run_device_status=false" >>$GITHUB_OUTPUT
           echo "run_locate=false" >>$GITHUB_OUTPUT
           echo "run_predict=false" >>$GITHUB_OUTPUT
           echo "run_superset=false" >>$GITHUB_OUTPUT
@@ -94,7 +94,7 @@ jobs:
           echo "run_exceedances=false" >>$GITHUB_OUTPUT
           echo "run_meta_data=false" >>$GITHUB_OUTPUT
           echo "run_view=false" >>$GITHUB_OUTPUT
-          echo "run_calibrate=false" >>$GITHUB_OUTPUT 
+          echo "run_calibrate=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
@@ -110,11 +110,11 @@ jobs:
           while IFS= read -r file
           do
             echo $file
-            
+
             if [[ $file == src/auth-service/* ]]; then
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/auth-service/* ]]; then
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
@@ -230,11 +230,11 @@ jobs:
             if [[ $file == k8s/view/* ]]; then
               echo "run_view=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == src/calibrate/* ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
-            
+
             if [[ $file == k8s/calibrate/* ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
@@ -265,35 +265,35 @@ jobs:
 
             if [[ $file == src/incentives/* ]]; then
               echo "run_incentives=true" >>$GITHUB_OUTPUT
-            fi 
+            fi
 
             if [[ $file == k8s/incentives/* ]]; then
-              echo "run_incentives=true" >>$GITHUB_OUTPUT              
+              echo "run_incentives=true" >>$GITHUB_OUTPUT
             fi
             if [[ $file == src/insights/* ]]; then
               echo "run_insights=true" >>$GITHUB_OUTPUT
-            fi 
+            fi
 
             if [[ $file == k8s/insights/* ]]; then
-              echo "run_insights=true" >>$GITHUB_OUTPUT              
+              echo "run_insights=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/spatial/* ]]; then
               echo "run_spatial=true" >>$GITHUB_OUTPUT
-            fi 
+            fi
 
             if [[ $file == k8s/spatial/* ]]; then
-              echo "run_spatial=true" >>$GITHUB_OUTPUT              
+              echo "run_spatial=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/website/* ]]; then
               echo "run_website=true" >>$GITHUB_OUTPUT
-            fi 
+            fi
 
             if [[ $file == k8s/website/* ]]; then
-              echo "run_website=true" >>$GITHUB_OUTPUT              
-            fi            
-            
+              echo "run_website=true" >>$GITHUB_OUTPUT
+            fi
+
             if [[ $file == k8s/nginx/production/* ]]; then
               echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
@@ -1618,11 +1618,11 @@ jobs:
 
       - name: Update the corresponding k8s configmap(s)
         run: |
-          cd src/predict/    
-          echo "=============== Creating the required secret files ==============="     
+          cd src/predict/
+          echo "=============== Creating the required secret files ==============="
           gcloud secrets versions access latest --secret="prod-env-predict-api" > api.env
           gcloud secrets versions access latest --secret="prod-env-predict-predict-places-air-quality" > predict_places_air_quality.env
-          gcloud secrets versions access latest --secret="prod-key-predict-service-account" > google_application_credentials.json 
+          gcloud secrets versions access latest --secret="prod-key-predict-service-account" > google_application_credentials.json
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-production | kubectl replace -f - -n production
@@ -1663,7 +1663,6 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
-      
       - name: Setup gcloud CLI
         uses: google-github-actions/setup-gcloud@v1.1.1
 
@@ -1675,17 +1674,34 @@ jobs:
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-superset-production | kubectl replace -f - -n superset
 
+      - name: Build and push Superset-Init Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: init-superset
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-init:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-init:latest
+
+      - name: Build and push Superset-Redis
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/superset
+          target: redis
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-redis:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset-redis:latest
+
       - name: Build and push Superset Docker Image
         uses: docker/build-push-action@v4.1.1
         with:
           push: true
           context: src/superset
+          target: superset
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prod-superset:latest
 
       - name: Apply Deployment Files
         run: |
           echo "Applying Kubernetes manifest files for Superset deployment"
-          kubectl apply -f k8s/superset-deployment.yaml -n superset
+          kubectl apply -f k8s/superset/superset-deployment.yaml -n superset
 
       - name: Restart the deployments
         run: |
@@ -1826,6 +1842,29 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-spatial-api-config-files | kubectl replace -f - -n production
 
+  ### RabbitMQ ###
+  # rabbitmq-deploy:
+  #   name: build-deploy-rabbitmq
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@v3.5.3
+
+  #     - name: Login to K8S
+  #       uses: azure/k8s-set-context@v3.0
+  #       with:
+  #         method: kubeconfig
+  #         kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
+  #     - name: Deploy RabbitMQ Helm Chart
+  #       run: |
+  #         helm install rabbitmq bitnami/rabbitmq \ --namespace message-broker-rabbit \ -f k8s/message-broker/rabbitmq/values.yaml
+
+  #     - name: Check RabbitMQ Pods Status
+  #       run: |
+  #         kubectl get pods -n message-broker-rabbit
+
   ### website ###
   website:
     name: build-push-deploy-website
@@ -1885,7 +1924,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-website-api-config-files | kubectl replace -f - -n production
 
-
   ### Redis Production ###
   redis:
     name: build-push-deploy-redis
@@ -1909,7 +1947,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Deploy Redis via Helm 
+      - name: Deploy Redis via Helm
         run: |
           echo "Deploying Redis to staging..."
           helm upgrade --install redis k8s/redis \

@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.9-slim AS superset
 
 # Install system dependencies
 RUN apt-get update && \
@@ -8,25 +8,32 @@ RUN apt-get update && \
     curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Install Superset and Python dependencies
+# Install requirements
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    pip install apache-superset
+    pip install -r requirements.txt
 
-# Copy config
-COPY --chown=superset superset_config.py /app/superset_config.py
+COPY docker /app/docker
+RUN chmod +x /app/docker/*.sh
+
+# Uncomment if you are using docker build
+# COPY .env /app/.env
+
+# Custom config to use in place of default config
+COPY superset_config.py .
 ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
-
-COPY .env.docker /app/.env
-
-# Create entrypoint script
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8088
 
-CMD ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/docker/start_superset.sh"]
+
+# Initialization stage
+FROM superset as init-superset
+ENTRYPOINT ["/app/docker/init_superset.sh"]
+
+# Redis image
+FROM redis:7.2-bookworm as redis
+USER root
+CMD ["redis-server"]

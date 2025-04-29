@@ -91,6 +91,48 @@ router.get(
   createPreferenceController.listAll
 );
 
+router.post(
+  "/:deviceId/charts",
+  authenticateJWT,
+  preferenceValidations.createChart,
+  createPreferenceController.createChart
+);
+
+router.put(
+  "/:deviceId/charts/:chartId",
+  authenticateJWT,
+  preferenceValidations.updateChart,
+  createPreferenceController.updateChart
+);
+
+router.delete(
+  "/:deviceId/charts/:chartId",
+  authenticateJWT,
+  preferenceValidations.deleteChart,
+  createPreferenceController.deleteChart
+);
+
+router.get(
+  "/:deviceId/charts",
+  authenticateJWT,
+  preferenceValidations.getChartConfigurations,
+  createPreferenceController.getChartConfigurations
+);
+
+router.post(
+  "/:deviceId/charts/:chartId/copy",
+  authenticateJWT,
+  preferenceValidations.copyChart,
+  createPreferenceController.copyChart
+);
+
+router.get(
+  "/:deviceId/charts/:chartId",
+  authenticateJWT,
+  preferenceValidations.getChartConfigurationById,
+  createPreferenceController.getChartConfigurationById
+);
+
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,

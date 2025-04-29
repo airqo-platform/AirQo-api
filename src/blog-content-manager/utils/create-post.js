@@ -230,9 +230,8 @@ const createBlogPostUtil = {
         throw new HttpError("Missing image file", httpStatus.BAD_REQUEST);
       }
 
-      // Upload image logic here
-      // This is just a placeholder. You'll need to implement the actual image upload logic
-      const uploadedImageUrl = `https://example.com/${Date.now()}-${
+      // Upload image logic s
+      const uploadedImageUrl = `https://cloudinary.com/image/${Date.now()}-${
         image.originalname
       }`;
 
@@ -269,7 +268,7 @@ const createBlogPostUtil = {
       }
 
       // Preview generation logic here
-      // This is just a placeholder. You'll need to implement the actual preview generation logic
+      // This is just a placeholder. We'll need to implement the actual preview generation logic
       const htmlContent = `<h1>${content}</h1><p>This is a preview of the blog post.</p>`;
 
       return {

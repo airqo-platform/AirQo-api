@@ -77,6 +77,59 @@ class ProjectionFactory {
         },
       },
 
+      kyaAnswers: {
+        inclusion: {
+          _id: 1,
+          title: 1,
+          content: 1,
+          kya_question_id: {
+            $arrayElemAt: ["$kyaquestion._id", 0],
+          },
+          kya_question_title: {
+            $arrayElemAt: ["$kyaquestion.title", 0],
+          },
+        },
+        exclusion: { nothing: 0 },
+      },
+
+      kyaQuizProgress: {
+        inclusion: {
+          user_id: 1,
+          quiz_id: 1,
+          active_question: 1,
+          status: 1,
+          _id: 1,
+        },
+        exclusion: { nothing: 0 },
+      },
+
+      // KYA LESSONS PROGRESS
+      kyaLessonsProgress: {
+        inclusion: {
+          user_id: 1,
+          lesson_id: 1,
+          active_task: 1,
+          status: 1,
+          completed: 1,
+          _id: 1,
+        },
+        exclusion: { nothing: 0 },
+      },
+
+      //KYA LESSONS
+      kyaLessons: {
+        inclusion: {
+          _id: 1,
+          title: 1,
+          completion_message: 1,
+          image: 1,
+          tasks: 1,
+          active_task: { $arrayElemAt: ["$kya_user_progress.active_task", 0] },
+          status: { $arrayElemAt: ["$kya_user_progress.status", 0] },
+        },
+        exclusion: { nothing: 0 },
+      },
+
       // SITES
       sites: {
         inclusion: {
@@ -672,6 +725,102 @@ class ProjectionFactory {
         },
       },
 
+      kyaQuizProgress: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      // KYA LESSONS PROGRESS path strategies
+      kyaLessonsProgress: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {
+            // Add fields to exclude for public path if needed
+          },
+        },
+      },
+
+      //KYA LESSONS path strategies
+      kyaLessons: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {
+            // Add fields to exclude for public path if needed
+          },
+        },
+      },
+
+      kyaTasks: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      kyaQuiz: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      kyaQuestions: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      kyaAnswers: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      adminLevel: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      network: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
+      siteActivities: {
+        summary: {
+          additionalExclusions: {},
+        },
+        public: {
+          overrideExclusion: {},
+        },
+      },
+
       // SITES path strategies
       sites: {
         summary: {
@@ -1027,6 +1176,8 @@ class ProjectionFactory {
         },
       },
     };
+
+    this.ensureAllProjectionsExist();
   }
 
   /**
@@ -1038,10 +1189,62 @@ class ProjectionFactory {
   getProjections(entity, path = "none") {
     logText(`Getting projections for ${entity} with path ${path}`);
 
+    // Convert entity name to lowercase for case-insensitive comparison
+    const entityLower = entity.toLowerCase();
+
+    // Map common entity name variations to standardized keys
+    const entityMap = {
+      kyalessons: "kyaLessons",
+      kyalesson: "kyaLessons",
+      kyalessonsprogress: "kyaLessonsProgress",
+      kyalessons_progress: "kyaLessonsProgress",
+      kya_lessons_progress: "kyaLessonsProgress",
+      kyaprogress: "kyaLessonsProgress",
+      kya_progress: "kyaLessonsProgress",
+      kya_lessons: "kyaLessons",
+      kyaquizprogress: "kyaQuizProgress",
+      kyaquiz_progress: "kyaQuizProgress",
+      kya_quiz_progress: "kyaQuizProgress",
+      kyalessonsprogress: "kyaLessonsProgress",
+      kyalessons_progress: "kyaLessonsProgress",
+      kya_lessons_progress: "kyaLessonsProgress",
+      kyaprogress: "kyaLessonsProgress",
+      kya_progress: "kyaLessonsProgress",
+      kya_user_progress: "kyaLessonsProgress",
+      kya_user_quiz_progress: "kyaQuizProgress",
+      kyauserquizprogress: "kyaQuizProgress",
+      kyauserlessonprogress: "kyaLessonsProgress",
+      kya_lesson: "kyaLessons",
+      kyatasks: "kyaTasks",
+      kyatask: "kyaTasks",
+      kya_tasks: "kyaTasks",
+      kya_task: "kyaTasks",
+      kyaquiz: "kyaQuiz",
+      kya_quiz: "kyaQuiz",
+      kyaquizzes: "kyaQuiz",
+      kyaquestions: "kyaQuestions",
+      kyaquestion: "kyaQuestions",
+      kya_questions: "kyaQuestions",
+      kya_question: "kyaQuestions",
+      kyaanswers: "kyaAnswers",
+      kyaanswer: "kyaAnswers",
+      kya_answers: "kyaAnswers",
+      kya_answer: "kyaAnswers",
+      airqlouds: "airqlouds",
+      airqloud: "airqlouds",
+      air_qlouds: "airqlouds",
+      air_qloud: "airqlouds",
+    };
+
+    // Use mapped entity name if available, otherwise use the original
+    const mappedEntity = entityMap[entityLower] || entity;
+
     // Get base projections for the entity
-    const baseProjection = this.baseProjections[entity];
+    const baseProjection = this.baseProjections[mappedEntity];
     if (!baseProjection) {
-      logText(`No base projection found for entity: ${entity}`);
+      logText(
+        `No base projection found for entity: ${entity} (mapped to ${mappedEntity})`
+      );
       return {
         inclusionProjection: {},
         exclusionProjection: {},
@@ -1049,10 +1252,10 @@ class ProjectionFactory {
     }
 
     // Get path strategy for this entity
-    const entityPathStrategies = this.pathStrategies[entity];
+    const entityPathStrategies = this.pathStrategies[mappedEntity];
     if (!entityPathStrategies || !entityPathStrategies[path]) {
       logText(
-        `No path strategy found for ${entity} with path ${path}, using base projections`
+        `No path strategy found for ${mappedEntity} with path ${path}, using base projections`
       );
       return {
         inclusionProjection: baseProjection.inclusion,
@@ -1065,7 +1268,7 @@ class ProjectionFactory {
     // If path strategy has override, use it instead of base exclusion
     if (pathStrategy.overrideExclusion) {
       logObject(
-        `Using override exclusion for ${entity} with path ${path}`,
+        `Using override exclusion for ${mappedEntity} with path ${path}`,
         pathStrategy.overrideExclusion
       );
       return {
@@ -1075,19 +1278,74 @@ class ProjectionFactory {
     }
 
     // Merge base exclusions with path-specific additional exclusions
-    const mergedExclusions = {
+    const mergedExclusions = this.cleanupDuplicateProperties({
       ...baseProjection.exclusion,
       ...(pathStrategy.additionalExclusions || {}),
-    };
+    });
 
     logObject(
-      `Using merged exclusions for ${entity} with path ${path}`,
+      `Using merged exclusions for ${mappedEntity} with path ${path}`,
       mergedExclusions
     );
     return {
       inclusionProjection: baseProjection.inclusion,
       exclusionProjection: mergedExclusions,
     };
+  }
+
+  /**
+   * Cleans up duplicate properties in a projection object
+   * @param {Object} projection - The projection object to clean
+   * @returns {Object} - The cleaned projection object
+   */
+
+  cleanupDuplicateProperties(projection) {
+    return { ...projection };
+  }
+
+  /**
+   * Ensures all required projections exist in the baseProjections object and
+   * initializes them if they are missing.
+   */
+  ensureAllProjectionsExist() {
+    // Define a list of all required projections
+    const requiredProjections = [
+      "grids",
+      "sites",
+      "devices",
+      "cohorts",
+      "airqlouds",
+      "kyaLessons",
+      "kyaTasks",
+      "kyaQuiz",
+      "kyaQuestions",
+      "kyaAnswers",
+      "kyaQuizProgress",
+      "kyaLessonsProgress",
+      "adminLevel",
+      "network",
+      "siteActivities",
+    ];
+
+    // Check each required projection exists in baseProjections
+    for (const projection of requiredProjections) {
+      if (!this.baseProjections[projection]) {
+        logText(`Warning: Missing base projection for '${projection}'`);
+        // Create a default empty projection
+        this.baseProjections[projection] = {
+          inclusion: { _id: 1 },
+          exclusion: { nothing: 0 },
+        };
+      }
+
+      // Also ensure a path strategy exists
+      if (!this.pathStrategies[projection]) {
+        logText(`Warning: Missing path strategy for '${projection}'`);
+        this.pathStrategies[projection] = {
+          summary: { additionalExclusions: {} },
+        };
+      }
+    }
   }
 
   /**
@@ -1129,11 +1387,188 @@ const projectionFactory = new ProjectionFactory();
 
 // Export the projection methods in the format your application expects
 const dbProjections = {
+  //for backward compatibility
+  _getProjectionValue(key, fallbackValue, ...args) {
+    // Check if the property exists on this object
+    if (!(key in this)) {
+      logText(`Warning: Projection '${key}' not found, using fallback`);
+      return fallbackValue;
+    }
+
+    // Handle both function and non-function properties
+    if (typeof this[key] === "function") {
+      return this[key](...args);
+    } else {
+      return this[key];
+    }
+  },
+
+  //  for safer access to projections
+  ensureProjectionFunction(projectionName) {
+    if (!this[projectionName]) {
+      logText(
+        `Warning: Projection '${projectionName}' not found, creating default`
+      );
+      // Create a default projection function that returns nothing: 0
+      this[projectionName] = () => ({ nothing: 0 });
+    } else if (typeof this[projectionName] !== "function") {
+      const originalValue = this[projectionName];
+      logText(
+        `Warning: Projection '${projectionName}' is not a function, converting`
+      );
+      // Convert non-function projection to function
+      this[projectionName] = () => originalValue;
+    }
+    return this[projectionName];
+  },
+  KYA_QUIZ_PROGRESS_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaQuizProgress.inclusion,
+  KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaQuizProgress",
+      path
+    );
+    return exclusionProjection;
+  },
+  KYA_QUIZ_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaQuiz.inclusion,
+  KYA_QUIZ_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaQuiz",
+      path
+    );
+    return exclusionProjection;
+  },
+  KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaLessonsProgress.inclusion,
+  KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaLessonsProgress",
+      path
+    );
+    return exclusionProjection;
+  },
+  /**
+   *
+   * @param {*} entity
+   * @param {*} path
+   * @returns
+   */
+  getExclusionProjection(entity, path = "none") {
+    if (!entity) {
+      logText(`Warning: No entity provided for exclusion projection`);
+      return { nothing: 0 }; // Safe fallback
+    }
+
+    try {
+      // Convert entity name to a standard projection key format
+      const keyName =
+        entity
+          .replace(/([a-z0-9])([A-Z])/g, "$1_$2") // camelCase → snake_case
+          .replace(/-/g, "_") // kebab-case → snake_case
+          .toUpperCase() + "_EXCLUSION_PROJECTION";
+
+      // If the projection exists as a function, call it
+      if (typeof this[keyName] === "function") {
+        return this[keyName](path);
+      }
+
+      // If it exists as an object, return it
+      if (this[keyName] && typeof this[keyName] === "object") {
+        return this[keyName];
+      }
+
+      // Otherwise use the factory to get a projection
+      logText(
+        `Using factory method to generate exclusion for: ${entity} with path: ${path}`
+      );
+      const { exclusionProjection } = projectionFactory.getProjections(
+        entity,
+        path
+      );
+      return exclusionProjection;
+    } catch (error) {
+      logText(
+        `Error getting exclusion projection for ${entity}: ${error.message}`
+      );
+      return { nothing: 0 }; // Safe fallback in case of errors
+    }
+  },
+  KYA_ANSWERS_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaAnswers.inclusion,
+  KYA_ANSWERS_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaAnswers",
+      path
+    );
+    return exclusionProjection;
+  },
+
+  KYA_QUESTIONS_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaQuestions.inclusion,
+  KYA_QUESTIONS_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaQuestions",
+      path
+    );
+    return exclusionProjection;
+  },
+
+  KYA_TASKS_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaTasks.inclusion,
+  KYA_TASKS_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaTasks",
+      path
+    );
+    return exclusionProjection;
+  },
+
+  ADMIN_LEVEL_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.adminLevel.inclusion,
+  ADMIN_LEVEL_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "adminLevel",
+      path
+    );
+    return exclusionProjection;
+  },
+
+  NETWORK_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.network.inclusion,
+  NETWORK_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "network",
+      path
+    );
+    return exclusionProjection;
+  },
+
+  SITE_ACTIVITIES_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.siteActivities.inclusion,
+  SITE_ACTIVITIES_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "siteActivities",
+      path
+    );
+    return exclusionProjection;
+  },
   // Grids projections
   GRIDS_INCLUSION_PROJECTION: projectionFactory.baseProjections.grids.inclusion,
   GRIDS_EXCLUSION_PROJECTION: (path) => {
     const { exclusionProjection } = projectionFactory.getProjections(
       "grids",
+      path
+    );
+    return exclusionProjection;
+  },
+
+  // KYA Lessons projections
+  KYA_LESSONS_INCLUSION_PROJECTION:
+    projectionFactory.baseProjections.kyaLessons.inclusion,
+  KYA_LESSONS_EXCLUSION_PROJECTION: (path) => {
+    const { exclusionProjection } = projectionFactory.getProjections(
+      "kyaLessons",
       path
     );
     return exclusionProjection;
@@ -1295,6 +1730,25 @@ const dbProjections = {
     "createdAt",
     "description",
   ],
+  initializeAllProjections() {
+    const requiredProjections = [
+      "KYA_LESSONS_EXCLUSION_PROJECTION",
+      "KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION",
+      "KYA_QUIZ_PROGRESS_EXCLUSION_PROJECTION",
+      "KYA_TASKS_EXCLUSION_PROJECTION",
+      "KYA_QUIZ_EXCLUSION_PROJECTION",
+      "KYA_QUESTIONS_EXCLUSION_PROJECTION",
+      "KYA_ANSWERS_EXCLUSION_PROJECTION",
+    ];
+
+    for (const projection of requiredProjections) {
+      this.ensureProjectionFunction(projection);
+    }
+
+    return this;
+  },
 };
+
+dbProjections.initializeAllProjections();
 
 module.exports = dbProjections;
