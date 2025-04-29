@@ -59,6 +59,7 @@ jobs:
       run_spatial: ${{ steps.check_files.outputs.run_spatial }} # spatial
       run_website: ${{ steps.check_files.outputs.run_website }} # website      
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
+      run_redis: ${{ steps.check_files.outputs.run_redis }} # redis
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx
 
     runs-on: ubuntu-latest
@@ -104,6 +105,7 @@ jobs:
           echo "run_website=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
+          echo "run_redis=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
@@ -295,6 +297,11 @@ jobs:
             if [[ $file == k8s/nginx/production/* ]]; then
               echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
+
+            if [[ $file == k8s/redis/* ]]; then
+              echo "run_redis=true" >>$GITHUB_OUTPUT
+            fi
+
             if [[ $file == workflow-trigger ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
@@ -319,6 +326,7 @@ jobs:
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
               echo "run_nginx=true" >>$GITHUB_OUTPUT
+              echo "run_redis=true" >>$GITHUB_OUTPUT
             fi
 
           done < files.txt
