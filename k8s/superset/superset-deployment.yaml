@@ -24,8 +24,8 @@ spec:
               cpu: 100m
               memory: 100Mi
             limits:
-              cpu: 200m
-              memory: 200Mi
+              cpu: 500m
+              memory: 800Mi
           envFrom:
             - configMapRef:
                 name: env-superset-production
@@ -33,8 +33,8 @@ spec:
         - name: superset
           resources:
             limits:
-              cpu: 800m
-              memory: 600Mi
+              cpu: 1000m
+              memory: 1000Mi
             requests:
               cpu: 100m
               memory: 128Mi
