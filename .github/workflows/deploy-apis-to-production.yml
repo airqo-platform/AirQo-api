@@ -1949,7 +1949,7 @@ jobs:
 
       - name: Deploy Redis via Helm
         run: |
-          echo "Deploying Redis to staging..."
+          echo "Deploying Redis to production..."
           helm upgrade --install redis k8s/redis \
             --namespace production \
             --values k8s/redis/values-prod.yaml \

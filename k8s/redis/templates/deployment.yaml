@@ -43,7 +43,7 @@ spec:
             - name: GET_HOSTS_FROM
               value: dns
           name: {{ .Values.app.name }}
-          image: redis:latest
+          image: redis:7.2.4
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.app.port }}
