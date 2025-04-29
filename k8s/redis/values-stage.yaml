@@ -1,6 +1,15 @@
 app:
   name: airqo-redis-server
   namespace: staging
+  port: 6389
+resources:
+  requests:
+    cpu: "100m"
+    memory: "100Mi"
+  limits:
+    cpu: "500m"
+    memory: "500Mi"
+
 
 autoscaling:
   minReplicas: 1
