@@ -111,7 +111,7 @@ class DataUtils:
         if dynamic_query:
             # This currently being used for the data-downloads endpoint only
             raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
-                raw_data, datatype
+                raw_data, datatype, columns
             )
             raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
             raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
@@ -123,7 +123,7 @@ class DataUtils:
 
     @classmethod
     def drop_zero_rows_and_columns_data_cleaning(
-        cls, data: pd.DataFrame, datatype: DataType
+        cls, data: pd.DataFrame, datatype: DataType, pollutants: List[str]
     ) -> pd.DataFrame:
         """
         Clean a pandas DataFrame by processing air quality columns like "pm2_5", "pm2_5_raw_value", and "pm2_5_calibrated_value".
@@ -149,8 +149,8 @@ class DataUtils:
         """
         required_numeric_columns: set = set()
         filter_column: str = None
-
         networks = list(data.network.unique())
+
         # TODO clean up logic.
         numeric_column = data.select_dtypes(include="number").columns.tolist()
         if datatype.value == "raw":
@@ -159,7 +159,8 @@ class DataUtils:
                 if "airqo" in networks and len(networks) == 1
                 else numeric_column + ["pm2_5"]
             )
-            filter_column = numeric_column[0]
+
+            filter_column = [pollutant + "_raw_value" for pollutant in pollutants]
         else:
             extra_column = numeric_column
 
@@ -174,11 +175,15 @@ class DataUtils:
             list(required_numeric_columns)
         ].apply(pd.to_numeric, errors="coerce")
 
-        if filter_column:
+        if filter_column and len(filter_column) >= 1:
             # Fill the pm2_5 column with np.nan where filter_column is > 0 for non
-            data.loc[data[filter_column] > 0, "pm2_5"] = np.nan
-            if ((data[filter_column] == 0) | (data[filter_column].isna())).all():
-                data.drop(columns=[filter_column], inplace=True)
+            condition = (data[filter_column] > 0).all(axis=1)
+            data.loc[condition, "pm2_5"] = np.nan
+            # Drop column(s) that have entirely 0 or np.na values
+            mask = ((data[filter_column] == 0) | (data[filter_column].isna())).all()
+            columns_to_drop = mask[mask].index.tolist()
+            if columns_to_drop:
+                data.drop(columns=columns_to_drop, inplace=True)
 
         zero_columns = data.columns[(data == 0).all()]
         data.drop(columns=zero_columns, inplace=True)
