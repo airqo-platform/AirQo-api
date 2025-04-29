@@ -1,5 +1,4 @@
 import environ
-import json
 
 env = environ.Env()
 environ.Env.read_env()
@@ -22,7 +21,12 @@ SUPERSET_WEBSERVER_TIMEOUT = env("SUPERSET_WEBSERVER_TIMEOUT")
 SUPERSET_PUBLIC_URL = env("SUPERSET_PUBLIC_URL")
 
 # Cache Dict
-CACHE_CONFIG = json.loads(env("CACHE_CONFIG"))
+CACHE_CONFIG = {
+    "CACHE_TYPE": env("CACHE_TYPE"),
+    "CACHE_DEFAULT_TIMEOUT": env("CACHE_DEFAULT_TIMEOUT"),
+    "CACHE_KEY_PREFIX": env("CACHE_KEY_PREFIX"),
+    "CACHE_REDIS_URL": env("CACHE_REDIS_URL"),
+}
 
 # Flask APP
 FLASK_APP = env("FLASK_APP")
