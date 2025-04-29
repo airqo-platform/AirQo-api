@@ -10,7 +10,7 @@ metadata:
 spec:
   ports:
     - name: {{ .Values.app.name }}
-      port: 6379
-      targetPort: 6379
+      port: {{ .Values.app.port }}
+      targetPort: {{ .Values.app.port }}
   selector:
     io.kompose.service: {{ .Values.app.name }}
