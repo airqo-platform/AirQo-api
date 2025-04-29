@@ -402,7 +402,6 @@ class BigQueryApi:
                 frequency=frequency,
                 # time_granularity=time_granularity,
             )
-
             query_parameters = [
                 bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
             ]
@@ -709,9 +708,9 @@ class BigQueryApi:
             )
 
             # TODO Clean up by use using `get_columns` helper method
-            if pollutant in {"pm2_5", "pm10", "no2"} and data_type.value == "raw":
+            if pollutant in {"pm2_5", "pm10"} and data_type.value == "raw":
                 # Add dummy column to fix union column number missmatch.
-                bam_pollutant_columns.append("-1 as pm2_5")
+                bam_pollutant_columns.append("-1 as " + pollutant)
 
         selected_columns = set(pollutant_columns)
         bam_selected_columns = set(bam_pollutant_columns)
