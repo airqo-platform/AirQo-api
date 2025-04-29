@@ -20,6 +20,7 @@ RUN chmod +x /app/docker/*.sh
 # Uncomment if you are using docker build
 # COPY .env /app/.env
 
+# Custom config to use in place of default config
 COPY superset_config.py .
 ENV SUPERSET_CONFIG_PATH=/app/superset_config.py
 
@@ -31,7 +32,7 @@ ENTRYPOINT ["/app/docker/start_superset.sh"]
 FROM superset as init-superset
 ENTRYPOINT ["/app/docker/init_superset.sh"]
 
-
+# Redis image
 FROM redis:7.2-bookworm as redis
 USER root
 CMD ["redis-server"]
