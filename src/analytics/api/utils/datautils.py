@@ -147,31 +147,32 @@ class DataUtils:
         Raises:
             ValueError: If required columns are missing.
         """
-        required_numeric_columns: List = []
+        required_numeric_columns: set = set()
         filter_column: str = None
 
         networks = list(data.network.unique())
-
+        # TODO clean up logic.
+        numeric_column = data.select_dtypes(include="number").columns.tolist()
         if datatype.value == "raw":
             extra_column = (
-                ["pm2_5_raw_value"]
+                numeric_column
                 if "airqo" in networks and len(networks) == 1
-                else ["pm2_5_raw_value", "pm2_5"]
+                else numeric_column + ["pm2_5"]
             )
-            filter_column = "pm2_5_raw_value"
+            filter_column = numeric_column[0]
         else:
-            extra_column = ["pm2_5_calibrated_value"]
+            extra_column = numeric_column
 
-        required_numeric_columns.extend(extra_column)
+        required_numeric_columns.update(extra_column)
 
         missing_columns = [
             col for col in required_numeric_columns if col not in data.columns
         ]
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
-        data[required_numeric_columns] = data[required_numeric_columns].apply(
-            pd.to_numeric, errors="coerce"
-        )
+        data[list(required_numeric_columns)] = data[
+            list(required_numeric_columns)
+        ].apply(pd.to_numeric, errors="coerce")
 
         if filter_column:
             # Fill the pm2_5 column with np.nan where filter_column is > 0 for non
