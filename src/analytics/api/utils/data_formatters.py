@@ -369,14 +369,19 @@ def get_validated_filter(json_data):
     filter_type = provided_filters[0]
     filter_value = json_data.get(filter_type)
 
-    if filter_type in sites:
-        validated_value = filter_non_private_sites_devices(filter_type, filter_value)
-    elif filter_type in devices:
-        validated_value = filter_non_private_sites_devices(filter_type, filter_value)
+    # TODO Uncomment when access control
+    # if filter_type in sites:
+    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
+    # elif filter_type in devices:
+    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
 
-    if validated_value and validated_value.get("status") == "success":
-        validated_data = validated_value.get("data", [])
-    else:
-        error_message = validated_value.get("message", "Data filter validation failed")
+    # if validated_value and validated_value.get("status") == "success":
+    #     validated_data = validated_value.get("data", [])
+    # else:
+    #     error_message = validated_value.get("message", "Data filter validation failed")
+    #     logger.warning(f"The supplied {filter_type} might be private")
+
+    # TODO Delete
+    validated_data = filter_value
 
     return filter_type, validated_data, error_message
