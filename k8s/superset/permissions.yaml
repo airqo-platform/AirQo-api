@@ -12,11 +12,11 @@ metadata:
   name: superset-access-role
 rules:
   - apiGroups: [""]
-    resources: ["pods", "services", "deployments", "pods/log"]
+    resources: ["pods", "services", "deployments"]
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
-    resources: ["pods/portforward"]
-    verbs: ["create"]
+    resources: ["pods/log", "pods/portforward", "pods/exec"]
+    verbs: ["get", "list", "watch", "create"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
