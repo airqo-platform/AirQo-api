@@ -148,7 +148,7 @@ class DataUtils:
         device_category: DeviceCategory,
         device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_names: Optional[list] = None,
+        device_names: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -183,10 +183,12 @@ class DataUtils:
             end_date_time=end_date_time,
         )
         data_store: List[pd.DataFrame] = []
+
         for _, device in devices.iterrows():
             data, meta_data = DataUtils._extract_device_api_data(
                 device, dates, config, keys, resolution
             )
+
             if isinstance(data, pd.DataFrame) and not data.empty:
                 data = DataUtils._process_and_append_device_data(
                     device, data, meta_data, config
@@ -196,6 +198,10 @@ class DataUtils:
 
             if not data.empty:
                 data_store.append(data)
+            else:
+                logger.info(
+                    f"No data returned from {device.name} for the given date range"
+                )
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
@@ -597,7 +603,7 @@ class DataUtils:
         """
         restructured_data = []
 
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
         devices, _ = DataUtils.get_devices()
@@ -611,18 +617,19 @@ class DataUtils:
                 device_id = row["device_id"]
                 device_details = None
 
-                if device_id in devices.index:
-                    device_details = devices.loc[device_id]
-                else:
+                if device_id not in devices.index:
                     logger.exception(
                         f"Device number {device_id} not found in device list"
                     )
                     continue
 
                 if row["site_id"] is None or pd.isna(row["site_id"]):
-                    logger.exception(f"Invalid site id in data.")
+                    logger.exception(
+                        f"Invalid site_id: Device {device_id} might have been recalled."
+                    )
                     continue
 
+                device_details = devices.loc[device_id]
                 row_data = {
                     "device": device_id,
                     "device_id": device_details["_id"],
@@ -667,7 +674,9 @@ class DataUtils:
                 }
                 restructured_data.append(row_data)
             except Exception as e:
-                logger.exception(f"An error occurred: {e}")
+                logger.exception(
+                    f"An error occurred while processing data for the api: {e}"
+                )
 
         return restructured_data
 
@@ -846,9 +855,17 @@ class DataUtils:
             case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
-            dropna_subset = ["pm2_5", "pm10"]
-            if DeviceNetwork.AIRQO.str in data.network.unique():
+
+            networks = set(data.network.unique())
+            dropna_subset = []
+
+            if "airqo" in networks:
+                # Airqo devices specific fields
                 dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
+
+            if networks - {"airqo"}:
+                # Expected fields from non-airqo devices
+                dropna_subset.extend(["pm2_5", "pm10"])
 
             data.dropna(
                 subset=dropna_subset,
