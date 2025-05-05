@@ -60,47 +60,66 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
         keys: Dict = {}
-        # Load devices from cache
-        try:
-            devices = DataUtils.load_cached_data(
-                local_file_path, MetaDataType.DEVICES.str
+        devices = DataUtils._load_devices_from_cache(local_file_path)
+
+        if devices is not None and not devices.empty:
+            devices = DataUtils._process_cached_devices(
+                devices, device_category, device_network
             )
-            if not devices.empty:
-                devices["device_number"] = (
-                    devices["device_number"].fillna(-1).astype(int)
-                )
-
-                if device_category:
-                    devices = devices.loc[
-                        devices.device_category == device_category.str
-                    ]
-
-                if device_network:
-                    devices = devices.loc[devices.network == device_network.str]
-
-                keys = dict(
-                    zip(
-                        devices.loc[
-                            devices.network == "airqo", "device_number"
-                        ].to_numpy(),
-                        devices.loc[devices.network == "airqo", "key"].to_numpy(),
-                    )
-                )
-
-        except Exception as e:
-            logger.exception(f"No devices currently cached: {e}")
-
-        # If cache is empty, fetch from API
-        if devices.empty:
+            keys = DataUtils._extract_keys(devices, DeviceNetwork.AIRQO)
+            return devices, keys
+        else:
             devices, keys = DataUtils.fetch_devices_from_api(
                 device_network, device_category
             )
-            if not keys:
-                raise RuntimeError("Failed to retrieve device keys")
+            if not devices.empty:
+                return devices, keys
+            else:
+                raise RuntimeError(
+                    "Failed to retrieve devices data from both cache and API."
+                )
 
-        if devices.empty:
-            raise RuntimeError("Failed to retrieve cached/api devices data.")
-        return devices, keys
+    def _load_devices_from_cache(file_path: str) -> Optional[pd.DataFrame]:
+        """Loads devices data from the local cache."""
+        try:
+            devices = DataUtils.load_cached_data(file_path, MetaDataType.DEVICES.str)
+            return devices
+        except FileNotFoundError:
+            logger.info(f"Cache file not found at: {file_path}")
+            return None
+        except pd.errors.EmptyDataError:
+            logger.info(f"Cache file at {file_path} is empty.")
+            return None
+        except Exception as e:
+            logger.exception(f"Error loading devices from cache: {e}")
+            return None
+
+    def _process_cached_devices(
+        devices: pd.DataFrame,
+        device_category: Optional[DeviceCategory],
+        device_network: Optional[DeviceNetwork],
+    ) -> pd.DataFrame:
+        """Processes the DataFrame loaded from the cache."""
+
+        devices["device_number"] = devices["device_number"].fillna(-1).astype(int)
+
+        if device_category:
+            devices = devices.loc[devices.device_category == device_category.str]
+
+        if device_network:
+            devices = devices.loc[devices.network == device_network.str]
+
+        return devices
+
+    def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
+        """Extracts device numbers and keys for a specific network."""
+        keys = dict(
+            zip(
+                devices.loc[devices.network == network.str, "device_number"].to_numpy(),
+                devices.loc[devices.network == network.str, "key"].to_numpy(),
+            )
+        )
+        return keys
 
     @staticmethod
     def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -240,19 +259,19 @@ class DataUtils:
     def fetch_devices_from_api(
         device_network: Optional[DeviceNetwork] = None,
         device_category: Optional[DeviceCategory] = None,
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, Dict[int, str]]:
         """Fetch devices from the API if the cached file is empty."""
         data_api = DataApi()
+
         try:
-            devices = pd.DataFrame(
-                data_api.get_devices_by_network(
-                    device_network=device_network,
-                    device_category=device_category,
-                )
+            devices = data_api.get_devices_by_network(
+                device_network=device_network,
+                device_category=device_category,
             )
+            devices = pd.DataFrame(devices)
             devices["device_number"] = devices["device_number"].fillna(-1)
-            devices_airqo = devices.loc[devices.network == "airqo"]
-            keys = data_api.get_thingspeak_read_keys(devices_airqo)
+            airqo_devices = devices.loc[devices.network == device_network.AIRQO.str]
+            keys = data_api.get_thingspeak_read_keys(airqo_devices)
             return devices, keys
         except Exception as e:
             logger.exception(
