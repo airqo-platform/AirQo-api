@@ -60,47 +60,66 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
         keys: Dict = {}
-        # Load devices from cache
-        try:
-            devices = DataUtils.load_cached_data(
-                local_file_path, MetaDataType.DEVICES.str
+        devices = DataUtils._load_devices_from_cache(local_file_path)
+
+        if devices is not None and not devices.empty:
+            devices = DataUtils._process_cached_devices(
+                devices, device_category, device_network
             )
-            if not devices.empty:
-                devices["device_number"] = (
-                    devices["device_number"].fillna(-1).astype(int)
-                )
-
-                if device_category:
-                    devices = devices.loc[
-                        devices.device_category == device_category.str
-                    ]
-
-                if device_network:
-                    devices = devices.loc[devices.network == device_network.str]
-
-                keys = dict(
-                    zip(
-                        devices.loc[
-                            devices.network == "airqo", "device_number"
-                        ].to_numpy(),
-                        devices.loc[devices.network == "airqo", "key"].to_numpy(),
-                    )
-                )
-
-        except Exception as e:
-            logger.exception(f"No devices currently cached: {e}")
-
-        # If cache is empty, fetch from API
-        if devices.empty:
+            keys = DataUtils._extract_keys(devices, DeviceNetwork.AIRQO)
+            return devices, keys
+        else:
             devices, keys = DataUtils.fetch_devices_from_api(
                 device_network, device_category
             )
-            if not keys:
-                raise RuntimeError("Failed to retrieve device keys")
+            if not devices.empty:
+                return devices, keys
+            else:
+                raise RuntimeError(
+                    "Failed to retrieve devices data from both cache and API."
+                )
 
-        if devices.empty:
-            raise RuntimeError("Failed to retrieve cached/api devices data.")
-        return devices, keys
+    def _load_devices_from_cache(file_path: str) -> Optional[pd.DataFrame]:
+        """Loads devices data from the local cache."""
+        try:
+            devices = DataUtils.load_cached_data(file_path, MetaDataType.DEVICES.str)
+            return devices
+        except FileNotFoundError:
+            logger.info(f"Cache file not found at: {file_path}")
+            return None
+        except pd.errors.EmptyDataError:
+            logger.info(f"Cache file at {file_path} is empty.")
+            return None
+        except Exception as e:
+            logger.exception(f"Error loading devices from cache: {e}")
+            return None
+
+    def _process_cached_devices(
+        devices: pd.DataFrame,
+        device_category: Optional[DeviceCategory],
+        device_network: Optional[DeviceNetwork],
+    ) -> pd.DataFrame:
+        """Processes the DataFrame loaded from the cache."""
+
+        devices["device_number"] = devices["device_number"].fillna(-1).astype(int)
+
+        if device_category:
+            devices = devices.loc[devices.device_category == device_category.str]
+
+        if device_network:
+            devices = devices.loc[devices.network == device_network.str]
+
+        return devices
+
+    def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
+        """Extracts device numbers and keys for a specific network."""
+        keys = dict(
+            zip(
+                devices.loc[devices.network == network.str, "device_number"].to_numpy(),
+                devices.loc[devices.network == network.str, "key"].to_numpy(),
+            )
+        )
+        return keys
 
     @staticmethod
     def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -148,7 +167,7 @@ class DataUtils:
         device_category: DeviceCategory,
         device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_names: Optional[list] = None,
+        device_names: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -183,10 +202,12 @@ class DataUtils:
             end_date_time=end_date_time,
         )
         data_store: List[pd.DataFrame] = []
+
         for _, device in devices.iterrows():
             data, meta_data = DataUtils._extract_device_api_data(
                 device, dates, config, keys, resolution
             )
+
             if isinstance(data, pd.DataFrame) and not data.empty:
                 data = DataUtils._process_and_append_device_data(
                     device, data, meta_data, config
@@ -196,6 +217,10 @@ class DataUtils:
 
             if not data.empty:
                 data_store.append(data)
+            else:
+                logger.info(
+                    f"No data returned from {device.name} for the given date range"
+                )
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
@@ -234,19 +259,19 @@ class DataUtils:
     def fetch_devices_from_api(
         device_network: Optional[DeviceNetwork] = None,
         device_category: Optional[DeviceCategory] = None,
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, Dict[int, str]]:
         """Fetch devices from the API if the cached file is empty."""
         data_api = DataApi()
+
         try:
-            devices = pd.DataFrame(
-                data_api.get_devices_by_network(
-                    device_network=device_network,
-                    device_category=device_category,
-                )
+            devices = data_api.get_devices_by_network(
+                device_network=device_network,
+                device_category=device_category,
             )
+            devices = pd.DataFrame(devices)
             devices["device_number"] = devices["device_number"].fillna(-1)
-            devices_airqo = devices.loc[devices.network == "airqo"]
-            keys = data_api.get_thingspeak_read_keys(devices_airqo)
+            airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
+            keys = data_api.get_thingspeak_read_keys(airqo_devices)
             return devices, keys
         except Exception as e:
             logger.exception(
@@ -597,7 +622,7 @@ class DataUtils:
         """
         restructured_data = []
 
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
         devices, _ = DataUtils.get_devices()
@@ -611,18 +636,19 @@ class DataUtils:
                 device_id = row["device_id"]
                 device_details = None
 
-                if device_id in devices.index:
-                    device_details = devices.loc[device_id]
-                else:
+                if device_id not in devices.index:
                     logger.exception(
                         f"Device number {device_id} not found in device list"
                     )
                     continue
 
                 if row["site_id"] is None or pd.isna(row["site_id"]):
-                    logger.exception(f"Invalid site id in data.")
+                    logger.exception(
+                        f"Invalid site_id: Device {device_id} might have been recalled."
+                    )
                     continue
 
+                device_details = devices.loc[device_id]
                 row_data = {
                     "device": device_id,
                     "device_id": device_details["_id"],
@@ -667,7 +693,9 @@ class DataUtils:
                 }
                 restructured_data.append(row_data)
             except Exception as e:
-                logger.exception(f"An error occurred: {e}")
+                logger.exception(
+                    f"An error occurred while processing data for the api: {e}"
+                )
 
         return restructured_data
 
@@ -846,9 +874,17 @@ class DataUtils:
             case DeviceCategory.LOWCOST:
                 AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
         try:
-            dropna_subset = ["pm2_5", "pm10"]
-            if DeviceNetwork.AIRQO.str in data.network.unique():
+
+            networks = set(data.network.unique())
+            dropna_subset = []
+
+            if "airqo" in networks:
+                # Airqo devices specific fields
                 dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
+
+            if networks - {"airqo"}:
+                # Expected fields from non-airqo devices
+                dropna_subset.extend(["pm2_5", "pm10"])
 
             data.dropna(
                 subset=dropna_subset,

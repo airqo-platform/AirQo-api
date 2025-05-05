@@ -303,13 +303,16 @@ class DataApi:
                         "device_number": row["device_number"],
                     }
                 )
-        response = self.__request("devices/decrypt/bulk", body=body, method="post")
-        if response:
-            decrypted_keys = response.get("decrypted_keys", [])
-            return {
-                int(entry["device_number"]): entry["decrypted_key"]
-                for entry in decrypted_keys
-            }
+        try:
+            response = self.__request("devices/decrypt/bulk", body=body, method="post")
+            if response:
+                decrypted_keys = response.get("decrypted_keys", [])
+                return {
+                    int(entry["device_number"]): entry["decrypted_key"]
+                    for entry in decrypted_keys
+                }
+        except Exception as e:
+            logger.exception(f"An error occurred while fetching device keys: {e}")
         return None
 
     def get_thingspeak_read_keys_generator(
