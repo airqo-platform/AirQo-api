@@ -168,3 +168,105 @@ class FaultDetectionFixtures:
                 "created_at": [datetime.now().isoformat(timespec="seconds")],
             }
         )
+
+
+class DevicesFixtures:
+    devices = {
+        "site_id": [
+            "r8Qn65q4GPyg9RHevhwfbB",
+            "r8Qn65q4GPyg9RHevhweyud",
+            np.nan,
+            "r8Qn65q4GPyg9sdfdwfbB",
+            "r8Qn65q4GPypepf7hwfbB",
+            "r8Qn6443rfypepf7hwfbB",
+        ],
+        "device_category": [
+            "lowcost",
+            "lowcost",
+            "lowcost",
+            "lowcost",
+            "bam",
+            "lowcost",
+        ],
+        "_id": [
+            "ma9pMkjs7cYET2Db6B4tKX",
+            "ma9pMkjs7cYET2Db6B4tSX",
+            "NG9pMkjs7cYET2Db6B4tKX",
+            "NG9pMkjs7cYEOKWN44tKX",
+            "NG9pMkjs44RWEET2Db6B4tKX",
+            "NG9pMkjs44R77e66wyy3nE",
+        ],
+        "status": [
+            "deployed",
+            "deployed",
+            "recalled",
+            "deployed",
+            "not deployed",
+            "deployed",
+        ],
+        "isActive": [True, True, False, True, False, True],
+        "name": [
+            "iqair_33_22_lw",
+            "airqo_0123lw",
+            "airqo_9876lw",
+            "iqair_44_21lw",
+            "metone_99_33bm",
+            "iqair_55_32lw",
+        ],
+        "network": ["iqair", "airqo", "airqo", "iqair", "metone", "iqair"],
+        "longitude": [
+            32.9284726,
+            3.9036253,
+            22.9837123,
+            36.9837663,
+            18.9837123,
+            81.9845133,
+        ],
+        "latitude": [
+            0.1425362,
+            1.4895023,
+            43.9872473,
+            7.9884673,
+            41.4372563,
+            14.4375553,
+        ],
+        "device_number": [-1, 1122222, 5555666, 7777666, -1, -1],
+        "key": [
+            "UZ3xav7psG4uFbmNDkf26Y",
+            np.nan,
+            np.nan,
+            "qhpdmXnxTGyjzsU4Vu5H8W",
+            np.nan,
+            np.nan,
+        ],
+    }
+
+    @classmethod
+    @pytest.fixture(scope="session")
+    def cached_device_df(cls):
+        devices = cls.devices
+        return pd.DataFrame(devices)
+
+    @classmethod
+    @pytest.fixture(scope="session")
+    def api_device_df(cls):
+        devices = cls.devices
+        return pd.DataFrame(devices)
+
+    @pytest.fixture(scope="session")
+    def airqo_device_keys(cls):
+        keys = {
+            "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
+            "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
+        }
+        return keys
+
+
+class SitesFitures:
+    @pytest.fixture
+    def cached_sites_df():
+        pass
+
+    @pytest.fixture
+    def api_sites_df():
+        pass
