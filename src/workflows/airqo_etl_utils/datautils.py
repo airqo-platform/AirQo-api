@@ -270,7 +270,7 @@ class DataUtils:
             )
             devices = pd.DataFrame(devices)
             devices["device_number"] = devices["device_number"].fillna(-1)
-            airqo_devices = devices.loc[devices.network == device_network.AIRQO.str]
+            airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
             keys = data_api.get_thingspeak_read_keys(airqo_devices)
             return devices, keys
         except Exception as e:

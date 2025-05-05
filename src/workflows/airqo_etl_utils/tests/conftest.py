@@ -253,6 +253,7 @@ class DevicesFixtures:
         devices = cls.devices
         return pd.DataFrame(devices)
 
+    @classmethod
     @pytest.fixture(scope="session")
     def airqo_device_keys(cls):
         keys = {
