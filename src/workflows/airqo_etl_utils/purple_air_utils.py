@@ -5,6 +5,7 @@ from .constants import DataSource, DeviceNetwork
 from .purple_air_api import PurpleAirApi
 from .data_validator import DataValidationUtils
 from .datautils import DataUtils
+from .utils import Utils
 
 
 class PurpleDataUtils:

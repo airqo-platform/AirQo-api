@@ -503,7 +503,7 @@ def airqo_realtime_measurements():
 
 @dag(
     "AirQo-Raw-Data-Low-Cost-Measurements",
-    schedule="*/5 * * * *",
+    schedule="*/10 * * * *",
     catchup=False,
     tags=["airqo", "raw", "low cost"],
     default_args=AirflowUtils.dag_default_configs(),
