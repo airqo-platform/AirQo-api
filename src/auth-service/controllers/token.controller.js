@@ -257,6 +257,63 @@ const createAccessToken = {
         );
         return;
       }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Get API version from request headers (if present)
+      const apiVersion = req.headers["x-api-version"] || "v1";
+
+      const result = await tokenUtil.verifyToken(request, next);
+      const status = result.status;
+
+      if (!res.headersSent) {
+        if (result.success) {
+          if (apiVersion === "v1") {
+            // Original v1 format - just send message
+            res.status(status).send(result.message);
+          } else {
+            // v2 and above - enhanced JSON response with token data
+            res.status(status).json({
+              message: result.message,
+              success: result.success,
+              ...(result.data && { data: result.data }),
+            });
+          }
+        } else {
+          // Error response - consistent format for both versions
+          res.status(status).json({
+            message: result.message,
+            success: result.success,
+            ...(result.errors && { errors: result.errors }),
+          });
+        }
+        return;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  autoVerify: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -265,8 +322,28 @@ const createAccessToken = {
 
       const result = await tokenUtil.verifyToken(request, next);
       const status = result.status;
+
       if (!res.headersSent) {
-        res.status(status).send(result.message);
+        const acceptsJson =
+          req.headers.accept && req.headers.accept.includes("application/json");
+
+        if (result.success) {
+          if (acceptsJson) {
+            res.status(status).json({
+              message: result.message,
+              success: result.success,
+              ...(result.data && { data: result.data }),
+            });
+          } else {
+            res.status(status).send(result.message);
+          }
+        } else {
+          res.status(status).json({
+            message: result.message,
+            success: result.success,
+            ...(result.errors && { errors: result.errors }),
+          });
+        }
         return;
       }
     } catch (error) {

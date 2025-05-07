@@ -74,6 +74,10 @@ Run tests using: `npm test`
 
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## API Subscription Access Control
+
+See [API_SUBSCRIPTION_ACCESS_CONTROL.md](API_SUBSCRIPTION_ACCESS_CONTROL.md)
+
 ## Code of Conduct
 
 See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

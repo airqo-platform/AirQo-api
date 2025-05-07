@@ -9,12 +9,10 @@ const session = require("express-session");
 const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
-connectToMongoDB();
-require("@config/firebase-admin");
-const morgan = require("morgan");
-const compression = require("compression");
-const helmet = require("helmet");
-const passport = require("passport");
+const log4js = require("log4js");
+const debug = require("debug")("auth-service:server");
+const isEmpty = require("is-empty");
+const { stringify } = require("@utils/common");
 const {
   logObject,
   logText,
@@ -22,31 +20,67 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
-const isDev = process.env.NODE_ENV === "development";
-const isProd = process.env.NODE_ENV === "production";
-const rateLimit = require("express-rate-limit");
-const options = { mongooseConnection: mongoose.connection };
-require("@bin/jobs/active-status-job");
-require("@bin/jobs/token-expiration-job");
-require("@bin/jobs/incomplete-profile-job");
-require("@bin/jobs/preferences-log-job");
-require("@bin/jobs/preferences-update-job");
-// require("@bin/jobs/update-user-activities-job");
-require("@bin/jobs/profile-picture-update-job");
-const log4js = require("log4js");
-const debug = require("debug")("auth-service:server");
-const isEmpty = require("is-empty");
+
+// Initialize logger
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/server script`
 );
-const fileUpload = require("express-fileupload");
-const { stringify } = require("@utils/common");
 
+// Safe require function to prevent crashes from individual module failures
+function safeRequire(modulePath, description) {
+  try {
+    return require(modulePath);
+  } catch (error) {
+    logger.error(
+      `Failed to load ${description || modulePath}: ${error.message}`
+    );
+    console.error(
+      `⚠️ Warning: Failed to load ${description || modulePath}: ${
+        error.message
+      }`
+    );
+    return null;
+  }
+}
+
+// Connect to MongoDB
+connectToMongoDB();
+
+// Safely require modules
+safeRequire("@config/firebase-admin", "Firebase Admin");
+
+// Safely require job modules
+safeRequire("@bin/jobs/initialize-scopes", "Scope initialization job");
+safeRequire("@bin/jobs/active-status-job", "Active status job");
+safeRequire("@bin/jobs/token-expiration-job", "Token expiration job");
+safeRequire("@bin/jobs/incomplete-profile-job", "Incomplete profile job");
+safeRequire("@bin/jobs/preferences-log-job", "Preferences log job");
+safeRequire("@bin/jobs/preferences-update-job", "Preferences update job");
+// safeRequire("@bin/jobs/update-user-activities-job", "User activities update job");
+safeRequire(
+  "@bin/jobs/profile-picture-update-job",
+  "Profile picture update job"
+);
+
+// Other packages
+const morgan = safeRequire("morgan", "Morgan logger");
+const compression = safeRequire("compression", "Compression middleware");
+const helmet = safeRequire("helmet", "Helmet security middleware");
+const passport = safeRequire("passport", "Passport authentication");
+const rateLimit = safeRequire("express-rate-limit", "Rate limiter");
+const fileUpload = safeRequire("express-fileupload", "File upload middleware");
+
+// Environment checks
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
+
+// Session secret check
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
 
-// Express Middlewares
+// Configure sessions
+const options = { mongooseConnection: mongoose.connection };
 app.use(
   session({
     secret: constants.SESSION_SECRET,
@@ -54,24 +88,10 @@ app.use(
     resave: false,
     saveUninitialized: false,
   })
-); // session setup
+);
 
-app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
-// Other common middlewares: morgan, cookieParser, passport, etc.
-if (isProd) {
-  app.use(compression());
-  app.use(helmet());
-}
-
-if (isDev) {
-  app.use(morgan("dev"));
-}
-
-app.use(passport.initialize());
-
-app.use(cookieParser());
-app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
-app.use(express.json());
+// Setup body parsers
+app.use(bodyParser.json({ limit: "50mb" }));
 app.use(
   bodyParser.urlencoded({
     extended: true,
@@ -79,39 +99,83 @@ app.use(
     parameterLimit: 50000,
   })
 );
-// app.use(fileUpload());
-app.use(
-  fileUpload({
-    createParentPath: true,
-    limits: {
-      fileSize: 50 * 1024 * 1024, // 50MB max file size
-    },
-    useTempFiles: true,
-    tempFileDir: "/tmp/",
-    debug: isDev,
-    abortOnLimit: true,
-  })
-);
+
+// Apply environment-specific middleware
+if (isProd && compression) {
+  app.use(compression());
+}
+if (isProd && helmet) {
+  app.use(helmet());
+}
+if (isDev && morgan) {
+  app.use(morgan("dev"));
+}
+
+// Initialize passport if available
+if (passport) {
+  app.use(passport.initialize());
+}
+
+// Standard middlewares
+app.use(cookieParser());
+app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+app.use(express.json());
+
+// File upload configuration
+if (fileUpload) {
+  app.use(
+    fileUpload({
+      createParentPath: true,
+      limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB max file size
+      },
+      useTempFiles: true,
+      tempFileDir: "/tmp/",
+      debug: isDev,
+      abortOnLimit: true,
+    })
+  );
+}
+
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
 
-const transactionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
-  message: "Too many transaction requests, please try again later",
-});
-app.use("/api/v2/users/transactions", transactionLimiter);
+// Rate limiting
+if (rateLimit) {
+  const transactionLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per window
+    message: "Too many transaction requests, please try again later",
+  });
+  app.use("/api/v2/users/transactions", transactionLimiter);
+}
 
-// app.use("/api/v1/users", require("@routes/v1"));
-app.use("/api/v2/users", require("@routes/v2"));
+// Routes
+try {
+  app.use("/api/v2/users", require("@routes/v2"));
+} catch (error) {
+  logger.error(`Failed to load API routes: ${error.message}`);
+  console.error(
+    `⚠️ Critical error: Failed to load API routes: ${error.message}`
+  );
+  // Add a fallback route that returns a service unavailable message
+  app.use("/api/v2/users", (req, res) => {
+    res.status(503).json({
+      success: false,
+      message:
+        "API service is temporarily unavailable. Please try again later.",
+    });
+  });
+}
 
-// default error handling
+// 404 handler
 app.use((req, res, next) => {
   const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
+// Main error handler
 app.use(function (err, req, res, next) {
   if (!res.headersSent) {
     if (err instanceof HttpError) {
@@ -154,8 +218,6 @@ app.use(function (err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
-      // logger.error(`Stack Trace: ${err.stack}`);
       logObject("the error", err);
       res.status(err.status).json({
         success: false,

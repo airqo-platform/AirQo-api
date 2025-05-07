@@ -891,7 +891,7 @@ const filter = {
   scopes: (req, next) => {
     try {
       const { query, params } = req;
-      const { id, scope } = query;
+      const { id, scope, tier } = query;
       const { scope_id, network_id } = params;
       let filter = {};
 
@@ -905,6 +905,10 @@ const filter = {
 
       if (scope) {
         filter["scope"] = scope;
+      }
+
+      if (tier) {
+        filter.tier = tier;
       }
 
       if (network_id) {

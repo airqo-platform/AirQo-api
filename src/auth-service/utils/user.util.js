@@ -254,6 +254,492 @@ const getCache = async (request, next) => {
   }
 };
 
+const getSubscription = async (request, next) => {
+  try {
+    const { query } = request;
+    const { tenant } = query;
+    const filter = generateFilter.users(request, next);
+
+    const user = await UserModel(tenant)
+      .findOne(filter)
+      .select(
+        "subscriptionTier subscriptionStatus lastSubscriptionCheck apiRateLimits nextBillingDate"
+      )
+      .lean();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "User not found",
+        status: httpStatus.NOT_FOUND,
+        errors: { message: "User not found" },
+      };
+    }
+
+    return {
+      success: true,
+      message: "Successfully retrieved subscription",
+      data: {
+        tier: user.subscriptionTier || "Free",
+        status: user.subscriptionStatus || "inactive",
+        lastChecked: user.lastSubscriptionCheck,
+        rateLimits: user.apiRateLimits || {
+          hourly: getRateLimits(user.subscriptionTier).hourly,
+          daily: getRateLimits(user.subscriptionTier).daily,
+          monthly: getRateLimits(user.subscriptionTier).monthly,
+        },
+        nextBillingDate: user.nextBillingDate,
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error getting subscription: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * Update user's subscription
+ */
+const updateSubscription = async (request, next) => {
+  try {
+    const { body, query } = request;
+    const { tenant } = query;
+    const filter = generateFilter.users(request, next);
+    const { subscriptionTier } = body;
+
+    // Prepare update object
+    const update = {
+      subscriptionTier,
+      subscriptionStatus: "active",
+      lastSubscriptionCheck: new Date(),
+      apiRateLimits: {
+        hourly: getRateLimits(subscriptionTier).hourly,
+        daily: getRateLimits(subscriptionTier).daily,
+        monthly: getRateLimits(subscriptionTier).monthly,
+      },
+    };
+
+    // Add next billing date
+    const nextBillingDate = new Date();
+    nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+    update.nextBillingDate = nextBillingDate;
+
+    // Update user
+    const updatedUser = await UserModel(tenant)
+      .findOneAndUpdate(filter, update, { new: true })
+      .select("subscriptionTier subscriptionStatus nextBillingDate");
+
+    if (!updatedUser) {
+      return {
+        success: false,
+        message: "User not found",
+        status: httpStatus.NOT_FOUND,
+        errors: { message: "User not found" },
+      };
+    }
+
+    // Update all tokens for this user with appropriate scopes
+    await updateTokensForUser(updatedUser._id, subscriptionTier, tenant);
+
+    return {
+      success: true,
+      message: "Successfully updated subscription",
+      data: {
+        tier: updatedUser.subscriptionTier,
+        status: updatedUser.subscriptionStatus,
+        nextBillingDate: updatedUser.nextBillingDate,
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error updating subscription: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * Helper function to update tokens when subscription changes
+ */
+const updateTokensForUser = async (userId, tier, tenant) => {
+  try {
+    // Get all clients for this user
+    const clients = await ClientModel(tenant).find({ user_id: userId });
+
+    if (!clients || clients.length === 0) {
+      return;
+    }
+
+    const clientIds = clients.map((client) => client._id);
+
+    // Get scopes for the new tier
+    const scopes = await ScopeModel(tenant)
+      .find({ tier })
+      .select("scope")
+      .lean();
+
+    const scopeNames = scopes.map((scope) => scope.scope);
+
+    // Update all tokens with new tier and scopes
+    await AccessTokenModel(tenant).updateMany(
+      { client_id: { $in: clientIds } },
+      {
+        $set: {
+          tier,
+          scopes: scopeNames,
+        },
+      }
+    );
+  } catch (error) {
+    logger.error(`Error updating tokens for user ${userId}: ${error.message}`);
+  }
+};
+
+/**
+ * Get subscription usage statistics
+ */
+const getSubscriptionUsage = async (request, next) => {
+  try {
+    const { query } = request;
+    const { tenant } = query;
+    const filter = generateFilter.users(request, next);
+
+    const user = await UserModel(tenant)
+      .findOne(filter)
+      .select("_id subscriptionTier apiUsage")
+      .lean();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "User not found",
+        status: httpStatus.NOT_FOUND,
+        errors: { message: "User not found" },
+      };
+    }
+
+    // Get all clients for this user
+    const clients = await ClientModel(tenant).find({ user_id: user._id });
+    if (!clients || clients.length === 0) {
+      return {
+        success: true,
+        message: "No API clients found for this user",
+        data: {
+          usage: {
+            today: 0,
+            thisMonth: 0,
+          },
+          limits: getRateLimits(user.subscriptionTier),
+          history: [],
+        },
+        status: httpStatus.OK,
+      };
+    }
+
+    const clientIds = clients.map((client) => client._id);
+
+    // Current date info
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Get today's usage from Redis or memory if available
+    let todayUsage = 0;
+    let monthlyUsage = 0;
+
+    try {
+      // Try Redis first
+      if (redis.status === "ready") {
+        const userId = user._id.toString();
+        const dailyKey = `rate:${userId}:daily`;
+        const monthlyKey = `rate:${userId}:monthly`;
+
+        const dailyCount = await redis.get(dailyKey);
+        const monthlyCount = await redis.get(monthlyKey);
+
+        todayUsage = dailyCount ? parseInt(dailyCount) : 0;
+        monthlyUsage = monthlyCount ? parseInt(monthlyCount) : 0;
+      }
+    } catch (redisError) {
+      logger.error(`Redis error: ${redisError.message}`);
+      // Fall back to stored usage data
+      todayUsage = (user.apiUsage || [])
+        .filter((u) => new Date(u.date) >= today)
+        .reduce((sum, u) => sum + u.count, 0);
+
+      monthlyUsage = (user.apiUsage || [])
+        .filter((u) => new Date(u.date) >= monthStart)
+        .reduce((sum, u) => sum + u.count, 0);
+    }
+
+    // Get usage history (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Create daily buckets for the last 30 days
+    const dailyBuckets = {};
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
+      dailyBuckets[dateStr] = 0;
+    }
+
+    // Fill in usage data
+    (user.apiUsage || []).forEach((usage) => {
+      if (new Date(usage.date) >= thirtyDaysAgo) {
+        const dateStr = new Date(usage.date).toISOString().split("T")[0];
+        if (dailyBuckets[dateStr] !== undefined) {
+          dailyBuckets[dateStr] += usage.count;
+        }
+      }
+    });
+
+    // Convert to array for response
+    const history = Object.entries(dailyBuckets)
+      .map(([date, count]) => ({
+        date,
+        count,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      success: true,
+      message: "Successfully retrieved subscription usage",
+      data: {
+        usage: {
+          today: todayUsage,
+          thisMonth: monthlyUsage,
+        },
+        limits: getRateLimits(user.subscriptionTier || "Free"),
+        history,
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error getting subscription usage: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * Assign resources to a user
+ */
+const assignResources = async (request, next) => {
+  try {
+    const { body, query } = request;
+    const { tenant } = query;
+    const { user_id, resources } = body;
+
+    // Group resources by type
+    const resourcesByType = resources.reduce((result, resource) => {
+      if (!result[resource.type]) {
+        result[resource.type] = [];
+      }
+      result[resource.type].push(ObjectId(resource.id));
+      return result;
+    }, {});
+
+    // Prepare update object
+    const update = {};
+
+    if (resourcesByType.device) {
+      update.$addToSet = {
+        ...update.$addToSet,
+        devices: { $each: resourcesByType.device },
+      };
+    }
+
+    if (resourcesByType.site) {
+      update.$addToSet = {
+        ...update.$addToSet,
+        sites: { $each: resourcesByType.site },
+      };
+    }
+
+    if (resourcesByType.cohort) {
+      update.$addToSet = {
+        ...update.$addToSet,
+        cohorts: { $each: resourcesByType.cohort },
+      };
+    }
+
+    if (resourcesByType.grid) {
+      update.$addToSet = {
+        ...update.$addToSet,
+        grids: { $each: resourcesByType.grid },
+      };
+    }
+
+    // Update user
+    const updatedUser = await UserModel(tenant)
+      .findByIdAndUpdate(user_id, update, { new: true })
+      .select("devices sites cohorts grids");
+
+    if (!updatedUser) {
+      return {
+        success: false,
+        message: "User not found",
+        status: httpStatus.NOT_FOUND,
+        errors: { message: "User not found" },
+      };
+    }
+
+    return {
+      success: true,
+      message: "Successfully assigned resources to user",
+      data: {
+        devices: updatedUser.devices || [],
+        sites: updatedUser.sites || [],
+        cohorts: updatedUser.cohorts || [],
+        grids: updatedUser.grids || [],
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error assigning resources: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * Remove resources from a user
+ */
+const removeResources = async (request, next) => {
+  try {
+    const { body, query } = request;
+    const { tenant } = query;
+    const { user_id, resources } = body;
+
+    // Group resources by type
+    const resourcesByType = resources.reduce((result, resource) => {
+      if (!result[resource.type]) {
+        result[resource.type] = [];
+      }
+      result[resource.type].push(ObjectId(resource.id));
+      return result;
+    }, {});
+
+    // Prepare update object
+    const update = {};
+
+    if (resourcesByType.device) {
+      update.$pull = {
+        ...update.$pull,
+        devices: { $in: resourcesByType.device },
+      };
+    }
+
+    if (resourcesByType.site) {
+      update.$pull = { ...update.$pull, sites: { $in: resourcesByType.site } };
+    }
+
+    if (resourcesByType.cohort) {
+      update.$pull = {
+        ...update.$pull,
+        cohorts: { $in: resourcesByType.cohort },
+      };
+    }
+
+    if (resourcesByType.grid) {
+      update.$pull = { ...update.$pull, grids: { $in: resourcesByType.grid } };
+    }
+
+    // Update user
+    const updatedUser = await UserModel(tenant)
+      .findByIdAndUpdate(user_id, update, { new: true })
+      .select("devices sites cohorts grids");
+
+    if (!updatedUser) {
+      return {
+        success: false,
+        message: "User not found",
+        status: httpStatus.NOT_FOUND,
+        errors: { message: "User not found" },
+      };
+    }
+
+    return {
+      success: true,
+      message: "Successfully removed resources from user",
+      data: {
+        devices: updatedUser.devices || [],
+        sites: updatedUser.sites || [],
+        cohorts: updatedUser.cohorts || [],
+        grids: updatedUser.grids || [],
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error removing resources: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+/**
+ * List resources assigned to a user
+ */
+const listResources = async (request, next) => {
+  try {
+    const { query } = request;
+    const { tenant } = query;
+    const filter = generateFilter.users(request, next);
+
+    const user = await UserModel(tenant)
+      .findOne(filter)
+      .select("devices sites cohorts grids")
+      .lean();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "User not found",
+        status: httpStatus.NOT_FOUND,
+        errors: { message: "User not found" },
+      };
+    }
+
+    return {
+      success: true,
+      message: "Successfully retrieved user resources",
+      data: {
+        devices: user.devices || [],
+        sites: user.sites || [],
+        cohorts: user.cohorts || [],
+        grids: user.grids || [],
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`Error listing resources: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 const createUserModule = {
   listLogs: async (request, next) => {
     try {
@@ -3265,4 +3751,14 @@ const createUserModule = {
   },
 };
 
-module.exports = { ...createUserModule, generateNumericToken };
+module.exports = {
+  ...createUserModule,
+  generateNumericToken,
+  getSubscription,
+  updateSubscription,
+  updateTokensForUser,
+  getSubscriptionUsage,
+  assignResources,
+  removeResources,
+  listResources,
+};

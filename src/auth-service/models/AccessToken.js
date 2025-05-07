@@ -34,12 +34,33 @@ const AccessTokenSchema = new mongoose.Schema(
     },
     permissions: [{ type: ObjectId, ref: "permission" }],
     scopes: [{ type: ObjectId, ref: "scope" }],
-    name: { type: String, required: [true, "name is required!"] },
+    name: {
+      type: String,
+      required: [true, "name is required!"],
+      default: "api access",
+    },
+    category: { type: String, enum: ["api", "web"] },
     token: {
       type: String,
       unique: true,
       required: [true, "token is required!"],
+      trim: true,
     },
+    user_id: {
+      type: ObjectId,
+      ref: "user",
+      required: [true, "userId is required"],
+    },
+    tier: {
+      type: String,
+      enum: ["Free", "Standard", "Premium"],
+      default: "Free",
+    },
+    scopes: [
+      {
+        type: String,
+      },
+    ],
     last_used_at: { type: Date },
     last_ip_address: { type: String },
     expires_in: { type: Number },
@@ -51,6 +72,8 @@ const AccessTokenSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    tier: { type: String, enum: ["Free", "Standard", "Premium"] },
+    scopes: [{ type: String }],
   },
   { timestamps: true }
 );

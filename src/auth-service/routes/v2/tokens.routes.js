@@ -119,8 +119,17 @@ router.get(
   "/:token/verify",
   validateTenant,
   validateTokenParam,
-  // rateLimitMiddleware,
+  rateLimitMiddleware,
   createTokenController.verify
+);
+
+// Auto-detect verify token
+router.get(
+  "/:token/auto-verify",
+  validateTenant,
+  validateTokenParam,
+  rateLimitMiddleware,
+  createTokenController.autoVerify
 );
 
 /******************** blacklisted IP addresses *********************/

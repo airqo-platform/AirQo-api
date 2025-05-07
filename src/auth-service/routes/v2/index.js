@@ -1,34 +1,106 @@
 const express = require("express");
 const router = express.Router();
+const log4js = require("log4js");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- routes-v2-index`);
 
-router.use("/networks", require("@routes/v2/networks.routes"));
-router.use("/permissions", require("@routes/v2/permissions.routes"));
-router.use("/favorites", require("@routes/v2/favorites.routes"));
-router.use("/roles", require("@routes/v2/roles.routes"));
-router.use("/inquiries", require("@routes/v2/inquiries.routes"));
-router.use("/analytics", require("@routes/v2/analytics.routes"));
-router.use("/candidates", require("@routes/v2/candidates.routes"));
-router.use("/requests", require("@routes/v2/requests.routes"));
-router.use("/defaults", require("@routes/v2/defaults.routes"));
-router.use("/checklist", require("@routes/v2/checklist.routes"));
-router.use("/preferences", require("@routes/v2/preferences.routes"));
-router.use(
-  "/notification-preferences",
-  require("@routes/v2/notification-preferences.routes")
+// Safe require function
+function safeRequire(path, name) {
+  try {
+    return require(path);
+  } catch (error) {
+    logger.error(`Failed to load route ${name}: ${error.message}`);
+    console.error(`⚠️ Warning: Failed to load route ${name}: ${error.message}`);
+    return null;
+  }
+}
+
+// Safely load all routes
+const networkRoutes = safeRequire("@routes/v2/networks.routes", "networks");
+const permissionsRoutes = safeRequire(
+  "@routes/v2/permissions.routes",
+  "permissions"
 );
-router.use("/maintenances", require("@routes/v2/maintenance.routes"));
-router.use("/types", require("@routes/v2/types.routes"));
-router.use("/tokens", require("@routes/v2/tokens.routes"));
-router.use("/clients", require("@routes/v2/clients.routes"));
-router.use("/scopes", require("@routes/v2/scopes.routes"));
-router.use("/departments", require("@routes/v2/departments.routes"));
-router.use("/transactions", require("@routes/v2/transactions.routes"));
-router.use("/campaigns", require("@routes/v2/campaign.routes"));
-router.use("/groups", require("@routes/v2/groups.routes"));
-router.use("/locationHistory", require("@routes/v2/location-history.routes"));
-router.use("/searchHistory", require("@routes/v2/search-history.routes"));
-router.use("/guests", require("@routes/v2/guests.routes"));
-router.use("/tenant-settings", require("@routes/v2/tenant-settings.routes"));
-router.use("/", require("@routes/v2/users.routes"));
+const favoritesRoutes = safeRequire("@routes/v2/favorites.routes", "favorites");
+const rolesRoutes = safeRequire("@routes/v2/roles.routes", "roles");
+const inquiriesRoutes = safeRequire("@routes/v2/inquiries.routes", "inquiries");
+const analyticsRoutes = safeRequire("@routes/v2/analytics.routes", "analytics");
+const candidatesRoutes = safeRequire(
+  "@routes/v2/candidates.routes",
+  "candidates"
+);
+const requestsRoutes = safeRequire("@routes/v2/requests.routes", "requests");
+const defaultsRoutes = safeRequire("@routes/v2/defaults.routes", "defaults");
+const checklistRoutes = safeRequire("@routes/v2/checklist.routes", "checklist");
+const preferencesRoutes = safeRequire(
+  "@routes/v2/preferences.routes",
+  "preferences"
+);
+const notificationPrefRoutes = safeRequire(
+  "@routes/v2/notification-preferences.routes",
+  "notification-preferences"
+);
+const maintenancesRoutes = safeRequire(
+  "@routes/v2/maintenance.routes",
+  "maintenances"
+);
+const typesRoutes = safeRequire("@routes/v2/types.routes", "types");
+const tokensRoutes = safeRequire("@routes/v2/tokens.routes", "tokens");
+const clientsRoutes = safeRequire("@routes/v2/clients.routes", "clients");
+const scopesRoutes = safeRequire("@routes/v2/scopes.routes", "scopes");
+const departmentsRoutes = safeRequire(
+  "@routes/v2/departments.routes",
+  "departments"
+);
+const transactionsRoutes = safeRequire(
+  "@routes/v2/transactions.routes",
+  "transactions"
+);
+const campaignsRoutes = safeRequire("@routes/v2/campaign.routes", "campaigns");
+const groupsRoutes = safeRequire("@routes/v2/groups.routes", "groups");
+const locationHistoryRoutes = safeRequire(
+  "@routes/v2/location-history.routes",
+  "location-history"
+);
+const searchHistoryRoutes = safeRequire(
+  "@routes/v2/search-history.routes",
+  "search-history"
+);
+const guestsRoutes = safeRequire("@routes/v2/guests.routes", "guests");
+const tenantSettingsRoutes = safeRequire(
+  "@routes/v2/tenant-settings.routes",
+  "tenant-settings"
+);
+const usersRoutes = safeRequire("@routes/v2/users.routes", "users");
+
+// Register routes if they loaded successfully
+if (networkRoutes) router.use("/networks", networkRoutes);
+if (permissionsRoutes) router.use("/permissions", permissionsRoutes);
+if (favoritesRoutes) router.use("/favorites", favoritesRoutes);
+if (rolesRoutes) router.use("/roles", rolesRoutes);
+if (inquiriesRoutes) router.use("/inquiries", inquiriesRoutes);
+if (analyticsRoutes) router.use("/analytics", analyticsRoutes);
+if (candidatesRoutes) router.use("/candidates", candidatesRoutes);
+if (requestsRoutes) router.use("/requests", requestsRoutes);
+if (defaultsRoutes) router.use("/defaults", defaultsRoutes);
+if (checklistRoutes) router.use("/checklist", checklistRoutes);
+if (preferencesRoutes) router.use("/preferences", preferencesRoutes);
+if (notificationPrefRoutes)
+  router.use("/notification-preferences", notificationPrefRoutes);
+if (maintenancesRoutes) router.use("/maintenances", maintenancesRoutes);
+if (typesRoutes) router.use("/types", typesRoutes);
+if (tokensRoutes) router.use("/tokens", tokensRoutes);
+if (clientsRoutes) router.use("/clients", clientsRoutes);
+if (scopesRoutes) router.use("/scopes", scopesRoutes);
+if (departmentsRoutes) router.use("/departments", departmentsRoutes);
+if (transactionsRoutes) router.use("/transactions", transactionsRoutes);
+if (campaignsRoutes) router.use("/campaigns", campaignsRoutes);
+if (groupsRoutes) router.use("/groups", groupsRoutes);
+if (locationHistoryRoutes)
+  router.use("/locationHistory", locationHistoryRoutes);
+if (searchHistoryRoutes) router.use("/searchHistory", searchHistoryRoutes);
+if (guestsRoutes) router.use("/guests", guestsRoutes);
+if (tenantSettingsRoutes) router.use("/tenant-settings", tenantSettingsRoutes);
+if (usersRoutes) router.use("/", usersRoutes);
 
 module.exports = router;
