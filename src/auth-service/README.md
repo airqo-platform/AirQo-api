@@ -1,38 +1,43 @@
-# Authentication Service.
+# Authentication Service
 
-This authentication microservice is a crucial component of our application's security infrastructure. It handles user authentication & authorization, ensuring that only authenticated users can access protected resources..
+This authentication microservice is a crucial component of our application's security infrastructure. It handles user authentication & authorization, ensuring that only authenticated users can access protected resources.
 
 ## Features
 
-- User Registration: This allows new users to create an account by providing their credentials & completing the registration process.
-- User Login: Provides a secure login mechanism for users to authenticate themselves and obtain an access token for subsequent requests.
-- Password Management: Offers password reset and change functionalities to maintain user account security.
-- Token-based Authentication: Utilizes JSON Web Tokens (JWT) for stateless authentication, allowing users to access protected endpoints with a valid token.
-- Role-based Authorization: Implements role-based access control (RBAC) to define granular permissions and restrict certain actions to authorized roles.
-- Token Validation: Verifies the authenticity and validity of tokens during authentication and authorization processes.
-- User Profile Management: Allows users to update their profile information, including personal details and preferences.
-- Security Measures: Implements industry-standard security practices, such as password hashing and encryption, to protect user data and prevent unauthorized access to AirQo Analytics.
+- **User Authentication**: Registration, login, and password management
+- **Token-based Authentication**: JWT for stateless authentication
+- **Role-based Authorization**: Granular permissions with RBAC
+- **User Profile Management**: Update personal details and preferences
+- **Redundant Message Broker System**: Fault-tolerant messaging with automatic failover between multiple brokers
+- **Security Measures**: Password hashing, encryption, and API protection
 
 ## Folder Structure
 
 ```
 .
 ├── bin
-│   └── jobs
+│   ├── index.js           # Application entry point
+│   ├── server.js          # Express server setup
+│   ├── start-consumer.js  # Message consumer initialization
+│   └── jobs               # Background processing jobs
 ├── config
-│   ├── environments
-│   ├── global
-│   └── images
+│   ├── constants.js       # Application constants including broker config
+│   ├── environments
+│   ├── global
+│   └── images
 ├── controllers
 ├── middleware
 ├── models
 ├── routes
-│   ├── v1
-│   └── v2
+│   ├── v1
+│   └── v2
+│       ├── index.js       # Routes aggregator
+│       └── ...            # Route files
 ├── utils
-│   ├── common
-│   ├── scripts
-│   └── shared
+│   ├── common
+│   ├── messaging          # Message broker implementation
+│   ├── scripts
+│   └── shared
 └── validators
 ```
 
@@ -45,30 +50,57 @@ For detailed information on the project's code structure and naming conventions,
 - Node.js v18 or higher
 - npm (or yarn)
 - MongoDB (local or remote; configure `DB_URL` if remote)
-- Redis
-- Mailchimp
-- Google Cloud
-- Paddle
+- At least one message broker (Kafka, Redis, RabbitMQ, or NATS)
+
+### Message Broker Setup
+
+The application uses a redundant message broker system that automatically fails over between multiple broker technologies. For quick setup:
+
+```bash
+# Create and start all brokers using Docker
+mkdir -p ~/message-brokers && cd ~/message-brokers
+curl -O https://raw.githubusercontent.com/airqo-platform/AirQo-api/main/src/auth-service/docker-compose.yml
+docker compose up -d
+```
+
+For detailed message broker setup, configuration, and management instructions, see [MESSAGE_BROKERS.md](MESSAGE_BROKERS.md).
 
 ### Installation
 
-1.  Clone the repository: `git clone https://github.com/airqo-platform/AirQo-api.git`
-2.  Navigate to the project directory: `cd auth-service`
-3.  Install dependencies: `npm install`
+1. Clone the repository: `git clone https://github.com/airqo-platform/AirQo-api.git`
+2. Navigate to the project directory: `cd auth-service`
+3. Install dependencies: `npm install`
+4. Create a `.env` file in the project root (see `.env.example` for required variables)
 
 ### Running Locally
 
-1.  Create a `.env` file in the project root (see `.env.example` if available or create your own) and set the environment variables appropriately.
-2.  Start the development server: `npm run dev`
+1. Start at least one message broker (or none - the app will still function)
+2. Start the development server: `npm run dev`
 
 ### Running in Production (Docker)
 
-1.  Build the Docker image: `docker build -t auth-service .`
-2.  Run the Docker container (setting `NODE_ENV`): `docker run -d -p 3000:3000 -e NODE_ENV=production auth-service`
+1. Build the Docker image: `docker build -t auth-service .`
+2. Run the Docker container: `docker run -d -p 3000:3000 --env-file .env auth-service`
+
+## Message Broker Architecture
+
+The service implements a robust message broker abstraction layer that provides automatic failover between different broker technologies. Key features:
+
+- **Automatic Failover**: If the active broker fails, the system switches to an alternative
+- **Graceful Degradation**: The application continues to function even when all brokers are unavailable
+- **Health Monitoring**: Periodic checks detect broker failures and trigger reconnection
+
+For details on the architecture, broker implementation, and customization, see [MESSAGE_BROKERS.md](MESSAGE_BROKERS.md).
 
 ## Testing
 
 Run tests using: `npm test`
+
+For testing the broker failover mechanism, see the testing section in [MESSAGE_BROKERS.md](MESSAGE_BROKERS.md).
+
+## Troubleshooting
+
+For common issues and troubleshooting steps related to message brokers, see the troubleshooting section in [MESSAGE_BROKERS.md](MESSAGE_BROKERS.md).
 
 ## Contributing
 
