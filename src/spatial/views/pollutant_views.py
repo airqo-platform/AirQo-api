@@ -36,7 +36,7 @@ def connect_mongo():
     return client[Config.DB_NAME]
 
 db = connect_mongo()
-collection = db["combined_data"]
+collection = db["combined_data_t"]
 
 #For data upload
 UPLOAD_FOLDER = './uploads'
@@ -156,10 +156,12 @@ class PollutantApis:
     def get_all_data():
         try:
             # Retrieve all documents from the collection
-            #data = list(collection.find({}))
+            data = list(collection.find({}))
+            """
             page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
+            per_page = request.args.get('per_page', 50, type=int)
             data = list(collection.find().skip((page - 1) * per_page).limit(per_page))
+            """
 
             # If no documents are found, return an error message
             if not data:
