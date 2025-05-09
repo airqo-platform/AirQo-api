@@ -936,6 +936,9 @@ class DataUtils:
         data = DataValidationUtils.remove_outliers_fix_types(
             data, remove_outliers=remove_outliers
         )
+        data.dropna(subset=["timestamp"], inplace=True)
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
 
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
@@ -1344,8 +1347,8 @@ class DataUtils:
         it returns a Series with None values.
 
         Args:
-            devices (pd.DataFrame): A DataFrame containing device information, including 'device_id'.
-            device_id: The ID of the device to search for in the DataFrame.
+            devices(pd.DataFrame): A DataFrame containing device information, including 'device_id'.
+            device_id(str): The ID of the device to search for in the DataFrame.
 
         Returns:
             pd.Series: A Series containing 'site_id' and 'device_number' for the specified device ID,

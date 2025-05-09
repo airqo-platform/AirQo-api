@@ -86,7 +86,7 @@ class DataValidationUtils:
                 min_val, max_val = range_values
                 return row_value if min_val <= row_value <= max_val else None
         else:
-            logger.exception(
+            logger.warning(
                 f"There might be a data type issue with the value type {type(row_value)}: {row_value}"
             )
 
