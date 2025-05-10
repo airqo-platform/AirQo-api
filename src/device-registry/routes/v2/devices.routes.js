@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const authMiddleware = require("@middleware/auth.middleware");
+const resourceFilterMiddleware = require("@middleware/resource-filter.middleware");
 const deviceController = require("@controllers/device.controller");
 const { headers, pagination } = require("@validators/common");
 const {
@@ -19,6 +21,8 @@ const {
 const { validate } = require("@validators/common");
 
 router.use(headers);
+router.use(authMiddleware);
+router.use(resourceFilterMiddleware);
 
 // Decrypt key route
 router.post(
@@ -60,6 +64,8 @@ router.get(
   validateTenant,
   validateListDevices,
   pagination(),
+  // authMiddleware,
+  // resourceFilterMiddleware,
   deviceController.list
 );
 
@@ -69,6 +75,8 @@ router.get(
   validateTenant,
   validateListDevices,
   pagination(),
+  // authMiddleware,
+  // resourceFilterMiddleware,
   deviceController.listSummary
 );
 
