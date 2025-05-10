@@ -79,7 +79,22 @@ app.use(
     parameterLimit: 50000,
   })
 );
-// app.use(fileUpload());
+
+// Header protection middleware - ensures headers exist before fileUpload
+app.use((req, res, next) => {
+  // Ensure headers object exists
+  if (!req.headers) {
+    req.headers = {};
+  }
+
+  // Ensure content-type header exists (even if empty)
+  if (req.headers["content-type"] === undefined) {
+    req.headers["content-type"] = "";
+  }
+
+  next();
+});
+
 app.use(
   fileUpload({
     createParentPath: true,
@@ -154,8 +169,6 @@ app.use(function (err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
-      // logger.error(`Stack Trace: ${err.stack}`);
       logObject("the error", err);
       res.status(err.status).json({
         success: false,
