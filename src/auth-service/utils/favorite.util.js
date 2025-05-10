@@ -101,58 +101,12 @@ const favorites = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const { place_id, firebase_user_id } = body;
-
-      // First check if the favorite already exists
-      const existingFavorite = await FavoriteModel(
-        tenant.toLowerCase()
-      ).findOne({
-        place_id,
-        firebase_user_id,
-      });
-
-      if (existingFavorite) {
-        // If it exists, update it instead of creating a new one
-        const updateResponse = await FavoriteModel(tenant.toLowerCase()).modify(
-          {
-            filter: { _id: existingFavorite._id },
-            update: body,
-          },
-          next
-        );
-
-        return {
-          ...updateResponse,
-          message: "Favorite already exists, updated instead",
-        };
-      }
-
-      // If it doesn't exist, create it
       const responseFromCreateFavorite = await FavoriteModel(
         tenant.toLowerCase()
-      ).register(body, next);
+      ).upsert(body, next);
 
       return responseFromCreateFavorite;
     } catch (error) {
-      // Handle duplicate key error specifically
-      if (error.code === 11000) {
-        const keyPattern = error.keyPattern;
-        const keyValue = error.keyValue;
-
-        // logger.warn(`Duplicate favorite detected: ${JSON.stringify(keyValue)}`);
-
-        return {
-          success: false,
-          message: "This place is already in your favorites",
-          status: httpStatus.CONFLICT,
-          errors: {
-            duplicate: true,
-            place_id: keyValue.place_id,
-            firebase_user_id: keyValue.firebase_user_id,
-          },
-        };
-      }
-
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -188,32 +142,47 @@ const favorites = {
 
       // Handle empty favorite_places - delete all existing favorites
       if (favorite_places.length === 0) {
-        // Parallel deletion of all favorites
+        // Parallel deletion of all favorites without passing 'next'
         const deletionResults = await Promise.allSettled(
           unsynced_favorite_places.map((favorite) =>
-            FavoriteModel(tenant.toLowerCase()).remove(
-              { filter: favorite },
-              next
-            )
+            FavoriteModel(tenant.toLowerCase()).remove({ filter: favorite })
           )
         );
 
         // Log any deletion failures
+        const failures = [];
         deletionResults.forEach((result, index) => {
           if (result.status === "rejected") {
-            logger.error(
-              `Failed to delete favorite: ${JSON.stringify(
-                unsynced_favorite_places[index]
-              )}, Error: ${result.reason}`
-            );
+            const error = `Failed to delete favorite: ${JSON.stringify(
+              unsynced_favorite_places[index]
+            )}, Error: ${result.reason}`;
+            logger.error(error);
+            failures.push(error);
           }
         });
+
+        // If all deletions failed, throw error once
+        if (failures.length === deletionResults.length) {
+          next(
+            new HttpError(
+              "Failed to delete favorites",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { errors: failures }
+            )
+          );
+          return;
+        }
 
         return {
           success: true,
           message: "All favorite places removed",
           data: [],
           status: httpStatus.OK,
+          summary: {
+            deleted: deletionResults.filter((r) => r.status === "fulfilled")
+              .length,
+            failed: failures.length,
+          },
         };
       }
 
