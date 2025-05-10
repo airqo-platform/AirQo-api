@@ -26,6 +26,11 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    # Redis configuration
+    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")  # Default to 'localhost' if not set
+    REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))    # Convert to int, default to 6379
+    REDIS_DB = int(os.getenv("REDIS_DB", 0))           # Convert to int, default to 0
+    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None) # Default to None if not set
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False

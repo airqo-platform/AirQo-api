@@ -1,5 +1,6 @@
 # controller/controller.py
 from flask import Blueprint, request, jsonify
+from views.chatbot_views import ChatbotView
 from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
@@ -12,7 +13,7 @@ from views.derived_pm2_5 import (
 from views.satellite_predictions import SatellitePredictionView
 from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
-from views.report_view import ReportView
+from views.report_view import ReportView 
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -79,3 +80,8 @@ def fetch_air_quality_without_llm():
 @controller_bp.route("/air_quality_report_with_customised_prompt", methods=["POST"])
 def fetch_air_quality_with_customised_prompt():
     return ReportView.generate_air_quality_report_with_customised_prompt_gemini()
+
+@controller_bp.route("/chatbot", methods=["POST"])
+def Chatbot_Views():
+    return ChatbotView.chat_endpoint()
+
