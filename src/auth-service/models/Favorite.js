@@ -256,10 +256,9 @@ FavoriteSchema.statics = {
         await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
       ).data;
 
-      unsynced_favorite_places = unsynced_favorite_places.map((item) => {
-        delete item._id;
-        return item;
-      });
+      unsynced_favorite_places = unsynced_favorite_places.map(
+        ({ _id, ...rest }) => rest
+      );
 
       // Handle empty favorite_places
       if (favorite_places.length === 0) {
@@ -396,6 +395,53 @@ FavoriteSchema.statics = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+    }
+  },
+  async upsert(args, next) {
+    try {
+      const { place_id, firebase_user_id, ...updateData } = args;
+
+      const existing = await this.findOne({ place_id, firebase_user_id });
+
+      if (existing) {
+        // Update existing favorite
+        return this.modify(
+          {
+            filter: { _id: existing._id },
+            update: args,
+          },
+          next
+        );
+      }
+
+      // Create new favorite if doesn't exist
+      return this.register(args, next);
+    } catch (err) {
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(err)}`);
+
+      // Handle specific MongoDB errors
+      if (err.code === 11000) {
+        // Handle race condition where record was created between find and create
+        const existing = await this.findOne({ place_id, firebase_user_id });
+        if (existing) {
+          return this.modify(
+            {
+              filter: { _id: existing._id },
+              update: args,
+            },
+            next
+          );
+        }
+      }
+
+      // For other errors, use the standard error handling
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: err.message }
         )
       );
     }
