@@ -133,6 +133,47 @@ router.get(
   createPreferenceController.getChartConfigurationById
 );
 
+// Theme routes
+router.get(
+  "/theme/user/:user_id",
+  preferenceValidations.getUserTheme,
+  setJWTAuth,
+  authJWT,
+  preferencesController.getTheme
+);
+
+router.put(
+  "/theme/user/:user_id",
+  preferenceValidations.updateUserTheme,
+  setJWTAuth,
+  authJWT,
+  preferencesController.updateUserTheme
+);
+
+router.get(
+  "/theme/organization/:group_id",
+  preferenceValidations.getOrganizationTheme,
+  setJWTAuth,
+  authJWT,
+  preferencesController.getTheme
+);
+
+router.put(
+  "/theme/organization/:group_id",
+  preferenceValidations.updateOrganizationTheme,
+  setJWTAuth,
+  authJWT,
+  preferencesController.updateOrganizationTheme
+);
+
+router.get(
+  "/theme/effective/:user_id",
+  preferenceValidations.getEffectiveTheme,
+  setJWTAuth,
+  authJWT,
+  preferencesController.getEffectiveTheme
+);
+
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,

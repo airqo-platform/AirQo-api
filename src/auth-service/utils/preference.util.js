@@ -1108,6 +1108,219 @@ const preferences = {
       };
     }
   },
+  getTheme: async (request, next) => {
+    try {
+      const { user_id, group_id } = request.params;
+      const { tenant } = request.query;
+
+      // First, try to get user's personal theme
+      if (user_id) {
+        const user = await UserModel(tenant).findById(user_id).select("theme");
+        if (user && user.theme) {
+          return {
+            success: true,
+            data: user.theme,
+            message: "User theme retrieved successfully",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      // If no user theme or user_id not provided, check for organization theme
+      if (group_id) {
+        const group = await GroupModel(tenant)
+          .findById(group_id)
+          .select("theme");
+        if (group && group.theme) {
+          return {
+            success: true,
+            data: group.theme,
+            message: "Organization theme retrieved successfully",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      // Return default theme if no theme found
+      return {
+        success: true,
+        data: {
+          primaryColor: "#1976d2",
+          mode: "light",
+          interfaceStyle: "default",
+          contentLayout: "wide",
+        },
+        message: "Default theme returned",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserTheme: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { user_id } = params;
+      const { tenant } = query;
+      const { theme } = body;
+
+      // Validate user exists
+      const user = await UserModel(tenant).findById(user_id);
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Update user theme
+      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+        user_id,
+        { theme },
+        { new: true, runValidators: true }
+      );
+
+      return {
+        success: true,
+        data: updatedUser.theme,
+        message: "User theme updated successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateOrganizationTheme: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { group_id } = params;
+      const { tenant } = query;
+      const { theme } = body;
+
+      // Validate group exists
+      const group = await GroupModel(tenant).findById(group_id);
+      if (!group) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Organization not found",
+          })
+        );
+      }
+
+      // Update organization theme
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        group_id,
+        { theme },
+        { new: true, runValidators: true }
+      );
+
+      return {
+        success: true,
+        data: updatedGroup.theme,
+        message: "Organization theme updated successfully",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getEffectiveTheme: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+
+      // Get user with their group roles
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("theme group_roles");
+
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // If user has a theme set, return it
+      if (user.theme && Object.keys(user.theme).length > 0) {
+        return {
+          success: true,
+          data: user.theme,
+          source: "user",
+          message: "User theme retrieved successfully",
+          status: httpStatus.OK,
+        };
+      }
+
+      // Otherwise, check for organization theme
+      if (user.group_roles && user.group_roles.length > 0) {
+        // Get the primary organization (first one or marked as primary)
+        const primaryGroupRole = user.group_roles[0];
+        const group = await GroupModel(tenant)
+          .findById(primaryGroupRole.group)
+          .select("theme");
+
+        if (group && group.theme && Object.keys(group.theme).length > 0) {
+          return {
+            success: true,
+            data: group.theme,
+            source: "organization",
+            message: "Organization theme retrieved successfully",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      // Return default theme
+      return {
+        success: true,
+        data: {
+          primaryColor: "#1976d2",
+          mode: "light",
+          interfaceStyle: "default",
+          contentLayout: "wide",
+        },
+        source: "default",
+        message: "Default theme returned",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = preferences;

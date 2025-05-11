@@ -8,6 +8,7 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
+const ThemeSchema = require("@models/ThemeSchema");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
@@ -56,6 +57,10 @@ const UserSchema = new Schema(
     country: { type: String },
     firebase_uid: { type: String },
     city: { type: String },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
+    },
     department_id: {
       type: ObjectId,
       ref: "department",
