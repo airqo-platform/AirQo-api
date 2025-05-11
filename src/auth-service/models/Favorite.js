@@ -228,6 +228,224 @@ FavoriteSchema.statics = {
       );
     }
   },
+  syncFavorites: async (request, next) => {
+    try {
+      const { query, body, params } = request;
+      const { tenant, favorite_places, firebase_user_id } = {
+        ...body,
+        ...query,
+        ...params,
+      };
+
+      let responseFromCreateFavorite = {
+        success: true,
+        data: [],
+        message: "No missing favorite places",
+      };
+      let responseFromDeleteFavorite = {
+        success: true,
+        data: [],
+        message: "No extra favorite places",
+      };
+
+      let filter = {
+        firebase_user_id: firebase_user_id,
+      };
+
+      let unsynced_favorite_places = (
+        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
+      ).data;
+
+      unsynced_favorite_places = unsynced_favorite_places.map(
+        ({ _id, ...rest }) => rest
+      );
+
+      // Handle empty favorite_places
+      if (favorite_places.length === 0) {
+        for (let favorite of unsynced_favorite_places) {
+          responseFromDeleteFavorite = await FavoriteModel(
+            tenant.toLowerCase()
+          ).remove(
+            {
+              filter: favorite,
+            },
+            next
+          );
+        }
+
+        return {
+          success: true,
+          message: "No favorite places to sync",
+          data: [],
+        };
+      }
+
+      // Find missing favorites
+      const missing_favorite_places = favorite_places.filter((item) => {
+        const found = unsynced_favorite_places.some((favorite) => {
+          return (
+            favorite.place_id === item.place_id &&
+            favorite.firebase_user_id === item.firebase_user_id
+          );
+        });
+        return !found;
+      });
+
+      // Create missing favorites with proper duplicate handling
+      if (missing_favorite_places.length > 0) {
+        for (let favorite of missing_favorite_places) {
+          try {
+            // Check if favorite already exists
+            const existingFavorite = await FavoriteModel(
+              tenant.toLowerCase()
+            ).findOne({
+              firebase_user_id: favorite.firebase_user_id,
+              place_id: favorite.place_id,
+            });
+
+            if (!existingFavorite) {
+              responseFromCreateFavorite = await FavoriteModel(
+                tenant.toLowerCase()
+              ).register(favorite, next);
+              logObject(
+                "responseFromCreateFavorite",
+                responseFromCreateFavorite
+              );
+            }
+          } catch (error) {
+            // Handle duplicate key error gracefully
+            if (error.code === 11000) {
+              logger.info(
+                `Favorite already exists for place_id: ${favorite.place_id}, firebase_user_id: ${favorite.firebase_user_id}`
+              );
+              continue; // Skip to next iteration
+            } else {
+              throw error; // Re-throw if it's not a duplicate key error
+            }
+          }
+        }
+      }
+
+      // Find extra favorites
+      const extra_favorite_places = unsynced_favorite_places.filter((item) => {
+        const found = favorite_places.some((favorite) => {
+          return (
+            favorite.place_id === item.place_id &&
+            favorite.firebase_user_id === item.firebase_user_id
+          );
+        });
+        return !found;
+      });
+
+      // Delete extra favorites
+      if (extra_favorite_places.length > 0) {
+        for (let favorite of extra_favorite_places) {
+          let filter = {
+            firebase_user_id: favorite.firebase_user_id,
+            place_id: favorite.place_id,
+          };
+          responseFromDeleteFavorite = await FavoriteModel(
+            tenant.toLowerCase()
+          ).remove(
+            {
+              filter,
+            },
+            next
+          );
+        }
+      }
+
+      // Get synchronized favorites
+      let synchronizedFavorites = (
+        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
+      ).data;
+
+      if (
+        responseFromCreateFavorite &&
+        responseFromDeleteFavorite &&
+        responseFromCreateFavorite.success === false &&
+        responseFromDeleteFavorite.success === false
+      ) {
+        next(
+          new HttpError(
+            "Error Synchronizing favorites",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Response from Create Favorite: ${
+                responseFromCreateFavorite?.errors?.message || "Unknown error"
+              }
+             + Response from Delete Favorite: ${
+               responseFromDeleteFavorite?.errors?.message || "Unknown error"
+             }`,
+            }
+          )
+        );
+      }
+
+      return {
+        success: true,
+        message: "Favorites Synchronized",
+        data: synchronizedFavorites,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  async upsert(args, next) {
+    try {
+      const { place_id, firebase_user_id, ...updateData } = args;
+
+      const existing = await this.findOne({ place_id, firebase_user_id });
+
+      if (existing) {
+        // Update existing favorite
+        return this.modify(
+          {
+            filter: { _id: existing._id },
+            update: args,
+          },
+          next
+        );
+      }
+
+      // Create new favorite if doesn't exist
+      return this.register(args, next);
+    } catch (err) {
+      logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(err)}`);
+
+      // Handle specific MongoDB errors
+      if (err.code === 11000) {
+        // Handle race condition where record was created between find and create
+        const existing = await this.findOne({ place_id, firebase_user_id });
+        if (existing) {
+          return this.modify(
+            {
+              filter: { _id: existing._id },
+              update: args,
+            },
+            next
+          );
+        }
+      }
+
+      // For other errors, use the standard error handling
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: err.message }
+        )
+      );
+    }
+  },
 };
 
 FavoriteSchema.methods = {
