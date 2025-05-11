@@ -4,6 +4,36 @@ const { ObjectId } = require("mongoose").Types;
 const isEmpty = require("is-empty");
 const { isMongoId } = require("validator");
 
+const themeValidations = {
+  theme: [
+    body("theme.primaryColor")
+      .optional()
+      .isString()
+      .withMessage("Primary color must be a string")
+      .custom((value) => {
+        const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+        const cssColorRegex =
+          /^(red|blue|green|yellow|purple|orange|pink|cyan|magenta|black|white|gray|grey|brown)$/i;
+        return hexColorRegex.test(value) || cssColorRegex.test(value);
+      })
+      .withMessage(
+        "Invalid color format. Use hex (#RRGGBB) or CSS color names"
+      ),
+    body("theme.mode")
+      .optional()
+      .isIn(["light", "dark", "system"])
+      .withMessage("Mode must be one of: light, dark, system"),
+    body("theme.interfaceStyle")
+      .optional()
+      .isIn(["default", "bordered"])
+      .withMessage("Interface style must be one of: default, bordered"),
+    body("theme.contentLayout")
+      .optional()
+      .isIn(["compact", "wide"])
+      .withMessage("Content layout must be one of: compact, wide"),
+  ],
+};
+
 const createNestedValidations = (prefix) => {
   return [
     // Basic fields
@@ -1083,6 +1113,63 @@ const preferenceValidations = {
       .withMessage("Chart ID is required")
       .isMongoId()
       .withMessage("Invalid Chart ID"),
+  ],
+
+  getUserTheme: [
+    ...commonValidations.tenant,
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+  ],
+
+  updateUserTheme: [
+    ...commonValidations.tenant,
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+    body("theme")
+      .exists()
+      .withMessage("Theme object is required")
+      .isObject()
+      .withMessage("Theme must be an object"),
+    ...themeValidations.theme,
+  ],
+
+  getOrganizationTheme: [
+    ...commonValidations.tenant,
+    param("group_id")
+      .exists()
+      .withMessage("Group ID is required")
+      .isMongoId()
+      .withMessage("Invalid Group ID"),
+  ],
+
+  updateOrganizationTheme: [
+    ...commonValidations.tenant,
+    param("group_id")
+      .exists()
+      .withMessage("Group ID is required")
+      .isMongoId()
+      .withMessage("Invalid Group ID"),
+    body("theme")
+      .exists()
+      .withMessage("Theme object is required")
+      .isObject()
+      .withMessage("Theme must be an object"),
+    ...themeValidations.theme,
+  ],
+
+  getEffectiveTheme: [
+    ...commonValidations.tenant,
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .isMongoId()
+      .withMessage("Invalid User ID"),
   ],
 };
 
