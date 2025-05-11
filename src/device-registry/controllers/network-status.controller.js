@@ -14,369 +14,157 @@ const logger = log4js.getLogger(
 const networkStatusUtil = require("@utils/network-status.util");
 const isEmpty = require("is-empty");
 
+// Helper function to handle errors
+const handleError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: error.message,
+    })
+  );
+};
+
+// Helper function to validate request
+const validateRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return false;
+  }
+  return true;
+};
+
+// Helper function to get tenant from request
+const getTenantFromRequest = (req) => {
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  return isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
+};
+
+// Helper function to handle response
+const sendResponse = (res, result) => {
+  if (result.success === true) {
+    const status = result.status || httpStatus.OK;
+    res.status(status).json({
+      success: true,
+      message: result.message,
+      [result.dataKey || "data"]: result.data || [],
+    });
+  } else {
+    const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+    res.status(status).json({
+      success: false,
+      message: result.message,
+      errors: result.errors || { message: "" },
+    });
+  }
+};
+
+// Generic controller action handler
+const handleControllerAction = async (
+  req,
+  res,
+  next,
+  utilFunction,
+  dataKey
+) => {
+  try {
+    if (!validateRequest(req, next)) return;
+
+    const tenant = getTenantFromRequest(req);
+
+    // Create a new request object with modified query
+    const modifiedRequest = {
+      ...req,
+      query: {
+        ...req.query,
+        tenant,
+      },
+    };
+
+    const result = await utilFunction(modifiedRequest, next);
+
+    if (isEmpty(result) || res.headersSent) return;
+
+    result.dataKey = dataKey;
+    sendResponse(res, result);
+  } catch (error) {
+    handleError(error, next);
+  }
+};
+
 const networkStatusController = {
   create: async (req, res, next) => {
     try {
-      const hasErrors = extractErrorsFromRequest(req);
-      if (hasErrors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, hasErrors)
-        );
-        return;
-      }
+      if (!validateRequest(req, next)) return;
 
       const { body, query } = req;
-      const { tenant } = query;
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+      const tenant = getTenantFromRequest(req);
 
       const result = await networkStatusUtil.createAlert(
         {
           alertData: body,
-          tenant: actualTenant,
+          tenant: tenant,
         },
         next
       );
 
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+      if (isEmpty(result) || res.headersSent) return;
 
-      if (result.success === true) {
-        const status = result.status || httpStatus.CREATED;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          alert: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
+      result.dataKey = "alert";
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
+      handleError(error, next);
     }
   },
 
   list: async (req, res, next) => {
-    try {
-      const hasErrors = extractErrorsFromRequest(req);
-      if (hasErrors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, hasErrors)
-        );
-        return;
-      }
-
-      const { query } = req;
-      const { tenant } = query;
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const modifiedRequest = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: actualTenant,
-        },
-      };
-
-      const result = await networkStatusUtil.list(modifiedRequest, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status || httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          alerts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.list,
+      "alerts"
+    );
   },
 
   getStatistics: async (req, res, next) => {
-    try {
-      const hasErrors = extractErrorsFromRequest(req);
-      if (hasErrors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, hasErrors)
-        );
-        return;
-      }
-
-      const { query } = req;
-      const { tenant } = query;
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const modifiedRequest = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: actualTenant,
-        },
-      };
-
-      const result = await networkStatusUtil.getStatistics(
-        modifiedRequest,
-        next
-      );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status || httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          statistics: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.getStatistics,
+      "statistics"
+    );
   },
 
   getHourlyTrends: async (req, res, next) => {
-    try {
-      const hasErrors = extractErrorsFromRequest(req);
-      if (hasErrors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, hasErrors)
-        );
-        return;
-      }
-
-      const { query } = req;
-      const { tenant } = query;
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const modifiedRequest = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: actualTenant,
-        },
-      };
-
-      const result = await networkStatusUtil.getHourlyTrends(
-        modifiedRequest,
-        next
-      );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status || httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          trends: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.getHourlyTrends,
+      "trends"
+    );
   },
 
   getRecentAlerts: async (req, res, next) => {
-    try {
-      const hasErrors = extractErrorsFromRequest(req);
-      if (hasErrors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, hasErrors)
-        );
-        return;
-      }
-
-      const { query } = req;
-      const { tenant } = query;
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const modifiedRequest = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: actualTenant,
-        },
-      };
-
-      const result = await networkStatusUtil.getRecentAlerts(
-        modifiedRequest,
-        next
-      );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status || httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          alerts: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.getRecentAlerts,
+      "alerts"
+    );
   },
 
   getUptimeSummary: async (req, res, next) => {
-    try {
-      const hasErrors = extractErrorsFromRequest(req);
-      if (hasErrors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, hasErrors)
-        );
-        return;
-      }
-
-      const { query } = req;
-      const { tenant } = query;
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const modifiedRequest = {
-        ...req,
-        query: {
-          ...req.query,
-          tenant: actualTenant,
-        },
-      };
-
-      const result = await networkStatusUtil.getUptimeSummary(
-        modifiedRequest,
-        next
-      );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status || httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          summary: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-    }
+    await handleControllerAction(
+      req,
+      res,
+      next,
+      networkStatusUtil.getUptimeSummary,
+      "summary"
+    );
   },
 };
 
