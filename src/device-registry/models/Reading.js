@@ -13,6 +13,7 @@ const HealthTipsSchema = new Schema(
   {
     title: String,
     description: String,
+    tag_line: String,
     image: String,
   },
   { _id: false }
