@@ -8,6 +8,7 @@ const { getModelByTenant } = require("@config/database");
 const { addWeeksToProvideDateTime } = require("@utils/common");
 const constants = require("@config/constants");
 const currentDate = new Date();
+const ThemeSchema = require("@models/ThemeSchema");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- preferences-model`
@@ -169,6 +170,10 @@ const PreferenceSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "pm2_5",
+    },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
     },
     pollutants: [
       {
