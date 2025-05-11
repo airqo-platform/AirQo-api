@@ -204,9 +204,9 @@ networkStatusAlertSchema.statics = {
 
   async executeAggregation({ pipeline = [] } = {}, next) {
     try {
-      // Use mongoose.model to ensure we get the native aggregate method
-      const Model = mongoose.model(this.modelName);
-      const response = await Model.aggregate(pipeline).exec();
+      // In a static method, 'this' refers to the model itself
+      // We can call the native aggregate method directly since we renamed our method
+      const response = await this.aggregate(pipeline);
 
       if (!isEmpty(response)) {
         return {
