@@ -15,6 +15,49 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+// Singleton Kafka producer instance
+let kafkaProducer = null;
+let isProducerConnected = false;
+
+// Initialize Kafka producer
+const initializeKafkaProducer = async () => {
+  if (!kafkaProducer) {
+    kafkaProducer = kafka.producer({
+      groupId: constants.UNIQUE_PRODUCER_GROUP,
+    });
+  }
+
+  if (!isProducerConnected) {
+    try {
+      await kafkaProducer.connect();
+      isProducerConnected = true;
+      logger.info("Kafka producer connected successfully");
+    } catch (error) {
+      logger.error(`Failed to connect Kafka producer: ${error.message}`);
+      throw error;
+    }
+  }
+
+  return kafkaProducer;
+};
+
+// Graceful shutdown handler
+const disconnectKafkaProducer = async () => {
+  if (kafkaProducer && isProducerConnected) {
+    try {
+      await kafkaProducer.disconnect();
+      isProducerConnected = false;
+      logger.info("Kafka producer disconnected successfully");
+    } catch (error) {
+      logger.error(`Error disconnecting Kafka producer: ${error.message}`);
+    }
+  }
+};
+
+// Handle graceful shutdown
+process.on("SIGINT", disconnectKafkaProducer);
+process.on("SIGTERM", disconnectKafkaProducer);
+
 const networkStatusUtil = {
   createAlert: async ({ alertData, tenant = "airqo" } = {}, next) => {
     try {
@@ -23,6 +66,7 @@ const networkStatusUtil = {
 
       const enrichedData = {
         ...alertData,
+        alert_type: alertData.alert_type || "NETWORK_STATUS", // Default value
         tenant: tenant.toLowerCase(),
         environment: constants.ENVIRONMENT,
         day_of_week: now.day(),
@@ -45,11 +89,8 @@ const networkStatusUtil = {
 
       if (response.success) {
         try {
-          const kafkaProducer = kafka.producer({
-            groupId: constants.UNIQUE_PRODUCER_GROUP,
-          });
-          await kafkaProducer.connect();
-          await kafkaProducer.send({
+          const producer = await initializeKafkaProducer();
+          await producer.send({
             topic: constants.NETWORK_STATUS_TOPIC || "network-status-alerts",
             messages: [
               {
@@ -58,9 +99,9 @@ const networkStatusUtil = {
               },
             ],
           });
-          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`Kafka error -- ${error.message}`);
+          // Don't throw here - we don't want Kafka errors to affect the main flow
         }
       }
 
@@ -254,7 +295,7 @@ const networkStatusUtil = {
         { $sort: { _id: 1 } },
       ];
 
-      const response = await NetworkStatusAlertModel(tenant).aggregate(
+      const response = await NetworkStatusAlertModel(tenant).executeAggregation(
         { pipeline },
         next
       );

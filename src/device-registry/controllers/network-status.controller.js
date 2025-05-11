@@ -88,10 +88,15 @@ const networkStatusController = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      const request = req;
-      request.query.tenant = actualTenant;
+      const modifiedRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: actualTenant,
+        },
+      };
 
-      const result = await networkStatusUtil.list(request, next);
+      const result = await networkStatusUtil.list(modifiedRequest, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -142,10 +147,18 @@ const networkStatusController = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      const request = req;
-      request.query.tenant = actualTenant;
+      const modifiedRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: actualTenant,
+        },
+      };
 
-      const result = await networkStatusUtil.getStatistics(request, next);
+      const result = await networkStatusUtil.getStatistics(
+        modifiedRequest,
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -196,10 +209,18 @@ const networkStatusController = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      const request = req;
-      request.query.tenant = actualTenant;
+      const modifiedRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: actualTenant,
+        },
+      };
 
-      const result = await networkStatusUtil.getHourlyTrends(request, next);
+      const result = await networkStatusUtil.getHourlyTrends(
+        modifiedRequest,
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -250,10 +271,18 @@ const networkStatusController = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      const request = req;
-      request.query.tenant = actualTenant;
+      const modifiedRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: actualTenant,
+        },
+      };
 
-      const result = await networkStatusUtil.getRecentAlerts(request, next);
+      const result = await networkStatusUtil.getRecentAlerts(
+        modifiedRequest,
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -304,10 +333,18 @@ const networkStatusController = {
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      const request = req;
-      request.query.tenant = actualTenant;
+      const modifiedRequest = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: actualTenant,
+        },
+      };
 
-      const result = await networkStatusUtil.getUptimeSummary(request, next);
+      const result = await networkStatusUtil.getUptimeSummary(
+        modifiedRequest,
+        next
+      );
 
       if (isEmpty(result) || res.headersSent) {
         return;

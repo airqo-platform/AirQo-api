@@ -84,8 +84,7 @@ const networkStatusValidations = {
       .optional()
       .isString()
       .withMessage("alert_type must be a string")
-      .trim()
-      .default("NETWORK_STATUS"),
+      .trim(),
   ],
 
   list: [
@@ -99,7 +98,10 @@ const networkStatusValidations = {
       .isISO8601()
       .withMessage("end_date must be a valid ISO 8601 date")
       .custom((value, { req }) => {
-        if (req.query.start_date && value <= req.query.start_date) {
+        if (
+          req.query.start_date &&
+          new Date(value) <= new Date(req.query.start_date)
+        ) {
           throw new Error("end_date must be after start_date");
         }
         return true;
@@ -125,7 +127,10 @@ const networkStatusValidations = {
       .isISO8601()
       .withMessage("end_date must be a valid ISO 8601 date")
       .custom((value, { req }) => {
-        if (req.query.start_date && value <= req.query.start_date) {
+        if (
+          req.query.start_date &&
+          new Date(value) <= new Date(req.query.start_date)
+        ) {
           throw new Error("end_date must be after start_date");
         }
         return true;
@@ -143,7 +148,10 @@ const networkStatusValidations = {
       .isISO8601()
       .withMessage("end_date must be a valid ISO 8601 date")
       .custom((value, { req }) => {
-        if (req.query.start_date && value <= req.query.start_date) {
+        if (
+          req.query.start_date &&
+          new Date(value) <= new Date(req.query.start_date)
+        ) {
           throw new Error("end_date must be after start_date");
         }
         return true;

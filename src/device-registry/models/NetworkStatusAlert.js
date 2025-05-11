@@ -202,9 +202,11 @@ networkStatusAlertSchema.statics = {
     }
   },
 
-  async aggregate({ pipeline = [] } = {}, next) {
+  async executeAggregation({ pipeline = [] } = {}, next) {
     try {
-      const response = await this.aggregate(pipeline).exec();
+      // Use mongoose.model to ensure we get the native aggregate method
+      const Model = mongoose.model(this.modelName);
+      const response = await Model.aggregate(pipeline).exec();
 
       if (!isEmpty(response)) {
         return {
@@ -257,7 +259,7 @@ networkStatusAlertSchema.statics = {
         },
       ];
 
-      return this.aggregate({ pipeline }, next);
+      return this.executeAggregation({ pipeline }, next);
     } catch (error) {
       next(
         new HttpError(
@@ -286,7 +288,7 @@ networkStatusAlertSchema.statics = {
         { $sort: { "_id.dayOfWeek": 1, "_id.hour": 1 } },
       ];
 
-      return this.aggregate({ pipeline }, next);
+      return this.executeAggregation({ pipeline }, next);
     } catch (error) {
       next(
         new HttpError(
