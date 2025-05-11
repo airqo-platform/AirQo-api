@@ -249,11 +249,11 @@ const favorites = {
               )}, Error: ${result.reason}`
             );
           } else if (result.value?.success) {
-            logger.info(
-              `Successfully processed favorite: ${JSON.stringify(
-                missing_favorite_places[index]
-              )}`
-            );
+            // logger.info(
+            //   `Successfully processed favorite: ${JSON.stringify(
+            //     missing_favorite_places[index]
+            //   )}`
+            // );
           }
         });
       }
