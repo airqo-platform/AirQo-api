@@ -1,7 +1,7 @@
 // preferences.routes.js
 const express = require("express");
 const router = express.Router();
-const createPreferenceController = require("@controllers/preference.controller");
+const preferenceController = require("@controllers/preference.controller");
 const preferenceValidations = require("@validators/preferences.validators");
 const { authenticateJWT } = require("@middleware/passport");
 
@@ -20,165 +20,156 @@ router.use(preferenceValidations.pagination(100, 1000));
 router.post(
   "/upsert",
   preferenceValidations.upsert,
-  createPreferenceController.upsert
+  preferenceController.upsert
 );
 
 router.patch(
   "/replace",
   preferenceValidations.replace,
-  createPreferenceController.replace
+  preferenceController.replace
 );
 
 router.put(
   "/:user_id",
   preferenceValidations.update,
-  createPreferenceController.update
+  preferenceController.update
 );
 
-router.post(
-  "/",
-  preferenceValidations.create,
-  createPreferenceController.create
-);
+router.post("/", preferenceValidations.create, preferenceController.create);
 
-router.get("/", preferenceValidations.list, createPreferenceController.list);
+router.get("/", preferenceValidations.list, preferenceController.list);
 
 router.delete(
   "/:user_id",
   preferenceValidations.deletePreference,
   authenticateJWT,
-  createPreferenceController.delete
+  preferenceController.delete
 );
 
 router.get(
   "/selected-sites",
   preferenceValidations.getSelectedSites,
-  createPreferenceController.listSelectedSites
+  preferenceController.listSelectedSites
 );
 
 router.post(
   "/selected-sites",
   preferenceValidations.addSelectedSites,
   authenticateJWT,
-  createPreferenceController.addSelectedSites
+  preferenceController.addSelectedSites
 );
 
 router.put(
   "/selected-sites/:site_id",
   preferenceValidations.updateSelectedSite,
   authenticateJWT,
-  createPreferenceController.updateSelectedSite
+  preferenceController.updateSelectedSite
 );
 
 router.delete(
   "/selected-sites/:site_id",
   preferenceValidations.deleteSelectedSite,
   authenticateJWT,
-  createPreferenceController.deleteSelectedSite
+  preferenceController.deleteSelectedSite
 );
 
 router.get(
   "/recent/:user_id",
   preferenceValidations.getPreferenceByUserId,
   authenticateJWT,
-  createPreferenceController.getMostRecent
+  preferenceController.getMostRecent
 );
 
 router.get(
   "/all/:user_id",
   preferenceValidations.getPreferenceByUserId,
   authenticateJWT,
-  createPreferenceController.listAll
+  preferenceController.listAll
 );
 
 router.post(
   "/:deviceId/charts",
   authenticateJWT,
   preferenceValidations.createChart,
-  createPreferenceController.createChart
+  preferenceController.createChart
 );
 
 router.put(
   "/:deviceId/charts/:chartId",
   authenticateJWT,
   preferenceValidations.updateChart,
-  createPreferenceController.updateChart
+  preferenceController.updateChart
 );
 
 router.delete(
   "/:deviceId/charts/:chartId",
   authenticateJWT,
   preferenceValidations.deleteChart,
-  createPreferenceController.deleteChart
+  preferenceController.deleteChart
 );
 
 router.get(
   "/:deviceId/charts",
   authenticateJWT,
   preferenceValidations.getChartConfigurations,
-  createPreferenceController.getChartConfigurations
+  preferenceController.getChartConfigurations
 );
 
 router.post(
   "/:deviceId/charts/:chartId/copy",
   authenticateJWT,
   preferenceValidations.copyChart,
-  createPreferenceController.copyChart
+  preferenceController.copyChart
 );
 
 router.get(
   "/:deviceId/charts/:chartId",
   authenticateJWT,
   preferenceValidations.getChartConfigurationById,
-  createPreferenceController.getChartConfigurationById
+  preferenceController.getChartConfigurationById
 );
 
 // Theme routes
 router.get(
   "/theme/user/:user_id",
   preferenceValidations.getUserTheme,
-  setJWTAuth,
-  authJWT,
-  preferencesController.getTheme
+  authenticateJWT,
+  preferenceController.getTheme
 );
 
 router.put(
   "/theme/user/:user_id",
   preferenceValidations.updateUserTheme,
-  setJWTAuth,
-  authJWT,
-  preferencesController.updateUserTheme
+  authenticateJWT,
+  preferenceController.updateUserTheme
 );
 
 router.get(
   "/theme/organization/:group_id",
   preferenceValidations.getOrganizationTheme,
-  setJWTAuth,
-  authJWT,
-  preferencesController.getTheme
+  authenticateJWT,
+  preferenceController.getTheme
 );
 
 router.put(
   "/theme/organization/:group_id",
   preferenceValidations.updateOrganizationTheme,
-  setJWTAuth,
-  authJWT,
-  preferencesController.updateOrganizationTheme
+  authenticateJWT,
+  preferenceController.updateOrganizationTheme
 );
 
 router.get(
   "/theme/effective/:user_id",
   preferenceValidations.getEffectiveTheme,
-  setJWTAuth,
-  authJWT,
-  preferencesController.getEffectiveTheme
+  authenticateJWT,
+  preferenceController.getEffectiveTheme
 );
 
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
   authenticateJWT,
-  createPreferenceController.list
+  preferenceController.list
 );
 
 module.exports = router;
