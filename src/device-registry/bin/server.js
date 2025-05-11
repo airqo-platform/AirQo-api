@@ -29,7 +29,7 @@ const {
 const { stringify } = require("@utils/common");
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/v2.1-store-readings-job");
-require("@bin/jobs/v2-check-network-status-job");
+require("@bin/jobs/v2.1-check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
