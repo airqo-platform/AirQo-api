@@ -10,6 +10,11 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+const runStartupMigrations = require("@bin/jobs/run-migrations");
+runStartupMigrations().catch((error) => {
+  logger.error(`🐛🐛 Failed to run startup migrations: ${error.message}`);
+});
+
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
