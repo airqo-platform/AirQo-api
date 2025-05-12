@@ -6,8 +6,7 @@ const logger = log4js.getLogger(
 );
 const MigrationTrackerModel = require("@models/MigrationTracker");
 const {
-  getModelByTenant,
-  getTenantDB,
+  getRawTenantDB, // Use the new function
   connectToMongoDB,
 } = require("@config/database");
 
@@ -59,8 +58,8 @@ async function updateMigrationStatus(tenant, status, error = null) {
 
 async function createIndexesForTenant(tenant) {
   try {
-    // Properly use the DB access pattern through getTenantDB
-    const tenantDB = getTenantDB(tenant, "networkStatusAlert");
+    // Use getRawTenantDB to get database access without model registration
+    const tenantDB = getRawTenantDB(tenant);
     const collectionName = "networkstatusalerts";
 
     // Check if collection exists
@@ -69,9 +68,6 @@ async function createIndexesForTenant(tenant) {
       .toArray();
 
     if (collections.length === 0) {
-      //   logger.info(
-      //     `Collection ${collectionName} does not exist for tenant ${tenant}. Skipping...`
-      //   );
       return;
     }
 
@@ -153,12 +149,8 @@ if (require.main === module) {
   const run = async () => {
     try {
       await executeMigration();
-      //   logger.info("Migration completed successfully");
-      // Don't exit or close connections - the application manages these
-      // Just end the function normally
     } catch (error) {
       logger.error(`🐛🐛 Migration failed: ${error.message}`);
-      // Don't exit - let the application handle process lifecycle
     }
   };
 

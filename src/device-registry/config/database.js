@@ -164,6 +164,26 @@ function getModelByTenant(
   return getQueryModelByTenant(tenantId, modelName, schema);
 }
 
+/**
+ * Get a raw tenant database connection without model registration
+ * Useful for migrations and operations that don't need model access
+ */
+function getRawTenantDB(tenantId, operationType = "query") {
+  const dbName =
+    operationType === "command"
+      ? `${constants.DB_NAME}_command_${tenantId}`
+      : `${constants.DB_NAME}_${tenantId}`;
+
+  const connection =
+    operationType === "command" ? commandMongoDB : queryMongoDB;
+
+  if (!connection) {
+    throw new Error(`${operationType} database connection not established`);
+  }
+
+  return connection.useDb(dbName, { useCache: true });
+}
+
 module.exports = {
   getModelByTenant,
   getTenantDB,
@@ -172,4 +192,5 @@ module.exports = {
   getQueryModelByTenant,
   getCommandTenantDB,
   getQueryTenantDB,
+  getRawTenantDB,
 };
