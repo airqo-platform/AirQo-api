@@ -3,6 +3,8 @@ const express = require("express");
 const constants = require("@config/constants");
 const path = require("path");
 const cookieParser = require("cookie-parser");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const app = express();
 const bodyParser = require("body-parser");
 const session = require("express-session");
@@ -10,16 +12,21 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+const runStartupMigrations = require("@bin/jobs/run-migrations");
+runStartupMigrations().catch((error) => {
+  logger.error(`🐛🐛 Failed to run startup migrations: ${error.message}`);
+});
+
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
-const log4js = require("log4js");
+
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
+
 const {
   logObject,
   logText,

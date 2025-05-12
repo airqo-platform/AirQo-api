@@ -98,6 +98,11 @@ networkStatusAlertSchema.index({ offline_percentage: 1 });
 networkStatusAlertSchema.index({ threshold_exceeded: 1 });
 networkStatusAlertSchema.index({ day_of_week: 1, hour_of_day: 1 });
 
+networkStatusAlertSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 90 * 24 * 60 * 60 }
+);
+
 networkStatusAlertSchema.methods = {
   toJSON() {
     return {
