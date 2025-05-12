@@ -9,7 +9,6 @@ const migrationTrackerSchema = new Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
     },
     status: {
       type: String,
