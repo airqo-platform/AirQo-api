@@ -31,9 +31,9 @@ const initializeKafkaProducer = async () => {
     try {
       await kafkaProducer.connect();
       isProducerConnected = true;
-      logger.info("Kafka producer connected successfully");
+      //   logger.info("Kafka producer connected successfully");
     } catch (error) {
-      logger.error(`Failed to connect Kafka producer: ${error.message}`);
+      logger.error(`📶📶 Failed to connect Kafka producer: ${error.message}`);
       throw error;
     }
   }
@@ -47,9 +47,9 @@ const disconnectKafkaProducer = async () => {
     try {
       await kafkaProducer.disconnect();
       isProducerConnected = false;
-      logger.info("Kafka producer disconnected successfully");
+      //   logger.info("Kafka producer disconnected successfully");
     } catch (error) {
-      logger.error(`Error disconnecting Kafka producer: ${error.message}`);
+      logger.error(`📶📶 Error disconnecting Kafka producer: ${error.message}`);
     }
   }
 };
@@ -100,7 +100,7 @@ const networkStatusUtil = {
             ],
           });
         } catch (error) {
-          logger.error(`Kafka error -- ${error.message}`);
+          logger.error(`📶📶 Kafka error -- ${error.message}`);
           // Don't throw here - we don't want Kafka errors to affect the main flow
         }
       }

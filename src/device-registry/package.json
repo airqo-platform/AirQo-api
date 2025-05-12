@@ -27,7 +27,8 @@
     "@scripts": "scripts",
     "@routes": "routes",
     "@bin": "bin",
-    "@validators": "validators"
+    "@validators": "validators",
+    "@migrations": "migrations"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^5.5.0",
