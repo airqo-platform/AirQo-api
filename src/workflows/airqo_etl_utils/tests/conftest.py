@@ -39,6 +39,7 @@ def pytest_configure(config):
 
 
 LC_RAW_DATA = load_test_data("test_low_cost_raw_data_v1.csv")
+LC_NO_DATA = load_test_data("test_low_cost_raw_data_empty_v1.csv")
 LC_AVERAGED_DATA = load_test_data("test_low_cost_averaged_data_v1.csv")
 BAM_RAW_DATA = load_test_data("test_bam_raw_data_v1.csv")
 BAM_AVERAGED_DATA = load_test_data("test_bam_averaged_data_v1.csv")
@@ -205,41 +206,52 @@ class FaultDetectionFixtures:
         )
 
 
-class DevicesFixtures:
-    devices = DEVICES
-
-    @classmethod
-    @pytest.fixture(scope="session")
-    def cached_device_df(cls):
-        devices = cls.devices
-        return devices
-
-    @classmethod
-    @pytest.fixture(scope="session")
-    def api_device_df(cls):
-        devices = cls.devices
-        return devices
-
-    @classmethod
-    @pytest.fixture(scope="session")
-    def airqo_device_keys(cls):
-        keys = {
-            "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
-            "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
-        }
-        return keys
+# ----------------------------------------------------------------
+# Tests for querying devices and sites data from device registry.
+# ----------------------------------------------------------------
+@pytest.fixture
+def mock_load_cached_data(monkeypatch):
+    """Fixture to mock the load_cached_data method."""
+    mock_load_cached_data = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.load_cached_data", mock_load_cached_data
+    )
+    return mock_load_cached_data
 
 
-class SitesFitures:
-    @pytest.fixture
-    def cached_sites_df():
-        pass
+@pytest.fixture
+def mock_fetch_devices_from_api(monkeypatch):
+    """Fixture to mock the fetch_devices_from_api method."""
+    mock_fetch_devices_from_api = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.fetch_devices_from_api",
+        mock_fetch_devices_from_api,
+    )
+    return mock_fetch_devices_from_api
 
-    @pytest.fixture
-    def api_sites_df():
-        pass
+
+@pytest.fixture(scope="session")
+def airqo_device_keys():
+    keys = {
+        "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
+        "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
+    }
+    return keys
 
 
+@pytest.fixture
+def cached_sites_df():
+    pass
+
+
+@pytest.fixture
+def api_sites_df():
+    pass
+
+
+# ----------------------------------------------------------------
+# Tests for querying data from bigquery.
+# ----------------------------------------------------------------
 @pytest.fixture
 def mock_bigquery_api(monkeypatch):
     """Fixture to mock the BigQueryApi class."""
