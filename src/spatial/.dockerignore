@@ -2,7 +2,7 @@
 __pycache__/
 
 # Environments 
-#.env
+.env
 .venv
 env/
 venv/
@@ -17,7 +17,7 @@ production.env
 *.pkl
 
 # datafiles
-#google_application_credentials.json
+google_application_credentials.json
 
 .vscode
 .vscode/
