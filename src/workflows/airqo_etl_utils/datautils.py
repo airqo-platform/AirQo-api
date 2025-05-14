@@ -415,6 +415,11 @@ class DataUtils:
             use_cache=use_cache,
         )
 
+        if not isinstance(raw_data, pd.DataFrame):
+            raise ValueError(
+                "No data returned from BigQuery query, but data was expected. Check your logs for more information"
+            )
+
         if remove_outliers:
             raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
