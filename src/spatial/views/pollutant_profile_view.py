@@ -90,9 +90,8 @@ class PollutantProfileApis:
                 # Convert the retrieved documents to a simplified JSON structure
 
             except Exception as e:
-                return jsonify({"error": "An internal error has occurred"}), 500   
-
-
+                return jsonify({"error": f"Failed to fetch data: {e}"}), 500   
+                    
         @staticmethod
         def add_location_profile():
             radius = 500
