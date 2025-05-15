@@ -47,7 +47,7 @@ class AirBeamApi:
             )
         }
         data_api = DataApi()
-        return data_api.__request(
+        return data_api._request(
             endpoint=f"mobile/sessions.json",
             params=params,
             network=DeviceNetwork.AIRBEAM,
@@ -81,6 +81,6 @@ class AirBeamApi:
             "stream_ids": stream_id,
         }
         data_api = DataApi()
-        return data_api.__request(
+        return data_api._request(
             endpoint=f"measurements.json", params=params, network=DeviceNetwork.AIRBEAM
         )

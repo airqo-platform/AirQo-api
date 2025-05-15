@@ -2,7 +2,6 @@ import pandas as pd
 
 from .bigquery_api import BigQueryApi
 from .constants import DataSource, DeviceNetwork
-from .purple_air_api import PurpleAirApi
 from .data_validator import DataValidationUtils
 from .datautils import DataUtils
 from .utils import Utils
@@ -13,9 +12,7 @@ class PurpleDataUtils:
     def query_data(
         start_date_time: str, end_date_time: str, device_number: int
     ) -> pd.DataFrame:
-        purple_air_api = PurpleAirApi()
-
-        response = purple_air_api.get_data(
+        response = DataUtils.get_purpleair_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             sensor=device_number,

@@ -55,9 +55,10 @@ class PlumeLabsApi:
         network = network.str
         credentials = dict(self.__get_network_credentials())
         network_id, token = next(iter(credentials.items()))
-        sensors_response = data_api.__request(
+        sensors_response = data_api._request(
             endpoint=f"/organizations/{network_id}/sensors/list",
             params={"token": token},
+            network=DeviceNetwork.PLUMELABS,
         )
 
         return {
@@ -105,9 +106,10 @@ class PlumeLabsApi:
         }
         if offset:
             params["offset"] = offset
-        api_response = data_api.__request(
+        api_response = data_api._request(
             endpoint=f"/organizations/{organization_id}/sensors/measures",
             params=params,
+            network=DeviceNetwork.PLUMELABS,
         )
 
         sensor_data = api_response["measures"]
@@ -163,9 +165,10 @@ class PlumeLabsApi:
         }
         if offset:
             params["offset"] = offset
-        api_response = data_api.__request(
+        api_response = data_api._request(
             endpoint=f"/organizations/{organization_id}/sensors/positions",
             params=params,
+            network=DeviceNetwork.PLUMELABS,
         )
 
         sensor_data = api_response["positions"]

@@ -44,7 +44,8 @@ class AirQoTweetsUtils:
         all_site_forecasts = {}
         for site_name, site_id in sites_dict.items():
             try:
-                site_forecast = DataApi().get_forecast(
+                data_api = DataApi()
+                site_forecast = data_api.get_forecast(
                     frequency="daily", site_id=site_id
                 )[0]
             except IndexError:
