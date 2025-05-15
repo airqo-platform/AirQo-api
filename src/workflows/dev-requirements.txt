@@ -36,3 +36,4 @@ sqlalchemy-bigquery==1.11.0
 confluent-kafka==2.5.0
 lz4==4.3.3
 earthengine-api
+tenacity==8.2.3

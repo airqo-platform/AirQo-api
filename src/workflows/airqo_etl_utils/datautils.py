@@ -642,8 +642,9 @@ class DataUtils:
 
         return DataValidationUtils.remove_outliers_fix_types(weather_data)
 
+    @staticmethod
     def extract_tahmo_data(
-        self, start_time: str, end_time: str, station_codes: List[str]
+        start_time: str, end_time: str, station_codes: List[str]
     ) -> List[Dict]:
         """
         Extracts measurement data from the TAHMO API for a list of station codes over a specified time range.
