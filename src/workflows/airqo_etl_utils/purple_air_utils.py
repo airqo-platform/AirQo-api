@@ -1,60 +1,22 @@
 import pandas as pd
 
 from .bigquery_api import BigQueryApi
-from .constants import DataSource, DeviceNetwork
+from .constants import DeviceNetwork
 from .data_validator import DataValidationUtils
-from .datautils import DataUtils
-from .utils import Utils
 
 
 class PurpleDataUtils:
     @staticmethod
-    def query_data(
-        start_date_time: str, end_date_time: str, device_number: int
-    ) -> pd.DataFrame:
-        response = DataUtils.get_purpleair_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            sensor=device_number,
-        )
-
-        return pd.DataFrame(
-            columns=response.get("fields", []),
-            data=response.get("data", []),
-        )
-
-    @staticmethod
-    def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        data = pd.DataFrame()
-        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
-
-        dates = Utils.query_dates_array(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            data_source=DataSource.TAHMO,
-        )
-
-        for _, device in devices.iterrows():
-            device_number = device["device_number"]
-
-            for start, end in dates:
-                query_data = PurpleDataUtils.query_data(
-                    start_date_time=start,
-                    end_date_time=end,
-                    device_number=device_number,
-                )
-
-                if not query_data.empty:
-                    query_data["device_number"] = device_number
-                    query_data["latitude"] = device["latitude"]
-                    query_data["longitude"] = device["longitude"]
-                    query_data["device_id"] = device["device_id"]
-                    data = data.append(query_data, ignore_index=True)
-
-        return data
-
-    @staticmethod
     def process_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Renames sensor data columns to standardized names and tags the data with the NASA network.
+
+        Args:
+            data (pd.DataFrame): Raw sensor data with original column names.
+
+        Returns:
+            pd.DataFrame: DataFrame with standardized column names and a 'network' column set to NASA.
+        """
         data.rename(
             columns={
                 "time_stamp": "timestamp",
@@ -81,6 +43,17 @@ class PurpleDataUtils:
 
     @staticmethod
     def process_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Prepares the sensor data for BigQuery ingestion by:
+        - Converting the 'timestamp' column to datetime.
+        - Ensuring all required BigQuery columns exist, filling any missing ones.
+
+        Args:
+            data(pd.DataFrame): Cleaned sensor data.
+
+        Returns:
+            pd.DataFrame: DataFrame formatted and schema-aligned for BigQuery ingestion.
+        """
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
