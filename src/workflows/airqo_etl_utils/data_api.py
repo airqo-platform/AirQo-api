@@ -1,9 +1,10 @@
-from urllib.parse import urlencode
 import concurrent.futures
+from tenacity import retry, stop_after_attempt, wait_exponential
 import time
+import pandas as pd
+from urllib.parse import urlencode
 import requests
 from http.client import HTTPResponse
-import pandas as pd
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
@@ -24,31 +25,68 @@ class DataApi:
     def __init__(self) -> None:
         pass
 
-    def save_events(self, measurements: List) -> None:
+    def send_to_events_api(self, measurements: List) -> None:
         """
-        Posts event measurements to the API in batches.
-
-        This method divides a list of event measurements into smaller batches based on the
-        configured POST_EVENTS_BODY_SIZE and posts each batch to the "devices/events" endpoint
-        using the internal _request method with the POST HTTP method. If a batch is empty, it
-        is skipped.
+        Sends a list of event measurements to the 'devices/events' API endpoint.
 
         Args:
             measurements (List): A list of event measurement objects to be posted.
 
-        Returns:
-            None
+        Raises:
+            requests.RequestException: If the request fails.
+        """
+        try:
+            self._request(
+                endpoint="devices/events",
+                method="post",
+                body=measurements,
+            )
+            logger.info(f"{len(measurements)} records sent to the events api")
+        except Exception as e:
+            logger.exception(f"An error occurred: {e}")
+
+    @retry(
+        stop=stop_after_attempt(MAX_RETRIES),
+        wait=wait_exponential(multiplier=1, max=120),
+    )
+    def send_to_events_api_with_retry(self, measurements: List):
+        """
+        Sends event measurements to the 'devices/events' endpoint with retry logic.
+
+        Retries up to MAX_RETRIES times with a delay between attempts in case of failure.
+
+        Args:
+            measurements (List): A list of event measurement objects to be posted.
+        """
+        try:
+            self._request(
+                endpoint="devices/events",
+                method="post",
+                body=measurements,
+            )
+            logger.info(f"{len(measurements)} records sent to the events api")
+            return
+        except Exception as e:
+            logger.exception(f"An error occurred: {e}")
+
+    def save_events(self, measurements: List) -> None:
+        """
+        Sends event measurements to the API in parallel, batched requests.
+
+        Splits the full list of measurements into chunks defined by POST_EVENTS_BODY_SIZE
+        and sends each batch concurrently using ThreadPoolExecutor. Each batch is sent
+        with retry logic.
+
+        Args:
+            measurements (List): A list of event measurement objects to be posted.
         """
         # TODO Findout if there is a bulk post api option greater than 5.
-        for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
-            data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
-            if data:
-                self._request(
-                    endpoint="devices/events",
-                    method="post",
-                    body=data,
-                )
-            logger.info(f"{len(data)} records sent to the events api")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+            for i in range(
+                0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)
+            ):
+                data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
+                executor.submit(self.send_to_events_api_with_retry, data)
 
     def get_maintenance_logs(
         self, network: str, device: str, activity_type: str = None
