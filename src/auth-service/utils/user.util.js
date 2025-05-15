@@ -3263,6 +3263,120 @@ const createUserModule = {
       return;
     }
   },
+  getOrganizationBySlug: async (request, next) => {
+    try {
+      const { params, query } = request;
+      const { org_slug } = params;
+      const { tenant } = query;
+
+      const group = await GroupModel(tenant).findOne({
+        organization_slug: org_slug,
+      });
+
+      if (!group) {
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Organization not found",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "Organization found successfully",
+        data: {
+          name: group.grp_title,
+          slug: group.organization_slug,
+          logo: group.grp_profile_picture,
+          theme: group.theme,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  registerViaOrgSlug: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { org_slug } = params;
+      const { tenant } = query;
+
+      // Find the organization
+      const group = await GroupModel(tenant).findOne({
+        organization_slug: org_slug,
+      });
+
+      if (!group) {
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Organization not found",
+          })
+        );
+      }
+
+      // Create user with organization pre-populated
+      const userBody = {
+        ...body,
+        organization: group.grp_title,
+        long_organization: group.grp_title,
+      };
+
+      // Register the user
+      const responseFromCreateUser = await UserModel(tenant).register(
+        userBody,
+        next
+      );
+
+      if (responseFromCreateUser.success === true) {
+        const user = responseFromCreateUser.data;
+
+        // Assign user to the group
+        const assignRequest = {
+          params: {
+            grp_id: group._id,
+            user_id: user._id,
+          },
+          query: { tenant },
+        };
+
+        await createGroupUtil.assignOneUser(assignRequest, next);
+
+        // Track analytics event
+        logObject("New user registration via branded URL", {
+          user_id: user._id,
+          org_slug,
+          group_id: group._id,
+        });
+
+        return {
+          success: true,
+          message: "User registered successfully",
+          data: user,
+          status: httpStatus.CREATED,
+        };
+      }
+
+      return responseFromCreateUser;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = { ...createUserModule, generateNumericToken };
