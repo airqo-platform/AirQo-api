@@ -446,7 +446,7 @@ class DataUtils:
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            data_source=DataSource.TAHMO,
+            data_source=DataSource.PURPLE_AIR,
         )
 
         for _, device in devices.iterrows():
