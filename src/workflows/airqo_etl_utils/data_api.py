@@ -1,5 +1,8 @@
 from urllib.parse import urlencode
-
+import concurrent.futures
+import time
+import requests
+from http.client import HTTPResponse
 import pandas as pd
 import simplejson
 import urllib3
@@ -8,10 +11,13 @@ from typing import List, Dict, Any, Generator, Tuple, Optional
 
 from .config import configuration
 from .constants import DeviceCategory, DeviceNetwork
-from .utils import Utils
+
 import logging
 
 logger = logging.getLogger("airflow.task")
+
+MAX_RETRIES = 2
+RETRY_DELAY = 300
 
 
 class DataApi:
@@ -950,16 +956,20 @@ class DataApi:
                     params,
                     network=DeviceNetwork.TAHMO,
                 )
-                if response and "results" in response:
-                    results = response["results"]
-                    values = results[0]["series"][0]["values"]
-                    columns = results[0]["series"][0]["columns"]
+                results = response["results"][0].get("series", None)
+                if results:
+                    values = results[0]["values"]
+                    columns = results[0]["columns"]
 
                     station_measurements = pd.DataFrame(data=values, columns=columns)
                     if not station_measurements.empty:
                         all_data.append(station_measurements)
+                else:
+                    logger.warning(f"No data returned from stations: {code}")
             except Exception as e:
-                logger.exception(f"An exception occurred: {e}")
+                logger.exception(
+                    f"An exception occurred while retrieving data from station: {code}, Error: {e}"
+                )
                 continue
 
         if all_data:
@@ -1046,14 +1056,41 @@ class DataApi:
                 logger.exception("Method not supported")
                 return None
 
-            if response.status == 200 or response.status == 201:
+            return self.parse_api_response(response, url)
+
+        except urllib3.exceptions.HTTPError as http_err:
+            logger.exception(f"Client error: {http_err}")
+        except urllib3.exceptions.TimeoutError:
+            logger.exception(f"Timeout occurred: {http_err}")
+        except Exception as e:
+            logger.exception(f"Unexpected error: {e}")
+
+        return None
+
+    def parse_api_response(self, response: HTTPResponse, url: str) -> Optional[Any]:
+        """
+        Parses an HTTP API response.
+
+        Returns the parsed JSON object if the response is a successful 2xx status code
+        and contains valid JSON. If the response is empty, invalid, or not in the 2xx range,
+        returns None.
+
+        Args:
+            response (HTTPResponse): The response object returned from an HTTP client.
+
+        Returns:
+            Optional[Any]: Parsed JSON content if present and valid; otherwise, None.
+        """
+        if 200 <= response.status < 300:
+            if not response.data:
+                logger.warning(f"No response data returned from request: {url}")
+                return True  # TODO Might have to change this for better handling.
+            try:
                 return simplejson.loads(response.data)
-            else:
-                logger.warning(
-                    f"The API response does not seem to be what was expected: {response.msg}"
+            except simplejson.JSONDecodeError:
+                # This might make the log grow quite fast. Check for better approach
+                logger.exception(
+                    f"Response can't be parsed. {response.data.decode('utf-8', errors='ignore')}"
                 )
                 return None
-
-        except urllib3.exceptions.HTTPError as ex:
-            logger.exception(f"HTTPError: {ex}")
-            return None
+        return None
