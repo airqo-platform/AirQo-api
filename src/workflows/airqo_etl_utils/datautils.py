@@ -149,7 +149,8 @@ class DataUtils:
         if sites.empty:
             data_api = DataApi()
             try:
-                sites = pd.DataFrame(data_api.get_sites())
+                sites_data = data_api.get_sites()
+                sites = pd.DataFrame(sites_data)
             except Exception as e:
                 logger.exception(f"Failed to load sites data from api. {e}")
 
@@ -426,6 +427,79 @@ class DataUtils:
         return raw_data
 
     @staticmethod
+    def extract_purpleair_data(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+        """
+        Extracts PurpleAir sensor data for all NASA network devices between specified datetime ranges.
+
+        Args:
+            start_date_time(str): The start datetime in ISO 8601 format.
+            end_date_time(str): The end datetime in ISO 8601 format.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing aggregated sensor readings along with metadata (device number, location, and ID).
+        """
+        all_data: List[Any] = []
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
+
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.TAHMO,
+        )
+
+        for _, device in devices.iterrows():
+            device_number = device["device_number"]
+            device_id = device["device_id"]
+            latitude = device["latitude"]
+            longitude = device["longitude"]
+
+            for start, end in dates:
+                query_data = DataUtils.query_purpleair_data(
+                    start_date_time=start,
+                    end_date_time=end,
+                    device_number=device_number,
+                )
+
+                if not query_data.empty:
+                    query_data = query_data.assign(
+                        device_number=device_number,
+                        device_id=device_id,
+                        latitude=latitude,
+                        longitude=longitude,
+                    )
+                    all_data.append(query_data)
+        return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
+
+    @staticmethod
+    def query_purpleair_data(
+        start_date_time: str, end_date_time: str, device_number: int
+    ) -> pd.DataFrame:
+        """
+        Queries the PurpleAir API for a specific sensor and time range.
+
+        Args:
+            start_date_time (str): The start datetime in ISO 8601 format.
+            end_date_time (str): The end datetime in ISO 8601 format.
+            device_number (int): The PurpleAir sensor ID to query.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the queried data. Returns an empty DataFrame if no data is found.
+        """
+        data_api = DataApi()
+        response = data_api.extract_purpleair_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            sensor=device_number,
+        )
+
+        return pd.DataFrame(
+            columns=response.get("fields", []),
+            data=response.get("data", []),
+        )
+
+    @staticmethod
     def remove_duplicates(
         data: pd.DataFrame,
         timestamp_col: str,
@@ -503,6 +577,9 @@ class DataUtils:
 
         return cleaned_data
 
+    # --------------------------------------------------------------------
+    # Weather Data
+    # --------------------------------------------------------------------
     @staticmethod
     def transform_weather_data(data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -565,6 +642,34 @@ class DataUtils:
 
         return DataValidationUtils.remove_outliers_fix_types(weather_data)
 
+    def extract_tahmo_data(
+        self, start_time: str, end_time: str, station_codes: List[str]
+    ) -> List[Dict]:
+        """
+        Extracts measurement data from the TAHMO API for a list of station codes over a specified time range.
+
+        Args:
+            start_time(str): Start timestamp in ISO 8601 format (e.g., "2024-01-01T00:00:00Z").
+            end_time(str): End timestamp in ISO 8601 format.
+            station_codes(list[str]): List of TAHMO station codes to query.
+
+        Returns:
+            list[dict]: A list of measurement records, each as a dictionary with keys such as "value", "variable", "station", and "time". If no data is available,returns an empty list.
+
+        Notes:
+            - Only data under the "controlled" measurement endpoint is fetched.
+            - Any station errors are logged but do not halt execution for other stations.
+        """
+        data_api = DataApi()
+
+        if not isinstance(station_codes, list):
+            raise TypeError("station_codes must be a list of station codes.")
+
+        stations = set(station_codes)
+        measurements = data_api.get_tahmo_data(start_time, end_time, stations)
+
+        return measurements.to_dict(orient="records")
+
     @staticmethod
     def aggregate_weather_data(data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -612,6 +717,10 @@ class DataUtils:
             )
 
         return aggregated_data
+
+    # ---------------------------------------------------------------------------
+    # TODO Add section
+    # ---------------------------------------------------------------------------
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:

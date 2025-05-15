@@ -24,7 +24,7 @@ class DataApi:
 
         This method divides a list of event measurements into smaller batches based on the
         configured POST_EVENTS_BODY_SIZE and posts each batch to the "devices/events" endpoint
-        using the internal __request method with the POST HTTP method. If a batch is empty, it
+        using the internal _request method with the POST HTTP method. If a batch is empty, it
         is skipped.
 
         Args:
@@ -37,7 +37,7 @@ class DataApi:
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
             if data:
-                self.__request(
+                self._request(
                     endpoint="devices/events",
                     method="post",
                     body=data,
@@ -78,7 +78,7 @@ class DataApi:
         if activity_type:
             params["activity_type"] = activity_type
 
-        response = self.__request("devices/activities", params)
+        response = self._request("devices/activities", params)
 
         if "site_activities" in response:
             return response["site_activities"]
@@ -145,7 +145,7 @@ class DataApi:
 
         # Note: There is an option of using <api/v2/devices> if more device details are required as shown in the doc string return payload.
         try:
-            response = self.__request("devices/summary", params)
+            response = self._request("devices/summary", params)
         except Exception as e:
             logger.exception(f"Failed to fetch devices: {e}")
             return []
@@ -185,7 +185,7 @@ class DataApi:
             params["net_status"] = net_status
 
         try:
-            response = self.__request("users/networks", params)
+            response = self._request("users/networks", params)
             networks = response.get("networks", [])
         except Exception as e:
             exception_message = f"Failed to fetch networks: {e}"
@@ -261,7 +261,7 @@ class DataApi:
             network_name = network.get("net_name", "airqo")
             params["network"] = network_name
             try:
-                response = self.__request("devices/summary", params)
+                response = self._request("devices/summary", params)
                 devices.extend(
                     [
                         {
@@ -304,7 +304,7 @@ class DataApi:
                     }
                 )
         try:
-            response = self.__request("devices/decrypt/bulk", body=body, method="post")
+            response = self._request("devices/decrypt/bulk", body=body, method="post")
             if response:
                 decrypted_keys = response.get("decrypted_keys", [])
                 return {
@@ -337,7 +337,7 @@ class DataApi:
                         "device_number": row["device_number"],
                     }
                 )
-        response = self.__request("devices/decrypt/bulk", body=body, method="post")
+        response = self._request("devices/decrypt/bulk", body=body, method="post")
         if response:
             decrypted_keys = response.get("decrypted_keys", [])
             for entry in decrypted_keys:
@@ -364,7 +364,7 @@ class DataApi:
         """
         endpoint = f"predict/{frequency}-forecast"
         params = {"site_id": site_id}
-        response = self.__request(endpoint=endpoint, params=params, method="get")
+        response = self._request(endpoint=endpoint, params=params, method="get")
 
         if (
             response is not None
@@ -401,7 +401,7 @@ class DataApi:
                 },
             ]
         """
-        response = self.__request(
+        response = self._request(
             endpoint="meta-data/nearest-weather-stations",
             params={"latitude": latitude, "longitude": longitude},
             method="get",
@@ -458,7 +458,7 @@ class DataApi:
 
         for key, endpoint in meta_data_mappings.items():
             try:
-                response = self.__request(
+                response = self._request(
                     endpoint=f"meta-data/{endpoint}",
                     params={"latitude": latitude, "longitude": longitude},
                     method="get",
@@ -487,7 +487,7 @@ class DataApi:
         query_params = {"network": DeviceNetwork.AIRQO.str, "id": airqloud_id}
 
         try:
-            response = self.__request(
+            response = self._request(
                 endpoint="devices/airqlouds/refresh", params=query_params, method="put"
             )
             logger.info(f"The request status is: {response.status}")
@@ -510,7 +510,7 @@ class DataApi:
         query_params = {"network": DeviceNetwork.AIRQO.str}
 
         try:
-            response = self.__request(
+            response = self._request(
                 endpoint=f"devices/grids/refresh/{grid_id}",
                 params=query_params,
                 method="put",
@@ -541,7 +541,7 @@ class DataApi:
 
         if network:
             query_params["network"] = network
-        response = self.__request("devices/airqlouds/dashboard", query_params)
+        response = self._request("devices/airqlouds/dashboard", query_params)
 
         return [
             {
@@ -557,12 +557,12 @@ class DataApi:
         # TODO Check if this is working. {"success":true,"message":"no favorites exist","favorites":[]} for ids passed.
         query_params = {"network": DeviceNetwork.AIRQO.str}
 
-        response = self.__request(f"users/favorites/users/{user_id}", query_params)
+        response = self._request(f"users/favorites/users/{user_id}", query_params)
 
         favorites_with_pm = []
         for favorite in response.get("favorites", []):
             place_id = favorite.get("place_id")
-            pm_value = DataApi().get_site_measurement(place_id)
+            pm_value = self.get_site_measurement(place_id)
             if pm_value is not None:
                 favorites_with_pm.append(
                     {
@@ -579,14 +579,12 @@ class DataApi:
         # TODO Check if this is working. {"success":true,"message":"no Location Histories exist","location_histories":[]} for ids passed
         query_params = {"network": DeviceNetwork.AIRQO.str}
 
-        response = self.__request(
-            f"users/locationHistory/users/{user_id}", query_params
-        )
+        response = self._request(f"users/locationHistory/users/{user_id}", query_params)
 
         locations_with_measurements = []
         for location in response.get("location_histories", []):
             place_id = location.get("place_id")
-            pm_value = DataApi().get_site_measurement(place_id)
+            pm_value = self.get_site_measurement(place_id)
             if pm_value is not None:
                 locations_with_measurements.append(
                     {
@@ -603,12 +601,12 @@ class DataApi:
         # TODO Check if this is working. Currently returns {"success":true,"message":"no Search Histories exist","search_histories":[]} for all ids.
         query_params = {"network": DeviceNetwork.AIRQO.str}
 
-        response = self.__request(f"users/searchHistory/users/{user_id}", query_params)
+        response = self._request(f"users/searchHistory/users/{user_id}", query_params)
 
         search_histories_with_measurements = []
         for location in response.get("search_histories", []):
             place_id = location.get("place_id")
-            pm_value = DataApi().get_site_measurement(place_id)
+            pm_value = self.get_site_measurement(place_id)
             if pm_value is not None:
                 search_histories_with_measurements.append(
                     {
@@ -649,7 +647,7 @@ class DataApi:
         try:
             query_params = {"network": DeviceNetwork.AIRQO.str, "site_id": site_id}
 
-            response = self.__request("devices/measurements", query_params)
+            response = self._request("devices/measurements", query_params)
             # TODO Is there a cleaner way of doing this? End point returns more data than returned to the user. WHY?
             measurement = response["measurements"][0]["pm2_5"]["value"]
             return measurement
@@ -679,7 +677,7 @@ class DataApi:
 
         if network:
             query_params["network"] = network
-        response = self.__request("devices/grids/summary", query_params)
+        response = self._request("devices/grids/summary", query_params)
 
         return [
             {
@@ -713,7 +711,7 @@ class DataApi:
 
         if network:
             query_params["network"] = network
-        response = self.__request("devices/cohorts", query_params)
+        response = self._request("devices/cohorts", query_params)
 
         return [
             {
@@ -777,7 +775,7 @@ class DataApi:
         if network:
             query_params["network"] = network.str
 
-        response = self.__request("devices/sites", query_params)
+        response = self._request("devices/sites", query_params)
 
         return [
             {
@@ -816,7 +814,7 @@ class DataApi:
                 raise KeyError("Each site dictionary must contain a 'site_id' key.")
             params = {"network": DeviceNetwork.AIRQO.str, "id": site_id}
 
-            self.__request("devices/sites", params, site, "put")
+            self._request("devices/sites", params, site, "put")
 
     def get_airnow_data(
         self, start_date_time: str, end_date_time: str
@@ -835,7 +833,7 @@ class DataApi:
             - The function retrieves integration details from the configuration.
             - It formats the date-time inputs to match the API's expected format.
             - The request parameters include spatial and pollutant filters.
-            - The API response is fetched using `self.__request()`.
+            - The API response is fetched using `self._request()`.
         """
         integration = configuration.INTEGRATION_DETAILS.get(
             DeviceNetwork.METONE.str, None
@@ -856,15 +854,131 @@ class DataApi:
         }
 
         params.update(integration.get("auth", None))
-        return self.__request(endpoint, params, network=DeviceNetwork.METONE)
+        return self._request(endpoint, params, network=DeviceNetwork.METONE)
 
-    def __request(
+    def __apply_airqo_auth(
+        self, integration: dict, headers: dict, params: dict
+    ) -> Tuple[Dict, Dict]:
+        """
+        Auth handler for DeviceNetwork.AIRQO.
+        """
+        headers.update(integration.get("auth", {}))
+        token = integration.get("secret", {}).get("token")
+        if token:
+            params["token"] = token
+        return headers, params
+
+    def __apply_tahmo_auth(self, integration: dict, headers: dict) -> Tuple[Dict, None]:
+        """
+        Auth handler for DeviceNetwork.TAHMO.
+        """
+        api_key = integration.get("auth").get("api_key")
+        secret = integration.get("secret").get("secret")
+
+        if api_key and secret:
+            headers.update(urllib3.make_headers(basic_auth=f"{api_key}:{secret}"))
+        return headers, None
+
+    def __add_auth_headers(
+        self,
+        network: DeviceNetwork,
+        integration: dict,
+        headers: dict,
+        params: Optional[dict] = None,
+    ) -> Tuple[Dict | Any, Any]:
+        """
+        Updates headers and params based on network-specific authentication requirements.
+
+        Args:
+            network (DeviceNetwork): The device network for which to apply auth.
+            integration(dict): Integration config containing auth info.
+            headers(dict): Request headers to be updated.
+            params(dict): Request parameters to be updated.
+        """
+        if not integration.get("auth"):
+            return None, None
+
+        if network == DeviceNetwork.AIRQO:
+            return self.__apply_airqo_auth(integration, headers, params)
+        elif network == DeviceNetwork.TAHMO:
+            return self.__apply_tahmo_auth(integration, headers)
+
+    def get_purpleair_data(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        sensor,
+    ) -> dict:
+        fields: str = (
+            "humidity,humidity_a,humidity_b,temperature,temperature_a,temperature_b,"
+        )
+        "pressure,pressure_a,pressure_b,pm1.0_atm,pm1.0_atm_a,pm1.0_atm_b,"
+        "pm2.5_atm,pm2.5_atm_a,pm2.5_atm_b,pm10.0_atm,pm10.0_atm_a,pm10.0_atm_b,"
+        "voc,voc_a,voc_b"
+        params = {
+            "fields": fields,
+            "start_timestamp": start_date_time,
+            "end_timestamp": end_date_time,
+        }
+
+        response = self._request(
+            endpoint=f"/sensors/{sensor}/history",
+            params=params,
+            network=DeviceNetwork.PURPLEAIR,
+        )
+
+        return response if response else {}
+
+    def get_tahmo_data(
+        self, start_time: str, end_time: str, stations: List[str]
+    ) -> pd.DataFrame:
+        """
+        Extracts measurement data from the TAHMO API for a list of station codes over a specified time range.
+        """
+        all_data: List = []
+        params = {
+            "start": start_time,
+            "end": end_time,
+        }
+        stations = set(stations)
+        columns = ["value", "variable", "station", "time"]
+
+        for code in stations:
+            try:
+                response = self._request(
+                    f"/services/measurements/v2/stations/{code}/measurements/controlled",
+                    params,
+                    network=DeviceNetwork.TAHMO,
+                )
+                if response and "results" in response:
+                    results = response["results"]
+                    values = results[0]["series"][0]["values"]
+                    columns = results[0]["series"][0]["columns"]
+
+                    station_measurements = pd.DataFrame(data=values, columns=columns)
+                    if not station_measurements.empty:
+                        all_data.append(station_measurements)
+            except Exception as e:
+                logger.exception(f"An exception occurred: {e}")
+                continue
+
+        if all_data:
+            measurements = pd.concat(all_data, ignore_index=True)
+        else:
+            measurements = pd.DataFrame(
+                columns=["value", "variable", "station", "time"]
+            )
+
+        return measurements
+
+    # TODO Make this private after centralizing data ops
+    def _request(
         self,
         endpoint: str,
         params: Optional[Dict[str, Any]] = {},
         body: Optional[Dict[str, Any]] = None,
         method: Optional[str] = "get",
-        base_url=None,
+        base_url: Optional[str] = None,
         network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
     ):
         """
@@ -886,11 +1000,20 @@ class DataApi:
         headers: Dict[str, Any] = {}
         params: Dict[str, Any] = params
         integration = configuration.INTEGRATION_DETAILS.get(network.str)
-        base_url = integration.get("url", "").rstrip("/")
+
+        if not base_url:
+            base_url = integration.get("url", "").rstrip("/")
+
         auth = integration.get("auth", None)
-        if auth and network == DeviceNetwork.AIRQO:
-            headers.update(auth)
-            params["token"] = integration.get("token", None)
+        if auth and network:
+            if network == DeviceNetwork.AIRQO:
+                headers, params = self.__add_auth_headers(
+                    DeviceNetwork.AIRQO, integration, headers, params=params
+                )
+            elif network == DeviceNetwork.TAHMO:
+                headers, _ = self.__add_auth_headers(
+                    DeviceNetwork.TAHMO, integration, headers
+                )
 
         retry_strategy = Retry(
             total=5,
@@ -926,7 +1049,9 @@ class DataApi:
             if response.status == 200 or response.status == 201:
                 return simplejson.loads(response.data)
             else:
-                Utils.handle_api_error(response)
+                logger.warning(
+                    f"The API response does not seem to be what was expected: {response.msg}"
+                )
                 return None
 
         except urllib3.exceptions.HTTPError as ex:
