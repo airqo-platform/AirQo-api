@@ -151,7 +151,6 @@ class WeatherDataUtils:
         station_codes = list(set(station_codes))
 
         measurements: List = []
-        tahmo_api = TahmoApi()
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -160,7 +159,7 @@ class WeatherDataUtils:
         )
 
         for start, end in dates:
-            range_measurements = tahmo_api.get_measurements(start, end, station_codes)
+            range_measurements = DataUtils.extract_tahmo_data(start, end, station_codes)
             measurements.extend(range_measurements)
 
         measurements = (
