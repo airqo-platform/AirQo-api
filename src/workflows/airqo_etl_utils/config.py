@@ -179,7 +179,7 @@ class Config:
         "airqo": {
             "url": AIRQO_BASE_URL_V2,
             "auth": {"Authorization": f"JWT {AIRQO_API_KEY}"},
-            "token": AIRQO_API_TOKEN,
+            "secret": {"token": AIRQO_API_TOKEN},
             "endpoints": {},
         },
         "metone": {
@@ -191,10 +191,14 @@ class Config:
                 "parameters": "pm25,pm10,ozone,co,no2,so2",
             },
         },
+        "plumelabs": {
+            "url": PLUME_LABS_BASE_URL,
+        },
+        "airbeam": {"url": AIR_BEAM_BASE_URL},
         "tahmo": {
             "url": TAHMO_BASE_URL,
-            "auth": {"API_KEY": TAHMO_API_KEY},
-            "secret": TAHMO_API_SECRET,
+            "auth": {"api_key": TAHMO_API_KEY},
+            "secret": {"secret": TAHMO_API_SECRET},
             "endpoints": {},
         },
         "openweather": {

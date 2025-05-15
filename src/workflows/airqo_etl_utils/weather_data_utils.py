@@ -1,19 +1,17 @@
 import concurrent.futures
 import time
+import ast
 from datetime import datetime, timezone
+from typing import List, Dict, Optional, Any
 
 import pandas as pd
 
-from airqo_etl_utils.data_api import DataApi
+from .data_api import DataApi
 from .config import configuration as Config
 from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
-from .tahmo_api import TahmoApi
 from .utils import Utils
-import ast
-
-from typing import List, Dict, Optional, Any
 
 
 class WeatherDataUtils:
@@ -151,7 +149,6 @@ class WeatherDataUtils:
         station_codes = list(set(station_codes))
 
         measurements: List = []
-        tahmo_api = TahmoApi()
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -160,7 +157,7 @@ class WeatherDataUtils:
         )
 
         for start, end in dates:
-            range_measurements = tahmo_api.get_measurements(start, end, station_codes)
+            range_measurements = DataUtils.extract_tahmo_data(start, end, station_codes)
             measurements.extend(range_measurements)
 
         measurements = (
@@ -199,7 +196,7 @@ class WeatherDataUtils:
                 ValueError: If the `sites` DataFrame does not contain the required columns.
             """
 
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
                 results = executor.map(
                     OpenWeatherApi.get_current_weather_for_each_site,
                     batch_of_coordinates,

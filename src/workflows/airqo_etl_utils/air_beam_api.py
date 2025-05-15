@@ -1,27 +1,32 @@
-import datetime
+from datetime import datetime
 import json
 
-import urllib3
-from urllib3.util.retry import Retry
-
 import pandas as pd
-import requests
 
-from .config import configuration
-from .utils import Utils
+from .data_api import DataApi
+from .constants import DeviceNetwork
 
 
 class AirBeamApi:
-    def __init__(self):
-        self.AIR_BEAM_BASE_URL = configuration.AIR_BEAM_BASE_URL.rstrip("/")
-
     def get_stream_ids(
         self,
-        start_date_time: datetime.datetime,
-        end_date_time: datetime.datetime,
+        start_date_time: datetime,
+        end_date_time: datetime,
         username: str,
         pollutant: str,
     ):
+        """
+        Retrieves stream IDs for AirBeam mobile sessions within a specified date range and for a given user and pollutant.
+
+        Args:
+            start_date_time(datetime): Start of the time range for session search.
+            end_date_time(datetime): End of the time range for session search.
+            username(str): Username associated with the sensor sessions.
+            pollutant(str): Pollutant name (e.g., 'pm1', 'pm2.5', 'pm10') to filter sensor data.
+
+        Returns:
+            Any: The response from the Data API, typically a JSON object containing session stream IDs.
+        """
         params = {
             "q": json.dumps(
                 {
@@ -41,65 +46,41 @@ class AirBeamApi:
                 }
             )
         }
-        request = self.__request(
+        data_api = DataApi()
+        return data_api._request(
             endpoint=f"mobile/sessions.json",
             params=params,
+            network=DeviceNetwork.AIRBEAM,
         )
-
-        return request
 
     def get_measurements(
         self,
-        start_date_time: datetime.datetime,
-        end_date_time: datetime.datetime,
+        start_date_time: datetime,
+        end_date_time: datetime,
         stream_id: int,
     ) -> pd.DataFrame:
+        """
+        Retrieve measurement data for a specific stream within a given time range.
+
+        This method calls an external data API to fetch sensor measurements corresponding
+        to the provided stream ID, between the specified start and end timestamps.
+
+        Args:
+            start_date_time(datetime): The beginning of the time range to query.
+            end_date_time(datetime): The end of the time range to query.
+            stream_id(int): The unique identifier of the data stream to fetch measurements for.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the measurement data returned by the API.
+        """
         params = {
-            "start_time": int(start_date_time.timestamp()) * 1000,
-            "end_time": int(end_date_time.timestamp()) * 1000,
+            "start_time": int(start_date_time.timestamp())
+            * 1000,  # Convert to milli seconds
+            "end_time": int(end_date_time.timestamp())
+            * 1000,  # Convert to milli seconds
             "stream_ids": stream_id,
         }
-        return self.__request(
-            endpoint=f"measurements.json",
-            params=params,
+        data_api = DataApi()
+        return data_api._request(
+            endpoint=f"measurements.json", params=params, network=DeviceNetwork.AIRBEAM
         )
-
-    def __request(self, endpoint, params):
-        url = f"{self.AIR_BEAM_BASE_URL}{endpoint}"
-        retry_strategy = Retry(
-            total=5,
-            backoff_factor=5,
-        )
-
-        http = urllib3.PoolManager(retries=retry_strategy)
-
-        try:
-            response = http.request(
-                "GET",
-                url,
-                fields=params,
-            )
-
-            response_data = response.data
-            print(response._request_url)
-
-            if response.status == 200:
-                return json.loads(response_data)
-            else:
-                Utils.handle_api_error(response)
-                return None
-
-        except urllib3.exceptions.HTTPError as e:
-            print(f"HTTPError: {e}")
-            return None
-
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)
