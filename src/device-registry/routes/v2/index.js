@@ -18,6 +18,7 @@ router.use("/forecasts", require("@routes/v2/forecasts.routes"));
 router.use("/tips", require("@routes/v2/tips.routes"));
 router.use("/kya", require("@routes/v2/kya.routes"));
 router.use("/cohorts", require("@routes/v2/cohorts.routes"));
+router.use("/network-status", require("@routes/v2/network-status.routes"));
 router.use("/grids", require("@routes/v2/grids.routes"));
 router.use("/metadata", require("@routes/v2/metadata.routes"));
 router.use("/transmit", require("@routes/v2/transmit.routes"));

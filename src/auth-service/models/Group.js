@@ -6,6 +6,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
+const ThemeSchema = require("@models/ThemeSchema");
 const httpStatus = require("http-status");
 const {
   logObject,
@@ -40,6 +41,10 @@ const GroupSchema = new Schema(
       type: String,
       unique: true,
       required: [true, "grp_title is required"],
+    },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
     },
     grp_status: { type: String, default: "INACTIVE" },
     grp_tasks: { type: Number },
