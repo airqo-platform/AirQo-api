@@ -60,7 +60,8 @@ class MetaDataUtils:
         network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
         # Airclouds are deprecated.
-        airqlouds = DataApi().get_airqlouds(network=network)
+        data_api = DataApi()
+        airqlouds = data_api.get_airqlouds(network=network)
         airqlouds = [
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
             for airqloud in airqlouds
@@ -82,7 +83,8 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the grid data, with site lists represented as comma-separated strings.
         """
-        grids = DataApi().get_grids(network=network)
+        data_api = DataApi()
+        grids = data_api.get_grids(network=network)
         grids = [
             {**grid, **{"sites": ",".join(map(str, grid.get("sites", [""])))}}
             for grid in grids
@@ -106,7 +108,8 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the cohort data, with device lists represented as comma-separated strings.
         """
-        cohorts = DataApi().get_cohorts(network=network)
+        data_api = DataApi()
+        cohorts = data_api.get_cohorts(network=network)
         cohorts = [
             {**cohort, **{"devices": ",".join(map(str, cohort.get("devices", [""])))}}
             for cohort in cohorts

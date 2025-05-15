@@ -1,11 +1,35 @@
 from datetime import datetime
 from unittest.mock import MagicMock
-
+import os
 import numpy as np
 import pandas as pd
 import pytest
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.bigquery_api import BigQueryApi
+
+TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+
+
+def load_test_data(filename: str) -> pd.DataFrame:
+    """
+    Loads test data from a CSV file.
+
+    Args:
+        filename: The name of the CSV file in the test_data directory.
+
+    Returns:
+        A pandas DataFrame containing the test data.  Raises FileNotFoundError if the file doesn't exist.
+    """
+    filepath = os.path.join(TEST_DATA_DIR, filename)
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Test data file not found: {filepath}")
+    data = pd.read_csv(filepath)
+    # Drop auto index
+    data.drop(columns=data.columns[0], inplace=True)
+    return data
 
 
 def pytest_configure(config):
@@ -14,6 +38,18 @@ def pytest_configure(config):
     )
 
 
+LC_RAW_DATA = load_test_data("test_low_cost_raw_data_v1.csv")
+LC_NO_DATA = load_test_data("test_low_cost_raw_data_empty_v1.csv")
+LC_AVERAGED_DATA = load_test_data("test_low_cost_averaged_data_v1.csv")
+BAM_RAW_DATA = load_test_data("test_bam_raw_data_v1.csv")
+BAM_AVERAGED_DATA = load_test_data("test_bam_averaged_data_v1.csv")
+CONSOLIDATE_DATA = load_test_data("test_consolidated_data_v1.csv")
+WEATHER_DATA = load_test_data("test_weather_data_v1.csv")
+DEVICES = load_test_data("test_device_data_v1.csv")
+
+# -------------------------------------
+# Fixtures
+# -------------------------------------
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")
@@ -170,104 +206,73 @@ class FaultDetectionFixtures:
         )
 
 
-class DevicesFixtures:
-    devices = {
-        "site_id": [
-            "r8Qn65q4GPyg9RHevhwfbB",
-            "r8Qn65q4GPyg9RHevhweyud",
-            np.nan,
-            "r8Qn65q4GPyg9sdfdwfbB",
-            "r8Qn65q4GPypepf7hwfbB",
-            "r8Qn6443rfypepf7hwfbB",
-        ],
-        "device_category": [
-            "lowcost",
-            "lowcost",
-            "lowcost",
-            "lowcost",
-            "bam",
-            "lowcost",
-        ],
-        "_id": [
-            "ma9pMkjs7cYET2Db6B4tKX",
-            "ma9pMkjs7cYET2Db6B4tSX",
-            "NG9pMkjs7cYET2Db6B4tKX",
-            "NG9pMkjs7cYEOKWN44tKX",
-            "NG9pMkjs44RWEET2Db6B4tKX",
-            "NG9pMkjs44R77e66wyy3nE",
-        ],
-        "status": [
-            "deployed",
-            "deployed",
-            "recalled",
-            "deployed",
-            "not deployed",
-            "deployed",
-        ],
-        "isActive": [True, True, False, True, False, True],
-        "name": [
-            "iqair_33_22_lw",
-            "airqo_0123lw",
-            "airqo_9876lw",
-            "iqair_44_21lw",
-            "metone_99_33bm",
-            "iqair_55_32lw",
-        ],
-        "network": ["iqair", "airqo", "airqo", "iqair", "metone", "iqair"],
-        "longitude": [
-            32.9284726,
-            3.9036253,
-            22.9837123,
-            36.9837663,
-            18.9837123,
-            81.9845133,
-        ],
-        "latitude": [
-            0.1425362,
-            1.4895023,
-            43.9872473,
-            7.9884673,
-            41.4372563,
-            14.4375553,
-        ],
-        "device_number": [-1, 1122222, 5555666, 7777666, -1, -1],
-        "key": [
-            "UZ3xav7psG4uFbmNDkf26Y",
-            np.nan,
-            np.nan,
-            "qhpdmXnxTGyjzsU4Vu5H8W",
-            np.nan,
-            np.nan,
-        ],
+# ----------------------------------------------------------------
+# Tests for querying devices and sites data from device registry.
+# ----------------------------------------------------------------
+@pytest.fixture
+def mock_load_cached_data(monkeypatch):
+    """Fixture to mock the load_cached_data method."""
+    mock_load_cached_data = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.load_cached_data", mock_load_cached_data
+    )
+    return mock_load_cached_data
+
+
+@pytest.fixture
+def mock_fetch_devices_from_api(monkeypatch):
+    """Fixture to mock the fetch_devices_from_api method."""
+    mock_fetch_devices_from_api = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.fetch_devices_from_api",
+        mock_fetch_devices_from_api,
+    )
+    return mock_fetch_devices_from_api
+
+
+@pytest.fixture(scope="session")
+def airqo_device_keys():
+    keys = {
+        "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
+        "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
     }
-
-    @classmethod
-    @pytest.fixture(scope="session")
-    def cached_device_df(cls):
-        devices = cls.devices
-        return pd.DataFrame(devices)
-
-    @classmethod
-    @pytest.fixture(scope="session")
-    def api_device_df(cls):
-        devices = cls.devices
-        return pd.DataFrame(devices)
-
-    @classmethod
-    @pytest.fixture(scope="session")
-    def airqo_device_keys(cls):
-        keys = {
-            "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
-            "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
-        }
-        return keys
+    return keys
 
 
-class SitesFitures:
-    @pytest.fixture
-    def cached_sites_df():
-        pass
+@pytest.fixture
+def cached_sites_df():
+    pass
 
-    @pytest.fixture
-    def api_sites_df():
-        pass
+
+@pytest.fixture
+def api_sites_df():
+    pass
+
+
+# ----------------------------------------------------------------
+# Tests for querying data from bigquery.
+# ----------------------------------------------------------------
+@pytest.fixture
+def mock_bigquery_api(monkeypatch):
+    """Fixture to mock the BigQueryApi class."""
+    mock_api = MagicMock()
+    monkeypatch.setattr("airqo_etl_utils.datautils.BigQueryApi", lambda: mock_api)
+    return mock_api
+
+
+@pytest.fixture
+def mock_data_utils(monkeypatch):
+    """Fixture to mock the DataUtils module."""
+    mock_utils = MagicMock()
+    monkeypatch.setattr("airqo_etl_utils.datautils.DataUtils", mock_utils)
+    return mock_utils
+
+
+@pytest.fixture
+def mock_data_validation_utils(monkeypatch):
+    """Fixture to mock the DataValidationUtils module."""
+    mock_validation = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataValidationUtils", mock_validation
+    )
+    return mock_validation
