@@ -1,6 +1,10 @@
 // middleware/analytics.js
 const { LogModel } = require("@models/log");
 const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- analytics-middleware`
+);
 
 module.exports = {
   trackRegistration: async (req, res, next) => {

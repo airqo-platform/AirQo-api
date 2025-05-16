@@ -74,6 +74,11 @@ const OrganizationRequestSchema = new Schema(
       ref: "user",
     },
     approved_at: Date,
+    rejected_by: {
+      type: Schema.Types.ObjectId,
+      ref: "user",
+    },
+    rejected_at: Date,
     branding_settings: {
       logo_url: String,
       primary_color: String,

@@ -14,6 +14,7 @@ const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
+const createGroupUtil = require("@utils/group.util.js");
 
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
@@ -3274,7 +3275,7 @@ const createUserModule = {
       });
 
       if (!group) {
-        next(
+        return next(
           new HttpError("Not Found", httpStatus.NOT_FOUND, {
             message: "Organization not found",
           })
@@ -3337,32 +3338,90 @@ const createUserModule = {
       );
 
       if (responseFromCreateUser.success === true) {
-        const user = responseFromCreateUser.data;
+        const createdUser = responseFromCreateUser.data;
+        const user_id = createdUser._doc._id;
+
+        // Generate verification token
+        const token = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          )
+          .toUpperCase();
+
+        // Create token record
+        const tokenCreationBody = {
+          token,
+          name: createdUser._doc.firstName,
+        };
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          tenant.toLowerCase()
+        ).register(tokenCreationBody, next);
+
+        if (responseFromCreateToken.success === false) {
+          return responseFromCreateToken;
+        }
 
         // Assign user to the group
         const assignRequest = {
           params: {
             grp_id: group._id,
-            user_id: user._id,
+            user_id: user_id,
           },
           query: { tenant },
         };
 
         await createGroupUtil.assignOneUser(assignRequest, next);
 
+        // Send verification email with organization context
+        const responseFromSendEmail = await mailer.verifyEmail(
+          {
+            user_id,
+            token,
+            email: createdUser._doc.email,
+            firstName: createdUser._doc.firstName,
+            organization: group.grp_title, // Add organization context
+            org_slug: org_slug, // Add organization slug for branded links
+          },
+          next
+        );
+
         // Track analytics event
         logObject("New user registration via branded URL", {
-          user_id: user._id,
+          user_id: user_id,
           org_slug,
           group_id: group._id,
         });
 
-        return {
-          success: true,
-          message: "User registered successfully",
-          data: user,
-          status: httpStatus.CREATED,
-        };
+        if (responseFromSendEmail && responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message:
+              "User registered successfully. An email has been sent for verification.",
+            data: {
+              firstName: createdUser._doc.firstName,
+              lastName: createdUser._doc.lastName,
+              email: createdUser._doc.email,
+              organization: group.grp_title,
+              verified: createdUser._doc.verified,
+            },
+            status: httpStatus.CREATED,
+          };
+        } else if (
+          responseFromSendEmail &&
+          responseFromSendEmail.success === false
+        ) {
+          return responseFromSendEmail;
+        } else {
+          logger.error("mailer.verifyEmail did not return a response");
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Failed to send verification email" }
+            )
+          );
+        }
       }
 
       return responseFromCreateUser;

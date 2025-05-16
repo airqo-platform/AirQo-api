@@ -30,6 +30,7 @@ const organizationRequest = {
             message: "Organization slug already exists",
           })
         );
+        return;
       }
 
       const responseFromCreateRequest = await OrganizationRequestModel(
@@ -78,6 +79,7 @@ const organizationRequest = {
             message: "Only admins can view organization requests",
           })
         );
+        return;
       }
 
       const filter = {};
@@ -115,6 +117,7 @@ const organizationRequest = {
             message: "Only admins can approve organization requests",
           })
         );
+        return;
       }
 
       const orgRequest = await OrganizationRequestModel(tenant).findById(
@@ -257,8 +260,8 @@ const organizationRequest = {
       const update = {
         status: "rejected",
         rejection_reason,
-        approved_by: user._id,
-        approved_at: new Date(),
+        rejected_by: user._id,
+        rejected_at: new Date(),
       };
 
       const responseFromUpdate = await OrganizationRequestModel(tenant).modify(
