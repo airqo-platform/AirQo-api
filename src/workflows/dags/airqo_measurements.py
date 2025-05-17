@@ -9,6 +9,7 @@ from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.date import DateUtils
+from airqo_etl_utils.data_api import DataApi
 from airqo_etl_utils.data_validator import DataValidationUtils
 from dag_docs import (
     airqo_realtime_low_cost_measurements_doc,
@@ -116,7 +117,6 @@ def airqo_historical_hourly_measurements():
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs) -> None:
         send_to_api_param = kwargs.get("params", {}).get("send_to_api")
         if send_to_api_param:
-            from airqo_etl_utils.data_api import DataApi
 
             data = DataUtils.process_data_for_api(
                 airqo_data, frequency=Frequency.HOURLY
@@ -417,8 +417,6 @@ def airqo_realtime_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame):
-        from airqo_etl_utils.data_api import DataApi
-
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
         data_api = DataApi()
@@ -659,8 +657,6 @@ def airqo_bigquery_data_measurements_to_api():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.data_api import DataApi
-
         data = DataUtils.process_data_for_api(data, frequency=Frequency.HOURLY)
 
         data_api = DataApi()
@@ -720,8 +716,6 @@ def calibrate_missing_measurements():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_hourly_measurements_to_api(calibrated_data: pd.DataFrame) -> None:
-        from airqo_etl_utils.data_api import DataApi
-
         data_api = DataApi()
         data = DataUtils.process_data_for_api(
             calibrated_data, frequency=Frequency.HOURLY

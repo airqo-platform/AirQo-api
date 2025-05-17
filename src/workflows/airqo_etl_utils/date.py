@@ -137,6 +137,18 @@ class DateUtils:
 
 
 def get_utc_offset_for_hour(subject_hour: int) -> int:
+    """
+    Calculate the time offset (in hours) between the current UTC hour and a given target hour.
+
+    This function compares the current UTC hour with a specified subject hour, and returns the number of hours difference. If the current hour is less than the subject hour, the result is a positive
+    offset (how many hours ahead the subject is). If the current hour is greater, the result is negative (how many hours behind the subject is). If both are equal, the offset is zero.
+
+    Args:
+        subject_hour (int): The hour of interest (0-23) in 24-hour format.
+
+    Returns:
+        int: The UTC offset in hours.
+    """
     hour = datetime.now(timezone.utc).hour
     if hour < subject_hour:
         return abs(hour - subject_hour)
@@ -168,10 +180,3 @@ def date_to_str_hours(date: datetime):
     Converts datetime to a string
     """
     return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
-
-
-def date_to_str_days(date: datetime):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, "%Y-%m-%dT00:00:00Z")
