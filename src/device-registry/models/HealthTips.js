@@ -84,25 +84,38 @@ tipsSchema.statics = {
         const { aqi_category, tips } = update;
         const { min, max } = aqi_category;
 
+        // Create filter for matching tips by AQI range
         const filter = {
-          "aqi_category.min": { $lte: max },
-          "aqi_category.max": { $gte: min },
+          "aqi_category.min": min,
+          "aqi_category.max": max,
         };
 
-        // Create update operations for each tip in the array
+        // Process each tip in the array
         for (const tip of tips) {
-          bulkOps.push({
-            updateOne: {
-              filter,
-              update: { $set: tip }, // Update with the specific tip data
-            },
-          });
+          if (!tip.title) {
+            // If no title is provided, update all tips in this AQI range
+            bulkOps.push({
+              updateMany: {
+                filter,
+                update: { $set: tip },
+              },
+            });
+          } else {
+            // If title is provided, target that specific tip
+            bulkOps.push({
+              updateOne: {
+                filter: { ...filter, title: tip.title },
+                update: { $set: tip },
+                upsert: true, // Create if doesn't exist
+              },
+            });
+          }
         }
       }
 
       if (bulkOps.length > 0) {
         const result = await this.bulkWrite(bulkOps);
-        updatedCount = result.modifiedCount;
+        updatedCount = result.modifiedCount + (result.upsertedCount || 0);
       }
 
       return {
@@ -117,6 +130,7 @@ tipsSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (!isEmpty(error.code) && error.code === 11000) {
         Object.entries(error.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
@@ -129,6 +143,8 @@ tipsSchema.statics = {
           response["message"] = value.message;
           return response;
         });
+      } else {
+        response["message"] = error.message;
       }
 
       next(new HttpError(message, status, response));
