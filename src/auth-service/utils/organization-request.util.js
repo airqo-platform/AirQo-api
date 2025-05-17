@@ -280,6 +280,11 @@ const organizationRequest = {
 
         return responseFromUpdate;
       }
+      return {
+        success: false,
+        message: "Failed to reject organization request",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
