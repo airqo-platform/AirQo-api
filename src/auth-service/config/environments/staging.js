@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const stageConfig = {
+  BYPASS_CAPTCHA: process.env.STAGE_BYPASS_CAPTCHA === "true" || false,
+  RECAPTCHA_SITE_KEY: process.env.STAGE_RECAPTCHA_SITE_KEY,
+  RECAPTCHA_SECRET_KEY: process.env.STAGE_RECAPTCHA_SECRET_KEY,
+  BYPASS_RATE_LIMIT: process.env.STAGE_BYPASS_RATE_LIMIT === "true" || false,
   DEFAULT_AIRQLOUD: process.env.STAGE_DEFAULT_AIRQLOUD,
   DEFAULT_GRID: process.env.STAGE_DEFAULT_GRID,
   DEFAULT_GROUP: process.env.STAGE_DEFAULT_GROUP,

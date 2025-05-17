@@ -14,6 +14,9 @@ const {
   authGuest,
   authGoogle,
 } = require("@middleware/passport");
+const rateLimiter = require("@middleware/rate-limiter");
+const captchaMiddleware = require("@middleware/captcha");
+const analyticsMiddleware = require("@middleware/analytics");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -27,6 +30,24 @@ const headers = (req, res, next) => {
 
 router.use(headers);
 router.use(userValidations.pagination);
+
+// Get organization by slug (for branded login page)
+router.get(
+  "/organizations/:org_slug",
+  rateLimiter.brandedLogin,
+  userValidations.getOrganizationBySlug,
+  userController.getOrganizationBySlug
+);
+
+// Register via branded URL
+router.post(
+  "/register/:org_slug",
+  rateLimiter.registration,
+  captchaMiddleware.verify,
+  analyticsMiddleware.trackRegistration,
+  userValidations.registerViaOrgSlug,
+  userController.registerViaOrgSlug
+);
 
 router.get(
   "/deleteMobileUserData/:userId/:token",
