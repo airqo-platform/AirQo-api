@@ -7,6 +7,8 @@ const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance()
 const decimalPlaces = require("decimal-places");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
+const { countDecimalPlaces } = require("@utils/common");
+
 const validateTenant = oneOf([
   query("tenant")
     .optional()
@@ -218,7 +220,7 @@ const validateCreateDevice = [
         .withMessage("please provide valid latitude value")
         .bail()
         .custom((value) => {
-          let dp = decimalPlaces(value);
+          let dp = countDecimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
               "the latitude must have 5 or more characters"
@@ -242,7 +244,7 @@ const validateCreateDevice = [
         .withMessage("please provide valid longitude value")
         .bail()
         .custom((value) => {
-          let dp = decimalPlaces(value);
+          let dp = countDecimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
               "the longitude must have 5 or more characters"
@@ -543,7 +545,7 @@ const validateUpdateDevice = [
     .withMessage("please provide valid latitude value")
     .bail()
     .custom((value) => {
-      let dp = decimalPlaces(value);
+      let dp = countDecimalPlaces(value);
       if (dp < 5) {
         return Promise.reject("the latitude must have 5 or more characters");
       }
@@ -563,7 +565,7 @@ const validateUpdateDevice = [
     .withMessage("please provide valid longitude value")
     .bail()
     .custom((value) => {
-      let dp = decimalPlaces(value);
+      let dp = countDecimalPlaces(value);
       if (dp < 5) {
         return Promise.reject("the longitude must have 5 or more characters");
       }

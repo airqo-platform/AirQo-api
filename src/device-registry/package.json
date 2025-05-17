@@ -50,7 +50,6 @@
     "cookie-parser": "~1.4.3",
     "crypto-js": "^4.1.1",
     "debug": "~2.6.9",
-    "decimal-places": "0.0.2",
     "dot-object": "^2.1.4",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
