@@ -1,6 +1,8 @@
 node_modules
 controllers/rsa_private.pem
 .env
+.env.new
+.env.old
 device-reg-secret.yaml
 log
 airqo-250220-*

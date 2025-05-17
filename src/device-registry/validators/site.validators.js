@@ -5,13 +5,15 @@ const ObjectId = mongoose.Types.ObjectId;
 const decimalPlaces = require("decimal-places");
 const createSiteUtil = require("@utils/site.util");
 
+const { countDecimalPlaces } = require("@utils/common");
+
 // Utility Functions
 const validateDecimalPlaces = (
   value,
   minPlaces = 5,
   fieldName = "coordinate"
 ) => {
-  let dp = decimalPlaces(value);
+  let dp = countDecimalPlaces(value);
   if (dp < minPlaces) {
     return Promise.reject(
       `the ${fieldName} must have ${minPlaces} or more decimal places`
