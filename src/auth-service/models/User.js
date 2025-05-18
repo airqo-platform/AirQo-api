@@ -1159,48 +1159,119 @@ UserSchema.methods = {
   },
 };
 
+/**
+ * Get cohort access claims for JWT token
+ * @returns {Object} Cohort access information
+ */
+UserSchema.methods.getCohortAccessClaims = async function () {
+  try {
+    // Get user with populated group roles
+    const user = await UserModel("airqo")
+      .findById(this._id)
+      .populate({
+        path: "group_roles.role",
+        select: "role_name role_permissions",
+      })
+      .populate({
+        path: "group_roles.group",
+        select: "grp_title _id",
+      })
+      .lean();
+
+    if (!user) {
+      logger.error(`Cannot find user ${this._id} for cohort access claims`);
+      return { managedGroups: [], canAccessPrivateCohorts: false };
+    }
+
+    // Get groups where user has management permissions
+    const managedGroups = [];
+
+    if (user.group_roles && Array.isArray(user.group_roles)) {
+      for (const groupRole of user.group_roles) {
+        const isAdmin =
+          groupRole.userType === "user" ||
+          (groupRole.role && groupRole.role.role_name === "admin");
+
+        const hasPermission =
+          groupRole.role &&
+          groupRole.role.role_permissions &&
+          groupRole.role.role_permissions.some(
+            (p) => p === "view:private_cohorts" || p === "manage:cohorts"
+          );
+
+        if (isAdmin || hasPermission) {
+          if (groupRole.group && groupRole.group.grp_title) {
+            // Using group title as the identifier since it's what cohorts use
+            managedGroups.push(groupRole.group.grp_title.toLowerCase());
+          }
+        }
+      }
+    }
+
+    return {
+      managedGroups,
+      canAccessPrivateCohorts: managedGroups.length > 0,
+      permissionsUpdatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    logger.error(`Error getting cohort access claims: ${error.message}`);
+    return { managedGroups: [], canAccessPrivateCohorts: false };
+  }
+};
+
+/**
+ * Create JWT token with cohort access claims
+ * @returns {String} Signed JWT token
+ */
 UserSchema.methods.createToken = async function () {
   try {
-    const filter = { _id: this._id };
-    const userWithDerivedAttributes = await UserModel("airqo").list({ filter });
-    if (
-      userWithDerivedAttributes.success &&
-      userWithDerivedAttributes.success === false
-    ) {
+    // Get base user data
+    const userWithDerivedAttributes = await UserModel("airqo").list({
+      filter: { _id: this._id },
+    });
+
+    if (!userWithDerivedAttributes.success) {
       logger.error(
-        `Internal Server Error -- ${JSON.stringify(userWithDerivedAttributes)}`
+        `Failed to get user attributes for token: ${JSON.stringify(
+          userWithDerivedAttributes
+        )}`
       );
       return userWithDerivedAttributes;
-    } else {
-      const user = userWithDerivedAttributes.data[0];
-      const oneDayExpiry = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
-      const oneHourExpiry = Math.floor(Date.now() / 1000) + 60 * 60;
-      logObject("user", user);
-      return jwt.sign(
-        {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          userName: user.userName,
-          email: user.email,
-          organization: user.organization,
-          long_organization: user.long_organization,
-          privilege: user.privilege,
-          role: user.role,
-          country: user.country,
-          profilePicture: user.profilePicture,
-          phoneNumber: user.phoneNumber,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          rateLimit: user.rateLimit,
-          lastLogin: user.lastLogin,
-          // exp: oneHourExpiry,
-        },
-        constants.JWT_SECRET
-      );
     }
+
+    const user = userWithDerivedAttributes.data[0];
+
+    // Get cohort access claims
+    const cohortAccess = await this.getCohortAccessClaims();
+
+    // Generate token with all required information
+    return jwt.sign(
+      {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        userName: user.userName,
+        email: user.email,
+        organization: user.organization,
+        long_organization: user.long_organization,
+        privilege: user.privilege,
+        country: user.country,
+        profilePicture: user.profilePicture,
+        phoneNumber: user.phoneNumber,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        rateLimit: user.rateLimit,
+        lastLogin: user.lastLogin,
+
+        // Add cohort access claims
+        cohortAccess,
+      },
+      constants.JWT_SECRET,
+      { expiresIn: "2h" }
+    );
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
+    logger.error(`Error creating token: ${error.message}`);
+    throw error;
   }
 };
 

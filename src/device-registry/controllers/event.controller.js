@@ -3142,6 +3142,29 @@ const createEvent = {
       return;
     }
   },
+  getEvents: async (req, res) => {
+    try {
+      const filter = buildFilterFromRequest(req);
+
+      // Use cohort access from middleware instead of making API calls
+      const result = await EventModel(tenant).fetch(filter, req.cohortAccess);
+
+      // Check if any private cohorts were accessed for logging/monitoring
+      if (req.cohortAccess && req.cohortAccess.canAccessPrivateCohorts) {
+        logger.info(
+          `User ${req.userId} accessed events with private cohort access`
+        );
+      }
+
+      return res.status(200).json(result);
+    } catch (error) {
+      logger.error(`Error getting events: ${error.message}`);
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  },
 };
 
 module.exports = createEvent;

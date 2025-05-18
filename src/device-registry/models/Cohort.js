@@ -19,6 +19,15 @@ const cohortSchema = new Schema(
     groups: {
       type: [String],
       trim: true,
+      set: function(groups) {
+        // Ensure consistent format for group names
+        if (Array.isArray(groups)) {
+          return groups.map((g) =>
+            typeof g === "string" ? g.toLowerCase() : g
+          );
+        }
+        return groups;
+      },
     },
     name: {
       type: String,
