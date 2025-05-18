@@ -350,6 +350,48 @@ const commonValidations = {
 };
 
 const readingsValidations = {
+  nearestReadings: [
+    ...commonValidations.tenant,
+    query("latitude")
+      .exists()
+      .withMessage("latitude is required")
+      .bail()
+      .matches(constants.LATITUDE_REGEX, "i")
+      .withMessage("Invalid latitude format")
+      .bail()
+      .custom((value) => {
+        let dp = decimalPlaces(value);
+        if (dp < 2) {
+          throw new Error("Latitude must have at least 2 decimal places");
+        }
+        return true;
+      }),
+    query("longitude")
+      .exists()
+      .withMessage("longitude is required")
+      .bail()
+      .matches(constants.LONGITUDE_REGEX, "i")
+      .withMessage("Invalid longitude format")
+      .bail()
+      .custom((value) => {
+        let dp = decimalPlaces(value);
+        if (dp < 2) {
+          throw new Error("Longitude must have at least 2 decimal places");
+        }
+        return true;
+      }),
+    query("radius")
+      .optional()
+      .isFloat({ min: 0.1, max: 100 })
+      .withMessage("Radius must be between 0.1 and 100 kilometers")
+      .toFloat(),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage("Limit must be between 1 and 10")
+      .toInt(),
+    commonValidations.errorHandler,
+  ],
   list: [
     ...commonValidations.tenant,
     ...commonValidations.timeRange,
