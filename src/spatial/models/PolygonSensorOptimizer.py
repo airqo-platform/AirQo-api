@@ -557,8 +557,9 @@ class PolygonSensorOptimizer:
         scaler = MinMaxScaler()
         features_scaled = scaler.fit_transform(features)
 
-        # Apply K-Means clustering
-        kmeans = KMeans(n_clusters=recommended_sensors, random_state=0)
+        # Apply K-Means clustering (clusters ≤ samples) 
+        n_clusters = min(recommended_sensors, len(scored_gdf))
+        kmeans = KMeans(n_clusters=n_clusters, random_state=0)
         scored_gdf['cluster'] = kmeans.fit_predict(features_scaled)
 
         # Select random points and categorize (candidate sites)

@@ -5,8 +5,9 @@ from models.PolygonSensorOptimizer import PolygonSensorOptimizer
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+# The application should configure logging.  
 logger = logging.getLogger(__name__)
+
 class SensorOptimizationAPI:
     @staticmethod
     def optimize_sensors():
