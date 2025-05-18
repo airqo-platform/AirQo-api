@@ -475,7 +475,7 @@ class PolygonSensorOptimizer:
             }
         }
 
-        # Store selected (optimal) locations
+        # Store selected (optimal) locations 
         for _, loc in optimal_locations.iterrows():
             point = loc['sensor_point']
             reasons = self.generate_justification(loc)
