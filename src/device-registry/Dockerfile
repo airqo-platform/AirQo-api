@@ -1,16 +1,32 @@
-FROM node:16 as base
+FROM node:14 as base
 
 # Create app directory
 WORKDIR /usr/src/app
 
 # Install build tools and dependencies
-RUN apt-get update && apt-get install -y build-essential python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y build-essential python3 make g++ curl git && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Increase npm timeout and add verbose logging
-RUN npm config set timeout 300000 && npm install --verbose
+# Debug: Check Node and npm versions
+RUN node --version && npm --version
+
+# Set npm configurations for troubleshooting
+RUN npm config set loglevel verbose && \
+    npm config set timeout 600000 && \
+    npm config set unsafe-perm true && \
+    npm config set registry https://registry.npmjs.org/
+
+# Try to clean npm cache first
+RUN npm cache clean --force
+
+# Install dependencies with fallback strategies
+RUN npm install || \
+    (echo "Retrying with legacy peer deps..." && npm install --legacy-peer-deps) || \
+    (echo "Retrying with force..." && npm install --force)
 
 # Bundle app source
 COPY . .
@@ -26,5 +42,4 @@ FROM base as staging
 CMD [ "npm", "run", "stage" ]
 
 FROM base as production
-# In production, we don't need to reinstall - just use what was installed in base
 CMD [ "npm", "run", "start" ]
