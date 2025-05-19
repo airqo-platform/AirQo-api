@@ -92,7 +92,8 @@ class PolygonSensorOptimizer:
             if isinstance(features, gpd.GeoDataFrame):
                 self.water_features = features
         except Exception as e:
-            print(f"Warning: Failed to fetch water features: {e}")
+#            print(f"Warning: Failed to fetch water features: {e}")
+            print(f"Warning: Failed to fetch water features: ")
             self.water_features = gpd.GeoDataFrame()
 
         if self.config['grid']['user_override']:
@@ -209,7 +210,8 @@ class PolygonSensorOptimizer:
             water = self.water_features if not self.water_features.empty else gpd.GeoDataFrame()
 
         except Exception as e:
-            print(f"Warning: Failed to fetch OSM features: {e}")
+#            print(f"Warning: Failed to fetch OSM features: {e}")
+            print(f"Warning: Failed to fetch OSM features: ")
             # Initialize empty GeoDataFrames on failure
             roads = gpd.GeoDataFrame()
             pois = gpd.GeoDataFrame()
