@@ -531,7 +531,7 @@ class PolygonSensorOptimizer:
 
         scored_gdf = self.calculate_features_and_scores(grid, polygon)
 
-        # Calculate sensor counts
+        # Calculate sensor counts  
         area_km2 = polygon.area * 111 * 111
         base_count = max(1, int(area_km2 * self.config['sensor_density']['base_density']))
         score_adjustment = scored_gdf['suitability_score'].mean() * self.config['sensor_density']['score_multiplier']
