@@ -1,4 +1,5 @@
 #requirements.txt
+osmnx
 flask~=3.0.3
 pandas~=2.2.3
 geopandas
@@ -26,3 +27,4 @@ joblib~=1.4.2
 lightgbm~=4.1.0 
 numpy
 google-generativeai 
+
