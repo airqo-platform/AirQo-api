@@ -1,32 +1,18 @@
-FROM node:14 as base
+FROM node:18 as base
 
 # Create app directory
 WORKDIR /usr/src/app
 
-# Install build tools and dependencies
-RUN apt-get update && \
-    apt-get install -y build-essential python3 make g++ curl git && \
-    rm -rf /var/lib/apt/lists/*
+# Install build tools for native modules
+RUN apt-get update && apt-get install -y build-essential python3 && rm -rf /var/lib/apt/lists/*
 
-# Copy package files first for better caching
+RUN chmod 777 /usr/src/app
+# Install app dependencies
+# A wildcard is used to ensure both package.json AND package-lock.json are copied
+# where available (npm@5+)
 COPY package*.json ./
 
-# Debug: Check Node and npm versions
-RUN node --version && npm --version
-
-# Set npm configurations for troubleshooting
-RUN npm config set loglevel verbose && \
-    npm config set timeout 600000 && \
-    npm config set unsafe-perm true && \
-    npm config set registry https://registry.npmjs.org/
-
-# Try to clean npm cache first
-RUN npm cache clean --force
-
-# Install dependencies with fallback strategies
-RUN npm install || \
-    (echo "Retrying with legacy peer deps..." && npm install --legacy-peer-deps) || \
-    (echo "Retrying with force..." && npm install --force)
+RUN npm install
 
 # Bundle app source
 COPY . .
@@ -36,10 +22,12 @@ RUN chmod 755 /usr/src/app/bin
 EXPOSE 3000
 
 FROM base as dev
-CMD [ "npm", "run", "dev" ]
+CMD [ "npm", "run", "dev-mac" ]
 
 FROM base as staging
 CMD [ "npm", "run", "stage" ]
 
 FROM base as production
-CMD [ "npm", "run", "start" ]
+
+RUN npm ci --only=production
+CMD [ "npm", "run","start" ] 
