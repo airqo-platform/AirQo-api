@@ -9,9 +9,11 @@ const strings = require("./strings");
 const urls = require("./urls");
 const emailTemplates = require("./email-templates");
 const firebase = require("./firebase");
+const permissions = require("./permissions");
 
 const configurations = {
   ...dbProjections,
+  ...permissions,
   ...envs,
   ...mappings,
   ...numericals,

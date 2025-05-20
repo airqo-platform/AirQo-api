@@ -4,6 +4,7 @@ const router = express.Router();
 const createGroupController = require("@controllers/group.controller");
 const groupValidations = require("@validators/groups.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { adminCheck } = require("@middleware/admin-access.middleware");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -35,6 +36,39 @@ router.post(
   setJWTAuth,
   authJWT,
   createGroupController.create
+);
+
+router.get(
+  "/:groupSlug/dashboard",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.getDashboard
+);
+
+router.get(
+  "/:groupSlug/members",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.getMembers
+);
+
+router.get(
+  "/:groupSlug/settings",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  createGroupController.getSettings
+);
+
+// Update group settings
+router.put(
+  "/:groupSlug/settings",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  createGroupController.updateSettings
 );
 
 router.post(
