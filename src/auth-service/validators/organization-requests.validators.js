@@ -36,6 +36,7 @@ module.exports = {
       .notEmpty()
       .withMessage("Contact name is required"),
     body("use_case").trim().notEmpty().withMessage("Use case is required"),
+    body("country").trim().notEmpty().withMessage("Country is required"),
     body("organization_type")
       .trim()
       .notEmpty()
