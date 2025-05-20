@@ -4,6 +4,7 @@ const router = express.Router();
 const createOrganizationRequestController = require("@controllers/organization-request.controller");
 const organizationRequestValidations = require("@validators/organization-requests.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { validate } = require("@validators/common");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -21,6 +22,7 @@ router.use(organizationRequestValidations.pagination);
 router.post(
   "/",
   organizationRequestValidations.create,
+  validate,
   createOrganizationRequestController.create
 );
 
@@ -30,6 +32,7 @@ router.get(
   setJWTAuth,
   authJWT,
   organizationRequestValidations.list,
+  validate,
   createOrganizationRequestController.list
 );
 
@@ -39,6 +42,7 @@ router.patch(
   setJWTAuth,
   authJWT,
   organizationRequestValidations.approve,
+  validate,
   createOrganizationRequestController.approve
 );
 
@@ -48,6 +52,7 @@ router.patch(
   setJWTAuth,
   authJWT,
   organizationRequestValidations.reject,
+  validate,
   createOrganizationRequestController.reject
 );
 
@@ -57,6 +62,7 @@ router.get(
   setJWTAuth,
   authJWT,
   organizationRequestValidations.getById,
+  validate,
   createOrganizationRequestController.getById
 );
 
