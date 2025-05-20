@@ -76,10 +76,7 @@ class DataExportResource(Resource):
         except ValidationError as err:
             return {"errors": err.messages}, 400
 
-        startDateTime = json_data["startDateTime"]
-        endDateTime = json_data["endDateTime"]
         try:
-            # TODO Remember to re-instate this when the analytics team works on the access control appraoch for private sites and devices
             filter_type, filter_value, error_message = get_validated_filter(json_data)
             if error_message:
                 return (
@@ -88,6 +85,9 @@ class DataExportResource(Resource):
                 )
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
+
+        startDateTime = json_data["startDateTime"]
+        endDateTime = json_data["endDateTime"]
         download_type = (json_data.get("downloadType"),)
         output_format = (json_data.get("outputFormat"),)
         data_type = json_data.get("datatype")
