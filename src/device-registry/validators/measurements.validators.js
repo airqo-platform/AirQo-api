@@ -11,8 +11,21 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
-const decimalPlaces = require("decimal-places");
 const numeral = require("numeral");
+const Decimal = require("decimal.js");
+
+const countDecimalPlaces = (value) => {
+  try {
+    const decimal = new Decimal(value);
+    const decimalStr = decimal.toString();
+    if (decimalStr.includes(".")) {
+      return decimalStr.split(".")[1].length;
+    }
+    return 0;
+  } catch (err) {
+    return 0;
+  }
+};
 
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
 
@@ -336,7 +349,7 @@ const commonValidations = {
       .withMessage("the latitude provided is not valid")
       .bail()
       .custom((value) => {
-        let dp = decimalPlaces(value);
+        let dp = countDecimalPlaces(value);
         if (dp < 5) {
           return Promise.reject("the latitude must have 5 or more characters");
         }
@@ -356,7 +369,7 @@ const commonValidations = {
       .withMessage("the longitude provided is not valid")
       .bail()
       .custom((value) => {
-        let dp = decimalPlaces(value);
+        let dp = countDecimalPlaces(value);
         if (dp < 5) {
           return Promise.reject("the longitude must have 5 or more characters");
         }
