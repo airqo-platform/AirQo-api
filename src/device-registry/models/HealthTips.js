@@ -73,6 +73,75 @@ tipsSchema.methods = {
   },
 };
 
+const _removeInvalidTips = async function(model) {
+  // Get valid AQI ranges from the configuration
+  const validAqiRanges = Object.values(constants.AQI_INDEX);
+
+  // Build a query to find all tips with invalid AQI ranges
+  const validRangeFilters = validAqiRanges.map((range) => {
+    const filter = {
+      "aqi_category.min": range.min,
+    };
+
+    // Handle null max value for hazardous range
+    if (range.max === null) {
+      filter["aqi_category.max"] = null;
+    } else {
+      filter["aqi_category.max"] = range.max;
+    }
+
+    return filter;
+  });
+
+  // Find tips that don't match any valid range
+  const invalidTips = await model
+    .find({
+      $nor: validRangeFilters,
+    })
+    .exec();
+
+  // Delete the invalid tips
+  let deleteResult = { deletedCount: 0 };
+  if (invalidTips.length > 0) {
+    deleteResult = await model
+      .deleteMany({
+        $nor: validRangeFilters,
+      })
+      .exec();
+  }
+
+  // Find AQI categories without tips
+  const categoriesWithoutTips = [];
+  for (const range of validAqiRanges) {
+    const filter = {
+      "aqi_category.min": range.min,
+    };
+
+    if (range.max === null) {
+      filter["aqi_category.max"] = null;
+    } else {
+      filter["aqi_category.max"] = range.max;
+    }
+
+    const count = await model.countDocuments(filter).exec();
+    if (count === 0) {
+      categoriesWithoutTips.push({
+        min: range.min,
+        max: range.max,
+      });
+    }
+  }
+
+  return {
+    removedCount: deleteResult.deletedCount,
+    invalidTipsRemoved: invalidTips.map((tip) => ({
+      title: tip.title,
+      aqi_category: tip.aqi_category,
+    })),
+    categoriesWithoutTips,
+  };
+};
+
 tipsSchema.statics = {
   async bulkModify(updates, next) {
     try {
@@ -118,13 +187,17 @@ tipsSchema.statics = {
         updatedCount = result.modifiedCount + (result.upsertedCount || 0);
       }
 
+      // Call the private helper function to remove invalid tips
+      const { removedCount } = await _removeInvalidTips(this);
+
       return {
         success: true,
-        message: `Successfully updated ${updatedCount} tips`,
-        data: { updatedCount },
+        message: `Successfully updated ${updatedCount} tips and removed ${removedCount} invalid tips`,
+        data: { updatedCount, removedCount },
         status: httpStatus.OK,
       };
     } catch (error) {
+      // Original error handling code remains unchanged
       logObject("the error", error);
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       let response = {};
@@ -147,6 +220,31 @@ tipsSchema.statics = {
         response["message"] = error.message;
       }
 
+      next(new HttpError(message, status, response));
+    }
+  },
+
+  async removeInvalidTips(next) {
+    try {
+      logText("removing invalid health tips....");
+
+      // Call the private helper function to remove invalid tips
+      const result = await _removeInvalidTips(this);
+
+      return {
+        success: true,
+        message: `Successfully removed ${result.removedCount} invalid tips`,
+        data: result,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logObject("the error", error);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      let response = {};
+      let message = "Error removing invalid health tips";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      response["message"] = error.message;
       next(new HttpError(message, status, response));
     }
   },

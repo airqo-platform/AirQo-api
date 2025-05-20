@@ -15,7 +15,8 @@
     "dev": "cross-env NODE_ENV=development nodemon --max-old-space-size=4096 ./bin",
     "prod": "cross-env NODE_ENV=production node --max-old-space-size=4096 ./bin",
     "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
-    "test": "nyc --reporter=lcov mocha --require config/tests-config.js ./**/test/ut_*.js --exit | coveralls"
+    "test": "nyc --reporter=lcov mocha --require config/tests-config.js ./**/test/ut_*.js --exit | coveralls",
+    "kill": "node kill-app.js"
   },
   "_moduleAliases": {
     "@root": ".",

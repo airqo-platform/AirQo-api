@@ -42,6 +42,7 @@ require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
+require("@bin/jobs/health-tip-checker-job");
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
@@ -229,6 +230,65 @@ const createServer = () => {
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
   });
+
+  // Graceful shutdown handler
+  const gracefulShutdown = (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // Close the server first to stop accepting new connections
+    server.close(() => {
+      console.log("HTTP server closed");
+      logger.info("HTTP server closed");
+
+      // Stop all cron jobs
+      if (global.cronJobs) {
+        console.log("Stopping cron jobs...");
+        logger.info("Stopping cron jobs...");
+        Object.values(global.cronJobs).forEach((job) => job.stop());
+      }
+
+      // Close any Redis connections if they exist
+      if (global.redisClient) {
+        console.log("Closing Redis connection...");
+        logger.info("Closing Redis connection...");
+        global.redisClient.quit();
+      }
+
+      // Close MongoDB connection
+      console.log("Closing MongoDB connection...");
+      logger.info("Closing MongoDB connection...");
+      mongoose.connection.close(false, () => {
+        console.log("MongoDB connection closed");
+        logger.info("MongoDB connection closed");
+
+        // Exit the process
+        console.log("Exiting process...");
+        logger.info("Exiting process...");
+        process.exit(0);
+      });
+    });
+
+    // Force exit after timeout if graceful shutdown fails
+    setTimeout(() => {
+      console.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      logger.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      process.exit(1);
+    }, 10000);
+  };
+
+  // Add signal handlers
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+  // Store server in global scope so it can be accessed elsewhere
+  global.httpServer = server;
+
+  return server; // Return the server instance
 };
 
 module.exports = createServer;

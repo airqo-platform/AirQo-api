@@ -13,14 +13,7 @@ const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 
 // Centralized AQI Range Configuration
-const AQI_RANGES = {
-  good: { min: 0, max: 9.1 },
-  moderate: { min: 9.101, max: 35.49 },
-  u4sg: { min: 35.491, max: 55.49 },
-  unhealthy: { min: 55.491, max: 125.49 },
-  very_unhealthy: { min: 125.491, max: 225.49 },
-  hazardous: { min: 225.491, max: null },
-};
+const AQI_RANGES = constants.AQI_RANGES;
 
 // Export AQI_RANGES so they can be used in other files if needed
 module.exports.AQI_RANGES = AQI_RANGES;
