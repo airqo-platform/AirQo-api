@@ -42,6 +42,20 @@ const GroupSchema = new Schema(
       unique: true,
       required: [true, "grp_title is required"],
     },
+    organization_slug: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null values but ensure uniqueness when present
+      lowercase: true,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true; // Allow null/undefined
+          return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v);
+        },
+        message: "Slug must be lowercase alphanumeric with hyphens only",
+      },
+    },
     theme: {
       type: ThemeSchema,
       default: () => ({}),

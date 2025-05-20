@@ -2,8 +2,21 @@ const { query, body, oneOf, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const decimalPlaces = require("decimal-places");
 const createSiteUtil = require("@utils/site.util");
+const Decimal = require("decimal.js");
+
+const countDecimalPlaces = (value) => {
+  try {
+    const decimal = new Decimal(value);
+    const decimalStr = decimal.toString();
+    if (decimalStr.includes(".")) {
+      return decimalStr.split(".")[1].length;
+    }
+    return 0;
+  } catch (err) {
+    return 0;
+  }
+};
 
 // Utility Functions
 const validateDecimalPlaces = (
@@ -11,7 +24,7 @@ const validateDecimalPlaces = (
   minPlaces = 5,
   fieldName = "coordinate"
 ) => {
-  let dp = decimalPlaces(value);
+  let dp = countDecimalPlaces(value);
   if (dp < minPlaces) {
     return Promise.reject(
       `the ${fieldName} must have ${minPlaces} or more decimal places`
