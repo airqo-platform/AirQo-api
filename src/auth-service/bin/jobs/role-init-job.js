@@ -1,4 +1,3 @@
-// @bin/jobs/role-init-job.js
 const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- role-init-job`);
@@ -148,18 +147,54 @@ function scheduleRoleVerification() {
   }
 }
 
+// Retry mechanism parameters
+let initRetryCount = 0;
+const maxRetries = 5;
+const retryDelay = 2000; // Initial delay in milliseconds (2 seconds)
+
+/**
+ * Run initialization with retry and exponential backoff
+ */
+function runWithRetry() {
+  console.log(
+    `🔄 Starting admin role initialization check (attempt ${
+      initRetryCount + 1
+    }/${maxRetries})...`
+  );
+
+  runRoleInitialization()
+    .then((role) => {
+      if (role) {
+        // Success - no need to retry
+        scheduleRoleVerification();
+      } else {
+        // Initialization failed but no error thrown, treat as failure
+        retryInit();
+      }
+    })
+    .catch(() => {
+      // Error already logged in runRoleInitialization
+      retryInit();
+    });
+}
+
+function retryInit() {
+  initRetryCount++;
+  if (initRetryCount < maxRetries) {
+    const delay = retryDelay * Math.pow(1.5, initRetryCount - 1);
+    console.log(`🔄 Retrying in ${(delay / 1000).toFixed(1)} seconds...`);
+    setTimeout(runWithRetry, delay);
+  } else {
+    console.error(
+      "❌ Maximum retry attempts reached. Role initialization failed."
+    );
+    logger.error("Maximum retry attempts reached. Role initialization failed.");
+  }
+}
+
 // Run initialization after a small delay to ensure models are loaded
 setTimeout(() => {
-  console.log("🔄 Starting admin role initialization check...");
-
-  // Run the initialization
-  runRoleInitialization().catch((err) => {
-    console.error(`❌ Role initialization error: ${err.message}`);
-    logger.error(`Role initialization error: ${err.message}`);
-  });
-
-  // Set up scheduled verification
-  scheduleRoleVerification();
+  runWithRetry();
 }, 1000);
 
 // Export for testing and diagnostics

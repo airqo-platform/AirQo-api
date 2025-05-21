@@ -1,7 +1,7 @@
 // groups.routes.js
 const express = require("express");
 const router = express.Router();
-const createGroupController = require("@controllers/group.controller");
+const groupController = require("@controllers/group.controller");
 const groupValidations = require("@validators/groups.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const { adminCheck } = require("@middleware/admin-access.middleware");
@@ -23,19 +23,19 @@ router.delete(
   groupValidations.deleteGroup,
   setJWTAuth,
   authJWT,
-  createGroupController.delete
+  groupController.delete
 );
 
-router.put("/:grp_id", groupValidations.update, createGroupController.update);
+router.put("/:grp_id", groupValidations.update, groupController.update);
 
-router.get("/", groupValidations.list, createGroupController.list);
+router.get("/", groupValidations.list, groupController.list);
 
 router.post(
   "/",
   groupValidations.create,
   setJWTAuth,
   authJWT,
-  createGroupController.create
+  groupController.create
 );
 
 router.get(
@@ -59,7 +59,7 @@ router.get(
   setJWTAuth,
   authJWT,
   adminCheck,
-  createGroupController.getSettings
+  groupController.getSettings
 );
 
 // Update group settings
@@ -68,7 +68,7 @@ router.put(
   setJWTAuth,
   authJWT,
   adminCheck,
-  createGroupController.updateSettings
+  groupController.updateSettings
 );
 
 router.post(
@@ -76,7 +76,7 @@ router.post(
   groupValidations.removeUniqueConstraint,
   setJWTAuth,
   authJWT,
-  createGroupController.removeUniqueConstraint
+  groupController.removeUniqueConstraint
 );
 
 router.put(
@@ -84,13 +84,13 @@ router.put(
   groupValidations.assignOneUser,
   setJWTAuth,
   authJWT,
-  createGroupController.assignOneUser
+  groupController.assignOneUser
 );
 
 router.get(
   "/summary",
   groupValidations.listSummary,
-  createGroupController.listSummary
+  groupController.listSummary
 );
 
 router.put(
@@ -98,25 +98,25 @@ router.put(
   groupValidations.setManager,
   setJWTAuth,
   authJWT,
-  createGroupController.setManager
+  groupController.setManager
 );
 
 router.get(
   "/:grp_id/assigned-users",
   groupValidations.listAssignedUsers,
-  createGroupController.listAssignedUsers
+  groupController.listAssignedUsers
 );
 
 router.get(
   "/:grp_id/all-users",
   groupValidations.listAllGroupUsers,
-  createGroupController.listAllGroupUsers
+  groupController.listAllGroupUsers
 );
 
 router.get(
   "/:grp_id/available-users",
   groupValidations.listAvailableUsers,
-  createGroupController.listAvailableUsers
+  groupController.listAvailableUsers
 );
 
 router.post(
@@ -124,7 +124,7 @@ router.post(
   groupValidations.assignUsers,
   setJWTAuth,
   authJWT,
-  createGroupController.assignUsers
+  groupController.assignUsers
 );
 
 router.delete(
@@ -132,7 +132,7 @@ router.delete(
   groupValidations.unAssignUser,
   setJWTAuth,
   authJWT,
-  createGroupController.unAssignUser
+  groupController.unAssignUser
 );
 
 router.delete(
@@ -140,7 +140,7 @@ router.delete(
   groupValidations.unAssignManyUsers,
   setJWTAuth,
   authJWT,
-  createGroupController.unAssignManyUsers
+  groupController.unAssignManyUsers
 );
 
 router.get(
@@ -148,13 +148,9 @@ router.get(
   groupValidations.listRolesForGroup,
   setJWTAuth,
   authJWT,
-  createGroupController.listRolesForGroup
+  groupController.listRolesForGroup
 );
 
-router.get(
-  "/:grp_id",
-  groupValidations.getGroupById,
-  createGroupController.list
-);
+router.get("/:grp_id", groupValidations.getGroupById, groupController.list);
 
 module.exports = router;

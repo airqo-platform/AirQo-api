@@ -2,6 +2,7 @@
 const httpStatus = require("http-status");
 const RoleModel = require("@models/Role");
 const { HttpError } = require("@utils/shared");
+const constants = require("@config/constants");
 
 const hasPermission = (requiredPermission) => {
   return async (req, res, next) => {
