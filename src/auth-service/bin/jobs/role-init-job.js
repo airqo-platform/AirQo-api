@@ -2,19 +2,22 @@ const log4js = require("log4js");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- role-init-job`);
 const nodeCron = require("node-cron");
+const mongoose = require("mongoose");
 
 // Track initialization status for diagnostics
 let initializationComplete = false;
 let initializationError = null;
 
+// Retry mechanism parameters
+let initRetryCount = 0;
+const maxRetries = 5;
+const retryDelay = 2000; // Initial delay in milliseconds (2 seconds)
+
 /**
  * Initialize or verify admin roles in the system
- * This creates the necessary SUPER_ADMIN role with appropriate permissions
- * for the AirQo group if it doesn't exist
  */
 async function initializeAdminRoles() {
   try {
-    // Import models directly - this assumes they're properly registered
     const RoleModel = require("@models/Role");
     const PermissionModel = require("@models/Permission");
     const GroupModel = require("@models/Group");
@@ -33,9 +36,7 @@ async function initializeAdminRoles() {
       role_name: superAdminRoleName,
     });
 
-    // If role already exists, just return it
     if (superAdminRole) {
-      // Role already exists
       return { role: superAdminRole, created: false };
     }
 
@@ -51,7 +52,6 @@ async function initializeAdminRoles() {
     // Ensure all required permissions exist
     for (const permission of requiredPermissions) {
       const exists = await PermissionModel("airqo").findOne({ permission });
-
       if (!exists) {
         await PermissionModel("airqo").create({
           permission,
@@ -67,7 +67,6 @@ async function initializeAdminRoles() {
     const permissionDocs = await PermissionModel("airqo").find({
       permission: { $in: requiredPermissions },
     });
-
     const permissionIds = permissionDocs.map((doc) => doc._id);
 
     // Create the super admin role
@@ -96,13 +95,9 @@ async function initializeAdminRoles() {
  */
 async function runRoleInitialization() {
   try {
-    // Initialize admin roles
     const result = await initializeAdminRoles();
-
-    // Update status
     initializationComplete = true;
 
-    // Output a success message depending on whether the role was created or verified
     if (result.created) {
       console.log(
         `✅ AIRQO_SUPER_ADMIN role created successfully with ${result.permissionCount} permissions`
@@ -110,13 +105,10 @@ async function runRoleInitialization() {
     } else {
       console.log(`✅ AIRQO_SUPER_ADMIN role verified (already exists)`);
     }
-
-    // Success is minimal logging, just return the result
     return result.role;
   } catch (error) {
-    console.error("❌ Error during role initialization:", error.message);
-    // Store error status
     initializationError = error;
+    console.error("❌ Error during role initialization:", error.message);
     logger.error(`Failed to initialize admin roles: ${error.message}`);
     return null;
   }
@@ -127,13 +119,10 @@ async function runRoleInitialization() {
  */
 function scheduleRoleVerification() {
   try {
-    // Schedule daily verification at midnight
-    const cronSchedule = "0 0 * * *";
-
+    const cronSchedule = "0 0 * * *"; // Daily at midnight
     if (nodeCron.validate(cronSchedule)) {
       nodeCron.schedule(cronSchedule, async () => {
         try {
-          // Run verification silently
           await runRoleInitialization();
         } catch (error) {
           logger.error(`Scheduled role verification error: ${error.message}`);
@@ -147,37 +136,9 @@ function scheduleRoleVerification() {
   }
 }
 
-// Retry mechanism parameters
-let initRetryCount = 0;
-const maxRetries = 5;
-const retryDelay = 2000; // Initial delay in milliseconds (2 seconds)
-
 /**
- * Run initialization with retry and exponential backoff
+ * Retry logic with exponential backoff
  */
-function runWithRetry() {
-  console.log(
-    `🔄 Starting admin role initialization check (attempt ${
-      initRetryCount + 1
-    }/${maxRetries})...`
-  );
-
-  runRoleInitialization()
-    .then((role) => {
-      if (role) {
-        // Success - no need to retry
-        scheduleRoleVerification();
-      } else {
-        // Initialization failed but no error thrown, treat as failure
-        retryInit();
-      }
-    })
-    .catch(() => {
-      // Error already logged in runRoleInitialization
-      retryInit();
-    });
-}
-
 function retryInit() {
   initRetryCount++;
   if (initRetryCount < maxRetries) {
@@ -192,13 +153,49 @@ function retryInit() {
   }
 }
 
-// Run initialization after a small delay to ensure models are loaded
-setTimeout(() => {
-  runWithRetry();
-}, 1000);
+/**
+ * Run initialization with retry and exponential backoff
+ */
+function runWithRetry() {
+  console.log(
+    `🔄 Starting admin role initialization check (attempt ${
+      initRetryCount + 1
+    }/${maxRetries})...`
+  );
+  runRoleInitialization()
+    .then((role) => {
+      if (role) {
+        scheduleRoleVerification();
+      } else {
+        retryInit();
+      }
+    })
+    .catch(() => {
+      retryInit();
+    });
+}
 
-// Export for testing and diagnostics
+/**
+ * Main entry point: Wait for Mongoose connection before running initialization
+ */
+function startRoleInitJob() {
+  if (mongoose.connection.readyState === 1) {
+    // Already connected
+    runWithRetry();
+  } else {
+    // Wait for connection
+    mongoose.connection.once("connected", () => {
+      runWithRetry();
+    });
+    mongoose.connection.once("error", (err) => {
+      logger.error("MongoDB connection error (init job):", err);
+    });
+  }
+}
+
+// Export for explicit control from server.js
 module.exports = {
+  startRoleInitJob,
   runRoleInitialization,
   getStatus: () => ({
     complete: initializationComplete,
