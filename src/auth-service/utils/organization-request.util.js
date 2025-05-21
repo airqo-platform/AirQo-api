@@ -10,7 +10,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- organization-request-util`
 );
 const createGroupUtil = require("@utils/group.util");
-const { mailer } = require("@utils/common");
+const { mailer, slugUtils } = require("@utils/common");
 const isEmpty = require("is-empty");
 
 const organizationRequest = {
@@ -19,25 +19,48 @@ const organizationRequest = {
       const { body, query } = request;
       const { tenant } = query;
 
-      // Validate that slug doesn't already exist in groups
-      const existingGroup = await GroupModel(tenant).findOne({
-        organization_slug: body.organization_slug,
-      });
+      // Check if user already has access to this organization
+      const userAccess = await organizationRequest.checkUserOrganizationAccess(
+        request,
+        next
+      );
 
-      if (existingGroup) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Organization slug already exists",
-          })
-        );
-        return;
+      if (userAccess && userAccess.hasAccess) {
+        return {
+          success: false,
+          message: "You already have access to this organization",
+          data: {
+            existingGroup: userAccess.group,
+            suggestedAction:
+              "Please use your existing access or contact support for assistance.",
+          },
+          status: httpStatus.CONFLICT,
+        };
       }
+
+      // Generate a unique slug if the provided one is taken
+      const originalSlug = body.organization_slug;
+      const uniqueSlug = await slugUtils.generateUniqueSlug(
+        originalSlug,
+        tenant
+      );
+
+      // Notify the user if their slug was changed
+      const wasSlugModified = originalSlug !== uniqueSlug;
+
+      // Update the body with the unique slug
+      body.organization_slug = uniqueSlug;
 
       const responseFromCreateRequest = await OrganizationRequestModel(
         tenant
       ).register(body, next);
 
       if (responseFromCreateRequest.success === true) {
+        // Add info about slug modification if it happened
+        if (wasSlugModified) {
+          responseFromCreateRequest.message = `Organization request created successfully. Note: Your slug was modified to ${uniqueSlug} because the original was already taken.`;
+        }
+
         // Send notification to AirQo Admins
         await mailer.notifyAdminsOfNewOrgRequest({
           organization_name: body.organization_name,
@@ -55,6 +78,50 @@ const organizationRequest = {
       }
 
       return responseFromCreateRequest;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  checkUserOrganizationAccess: async (request, next) => {
+    try {
+      const { body, query, user } = request;
+      const { tenant } = query;
+      const { organization_slug } = body;
+
+      // If user isn't authenticated, no need to check
+      if (!user) {
+        return { hasAccess: false };
+      }
+
+      // Check if organization exists
+      const existingGroup = await GroupModel(tenant).findOne({
+        organization_slug: organization_slug,
+      });
+
+      if (!existingGroup) {
+        return { hasAccess: false };
+      }
+
+      // Check if user is a member of this organization
+      const userGroups = await GroupModel(tenant).find({
+        organization_slug: organization_slug,
+        "users.user_id": user._id,
+      });
+
+      const hasAccess = userGroups.length > 0;
+
+      return {
+        hasAccess,
+        group: existingGroup,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -325,6 +392,76 @@ const organizationRequest = {
           })
         );
       }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  checkSlugAvailability: async (request, next) => {
+    try {
+      const { params, query } = request;
+      const { slug } = params;
+      const { tenant } = query;
+
+      // Check if slug exists in Groups collection
+      const existingGroup = await GroupModel(tenant).findOne({
+        organization_slug: slug,
+      });
+
+      // Check if slug exists in OrganizationRequest collection
+      const existingRequest = await OrganizationRequestModel(tenant).findOne({
+        organization_slug: slug,
+      });
+
+      const isAvailable = !existingGroup && !existingRequest;
+
+      // If slug is taken, generate alternative suggestions
+      let alternativeSuggestions = [];
+      if (!isAvailable) {
+        // Generate 3 alternative suggestions
+        for (let i = 1; i <= 3; i++) {
+          const suggestion = `${slug}-${i}`;
+          const suggestionExists =
+            (await GroupModel(tenant).findOne({
+              organization_slug: suggestion,
+            })) ||
+            (await OrganizationRequestModel(tenant).findOne({
+              organization_slug: suggestion,
+            }));
+
+          if (!suggestionExists) {
+            alternativeSuggestions.push(suggestion);
+          }
+        }
+
+        // If we didn't get enough suggestions, add some with timestamp
+        if (alternativeSuggestions.length < 3) {
+          const timestamp = Math.floor(Date.now() / 1000)
+            .toString()
+            .substr(-4);
+          alternativeSuggestions.push(`${slug}-${timestamp}`);
+        }
+      }
+
+      return {
+        success: true,
+        message: isAvailable ? "Slug is available" : "Slug is already taken",
+        data: {
+          available: isAvailable,
+          slug,
+          existsInGroups: !!existingGroup,
+          existsInRequests: !!existingRequest,
+          alternativeSuggestions: isAvailable ? [] : alternativeSuggestions,
+        },
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
