@@ -69,9 +69,10 @@ const checkSubscriptionStatuses = async () => {
   }
 };
 
-// Schedule the subscription status check job
+global.cronJobs = global.cronJobs || {};
 const schedule = "0 1 * * *"; // every day at 1 AM
-cron.schedule(schedule, checkSubscriptionStatuses, {
+const jobName = "subscription-status-check-job";
+global.cronJobs[jobName] = cron.schedule(schedule, checkSubscriptionStatuses, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

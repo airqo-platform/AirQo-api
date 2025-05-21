@@ -191,8 +191,10 @@ cron.schedule(
   }
 );
 
+global.cronJobs = global.cronJobs || {};
 const notificationSchedule = "0 9 * * *"; // every day at 9 AM
-cron.schedule(
+const jobName = "subscription-renewal-notification-job";
+global.cronJobs[jobName] = cron.schedule(
   notificationSchedule,
   subscriptionRenewalUtils.sendUpcomingRenewalNotifications,
   {

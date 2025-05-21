@@ -67,7 +67,9 @@ const sendAlertsForExpiringTokens = async () => {
   }
 };
 
-cron.schedule(
+global.cronJobs = global.cronJobs || {};
+const jobName = "token-expiration-job";
+global.cronJobs[jobName] = cron.schedule(
   "0 0 5 * *", // every 5th day of the month at midnight
   sendAlertsForExpiringTokens,
   {

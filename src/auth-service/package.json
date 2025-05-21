@@ -14,7 +14,9 @@
     "stage-pc": "set NODE_ENV=staging&&nodemon ./bin",
     "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
     "create-env": "printenv > .env",
-    "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit"
+    "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit",
+    "kill": "node kill-app.js",
+    "kill-jobs": "node kill-jobs.js"
   },
   "_moduleAliases": {
     "@root": ".",
