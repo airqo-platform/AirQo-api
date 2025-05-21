@@ -269,6 +269,81 @@ const createServer = () => {
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
   });
+
+  // Graceful shutdown handler
+  const gracefulShutdown = (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // Close the server first to stop accepting new connections
+    server.close(() => {
+      console.log("HTTP server closed");
+      logger.info("HTTP server closed");
+
+      // Stop all cron jobs
+      if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
+        console.log(
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+        );
+        logger.info(
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+        );
+
+        for (const [jobName, job] of Object.entries(global.cronJobs)) {
+          try {
+            console.log(`Stopping cron job: ${jobName}`);
+            logger.info(`Stopping cron job: ${jobName}`);
+            job.stop();
+          } catch (error) {
+            console.error(`Error stopping cron job ${jobName}:`, error.message);
+            logger.error(
+              `Error stopping cron job ${jobName}: ${error.message}`
+            );
+          }
+        }
+        console.log("All cron jobs stopped");
+        logger.info("All cron jobs stopped");
+      } else {
+        console.log("No cron jobs to stop");
+        logger.info("No cron jobs to stop");
+      }
+
+      // Additional cleanup for Firebase, Redis, etc. as in your existing code
+
+      // Close MongoDB connection
+      console.log("Closing MongoDB connection...");
+      logger.info("Closing MongoDB connection...");
+      mongoose.connection.close(false, () => {
+        console.log("MongoDB connection closed");
+        logger.info("MongoDB connection closed");
+
+        // Exit the process
+        console.log("Exiting process...");
+        logger.info("Exiting process...");
+        process.exit(0);
+      });
+    });
+
+    // Force exit after timeout if graceful shutdown fails
+    setTimeout(() => {
+      console.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      logger.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      process.exit(1);
+    }, 10000);
+  };
+
+  // Add signal handlers
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+  // Store server in global scope so it can be accessed elsewhere
+  global.httpServer = server;
+
+  return server; // Return the server instance
 };
 
 module.exports = createServer;

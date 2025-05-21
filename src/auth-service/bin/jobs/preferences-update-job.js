@@ -255,10 +255,16 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
   }
 };
 
+global.cronJobs = global.cronJobs || {};
 const schedule = "30 * * * *"; // At minute 30 of every hour
-cron.schedule(schedule, () => updatePreferences("featured"), {
-  scheduled: true,
-  timezone: "Africa/Nairobi",
-});
+const jobName = "preferences-update-job";
+global.cronJobs[jobName] = cron.schedule(
+  schedule,
+  () => updatePreferences("featured"),
+  {
+    scheduled: true,
+    timezone: "Africa/Nairobi",
+  }
+);
 
 module.exports = { updatePreferences };
