@@ -39,104 +39,141 @@ const organizationRequest = {
         }
       }
 
-      // Sanitize input values
-      body.organization_name = sanitizeEmailString(body.organization_name);
-      body.contact_name = sanitizeEmailString(body.contact_name);
-      // Don't sanitize slug directly as it has specific format requirements
+      // Sanitize input values - using safe string handling
+      if (body.organization_name) {
+        body.organization_name = sanitizeEmailString(body.organization_name);
+      }
+      if (body.contact_name) {
+        body.contact_name = sanitizeEmailString(body.contact_name);
+      }
 
       // Store original slug for reference
       const originalSlug = body.organization_slug;
 
-      // Implement retry mechanism to avoid race conditions
-      const MAX_RETRIES = 3;
+      // Define maximum slug length to prevent excessively long slugs
+      const MAX_SLUG_LENGTH = 50;
+      const MAX_RETRIES = 5;
       let currentTry = 0;
       let success = false;
       let responseFromCreateRequest;
-      let generatedSlug;
+      let generatedSlug = originalSlug;
 
       while (!success && currentTry < MAX_RETRIES) {
+        // Generate a unique slug based on retry count
+        if (currentTry === 0) {
+          generatedSlug = originalSlug;
+        } else if (currentTry === 1) {
+          // For first retry, use timestamp (predictable length)
+          const timestamp = Date.now().toString().slice(-6);
+          // Ensure we don't exceed maximum slug length
+          const baseSlug =
+            originalSlug.length > MAX_SLUG_LENGTH - 7
+              ? originalSlug.slice(0, MAX_SLUG_LENGTH - 7)
+              : originalSlug;
+          generatedSlug = `${baseSlug}-${timestamp}`;
+        } else {
+          // For subsequent retries, use random string (always 5 chars)
+          const randomSuffix = Math.random().toString(36).substring(2, 7);
+          // Ensure we don't exceed maximum slug length
+          const baseSlug =
+            originalSlug.length > MAX_SLUG_LENGTH - 7
+              ? originalSlug.slice(0, MAX_SLUG_LENGTH - 7)
+              : originalSlug;
+          generatedSlug = `${baseSlug}-${randomSuffix}`;
+        }
+
+        // Check if the slug already exists in both collections
+        const [existingGroup, existingRequest] = await Promise.all([
+          GroupModel(tenant)
+            .findOne({ organization_slug: generatedSlug })
+            .lean(),
+          OrganizationRequestModel(tenant)
+            .findOne({ organization_slug: generatedSlug })
+            .lean(),
+        ]);
+
+        if (existingGroup || existingRequest) {
+          // Slug already exists, try again with a different one
+          currentTry++;
+          logger.warn(
+            `Slug '${generatedSlug}' already exists, retrying (${currentTry}/${MAX_RETRIES})`
+          );
+          continue;
+        }
+
+        // If we get here, the slug is available
+        body.organization_slug = generatedSlug;
+
+        // Now try to register with the available slug
         try {
-          // Generate a unique slug
-          if (currentTry === 0) {
-            // First try with the original slug or a direct replacement
-            generatedSlug = await slugUtils.generateUniqueSlug(
-              originalSlug,
-              tenant
-            );
-          } else {
-            // Subsequent attempts: append retry counter to make even more unique
-            const retrySlug = `${originalSlug}-retry-${currentTry}`;
-            generatedSlug = await slugUtils.generateUniqueSlug(
-              retrySlug,
-              tenant
-            );
-          }
-
-          // Update the body with the unique slug
-          body.organization_slug = generatedSlug;
-
-          // Try to create the request
           responseFromCreateRequest = await OrganizationRequestModel(
             tenant
-          ).register(body);
+          ).register(body, next);
           success = true;
-        } catch (error) {
-          // If it's a duplicate key error, retry with a different slug
+        } catch (registrationError) {
+          // Enhanced error detection for MongoDB errors
           if (
-            error.code === 11000 &&
-            error.keyPattern &&
-            error.keyPattern.organization_slug
+            (registrationError.code === 11000 ||
+              registrationError.name === "MongoServerError") &&
+            registrationError.keyPattern &&
+            registrationError.keyPattern.organization_slug
           ) {
             currentTry++;
             logger.warn(
-              `Slug collision detected, retrying (${currentTry}/${MAX_RETRIES})`
+              `Race condition detected with slug '${generatedSlug}', retrying (${currentTry}/${MAX_RETRIES})`
             );
           } else {
-            // For other errors, propagate them
-            throw error;
+            // For other errors, just throw them to be caught by the outer catch
+            throw registrationError;
           }
         }
       }
 
       if (!success) {
-        next(
-          new HttpError("Conflict", httpStatus.CONFLICT, {
-            message:
-              "Failed to create organization request after multiple retries due to slug collisions",
-          })
-        );
-        return;
+        return {
+          success: false,
+          message:
+            "Failed to create organization request after multiple retries due to slug collisions",
+          status: httpStatus.CONFLICT,
+        };
       }
 
-      // Notify the user if their slug was changed
+      // Handle slug modification message
       const wasSlugModified = originalSlug !== generatedSlug;
-
-      // Add info about slug modification if it happened
-      if (wasSlugModified && responseFromCreateRequest.success) {
-        responseFromCreateRequest.message = `Organization request created successfully. Note: Your slug was modified to ${generatedSlug} because the original was already taken.`;
+      if (
+        wasSlugModified &&
+        responseFromCreateRequest &&
+        responseFromCreateRequest.success
+      ) {
+        responseFromCreateRequest.message = `Organization request created successfully. Note: Your slug was modified to '${generatedSlug}' because the original was already taken.`;
       }
 
       // Send notifications if the request was successful
-      if (responseFromCreateRequest.success === true) {
+      if (
+        responseFromCreateRequest &&
+        responseFromCreateRequest.success === true
+      ) {
         try {
-          // Send notification to AirQo Admins
-          await mailer.notifyAdminsOfNewOrgRequest({
-            organization_name: body.organization_name,
-            contact_name: body.contact_name,
-            contact_email: body.contact_email,
-            tenant,
-          });
+          // Run email notifications in parallel for better performance
+          await Promise.all([
+            // Send notification to AirQo Admins
+            mailer.notifyAdminsOfNewOrgRequest({
+              organization_name: body.organization_name,
+              contact_name: body.contact_name,
+              contact_email: body.contact_email,
+              tenant,
+            }),
 
-          // Send confirmation to requestor
-          await mailer.confirmOrgRequestReceived({
-            organization_name: body.organization_name,
-            contact_name: body.contact_name,
-            contact_email: body.contact_email,
-          });
+            // Send confirmation to requestor
+            mailer.confirmOrgRequestReceived({
+              organization_name: body.organization_name,
+              contact_name: body.contact_name,
+              contact_email: body.contact_email,
+            }),
+          ]);
         } catch (emailError) {
           // Log email sending errors but don't fail the request
           logger.error(`Error sending emails: ${emailError.message}`);
-          // We could add a flag to the response to indicate email issues
           responseFromCreateRequest.emailSendingIssue = true;
         }
       }

@@ -172,8 +172,6 @@ const mailer = {
       const toEmail =
         subscribedEmails.length > 0 ? subscribedEmails[0] : "support@airqo.net";
 
-      logObject("toEmail", toEmail);
-
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
