@@ -49,6 +49,13 @@ router.patch(
   createOrganizationRequestController.approve
 );
 
+router.get(
+  "/slug-availability/:slug",
+  organizationRequestValidations.checkSlugAvailability,
+  validate,
+  createOrganizationRequestController.checkSlugAvailability
+);
+
 // Reject organization request (AirQo Admin only)
 router.patch(
   "/:request_id/reject",

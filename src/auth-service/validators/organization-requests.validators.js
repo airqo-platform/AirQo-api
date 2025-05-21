@@ -14,6 +14,15 @@ const pagination = (req, res, next) => {
 module.exports = {
   pagination,
 
+  checkSlugAvailability: [
+    param("slug")
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Slug must be between 2 and 100 characters")
+      .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .withMessage("Slug must be lowercase alphanumeric with hyphens only"),
+  ],
+
   create: [
     body("organization_name")
       .trim()

@@ -727,4 +727,95 @@ module.exports = {
   `;
     return constants.EMAIL_BODY({ recepientEmail, content });
   },
+
+  // Add to email.msgs.js
+  notifyAdminsOfNewOrgRequest: ({
+    organization_name,
+    contact_name,
+    contact_email,
+  }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>A new organization request has been submitted:</p>
+        <ul>
+          <li><strong>Organization Name:</strong> ${organization_name}</li>
+          <li><strong>Contact Name:</strong> ${contact_name}</li>
+          <li><strong>Contact Email:</strong> ${contact_email}</li>
+        </ul>
+        <p>Please review and process this request in the admin dashboard.</p>
+        <p>You can access the admin dashboard at: ${constants.ANALYTICS_BASE_URL}/admin/organization-requests</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email: contact_email, content });
+  },
+
+  confirmOrgRequestReceived: ({
+    organization_name,
+    contact_name,
+    contact_email,
+  }) => {
+    const name = contact_name;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Thank you for submitting an organization request for "${organization_name}".</p>
+        <p>We have received your request and will review it shortly. You will receive another email once your request has been processed.</p>
+        <p>If you have any questions, please contact our support team at support@airqo.net.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email: contact_email, content, name });
+  },
+
+  notifyOrgRequestApproved: ({
+    organization_name,
+    contact_name,
+    contact_email,
+    login_url,
+  }) => {
+    const name = contact_name;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Congratulations! Your organization request for "${organization_name}" has been approved.</p>
+        <p>You can now access your organization dashboard using the following link:</p>
+        <p><a href="${login_url}">${login_url}</a></p>
+        <p>If you have any questions or need assistance, please contact our support team at support@airqo.net.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email: contact_email, content, name });
+  },
+
+  notifyOrgRequestRejected: ({
+    organization_name,
+    contact_name,
+    contact_email,
+    rejection_reason,
+  }) => {
+    const name = contact_name;
+
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>We have reviewed your organization request for "${organization_name}" and regret to inform you that we are unable to approve it at this time.</p>
+        ${
+          rejection_reason
+            ? `<p><strong>Reason:</strong> ${rejection_reason}</p>`
+            : ""
+        }
+        <p>If you have any questions or would like to submit a revised request, please contact our support team at support@airqo.net.</p>
+      </td>
+    </tr>
+  `;
+
+    return constants.EMAIL_BODY({ email: contact_email, content, name });
+  },
 };
