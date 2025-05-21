@@ -15,8 +15,10 @@
     "prod-pc": "set NODE_ENV=production&&nodemon ./bin",
     "create-env": "printenv > .env",
     "test": "nyc --reporter=cobertura mocha ./**/test/ut_*.js --exit",
-    "kill": "node kill-app.js",
-    "kill-jobs": "node kill-jobs.js"
+    "kill-port": "node kill-app.js",
+    "kill-port:force": "node kill-app.js --force",
+    "kill-jobs": "node kill-jobs.js",
+    "kill-jobs:force": "node kill-jobs.js --force"
   },
   "_moduleAliases": {
     "@root": ".",
