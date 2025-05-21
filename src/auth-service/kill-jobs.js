@@ -22,7 +22,7 @@ try {
   // Require explicit confirmation via --force flag for non-automated usage
   if (cronProcesses.length > 0 && process.argv.indexOf("--force") === -1) {
     console.log("Found the following processes that will be terminated:");
-    cronProcesses.forEach((process) => console.log(process));
+    cronProcesses.forEach((procLine) => console.log(procLine));
     console.log("Run with --force to proceed with termination");
     process.exit(0);
   }
@@ -36,24 +36,19 @@ try {
       }:`
     );
 
-    cronProcesses.forEach((process) => {
-      console.log(process);
+    cronProcesses.forEach((procLine) => {
+      console.log(procLine);
 
-      // Only proceed with killing if --force is provided
-      if (process.argv.indexOf("--force") !== -1) {
-        // Extract PID from the process line (usually the second column)
-        const pid = process.trim().split(/\s+/)[1];
+      // Extract PID from the process line (usually the second column)
+      const pid = procLine.trim().split(/\s+/)[1];
 
-        if (pid) {
-          console.log(`Killing process ${pid}...`);
-          try {
-            execSync(`kill -9 ${pid}`);
-            console.log(`Successfully killed process ${pid}`);
-          } catch (killError) {
-            console.error(
-              `Failed to kill process ${pid}: ${killError.message}`
-            );
-          }
+      if (pid) {
+        console.log(`Killing process ${pid}...`);
+        try {
+          execSync(`kill -9 ${pid}`);
+          console.log(`Successfully killed process ${pid}`);
+        } catch (killError) {
+          console.error(`Failed to kill process ${pid}: ${killError.message}`);
         }
       }
     });

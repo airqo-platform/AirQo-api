@@ -1,9 +1,9 @@
 const { execSync } = require("child_process");
 
-try {
-  // Platform detection
-  const isWindows = process.platform === "win32";
+// Platform detection
+const isWindows = process.platform === "win32";
 
+try {
   console.log(`Detected platform: ${isWindows ? "Windows" : "Unix/Linux"}`);
 
   // Find processes using port 3000
@@ -65,14 +65,43 @@ try {
 
       // Kill processes if --force is provided
       pids.forEach((pid) => {
-        console.log(`Killing process ${pid}...`);
+        console.log(`Attempting to kill process ${pid} gracefully...`);
+        const killSignal = isWindows ? "" : "-15"; // SIGTERM
         const killCommand = isWindows
-          ? `taskkill /F /PID ${pid}`
-          : `kill -9 ${pid}`;
+          ? `taskkill /PID ${pid}`
+          : `kill ${killSignal} ${pid}`;
 
         try {
           execSync(killCommand);
-          console.log(`Successfully terminated process ${pid}`);
+          console.log(`Successfully sent termination signal to process ${pid}`);
+
+          // Wait for a short time to allow the process to terminate gracefully
+          const timeout = 2000; // 2 seconds
+          const startTime = Date.now();
+
+          while (Date.now() - startTime < timeout) {
+            // Check if the process is still running
+            try {
+              execSync(
+                isWindows ? `tasklist /FI "PID eq ${pid}"` : `ps -p ${pid}`
+              );
+              // Process is still running
+            } catch (err) {
+              // Process is not running
+              console.log(`Process ${pid} terminated gracefully.`);
+              return;
+            }
+          }
+
+          // If the process is still running after the timeout, force kill it
+          console.log(
+            `Process ${pid} did not terminate in time. Forcefully terminating...`
+          );
+          const forceKillCommand = isWindows
+            ? `taskkill /F /PID ${pid}`
+            : `kill -9 ${pid}`;
+          execSync(forceKillCommand);
+          console.log(`Successfully force terminated process ${pid}`);
         } catch (killError) {
           console.error(`Failed to kill process ${pid}: ${killError.message}`);
         }
