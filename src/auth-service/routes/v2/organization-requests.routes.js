@@ -4,6 +4,8 @@ const router = express.Router();
 const createOrganizationRequestController = require("@controllers/organization-request.controller");
 const organizationRequestValidations = require("@validators/organization-requests.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { validate } = require("@validators/common");
+const { airqoAdminCheck } = require("@middleware/admin-access.middleware");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -17,10 +19,11 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(organizationRequestValidations.pagination);
 
-// Create new organization request
+// Create organization request (public endpoint)
 router.post(
   "/",
   organizationRequestValidations.create,
+  validate,
   createOrganizationRequestController.create
 );
 
@@ -29,7 +32,9 @@ router.get(
   "/",
   setJWTAuth,
   authJWT,
+  airqoAdminCheck,
   organizationRequestValidations.list,
+  validate,
   createOrganizationRequestController.list
 );
 
@@ -38,7 +43,9 @@ router.patch(
   "/:request_id/approve",
   setJWTAuth,
   authJWT,
+  airqoAdminCheck,
   organizationRequestValidations.approve,
+  validate,
   createOrganizationRequestController.approve
 );
 
@@ -47,16 +54,20 @@ router.patch(
   "/:request_id/reject",
   setJWTAuth,
   authJWT,
+  airqoAdminCheck,
   organizationRequestValidations.reject,
+  validate,
   createOrganizationRequestController.reject
 );
 
-// Get organization request by ID
+// Get organization request by ID (AirQo Admin only)
 router.get(
   "/:request_id",
   setJWTAuth,
   authJWT,
+  airqoAdminCheck,
   organizationRequestValidations.getById,
+  validate,
   createOrganizationRequestController.getById
 );
 

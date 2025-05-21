@@ -25,6 +25,11 @@ const OrganizationRequestSchema = new Schema(
       required: [true, "Organization name is required"],
       trim: true,
     },
+    country: {
+      type: String,
+      required: [true, "Country is required"],
+      trim: true,
+    },
     organization_slug: {
       type: String,
       required: [true, "Organization slug is required"],
@@ -194,6 +199,7 @@ OrganizationRequestSchema.methods = {
       contact_name: this.contact_name,
       use_case: this.use_case,
       organization_type: this.organization_type,
+      country: this.country,
       status: this.status,
       rejection_reason: this.rejection_reason,
       approved_by: this.approved_by,
