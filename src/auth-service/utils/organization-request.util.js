@@ -11,70 +11,171 @@ const logger = log4js.getLogger(
 );
 const createGroupUtil = require("@utils/group.util");
 const { mailer, slugUtils } = require("@utils/common");
+const { sanitizeEmailString } = require("@utils/shared");
 const isEmpty = require("is-empty");
 
 const organizationRequest = {
   createOrganizationRequest: async (request, next) => {
     try {
-      const { body, query } = request;
+      const { body, query, user } = request;
       const { tenant } = query;
 
-      // Check if user already has access to this organization
-      const userAccess = await organizationRequest.checkUserOrganizationAccess(
-        request,
-        next
-      );
+      // Check if user already has access to this organization (if user is authenticated)
+      if (user && user._id) {
+        const userAccess =
+          await organizationRequest.checkUserOrganizationAccess(request, next);
 
-      if (userAccess && userAccess.hasAccess) {
+        if (userAccess && userAccess.hasAccess) {
+          return {
+            success: false,
+            message: "You already have access to this organization",
+            data: {
+              existingGroup: userAccess.group,
+              suggestedAction:
+                "Please use your existing access or contact support for assistance.",
+            },
+            status: httpStatus.CONFLICT,
+          };
+        }
+      }
+
+      // Sanitize input values - using safe string handling
+      if (body.organization_name) {
+        body.organization_name = sanitizeEmailString(body.organization_name);
+      }
+      if (body.contact_name) {
+        body.contact_name = sanitizeEmailString(body.contact_name);
+      }
+
+      // Store original slug for reference
+      const originalSlug = body.organization_slug;
+
+      // Define maximum slug length to prevent excessively long slugs
+      const MAX_SLUG_LENGTH = 50;
+      const MAX_RETRIES = 5;
+      let currentTry = 0;
+      let success = false;
+      let responseFromCreateRequest;
+      let generatedSlug = originalSlug;
+
+      while (!success && currentTry < MAX_RETRIES) {
+        // Generate a unique slug based on retry count
+        if (currentTry === 0) {
+          generatedSlug = originalSlug;
+        } else if (currentTry === 1) {
+          // For first retry, use timestamp (predictable length)
+          const timestamp = Date.now().toString().slice(-6);
+          // Ensure we don't exceed maximum slug length
+          const baseSlug =
+            originalSlug.length > MAX_SLUG_LENGTH - 7
+              ? originalSlug.slice(0, MAX_SLUG_LENGTH - 7)
+              : originalSlug;
+          generatedSlug = `${baseSlug}-${timestamp}`;
+        } else {
+          // For subsequent retries, use random string (always 5 chars)
+          const randomSuffix = Math.random().toString(36).substring(2, 7);
+          // Ensure we don't exceed maximum slug length
+          const baseSlug =
+            originalSlug.length > MAX_SLUG_LENGTH - 7
+              ? originalSlug.slice(0, MAX_SLUG_LENGTH - 7)
+              : originalSlug;
+          generatedSlug = `${baseSlug}-${randomSuffix}`;
+        }
+
+        // Check if the slug already exists in both collections
+        const [existingGroup, existingRequest] = await Promise.all([
+          GroupModel(tenant)
+            .findOne({ organization_slug: generatedSlug })
+            .lean(),
+          OrganizationRequestModel(tenant)
+            .findOne({ organization_slug: generatedSlug })
+            .lean(),
+        ]);
+
+        if (existingGroup || existingRequest) {
+          // Slug already exists, try again with a different one
+          currentTry++;
+          logger.warn(
+            `Slug '${generatedSlug}' already exists, retrying (${currentTry}/${MAX_RETRIES})`
+          );
+          continue;
+        }
+
+        // If we get here, the slug is available
+        body.organization_slug = generatedSlug;
+
+        // Now try to register with the available slug
+        try {
+          responseFromCreateRequest = await OrganizationRequestModel(
+            tenant
+          ).register(body, next);
+          success = true;
+        } catch (registrationError) {
+          // Enhanced error detection for MongoDB errors
+          if (
+            (registrationError.code === 11000 ||
+              registrationError.name === "MongoServerError") &&
+            registrationError.keyPattern &&
+            registrationError.keyPattern.organization_slug
+          ) {
+            currentTry++;
+            logger.warn(
+              `Race condition detected with slug '${generatedSlug}', retrying (${currentTry}/${MAX_RETRIES})`
+            );
+          } else {
+            // For other errors, just throw them to be caught by the outer catch
+            throw registrationError;
+          }
+        }
+      }
+
+      if (!success) {
         return {
           success: false,
-          message: "You already have access to this organization",
-          data: {
-            existingGroup: userAccess.group,
-            suggestedAction:
-              "Please use your existing access or contact support for assistance.",
-          },
+          message:
+            "Failed to create organization request after multiple retries due to slug collisions",
           status: httpStatus.CONFLICT,
         };
       }
 
-      // Generate a unique slug if the provided one is taken
-      const originalSlug = body.organization_slug;
-      const uniqueSlug = await slugUtils.generateUniqueSlug(
-        originalSlug,
-        tenant
-      );
+      // Handle slug modification message
+      const wasSlugModified = originalSlug !== generatedSlug;
+      if (
+        wasSlugModified &&
+        responseFromCreateRequest &&
+        responseFromCreateRequest.success
+      ) {
+        responseFromCreateRequest.message = `Organization request created successfully. Note: Your slug was modified to '${generatedSlug}' because the original was already taken.`;
+      }
 
-      // Notify the user if their slug was changed
-      const wasSlugModified = originalSlug !== uniqueSlug;
+      // Send notifications if the request was successful
+      if (
+        responseFromCreateRequest &&
+        responseFromCreateRequest.success === true
+      ) {
+        try {
+          // Run email notifications in parallel for better performance
+          await Promise.all([
+            // Send notification to AirQo Admins
+            mailer.notifyAdminsOfNewOrgRequest({
+              organization_name: body.organization_name,
+              contact_name: body.contact_name,
+              contact_email: body.contact_email,
+              tenant,
+            }),
 
-      // Update the body with the unique slug
-      body.organization_slug = uniqueSlug;
-
-      const responseFromCreateRequest = await OrganizationRequestModel(
-        tenant
-      ).register(body, next);
-
-      if (responseFromCreateRequest.success === true) {
-        // Add info about slug modification if it happened
-        if (wasSlugModified) {
-          responseFromCreateRequest.message = `Organization request created successfully. Note: Your slug was modified to ${uniqueSlug} because the original was already taken.`;
+            // Send confirmation to requestor
+            mailer.confirmOrgRequestReceived({
+              organization_name: body.organization_name,
+              contact_name: body.contact_name,
+              contact_email: body.contact_email,
+            }),
+          ]);
+        } catch (emailError) {
+          // Log email sending errors but don't fail the request
+          logger.error(`Error sending emails: ${emailError.message}`);
+          responseFromCreateRequest.emailSendingIssue = true;
         }
-
-        // Send notification to AirQo Admins
-        await mailer.notifyAdminsOfNewOrgRequest({
-          organization_name: body.organization_name,
-          contact_name: body.contact_name,
-          contact_email: body.contact_email,
-          tenant,
-        });
-
-        // Send confirmation to requestor
-        await mailer.confirmOrgRequestReceived({
-          organization_name: body.organization_name,
-          contact_name: body.contact_name,
-          contact_email: body.contact_email,
-        });
       }
 
       return responseFromCreateRequest;
@@ -97,30 +198,38 @@ const organizationRequest = {
       const { organization_slug } = body;
 
       // If user isn't authenticated, no need to check
-      if (!user) {
+      if (!user || !user._id) {
         return { hasAccess: false };
       }
 
-      // Check if organization exists
-      const existingGroup = await GroupModel(tenant).findOne({
-        organization_slug: organization_slug,
-      });
+      // Check if organization exists and user is a member in a single query
+      const existingGroup = await GroupModel(tenant)
+        .findOne(
+          {
+            organization_slug,
+            "users.user_id": user._id,
+          },
+          { _id: 1, grp_title: 1 }
+        )
+        .lean();
 
-      if (!existingGroup) {
-        return { hasAccess: false };
+      // Determine if user has access based on query result
+      const hasAccess = !!existingGroup;
+
+      // If user has access, get the full group details for the response
+      let groupDetails = null;
+      if (hasAccess) {
+        groupDetails = existingGroup;
+      } else {
+        // Only check if the group exists if the user doesn't have access
+        groupDetails = await GroupModel(tenant)
+          .findOne({ organization_slug }, { _id: 1, grp_title: 1 })
+          .lean();
       }
-
-      // Check if user is a member of this organization
-      const userGroups = await GroupModel(tenant).find({
-        organization_slug: organization_slug,
-        "users.user_id": user._id,
-      });
-
-      const hasAccess = userGroups.length > 0;
 
       return {
         hasAccess,
-        group: existingGroup,
+        group: groupDetails,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

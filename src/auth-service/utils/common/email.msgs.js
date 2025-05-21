@@ -5,6 +5,7 @@ const {
   logElement,
   HttpError,
   extractErrorsFromRequest,
+  escapeHtml,
 } = require("@utils/shared");
 
 const processString = (inputString) => {
@@ -749,7 +750,7 @@ module.exports = {
     </tr>
   `;
 
-    return constants.EMAIL_BODY({ email: contact_email, content });
+    return constants.EMAIL_BODY({ email: "support@airqo.net", content });
   },
 
   confirmOrgRequestReceived: ({
@@ -803,17 +804,19 @@ module.exports = {
     const name = contact_name;
 
     const content = `
-    <tr>
-      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-        <p>We have reviewed your organization request for "${organization_name}" and regret to inform you that we are unable to approve it at this time.</p>
-        ${
-          rejection_reason
-            ? `<p><strong>Reason:</strong> ${rejection_reason}</p>`
-            : ""
-        }
-        <p>If you have any questions or would like to submit a revised request, please contact our support team at support@airqo.net.</p>
-      </td>
-    </tr>
+  <tr>
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+      <p>We have reviewed your organization request for "${escapeHtml(
+        organization_name
+      )}" and regret to inform you that we are unable to approve it at this time.</p>
+      ${
+        rejection_reason
+          ? `<p><strong>Reason:</strong> ${escapeHtml(rejection_reason)}</p>`
+          : ""
+      }
+      <p>If you have any questions or would like to submit a revised request, please contact our support team at support@airqo.net.</p>
+    </td>
+  </tr>
   `;
 
     return constants.EMAIL_BODY({ email: contact_email, content, name });
