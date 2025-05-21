@@ -61,8 +61,11 @@ const checkStatus = async () => {
   }
 };
 
+global.cronJobs = global.cronJobs || {};
 const schedule = "0 0 * * *";
-cron.schedule(schedule, checkStatus, {
+const jobName = "active-status-job";
+
+global.cronJobs[jobName] = cron.schedule(schedule, checkStatus, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

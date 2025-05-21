@@ -22,8 +22,10 @@ const emailTemplates = require("./email.templates");
 const generateFilter = require("./generate-filter");
 const winstonLogger = require("./log-winston");
 const handleResponse = require("./responseHandler");
+const slugUtils = require("./slug.util");
 
 module.exports = {
+  slugUtils,
   winstonLogger,
   mailer,
   stringify,

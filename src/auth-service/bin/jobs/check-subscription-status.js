@@ -6,6 +6,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const { mailer, stringify } = require("@utils/common");
 const httpStatus = require("http-status");
+const cron = require("node-cron");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- subscription-utils`
@@ -69,9 +70,10 @@ const checkSubscriptionStatuses = async () => {
   }
 };
 
-// Schedule the subscription status check job
+global.cronJobs = global.cronJobs || {};
 const schedule = "0 1 * * *"; // every day at 1 AM
-cron.schedule(schedule, checkSubscriptionStatuses, {
+const jobName = "subscription-status-check-job";
+global.cronJobs[jobName] = cron.schedule(schedule, checkSubscriptionStatuses, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

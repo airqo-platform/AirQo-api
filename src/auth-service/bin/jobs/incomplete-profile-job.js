@@ -58,9 +58,10 @@ const checkStatus = async () => {
     logger.error(`Internal Server Error --- ${stringify(error)}`);
   }
 };
-
+global.cronJobs = global.cronJobs || {};
 const schedule = "0 0 * * *"; // every day at midnight
-cron.schedule(schedule, checkStatus, {
+const jobName = "incomplete-profile-job";
+global.cronJobs[jobName] = cron.schedule(schedule, checkStatus, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });
