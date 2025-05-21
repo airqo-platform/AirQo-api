@@ -103,8 +103,10 @@ const logUserPreferences = async () => {
   }
 };
 
+global.cronJobs = global.cronJobs || {};
 const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
-cron.schedule(schedule, logUserPreferences, {
+const jobName = "preferences-log-job";
+global.cronJobs[jobName] = cron.schedule(schedule, logUserPreferences, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

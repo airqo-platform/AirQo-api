@@ -184,9 +184,11 @@ async function updateProfilePictures() {
   }
 }
 
+global.cronJobs = global.cronJobs || {};
 // // Schedule the job to run daily at midnight
 const schedule = "0 0 * * *";
-cron.schedule(schedule, updateProfilePictures, {
+const jobName = "profile-picture-update-job";
+global.cronJobs[jobName] = cron.schedule(schedule, updateProfilePictures, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });
