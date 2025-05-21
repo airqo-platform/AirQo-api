@@ -11,6 +11,7 @@ const {
   logText,
   logElement,
   HttpError,
+  sanitizeEmailString,
   extractErrorsFromRequest,
 } = require("@utils/shared");
 const log4js = require("log4js");
@@ -128,6 +129,28 @@ const handleMailResponse = (data) => {
     );
   }
 };
+
+const getSubscribedEmails = async (emailList, tenant) => {
+  if (!emailList || !emailList.length) return [];
+
+  const checkPromises = emailList.map(async (email) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email: email.trim(), type: "email" });
+      return checkResult.success ? email.trim() : null;
+    } catch (error) {
+      logger.error(
+        `Error checking notification status for ${email}: ${error.message}`
+      );
+      return null;
+    }
+  });
+
+  const subscribedEmails = (await Promise.all(checkPromises)).filter(Boolean);
+  return subscribedEmails;
+};
+
 const mailer = {
   notifyAdminsOfNewOrgRequest: async (
     { organization_name, contact_name, contact_email, tenant = "airqo" } = {},
@@ -135,25 +158,12 @@ const mailer = {
   ) => {
     try {
       // Get admin emails
-      let adminEmails = [];
+      let adminEmails = constants.REQUEST_ACCESS_EMAILS
+        ? constants.REQUEST_ACCESS_EMAILS.split(",")
+        : ["support@airqo.net"];
 
-      if (constants.REQUEST_ACCESS_EMAILS) {
-        adminEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
-      }
-
-      const subscribedEmails = [];
-
-      // Check subscription status for admin emails
-      for (let i = 0; i < adminEmails.length; i++) {
-        const adminEmail = adminEmails[i].trim();
-        const checkResult = await SubscriptionModel(
-          tenant
-        ).checkNotificationStatus({ email: adminEmail, type: "email" });
-
-        if (checkResult.success) {
-          subscribedEmails.push(adminEmail);
-        }
-      }
+      // Get subscribed emails in parallel
+      const subscribedEmails = await getSubscribedEmails(adminEmails, tenant);
 
       // Format all admin emails for BCC
       const subscribedBccEmails = subscribedEmails.join(",");
@@ -162,13 +172,17 @@ const mailer = {
       const toEmail =
         subscribedEmails.length > 0 ? subscribedEmails[0] : "support@airqo.net";
 
+      logObject("toEmail", toEmail);
+
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: toEmail,
-        subject: `New Organization Request: ${organization_name}`,
+        subject: `New Organization Request: ${sanitizeEmailString(
+          organization_name
+        )}`,
         html: msgs.notifyAdminsOfNewOrgRequest({
           organization_name,
           contact_name,
@@ -247,7 +261,9 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: contact_email,
-        subject: `Your Organization Request: ${organization_name}`,
+        subject: `Your Organization Request: ${sanitizeEmailString(
+          organization_name
+        )}`,
         html: msgs.confirmOrgRequestReceived({
           organization_name,
           contact_name,
@@ -331,7 +347,9 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: contact_email,
-        subject: `Organization Request Approved: ${organization_name}`,
+        subject: `Organization Request Approved: ${sanitizeEmailString(
+          organization_name
+        )}`,
         html: msgs.notifyOrgRequestApproved({
           organization_name,
           contact_name,
@@ -416,7 +434,9 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: contact_email,
-        subject: `Organization Request Status: ${organization_name}`,
+        subject: `Organization Request Status: ${sanitizeEmailString(
+          organization_name
+        )}`,
         html: msgs.notifyOrgRequestRejected({
           organization_name,
           contact_name,
