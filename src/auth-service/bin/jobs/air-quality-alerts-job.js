@@ -305,9 +305,10 @@ const checkAirQualityAndAlert = async () => {
   }
 };
 
-// Schedule the job to run every hour
+global.cronJobs = global.cronJobs || {};
 const schedule = "0 * * * *"; // At minute 0 of every hour
-cron.schedule(schedule, checkAirQualityAndAlert, {
+const jobName = "air-quality-alerts-job";
+global.cronJobs[jobName] = cron.schedule(schedule, checkAirQualityAndAlert, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

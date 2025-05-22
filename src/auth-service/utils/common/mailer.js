@@ -11,6 +11,7 @@ const {
   logText,
   logElement,
   HttpError,
+  sanitizeEmailString,
   extractErrorsFromRequest,
 } = require("@utils/shared");
 const log4js = require("log4js");
@@ -128,7 +129,370 @@ const handleMailResponse = (data) => {
     );
   }
 };
+
+const getSubscribedEmails = async (emailList, tenant) => {
+  if (!emailList || !emailList.length) return [];
+
+  const checkPromises = emailList.map(async (email) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email: email.trim(), type: "email" });
+      return checkResult.success ? email.trim() : null;
+    } catch (error) {
+      logger.error(
+        `Error checking notification status for ${email}: ${error.message}`
+      );
+      return null;
+    }
+  });
+
+  const subscribedEmails = (await Promise.all(checkPromises)).filter(Boolean);
+  return subscribedEmails;
+};
+
 const mailer = {
+  notifyAdminsOfNewOrgRequest: async (
+    { organization_name, contact_name, contact_email, tenant = "airqo" } = {},
+    next
+  ) => {
+    try {
+      // Get admin emails
+      let adminEmails = constants.REQUEST_ACCESS_EMAILS
+        ? constants.REQUEST_ACCESS_EMAILS.split(",")
+        : ["support@airqo.net"];
+
+      // Get subscribed emails in parallel
+      const subscribedEmails = await getSubscribedEmails(adminEmails, tenant);
+
+      // Format all admin emails for BCC
+      const subscribedBccEmails = subscribedEmails.join(",");
+
+      // If no admins can receive emails, send to a default address
+      const toEmail =
+        subscribedEmails.length > 0 ? subscribedEmails[0] : "support@airqo.net";
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: toEmail,
+        subject: `New Organization Request: ${sanitizeEmailString(
+          organization_name
+        )}`,
+        html: msgs.notifyAdminsOfNewOrgRequest({
+          organization_name,
+          contact_name,
+          contact_email,
+        }),
+        bcc: subscribedBccEmails,
+        attachments: attachments,
+      };
+
+      // Send the email
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Admin notification email sent successfully",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        if (next) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Email notification to admins failed",
+                emailResults: data,
+              }
+            )
+          );
+        }
+        return {
+          success: false,
+          message: "Email notification to admins failed",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (next) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  confirmOrgRequestReceived: async (
+    { organization_name, contact_name, contact_email, tenant = "airqo" } = {},
+    next
+  ) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email: contact_email, type: "email" });
+
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: contact_email,
+        subject: `Your Organization Request: ${sanitizeEmailString(
+          organization_name
+        )}`,
+        html: msgs.confirmOrgRequestReceived({
+          organization_name,
+          contact_name,
+          contact_email,
+        }),
+        attachments: attachments,
+      };
+
+      // Send the email
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Confirmation email sent successfully",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        if (next) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Confirmation email failed",
+                emailResults: data,
+              }
+            )
+          );
+        }
+        return {
+          success: false,
+          message: "Confirmation email failed",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (next) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  notifyOrgRequestApproved: async (
+    {
+      organization_name,
+      contact_name,
+      contact_email,
+      login_url,
+      tenant = "airqo",
+    } = {},
+    next
+  ) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email: contact_email, type: "email" });
+
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: contact_email,
+        subject: `Organization Request Approved: ${sanitizeEmailString(
+          organization_name
+        )}`,
+        html: msgs.notifyOrgRequestApproved({
+          organization_name,
+          contact_name,
+          contact_email,
+          login_url,
+        }),
+        attachments: attachments,
+      };
+
+      // Send the email
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Approval notification email sent successfully",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        if (next) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Approval notification email failed",
+                emailResults: data,
+              }
+            )
+          );
+        }
+        return {
+          success: false,
+          message: "Approval notification email failed",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (next) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  notifyOrgRequestRejected: async (
+    {
+      organization_name,
+      contact_name,
+      contact_email,
+      rejection_reason,
+      tenant = "airqo",
+    } = {},
+    next
+  ) => {
+    try {
+      const checkResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({ email: contact_email, type: "email" });
+
+      if (!checkResult.success) {
+        return checkResult;
+      }
+
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: contact_email,
+        subject: `Organization Request Status: ${sanitizeEmailString(
+          organization_name
+        )}`,
+        html: msgs.notifyOrgRequestRejected({
+          organization_name,
+          contact_name,
+          contact_email,
+          rejection_reason,
+        }),
+        attachments: attachments,
+      };
+
+      // Send the email
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "Rejection notification email sent successfully",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        if (next) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Rejection notification email failed",
+                emailResults: data,
+              }
+            )
+          );
+        }
+        return {
+          success: false,
+          message: "Rejection notification email failed",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (next) {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            { message: error.message }
+          )
+        );
+      }
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
   candidate: async (
     { firstName, lastName, email, tenant = "airqo" } = {},
     next
