@@ -103,9 +103,6 @@ class DashboardDataUtils:
             location_category_count[name][category] = (
                 location_category_count[name][category] + 1
             )
-            location_category_count[name][category] = (
-                location_category_count[name][category] + 1
-            )
             location_category_count[name]["name"] = name
 
         return self.__destructure_pie_data(location_category_count.values())

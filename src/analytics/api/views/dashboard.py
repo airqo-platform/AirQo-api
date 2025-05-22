@@ -155,7 +155,6 @@ class D3ChartDataResource(Resource):
             json_data = DashboardChartDataSchema().load(request.json)
         except ValidationError as err:
             return {"errors": err.messages}, 400
-        json_data = request.get_json()
 
         try:
             filter_type, filter_value, error_message = get_validated_filter(json_data)
