@@ -1,4 +1,15 @@
-from marshmallow import Schema, fields as ma_fields, validate
+from marshmallow import (
+    Schema,
+    fields as ma_fields,
+    validate,
+    ValidationError,
+    validates_schema,
+)
+
+
+def validate_dates(data):
+    if data["endDate"] < data["startDate"]:
+        raise ValidationError("endDate must not be earlier than startDate.", "endDate")
 
 
 class DashboardChartDataSchema(Schema):
@@ -30,3 +41,7 @@ class DashboardChartDataSchema(Schema):
             error="Invalid chart type",
         ),
     )
+
+    @validates_schema
+    def validate_request_dates(self, data, **kwargs):
+        validate_dates(data)
