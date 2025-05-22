@@ -11,6 +11,7 @@ class PublicationSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "authors",
+            "description",
             "link",
             "resource_file_url",
             "link_title",

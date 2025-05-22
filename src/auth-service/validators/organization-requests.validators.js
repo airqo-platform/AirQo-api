@@ -3,14 +3,6 @@ const { body, param, query, validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 
-const validationMiddleware = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-  next();
-};
-
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -21,6 +13,15 @@ const pagination = (req, res, next) => {
 
 module.exports = {
   pagination,
+
+  checkSlugAvailability: [
+    param("slug")
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Slug must be between 2 and 100 characters")
+      .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .withMessage("Slug must be lowercase alphanumeric with hyphens only"),
+  ],
 
   create: [
     body("organization_name")
@@ -44,13 +45,18 @@ module.exports = {
       .notEmpty()
       .withMessage("Contact name is required"),
     body("use_case").trim().notEmpty().withMessage("Use case is required"),
+    body("country").trim().notEmpty().withMessage("Country is required"),
     body("organization_type")
       .trim()
       .notEmpty()
       .withMessage("Organization type is required")
-      .isIn(["academic", "government", "ngo", "private", "other"])
-      .withMessage("Invalid organization type"),
-    validationMiddleware,
+      .bail()
+      .isIn(constants.VALID_ORGANIZATION_TYPES)
+      .withMessage(
+        `Invalid organization type. Valid types are: ${constants.VALID_ORGANIZATION_TYPES.join(
+          ", "
+        )}`
+      ),
   ],
 
   list: [
@@ -58,13 +64,9 @@ module.exports = {
       .optional()
       .isIn(["pending", "approved", "rejected"])
       .withMessage("Invalid status"),
-    validationMiddleware,
   ],
 
-  approve: [
-    param("request_id").isMongoId().withMessage("Invalid request ID"),
-    validationMiddleware,
-  ],
+  approve: [param("request_id").isMongoId().withMessage("Invalid request ID")],
 
   reject: [
     param("request_id").isMongoId().withMessage("Invalid request ID"),
@@ -72,11 +74,7 @@ module.exports = {
       .trim()
       .notEmpty()
       .withMessage("Rejection reason is required"),
-    validationMiddleware,
   ],
 
-  getById: [
-    param("request_id").isMongoId().withMessage("Invalid request ID"),
-    validationMiddleware,
-  ],
+  getById: [param("request_id").isMongoId().withMessage("Invalid request ID")],
 };
