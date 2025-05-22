@@ -225,7 +225,9 @@ class DataUtils:
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
-
+            devices_data = devices_data[
+                devices_data["timestamp"].between(start_date_time, end_date_time)
+            ]
         return devices_data
 
     @staticmethod
