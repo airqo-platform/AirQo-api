@@ -975,7 +975,9 @@ class DataUtils:
 
         # Perform data quality checks on separate thread.
         Utils.execute_and_forget_async_task(
-            DataUtils.__perform_data_quality_checks(device_category, data.copy())
+            lambda: DataUtils.__perform_data_quality_checks(
+                device_category, data.copy()
+            )
         )
 
         try:

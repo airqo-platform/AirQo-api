@@ -113,7 +113,7 @@ class DataDownloadSchema(Schema):
         validate_mutually_exclusive_sites_devices_fields(data)
 
     @validates_schema
-    def validate_request_dates(data, **kwargs):
+    def validate_request_dates(self, data, **kwargs):
         validate_dates(data)
 
     @validates_schema
@@ -174,5 +174,5 @@ class DataExportSchema(Schema):
         validate_mutually_exclusive_sites_devices_fields(data)
 
     @validates_schema
-    def validate_request_dates(data, **kwargs):
+    def validate_request_dates(self, data, **kwargs):
         validate_dates(data)

@@ -71,7 +71,7 @@ class DashboardDataUtils:
 
     def d3_generate_pie_chart_data(
         self, records: List[Dict[str, Any]], pollutant
-    ) -> Dict:
+    ) -> List[List[Dict]]:
         """
         Function to generate pie_chart data
         Args:
