@@ -5,7 +5,7 @@ from api.utils.pollutants.pm_25 import get_pollutant_category, PM_COLOR_CATEGORY
 
 
 class DashboardDataUtils:
-    def processd3data(self, dataframe: pd.DataFrame) -> Dict:
+    def processd3data(self, dataframe: pd.DataFrame) -> List[Dict]:
         """
         Processes time-series sensor data.
 
