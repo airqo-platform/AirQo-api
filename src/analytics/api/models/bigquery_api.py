@@ -313,6 +313,7 @@ class BigQueryApi:
                       or if the `query_type` is not supported.
         """
         exclude_columns: List = []
+        table_name = Utils.table_name(table)
 
         where_fields = {} if where_fields is None else where_fields
 
@@ -340,10 +341,9 @@ class BigQueryApi:
                 where_clause += f" AND {key} in UNNEST({value}) "
 
         if query_type == QueryType.GET:
-            query = f""" SELECT {columns} FROM `{table}` WHERE {where_clause} """
+            query = f""" SELECT {columns} FROM `{table_name}` WHERE {where_clause} """
         else:
             raise Exception(f"Invalid Query Type {str(query_type)}")
-
         return query
 
     def query_data(
@@ -682,7 +682,7 @@ class BigQueryApi:
             lc_key = f"{pollutant}_{data_type.value}"
             bam_key = pollutant
 
-            # The frequency mapper determins which columns are returned
+            # The frequency mapper determines which columns are returned
             LC_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
                 lc_key, []
             )
