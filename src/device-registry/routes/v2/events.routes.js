@@ -4,8 +4,10 @@ const router = express.Router();
 const eventController = require("@controllers/event.controller");
 const eventValidations = require("@validators/events.validators");
 const { headers, pagination } = require("@validators/common");
+const extractCohortAccess = require("@middleware/extractCohortAccess");
 
 router.use(headers);
+router.use(extractCohortAccess);
 
 router.get(
   "/running",
@@ -54,6 +56,10 @@ router.get(
   pagination(),
   eventController.listHazardous
 );
+
+router.get("/get-events", eventController.getEvents);
+// router.get("/recent", eventController.getRecentEvents);
+// router.get("/historical", eventController.getHistoricalEvents);
 
 router.post("/", eventValidations.addEvents, eventController.addValues);
 router.post(
