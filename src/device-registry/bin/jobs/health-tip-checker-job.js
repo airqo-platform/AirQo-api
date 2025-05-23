@@ -10,6 +10,9 @@ const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
+const JOB_NAME = "health-tip-checker-job";
+const JOB_SCHEDULE = "0 */2 * * *"; // At minute 0 of every 2nd hour
+
 const checkHealthTipsCoverage = async () => {
   try {
     logText("Checking for AQI categories without health tips...");
@@ -88,12 +91,36 @@ const checkHealthTipsCoverage = async () => {
 
 logText("Health tip coverage checker job is now running...");
 
-// Run every 2 hours
-const schedule = "0 */2 * * *"; // At minute 0 of every 2nd hour
-cron.schedule(schedule, checkHealthTipsCoverage, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, checkHealthTipsCoverage, {
+    scheduled: true,
+    timezone: TIMEZONE,
+  });
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
+      delete global.cronJobs[JOB_NAME];
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();
 
 // Run initial check on startup
 checkHealthTipsCoverage();

@@ -16,7 +16,21 @@
     "prod": "cross-env NODE_ENV=production node --max-old-space-size=4096 ./bin",
     "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
     "test": "nyc --reporter=lcov mocha --require config/tests-config.js ./**/test/ut_*.js --exit | coveralls",
-    "kill": "node kill-app.js"
+    "kill": "node kill-app.js",
+    "kill:force": "node kill-app.js --force",
+    "kill:help": "node kill-app.js --help",
+    "kill:port": "node kill-app.js",
+    "kill-jobs": "node kill-jobs.js",
+    "kill-jobs:force": "node kill-jobs.js --force",
+    "cleanup": "npm run kill:force && npm run kill-jobs:force",
+    "cleanup:preview": "npm run kill && npm run kill-jobs",
+    "emergency": "node emergency-job-killer.js",
+    "emergency:force": "node emergency-job-killer.js --force",
+    "emergency:nuclear": "node emergency-job-killer.js --nuclear --force",
+    "emergency:help": "node emergency-job-killer.js --help",
+    "cleanup:all": "node cleanup-all.js",
+    "cleanup:all:force": "node cleanup-all.js --force",
+    "diagnose-jobs": "node diagnose-jobs.js"
   },
   "_moduleAliases": {
     "@root": ".",
