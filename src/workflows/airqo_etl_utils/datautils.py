@@ -225,17 +225,9 @@ class DataUtils:
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
-        else:
-            devices_data = pd.DataFrame()
-
-        if "vapor_pressure" in devices_data.columns.to_list():
-            is_airqo_network = devices_data["network"] == "airqo"
-            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                is_airqo_network, "vapor_pressure"
-            ].apply(DataValidationUtils.convert_pressure_values)
-
-        devices_data.dropna(subset=["site_id"], how="any", inplace=True)
-
+            devices_data = devices_data[
+                devices_data["timestamp"].between(start_date_time, end_date_time)
+            ]
         return devices_data
 
     @staticmethod
@@ -967,9 +959,9 @@ class DataUtils:
         5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
 
         Args:
-            data (pd.DataFrame): The input data to be cleaned.
-            device_category (DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
-            remove_outliers (bool, optional): Determines whether outliers should be removed. Defaults to True.
+            data(pd.DataFrame): The input data to be cleaned.
+            device_category(DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
+            remove_outliers(bool, optional): Determines whether outliers should be removed. Defaults to True.
 
         Returns:
             pd.DataFrame: The cleaned DataFrame.
@@ -977,23 +969,30 @@ class DataUtils:
         Raises:
             KeyError: If there are issues with the 'timestamp' column during processing.
         """
+        # It's assumed that if a row has no site_id, it could be from an undeployed device.
+        data.dropna(subset=["site_id"], how="any", inplace=True)
+
         if remove_outliers:
             data = DataValidationUtils.remove_outliers_fix_types(data)
 
-        # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
-        match device_category:
-            case DeviceCategory.GAS:
-                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                    data
-                )
-            case DeviceCategory.LOWCOST:
-                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
-        try:
+        # Perform data quality checks on separate thread.
+        Utils.execute_and_forget_async_task(
+            lambda: DataUtils.__perform_data_quality_checks(
+                device_category, data.copy()
+            )
+        )
 
+        try:
             networks = set(data.network.unique())
             dropna_subset = []
 
             if "airqo" in networks:
+                if "vapor_pressure" in data.columns:
+                    values = pd.to_numeric(data["vapor_pressure"], errors="coerce")
+                    converted = values * 0.1
+                    mask_valid = ~values.isna()
+                    data.loc[:, "vapor_pressure"] = converted[mask_valid]
+
                 # Airqo devices specific fields
                 dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
 
@@ -1529,3 +1528,29 @@ class DataUtils:
                 f"An unexpected error occurred during column retrieval: {e}"
             )
         return None, []
+
+    def __perform_data_quality_checks(
+        device_category: DeviceCategory, data: pd.DataFrame
+    ) -> None:
+        """
+        Perform data quality checks on the provided DataFrame based on the device category.
+
+        This function routes the data quality check to the appropriate Great Expectations validation suite depending on the type of device. It does not modify the original DataFrame or return any results. Intended to run as a fire-and-forget task.
+
+        Args:
+            device_category(DeviceCategory): The category of the device (e.g., GAS, LOWCOST).
+            data(pd.DataFrame): The raw sensor data to be validated.
+        """
+
+        # TODO Find a more structured and robust way to implement raw data quality checks.
+        """
+            - Future improvements could include structured validation logging, metrics collection,
+                and exception handling for failures.
+        """
+        match device_category:
+            case DeviceCategory.GAS:
+                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                    data
+                )
+            case DeviceCategory.LOWCOST:
+                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)

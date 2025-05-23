@@ -318,7 +318,9 @@ async function runUpdateUserActivities() {
   }
 }
 
-cron.schedule("0 * * * *", runUpdateUserActivities, {
+global.cronJobs = global.cronJobs || {};
+const jobName = "update-user-activities-job";
+global.cronJobs[jobName] = cron.schedule("0 * * * *", runUpdateUserActivities, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

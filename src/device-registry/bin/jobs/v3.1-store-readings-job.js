@@ -16,6 +16,9 @@ const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 const BATCH_SIZE = 50;
 
+const JOB_NAME = "v3.1-store-readings-job";
+const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+
 function logDocumentDetails(doc) {
   const deviceId = doc.device_id || "N/A";
   const device = doc.device || "N/A";
@@ -312,8 +315,34 @@ const fetchAndStoreDataIntoReadingsModel = async () => {
   }
 };
 
-const schedule = "30 * * * *";
-cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(
+    JOB_SCHEDULE,
+    fetchAndStoreDataIntoReadingsModel,
+    {
+      scheduled: true,
+      timezone: TIMEZONE,
+    }
+  );
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop(); // 👈 Stop scheduling
+      cronJobInstance.destroy(); // 👈 Clean up resources
+      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+startJob();

@@ -13,6 +13,9 @@ const { logObject, logText } = require("@utils/shared");
 
 const TIMEZONE = moment.tz.guess();
 
+const JOB_NAME = "network-uptime-analysis-job";
+const JOB_SCHEDULE = "0 0 * * *"; // At midnight every day
+
 class NetworkUptimeAnalysis {
   constructor() {
     this.bigquery = new BigQuery();
@@ -179,12 +182,38 @@ class NetworkUptimeAnalysis {
 // Create job instance
 const networkUptimeJob = new NetworkUptimeAnalysis();
 
-// Run daily at midnight
-const schedule = "0 0 * * *";
-cron.schedule(schedule, () => networkUptimeJob.runJob(), {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(
+    JOB_SCHEDULE,
+    () => networkUptimeJob.runJob(),
+    {
+      scheduled: true,
+      timezone: TIMEZONE,
+    }
+  );
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop(); // 👈 Stop scheduling
+      cronJobInstance.destroy(); // 👈 Clean up resources
+      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();
 
 logger.info("Network uptime analysis job is now running.....");
 logText("Network uptime analysis job is now running.....");

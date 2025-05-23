@@ -13,6 +13,10 @@ const FIELDS_TO_CHECK = ["name", "search_name", "description"];
 // Frequency configuration
 const WARNING_FREQUENCY_HOURS = 6; // Change this value to adjust frequency
 
+//job identification
+const JOB_NAME = "check-duplicate-site-fields-job";
+const JOB_SCHEDULE = `45 */${WARNING_FREQUENCY_HOURS} * * *`;
+
 // Helper function to group sites by field value
 const groupSitesByFieldValue = (sites, fieldName) => {
   return sites.reduce((acc, site) => {
@@ -94,13 +98,38 @@ const checkDuplicateSiteFields = async () => {
   }
 };
 
-// Initial run message
-logText("Duplicate site fields checker job is now running.....");
-// Schedule the job to run every 6 hours at minute 45
-const schedule = `45 */${WARNING_FREQUENCY_HOURS} * * *`;
-cron.schedule(schedule, checkDuplicateSiteFields, {
-  scheduled: true,
-});
+// Create and register the job
+const startJob = () => {
+  const cronJobInstance = cron.schedule(
+    JOB_SCHEDULE,
+    checkDuplicateSiteFields,
+    {
+      scheduled: true,
+    }
+  );
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
+      delete global.cronJobs[JOB_NAME];
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();
 
 // Export for testing or manual execution
 module.exports = {

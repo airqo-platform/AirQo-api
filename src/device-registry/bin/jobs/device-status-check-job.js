@@ -15,6 +15,9 @@ const MAX_ONLINE_ACCEPTABLE_DURATION = 3600; // 1 hour
 const DUE_FOR_MAINTENANCE_DURATION = 86400 * 7; // 7 days
 const BATCH_SIZE = 100; // Process devices in batches for better memory management
 
+const JOB_NAME = "device-status-check-job";
+const JOB_SCHEDULE = "0 */2 * * *"; // At minute 0 of every 2nd hour
+
 const processDeviceBatch = async (devices) => {
   const metrics = {
     online: { count: 0, devices: [] },
@@ -207,10 +210,33 @@ const runDeviceStatusCheck = async () => {
   await computeDeviceChannelStatus("airqo");
 };
 
-// Schedule the job (every 2 hours)
-cron.schedule("0 */2 * * *", runDeviceStatusCheck, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, runDeviceStatusCheck, {
+    scheduled: true,
+    timezone: TIMEZONE,
+  });
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop(); // 👈 Stop scheduling
+      cronJobInstance.destroy(); // 👈 Clean up resources
+      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();
 
 module.exports = { computeDeviceChannelStatus, runDeviceStatusCheck };

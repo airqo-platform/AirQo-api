@@ -2,7 +2,7 @@ from itertools import chain
 import logging
 import numpy as np
 import pandas as pd
-from typing import Optional, List
+from typing import Optional, List, Any
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import ColumnDataType
 from .config import configuration as Config
@@ -162,10 +162,3 @@ class DataValidationUtils:
                 logger.warning(f"{column} missing in dataset")
                 data[column] = None
         return data
-
-    @staticmethod
-    def convert_pressure_values(value):
-        try:
-            return float(value) * 0.1
-        except Exception:
-            return value
