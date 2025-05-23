@@ -1,13 +1,14 @@
 import json
 import os
-from datetime import datetime, timedelta, timezone
+import asyncio
+from threading import Thread
+from datetime import timedelta
 import pandas as pd
 import requests
 from requests import Response
-from typing import List, Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Coroutine
 
 from .constants import (
-    ColumnDataType,
     Pollutant,
     DataSource,
     CountryModels,
@@ -20,6 +21,8 @@ from .config import configuration as Config
 import logging
 
 logger = logging.getLogger("airflow.task")
+
+AsyncTask = Coroutine[Any, Any, Any]
 
 
 class Utils:
@@ -140,16 +143,6 @@ class Utils:
         return frequency_map.get(data_source, "1H")
 
     @staticmethod
-    def handle_api_error(response: Response):
-        try:
-            print("URL:", response._request_url)
-            print("Response:", response.data)
-        except Exception as ex:
-            print("Error while handling API error:", ex)
-        finally:
-            print("API request failed with status code:", response.status)
-
-    @staticmethod
     def query_dates_array(
         data_source: DataSource,
         start_date_time,
@@ -263,3 +256,29 @@ class Utils:
             return f"{calibrateby.value}{model_type}"
 
         return f"{calibrateby}{model_type}"
+
+    @staticmethod
+    def execute_and_forget_async_task(job: AsyncTask) -> None:
+        """
+        Executes an asynchronous coroutine in a background daemon thread without blocking the main thread.
+
+        This function is useful for "execute-and-forget" style background tasks, where the result of the coroutine is not needed immediately, and you don't want the main application to wait for its completion.
+
+        Args:
+            job(Coroutine): An awaitable coroutine object to be executed asynchronously.
+
+        Notes:
+            - The coroutine is executed inside a new event loop.
+            - The thread is marked as a daemon, so it won't prevent the program from exiting.
+            - Exceptions in the coroutine are not propagated to the main thread. Handle them within the coroutine.
+        """
+
+        def _run():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(job())
+            finally:
+                loop.close()
+
+        Thread(target=_run, daemon=True).start()

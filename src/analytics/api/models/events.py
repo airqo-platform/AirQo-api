@@ -29,8 +29,6 @@ class EventsModel(BasePyMongoModel):
     BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES_SITES}`"
     BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES_DEVICES}`"
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
-
-    BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
     DATA_EXPORT_LIMIT = CONFIGURATIONS.DATA_EXPORT_LIMIT
     BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
 
@@ -58,6 +56,7 @@ class EventsModel(BasePyMongoModel):
         self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
         self.bam_data_table = Utils.table_name(Config.BIGQUERY_BAM_DATA)
+        self.bigquery_events = Utils.table_name(Config.BIGQUERY_HOURLY_DATA)
         super().__init__(network, collection_name="events")
 
     def data_export_query(
@@ -576,9 +575,9 @@ class EventsModel(BasePyMongoModel):
 
         query = f"""
             SELECT AVG({pollutant}) as value, site_id
-            FROM {self.BIGQUERY_EVENTS}
-            WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
-            AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}' GROUP BY site_id
+            FROM {self.bigquery_events}
+            WHERE  {self.bigquery_events}.timestamp >= '{start_date}'
+            AND {self.bigquery_events}.timestamp <= '{end_date}' GROUP BY site_id
         """
 
         client = bigquery.Client()
@@ -598,10 +597,10 @@ class EventsModel(BasePyMongoModel):
 
         query = f"""
             SELECT AVG({pollutant}) as value, device_id
-            FROM {self.BIGQUERY_EVENTS}
-            WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
-            AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-            AND {self.BIGQUERY_EVENTS}.device_id IN UNNEST({devices}) GROUP BY device_id
+            FROM {self.bigquery_events}
+            WHERE  {self.bigquery_events}.timestamp >= '{start_date}'
+            AND {self.bigquery_events}.timestamp <= '{end_date}'
+            AND {self.bigquery_events}.device_id IN UNNEST({devices}) GROUP BY device_id
         """
 
         client = bigquery.Client()
@@ -624,10 +623,10 @@ class EventsModel(BasePyMongoModel):
     AVG({pollutant}) as {pollutant},
     device_id,
     TIMESTAMP(DATE(timestamp), "UTC") as timestamp
-    FROM {self.BIGQUERY_EVENTS}
-    WHERE {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
-    AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-    AND {self.BIGQUERY_EVENTS}.device_id IN UNNEST({devices})
+    FROM {self.bigquery_events}
+    WHERE {self.bigquery_events}.timestamp >= '{start_date}'
+    AND {self.bigquery_events}.timestamp <= '{end_date}'
+    AND {self.bigquery_events}.device_id IN UNNEST({devices})
     GROUP BY device_id, timestamp
     ORDER BY device_id, timestamp;
         """
@@ -699,123 +698,6 @@ class EventsModel(BasePyMongoModel):
             .unwind("site")
             .exec()
         )
-
-    @cache.memoize()
-    def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
-        diurnal_end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
-            tzinfo=pytz.utc
-        )
-        now = datetime.now(pytz.utc)
-        diurnal_end_date = diurnal_end_date if diurnal_end_date < now else now
-
-        time_format_mapper = {
-            "raw": "%Y-%m-%dT%H:%M:%S%z",
-            "hourly": "%Y-%m-%dT%H:00:00%z",
-            "daily": "%Y-%m-%dT00:00:00%z",
-            "monthly": "%Y-%m-01T00:00:00%z",
-            "diurnal": f'{diurnal_end_date.strftime("%Y-%m-%d")}T%H:00:00%z',
-        }
-
-        return (
-            self.project(
-                **{"values.time": 1, "values.site_id": 1, f"values.{pollutant}": 1}
-            )
-            .date_range("values.time", start_date=start_date, end_date=end_date)
-            .match_in(**{"values.site_id": self.to_object_ids(sites)})
-            .filter_by(**{"values.frequency": "raw"})
-            .unwind("values")
-            .replace_root("values")
-            .project(
-                _id=0,
-                time={
-                    "$dateToString": {
-                        "format": time_format_mapper.get(frequency)
-                        or time_format_mapper.get("hourly"),
-                        "date": "$time",
-                        "timezone": "Africa/Kampala",
-                    }
-                },
-                **{f"{pollutant}.value": 1},
-                site_id={"$toString": "$site_id"},
-            )
-            .remove_outliers(pollutant)
-            .group(
-                _id={"site_id": "$site_id", "time": "$time"},
-                time={"$first": "$time"},
-                site_id={"$first": "$site_id"},
-                value={"$avg": f"${pollutant}.value"},
-            )
-            .sort(time=self.ASCENDING)
-            .project(_id=0, site_id={"$toObjectId": "$site_id"}, time=1, value=1)
-            .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
-            .project(
-                _id=0,
-                time=1,
-                value={"$round": ["$value", 2]},
-                site_id={"$toString": "$site_id"},
-                name="$site.name",
-                generated_name="$site.generated_name",
-            )
-            .unwind("name")
-            .unwind("generated_name")
-            .exec()
-        )
-
-    @cache.memoize()
-    def get_d3_chart_events_v2(self, sites, start_date, end_date, pollutant, frequency):
-        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
-            raise Exception("Invalid pollutant")
-
-        columns = [
-            "site_id",
-            "name",
-            "timestamp as time",
-            "description as generated_name",
-            f"{pollutant} as value",
-        ]
-
-        query = f"""
-          SELECT {', '.join(map(str, columns))}
-          FROM {self.BIGQUERY_EVENTS}
-          JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id
-          WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
-          AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
-          AND {self.BIGQUERY_SITES}.id in UNNEST({sites})
-        """
-
-        client = bigquery.Client()
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        dataframe = client.query(query, job_config).result().to_dataframe()
-        dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
-        site_groups = dataframe.groupby("site_id")
-
-        data = []
-        if frequency.lower() == "daily":
-            resample_value = "24H"
-        elif frequency.lower() == "monthly":
-            resample_value = "720H"
-        elif frequency.lower() == "hourly":
-            resample_value = "1H"
-        else:
-            resample_value = "1H"
-
-        for _, site_group in site_groups:
-            values = site_group[["value", "time"]]
-            ave_values = pd.DataFrame(values.resample(resample_value, on="time").mean())
-            ave_values["time"] = ave_values.index
-            ave_values["time"] = ave_values["time"].apply(date_to_str)
-            ave_values = ave_values.reset_index(drop=True)
-
-            ave_values["site_id"] = site_group.iloc[0]["site_id"]
-            ave_values["generated_name"] = site_group.iloc[0]["generated_name"]
-            ave_values["name"] = site_group.iloc[0]["name"]
-            ave_values = ave_values.fillna(0)
-
-            data.extend(ave_values.to_dict(orient="records"))
-
-        return data
 
     def get_events(self, sites, start_date, end_date, frequency):
         """

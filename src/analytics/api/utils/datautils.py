@@ -186,6 +186,6 @@ class DataUtils:
                 data.drop(columns=columns_to_drop, inplace=True)
 
         zero_columns = data.columns[(data == 0).all()]
-        data.drop(columns=zero_columns, inplace=True)
+        data.drop(columns=zero_columns, axis=1, inplace=True)
 
         return data
