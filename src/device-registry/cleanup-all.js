@@ -3,6 +3,35 @@ const { execSync } = require("child_process");
 // Platform detection
 const isWindows = process.platform === "win32";
 
+// Command availability cache
+const commandAvailability = {
+  lsof: null,
+  netstat: null,
+  ss: null,
+};
+
+/**
+ * Check if a command is available on the system
+ */
+function isCommandAvailable(command) {
+  if (commandAvailability[command] !== null) {
+    return commandAvailability[command];
+  }
+
+  try {
+    if (isWindows) {
+      execSync(`where ${command}`, { stdio: "pipe" });
+    } else {
+      execSync(`which ${command}`, { stdio: "pipe" });
+    }
+    commandAvailability[command] = true;
+    return true;
+  } catch (error) {
+    commandAvailability[command] = false;
+    return false;
+  }
+}
+
 /**
  * Find all Node.js processes that might be related to your applications
  */
@@ -88,11 +117,116 @@ function filterRelevantProcesses(processes) {
 }
 
 /**
- * Find processes using common ports
+ * Find processes using a specific port with lsof (Unix/Linux)
+ */
+function findProcessesWithLsof(port) {
+  try {
+    const result = execSync(`lsof -i :${port} -t`)
+      .toString()
+      .trim();
+
+    if (result) {
+      return result.split("\n").filter(Boolean);
+    }
+    return [];
+  } catch (error) {
+    // Port not in use or other lsof error
+    return [];
+  }
+}
+
+/**
+ * Find processes using a specific port with ss (modern alternative to netstat)
+ */
+function findProcessesWithSs(port) {
+  try {
+    const result = execSync(`ss -tlnp | grep :${port}`)
+      .toString()
+      .trim();
+
+    if (result) {
+      const pids = [];
+      result.split("\n").forEach((line) => {
+        // Extract PID from ss output format: users:(("process",pid=1234,fd=5))
+        const pidMatch = line.match(/pid=(\d+)/);
+        if (pidMatch) {
+          pids.push(pidMatch[1]);
+        }
+      });
+      return pids;
+    }
+    return [];
+  } catch (error) {
+    return [];
+  }
+}
+
+/**
+ * Find processes using a specific port with netstat (fallback)
+ */
+function findProcessesWithNetstat(port) {
+  try {
+    const result = execSync(`netstat -tlnp 2>/dev/null | grep :${port}`)
+      .toString()
+      .trim();
+
+    if (result) {
+      const pids = [];
+      result.split("\n").forEach((line) => {
+        // Extract PID from netstat output format: tcp ... 1234/process_name
+        const pidMatch = line.match(/(\d+)\//);
+        if (pidMatch) {
+          pids.push(pidMatch[1]);
+        }
+      });
+      return pids;
+    }
+    return [];
+  } catch (error) {
+    return [];
+  }
+}
+
+/**
+ * Find processes on Unix/Linux using multiple fallback methods
+ */
+function findUnixProcessesOnPort(port) {
+  let pids = [];
+
+  // Try lsof first (most reliable when available)
+  if (isCommandAvailable("lsof")) {
+    pids = findProcessesWithLsof(port);
+    if (pids.length > 0) {
+      return pids;
+    }
+  }
+
+  // Try ss (modern alternative)
+  if (isCommandAvailable("ss")) {
+    pids = findProcessesWithSs(port);
+    if (pids.length > 0) {
+      return pids;
+    }
+  }
+
+  // Fallback to netstat
+  if (isCommandAvailable("netstat")) {
+    pids = findProcessesWithNetstat(port);
+    if (pids.length > 0) {
+      return pids;
+    }
+  }
+
+  return [];
+}
+
+/**
+ * Find processes using common ports with better error handling
  */
 function findProcessesOnCommonPorts() {
   const commonPorts = [3000, 3001, 3002, 8000, 8080, 8081];
   let allPortProcesses = [];
+  const unavailableCommands = new Set();
 
   commonPorts.forEach((port) => {
     try {
@@ -115,11 +249,15 @@ function findProcessesOnCommonPorts() {
             .filter((pid) => /^\d+$/.test(pid));
         }
       } else {
-        const result = execSync(`lsof -i :${port} -t`)
-          .toString()
-          .trim();
-        if (result) {
-          pids = result.split("\n").filter(Boolean);
+        // Unix/Linux with multiple fallback methods
+        pids = findUnixProcessesOnPort(port);
+
+        // Track which commands are unavailable for user feedback
+        if (pids.length === 0) {
+          if (!isCommandAvailable("lsof")) unavailableCommands.add("lsof");
+          if (!isCommandAvailable("ss")) unavailableCommands.add("ss");
+          if (!isCommandAvailable("netstat"))
+            unavailableCommands.add("netstat");
         }
       }
 
@@ -130,9 +268,22 @@ function findProcessesOnCommonPorts() {
         });
       }
     } catch (error) {
-      // Port not in use, continue
+      // Port not in use or command failed, continue
+      console.log(`   ⚠️  Could not check port ${port}: ${error.message}`);
     }
   });
+
+  // Inform user about missing commands
+  if (unavailableCommands.size > 0 && !isWindows) {
+    console.log(
+      `   ⚠️  Some network commands unavailable: ${Array.from(
+        unavailableCommands
+      ).join(", ")}`
+    );
+    console.log(
+      `   💡 Port scanning may be incomplete. Consider installing missing tools.`
+    );
+  }
 
   return allPortProcesses;
 }
@@ -154,11 +305,62 @@ function killProcess(pid) {
 }
 
 /**
+ * Validate system requirements and provide helpful feedback
+ */
+function validateSystemRequirements() {
+  console.log("🔧 Checking system requirements...");
+
+  if (isWindows) {
+    console.log("   ✅ Windows detected - using tasklist/netstat");
+    return true;
+  }
+
+  // Check Unix/Linux tools
+  const hasLsof = isCommandAvailable("lsof");
+  const hasSs = isCommandAvailable("ss");
+  const hasNetstat = isCommandAvailable("netstat");
+
+  console.log(
+    `   ${hasLsof ? "✅" : "❌"} lsof: ${hasLsof ? "available" : "not found"}`
+  );
+  console.log(
+    `   ${hasSs ? "✅" : "❌"} ss: ${hasSs ? "available" : "not found"}`
+  );
+  console.log(
+    `   ${hasNetstat ? "✅" : "❌"} netstat: ${
+      hasNetstat ? "available" : "not found"
+    }`
+  );
+
+  if (!hasLsof && !hasSs && !hasNetstat) {
+    console.log(
+      "   ⚠️  No network tools available - port scanning will be limited"
+    );
+    console.log(
+      "   💡 Install one of: lsof, iproute2 (ss), or net-tools (netstat)"
+    );
+    return false;
+  }
+
+  if (!hasLsof) {
+    console.log(
+      "   💡 For best results, install lsof: apt-get install lsof (Ubuntu/Debian)"
+    );
+  }
+
+  return true;
+}
+
+/**
  * Main cleanup function
  */
 function main() {
   console.log("🧹 Starting comprehensive cleanup...");
   console.log(`📱 Platform: ${isWindows ? "Windows" : "Unix/Linux"}\n`);
+
+  // Validate system requirements
+  const hasRequiredTools = validateSystemRequirements();
+  console.log("");
 
   // Step 1: Find all Node.js processes
   console.log("📊 STEP 1: Finding all Node.js processes...");
@@ -210,6 +412,10 @@ function main() {
 
   if (uniquePidsToKill.length === 0) {
     console.log("🎉 No cleanup needed! No relevant processes found.");
+    if (!hasRequiredTools && !isWindows) {
+      console.log("\n💡 Note: Limited scanning due to missing network tools.");
+      console.log("   Some processes on ports might not have been detected.");
+    }
     return;
   }
 
@@ -281,10 +487,15 @@ Usage:
   npm run cleanup:all                 # Preview mode via npm
   npm run cleanup:all -- --force      # Force mode via npm
 
+Requirements:
+  Windows: Built-in tools (tasklist, netstat)
+  Unix/Linux: One or more of: lsof, ss (iproute2), netstat (net-tools)
+
 Safety:
 - Always run in preview mode first to see what will be killed
 - Use --force flag only when you're sure
 - This is a one-time cleanup for orphaned processes
+- Works even with minimal system tools (graceful degradation)
 `);
   process.exit(0);
 }

@@ -80,6 +80,7 @@ const startJob = () => {
   // Create the cron job instance 👇 THIS IS THE cronJobInstance!
   const cronJobInstance = cron.schedule(JOB_SCHEDULE, checkNetworkStatus, {
     scheduled: true,
+    timezone: constants.TIMEZONE,
   });
 
   // Initialize global registry

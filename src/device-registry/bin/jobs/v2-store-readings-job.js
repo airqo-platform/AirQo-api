@@ -247,6 +247,7 @@ const startJob = () => {
     fetchAndStoreDataIntoReadingsModel,
     {
       scheduled: true,
+      timezone: constants.TIMEZONE,
     }
   );
 

@@ -140,10 +140,20 @@ const fetchAndStoreDataIntoSignalsModel = async () => {
   }
 };
 
-// Wrapper function to handle promises for graceful shutdown
 const jobWrapper = async () => {
-  currentJobPromise = fetchAndStoreDataIntoSignalsModel();
-  await currentJobPromise;
+  try {
+    currentJobPromise = fetchAndStoreDataIntoSignalsModel();
+    await currentJobPromise;
+    logger.info(`✅ ${JOB_NAME} wrapper completed successfully`);
+  } catch (error) {
+    // Handle any unhandled errors from the job execution
+    logger.error(`💥 Unhandled error in ${JOB_NAME}: ${error.message}`);
+    logger.error(`Stack: ${error.stack}`);
+
+    // Reset job state in case of error
+    isJobRunning = false;
+    currentJobPromise = null;
+  }
 };
 
 // Create and start the cron job
@@ -221,21 +231,6 @@ if (!global.jobShutdownHandlersRegistered) {
   process.on("SIGTERM", () => handleShutdown("SIGTERM"));
   global.jobShutdownHandlersRegistered = true;
 }
-
-// Handle uncaught exceptions in this job
-process.on("uncaughtException", (error) => {
-  logger.error(`💥 Uncaught Exception in ${JOB_NAME}: ${error.message}`);
-  logger.error(`Stack: ${error.stack}`);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error(
-    `🚫 Unhandled Rejection in ${JOB_NAME} at:`,
-    promise,
-    "reason:",
-    reason
-  );
-});
 
 // Start the job
 try {
