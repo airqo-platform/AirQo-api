@@ -25,48 +25,10 @@ const UPTIME_CHECK_THRESHOLD = 168;
 const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 
-// Centralized AQI Range Configuration
-const AQI_RANGES = {
-  good: { min: 0, max: 9.1 },
-  moderate: { min: 9.101, max: 35.49 },
-  u4sg: { min: 35.491, max: 55.49 },
-  unhealthy: { min: 55.491, max: 125.49 },
-  very_unhealthy: { min: 125.491, max: 225.49 },
-  hazardous: { min: 225.491, max: null },
-};
-
-// Centralized AQI Color Configuration
-const AQI_COLORS = {
-  good: "34C759",
-  moderate: "ECAA06",
-  u4sg: "FF851F",
-  unhealthy: "F7453C",
-  very_unhealthy: "AC5CD9",
-  hazardous: "D95BA3",
-  unknown: "Unknown",
-};
-
-// Centralized AQI Category Name Configuration
-const AQI_CATEGORIES = {
-  good: "Good",
-  moderate: "Moderate",
-  u4sg: "Unhealthy for Sensitive Groups",
-  unhealthy: "Unhealthy",
-  very_unhealthy: "Very Unhealthy",
-  hazardous: "Hazardous",
-  unknown: "Unknown",
-};
-
-// Centralized AQI Color Name Configuration
-const AQI_COLOR_NAMES = {
-  good: "Green",
-  moderate: "Yellow",
-  u4sg: "Orange",
-  unhealthy: "Red",
-  very_unhealthy: "Purple",
-  hazardous: "Maroon",
-  unknown: "Unknown",
-};
+const AQI_COLORS = constants.AQI_COLORS;
+const AQI_CATEGORIES = constants.AQI_CATEGORIES;
+const AQI_COLOR_NAMES = constants.AQI_COLOR_NAMES;
+const AQI_RANGES = constants.AQI_RANGES;
 
 // Shared AQI condition branches to avoid duplication
 const AQI_BRANCHES = [

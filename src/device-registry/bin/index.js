@@ -35,9 +35,11 @@ const startKafka = async () => {
 const main = async () => {
   try {
     await startKafka();
-    createServer();
+    const server = createServer();
+    global.server = server;
   } catch (error) {
     logger.error(`🐛🐛 error in the main() -- ${stringify(error)}`);
+    process.exit(1);
   }
 };
 
