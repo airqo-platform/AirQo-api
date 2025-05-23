@@ -8,6 +8,9 @@ const cron = require("node-cron");
 const UNASSIGNED_THRESHOLD = 0;
 const { logObject, logText } = require("@utils/shared");
 
+const JOB_NAME = "check-unassigned-sites-job";
+const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+
 const checkUnassignedSites = async () => {
   try {
     // Count total number of active sites
@@ -66,8 +69,33 @@ const checkUnassignedSites = async () => {
   }
 };
 
-logText("Unassigned sites job is now running.....");
-const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
-cron.schedule(schedule, checkUnassignedSites, {
-  scheduled: true,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, checkUnassignedSites, {
+    scheduled: true,
+    timezone: constants.TIMEZONE,
+  });
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
+      delete global.cronJobs[JOB_NAME];
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();

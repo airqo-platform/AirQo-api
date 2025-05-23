@@ -13,6 +13,9 @@ const NetworkUptimeModel = require("@models/NetworkUptime");
 const TIMEZONE = moment.tz.guess();
 const BATCH_SIZE = 50;
 
+const JOB_NAME = "device-uptime-job";
+const JOB_SCHEDULE = "0 */2 * * *"; // At minute 0 of every 2nd hour
+
 const getDeviceRecords = async (tenant, channelId, deviceName, isActive) => {
   try {
     const response = await axios.get(`${process.env.DEVICE_READINGS_URL}`, {
@@ -169,13 +172,33 @@ const runDeviceUptimeCheck = async () => {
   await saveDeviceUptime("airqo");
 };
 
-// Log that the job is starting
-logger.info("Device uptime check job is now running.....");
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, runDeviceUptimeCheck, {
+    scheduled: true,
+    timezone: TIMEZONE,
+  });
 
-// Schedule the job (every 2 hours)
-cron.schedule("0 */2 * * *", runDeviceUptimeCheck, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop(); // 👈 Stop scheduling
+      cronJobInstance.destroy(); // 👈 Clean up resources
+      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();
 
 module.exports = { saveDeviceUptime, runDeviceUptimeCheck };

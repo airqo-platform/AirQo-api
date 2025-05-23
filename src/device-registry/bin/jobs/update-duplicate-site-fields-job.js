@@ -13,6 +13,9 @@ const FIELDS_TO_UPDATE = ["name", "search_name", "description"];
 // Frequency configuration
 const WARNING_FREQUENCY_HOURS = 4; // Change this value to adjust frequency
 
+const JOB_NAME = "update-duplicate-site-fields-job";
+const JOB_SCHEDULE = `15 */${WARNING_FREQUENCY_HOURS} * * *`;
+
 // Helper function to extract site number from generated_name
 const extractSiteNumber = (generated_name) => {
   const match = generated_name.match(/site_(\d+)/);
@@ -149,10 +152,40 @@ const updateDuplicateSiteFields = async () => {
 // Initial run message
 logText("Update duplicate site fields job is now running.....");
 // Schedule the job to run every 4 hours at minute 15
-const schedule = `15 */${WARNING_FREQUENCY_HOURS} * * *`;
-cron.schedule(schedule, updateDuplicateSiteFields, {
-  scheduled: true,
-});
+
+// 3. Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(
+    JOB_SCHEDULE,
+    updateDuplicateSiteFields,
+    {
+      scheduled: true,
+      timezone: constants.TIMEZONE,
+    }
+  );
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
+      delete global.cronJobs[JOB_NAME];
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+startJob();
 
 // Export for testing or manual execution
 module.exports = {

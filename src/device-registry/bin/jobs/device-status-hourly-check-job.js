@@ -14,6 +14,9 @@ const TIMEZONE = moment.tz.guess();
 const BATCH_SIZE = 50;
 const OFFLINE_THRESHOLD_HOURS = 24;
 
+const JOB_NAME = "device-status-hourly-check-job";
+const JOB_SCHEDULE = "0 * * * *"; // At minute 0 of every hour
+
 const convertSecondsToReadableFormat = (secondsToConvert) => {
   const days = Math.floor(secondsToConvert / (24 * 3600));
   secondsToConvert %= 24 * 3600;
@@ -166,11 +169,33 @@ const deviceStatusHourlyCheck = async () => {
   }
 };
 
-logger.info("Device status hourly check job is now running.....");
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, deviceStatusHourlyCheck, {
+    scheduled: true,
+    timezone: TIMEZONE,
+  });
 
-cron.schedule("0 * * * *", deviceStatusHourlyCheck, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop(); // 👈 Stop scheduling
+      cronJobInstance.destroy(); // 👈 Clean up resources
+      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();
 
 module.exports = { deviceStatusHourlyCheck };

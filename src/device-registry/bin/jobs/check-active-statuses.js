@@ -8,8 +8,30 @@ const cron = require("node-cron");
 const ACTIVE_STATUS_THRESHOLD = 0;
 const { logObject, logText } = require("@utils/shared");
 
+// Job identification
+const JOB_NAME = "check-active-statuses-job";
+const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+
+let isJobRunning = false;
+let currentJobPromise = null;
+
 const checkActiveStatuses = async () => {
+  // Prevent overlapping executions
+  if (isJobRunning) {
+    logger.warn(`${JOB_NAME} is already running, skipping this execution`);
+    return;
+  }
+
+  isJobRunning = true;
+  logger.info(`🚀 Starting ${JOB_NAME} execution`);
+
   try {
+    // Check if job should stop (for graceful shutdown)
+    if (global.isShuttingDown) {
+      logger.info(`${JOB_NAME} stopping due to application shutdown`);
+      return;
+    }
+
     // Check for Deployed devices with incorrect statuses
     const activeIncorrectStatusCount = await DeviceModel(
       "airqo"
@@ -22,6 +44,12 @@ const checkActiveStatuses = async () => {
       isActive: true,
       status: { $exists: false } || { $eq: null } || { $eq: "" },
     });
+
+    // Check again if we should stop (long-running operations)
+    if (global.isShuttingDown) {
+      logger.info(`${JOB_NAME} stopping due to application shutdown`);
+      return;
+    }
 
     const activeIncorrectStatusResult = await DeviceModel("airqo").aggregate([
       {
@@ -60,6 +88,7 @@ const checkActiveStatuses = async () => {
 
     logObject("activeIncorrectStatusCount", activeIncorrectStatusCount);
     logObject("activeMissingStatusCount", activeMissingStatusCount);
+
     const totalActiveDevices = await DeviceModel("airqo").countDocuments({
       isActive: true,
     });
@@ -101,15 +130,137 @@ const checkActiveStatuses = async () => {
         )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
       );
     }
+
+    logger.info(`✅ ${JOB_NAME} completed successfully`);
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);
-    logger.error(`🐛🐛 Error checking active statuses: ${error.message}`);
+    logger.error(
+      `🐛🐛 ${JOB_NAME} Error checking active statuses: ${error.message}`
+    );
     logger.error(`🐛🐛 Stack trace: ${error.stack}`);
+  } finally {
+    isJobRunning = false;
+    currentJobPromise = null;
+    logger.info(`🏁 ${JOB_NAME} execution finished`);
   }
 };
 
-logText("Active statuses job is now running.....");
-const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
-cron.schedule(schedule, checkActiveStatuses, {
-  scheduled: true,
+// Wrapper function to handle promises for graceful shutdown
+const jobWrapper = async () => {
+  currentJobPromise = checkActiveStatuses();
+  await currentJobPromise;
+};
+
+// Create and start the cron job
+const startCheckActiveStatusesJob = () => {
+  try {
+    logger.info(`🕐 Starting ${JOB_NAME} with schedule: ${JOB_SCHEDULE}`);
+
+    // THIS IS WHERE cronJobInstance IS CREATED! 👇
+    const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
+      scheduled: true,
+    });
+
+    // Initialize global cronJobs if it doesn't exist
+    if (!global.cronJobs) {
+      global.cronJobs = {};
+    }
+
+    // Register this job in the global registry for cleanup
+    global.cronJobs[JOB_NAME] = {
+      job: cronJobInstance, // 👈 Here's the cronJobInstance!
+      name: JOB_NAME,
+      schedule: JOB_SCHEDULE,
+      stop: async () => {
+        logger.info(`🛑 Stopping ${JOB_NAME}...`);
+
+        try {
+          // Stop the cron schedule
+          cronJobInstance.stop(); // 👈 Using the cronJobInstance here
+          logger.info(`📅 ${JOB_NAME} schedule stopped`);
+
+          // Wait for current execution to finish if running
+          if (currentJobPromise) {
+            logger.info(
+              `⏳ Waiting for current ${JOB_NAME} execution to finish...`
+            );
+            await currentJobPromise;
+            logger.info(`✅ Current ${JOB_NAME} execution completed`);
+          }
+
+          // Destroy the job
+          cronJobInstance.destroy(); // 👈 Using the cronJobInstance here
+          logger.info(`💥 ${JOB_NAME} destroyed successfully`);
+
+          // Remove from global registry
+          delete global.cronJobs[JOB_NAME];
+        } catch (error) {
+          logger.error(`❌ Error stopping ${JOB_NAME}: ${error.message}`);
+        }
+      },
+    };
+
+    logger.info(`✅ ${JOB_NAME} registered and started successfully`);
+    logText("Active statuses job is now running.....");
+
+    return global.cronJobs[JOB_NAME];
+  } catch (error) {
+    logger.error(`❌ Failed to start ${JOB_NAME}: ${error.message}`);
+    throw error;
+  }
+};
+
+// Graceful shutdown handlers for this specific job
+const handleShutdown = async (signal) => {
+  logger.info(`📨 ${JOB_NAME} received ${signal} signal`);
+
+  if (global.cronJobs && global.cronJobs[JOB_NAME]) {
+    await global.cronJobs[JOB_NAME].stop();
+  }
+
+  logger.info(`👋 ${JOB_NAME} shutdown complete`);
+};
+
+// Register shutdown handlers if not already done globally
+if (!global.jobShutdownHandlersRegistered) {
+  process.on("SIGINT", () => handleShutdown("SIGINT"));
+  process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+  global.jobShutdownHandlersRegistered = true;
+}
+
+// Handle uncaught exceptions in this job
+process.on("uncaughtException", (error) => {
+  logger.error(`💥 Uncaught Exception in ${JOB_NAME}: ${error.message}`);
+  logger.error(`Stack: ${error.stack}`);
 });
+
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error(
+    `🚫 Unhandled Rejection in ${JOB_NAME} at:`,
+    promise,
+    "reason:",
+    reason
+  );
+});
+
+// Start the job
+try {
+  startCheckActiveStatusesJob();
+  logger.info(`🎉 ${JOB_NAME} initialization complete`);
+} catch (error) {
+  logger.error(`💥 Failed to initialize ${JOB_NAME}: ${error.message}`);
+  process.exit(1);
+}
+
+// Export for testing or manual control
+module.exports = {
+  JOB_NAME,
+  JOB_SCHEDULE,
+  startCheckActiveStatusesJob,
+  checkActiveStatuses,
+  stopJob: async () => {
+    if (global.cronJobs && global.cronJobs[JOB_NAME]) {
+      await global.cronJobs[JOB_NAME].stop();
+    }
+  },
+};

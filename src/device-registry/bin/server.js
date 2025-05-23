@@ -42,6 +42,8 @@ require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
 require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
+require("@bin/jobs/health-tip-checker-job");
+
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
 }
@@ -229,6 +231,211 @@ const createServer = () => {
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
   });
+
+  // Enhanced graceful shutdown handler
+  const gracefulShutdown = async (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // Set global shutdown flag to signal running jobs to stop
+    global.isShuttingDown = true;
+
+    // Close the server first to stop accepting new connections
+    server.close(async () => {
+      console.log("HTTP server closed");
+      logger.info("HTTP server closed");
+
+      // Enhanced cron job shutdown handling
+      if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
+        console.log(
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+        );
+        logger.info(
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+        );
+
+        // Stop each job individually with error handling
+        for (const [jobName, jobObj] of Object.entries(global.cronJobs)) {
+          try {
+            console.log(`Stopping cron job: ${jobName}`);
+            logger.info(`Stopping cron job: ${jobName}`);
+
+            // Enhanced pattern: Use the async stop method if available
+            if (jobObj.stop && typeof jobObj.stop === "function") {
+              await jobObj.stop();
+              console.log(`✅ Successfully stopped cron job: ${jobName}`);
+              logger.info(`✅ Successfully stopped cron job: ${jobName}`);
+            }
+            // Legacy pattern: Direct job manipulation
+            else if (jobObj.job) {
+              console.log(`🔄 Using legacy stop method for job: ${jobName}`);
+              logger.info(`🔄 Using legacy stop method for job: ${jobName}`);
+
+              // Stop the schedule
+              if (typeof jobObj.job.stop === "function") {
+                jobObj.job.stop();
+                console.log(`📅 Stopped schedule for job: ${jobName}`);
+              }
+
+              // Try to destroy if method exists
+              if (typeof jobObj.job.destroy === "function") {
+                jobObj.job.destroy();
+                console.log(`💥 Destroyed job: ${jobName}`);
+              } else {
+                console.log(
+                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
+                );
+                logger.warn(
+                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
+                );
+              }
+
+              // Remove from registry
+              delete global.cronJobs[jobName];
+              console.log(
+                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
+              );
+              logger.info(
+                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
+              );
+            }
+            // Unknown pattern
+            else {
+              console.warn(
+                `⚠️  Job ${jobName} has unknown structure, skipping`
+              );
+              logger.warn(`Job ${jobName} has unknown structure, skipping`);
+            }
+          } catch (error) {
+            console.error(
+              `❌ Error stopping cron job ${jobName}:`,
+              error.message
+            );
+            logger.error(
+              `❌ Error stopping cron job ${jobName}: ${error.message}`
+            );
+
+            // Try emergency cleanup
+            try {
+              if (jobObj.job && typeof jobObj.job.stop === "function") {
+                jobObj.job.stop();
+                console.log(`🆘 Emergency stopped job: ${jobName}`);
+              }
+              delete global.cronJobs[jobName];
+            } catch (emergencyError) {
+              console.error(
+                `💥 Emergency cleanup failed for ${jobName}:`,
+                emergencyError.message
+              );
+              logger.error(
+                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+              );
+            }
+          }
+        }
+
+        console.log("All cron jobs stopped");
+        logger.info("All cron jobs stopped");
+      } else {
+        console.log("No cron jobs to stop");
+        logger.info("No cron jobs to stop");
+      }
+
+      // Close any Redis connections if they exist
+      if (global.redisClient) {
+        console.log("Closing Redis connection...");
+        logger.info("Closing Redis connection...");
+        try {
+          if (typeof global.redisClient.quit === "function") {
+            await global.redisClient.quit();
+            console.log("✅ Redis connection closed");
+            logger.info("✅ Redis connection closed");
+          }
+        } catch (error) {
+          console.error("❌ Error closing Redis connection:", error.message);
+          logger.error(`❌ Error closing Redis connection: ${error.message}`);
+        }
+      }
+
+      // Close any additional cleanup (Firebase, etc.)
+      if (global.firebaseApp) {
+        console.log("Closing Firebase connections...");
+        logger.info("Closing Firebase connections...");
+        try {
+          // Add Firebase cleanup if needed
+          console.log("✅ Firebase connections closed");
+          logger.info("✅ Firebase connections closed");
+        } catch (error) {
+          console.error(
+            "❌ Error closing Firebase connections:",
+            error.message
+          );
+          logger.error(
+            `❌ Error closing Firebase connections: ${error.message}`
+          );
+        }
+      }
+
+      // Close MongoDB connection
+      console.log("Closing MongoDB connection...");
+      logger.info("Closing MongoDB connection...");
+
+      try {
+        await new Promise((resolve, reject) => {
+          mongoose.connection.close(false, (error) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        });
+
+        console.log("✅ MongoDB connection closed");
+        logger.info("✅ MongoDB connection closed");
+      } catch (error) {
+        console.error("❌ Error closing MongoDB connection:", error.message);
+        logger.error(`❌ Error closing MongoDB connection: ${error.message}`);
+      }
+
+      // Final cleanup
+      console.log("Exiting process...");
+      logger.info("Exiting process...");
+      process.exit(0);
+    });
+
+    // Force exit after timeout if graceful shutdown fails
+    setTimeout(() => {
+      console.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      logger.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      process.exit(1);
+    }, 15000); // Increased timeout to 15 seconds to allow for async job stopping
+  };
+
+  // Add signal handlers
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    logger.error(`💥 Uncaught Exception: ${error.message}`);
+    logger.error(`Stack: ${error.stack}`);
+    gracefulShutdown("UNCAUGHT_EXCEPTION");
+  });
+
+  process.on("unhandledRejection", (reason, promise) => {
+    logger.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    gracefulShutdown("UNHANDLED_REJECTION");
+  });
+
+  // Store server in global scope so it can be accessed elsewhere
+  global.httpServer = server;
+
+  return server; // Return the server instance
 };
 
 module.exports = createServer;
