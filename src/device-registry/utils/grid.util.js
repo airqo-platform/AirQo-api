@@ -928,6 +928,84 @@ const createGrid = {
       );
     }
   },
+  findNearestCountry: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const { latitude, longitude } = body;
+      const { limit = 1 } = query; // Default to returning just 1 nearest country
+
+      // Validate the inputs
+      if (!latitude || !longitude) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Both latitude and longitude are required" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Find grids where admin_level is 'country'
+      const countryGrids = await GridModel(tenant)
+        .find({ admin_level: "country" })
+        .lean();
+
+      if (isEmpty(countryGrids)) {
+        return {
+          success: true,
+          message: "No country grids found in the database",
+          status: httpStatus.OK,
+          data: [],
+        };
+      }
+
+      // Calculate distance to each country's center point
+      const countriesWithDistances = countryGrids.map((grid) => {
+        // Use the first center point of the grid
+        if (isEmpty(grid.centers) || isEmpty(grid.centers[0])) {
+          return {
+            ...grid,
+            distance: Number.MAX_VALUE, // If no center point, set to max distance
+          };
+        }
+
+        const center = grid.centers[0];
+        const distance = geolib.getDistance(
+          { latitude, longitude },
+          { latitude: center.latitude, longitude: center.longitude }
+        );
+
+        return {
+          ...grid,
+          distance,
+        };
+      });
+
+      // Sort by distance (ascending)
+      const sortedCountries = countriesWithDistances.sort(
+        (a, b) => a.distance - b.distance
+      );
+
+      // Return the nearest country(ies) based on the limit
+      const nearestCountries = sortedCountries.slice(0, Number(limit));
+
+      return {
+        success: true,
+        message: "Successfully found nearest country(ies)",
+        data: nearestCountries,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createGrid;

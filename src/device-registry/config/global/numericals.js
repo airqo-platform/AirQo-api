@@ -6,6 +6,7 @@ const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const numericals = {
+  DEFAULT_NEAREST_SITE_RADIUS: 15, // Default radius in kilometers
   MQTT_BRIDGE_PORT: 8883,
   NUM_MESSAGES: 5,
   TOKEN_EXP_MINS: 360,

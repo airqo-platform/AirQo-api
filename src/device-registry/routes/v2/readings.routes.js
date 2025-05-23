@@ -48,4 +48,11 @@ router.get(
   eventController.fetchAndStoreData
 );
 
+router.get(
+  "/nearest",
+  readingsValidations.nearestReadings,
+  pagination(),
+  eventController.getNearestReadings
+);
+
 module.exports = router;
