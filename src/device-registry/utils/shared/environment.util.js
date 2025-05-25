@@ -1,6 +1,4 @@
-// utils/environment.util.js - Reusable environment detection utility
-
-const constants = require("@config/constants");
+// utils/environment.util.js - Reusable environment detection utility (No circular dependencies)
 
 class EnvironmentDetector {
   constructor() {
@@ -63,13 +61,13 @@ class EnvironmentDetector {
       });
     }
 
-    // Priority order of checks
+    // Priority order of checks (removed constants check to avoid circular dependency)
     const detectionMethods = [
       () => this.checkNodeEnv(checks.nodeEnv),
-      () => this.checkConstants(checks.constants),
       () => this.checkNpmScript(checks.npmScript),
       () => this.checkProcessArgs(checks.processArgs),
-      () => this.checkPortBased(checks.port, checks.nodeEnv, checks.constants),
+      () => this.checkPortBased(checks.port, checks.nodeEnv),
+      () => this.checkConstantsSafe(checks.constants), // Safe constants check at lower priority
     ];
 
     for (const method of detectionMethods) {
@@ -83,7 +81,7 @@ class EnvironmentDetector {
       }
     }
 
-    // Default fallback
+    // Default fallback - safer to default to development to avoid accidental production behavior
     const defaultEnv = "development";
     if (this.shouldLogDebug()) {
       console.log(`⚠️  Using default environment: ${defaultEnv.toUpperCase()}`);
@@ -92,11 +90,11 @@ class EnvironmentDetector {
     return defaultEnv;
   }
 
-  // Gather all environment sources
+  // Gather all environment sources (without importing constants at module level)
   getAllEnvironmentSources() {
     return {
       nodeEnv: process.env.NODE_ENV,
-      constants: constants.ENVIRONMENT,
+      constants: this.getConstantsSafely(), // Dynamic import to avoid circular dependency
       npmScript: process.env.npm_lifecycle_event,
       processArgs: process.argv,
       port: process.env.PORT || "3000",
@@ -105,7 +103,20 @@ class EnvironmentDetector {
     };
   }
 
-  // Check NODE_ENV
+  // Safely get constants without causing circular dependency
+  getConstantsSafely() {
+    try {
+      // Dynamic import only when needed, not at module level
+      const constants = require("@config/constants");
+      return constants.ENVIRONMENT;
+    } catch (error) {
+      // If constants can't be loaded (circular dependency or other issue),
+      // return undefined so other detection methods take precedence
+      return undefined;
+    }
+  }
+
+  // Check NODE_ENV (highest priority)
   checkNodeEnv(nodeEnv) {
     if (!nodeEnv) return "unknown";
 
@@ -117,22 +128,7 @@ class EnvironmentDetector {
     return "unknown";
   }
 
-  // Check constants with pattern matching
-  checkConstants(constantsEnv) {
-    if (!constantsEnv) return "unknown";
-
-    const env = constantsEnv.toLowerCase().trim();
-
-    // Handle your specific case where constants.ENVIRONMENT is "DEVELOPMENT ENVIRONMENT"
-    if (env.includes("development") || env.includes("dev"))
-      return "development";
-    if (env.includes("production") || env.includes("prod")) return "production";
-    if (env.includes("staging") || env.includes("stage")) return "staging";
-
-    return "unknown";
-  }
-
-  // Check NPM script being run
+  // Check NPM script being run (second priority)
   checkNpmScript(npmScript) {
     if (!npmScript) return "unknown";
 
@@ -144,7 +140,7 @@ class EnvironmentDetector {
     return "unknown";
   }
 
-  // Check process arguments for indicators
+  // Check process arguments for indicators (third priority)
   checkProcessArgs(processArgs) {
     if (!Array.isArray(processArgs)) return "unknown";
 
@@ -159,24 +155,15 @@ class EnvironmentDetector {
     return "unknown";
   }
 
-  // Port-based detection (least reliable)
-  checkPortBased(port, nodeEnv, constantsEnv) {
+  // Port-based detection (fourth priority - less reliable)
+  checkPortBased(port, nodeEnv) {
     const devPorts = ["3000", "3001", "8000", "8080", "9000"];
-    const prodPorts = ["80", "443", "8080"];
 
     // Only use port as indicator if other methods didn't give clear results
     const nodeEnvLower = (nodeEnv || "").toLowerCase();
-    const constantsLower = (constantsEnv || "").toLowerCase();
 
     // Don't override explicit production/staging settings
-    if (
-      nodeEnvLower === "production" ||
-      constantsLower.includes("production")
-    ) {
-      return "unknown"; // Let other methods handle this
-    }
-
-    if (nodeEnvLower === "staging" || constantsLower.includes("staging")) {
+    if (nodeEnvLower === "production" || nodeEnvLower === "staging") {
       return "unknown"; // Let other methods handle this
     }
 
@@ -184,6 +171,21 @@ class EnvironmentDetector {
     if (devPorts.includes(port)) {
       return "development";
     }
+
+    return "unknown";
+  }
+
+  // Safe constants check (lowest priority to avoid circular dependency issues)
+  checkConstantsSafe(constantsEnv) {
+    if (!constantsEnv) return "unknown";
+
+    const env = constantsEnv.toLowerCase().trim();
+
+    // Handle your specific case where constants.ENVIRONMENT might be "DEVELOPMENT ENVIRONMENT"
+    if (env.includes("development") || env.includes("dev"))
+      return "development";
+    if (env.includes("production") || env.includes("prod")) return "production";
+    if (env.includes("staging") || env.includes("stage")) return "staging";
 
     return "unknown";
   }
