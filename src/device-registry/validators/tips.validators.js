@@ -229,6 +229,13 @@ const healthTipValidations = {
       .withMessage("title cannot be empty if provided")
       .trim(),
     body("updates.*.tips.*.tag_line")
+      .exists()
+      .withMessage("tag_line is required")
+      .bail()
+      .notEmpty()
+      .withMessage("tag_line cannot be empty")
+      .trim(),
+    body("updates.*.tips.*.tag_line")
       .optional()
       .notEmpty()
       .withMessage("tag_line cannot be empty if provided")

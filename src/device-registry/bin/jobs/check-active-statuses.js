@@ -130,8 +130,6 @@ const checkActiveStatuses = async () => {
         )}) - ${percentageActiveMissingStatus.toFixed(2)}%`
       );
     }
-
-    logger.info(`✅ ${JOB_NAME} completed successfully`);
   } catch (error) {
     logText(`🐛🐛 Error checking active statuses: ${error.message}`);
     logger.error(
@@ -141,7 +139,6 @@ const checkActiveStatuses = async () => {
   } finally {
     isJobRunning = false;
     currentJobPromise = null;
-    logger.info(`🏁 ${JOB_NAME} execution finished`);
   }
 };
 

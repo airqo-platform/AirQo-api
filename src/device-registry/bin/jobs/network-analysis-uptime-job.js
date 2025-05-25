@@ -170,7 +170,6 @@ class NetworkUptimeAnalysis {
         logger.info(`Average uptime for ${period.label}: ${averageUptime}%`);
       }
 
-      logger.info("Network uptime analysis job completed successfully");
       logText("Network uptime analysis completed successfully");
     } catch (error) {
       logger.error(`Network uptime analysis job failed: ${error.message}`);

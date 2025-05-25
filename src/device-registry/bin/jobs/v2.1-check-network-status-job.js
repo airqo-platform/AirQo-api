@@ -78,7 +78,7 @@ const checkNetworkStatus = async () => {
       };
 
       await networkStatusUtil.createAlert({ alertData, tenant: "airqo" });
-      logger.info(`✅ ${MAIN_JOB_NAME} completed successfully`);
+
       return;
     }
 
@@ -148,8 +148,6 @@ const checkNetworkStatus = async () => {
       logText("Failed to save network status alert");
       logger.error("Failed to save network status alert", alertResult);
     }
-
-    logger.info(`✅ ${MAIN_JOB_NAME} completed successfully`);
   } catch (error) {
     logText(`🐛🐛 Error checking network status: ${error.message}`);
     logger.error(
@@ -180,7 +178,6 @@ const checkNetworkStatus = async () => {
   } finally {
     isMainJobRunning = false;
     currentMainJobPromise = null;
-    logger.info(`🏁 ${MAIN_JOB_NAME} execution finished`);
   }
 };
 
@@ -237,8 +234,6 @@ Critical Alerts: ${stats.criticalCount}
       logText(summaryMessage);
       logger.info(summaryMessage);
     }
-
-    logger.info(`✅ ${SUMMARY_JOB_NAME} completed successfully`);
   } catch (error) {
     logger.error(
       `🐛🐛 ${SUMMARY_JOB_NAME} Error generating daily summary: ${error.message}`
@@ -247,7 +242,6 @@ Critical Alerts: ${stats.criticalCount}
   } finally {
     isSummaryJobRunning = false;
     currentSummaryJobPromise = null;
-    logger.info(`🏁 ${SUMMARY_JOB_NAME} execution finished`);
   }
 };
 

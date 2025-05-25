@@ -30,7 +30,15 @@
     "emergency:help": "node emergency-job-killer.js --help",
     "cleanup:all": "node cleanup-all.js",
     "cleanup:all:force": "node cleanup-all.js --force",
-    "diagnose-jobs": "node diagnose-jobs.js"
+    "diagnose-jobs": "node diagnose-jobs.js",
+    "env:check": "node config/check-environment.js",
+    "env:debug": "DEBUG_ENV=true node config/check-environment.js",
+    "env:fix": "node config/fix-environment.js",
+    "dev:safe": "npm run env:check && npm run cleanup && cross-env NODE_ENV=development nodemon --max-old-space-size=4096 ./bin",
+    "dev:clean": "npm run cleanup && npm run dev",
+    "dev:debug": "npm run env:debug && npm run dev",
+    "kafka:check": "node config/check-kafka-status.js",
+    "kafka:cleanup": "node config/cleanup-kafka.js"
   },
   "_moduleAliases": {
     "@root": ".",

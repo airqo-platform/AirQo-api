@@ -26,6 +26,7 @@ const tipsSchema = new Schema(
     },
     tag_line: {
       type: String,
+      required: [true, "the tag_line is required!"],
     },
     description: {
       required: [true, "the description is required!"],
@@ -54,6 +55,25 @@ const tipsSchema = new Schema(
 );
 
 tipsSchema.pre("save", function(next) {
+  if (!this.tag_line && this.aqi_category) {
+    // Set default tag_line based on AQI category if missing
+    const DEFAULT_TAG_LINES = {
+      "0-9.1": "Today is a great day for outdoor activity.",
+      "9.101-35.49": "The air quality today is moderate.",
+      "35.491-55.49": "The air quality is unhealthy for sensitive people.",
+      "55.491-125.49": "The air quality today might irritate your lungs.",
+      "125.491-225.49": "The air quality is reaching levels of high alert.",
+      "225.491-null": "The air quality can cause a health emergency.",
+    };
+
+    const key =
+      this.aqi_category.max === null
+        ? `${this.aqi_category.min}-null`
+        : `${this.aqi_category.min}-${this.aqi_category.max}`;
+
+    this.tag_line =
+      DEFAULT_TAG_LINES[key] || "Air quality information available.";
+  }
   next();
 });
 
@@ -179,6 +199,28 @@ tipsSchema.statics = {
               },
             });
           }
+        }
+
+        // NEW: Add operation to update any remaining tips in this AQI range that don't have tag_line
+        // This handles legacy tips that might not be explicitly mentioned in the request
+        if (tips.length > 0 && tips[0].tag_line) {
+          bulkOps.push({
+            updateMany: {
+              filter: {
+                ...filter,
+                $or: [
+                  { tag_line: { $exists: false } },
+                  { tag_line: null },
+                  { tag_line: "" },
+                ],
+              },
+              update: {
+                $set: {
+                  tag_line: tips[0].tag_line, // Use the first tip's tag_line as default
+                },
+              },
+            },
+          });
         }
       }
 
