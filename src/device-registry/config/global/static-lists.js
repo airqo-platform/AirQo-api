@@ -5,9 +5,6 @@ const isEmpty = require("is-empty");
 const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 const staticLists = {
-  AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
-    ","
-  ),
   VALID_DEVICE_STATUSES: [
     "recalled",
     "ready",

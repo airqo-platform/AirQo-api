@@ -1114,11 +1114,7 @@ async function fetchData(model, filter) {
       .project(projection)
       .facet({
         total: [{ $count: "device" }],
-        data: [
-          {
-            $addFields: { device: "$device" },
-          },
-        ],
+        data: [generateAqiAddFields()],
       })
       .project({
         meta,
@@ -1134,7 +1130,13 @@ async function fetchData(model, filter) {
       })
       .allowDiskUse(true);
 
-    return data;
+    data[0].data = data[0].data.filter((record) => record.pm2_5 !== null);
+    return {
+      success: true,
+      message: "successfully returned the measurements",
+      data,
+      status: httpStatus.OK,
+    };
   }
 }
 async function signalData(model, filter) {
