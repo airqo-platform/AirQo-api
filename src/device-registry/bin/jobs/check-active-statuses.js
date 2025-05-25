@@ -23,12 +23,10 @@ const checkActiveStatuses = async () => {
   }
 
   isJobRunning = true;
-  logger.info(`🚀 Starting ${JOB_NAME} execution`);
 
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
-      logger.info(`${JOB_NAME} stopping due to application shutdown`);
       return;
     }
 
@@ -47,7 +45,6 @@ const checkActiveStatuses = async () => {
 
     // Check again if we should stop (long-running operations)
     if (global.isShuttingDown) {
-      logger.info(`${JOB_NAME} stopping due to application shutdown`);
       return;
     }
 
@@ -151,8 +148,6 @@ const jobWrapper = async () => {
 // Create and start the cron job
 const startCheckActiveStatusesJob = () => {
   try {
-    logger.info(`🕐 Starting ${JOB_NAME} with schedule: ${JOB_SCHEDULE}`);
-
     // THIS IS WHERE cronJobInstance IS CREATED! 👇
     const cronJobInstance = cron.schedule(JOB_SCHEDULE, jobWrapper, {
       scheduled: true,
@@ -169,25 +164,22 @@ const startCheckActiveStatusesJob = () => {
       name: JOB_NAME,
       schedule: JOB_SCHEDULE,
       stop: async () => {
-        logger.info(`🛑 Stopping ${JOB_NAME}...`);
-
         try {
           // Stop the cron schedule
           cronJobInstance.stop(); // 👈 Using the cronJobInstance here
-          logger.info(`📅 ${JOB_NAME} schedule stopped`);
 
           // Wait for current execution to finish if running
           if (currentJobPromise) {
-            logger.info(
+            logText(
               `⏳ Waiting for current ${JOB_NAME} execution to finish...`
             );
             await currentJobPromise;
-            logger.info(`✅ Current ${JOB_NAME} execution completed`);
+            logText(`✅ Current ${JOB_NAME} execution completed`);
           }
 
           // Destroy the job
           cronJobInstance.destroy(); // 👈 Using the cronJobInstance here
-          logger.info(`💥 ${JOB_NAME} destroyed successfully`);
+          logText(`💥 ${JOB_NAME} destroyed successfully`);
 
           // Remove from global registry
           delete global.cronJobs[JOB_NAME];
@@ -197,7 +189,7 @@ const startCheckActiveStatusesJob = () => {
       },
     };
 
-    logger.info(`✅ ${JOB_NAME} registered and started successfully`);
+    logText(`✅ ${JOB_NAME} registered and started successfully`);
     logText("Active statuses job is now running.....");
 
     return global.cronJobs[JOB_NAME];
@@ -209,13 +201,13 @@ const startCheckActiveStatusesJob = () => {
 
 // Graceful shutdown handlers for this specific job
 const handleShutdown = async (signal) => {
-  logger.info(`📨 ${JOB_NAME} received ${signal} signal`);
+  logText(`📨 ${JOB_NAME} received ${signal} signal`);
 
   if (global.cronJobs && global.cronJobs[JOB_NAME]) {
     await global.cronJobs[JOB_NAME].stop();
   }
 
-  logger.info(`👋 ${JOB_NAME} shutdown complete`);
+  logText(`👋 ${JOB_NAME} shutdown complete`);
 };
 
 // Register shutdown handlers if not already done globally
@@ -243,7 +235,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // Start the job
 try {
   startCheckActiveStatusesJob();
-  logger.info(`🎉 ${JOB_NAME} initialization complete`);
+  logText(`🎉 ${JOB_NAME} initialization complete`);
 } catch (error) {
   logger.error(`💥 Failed to initialize ${JOB_NAME}: ${error.message}`);
   process.exit(1);

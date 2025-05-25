@@ -135,11 +135,11 @@ const updateDuplicateSiteFields = async () => {
         });
       });
 
-      logger.info(`✨ ✏️ 🆙 📝 🔄 ${updateMessage}`);
+      logText(`✨ ✏️ 🆙 📝 🔄 ${updateMessage}`);
       logText(updateMessage);
     } else {
       logText("✅ No duplicate fields requiring updates");
-      logger.info("✅ No duplicate fields requiring updates");
+      logText("✅ No duplicate fields requiring updates");
     }
   } catch (error) {
     const errorMessage = `🐛 Error updating duplicate site fields: ${error.message}`;
