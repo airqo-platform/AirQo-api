@@ -88,7 +88,6 @@ const checkDuplicateSiteFields = async () => {
       logger.warn(combinedWarningMessage); // Log the combined message
     } else {
       logText("✅ No duplicate Site field values found");
-      logger.info("✅ No duplicate Site field values found");
     }
   } catch (error) {
     const errorMessage = `🐛 Error checking duplicate site fields: ${error.message}`;

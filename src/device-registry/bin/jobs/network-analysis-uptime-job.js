@@ -155,7 +155,6 @@ class NetworkUptimeAnalysis {
 
   async runJob() {
     try {
-      logger.info("Starting network uptime analysis job...");
       logText("Starting network uptime analysis...");
 
       const timePeriods = [
@@ -214,7 +213,6 @@ const startJob = () => {
 // Start the job
 startJob();
 
-logger.info("Network uptime analysis job is now running.....");
 logText("Network uptime analysis job is now running.....");
 
 module.exports = networkUptimeJob;
