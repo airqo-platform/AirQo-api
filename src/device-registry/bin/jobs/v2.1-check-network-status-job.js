@@ -62,7 +62,7 @@ const checkNetworkStatus = async () => {
 
     if (result.length === 0 || result[0].totalDevices === 0) {
       logText("No deployed devices found");
-      logger.warn("No deployed devices found.");
+      logger.warn("🙀🙀 No deployed devices found.");
 
       // Still create an alert even when no devices are found
       const alertData = {

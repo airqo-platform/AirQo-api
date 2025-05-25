@@ -214,6 +214,5 @@ const startJob = () => {
 startJob();
 
 logText("Network uptime analysis job is now running.....");
-logText("Network uptime analysis job is now running.....");
 
 module.exports = networkUptimeJob;

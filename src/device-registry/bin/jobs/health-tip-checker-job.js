@@ -148,7 +148,6 @@ function logCoverageResults(categoriesWithoutTips) {
   } else {
     const successMsg = "✅ All AQI categories have health tips";
     logText(successMsg);
-    logText(successMsg);
   }
 }
 

@@ -136,9 +136,7 @@ const updateDuplicateSiteFields = async () => {
       });
 
       logText(`✨ ✏️ 🆙 📝 🔄 ${updateMessage}`);
-      logText(updateMessage);
     } else {
-      logText("✅ No duplicate fields requiring updates");
       logText("✅ No duplicate fields requiring updates");
     }
   } catch (error) {
