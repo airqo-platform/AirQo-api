@@ -201,4 +201,4 @@ Add any additional context, concerns, or information that reviewers should know:
 
 **Ready to merge?** 🎉
 <!-- Tag relevant team members for review -->
-/cc @team-lead @security-reviewer @deployment-team
+/cc @design-team @frontend-team @backend-team @techops-team @ds-team @mobile-team
