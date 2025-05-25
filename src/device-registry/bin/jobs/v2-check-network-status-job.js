@@ -10,6 +10,9 @@ const moment = require("moment-timezone");
 const TIMEZONE = moment.tz.guess();
 const UPTIME_THRESHOLD = 35;
 
+const JOB_NAME = "v2-check-network-status-job";
+const JOB_SCHEDULE = "30 */2 * * *"; // At minute 30 of every 2nd hour
+
 const checkNetworkStatus = async () => {
   try {
     const result = await DeviceModel("airqo").aggregate([
@@ -71,8 +74,32 @@ const checkNetworkStatus = async () => {
 };
 
 logText("Network status job is now running.....");
-const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
-cron.schedule(schedule, checkNetworkStatus, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, checkNetworkStatus, {
+    scheduled: true,
+    timezone: constants.TIMEZONE,
+  });
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop(); // 👈 Stop scheduling
+      cronJobInstance.destroy(); // 👈 Clean up resources
+      delete global.cronJobs[JOB_NAME]; // 👈 Remove from registry
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+// Start the job
+startJob();

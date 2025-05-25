@@ -26,6 +26,14 @@ function generateDateFormatWithoutHrs(ISODate) {
 }
 
 const mappings = {
+  AQI_RANGES: {
+    good: { min: 0, max: 9.1 },
+    moderate: { min: 9.101, max: 35.49 },
+    u4sg: { min: 35.491, max: 55.49 },
+    unhealthy: { min: 55.491, max: 125.49 },
+    very_unhealthy: { min: 125.491, max: 225.49 },
+    hazardous: { min: 225.491, max: null },
+  },
   AQI_INDEX: {
     good: { min: 0, max: 9.1 },
     moderate: { min: 9.101, max: 35.49 },
@@ -33,6 +41,33 @@ const mappings = {
     unhealthy: { min: 55.491, max: 125.49 },
     very_unhealthy: { min: 125.491, max: 225.49 },
     hazardous: { min: 225.491, max: null },
+  },
+  AQI_COLORS: {
+    good: "34C759",
+    moderate: "ECAA06",
+    u4sg: "FF851F",
+    unhealthy: "F7453C",
+    very_unhealthy: "AC5CD9",
+    hazardous: "D95BA3",
+    unknown: "Unknown",
+  },
+  AQI_CATEGORIES: {
+    good: "Good",
+    moderate: "Moderate",
+    u4sg: "Unhealthy for Sensitive Groups",
+    unhealthy: "Unhealthy",
+    very_unhealthy: "Very Unhealthy",
+    hazardous: "Hazardous",
+    unknown: "Unknown",
+  },
+  AQI_COLOR_NAMES: {
+    good: "Green",
+    moderate: "Yellow",
+    u4sg: "Orange",
+    unhealthy: "Red",
+    very_unhealthy: "Purple",
+    hazardous: "Maroon",
+    unknown: "Unknown",
   },
   PREDEFINED_FILTER_VALUES: {
     NETWORKS: ["metone", "usembassy"],
