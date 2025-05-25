@@ -10,7 +10,24 @@ const {
   logTextWithTimestamp,
 } = require("./log");
 
+const {
+  EnvironmentDetector,
+  isDevelopment,
+  isProduction,
+  isStaging,
+  getEnvironment,
+  getDetailedInfo,
+  resetCache,
+} = require("./environment.util");
+
 module.exports = {
+  EnvironmentDetector,
+  isDevelopment,
+  isProduction,
+  isStaging,
+  getEnvironment,
+  getDetailedInfo,
+  resetCache,
   HttpError,
   extractErrorsFromRequest,
   logElement,

@@ -113,7 +113,6 @@ const fetchAndStoreDataIntoSignalsModel = async () => {
       }
 
       logText(`All data inserted successfully`);
-      logger.info(`✅ ${JOB_NAME} completed successfully`);
       return;
     } else {
       logObject(
@@ -136,7 +135,6 @@ const fetchAndStoreDataIntoSignalsModel = async () => {
   } finally {
     isJobRunning = false;
     currentJobPromise = null;
-    logger.info(`🏁 ${JOB_NAME} execution finished`);
   }
 };
 
@@ -144,7 +142,6 @@ const jobWrapper = async () => {
   try {
     currentJobPromise = fetchAndStoreDataIntoSignalsModel();
     await currentJobPromise;
-    logger.info(`✅ ${JOB_NAME} wrapper completed successfully`);
   } catch (error) {
     // Handle any unhandled errors from the job execution
     logger.error(`💥 Unhandled error in ${JOB_NAME}: ${error.message}`);
@@ -159,8 +156,6 @@ const jobWrapper = async () => {
 // Create and start the cron job
 const startStoreSignalsJob = () => {
   try {
-    logger.info(`🕐 Starting ${JOB_NAME} with schedule: ${JOB_SCHEDULE}`);
-
     const job = cron.schedule(JOB_SCHEDULE, jobWrapper, {
       scheduled: true,
       timezone: "Africa/Nairobi",
