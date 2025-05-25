@@ -197,7 +197,7 @@ const computeDeviceChannelStatus = async (tenant) => {
     await deviceStatusRecord.save();
 
     const duration = (Date.now() - startTime) / 1000;
-    logger.info(`Device status check completed in ${duration}s`);
+    logText(`Device status check completed in ${duration}s`);
     logObject("Final metrics", finalMetrics);
   } catch (error) {
     logger.error(`Error in device status check: ${error.message}`);

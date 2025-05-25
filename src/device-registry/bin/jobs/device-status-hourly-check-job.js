@@ -9,6 +9,7 @@ const math = require("mathjs");
 const DeviceModel = require("@models/Device");
 const DeviceStatusModel = require("@models/DeviceStatus");
 const createFeedUtil = require("@utils/create-feed");
+const { logObject, logText } = require("@utils/shared");
 
 const TIMEZONE = moment.tz.guess();
 const BATCH_SIZE = 50;
@@ -105,7 +106,7 @@ const processDeviceBatch = async (devices) => {
 const deviceStatusHourlyCheck = async () => {
   try {
     const startTime = Date.now();
-    logger.info("Starting hourly device status check...");
+    logText("Starting hourly device status check...");
 
     const totalActiveDevices = await DeviceModel("airqo").countDocuments({
       locationID: { $ne: "" },
@@ -136,7 +137,7 @@ const deviceStatusHourlyCheck = async () => {
       });
 
       processedCount += devices.length;
-      logger.info(`Processed ${processedCount}/${totalActiveDevices} devices`);
+      logText(`Processed ${processedCount}/${totalActiveDevices} devices`);
     }
 
     const total = finalMetrics.online.count + finalMetrics.offline.count;

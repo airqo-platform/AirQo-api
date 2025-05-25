@@ -4,6 +4,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/device-uptime-job`
 );
 const cron = require("node-cron");
+const { logObject, logText } = require("@utils/shared");
 const moment = require("moment-timezone");
 const axios = require("axios");
 const DeviceModel = require("@models/Device");
@@ -99,7 +100,6 @@ const processDeviceBatch = async (devices, tenant) => {
 const saveDeviceUptime = async (tenant) => {
   try {
     const startTime = Date.now();
-    logger.info(`Starting device uptime check for ${tenant}...`);
 
     // Get total device count
     const totalDevices = await DeviceModel(tenant).countDocuments({
@@ -133,7 +133,7 @@ const saveDeviceUptime = async (tenant) => {
       networkTotalUptime += totalUptime;
       processedCount += devices.length;
 
-      logger.info(`Processed ${processedCount}/${totalDevices} devices`);
+      logText(`Processed ${processedCount}/${totalDevices} devices`);
     }
 
     // Calculate network uptime
