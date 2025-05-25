@@ -1,5 +1,6 @@
 const dbProjections = require("./db-projections");
 const envs = require("./envs");
+const aqiConstants = require("./aqi");
 const mappings = require("./mappings");
 const numericals = require("./numericals");
 const queryLimits = require("./query-limits");
@@ -12,6 +13,7 @@ const configurations = {
   ...dbProjections,
   ...envs,
   ...mappings,
+  ...aqiConstants,
   ...numericals,
   ...queryLimits,
   ...regexPatterns,
