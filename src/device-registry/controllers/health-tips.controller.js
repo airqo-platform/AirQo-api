@@ -45,7 +45,37 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
-const createHealthTips = {
+const {
+  migrateTagLines,
+  addMigrationEndpoint,
+} = require("@migrations/migration-add-taglines");
+
+const healthTipsController = {
+  migrateTagLines: async (req, res, next) => {
+    try {
+      const { tenant } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const dbTenant = tenant || defaultTenant;
+
+      const result = await migrateTagLines(dbTenant);
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          message: `Successfully migrated ${result.updatedCount} tips`,
+          data: result.details || [],
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: "Migration failed",
+          error: result.error,
+        });
+      }
+    } catch (error) {
+      next(new HttpError("Migration Error", 500, { message: error.message }));
+    }
+  },
   list: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -356,4 +386,4 @@ const createHealthTips = {
   },
 };
 
-module.exports = createHealthTips;
+module.exports = healthTipsController;
