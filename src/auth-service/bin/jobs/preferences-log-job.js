@@ -91,7 +91,7 @@ const logUserPreferences = async () => {
           `💔💔 Total count of users without Customised Locations in the default group: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of processed users.`
         );
       } else {
-        logger.info(`😎🎉✅ All users have Customised Locations.`);
+        // logger.info(`😎🎉✅ All users have Customised Locations.`);
       }
     } else {
       logger.info(

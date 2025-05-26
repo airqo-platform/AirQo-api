@@ -243,9 +243,9 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
       skip += batchSize;
     }
 
-    logger.info(
-      `✅ Successfully completed preference update for users with ${NUMBER_OF_SITES_PER_USER} randomly selected sites each`
-    );
+    // logger.info(
+    //   `✅ Successfully completed preference update for users with ${NUMBER_OF_SITES_PER_USER} randomly selected sites each`
+    // );
   } catch (error) {
     // Only log the error if it's not a duplicate key error
     if (!isDuplicateKeyError(error)) {
