@@ -187,9 +187,7 @@ const startStoreSignalsJob = () => {
             logText(`✅ Current ${JOB_NAME} execution completed`);
           }
 
-          // Destroy the job
-          job.destroy();
-          logText(`💥 ${JOB_NAME} destroyed successfully`);
+          logText(`✅ ${JOB_NAME} stopped successfully`);
 
           // Remove from global registry
           delete global.cronJobs[JOB_NAME];
