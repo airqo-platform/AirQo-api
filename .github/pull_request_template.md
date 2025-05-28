@@ -200,5 +200,11 @@ Add any additional context, concerns, or information that reviewers should know:
 ---
 
 **Ready to merge?** 🎉
-<!-- Tag relevant team members for review -->
-/cc @design-team @frontend-team @backend-team @techops-team @ds-team @mobile-team
+<!-- Tag relevant team members for review 
+- @techops-team 
+- @ds-team 
+- @mobile-team
+- @design-team 
+- @frontend-team
+-->
+/cc  @backend-team 
