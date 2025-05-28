@@ -11,7 +11,10 @@ const httpStatus = require("http-status");
 
 class OrganizationUtil {
   constructor() {
-    this.authServiceUrl = constants.AUTH_SERVICE_URL || "http://localhost:3001";
+    this.authServiceUrl = constants.AUTH_SERVICE_URL;
+    if (!this.authServiceUrl) {
+      throw new Error("AUTH_SERVICE_URL must be configured");
+    }
     this.timeoutMs = 5000;
 
     // SIMPLIFIED: Use system/service JWT token

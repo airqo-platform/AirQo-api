@@ -43,5 +43,6 @@ const prodConfig = {
   INTER_SERVICE_TOKEN: process.env.PROD_INTER_SERVICE_TOKEN,
   ADMIN_MIGRATION_KEY: process.env.PROD_ADMIN_MIGRATION_KEY,
   DEPLOYMENT_URL: process.env.PROD_DEPLOYMENT_URL,
+  SERVICE_JWT_TOKEN: process.env.PROD_SERVICE_JWT_TOKEN,
 };
 module.exports = prodConfig;

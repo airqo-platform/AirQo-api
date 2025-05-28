@@ -26,10 +26,11 @@ class ClaimTokenUtil {
       "PURE",
       "FRESH",
     ];
-    const numbers = Math.floor(Math.random() * 1000)
+    const numbers = crypto
+      .randomInt(0, 1000)
       .toString()
       .padStart(3, "0");
-    const word = words[Math.floor(Math.random() * words.length)];
+    const word = words[crypto.randomInt(0, words.length)];
     return `${word}${numbers}`;
     // Output: "AIR123", "SENSOR456", "CLEAN789"
   }
@@ -49,11 +50,15 @@ class ClaimTokenUtil {
   // Generate QR code data for device claiming
   static generateQRCodeData(deviceName, claimToken, frontendUrl) {
     const baseUrl =
-      frontendUrl || process.env.FRONTEND_URL || "https://platform.airqo.net";
+      frontendUrl || constants.DEPLOYMENT_URL || "https://platform.airqo.net";
+
+    const url = new URL("/claim-device", baseUrl);
+    url.searchParams.append("id", deviceName);
+    url.searchParams.append("token", claimToken);
 
     return {
       device_id: deviceName,
-      claim_url: `${baseUrl}/claim-device?id=${deviceName}&token=${claimToken}`,
+      claim_url: url.toString(),
       platform: "AirQo",
       token: claimToken,
       generated_at: new Date().toISOString(),

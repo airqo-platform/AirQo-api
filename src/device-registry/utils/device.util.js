@@ -1216,7 +1216,7 @@ const deviceUtil = {
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
         { name: device_name, claim_status: "unclaimed" },
         {
-          owner_id: mongoose.Types.ObjectId(user_id), // Fixed ObjectId usage
+          owner_id: ObjectId(user_id), // Fixed ObjectId usage
           claim_status: "claimed",
           claimed_at: new Date(),
         },
@@ -1298,17 +1298,15 @@ const deviceUtil = {
         // Get devices assigned to organization OR owned by user
         filter = {
           $or: [
-            { owner_id: mongoose.Types.ObjectId(user_id) },
+            { owner_id: ObjectId(user_id) },
             {
-              assigned_organization_id: mongoose.Types.ObjectId(
-                organization_id
-              ),
+              assigned_organization_id: ObjectId(organization_id),
             },
           ],
         };
       } else {
         // Get only user's personal devices
-        filter = { owner_id: mongoose.Types.ObjectId(user_id) };
+        filter = { owner_id: ObjectId(user_id) };
       }
 
       // Step 4: Query devices with error handling
@@ -1423,7 +1421,7 @@ const deviceUtil = {
       // Verify user owns the device
       const device = await DeviceModel(tenant).findOne({
         name: device_name,
-        owner_id: mongoose.Types.ObjectId(user_id), // Fixed ObjectId usage
+        owner_id: ObjectId(user_id), // Fixed ObjectId usage
       });
 
       if (!device) {
@@ -1437,9 +1435,9 @@ const deviceUtil = {
 
       // Update device assignment
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
-        { name: device_name, owner_id: mongoose.Types.ObjectId(user_id) },
+        { name: device_name, owner_id: ObjectId(user_id) },
         {
-          assigned_organization_id: mongoose.Types.ObjectId(organization_id), // Fixed ObjectId usage
+          assigned_organization_id: ObjectId(organization_id), // Fixed ObjectId usage
           organization_assigned_at: new Date(),
         },
         { new: true }

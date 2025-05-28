@@ -386,7 +386,7 @@ const createActivity = {
         };
       }
 
-      if (device.owner_id.toString() !== user_id) {
+      if (!device.owner_id || device.owner_id.toString() !== user_id) {
         return {
           success: false,
           message: "Access denied: You don't own this device",

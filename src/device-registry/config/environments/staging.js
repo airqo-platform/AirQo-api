@@ -44,6 +44,7 @@ const stageConfig = {
   INTER_SERVICE_TOKEN: process.env.STAGE_INTER_SERVICE_TOKEN,
   ADMIN_MIGRATION_KEY: process.env.STAGE_ADMIN_MIGRATION_KEY,
   DEPLOYMENT_URL: process.env.STAGE_DEPLOYMENT_URL,
+  SERVICE_JWT_TOKEN: process.env.STAGE_SERVICE_JWT_TOKEN,
 };
 
 module.exports = stageConfig;
