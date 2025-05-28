@@ -346,6 +346,257 @@ const createActivity = {
       );
     }
   },
+  deployWithOwnership: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const { tenant, deviceName } = query;
+      const {
+        date,
+        height,
+        mountType,
+        powerType,
+        isPrimaryInLocation,
+        site_id,
+        host_id,
+        network,
+        user_id,
+      } = body;
+
+      // Step 1: Get device with ownership info
+      const device = await DeviceModel(tenant).findOne({
+        name: deviceName,
+      });
+
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Device ${deviceName} not found` },
+        };
+      }
+
+      // Step 2: Verify device ownership
+      if (device.claim_status === "unclaimed") {
+        return {
+          success: false,
+          message: "Device must be claimed before deployment",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Device not claimed by any user" },
+        };
+      }
+
+      if (device.owner_id.toString() !== user_id) {
+        return {
+          success: false,
+          message: "Access denied: You don't own this device",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Device owned by different user" },
+        };
+      }
+
+      // Step 3: Check if already deployed
+      if (device.isActive) {
+        return {
+          success: false,
+          message: `Device ${deviceName} already deployed`,
+          status: httpStatus.CONFLICT,
+          errors: { message: `Device ${deviceName} already deployed` },
+        };
+      }
+
+      // Step 4: Verify site exists
+      const siteExists = await SiteModel(tenant).exists({
+        _id: ObjectId(site_id),
+      });
+
+      if (!siteExists) {
+        return {
+          success: false,
+          message: "Site not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Site ${site_id} not found` },
+        };
+      }
+
+      // Step 5: Get site coordinates
+      const siteRequest = {
+        query: { site_id, tenant },
+      };
+
+      const responseFromListSite = await createSiteUtil.list(siteRequest, next);
+
+      if (
+        responseFromListSite.success === true &&
+        responseFromListSite.data.length === 1
+      ) {
+        const { latitude, longitude } = responseFromListSite.data[0];
+
+        // Create activity record
+        const siteActivityBody = {
+          device: deviceName,
+          date: (date && new Date(date)) || new Date(),
+          description: "device deployed",
+          activityType: "deployment",
+          site_id,
+          host_id: host_id ? host_id : null,
+          user_id: user_id,
+          network,
+          nextMaintenance: addMonthsToProvideDateTime(
+            date && new Date(date),
+            3,
+            next
+          ),
+        };
+
+        // Calculate approximate coordinates
+        const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
+          { latitude, longitude },
+          next
+        );
+
+        const {
+          approximate_latitude,
+          approximate_longitude,
+          approximate_distance_in_km,
+          bearing_in_radians,
+        } = responseFromCreateApproximateCoordinates;
+
+        // Prepare device update
+        let deviceBody = {
+          body: {
+            height,
+            mountType,
+            powerType,
+            isPrimaryInLocation,
+            nextMaintenance: addMonthsToProvideDateTime(
+              date && new Date(date),
+              3,
+              next
+            ),
+            latitude: approximate_latitude || latitude,
+            longitude: approximate_longitude || longitude,
+            approximate_distance_in_km: approximate_distance_in_km || 0,
+            bearing_in_radians: bearing_in_radians || 0,
+            site_id,
+            host_id: host_id ? host_id : null,
+            isActive: true,
+            deployment_date: (date && new Date(date)) || new Date(),
+            status: "deployed",
+            claim_status: "deployed", // Update claim status
+          },
+          query: {
+            name: deviceName,
+            tenant,
+          },
+        };
+
+        // Register activity
+        const responseFromRegisterActivity = await ActivityModel(
+          tenant
+        ).register(siteActivityBody, next);
+
+        if (responseFromRegisterActivity.success === true) {
+          const createdActivity = responseFromRegisterActivity.data;
+
+          // Update device
+          const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
+            deviceBody,
+            next
+          );
+
+          if (responseFromUpdateDevice.success === true) {
+            const updatedDevice = responseFromUpdateDevice.data;
+
+            const data = {
+              createdActivity: {
+                activity_codes: createdActivity.activity_codes,
+                tags: createdActivity.tags,
+                _id: createdActivity._id,
+                device: createdActivity.device,
+                date: createdActivity.date,
+                description: createdActivity.description,
+                activityType: createdActivity.activityType,
+                site_id: createdActivity.site_id,
+                host_id: createdActivity.host_id,
+                network: createdActivity.network,
+                nextMaintenance: createdActivity.nextMaintenance,
+                createdAt: createdActivity.createdAt,
+              },
+              updatedDevice: {
+                status: updatedDevice.status,
+                category: updatedDevice.category,
+                isActive: updatedDevice.isActive,
+                _id: updatedDevice._id,
+                long_name: updatedDevice.long_name,
+                network: updatedDevice.network,
+                device_number: updatedDevice.device_number,
+                name: updatedDevice.name,
+                deployment_date: updatedDevice.deployment_date,
+                latitude: updatedDevice.latitude,
+                longitude: updatedDevice.longitude,
+                mountType: updatedDevice.mountType,
+                powerType: updatedDevice.powerType,
+                site_id: updatedDevice.site_id,
+                owner_id: updatedDevice.owner_id,
+                claim_status: updatedDevice.claim_status,
+              },
+              user_id: user_id,
+            };
+
+            // Send Kafka notification (existing logic)
+            try {
+              const deployTopic = constants.DEPLOY_TOPIC || "deploy-topic";
+              const kafkaProducer = kafka.producer({
+                groupId: constants.UNIQUE_PRODUCER_GROUP,
+              });
+              await kafkaProducer.connect();
+              await kafkaProducer.send({
+                topic: deployTopic,
+                messages: [
+                  {
+                    action: "create",
+                    value: JSON.stringify(data),
+                  },
+                ],
+              });
+              await kafkaProducer.disconnect();
+            } catch (error) {
+              logger.error(
+                `🐛🐛 KAFKA: Internal Server Error -- ${error.message}`
+              );
+            }
+
+            return {
+              success: true,
+              message: "successfully deployed the device",
+              data,
+            };
+          } else {
+            return responseFromUpdateDevice;
+          }
+        } else {
+          return responseFromRegisterActivity;
+        }
+      } else {
+        return {
+          success: false,
+          message: "unable to find site for deployment",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "unable to find the provided site" },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   recall: async (request, next) => {
     try {
       const { query, body } = request;

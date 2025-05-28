@@ -574,8 +574,298 @@ const validateUniqueDeviceNames = (req, res, next) => {
   next();
 };
 
+const validateEnhancedDeploy = [
+  // User ID validation - ENHANCED
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required for owned device deployment")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("user_id cannot be empty")
+    .bail()
+    .custom((value) => {
+      if (!isValidObjectId(value)) {
+        throw new Error(
+          "user_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+
+  // Site ID validation - ENHANCED
+  body("site_id")
+    .exists()
+    .withMessage("site_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("site_id cannot be empty")
+    .bail()
+    .custom((value) => {
+      if (!isValidObjectId(value)) {
+        throw new Error(
+          "site_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+
+  // Height validation
+  body("height")
+    .exists()
+    .withMessage("height is required")
+    .bail()
+    .isFloat({ gt: 0, lt: 100 })
+    .withMessage("height must be a number between 0 and 100")
+    .toFloat(),
+
+  // Power type validation - ENHANCED (case insensitive)
+  body("powerType")
+    .exists()
+    .withMessage("powerType is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("powerType cannot be empty")
+    .bail()
+    .customSanitizer((value) => value.toLowerCase())
+    .isIn(["solar", "mains", "alternator"])
+    .withMessage("powerType must be one of: solar, mains, alternator"),
+
+  // Mount type validation - ENHANCED (case insensitive)
+  body("mountType")
+    .exists()
+    .withMessage("mountType is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("mountType cannot be empty")
+    .bail()
+    .customSanitizer((value) => value.toLowerCase())
+    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+    .withMessage(
+      "mountType must be one of: pole, wall, faceboard, rooftop, suspended"
+    ),
+
+  // Optional fields with enhanced validation
+  body("isPrimaryInLocation")
+    .optional()
+    .isBoolean()
+    .withMessage("isPrimaryInLocation must be a boolean")
+    .toBoolean(),
+
+  body("date")
+    .optional()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage(
+      "date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)"
+    )
+    .bail()
+    .toDate()
+    .custom((date) => {
+      const now = moment();
+      const oneMonthAgo = moment().subtract(1, "month");
+      const inputDate = moment(date);
+
+      if (inputDate.isAfter(now)) {
+        throw new Error("date cannot be in the future");
+      }
+      if (inputDate.isBefore(oneMonthAgo)) {
+        throw new Error("date cannot be more than one month in the past");
+      }
+      return true;
+    }),
+
+  body("network")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("network cannot be empty if provided")
+    .bail()
+    .toLowerCase()
+    .custom(validateNetwork)
+    .withMessage("the network value is not among the expected ones"),
+
+  // Host ID validation - ENHANCED
+  body("host_id")
+    .optional()
+    .trim()
+    .custom((value) => {
+      if (value && !isValidObjectId(value)) {
+        throw new Error(
+          "host_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return value && isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+];
+
+const validateDeviceNameQuery = [
+  query("deviceName")
+    .exists()
+    .withMessage("deviceName is required in query parameters")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("deviceName cannot be empty")
+    .bail()
+    .isLength({ min: 3, max: 50 })
+    .withMessage("deviceName must be between 3 and 50 characters")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+];
+
+const validateTenantQuery = [
+  query("tenant")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("tenant cannot be empty if provided")
+    .bail()
+    .toLowerCase()
+    .isIn(constants.NETWORKS || ["airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
+];
+
+// Combined validation for deploy-owned endpoint
+const validateDeployOwnedDevice = [
+  ...validateTenantQuery,
+  ...validateDeviceNameQuery,
+  ...validateEnhancedDeploy,
+];
+
+const enhancedDeployActivity = [
+  ...validateTenantQuery,
+  ...validateDeviceNameQuery,
+
+  // Required fields for original deploy
+  body("site_id")
+    .exists()
+    .withMessage("site_id is required")
+    .bail()
+    .trim()
+    .custom((value) => {
+      if (!isValidObjectId(value)) {
+        throw new Error(
+          "site_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => ObjectId(value)),
+
+  body("height")
+    .exists()
+    .withMessage("height is required")
+    .bail()
+    .isFloat({ gt: 0, lt: 100 })
+    .withMessage("height must be a number between 0 and 100")
+    .toFloat(),
+
+  body("powerType")
+    .exists()
+    .withMessage("powerType is required")
+    .bail()
+    .trim()
+    .customSanitizer((value) => value.toLowerCase())
+    .isIn(["solar", "mains", "alternator"])
+    .withMessage("powerType must be one of: solar, mains, alternator"),
+
+  body("mountType")
+    .exists()
+    .withMessage("mountType is required")
+    .bail()
+    .trim()
+    .customSanitizer((value) => value.toLowerCase())
+    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+    .withMessage(
+      "mountType must be one of: pole, wall, faceboard, rooftop, suspended"
+    ),
+
+  // Optional fields
+  body("isPrimaryInLocation")
+    .optional()
+    .isBoolean()
+    .withMessage("isPrimaryInLocation must be a boolean")
+    .toBoolean(),
+
+  body("date")
+    .optional()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage("date must be a valid ISO8601 datetime")
+    .toDate()
+    .custom((date) => {
+      const now = moment();
+      const oneMonthAgo = moment().subtract(1, "month");
+      const inputDate = moment(date);
+
+      if (inputDate.isAfter(now)) {
+        throw new Error("date cannot be in the future");
+      }
+      if (inputDate.isBefore(oneMonthAgo)) {
+        throw new Error("date cannot be more than one month in the past");
+      }
+      return true;
+    }),
+
+  body("network")
+    .optional()
+    .trim()
+    .toLowerCase()
+    .custom(validateNetwork)
+    .withMessage("the network value is not among the expected ones"),
+
+  body("user_id")
+    .optional()
+    .trim()
+    .custom((value) => {
+      if (value && !isValidObjectId(value)) {
+        throw new Error(
+          "user_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return value && isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+
+  body("host_id")
+    .optional()
+    .trim()
+    .custom((value) => {
+      if (value && !isValidObjectId(value)) {
+        throw new Error(
+          "host_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return value && isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+];
+
 module.exports = {
   ...activitiesValidations,
   pagination: commonValidations.pagination,
   validateUniqueDeviceNames,
+  validateEnhancedDeploy,
+  validateDeviceNameQuery,
+  validateDeployOwnedDevice,
+  enhancedDeployActivity,
 };
