@@ -13,6 +13,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- activity-controller`
 );
 const createActivityUtil = require("@utils/activity.util");
+
 function handleResponse({
   result,
   key = "data",
@@ -44,61 +45,89 @@ function handleResponse({
 
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
-const activity = {
-  deploy: async (req, res, next) => {
-    try {
-      logText("we are deploying....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await createActivityUtil.deploy(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          createdActivity: result.data.createdActivity,
-          updatedDevice: result.data.updatedDevice,
-          user_id: result.data.user_id,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+// Helper function to handle deployment logic
+const handleDeployment = async (
+  req,
+  res,
+  next,
+  deployFunction,
+  deploymentType = null
+) => {
+  try {
+    logText(`deploying${deploymentType ? ` ${deploymentType}` : ""}....`);
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
       return;
     }
+
+    const request = req;
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    request.query.tenant = isEmpty(req.query.tenant)
+      ? defaultTenant
+      : req.query.tenant;
+
+    const result = await deployFunction(request, next);
+
+    if (isEmpty(result) || res.headersSent) {
+      return;
+    }
+
+    if (result.success === true) {
+      const status = result.status ? result.status : httpStatus.OK;
+      const response = {
+        success: true,
+        message: result.message,
+        createdActivity: result.data.createdActivity,
+        updatedDevice: result.data.updatedDevice,
+        user_id: result.data.user_id,
+      };
+
+      if (deploymentType) {
+        response.deployment_type = deploymentType;
+      }
+
+      return res.status(status).json(response);
+    } else if (result.success === false) {
+      const status = result.status
+        ? result.status
+        : httpStatus.INTERNAL_SERVER_ERROR;
+      return res.status(status).json({
+        success: false,
+        message: result.message,
+        errors: result.errors ? result.errors : { message: "" },
+      });
+    }
+  } catch (error) {
+    const errorType = deploymentType
+      ? `Deploy ${deploymentType} Error`
+      : "Internal Server Error";
+    logger.error(`🐛🐛 ${errorType} ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+};
+
+const activity = {
+  deploy: async (req, res, next) => {
+    return handleDeployment(req, res, next, createActivityUtil.deploy);
   },
+
+  deployOwnedDevice: async (req, res, next) => {
+    return handleDeployment(
+      req,
+      res,
+      next,
+      createActivityUtil.deployWithOwnership,
+      "owned_device"
+    );
+  },
+
   batchDeployWithCoordinates: async (req, res, next) => {
     try {
       logText("we are deploying....");

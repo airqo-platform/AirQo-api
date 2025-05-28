@@ -1,4 +1,3 @@
-// activities.routes.js
 const express = require("express");
 const router = express.Router();
 const activityController = require("@controllers/activity.controller");
@@ -13,10 +12,18 @@ router.post(
   activityController.recall
 );
 
+// ENHANCED: Original deploy with better validation
 router.post(
   "/deploy",
-  activitiesValidations.deployActivity,
+  activitiesValidations.enhancedDeployActivity, // Use enhanced validation
   activityController.deploy
+);
+
+// ENHANCED: Deploy owned device with comprehensive validation
+router.post(
+  "/deploy-owned",
+  activitiesValidations.validateDeployOwnedDevice,
+  activityController.deployOwnedDevice
 );
 
 router.post(

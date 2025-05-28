@@ -21,8 +21,10 @@ const generateFilter = require("./generate-filter");
 const handleResponse = require("./responseHandler");
 const distance = require("./distance");
 const translate = require("./translate");
+const claimTokenUtil = require("./claimToken.util");
 
 module.exports = {
+  claimTokenUtil,
   translate,
   distance,
   stringify,
