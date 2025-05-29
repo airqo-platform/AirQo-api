@@ -655,6 +655,29 @@ const gridsValidations = {
       next();
     },
   ],
+  findNearestCountry: [
+    ...commonValidations.tenant,
+    ...commonValidations.latitude,
+    ...commonValidations.longitude,
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage("Limit must be a number between 1 and 10")
+      .toInt(),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
+  ],
 };
 
 module.exports = {

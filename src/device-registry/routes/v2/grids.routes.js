@@ -109,6 +109,12 @@ router.delete(
   createGridController.deleteAdminLevel
 );
 
+router.post(
+  "/nearest-country",
+  gridsValidations.findNearestCountry,
+  createGridController.findNearestCountry
+);
+
 router.get(
   "/levels/:level_id",
   gridsValidations.getAdminLevel,
