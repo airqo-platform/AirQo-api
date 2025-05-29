@@ -7,6 +7,10 @@ const msgTemplates = require("./email.templates");
 const httpStatus = require("http-status");
 const path = require("path");
 const {
+  sendMailWithDeduplication,
+  emailDeduplicator,
+} = require("./emailDeduplication");
+const {
   logObject,
   logText,
   logElement,
@@ -1132,14 +1136,13 @@ const mailer = {
       if (!checkResult.success) {
         return checkResult;
       }
-      let bccEmails = [];
 
+      let bccEmails = [];
       if (constants.REQUEST_ACCESS_EMAILS) {
         bccEmails = constants.REQUEST_ACCESS_EMAILS.split(",");
       }
 
       let subscribedEmails = [];
-
       for (let i = 0; i < bccEmails.length; i++) {
         const bccEmail = bccEmails[i].trim();
         const checkResult = await SubscriptionModel(
@@ -1152,10 +1155,8 @@ const mailer = {
       }
 
       const subscribedBccEmails = subscribedEmails.join(",");
-      // bcc: subscribedBccEmails,
 
-      let mailOptions = {};
-      mailOptions = {
+      let mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
@@ -1212,13 +1213,30 @@ const mailer = {
         };
       }
 
-      let response = transporter.sendMail(mailOptions);
-      let data = await response;
-      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+      // Replace transporter.sendMail with sendMailWithDeduplication
+      const result = await sendMailWithDeduplication(transporter, mailOptions, {
+        skipDeduplication: false,
+        logDuplicates: true,
+        throwOnDuplicate: false,
+      });
+
+      // Handle duplicate case
+      if (result.duplicate) {
+        logger.info(`Duplicate verification email prevented for: ${email}`);
         return {
           success: true,
-          message: "email successfully sent",
-          data,
+          message: "Verification email already sent recently",
+          data: null,
+          status: httpStatus.OK,
+        };
+      }
+
+      // Handle success/failure
+      if (result.success && !isEmpty(result.data.accepted)) {
+        return {
+          success: true,
+          message: "Email successfully sent",
+          data: result.data,
           status: httpStatus.OK,
         };
       } else {
@@ -1227,8 +1245,8 @@ const mailer = {
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: "email not sent",
-              emailResults: data,
+              message: "Email not sent",
+              emailResults: result.data,
             }
           )
         );
@@ -1242,6 +1260,43 @@ const mailer = {
           { message: error.message }
         )
       );
+    }
+  },
+
+  clearEmailDeduplication: async (email, subject, content = "") => {
+    try {
+      const mockMailOptions = {
+        to: email,
+        subject: subject,
+        html: content,
+      };
+
+      const removed = await emailDeduplicator.removeEmailKey(mockMailOptions);
+      return {
+        success: true,
+        message: removed ? "Deduplication key removed" : "Key not found",
+        removed,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  },
+
+  getDeduplicationStats: async () => {
+    try {
+      const stats = await emailDeduplicator.getStats();
+      return {
+        success: true,
+        data: stats,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
     }
   },
   sendVerificationEmail: async ({ email, token, tenant }, next) => {
@@ -1772,14 +1827,31 @@ const mailer = {
         html: msgs.recovery_email({ token, tenant, email, version }),
         attachments: attachments,
       };
-      let response = transporter.sendMail(mailOptions);
-      let data = await response;
 
-      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+      // Replace transporter.sendMail with sendMailWithDeduplication
+      const result = await sendMailWithDeduplication(transporter, mailOptions, {
+        skipDeduplication: false,
+        logDuplicates: true,
+        throwOnDuplicate: false,
+      });
+
+      // Handle duplicate case
+      if (result.duplicate) {
+        logger.info(`Duplicate password reset email prevented for: ${email}`);
         return {
           success: true,
-          message: "email successfully sent",
-          data,
+          message: "Password reset email already sent recently",
+          data: null,
+          status: httpStatus.OK,
+        };
+      }
+
+      // Handle success/failure
+      if (result.success && !isEmpty(result.data.accepted)) {
+        return {
+          success: true,
+          message: "Email successfully sent",
+          data: result.data,
           status: httpStatus.OK,
         };
       } else {
@@ -1788,12 +1860,34 @@ const mailer = {
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: "email not sent",
-              emailResults: data,
+              message: "Email not sent",
+              emailResults: result.data,
             }
           )
         );
       }
+      // let response = transporter.sendMail(mailOptions);
+      // let data = await response;
+
+      // if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+      //   return {
+      //     success: true,
+      //     message: "email successfully sent",
+      //     data,
+      //     status: httpStatus.OK,
+      //   };
+      // } else {
+      //   next(
+      //     new HttpError(
+      //       "Internal Server Error",
+      //       httpStatus.INTERNAL_SERVER_ERROR,
+      //       {
+      //         message: "email not sent",
+      //         emailResults: data,
+      //       }
+      //     )
+      //   );
+      // }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -3258,3 +3352,38 @@ const mailer = {
 };
 
 module.exports = mailer;
+
+/*
+REFACTORING PATTERN FOR OTHER FUNCTIONS:
+
+1. Keep all existing logic (subscription checks, BCC handling, etc.)
+
+2. Replace this:
+   let response = transporter.sendMail(mailOptions);
+   let data = await response;
+
+   With this:
+   const result = await sendMailWithDeduplication(transporter, mailOptions, {
+     skipDeduplication: false,
+     logDuplicates: true,
+     throwOnDuplicate: false
+   });
+
+3. Add duplicate handling after the sendMail call:
+   if (result.duplicate) {
+     logger.info(`Duplicate [EMAIL_TYPE] email prevented for: ${email}`);
+     return {
+       success: true,
+       message: "[EMAIL_TYPE] email already sent recently",
+       data: null,
+       status: httpStatus.OK
+     };
+   }
+
+4. Update success condition:
+   if (result.success && !isEmpty(result.data.accepted)) {
+     // success handling
+   }
+
+5. Keep all existing error handling unchanged
+*/
