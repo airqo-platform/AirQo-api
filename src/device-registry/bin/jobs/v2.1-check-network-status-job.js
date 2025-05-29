@@ -33,12 +33,11 @@ const checkNetworkStatus = async () => {
   }
 
   isMainJobRunning = true;
-  logger.info(`🚀 Starting ${MAIN_JOB_NAME} execution`);
 
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
-      logger.info(`${MAIN_JOB_NAME} stopping due to application shutdown`);
+      logText(`${MAIN_JOB_NAME} stopping due to application shutdown`);
       return;
     }
 
@@ -63,7 +62,7 @@ const checkNetworkStatus = async () => {
 
     if (result.length === 0 || result[0].totalDevices === 0) {
       logText("No deployed devices found");
-      logger.info("No deployed devices found.");
+      logger.warn("🙀🙀 No deployed devices found.");
 
       // Still create an alert even when no devices are found
       const alertData = {
@@ -78,7 +77,7 @@ const checkNetworkStatus = async () => {
       };
 
       await networkStatusUtil.createAlert({ alertData, tenant: "airqo" });
-      logger.info(`✅ ${MAIN_JOB_NAME} completed successfully`);
+
       return;
     }
 
@@ -87,7 +86,7 @@ const checkNetworkStatus = async () => {
 
     // Check again if we should stop (long-running operations)
     if (global.isShuttingDown) {
-      logger.info(`${MAIN_JOB_NAME} stopping due to application shutdown`);
+      logText(`${MAIN_JOB_NAME} stopping due to application shutdown`);
       return;
     }
 
@@ -148,8 +147,6 @@ const checkNetworkStatus = async () => {
       logText("Failed to save network status alert");
       logger.error("Failed to save network status alert", alertResult);
     }
-
-    logger.info(`✅ ${MAIN_JOB_NAME} completed successfully`);
   } catch (error) {
     logText(`🐛🐛 Error checking network status: ${error.message}`);
     logger.error(
@@ -180,7 +177,6 @@ const checkNetworkStatus = async () => {
   } finally {
     isMainJobRunning = false;
     currentMainJobPromise = null;
-    logger.info(`🏁 ${MAIN_JOB_NAME} execution finished`);
   }
 };
 
@@ -195,12 +191,11 @@ const dailyNetworkStatusSummary = async () => {
   }
 
   isSummaryJobRunning = true;
-  logger.info(`🚀 Starting ${SUMMARY_JOB_NAME} execution`);
 
   try {
     // Check if job should stop (for graceful shutdown)
     if (global.isShuttingDown) {
-      logger.info(`${SUMMARY_JOB_NAME} stopping due to application shutdown`);
+      logText(`${SUMMARY_JOB_NAME} stopping due to application shutdown`);
       return;
     }
 
@@ -237,8 +232,6 @@ Critical Alerts: ${stats.criticalCount}
       logText(summaryMessage);
       logger.info(summaryMessage);
     }
-
-    logger.info(`✅ ${SUMMARY_JOB_NAME} completed successfully`);
   } catch (error) {
     logger.error(
       `🐛🐛 ${SUMMARY_JOB_NAME} Error generating daily summary: ${error.message}`
@@ -247,7 +240,6 @@ Critical Alerts: ${stats.criticalCount}
   } finally {
     isSummaryJobRunning = false;
     currentSummaryJobPromise = null;
-    logger.info(`🏁 ${SUMMARY_JOB_NAME} execution finished`);
   }
 };
 
@@ -265,8 +257,6 @@ const summaryJobWrapper = async () => {
 // Create and start BOTH cron jobs
 const startNetworkStatusJobs = () => {
   try {
-    logger.info(`🕐 Starting network status jobs...`);
-
     // CREATE FIRST JOB - Main network status check
     const mainJobInstance = cron.schedule(MAIN_JOB_SCHEDULE, mainJobWrapper, {
       scheduled: true,
@@ -294,25 +284,25 @@ const startNetworkStatusJobs = () => {
       name: MAIN_JOB_NAME,
       schedule: MAIN_JOB_SCHEDULE,
       stop: async () => {
-        logger.info(`🛑 Stopping ${MAIN_JOB_NAME}...`);
+        logText(`🛑 Stopping ${MAIN_JOB_NAME}...`);
 
         try {
           // Stop the cron schedule
           mainJobInstance.stop();
-          logger.info(`📅 ${MAIN_JOB_NAME} schedule stopped`);
+          logText(`📅 ${MAIN_JOB_NAME} schedule stopped`);
 
           // Wait for current execution to finish if running
           if (currentMainJobPromise) {
-            logger.info(
+            logText(
               `⏳ Waiting for current ${MAIN_JOB_NAME} execution to finish...`
             );
             await currentMainJobPromise;
-            logger.info(`✅ Current ${MAIN_JOB_NAME} execution completed`);
+            logText(`✅ Current ${MAIN_JOB_NAME} execution completed`);
           }
 
           // Destroy the job
           mainJobInstance.destroy();
-          logger.info(`💥 ${MAIN_JOB_NAME} destroyed successfully`);
+          logText(`💥 ${MAIN_JOB_NAME} destroyed successfully`);
 
           // Remove from global registry
           delete global.cronJobs[MAIN_JOB_NAME];
@@ -328,25 +318,25 @@ const startNetworkStatusJobs = () => {
       name: SUMMARY_JOB_NAME,
       schedule: SUMMARY_JOB_SCHEDULE,
       stop: async () => {
-        logger.info(`🛑 Stopping ${SUMMARY_JOB_NAME}...`);
+        logText(`🛑 Stopping ${SUMMARY_JOB_NAME}...`);
 
         try {
           // Stop the cron schedule
           summaryJobInstance.stop();
-          logger.info(`📅 ${SUMMARY_JOB_NAME} schedule stopped`);
+          logText(`📅 ${SUMMARY_JOB_NAME} schedule stopped`);
 
           // Wait for current execution to finish if running
           if (currentSummaryJobPromise) {
-            logger.info(
+            logText(
               `⏳ Waiting for current ${SUMMARY_JOB_NAME} execution to finish...`
             );
             await currentSummaryJobPromise;
-            logger.info(`✅ Current ${SUMMARY_JOB_NAME} execution completed`);
+            logText(`✅ Current ${SUMMARY_JOB_NAME} execution completed`);
           }
 
           // Destroy the job
           summaryJobInstance.destroy();
-          logger.info(`💥 ${SUMMARY_JOB_NAME} destroyed successfully`);
+          logText(`💥 ${SUMMARY_JOB_NAME} destroyed successfully`);
 
           // Remove from global registry
           delete global.cronJobs[SUMMARY_JOB_NAME];
@@ -358,10 +348,10 @@ const startNetworkStatusJobs = () => {
       },
     };
 
-    logger.info(
+    logText(
       `✅ ${MAIN_JOB_NAME} registered and started (${MAIN_JOB_SCHEDULE})`
     );
-    logger.info(
+    logText(
       `✅ ${SUMMARY_JOB_NAME} registered and started (${SUMMARY_JOB_SCHEDULE})`
     );
     logText("Network status job is now running.....");
@@ -378,7 +368,7 @@ const startNetworkStatusJobs = () => {
 
 // Graceful shutdown handlers for these specific jobs
 const handleShutdown = async (signal) => {
-  logger.info(`📨 Network status jobs received ${signal} signal`);
+  logText(`📨 Network status jobs received ${signal} signal`);
 
   // Stop both jobs
   if (global.cronJobs && global.cronJobs[MAIN_JOB_NAME]) {
@@ -389,7 +379,7 @@ const handleShutdown = async (signal) => {
     await global.cronJobs[SUMMARY_JOB_NAME].stop();
   }
 
-  logger.info(`👋 Network status jobs shutdown complete`);
+  logText(`👋 Network status jobs shutdown complete`);
 };
 
 // Register shutdown handlers if not already done globally
@@ -419,7 +409,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // Start both jobs
 try {
   startNetworkStatusJobs();
-  logger.info(`🎉 Network status jobs initialization complete`);
+  logText(`🎉 Network status jobs initialization complete`);
 } catch (error) {
   logger.error(`💥 Failed to initialize network status jobs: ${error.message}`);
   process.exit(1);

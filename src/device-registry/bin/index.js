@@ -10,6 +10,16 @@ const log4jsConfiguration = require("@config/log4js");
 log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/index`);
 const { stringify } = require("@utils/common");
+const {
+  logObject,
+  EnvironmentDetector,
+  isDevelopment,
+  isProduction,
+  isStaging,
+  getEnvironment,
+  getDetailedInfo,
+  resetCache,
+} = require("@utils/shared");
 
 try {
   require("fs").mkdirSync("./log");
@@ -34,7 +44,13 @@ const startKafka = async () => {
 
 const main = async () => {
   try {
-    await startKafka();
+    if (!isDevelopment()) {
+      console.log("🚀 Starting Kafka consumer...");
+      await startKafka();
+      console.log("✅ Kafka consumer started");
+    } else {
+      console.log("🚫 Skipping Kafka in development mode");
+    }
     const server = createServer();
     global.server = server;
   } catch (error) {

@@ -5,7 +5,7 @@ const PreferenceModel = require("@models/Preference");
 const SelectedSiteModel = require("@models/SelectedSite");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const { logObject } = require("@utils/shared");
+const { logObject, logText } = require("@utils/shared");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preference-update-job`
@@ -243,7 +243,7 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
       skip += batchSize;
     }
 
-    logger.info(
+    logText(
       `✅ Successfully completed preference update for users with ${NUMBER_OF_SITES_PER_USER} randomly selected sites each`
     );
   } catch (error) {
