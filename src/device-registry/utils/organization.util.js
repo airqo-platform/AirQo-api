@@ -1,4 +1,4 @@
-// utils/organization.util.js - SIMPLIFIED & ALIGNED
+// utils/organization.util.js - FIXED: Defensive Loading
 
 const axios = require("axios");
 const { logText, HttpError } = require("@utils/shared");
@@ -13,14 +13,17 @@ console.log("constants.AUTH_SERVICE_URL", constants.AUTH_SERVICE_URL);
 
 class OrganizationUtil {
   constructor() {
+    // ✅ DEFENSIVE: Don't throw errors in constructor
     this.authServiceUrl = constants.AUTH_SERVICE_URL;
-    if (!this.authServiceUrl) {
-      throw new Error("AUTH_SERVICE_URL must be configured");
-    }
+    this.isConfigured = !!this.authServiceUrl;
     this.timeoutMs = 5000;
-
-    // SIMPLIFIED: Use system/service JWT token
     this.serviceJwtToken = constants.SERVICE_JWT_TOKEN;
+
+    if (!this.isConfigured) {
+      logger.warn(
+        "⚠️  AUTH_SERVICE_URL not configured - organization features will be limited"
+      );
+    }
 
     if (!this.serviceJwtToken) {
       logger.warn(
@@ -29,13 +32,28 @@ class OrganizationUtil {
     }
   }
 
-  // SIMPLIFIED: Build headers aligned with your auth service
+  // ✅ CHECK CONFIGURATION: Before each method call
+  _checkConfiguration() {
+    if (!this.isConfigured) {
+      return {
+        success: false,
+        message: "Organization service not configured",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: {
+          message:
+            "AUTH_SERVICE_URL must be configured to use organization features",
+          configuration_missing: ["AUTH_SERVICE_URL"],
+        },
+      };
+    }
+    return null;
+  }
+
   buildRequestHeaders() {
     const headers = {
       "Content-Type": "application/json",
     };
 
-    // Use JWT format like your auth service expects
     if (this.serviceJwtToken) {
       headers["Authorization"] = `JWT ${this.serviceJwtToken}`;
     }
@@ -43,8 +61,11 @@ class OrganizationUtil {
     return headers;
   }
 
-  // SIMPLIFIED: Validate user membership (essential logic only)
+  // ✅ PROTECTED: Check configuration before proceeding
   async validateUserOrganizationMembership(request) {
+    const configCheck = this._checkConfiguration();
+    if (configCheck) return configCheck;
+
     try {
       const { user_id, organization_id } = request;
 
@@ -118,8 +139,11 @@ class OrganizationUtil {
     }
   }
 
-  // SIMPLIFIED: Get user from auth service
+  // ✅ PROTECTED: Check configuration before proceeding
   async getUserFromAuthService(userId) {
+    const configCheck = this._checkConfiguration();
+    if (configCheck) throw new Error(configCheck.message);
+
     try {
       const response = await axios.get(
         `${this.authServiceUrl}/api/v2/users/${userId}`,
@@ -141,8 +165,11 @@ class OrganizationUtil {
     }
   }
 
-  // SIMPLIFIED: Get organization from auth service
+  // ✅ PROTECTED: Check configuration before proceeding
   async getOrganizationFromAuthService(organizationId) {
+    const configCheck = this._checkConfiguration();
+    if (configCheck) return null;
+
     try {
       const response = await axios.get(
         `${this.authServiceUrl}/api/v2/groups/${organizationId}`,
@@ -169,8 +196,11 @@ class OrganizationUtil {
     }
   }
 
-  // SIMPLIFIED: Switch organization context
+  // ✅ PROTECTED: Check configuration before proceeding
   async switchOrganizationContext(request) {
+    const configCheck = this._checkConfiguration();
+    if (configCheck) return configCheck;
+
     try {
       const { user_id, organization_id } = request;
 
@@ -206,8 +236,11 @@ class OrganizationUtil {
     }
   }
 
-  // SIMPLIFIED: Get user organizations
+  // ✅ PROTECTED: Check configuration before proceeding
   async getUserOrganizations(userId) {
+    const configCheck = this._checkConfiguration();
+    if (configCheck) return configCheck;
+
     try {
       const user = await this.getUserFromAuthService(userId);
 
@@ -246,6 +279,21 @@ class OrganizationUtil {
         data: [],
       };
     }
+  }
+
+  // ✅ UTILITY: Check if organization features are available
+  isAvailable() {
+    return this.isConfigured;
+  }
+
+  // ✅ UTILITY: Get configuration status
+  getStatus() {
+    return {
+      configured: this.isConfigured,
+      auth_service_url: this.authServiceUrl || "NOT_SET",
+      jwt_token_available: !!this.serviceJwtToken,
+      ready: this.isConfigured && !!this.serviceJwtToken,
+    };
   }
 }
 
