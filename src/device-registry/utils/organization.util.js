@@ -9,6 +9,8 @@ const logger = log4js.getLogger(
 );
 const httpStatus = require("http-status");
 
+console.log("constants.AUTH_SERVICE_URL", constants.AUTH_SERVICE_URL);
+
 class OrganizationUtil {
   constructor() {
     this.authServiceUrl = constants.AUTH_SERVICE_URL;
