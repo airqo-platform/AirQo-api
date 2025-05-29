@@ -20,6 +20,140 @@ const validateDateRange = (date) => {
   return true;
 };
 
+// Define reusable validation components for deploy operations
+const commonDeployValidations = {
+  site_id: body("site_id")
+    .exists()
+    .withMessage("site_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("site_id cannot be empty")
+    .bail()
+    .custom((value) => {
+      if (!isValidObjectId(value)) {
+        throw new Error(
+          "site_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => ObjectId(value)),
+
+  height: body("height")
+    .exists()
+    .withMessage("height is required")
+    .bail()
+    .isFloat({ gt: 0, lt: 100 })
+    .withMessage("height must be a number between 0 and 100")
+    .toFloat(),
+
+  powerType: body("powerType")
+    .exists()
+    .withMessage("powerType is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("powerType cannot be empty")
+    .bail()
+    .customSanitizer((value) => value.toLowerCase())
+    .isIn(["solar", "mains", "alternator"])
+    .withMessage("powerType must be one of: solar, mains, alternator"),
+
+  mountType: body("mountType")
+    .exists()
+    .withMessage("mountType is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("mountType cannot be empty")
+    .bail()
+    .customSanitizer((value) => value.toLowerCase())
+    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+    .withMessage(
+      "mountType must be one of: pole, wall, faceboard, rooftop, suspended"
+    ),
+
+  isPrimaryInLocation: body("isPrimaryInLocation")
+    .optional()
+    .isBoolean()
+    .withMessage("isPrimaryInLocation must be a boolean")
+    .toBoolean(),
+
+  date: body("date")
+    .optional()
+    .trim()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage(
+      "date must be a valid ISO8601 datetime (YYYY-MM-DDTHH:mm:ss.sssZ)"
+    )
+    .bail()
+    .toDate()
+    .custom(validateDateRange),
+
+  network: body("network")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("network cannot be empty if provided")
+    .bail()
+    .toLowerCase()
+    .custom(validateNetwork)
+    .withMessage("the network value is not among the expected ones"),
+
+  host_id: body("host_id")
+    .optional()
+    .trim()
+    .custom((value) => {
+      if (value && !isValidObjectId(value)) {
+        throw new Error(
+          "host_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return value && isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+
+  // Required user_id (for owned device deployment)
+  user_id_required: body("user_id")
+    .exists()
+    .withMessage("user_id is required for owned device deployment")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("user_id cannot be empty")
+    .bail()
+    .custom((value) => {
+      if (!isValidObjectId(value)) {
+        throw new Error(
+          "user_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+
+  // Optional user_id (for regular deployment)
+  user_id_optional: body("user_id")
+    .optional()
+    .trim()
+    .custom((value) => {
+      if (value && !isValidObjectId(value)) {
+        throw new Error(
+          "user_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return value && isValidObjectId(value) ? ObjectId(value) : value;
+    }),
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -574,8 +708,76 @@ const validateUniqueDeviceNames = (req, res, next) => {
   next();
 };
 
+const validateDeviceNameQuery = [
+  query("deviceName")
+    .exists()
+    .withMessage("deviceName is required in query parameters")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("deviceName cannot be empty")
+    .bail()
+    .isLength({ min: 3, max: 50 })
+    .withMessage("deviceName must be between 3 and 50 characters")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+];
+
+const validateTenantQuery = [
+  query("tenant")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("tenant cannot be empty if provided")
+    .bail()
+    .toLowerCase()
+    .isIn(constants.NETWORKS || ["airqo"])
+    .withMessage("the tenant value is not among the expected ones"),
+];
+
+// Enhanced validator for owned device deployment (requires user_id)
+const validateEnhancedDeploy = [
+  commonDeployValidations.user_id_required,
+  commonDeployValidations.site_id,
+  commonDeployValidations.height,
+  commonDeployValidations.powerType,
+  commonDeployValidations.mountType,
+  commonDeployValidations.isPrimaryInLocation,
+  commonDeployValidations.date,
+  commonDeployValidations.network,
+  commonDeployValidations.host_id,
+];
+
+// Enhanced validator for regular deployment (user_id optional)
+const enhancedDeployActivity = [
+  ...validateTenantQuery,
+  ...validateDeviceNameQuery,
+  commonDeployValidations.site_id,
+  commonDeployValidations.height,
+  commonDeployValidations.powerType,
+  commonDeployValidations.mountType,
+  commonDeployValidations.isPrimaryInLocation,
+  commonDeployValidations.date,
+  commonDeployValidations.network,
+  commonDeployValidations.user_id_optional,
+  commonDeployValidations.host_id,
+];
+
+// Combined validation for deploy-owned endpoint
+const validateDeployOwnedDevice = [
+  ...validateTenantQuery,
+  ...validateDeviceNameQuery,
+  ...validateEnhancedDeploy,
+];
+
 module.exports = {
   ...activitiesValidations,
   pagination: commonValidations.pagination,
   validateUniqueDeviceNames,
+  validateEnhancedDeploy,
+  validateDeviceNameQuery,
+  validateDeployOwnedDevice,
+  enhancedDeployActivity,
 };
