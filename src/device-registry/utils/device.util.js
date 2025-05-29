@@ -16,7 +16,30 @@ const qs = require("qs");
 const QRCode = require("qrcode");
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
-const organizationUtil = require("@utils/organization.util");
+
+let organizationUtil = null;
+try {
+  organizationUtil = require("@utils/organization.util");
+  console.log("✅ Organization util loaded successfully");
+} catch (error) {
+  console.warn("⚠️  Organization util not available:", error.message);
+  // Create a mock object with the same interface
+  organizationUtil = {
+    switchOrganizationContext: async () => ({
+      success: false,
+      message: "Organization service not available",
+      status: 503,
+    }),
+    getUserOrganizations: async () => ({
+      success: false,
+      message: "Organization service not available",
+      data: [],
+    }),
+    isAvailable: () => false,
+    getStatus: () => ({ configured: false, ready: false }),
+  };
+}
+
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
