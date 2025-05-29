@@ -15,10 +15,19 @@ const logWarning = (message) => {
   console.warn(`[ROUTE_LOADER_WARNING] ${message}`);
 };
 
-// Safe route loader function
+// Cache for loaded modules to prevent duplicate loading
+const moduleCache = new Map();
+
+// Safe route loader function with caching
 const safeRequireRoute = (routePath, routeName) => {
   try {
-    logInfo(`Loading route: ${routeName}`);
+    logInfo(`Loading route: ${routeName} from ${routePath}`);
+
+    // Check if we've already loaded this module
+    if (moduleCache.has(routePath)) {
+      logInfo(`✓ Using cached route module: ${routeName}`);
+      return moduleCache.get(routePath);
+    }
 
     // Attempt to require the route
     const routeModule = require(routePath);
@@ -34,10 +43,13 @@ const safeRequireRoute = (routePath, routeName) => {
       );
     }
 
+    // Cache the successfully loaded module
+    moduleCache.set(routePath, routeModule);
+
     logInfo(`✓ Successfully loaded route: ${routeName}`);
     return routeModule;
   } catch (error) {
-    logError(error, `Failed to load route: ${routeName}`);
+    logError(error, `Failed to load route: ${routeName} from ${routePath}`);
 
     // Return a dummy router that provides helpful error info
     const errorRouter = express.Router();
@@ -49,6 +61,8 @@ const safeRequireRoute = (routePath, routeName) => {
         error: "Route temporarily unavailable",
         message: `The ${routeName} route failed to load during application startup`,
         path: req.path,
+        method: req.method,
+        routePath: routePath,
         timestamp: new Date().toISOString(),
       });
     });
@@ -76,7 +90,7 @@ const routeStatus = {
   failed: [],
 };
 
-// Load each route with error handling
+// Define all routes - NOTE: paths are relative to /api/v2/devices
 const routes = [
   {
     path: "/activities",
@@ -89,7 +103,8 @@ const routes = [
     name: "airqlouds",
   },
   { path: "/sites", route: "@routes/v2/sites.routes", name: "sites" },
-  { path: "/devices", route: "@routes/v2/devices.routes", name: "devices" },
+  // MAIN DEVICES ROUTE - mounted at root "/" since we're already at /api/v2/devices
+  { path: "/", route: "@routes/v2/devices.routes", name: "devices" },
   { path: "/events", route: "@routes/v2/events.routes", name: "events" },
   { path: "/readings", route: "@routes/v2/readings.routes", name: "readings" },
   { path: "/uptime", route: "@routes/v2/uptime.routes", name: "uptime" },
@@ -129,34 +144,80 @@ const routes = [
   { path: "/transmit", route: "@routes/v2/transmit.routes", name: "transmit" },
 ];
 
-// Load all routes
-routes.forEach(({ path, route, name }) => {
+logInfo(`Starting to load ${routes.length} routes...`);
+
+// Sort routes to ensure the root "/" (devices) route is loaded last
+// This prevents it from catching requests meant for other routes
+const sortedRoutes = routes.sort((a, b) => {
+  if (a.path === "/") return 1; // "/" goes last
+  if (b.path === "/") return -1; // "/" goes last
+  return 0; // maintain original order for others
+});
+
+// Load all routes in the correct order
+sortedRoutes.forEach(({ path, route, name }) => {
   if (safeMountRoute(path, route, name)) {
-    routeStatus.loaded.push({ name, path });
+    routeStatus.loaded.push({ name, path, route });
   } else {
-    routeStatus.failed.push({ name, path });
+    routeStatus.failed.push({ name, path, route });
   }
 });
 
-// Handle the catch-all route (last route)
-if (safeMountRoute("/", "@routes/v2/devices.routes", "devices-catchall")) {
-  routeStatus.loaded.push({ name: "devices-catchall", path: "/" });
-} else {
-  routeStatus.failed.push({ name: "devices-catchall", path: "/" });
-}
-
-// Health check endpoint
+// Enhanced health check endpoint - mounted before the catch-all
 router.get("/health", (req, res) => {
+  const totalRoutes = routes.length;
+  const loadedCount = routeStatus.loaded.length;
+  const failedCount = routeStatus.failed.length;
+
   res.json({
-    status: routeStatus.failed.length === 0 ? "ok" : "degraded",
+    status: failedCount === 0 ? "healthy" : "degraded",
     timestamp: new Date().toISOString(),
     routes: {
-      total: routes.length + 1, // +1 for catch-all route
-      loaded: routeStatus.loaded.length,
-      failed: routeStatus.failed.length,
+      total: totalRoutes,
+      loaded: loadedCount,
+      failed: failedCount,
+      successRate: `${Math.round((loadedCount / totalRoutes) * 100)}%`,
     },
-    loadedRoutes: routeStatus.loaded,
-    failedRoutes: routeStatus.failed,
+    loadedRoutes: routeStatus.loaded.map((route) => ({
+      name: route.name,
+      path: route.path,
+      status: "operational",
+    })),
+    ...(failedCount > 0 && {
+      failedRoutes: routeStatus.failed.map((route) => ({
+        name: route.name,
+        path: route.path,
+        status: "failed",
+      })),
+    }),
+    environment: process.env.NODE_ENV || "development",
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    mountPoint: "/api/v2/devices",
+  });
+});
+
+// Detailed route status endpoint - also mounted before catch-all
+router.get("/routes", (req, res) => {
+  res.json({
+    timestamp: new Date().toISOString(),
+    mountPoint: "/api/v2/devices",
+    routes: routes.map(({ path, route, name }) => {
+      const isLoaded = routeStatus.loaded.some((r) => r.name === name);
+      const isFailed = routeStatus.failed.some((r) => r.name === name);
+
+      return {
+        name,
+        path,
+        module: route,
+        status: isLoaded ? "loaded" : isFailed ? "failed" : "unknown",
+        fullEndpoint: `/api/v2/devices${path === "/" ? "" : path}`,
+        description:
+          name === "devices"
+            ? "Main devices endpoint (catch-all)"
+            : `${name} specific operations`,
+      };
+    }),
   });
 });
 
@@ -171,6 +232,27 @@ if (routeStatus.failed.length > 0) {
       .map((r) => r.name)
       .join(", ")}`
   );
+
+  // In production, log critical failures but don't exit
+  if (
+    process.env.NODE_ENV === "production" &&
+    routeStatus.failed.length > routes.length / 2
+  ) {
+    logError(
+      new Error("More than 50% of routes failed to load"),
+      "Critical failure in production"
+    );
+  }
+} else {
+  logInfo("🎉 All routes loaded successfully!");
 }
 
+// Log the actual endpoint mappings for clarity
+logInfo("📍 Final endpoint mappings:");
+routeStatus.loaded.forEach((route) => {
+  const fullPath = `/api/v2/devices${route.path === "/" ? "" : route.path}`;
+  logInfo(`   ${route.name}: ${fullPath}`);
+});
+
+// Export the router
 module.exports = router;
