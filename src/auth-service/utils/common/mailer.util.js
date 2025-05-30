@@ -2,14 +2,14 @@ const transporter = require("@config/mailer.config");
 const isEmpty = require("is-empty");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");
-const msgs = require("./email.msgs");
-const msgTemplates = require("./email.templates");
+const msgs = require("./email.msgs.util");
+const msgTemplates = require("./email.templates.util");
 const httpStatus = require("http-status");
 const path = require("path");
 const {
   sendMailWithDeduplication,
   emailDeduplicator,
-} = require("./emailDeduplication");
+} = require("./email-deduplication.util");
 const {
   logObject,
   logText,

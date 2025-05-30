@@ -4,6 +4,7 @@ const expect = chai.expect;
 const sinon = require("sinon");
 const bcrypt = require("bcrypt");
 const { mailer, generateFilter } = require("@utils/common");
+const { stringify } = require("@utils/shared");
 const redis = require("redis");
 const moment = require("moment-timezone");
 const { ObjectId } = require("mongoose").Types;
@@ -2359,9 +2360,8 @@ describe("create-user-util", function () {
 
       const result = await createUser.setCache(testData, cacheID);
 
-      expect(
-        redisStub.calledOnceWith(cacheID, JSON.stringify(testData), "EX", 3600)
-      ).to.be.true;
+      expect(redisStub.calledOnceWith(cacheID, stringify(testData), "EX", 3600))
+        .to.be.true;
       expect(result).to.equal("OK");
     });
   });
@@ -2389,9 +2389,8 @@ describe("create-user-util", function () {
 
       const result = await createUser.setCache(testData, cacheID);
 
-      expect(
-        redisStub.calledOnceWith(cacheID, JSON.stringify(testData), "EX", 3600)
-      ).to.be.true;
+      expect(redisStub.calledOnceWith(cacheID, stringify(testData), "EX", 3600))
+        .to.be.true;
       expect(
         loggerErrorStub.calledOnceWith(
           `internal server error -- ${errorMessage}`
@@ -2497,7 +2496,7 @@ describe("create-user-util", function () {
       const testData = { key: "value" };
 
       // Stub Redis get method to return the test data
-      redisStub.resolves(JSON.stringify(testData));
+      redisStub.resolves(stringify(testData));
 
       const result = await createUser.getCache(cacheID);
 
@@ -2716,13 +2715,13 @@ describe("create-user-util", function () {
       expect(redisStub.calledOnceWith(cacheID)).to.be.true;
       expect(
         loggerErrorStub.calledOnceWith(
-          `Internal Server Error -- ${JSON.stringify(error)}`
+          `Internal Server Error -- ${stringify(error)}`
         )
       ).to.be.true;
       expect(result).to.deep.equal({
         success: false,
         message: "Internal Server Error",
-        errors: { message: JSON.stringify(error) },
+        errors: { message: stringify(error) },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     });

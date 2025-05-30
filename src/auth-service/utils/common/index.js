@@ -1,5 +1,5 @@
 const mailer = require("./mailer.util");
-const stringify = require("./stringify");
+const stringify = require("./stringify.util");
 const {
   generateDateFormat,
   threeMonthsFromNow,
@@ -16,12 +16,12 @@ const {
   formatDate,
   addHours,
   monthsFromNow,
-} = require("./date");
-const msgs = require("./email.msgs");
-const emailTemplates = require("./email.templates");
-const generateFilter = require("./generate-filter");
-const winstonLogger = require("./log-winston");
-const handleResponse = require("./responseHandler");
+} = require("./date.util");
+const msgs = require("./email.msgs.util");
+const emailTemplates = require("./email.templates.util");
+const generateFilter = require("./generate-filter.util");
+const winstonLogger = require("./log-winston.util");
+const handleResponse = require("./response-handler.util");
 const slugUtils = require("./slug.util");
 
 module.exports = {

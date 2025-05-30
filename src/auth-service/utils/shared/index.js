@@ -2,6 +2,7 @@ const { HttpError, extractErrorsFromRequest } = require("./errors");
 const { logElement, logText, logObject } = require("./log");
 const { escapeHtml } = require("./html.util");
 const { sanitizeEmailString } = require("./string.util");
+const stringify = require("./stringify.util");
 
 const {
   EnvironmentDetector,
@@ -15,6 +16,7 @@ const {
 
 module.exports = {
   EnvironmentDetector,
+  stringify,
   isDevelopment,
   isProduction,
   isStaging,
