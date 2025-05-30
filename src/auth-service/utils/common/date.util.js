@@ -1,13 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject, logElement, HttpError } = require("@utils/shared");
 
 function monthsFromNow(number) {
   const num = isNaN(number) ? 1 : number;
@@ -49,10 +43,6 @@ function isTimeEmpty(dateTime) {
   let mins = date.getUTCMinutes();
   let secs = date.getUTCSeconds();
   let millisecs = date.getUTCMilliseconds();
-  logElement("hrs", hrs);
-  logElement("mins", mins);
-  logElement("secs", secs);
-  logElement("millisecs", millisecs);
   if (
     Number.isInteger(hrs) &&
     Number.isInteger(mins) &&
