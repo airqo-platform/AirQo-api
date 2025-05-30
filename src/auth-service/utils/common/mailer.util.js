@@ -1,4 +1,4 @@
-const transporter = require("@config/mailer");
+const transporter = require("@config/mailer.config");
 const isEmpty = require("is-empty");
 const SubscriptionModel = require("@models/Subscription");
 const constants = require("@config/constants");

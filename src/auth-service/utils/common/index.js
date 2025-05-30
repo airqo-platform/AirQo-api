@@ -1,4 +1,4 @@
-const mailer = require("./mailer");
+const mailer = require("./mailer.util");
 const stringify = require("./stringify");
 const {
   generateDateFormat,

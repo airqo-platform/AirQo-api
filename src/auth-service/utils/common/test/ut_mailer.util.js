@@ -5,7 +5,7 @@ const mailer = require("@utils/mailer");
 const msgTemplates = require("@utils/email.templates");
 const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");
-const transporter = require("@config/mailer");
+const transporter = require("@config/mailer.config");
 const response = "email not sent";
 
 const emailFailedResponse = {
@@ -1327,7 +1327,6 @@ describe("mailer", () => {
       // Stub the sendMail function to resolve with the response
       sendMailStub.resolves(result);
       const response = await mailer.feedback({ email, subject, message });
-
 
       expect(response).to.deep.equal(emailSuccessResponse);
     });
