@@ -1,4 +1,4 @@
-// utils/organization.util.js - FIXED: Defensive Loading
+// utils/organization.util.js - ENHANCED: DRY Principles Applied
 
 const axios = require("axios");
 const { logText, HttpError } = require("@utils/shared");
@@ -49,6 +49,10 @@ class OrganizationUtil {
     return null;
   }
 
+  /**
+   * ✅ DRY HELPER: Build consistent request headers for all API calls
+   * @returns {object} - Headers object for HTTP requests
+   */
   buildRequestHeaders() {
     const headers = {
       "Content-Type": "application/json",
@@ -61,6 +65,79 @@ class OrganizationUtil {
     return headers;
   }
 
+  /**
+   * ✅ DRY HELPER: Generic HTTP request handler with consistent error handling
+   * @private
+   * @param {string} endpoint - API endpoint path
+   * @param {string} method - HTTP method (GET, POST, etc.)
+   * @param {object} data - Request data (for POST/PUT)
+   * @returns {Promise<object>} - API response data
+   */
+  async _makeApiRequest(endpoint, method = "GET", data = null) {
+    const configCheck = this._checkConfiguration();
+    if (configCheck) throw new Error(configCheck.message);
+
+    try {
+      const config = {
+        method,
+        url: `${this.authServiceUrl}${endpoint}`,
+        timeout: this.timeoutMs,
+        headers: this.buildRequestHeaders(),
+      };
+
+      if (data && ["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+        config.data = data;
+      }
+
+      const response = await axios(config);
+      return response.data;
+    } catch (error) {
+      // ✅ ENHANCED: Consistent error logging and handling
+      logger.error(
+        `API request failed [${method} ${endpoint}]: ${error.message}`
+      );
+
+      if (error.response?.status === 404) {
+        return null; // Resource not found
+      }
+
+      if (error.code === "ECONNREFUSED") {
+        const connError = new Error("Auth service unavailable");
+        connError.code = "SERVICE_UNAVAILABLE";
+        throw connError;
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ DRY HELPER: Standardized error response formatting
+   * @private
+   * @param {Error} error - Error object
+   * @param {string} operation - Operation description for logging
+   * @param {string} defaultMessage - Default error message
+   * @returns {object} - Formatted error response
+   */
+  _formatErrorResponse(error, operation, defaultMessage) {
+    logger.error(`${operation} error: ${error.message}`);
+
+    if (error.code === "SERVICE_UNAVAILABLE") {
+      return {
+        success: false,
+        message: "Auth service unavailable",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+      };
+    }
+
+    return {
+      success: false,
+      message: defaultMessage,
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+
   // ✅ PROTECTED: Check configuration before proceeding
   async validateUserOrganizationMembership(request) {
     const configCheck = this._checkConfiguration();
@@ -71,7 +148,7 @@ class OrganizationUtil {
 
       logText(`Validating: User ${user_id} in Organization ${organization_id}`);
 
-      // Get user from auth service
+      // Get user from auth service using DRY helper
       const user = await this.getUserFromAuthService(user_id);
       if (!user) {
         return {
@@ -97,7 +174,7 @@ class OrganizationUtil {
         };
       }
 
-      // Get organization details
+      // Get organization details using DRY helper
       const organization = await this.getOrganizationFromAuthService(
         organization_id
       );
@@ -120,66 +197,37 @@ class OrganizationUtil {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Organization validation error: ${error.message}`);
-
-      if (error.code === "ECONNREFUSED") {
-        return {
-          success: false,
-          message: "Auth service unavailable",
-          status: httpStatus.SERVICE_UNAVAILABLE,
-        };
-      }
-
-      return {
-        success: false,
-        message: "Organization validation failed",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return this._formatErrorResponse(
+        error,
+        "Organization validation",
+        "Organization validation failed"
+      );
     }
   }
 
-  // ✅ PROTECTED: Check configuration before proceeding
+  // ✅ ENHANCED: Using DRY API request helper
   async getUserFromAuthService(userId) {
-    const configCheck = this._checkConfiguration();
-    if (configCheck) throw new Error(configCheck.message);
-
     try {
-      const response = await axios.get(
-        `${this.authServiceUrl}/api/v2/users/${userId}`,
-        {
-          timeout: this.timeoutMs,
-          headers: this.buildRequestHeaders(),
-        }
+      const responseData = await this._makeApiRequest(
+        `/api/v2/users/${userId}`
       );
-
-      return response.data?.user || response.data?.data || null;
+      return responseData?.user || responseData?.data || null;
     } catch (error) {
-      logger.error(`Get user error: ${error.message}`);
-
-      if (error.response?.status === 404) {
-        return null; // User not found
+      if (error.message === "Auth service unavailable") {
+        throw error; // Re-throw service unavailable errors
       }
-
-      throw error;
+      return null; // User not found or other errors
     }
   }
 
-  // ✅ PROTECTED: Check configuration before proceeding
+  // ✅ ENHANCED: Using DRY API request helper with better error handling
   async getOrganizationFromAuthService(organizationId) {
-    const configCheck = this._checkConfiguration();
-    if (configCheck) return null;
-
     try {
-      const response = await axios.get(
-        `${this.authServiceUrl}/api/v2/groups/${organizationId}`,
-        {
-          timeout: this.timeoutMs,
-          headers: this.buildRequestHeaders(),
-        }
+      const responseData = await this._makeApiRequest(
+        `/api/v2/groups/${organizationId}`
       );
 
-      const group = response.data?.group;
+      const group = responseData?.group;
       if (group) {
         return {
           id: group._id,
@@ -191,6 +239,7 @@ class OrganizationUtil {
 
       return null;
     } catch (error) {
+      // ✅ ENHANCED: Consistent error handling using DRY helper
       logger.error(`Get organization error: ${error.message}`);
       return null;
     }
@@ -226,17 +275,15 @@ class OrganizationUtil {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`Switch context error: ${error.message}`);
-      return {
-        success: false,
-        message: "Context switch failed",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return this._formatErrorResponse(
+        error,
+        "Switch context",
+        "Context switch failed"
+      );
     }
   }
 
-  // ✅ PROTECTED: Check configuration before proceeding
+  // ✅ ENHANCED: Using DRY helpers for consistent API calls and error handling
   async getUserOrganizations(userId) {
     const configCheck = this._checkConfiguration();
     if (configCheck) return configCheck;
@@ -252,19 +299,23 @@ class OrganizationUtil {
         };
       }
 
-      // Get organization details for each membership
-      const organizations = [];
-      for (const role of user.group_roles) {
+      // ✅ ENHANCED: Parallel processing for better performance
+      const organizationPromises = user.group_roles.map(async (role) => {
         const org = await this.getOrganizationFromAuthService(role.group);
         if (org) {
-          organizations.push({
+          return {
             group_id: role.group,
             userType: role.userType,
             role: role.role,
             organization: org,
-          });
+          };
         }
-      }
+        return null;
+      });
+
+      const organizations = (await Promise.all(organizationPromises)).filter(
+        (org) => org !== null
+      );
 
       return {
         success: true,
@@ -272,12 +323,11 @@ class OrganizationUtil {
         data: organizations,
       };
     } catch (error) {
-      logger.error(`Get user organizations error: ${error.message}`);
-      return {
-        success: false,
-        message: "Failed to retrieve user organizations",
-        data: [],
-      };
+      return this._formatErrorResponse(
+        error,
+        "Get user organizations",
+        "Failed to retrieve user organizations"
+      );
     }
   }
 
@@ -294,6 +344,35 @@ class OrganizationUtil {
       jwt_token_available: !!this.serviceJwtToken,
       ready: this.isConfigured && !!this.serviceJwtToken,
     };
+  }
+
+  /**
+   * ✅ NEW UTILITY: Health check for auth service
+   * @returns {Promise<object>} - Health check result
+   */
+  async healthCheck() {
+    if (!this.isConfigured) {
+      return {
+        status: "unhealthy",
+        message: "Service not configured",
+        configured: false,
+      };
+    }
+
+    try {
+      await this._makeApiRequest("/api/v2/health");
+      return {
+        status: "healthy",
+        message: "Auth service is responsive",
+        configured: true,
+      };
+    } catch (error) {
+      return {
+        status: "unhealthy",
+        message: error.message,
+        configured: true,
+      };
+    }
   }
 }
 
