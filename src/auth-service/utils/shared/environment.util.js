@@ -81,8 +81,8 @@ class EnvironmentDetector {
       }
     }
 
-    // Default fallback - safer to default to development to avoid accidental production behavior
-    const defaultEnv = "development";
+    // If no environment could be determined, return a default value
+    const defaultEnv = "production";
     if (this.shouldLogDebug()) {
       console.log(`⚠️  Using default environment: ${defaultEnv.toUpperCase()}`);
       console.log("=====================================");
