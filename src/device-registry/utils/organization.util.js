@@ -92,7 +92,6 @@ class OrganizationUtil {
       const response = await axios(config);
       return response.data;
     } catch (error) {
-      // ✅ ENHANCED: Consistent error logging and handling
       logger.error(
         `API request failed [${method} ${endpoint}]: ${error.message}`
       );
@@ -205,7 +204,6 @@ class OrganizationUtil {
     }
   }
 
-  // ✅ ENHANCED: Using DRY API request helper
   async getUserFromAuthService(userId) {
     try {
       const responseData = await this._makeApiRequest(
@@ -220,7 +218,6 @@ class OrganizationUtil {
     }
   }
 
-  // ✅ ENHANCED: Using DRY API request helper with better error handling
   async getOrganizationFromAuthService(organizationId) {
     try {
       const responseData = await this._makeApiRequest(
@@ -239,7 +236,6 @@ class OrganizationUtil {
 
       return null;
     } catch (error) {
-      // ✅ ENHANCED: Consistent error handling using DRY helper
       logger.error(`Get organization error: ${error.message}`);
       return null;
     }
@@ -283,7 +279,6 @@ class OrganizationUtil {
     }
   }
 
-  // ✅ ENHANCED: Using DRY helpers for consistent API calls and error handling
   async getUserOrganizations(userId) {
     const configCheck = this._checkConfiguration();
     if (configCheck) return configCheck;
@@ -299,7 +294,6 @@ class OrganizationUtil {
         };
       }
 
-      // ✅ ENHANCED: Parallel processing for better performance
       const organizationPromises = user.group_roles.map(async (role) => {
         const org = await this.getOrganizationFromAuthService(role.group);
         if (org) {
