@@ -1,10 +1,7 @@
-// SIMPLEST FIX: Just replace your config/log4js.js file with this:
-
 const { isDevelopment } = require("@utils/shared");
 const constants = require("./constants");
 
 if (isDevelopment()) {
-  // Don't even try to configure Slack in development
   console.log("🚫 Log4js running in silent mode (development)");
 
   module.exports = {
