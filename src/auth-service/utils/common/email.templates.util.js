@@ -57,7 +57,7 @@ module.exports = {
 <p> The AirQo Data Team</p>
 `;
   },
-  v2_emailVerification: ({
+  composeEmailVerificationMessage: ({
     email,
     firstName,
     user_id,
