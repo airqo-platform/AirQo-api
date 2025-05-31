@@ -57,7 +57,7 @@ module.exports = {
 <p> The AirQo Data Team</p>
 `;
   },
-  v2_emailVerification: ({
+  composeEmailVerificationMessage: ({
     email,
     firstName,
     user_id,
@@ -254,6 +254,31 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
+    return constants.EMAIL_BODY({ email, content });
+  },
+  mobileEmailVerification: ({ email, firebase_uid, token }) => {
+    const content = `
+    <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+        <p>Welcome to AirQo Mobile! 🎉</p>
+        <p>Thank you for registering with AirQo. Please use the code below to verify your email address:</p>
+        <h1 style="font-size: 36px; font-weight: bold; margin: 20px 0; color: #135DFF; text-align: center;">${token}</h1>
+        <p>This verification code will expire in 24 hours.</p>
+        <p>Enter this code directly in the AirQo mobile app to verify your email and complete your registration.</p>
+        <div style="margin: 24px 0; padding: 16px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #135DFF;">
+          <p style="margin: 0; font-size: 14px; color: #6c757d;">
+            <strong>Account Details:</strong><br/>
+            Email: ${email}<br/>
+            User ID: ${firebase_uid}
+          </p>
+        </div>
+        <p style="font-size: 14px; color: #6c757d; opacity: 0.8;">
+          If you did not register for an AirQo mobile account, you can safely ignore this email.
+        </p>
+      </td>
+    </tr>
+  `;
+
     return constants.EMAIL_BODY({ email, content });
   },
 };

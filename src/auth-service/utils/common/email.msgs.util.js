@@ -393,33 +393,43 @@ module.exports = {
     updatedUserDetails = {},
     email = "",
   } = {}) => {
-    let updatedFields = "<ol>\n";
-    Object.keys(updatedUserDetails).forEach((field) => {
-      updatedFields += ` <li> ${field}</li>\n`;
-    });
-    updatedFields += "</ol>";
+    // Safely handle updated fields
+    let updatedFields = "";
+    const fieldKeys = Object.keys(updatedUserDetails);
+
+    if (fieldKeys.length > 0) {
+      updatedFields = "<ol>\n";
+      fieldKeys.forEach((field) => {
+        // Escape HTML in field names to prevent XSS
+        const safeField = escapeHtml(String(field));
+        updatedFields += ` <li>${safeField}</li>\n`;
+      });
+      updatedFields += "</ol>";
+    } else {
+      updatedFields = "<p><em>No specific field details available.</em></p>";
+    }
 
     const content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                            <td
+                                style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 Your AirQo account details have been updated.
-                                    <br />
-                                    The following fields have been updated:
-                                    
-                                        ${updatedFields}
-                                    
-                                    <br />
-                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
-                                    <br />
-                                    If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
-                                    <br />
-                                    <br />
-                                    If you are using the AirQo mobile app, you can view your updated details directly within the app.
-                                    <br />
-                                    <br />
-                                </td>
-                            </tr>`;
-    const name = firstName + " " + lastName;
+                                <br />
+                                The following fields have been updated:
+                                
+                                ${updatedFields}
+                                
+                                <br />
+                                If this activity sounds suspicious to you, please reach out to your organization's administrator immediately.
+                                <br />
+                                If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                <br />
+                                <br />
+                                If you are using the AirQo mobile app, you can view your updated details directly within the app.
+                                <br />
+                                <br />
+                            </td>
+                        </tr>`;
+    const name = `${firstName} ${lastName}`.trim() || "User";
 
     return constants.EMAIL_BODY({ email, content, name });
   },
@@ -428,32 +438,44 @@ module.exports = {
     lastName = "",
     siteActivityDetails = {},
     email = "",
-  } = {}) => {
-    let updatedFields = "<ol>\n";
-    Object.entries(siteActivityDetails).forEach(([key, value]) => {
-      updatedFields += ` <li> ${key}: "${value}"</li>\n`;
-    });
-    updatedFields += "</ol>";
+  }) => {
+    // Safely handle site activity details
+    let updatedFields = "";
+    const siteEntries = Object.entries(siteActivityDetails);
+
+    if (siteEntries.length > 0) {
+      updatedFields = "<ol>\n";
+      siteEntries.forEach(([key, value]) => {
+        // Escape HTML in values to prevent XSS
+        const safeValue =
+          typeof value === "string" ? escapeHtml(value) : String(value);
+        updatedFields += ` <li> ${escapeHtml(key)}: "${safeValue}"</li>\n`;
+      });
+      updatedFields += "</ol>";
+    } else {
+      updatedFields = "<p><em>No specific activity details available.</em></p>";
+    }
+
     const content = ` <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                            <td
+                                style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                 You have just performed an activity on an AirQo Device or Site.
-                                    <br />
-                                    The following are the details:
-                                   
-                                        ${updatedFields}
-                                
-                                    <br />
-                                    If this activity sounds suspicious to you, please reach out to your organization's administrator.
-                                    <br />
-                                    If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
-                                    <br />
-                                    <br />
-                                    If you are using the AirQo mobile app, you can view the activity details directly within the app.
-                                    <br />
-                                    <br />
-                                </td>
-                            </tr>`;
+                                <br />
+                                The following are the details:
+                               
+                                ${updatedFields}
+                            
+                                <br />
+                                If this activity sounds suspicious to you, please reach out to your organization's administrator.
+                                <br />
+                                If you are using the AirQo web platform, follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}
+                                <br />
+                                <br />
+                                If you are using the AirQo mobile app, you can view the activity details directly within the app.
+                                <br />
+                                <br />
+                            </td>
+                        </tr>`;
     const name = firstName + " " + lastName;
 
     return constants.EMAIL_BODY({ email, content, name });
@@ -464,45 +486,84 @@ module.exports = {
     activityDetails = {},
     deviceDetails = {},
     email = "",
-    activityType = "recall", // New parameter to determine activity type
+    activityType = "recall", // Parameter to determine activity type
   }) => {
-    // Create a list of activity details
-    let activityDetailsList = Object.entries(activityDetails)
-      .map(([key, value]) => `<li>${key}: "${value}"</li>`)
-      .join("\n");
+    // Safely create activity details list
+    const activityEntries = Object.entries(activityDetails);
+    let activityDetailsList = "";
 
-    // Create a list of device details
-    let deviceDetailsList = Object.entries(deviceDetails)
-      .map(([key, value]) => `<li>${key}: "${value}"</li>`)
-      .join("\n");
+    if (activityEntries.length > 0) {
+      activityDetailsList = activityEntries
+        .map(([key, value]) => {
+          // Escape HTML in values to prevent XSS
+          const safeKey = escapeHtml(String(key));
+          const safeValue =
+            typeof value === "string"
+              ? escapeHtml(value)
+              : escapeHtml(String(value));
+          return `<li>${safeKey}: "${safeValue}"</li>`;
+        })
+        .join("\n");
+    } else {
+      activityDetailsList = "<li><em>No activity details available</em></li>";
+    }
+
+    // Safely create device details list
+    const deviceEntries = Object.entries(deviceDetails);
+    let deviceDetailsList = "";
+
+    if (deviceEntries.length > 0) {
+      deviceDetailsList = deviceEntries
+        .map(([key, value]) => {
+          // Escape HTML in values to prevent XSS
+          const safeKey = escapeHtml(String(key));
+          const safeValue =
+            typeof value === "string"
+              ? escapeHtml(value)
+              : escapeHtml(String(value));
+          return `<li>${safeKey}: "${safeValue}"</li>`;
+        })
+        .join("\n");
+    } else {
+      deviceDetailsList = "<li><em>No device details available</em></li>";
+    }
+
+    // Create appropriate action message based on activity type
+    const actionMessages = {
+      recall: "A device has been recalled in your AirQo system.",
+      deployment: "A device has been deployed in your AirQo system.",
+      maintenance:
+        "Device maintenance has been performed in your AirQo system.",
+      inspection:
+        "A device inspection has been completed in your AirQo system.",
+    };
 
     const actionMessage =
-      activityType === "recall"
-        ? "A device has been recalled in your AirQo system."
-        : "A device has been deployed in your AirQo system.";
+      actionMessages[activityType] ||
+      "A field activity has been performed in your AirQo system.";
 
     const content = `
-        <tr>
-            <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                ${actionMessage}
-                <br />
-                <strong>Here are the details:</strong>
-                <br />
-                <strong>Activity Details:</strong>
-                <ol>${activityDetailsList}</ol>
-                <strong>Device Details:</strong>
-                <ol>${deviceDetailsList}</ol>
-                <br />
-                If you have any questions or concerns regarding this action, please contact your organization's administrator.
-                <br />
-                If you are using the AirQo web platform, you can access AirQo Analytics here: ${constants.LOGIN_PAGE}
-                <br /><br />
-                If you are using the AirQo mobile app, you can view the activity details directly within the app.
-                <br /><br />
-            </td>
-        </tr>`;
+      <tr>
+          <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+              ${actionMessage}
+              <br />
+              <strong>Here are the details:</strong>
+              <br />
+              <strong>Activity Details:</strong>
+              <ol>${activityDetailsList}</ol>
+              <strong>Device Details:</strong>
+              <ol>${deviceDetailsList}</ol>
+              <br />
+              If you have any questions or concerns regarding this action, please contact your organization's administrator.
+              <br />
+              If you are using the AirQo web platform, you can access AirQo Analytics here: ${constants.LOGIN_PAGE}
+              <br /><br />
+              If you are using the AirQo mobile app, you can view the activity details directly within the app.
+              <br /><br />
+          </td>
+      </tr>`;
 
-    const name = `${firstName} ${lastName}`;
+    const name = `${firstName} ${lastName}`.trim() || "User";
     return constants.EMAIL_BODY({ email, content, name });
   },
   token_compromised: ({
@@ -701,32 +762,46 @@ module.exports = {
                             </tr>`;
     return constants.EMAIL_BODY({ email, content });
   },
-  report: (senderEmail, recepientEmail, formart) => {
-    const content = `
-    <tr>
-                                <td
-                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                This is an automated notification to inform you that ${senderEmail} has shared an air quality data report with you.
-                                The attached report was generated from our analytics dashboard and provides insights into key air quality metrics for the specified time period.
-                                <br />
-                                <br />
-                               Report Details:
-                               <ul>
-                                <li>Format: ${formart}</li>
+  report: (senderEmail, recipientEmail, format) => {
+    // Escape HTML in email addresses to prevent XSS
+    const safeSenderEmail = escapeHtml(senderEmail);
+    const safeRecipientEmail = escapeHtml(recipientEmail);
+    const safeFormat = escapeHtml(format);
 
-                               </ul>
-                                    <br />
-                                    You can access the report under the attachments. If you have any questions or require further clarification regarding
-                                    the data presented in the report. Please feel free to reach out to ${senderEmail} directly or contact us.
-                                    <br />
-                                    <br />
-                                    You can access the report data through the AirQo web platform or the mobile app.
-                                    <br />
-                                    <br />
-                                </td>
-                            </tr>
+    const content = `
+  <tr>
+      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+          This is an automated notification to inform you that <strong>${safeSenderEmail}</strong> has shared an air quality data report with you.
+          <br />
+          The attached report was generated from our analytics dashboard and provides insights into key air quality metrics for the specified time period.
+          <br />
+          <br />
+          <strong>Report Details:</strong>
+          <ul>
+           <li><strong>Format:</strong> ${safeFormat}</li>
+           <li><strong>Shared by:</strong> ${safeSenderEmail}</li>
+           <li><strong>Generated on:</strong> ${new Date().toLocaleDateString()}</li>
+          </ul>
+          <br />
+          You can access the report in the attachments above. If you have any questions or require further clarification regarding
+          the data presented in the report, please feel free to reach out to ${safeSenderEmail} directly or contact our support team.
+          <br />
+          <br />
+          You can also access real-time data through the AirQo web platform or mobile app.
+          <br />
+          <br />
+          <div style="padding: 12px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #135DFF; margin: 16px 0;">
+            <p style="margin: 0; font-size: 14px; color: #6c757d;">
+              <strong>Need Help?</strong> If you have trouble accessing the report or need assistance interpreting the data, 
+              contact our support team at <a href="mailto:support@airqo.net" style="color: #135DFF;">support@airqo.net</a>
+            </p>
+          </div>
+      </td>
+  </tr>
   `;
-    return constants.EMAIL_BODY({ recepientEmail, content });
+
+    // Use recipientEmail as the email parameter for EMAIL_BODY
+    return constants.EMAIL_BODY({ email: recipientEmail, content });
   },
 
   // Add to email.msgs.js

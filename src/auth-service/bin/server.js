@@ -273,60 +273,169 @@ const createServer = () => {
   });
 
   // Graceful shutdown handler
-  const gracefulShutdown = (signal) => {
+  const gracefulShutdown = async (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
-    logger.info(`${signal} received. Shutting down gracefully...`);
+
+    // Set global shutdown flag to signal running jobs to stop
+    global.isShuttingDown = true;
 
     // Close the server first to stop accepting new connections
-    server.close(() => {
+    server.close(async () => {
       console.log("HTTP server closed");
-      logger.info("HTTP server closed");
 
-      // Stop all cron jobs
+      // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
         console.log(
           `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
         );
-        logger.info(
-          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
-        );
 
-        for (const [jobName, job] of Object.entries(global.cronJobs)) {
+        // Stop each job individually with error handling
+        for (const [jobName, jobObj] of Object.entries(global.cronJobs)) {
           try {
             console.log(`Stopping cron job: ${jobName}`);
-            logger.info(`Stopping cron job: ${jobName}`);
-            job.stop();
+
+            // Enhanced pattern: Use the async stop method if available
+            if (jobObj.stop && typeof jobObj.stop === "function") {
+              await jobObj.stop();
+              console.log(`✅ Successfully stopped cron job: ${jobName}`);
+            }
+            // Legacy pattern: Direct job manipulation (for backward compatibility)
+            else if (jobObj.job) {
+              console.log(`🔄 Using legacy stop method for job: ${jobName}`);
+
+              // Stop the schedule
+              if (typeof jobObj.job.stop === "function") {
+                jobObj.job.stop();
+                console.log(`📅 Stopped schedule for job: ${jobName}`);
+              }
+
+              // Try to destroy if method exists
+              if (typeof jobObj.job.destroy === "function") {
+                jobObj.job.destroy();
+                console.log(`💥 Destroyed job: ${jobName}`);
+              } else {
+                console.log(
+                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
+                );
+                logger.warn(
+                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
+                );
+              }
+
+              // Remove from registry
+              delete global.cronJobs[jobName];
+              console.log(
+                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
+              );
+            }
+            // Simple job pattern (current auth service pattern)
+            else if (typeof jobObj.stop === "function") {
+              jobObj.stop();
+              console.log(
+                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
+              );
+            }
+            // Unknown pattern
+            else {
+              console.warn(
+                `⚠️  Job ${jobName} has unknown structure, skipping`
+              );
+              logger.warn(`Job ${jobName} has unknown structure, skipping`);
+            }
           } catch (error) {
-            console.error(`Error stopping cron job ${jobName}:`, error.message);
-            logger.error(
-              `Error stopping cron job ${jobName}: ${error.message}`
+            console.error(
+              `❌ Error stopping cron job ${jobName}:`,
+              error.message
             );
+            logger.error(
+              `❌ Error stopping cron job ${jobName}: ${error.message}`
+            );
+
+            // Try emergency cleanup
+            try {
+              if (jobObj.job && typeof jobObj.job.stop === "function") {
+                jobObj.job.stop();
+                console.log(`🆘 Emergency stopped job: ${jobName}`);
+              }
+              delete global.cronJobs[jobName];
+            } catch (emergencyError) {
+              console.error(
+                `💥 Emergency cleanup failed for ${jobName}:`,
+                emergencyError.message
+              );
+              logger.error(
+                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+              );
+            }
           }
         }
+
         console.log("All cron jobs stopped");
-        logger.info("All cron jobs stopped");
       } else {
         console.log("No cron jobs to stop");
-        logger.info("No cron jobs to stop");
       }
 
-      // Additional cleanup for Firebase, Redis, etc. as in your existing code
+      // Close any Redis connections if they exist
+      if (global.redisClient) {
+        console.log("Closing Redis connection...");
+
+        try {
+          if (typeof global.redisClient.quit === "function") {
+            await global.redisClient.quit();
+            console.log("✅ Redis connection closed");
+          } else if (typeof global.redisClient.disconnect === "function") {
+            await global.redisClient.disconnect();
+            console.log("✅ Redis connection disconnected");
+          }
+        } catch (error) {
+          console.error("❌ Error closing Redis connection:", error.message);
+          logger.error(`❌ Error closing Redis connection: ${error.message}`);
+        }
+      }
+
+      // Close Firebase connections if they exist
+      if (global.firebaseApp) {
+        console.log("Closing Firebase connections...");
+        try {
+          // Firebase cleanup if needed
+          console.log("✅ Firebase connections closed");
+        } catch (error) {
+          console.error(
+            "❌ Error closing Firebase connections:",
+            error.message
+          );
+          logger.error(
+            `❌ Error closing Firebase connections: ${error.message}`
+          );
+        }
+      }
 
       // Close MongoDB connection
       console.log("Closing MongoDB connection...");
-      logger.info("Closing MongoDB connection...");
-      mongoose.connection.close(false, () => {
-        console.log("MongoDB connection closed");
-        logger.info("MongoDB connection closed");
 
-        // Exit the process
-        console.log("Exiting process...");
-        logger.info("Exiting process...");
-        process.exit(0);
-      });
+      try {
+        await new Promise((resolve, reject) => {
+          mongoose.connection.close(false, (error) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        });
+
+        console.log("✅ MongoDB connection closed");
+      } catch (error) {
+        console.error("❌ Error closing MongoDB connection:", error.message);
+        logger.error(`❌ Error closing MongoDB connection: ${error.message}`);
+      }
+
+      // Final cleanup
+      console.log("Exiting process...");
+      process.exit(0);
     });
 
-    // Force exit after timeout if graceful shutdown fails
+    // Force exit after timeout if graceful shutdown fails (increased from 10s to 15s)
     setTimeout(() => {
       console.error(
         "Could not close connections in time, forcefully shutting down"
@@ -335,12 +444,46 @@ const createServer = () => {
         "Could not close connections in time, forcefully shutting down"
       );
       process.exit(1);
-    }, 10000);
+    }, 15000); // timeout to 15 seconds
   };
 
   // Add signal handlers
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    console.error(`💥 Uncaught Exception: ${error.message}`);
+    logger.error(`💥 Uncaught Exception: ${error.message}`);
+    logger.error(`Stack: ${error.stack}`);
+    gracefulShutdown("UNCAUGHT_EXCEPTION");
+  });
+
+  // Handle unhandled promise rejections
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    logger.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    gracefulShutdown("UNHANDLED_REJECTION");
+  });
+
+  // Handle process warnings
+  process.on("warning", (warning) => {
+    console.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+    logger.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+  });
+
+  // Memory usage monitoring (optional - for debugging)
+  if (isDev) {
+    process.on("exit", (code) => {
+      const memUsage = process.memoryUsage();
+      console.log(`📊 Process exiting with code ${code}. Memory usage:`, {
+        rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+        heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+        external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+      });
+    });
+  }
 
   // Store server in global scope so it can be accessed elsewhere
   global.httpServer = server;

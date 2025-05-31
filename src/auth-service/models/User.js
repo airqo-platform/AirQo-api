@@ -652,22 +652,20 @@ UserSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.code === 11000) {
         logObject("the err.code again", err.code);
         const duplicate_record = args.email ? args.email : args.userName;
         response[duplicate_record] = `${duplicate_record} must be unique`;
         response["message"] =
           "the email and userName must be unique for every user";
+
         try {
           const email = args.email;
           const firstName = args.firstName;
           const lastName = args.lastName;
           const emailResponse = await mailer.existingUserRegistrationRequest(
-            {
-              email,
-              firstName,
-              lastName,
-            },
+            { email, firstName, lastName },
             next
           );
           if (emailResponse && emailResponse.success === false) {
@@ -687,8 +685,16 @@ UserSchema.statics = {
           return (response[key] = value.message);
         });
       }
+
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+
+      // Return error response instead of calling next()
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
   async listStatistics(next) {
