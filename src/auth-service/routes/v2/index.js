@@ -63,7 +63,7 @@ const safeRequireRoute = (routePath, routeName) => {
         service: "auth-service",
         path: req.path,
         method: req.method,
-        routePath: routePath,
+        ...(process.env.NODE_ENV === "development" && { routePath }),
         timestamp: new Date().toISOString(),
         suggestion: "Please contact system administrator if this persists",
       });

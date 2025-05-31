@@ -438,8 +438,6 @@ module.exports = {
     lastName = "",
     siteActivityDetails = {},
     email = "",
-    activityDetails = {},
-    deviceDetails = {},
   }) => {
     // Safely handle site activity details
     let updatedFields = "";
