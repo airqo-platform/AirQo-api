@@ -1,47 +1,50 @@
 // config/check-kafka-status.js
-// Kafka status and health check utility
+// Enhanced Kafka status and health check utility
 
 const { Kafka } = require("kafkajs");
 
-// Handle different import paths for different services
+// Enhanced import fallback system
 let constants, logObject, logText;
 
-try {
-  // Try auth service style imports first
-  constants = require("@config/constants");
-  const sharedUtils = require("@utils/shared");
-  logObject = sharedUtils.logObject;
-  logText = sharedUtils.logText;
-} catch (error) {
+const importPaths = [
+  { constants: "@config/constants", utils: "@utils/shared" },
+  { constants: "../config/constants", utils: "../utils/shared" },
+  { constants: "./constants", utils: null },
+];
+
+let imported = false;
+for (const paths of importPaths) {
   try {
-    // Try relative path imports
-    constants = require("../config/constants");
-    const sharedUtils = require("../utils/shared");
-    logObject = sharedUtils.logObject;
-    logText = sharedUtils.logText;
-  } catch (error2) {
-    try {
-      // Try direct path imports
-      constants = require("./constants");
-      logObject = console.log;
-      logText = console.log;
-    } catch (error3) {
-      // Fallback to environment variables and basic logging
-      console.warn(
-        "⚠️  Could not import constants or shared utils, using fallbacks"
-      );
-      constants = {
-        KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
-        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS
-          ? process.env.KAFKA_BOOTSTRAP_SERVERS.split(",")
-          : ["localhost:9092"],
-        UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
-        SERVICE_NAME: process.env.SERVICE_NAME,
-      };
+    constants = require(paths.constants);
+    if (paths.utils) {
+      const sharedUtils = require(paths.utils);
+      logObject = sharedUtils.logObject || console.log;
+      logText = sharedUtils.logText || console.log;
+    } else {
       logObject = console.log;
       logText = console.log;
     }
+    imported = true;
+    break;
+  } catch (error) {
+    // Continue to next import path
   }
+}
+
+if (!imported) {
+  console.warn(
+    "⚠️  Could not import constants or shared utils, using fallbacks"
+  );
+  constants = {
+    KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
+    KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS
+      ? process.env.KAFKA_BOOTSTRAP_SERVERS.split(",")
+      : ["localhost:9092"],
+    UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
+    SERVICE_NAME: process.env.SERVICE_NAME,
+  };
+  logObject = console.log;
+  logText = console.log;
 }
 
 class KafkaStatusChecker {
@@ -68,7 +71,7 @@ class KafkaStatusChecker {
 
       return {
         serviceName: config.serviceName,
-        topics: config.kafkaTopics,
+        topics: config.kafkaTopics || [],
         consumerGroup:
           constants.UNIQUE_CONSUMER_GROUP || config.defaultConsumerGroup,
       };
@@ -133,7 +136,7 @@ class KafkaStatusChecker {
 
       const metadata = await this.admin.fetchTopicMetadata();
 
-      if (metadata.brokers && metadata.brokers.length > 0) {
+      if (metadata.brokers?.length > 0) {
         console.log(`✅ Found ${metadata.brokers.length} broker(s):`);
         metadata.brokers.forEach((broker, index) => {
           console.log(
@@ -161,7 +164,7 @@ class KafkaStatusChecker {
 
       const existingTopics = await this.admin.listTopics();
 
-      if (this.serviceTopics.topics.length === 0) {
+      if (!this.serviceTopics.topics?.length) {
         console.log("⚠️  No service-specific topics configured");
         console.log("📊 All available topics:");
         existingTopics.forEach((topic, index) => {
@@ -247,21 +250,23 @@ class KafkaStatusChecker {
           });
         }
 
-        // Check consumer group offsets
-        const offsets = await this.admin.fetchOffsets({
-          groupId: targetGroup,
-          topics: this.serviceTopics.topics.map((topic) => ({ topic })),
-        });
-
-        console.log("   📊 Consumer Offsets:");
-        offsets.forEach((topicOffset) => {
-          console.log(`      ${topicOffset.topic}:`);
-          topicOffset.partitions.forEach((partition) => {
-            console.log(
-              `         Partition ${partition.partition}: ${partition.offset}`
-            );
+        // Check consumer group offsets if topics exist
+        if (this.serviceTopics.topics?.length) {
+          const offsets = await this.admin.fetchOffsets({
+            groupId: targetGroup,
+            topics: this.serviceTopics.topics.map((topic) => ({ topic })),
           });
-        });
+
+          console.log("   📊 Consumer Offsets:");
+          offsets.forEach((topicOffset) => {
+            console.log(`      ${topicOffset.topic}:`);
+            topicOffset.partitions.forEach((partition) => {
+              console.log(
+                `         Partition ${partition.partition}: ${partition.offset}`
+              );
+            });
+          });
+        }
       } catch (detailError) {
         console.log(
           `⚠️  Could not get detailed group info: ${detailError.message}`
@@ -287,9 +292,13 @@ class KafkaStatusChecker {
       )}`
     );
     console.log(`   Consumer Group: ${this.serviceTopics.consumerGroup}`);
+
+    // FIXED: Safe handling of topics array
     console.log(
       `   Expected Topics: ${
-        this.serviceTopics.topics.join(", ") || "None configured"
+        this.serviceTopics.topics?.length
+          ? this.serviceTopics.topics.join(", ")
+          : "None configured"
       }`
     );
   }

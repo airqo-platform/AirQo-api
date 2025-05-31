@@ -1,47 +1,50 @@
 // config/cleanup-kafka.js
-// Kafka consumer cleanup and reset utility
+// Enhanced Kafka consumer cleanup and reset utility
 
 const { Kafka } = require("kafkajs");
 
-// Handle different import paths for different services
+// Enhanced import fallback system (same pattern as check-kafka-status.js)
 let constants, logObject, logText;
 
-try {
-  // Try auth service style imports first
-  constants = require("@config/constants");
-  const sharedUtils = require("@utils/shared");
-  logObject = sharedUtils.logObject;
-  logText = sharedUtils.logText;
-} catch (error) {
+const importPaths = [
+  { constants: "@config/constants", utils: "@utils/shared" },
+  { constants: "../config/constants", utils: "../utils/shared" },
+  { constants: "./constants", utils: null },
+];
+
+let imported = false;
+for (const paths of importPaths) {
   try {
-    // Try relative path imports
-    constants = require("../config/constants");
-    const sharedUtils = require("../utils/shared");
-    logObject = sharedUtils.logObject;
-    logText = sharedUtils.logText;
-  } catch (error2) {
-    try {
-      // Try direct path imports
-      constants = require("./constants");
-      logObject = console.log;
-      logText = console.log;
-    } catch (error3) {
-      // Fallback to environment variables and basic logging
-      console.warn(
-        "⚠️  Could not import constants or shared utils, using fallbacks"
-      );
-      constants = {
-        KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
-        KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS
-          ? process.env.KAFKA_BOOTSTRAP_SERVERS.split(",")
-          : ["localhost:9092"],
-        UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
-        SERVICE_NAME: process.env.SERVICE_NAME,
-      };
+    constants = require(paths.constants);
+    if (paths.utils) {
+      const sharedUtils = require(paths.utils);
+      logObject = sharedUtils.logObject || console.log;
+      logText = sharedUtils.logText || console.log;
+    } else {
       logObject = console.log;
       logText = console.log;
     }
+    imported = true;
+    break;
+  } catch (error) {
+    // Continue to next import path
   }
+}
+
+if (!imported) {
+  console.warn(
+    "⚠️  Could not import constants or shared utils, using fallbacks"
+  );
+  constants = {
+    KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
+    KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS
+      ? process.env.KAFKA_BOOTSTRAP_SERVERS.split(",")
+      : ["localhost:9092"],
+    UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
+    SERVICE_NAME: process.env.SERVICE_NAME,
+  };
+  logObject = console.log;
+  logText = console.log;
 }
 
 class KafkaCleanup {
@@ -68,7 +71,7 @@ class KafkaCleanup {
 
       return {
         serviceName: config.serviceName,
-        topics: config.kafkaTopics,
+        topics: config.kafkaTopics || [],
         consumerGroup:
           constants.UNIQUE_CONSUMER_GROUP || config.defaultConsumerGroup,
         defaultClientId: `${config.serviceType}-cleanup`,
@@ -163,9 +166,10 @@ class KafkaCleanup {
 
       // Check if topics exist
       const existingTopics = await this.admin.listTopics();
-      const topicsToReset = this.serviceConfig.topics.filter((topic) =>
-        existingTopics.includes(topic)
-      );
+      const topicsToReset =
+        this.serviceConfig.topics?.filter((topic) =>
+          existingTopics.includes(topic)
+        ) || [];
 
       if (topicsToReset.length === 0) {
         console.log("⚠️  No valid topics found to reset offsets");
@@ -200,17 +204,15 @@ class KafkaCleanup {
             continue;
           }
 
-          // Reset offsets for each partition
-          const partitions = topicInfo.partitions.map((p) => ({
-            partition: p.partitionId,
-            offset: resetType === "earliest" ? "0" : "-1", // -1 means latest
-          }));
-
-          await consumer.seek({
-            topic,
-            partition: 0,
-            offset: resetType === "earliest" ? "0" : "-1",
-          });
+          // FIXED: Reset offsets for ALL partitions, not just partition 0
+          const partitions = topicInfo.partitions;
+          for (const partition of partitions) {
+            await consumer.seek({
+              topic,
+              partition: partition.partitionId,
+              offset: resetType === "earliest" ? "0" : "-1", // -1 means latest
+            });
+          }
           console.log(
             `   ✅ Reset ${partitions.length} partition(s) to ${resetType}`
           );
@@ -223,7 +225,14 @@ class KafkaCleanup {
         console.error(
           `❌ Error with consumer operations: ${consumerError.message}`
         );
-        await consumer.disconnect();
+        // FIXED: Wrap consumer disconnect in try-catch to prevent error masking
+        try {
+          await consumer.disconnect();
+        } catch (disconnectError) {
+          console.error(
+            `⚠️  Error disconnecting consumer: ${disconnectError.message}`
+          );
+        }
         return false;
       }
     } catch (error) {
@@ -320,9 +329,10 @@ class KafkaCleanup {
       console.log("🔍 Validating topics after cleanup...");
 
       const existingTopics = await this.admin.listTopics();
-      const missingTopics = this.serviceConfig.topics.filter(
-        (topic) => !existingTopics.includes(topic)
-      );
+      const missingTopics =
+        this.serviceConfig.topics?.filter(
+          (topic) => !existingTopics.includes(topic)
+        ) || [];
 
       if (missingTopics.length > 0) {
         console.log("⚠️  Some expected topics are missing:");
@@ -345,7 +355,13 @@ class KafkaCleanup {
 
     console.log(`🏷️  Service: ${this.serviceConfig.serviceName}`);
     console.log(`👥 Consumer Group: ${this.serviceConfig.consumerGroup}`);
-    console.log(`📋 Topics: ${this.serviceConfig.topics.join(", ")}`);
+    console.log(
+      `📋 Topics: ${
+        this.serviceConfig.topics?.length
+          ? this.serviceConfig.topics.join(", ")
+          : "None configured"
+      }`
+    );
     console.log("");
 
     const connected = await this.connect();
@@ -462,33 +478,40 @@ INTEGRATION:
         "🎯 Target consumer group:",
         cleanup.serviceConfig.consumerGroup
       );
-      console.log("📋 Target topics:", cleanup.serviceConfig.topics.join(", "));
+      console.log(
+        "📋 Target topics:",
+        cleanup.serviceConfig.topics?.join(", ") || "None configured"
+      );
       console.log("✅ Dry run completed - no changes made");
       return;
     }
 
+    // FIXED: Proper block scoping for switch cases
     switch (command) {
       case "full":
         await cleanup.fullCleanup();
         break;
-      case "delete-group":
+      case "delete-group": {
         const groupId = args[1];
         await cleanup.connect();
         await cleanup.deleteConsumerGroup(groupId);
         await cleanup.disconnect();
         break;
-      case "reset-offsets":
+      }
+      case "reset-offsets": {
         const resetGroupId = args[1];
         await cleanup.connect();
         await cleanup.resetConsumerOffsets(resetGroupId, "earliest");
         await cleanup.disconnect();
         break;
-      case "reset-latest":
+      }
+      case "reset-latest": {
         const latestGroupId = args[1];
         await cleanup.connect();
         await cleanup.resetConsumerOffsets(latestGroupId, "latest");
         await cleanup.disconnect();
         break;
+      }
       case "clean-stale":
         await cleanup.connect();
         await cleanup.cleanupStaleConsumers();
