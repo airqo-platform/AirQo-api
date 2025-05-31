@@ -6879,17 +6879,92 @@ const mailer = {
     next
   ) => {
     try {
-      const checkResult = await SubscriptionModel(
-        tenant
-      ).checkNotificationStatus({ email: senderEmail, type: "email" });
-      if (!checkResult.success) {
-        return checkResult;
+      // ✅ STEP 1: Input validation
+      if (!senderEmail) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: "Sender email is required for report sending",
+          missing: ["senderEmail"],
+        });
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "Bad Request",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "Sender email is required for report sending",
+              missing: ["senderEmail"],
+            },
+          };
+        }
       }
-      let formart;
+
+      if (
+        !normalizedRecepientEmails ||
+        !Array.isArray(normalizedRecepientEmails) ||
+        normalizedRecepientEmails.length === 0
+      ) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: "Recipient emails are required for report sending",
+          missing: ["normalizedRecepientEmails"],
+        });
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "Bad Request",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "Recipient emails are required for report sending",
+              missing: ["normalizedRecepientEmails"],
+            },
+          };
+        }
+      }
+
+      if (!pdfFile && !csvFile) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: "At least one report file (PDF or CSV) is required",
+          missing: ["pdfFile", "csvFile"],
+        });
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "Bad Request",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "At least one report file (PDF or CSV) is required",
+              missing: ["pdfFile", "csvFile"],
+            },
+          };
+        }
+      }
+
+      // ✅ STEP 2: Check sender subscription status
+      const senderCheckResult = await SubscriptionModel(
+        tenant
+      ).checkNotificationStatus({
+        email: senderEmail,
+        type: "email",
+      });
+
+      if (!senderCheckResult.success) {
+        return senderCheckResult;
+      }
+
+      // ✅ STEP 3: Prepare report attachments
+      let format;
       let reportAttachments = [...attachments];
 
       if (pdfFile) {
-        formart = "PDF";
+        format = "PDF";
         const pdfBase64 = pdfFile.data.toString("base64");
         const pdfAttachment = {
           filename: "Report.pdf",
@@ -6899,87 +6974,376 @@ const mailer = {
         };
         reportAttachments.push(pdfAttachment);
       }
+
       if (csvFile) {
-        formart = "CSV";
+        format = pdfFile ? "PDF and CSV" : "CSV";
         const csvBase64 = csvFile.data.toString("base64");
         const csvAttachment = {
           filename: "Report.csv",
+          contentType: "text/csv",
           content: csvBase64,
           encoding: "base64",
         };
         reportAttachments.push(csvAttachment);
       }
+
+      // ✅ STEP 4: Process each recipient with subscription validation and deduplication
       const emailResults = [];
+      const subscribedRecipients = [];
 
-      for (const recepientEmail of normalizedRecepientEmails) {
-        if (recepientEmail === "automated-tests@airqo.net") {
-          return {
-            success: true,
-            message: "Email successfully sent",
-            data: [],
-            status: httpStatus.OK,
-          };
+      // Parallel processing for recipient subscription validation
+      const recipientCheckPromises = normalizedRecepientEmails.map(
+        async (recipientEmail) => {
+          try {
+            // Handle test email bypass
+            if (recipientEmail === "automated-tests@airqo.net") {
+              return {
+                email: recipientEmail,
+                subscribed: true,
+                testBypass: true,
+              };
+            }
+
+            const checkResult = await SubscriptionModel(
+              tenant
+            ).checkNotificationStatus({
+              email: recipientEmail,
+              type: "email",
+            });
+
+            return {
+              email: recipientEmail,
+              subscribed: checkResult.success,
+              checkResult: checkResult,
+            };
+          } catch (error) {
+            logger.error(
+              `Recipient subscription check failed for ${recipientEmail}: ${error.message}`,
+              {
+                senderEmail,
+                operation: "sendReport",
+                format,
+              }
+            );
+            return {
+              email: recipientEmail,
+              subscribed: false,
+              error: error.message,
+            };
+          }
         }
+      );
 
-        const mailOptions = {
-          from: {
-            name: constants.EMAIL_NAME,
-            address: constants.EMAIL,
-          },
-          subject: "Your AirQo Account Report",
-          html: msgs.report(senderEmail, recepientEmail, formart),
-          to: recepientEmail,
-          attachments: reportAttachments,
-        };
+      const recipientResults = await Promise.all(recipientCheckPromises);
 
-        const response = await transporter.sendMail(mailOptions);
-
-        if (isEmpty(response.rejected) && !isEmpty(response.accepted)) {
-          emailResults.push({
-            success: true,
-            message: "Email successfully sent",
-            data: response,
-            status: httpStatus.OK,
-          });
+      // Filter subscribed recipients
+      recipientResults.forEach((result) => {
+        if (result.subscribed) {
+          subscribedRecipients.push(result.email);
+        } else if (result.testBypass) {
+          subscribedRecipients.push(result.email);
         } else {
           emailResults.push({
             success: false,
-            message: "Email not sent",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: response },
+            message: "Recipient not subscribed to email notifications",
+            data: {
+              recipientEmail: result.email,
+              senderEmail,
+              unsubscribed: true,
+              checkResult: result.checkResult,
+            },
+            status: httpStatus.OK, // Not an error, just unsubscribed
           });
         }
-      }
-      const hasFailedEmail = emailResults.some((result) => !result.success);
+      });
 
-      if (hasFailedEmail) {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
+      // ✅ STEP 5: Send emails to subscribed recipients with deduplication protection
+      const sendPromises = subscribedRecipients.map(async (recipientEmail) => {
+        try {
+          // Handle test email bypass
+          if (recipientEmail === "automated-tests@airqo.net") {
+            return {
+              success: true,
+              message: "Test report email bypassed",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                testBypass: true,
+                bypassedAt: new Date(),
+              },
+              status: httpStatus.OK,
+            };
+          }
+
+          // ✅ STEP 6: Prepare mail options for this recipient
+          const mailOptions = {
+            from: {
+              name: constants.EMAIL_NAME,
+              address: constants.EMAIL,
+            },
+            to: recipientEmail,
+            subject: "Your AirQo Account Report",
+            html: msgs.report(senderEmail, recipientEmail, format),
+            attachments: reportAttachments,
+          };
+
+          // ✅ STEP 7: Send email with deduplication protection
+          const emailResult = await sendMailWithDeduplication(
+            transporter,
+            mailOptions,
             {
-              message: "One or more emails failed to send",
-              emailResults,
+              skipDeduplication: false, // Enable deduplication for report emails
+              logDuplicates: true, // Log duplicate attempts
+              throwOnDuplicate: false, // Handle duplicates gracefully
             }
-          )
+          );
+
+          // ✅ STEP 8: Handle email sending results
+          if (!emailResult.success) {
+            if (emailResult.duplicate) {
+              // Duplicate report email detected
+              return {
+                success: true,
+                message:
+                  "Report email already sent recently - duplicate prevented",
+                data: {
+                  recipientEmail,
+                  senderEmail,
+                  format,
+                  reportEmail: true,
+                  duplicate: true,
+                  preventedAt: new Date(),
+                },
+                status: httpStatus.OK,
+              };
+            } else {
+              // Other email sending failure
+              const errorMessage =
+                emailResult.message || "Report email sending failed";
+              logger.error(
+                `Report email failed for ${recipientEmail}: ${errorMessage}`,
+                {
+                  recipientEmail,
+                  senderEmail,
+                  tenant,
+                  format,
+                  error: errorMessage,
+                }
+              );
+
+              return {
+                success: false,
+                message: "Report email sending failed",
+                data: {
+                  recipientEmail,
+                  senderEmail,
+                  format,
+                  error: errorMessage,
+                  emailResults: emailResult,
+                },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+          }
+
+          // ✅ STEP 9: Validate successful email delivery
+          const emailData = emailResult.data;
+
+          if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
+            return {
+              success: true,
+              message: "Report email successfully sent",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                messageId: emailData.messageId,
+                emailResults: emailData,
+                reportEmail: true,
+                duplicate: false,
+                sentAt: new Date(),
+              },
+              status: httpStatus.OK,
+            };
+          } else {
+            // Email was sent but had rejections
+            logger.error(
+              `Report email partially failed for ${recipientEmail}:`,
+              {
+                recipientEmail,
+                senderEmail,
+                accepted: emailData?.accepted,
+                rejected: emailData?.rejected,
+                tenant,
+                format,
+              }
+            );
+
+            return {
+              success: false,
+              message: "Report email delivery failed or partially rejected",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                emailResults: emailData,
+                accepted: emailData?.accepted || [],
+                rejected: emailData?.rejected || [],
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        } catch (error) {
+          logger.error(
+            `🐛🐛 Report email error for ${recipientEmail}: ${error.message}`,
+            {
+              stack: error.stack,
+              recipientEmail,
+              senderEmail,
+              tenant,
+              format,
+              operation: "sendReport",
+            }
+          );
+
+          return {
+            success: false,
+            message: "Report email processing failed",
+            data: {
+              recipientEmail,
+              senderEmail,
+              format,
+              error: error.message,
+            },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      });
+
+      const sendResults = await Promise.all(sendPromises);
+      emailResults.push(...sendResults);
+
+      // ✅ STEP 10: Analyze overall results
+      const hasFailedEmail = emailResults.some((result) => !result.success);
+      const successfulSends = emailResults.filter((result) => result.success);
+      const failedSends = emailResults.filter((result) => !result.success);
+      const duplicatePrevented = emailResults.filter(
+        (result) => result.data?.duplicate
+      );
+
+      const summaryData = {
+        senderEmail,
+        format,
+        totalRecipients: normalizedRecepientEmails.length,
+        subscribedRecipients: subscribedRecipients.length,
+        successfulSends: successfulSends.length,
+        failedSends: failedSends.length,
+        duplicatesPrevented: duplicatePrevented.length,
+        unsubscribedRecipients:
+          normalizedRecepientEmails.length - subscribedRecipients.length,
+        emailResults,
+        reportSent: !hasFailedEmail || successfulSends.length > 0,
+        sentAt: new Date(),
+      };
+
+      if (hasFailedEmail && successfulSends.length === 0) {
+        // All emails failed
+        const error = new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "All report emails failed to send",
+            ...summaryData,
+          }
         );
+
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "All report emails failed to send",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: summaryData,
+          };
+        }
+      } else if (hasFailedEmail) {
+        // Partial success
+        logger.warn(
+          `Some report emails failed to send for sender ${senderEmail}:`,
+          summaryData
+        );
+
+        const error = new HttpError(
+          "Partial Success",
+          httpStatus.MULTI_STATUS,
+          {
+            message: "Some report emails failed to send",
+            ...summaryData,
+          }
+        );
+
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: true,
+            message: "Some report emails sent successfully, others failed",
+            status: httpStatus.MULTI_STATUS,
+            data: summaryData,
+          };
+        }
       } else {
+        // All emails successful
         return {
           success: true,
-          message: "All emails successfully sent",
-          data: emailResults,
+          message: "All report emails successfully sent",
+          data: summaryData,
           status: httpStatus.OK,
         };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Report sending error for sender ${senderEmail}: ${error.message}`,
+        {
+          stack: error.stack,
+          senderEmail,
+          recipientCount: normalizedRecepientEmails?.length || 0,
+          tenant,
+          operation: "sendReport",
+        }
       );
+
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message:
+            "An unexpected error occurred while processing report emails",
+          operation: "sendReport",
+          senderEmail,
+        }
+      );
+
+      if (next) {
+        next(httpError);
+        return;
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "An unexpected error occurred while processing report emails",
+            operation: "sendReport",
+            senderEmail,
+          },
+        };
+      }
     }
   },
   siteActivity: async (
