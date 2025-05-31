@@ -34,10 +34,8 @@ class ValidationReporter {
     const totalIssues = missing.length + empty.length + critical.length;
     const totalChecked = totalIssues + valid.length;
 
-    // Show summary statistics first
     this._showSummaryStats(totalChecked, valid.length, totalIssues);
 
-    // Only show tables if there are issues
     if (totalIssues > 0) {
       this._showIssuesTable(missing, empty, critical);
     }
@@ -76,19 +74,16 @@ class ValidationReporter {
     this._log("warn", "Variable Name                    Issue");
     this._log("warn", "─".repeat(50));
 
-    // Show critical issues first (these will crash the app)
     critical.forEach((issue) => {
       const name = issue.envVar.padEnd(32);
       this._log("error", `${name} 🚨 CRITICAL - Missing`);
     });
 
-    // Show missing variables
     missing.forEach((issue) => {
       const name = issue.envVar.padEnd(32);
       this._log("warn", `${name} ❌ Missing`);
     });
 
-    // Show empty variables
     empty.forEach((issue) => {
       const name = issue.envVar.padEnd(32);
       this._log("warn", `${name} ⚠️  Empty`);
@@ -97,7 +92,6 @@ class ValidationReporter {
     this._log("warn", "─".repeat(50));
     this._log("warn", "");
 
-    // Show quick fix instructions
     if (critical.length > 0) {
       this._log(
         "error",
@@ -110,25 +104,58 @@ class ValidationReporter {
 }
 
 class EnvOnlyValidator {
-  constructor(environment = process.env.NODE_ENV || "production") {
+  constructor(options = {}) {
+    const {
+      environment = process.env.NODE_ENV || "production",
+      criticalKeys = null,
+      throwOnCritical = true,
+    } = options;
+
     this.environment = environment;
     this.reporter = new ValidationReporter(environment);
     this.useConsole = environment === "development";
+    this.throwOnCritical = throwOnCritical;
 
-    // Critical config keys that will crash the app if missing
-    this.criticalKeys = ["MONGO_URI", "COMMAND_MONGO_URI", "QUERY_MONGO_URI"];
+    this.criticalKeys = this._loadCriticalKeys(criticalKeys);
   }
 
   /**
-   * Validates only actual environment variables - ignores static config
+   * Load critical keys from options, environment, or defaults
+   */
+  _loadCriticalKeys(providedKeys) {
+    if (providedKeys && Array.isArray(providedKeys)) {
+      return providedKeys;
+    }
+
+    const envCriticalKeys = process.env.CRITICAL_ENV_KEYS;
+    if (envCriticalKeys) {
+      return envCriticalKeys.split(",").map((key) => key.trim());
+    }
+
+    return ["MONGO_URI", "COMMAND_MONGO_URI", "QUERY_MONGO_URI"];
+  }
+
+  /**
+   * Validates only actual environment variables with proper error handling
    */
   validateMinimal(config) {
     const results = this._performValidation(config);
     const report = this.reporter.generateMinimalReport(results);
 
-    // Show process.env issues in development
     if (this.environment === "development" && report.hasIssues) {
       this._showActualEnvIssues(results);
+    }
+
+    // Handle critical validation failures
+    if (
+      this.throwOnCritical &&
+      results.critical &&
+      results.critical.length > 0
+    ) {
+      const criticalVars = results.critical.map((c) => c.envVar).join(", ");
+      throw new Error(
+        `Critical environment variables missing: ${criticalVars}`
+      );
     }
 
     return {
@@ -139,7 +166,7 @@ class EnvOnlyValidator {
   }
 
   /**
-   * Shows actual process.env issues for problematic variables only
+   * Shows actual process.env issues with explicit status checking
    */
   _showActualEnvIssues(results) {
     const allIssues = [
@@ -154,11 +181,15 @@ class EnvOnlyValidator {
 
       allIssues.forEach((issue) => {
         const value = process.env[issue.envVar];
-        const status = !value
-          ? "Not Set"
-          : value.trim() === ""
-          ? "Empty"
-          : "Invalid";
+        const status =
+          value === undefined
+            ? "Not Set"
+            : value === null
+            ? "Null"
+            : value.trim() === ""
+            ? "Empty"
+            : "Invalid";
+
         const icon =
           issue.configKey && this.criticalKeys.includes(issue.configKey)
             ? "🚨"
@@ -209,11 +240,10 @@ class EnvOnlyValidator {
    * Validates individual values - ONLY checks env-sourced values
    */
   _validateValue(path, value, results) {
-    if (!path) return; // Skip root level
+    if (!path) return;
 
-    // CRITICAL FILTER: Only validate values that are actually from process.env
     if (!this._isEnvironmentVariable(path, value)) {
-      return; // Skip static config, functions, objects, etc.
+      return;
     }
 
     const { missing, empty, valid, critical } = results;
@@ -222,7 +252,6 @@ class EnvOnlyValidator {
 
     if (value === undefined || value === null) {
       const issue = { configKey: path, envVar };
-
       if (isCritical) {
         critical.push(issue);
       } else {
@@ -230,7 +259,6 @@ class EnvOnlyValidator {
       }
     } else if (typeof value === "string" && value.trim() === "") {
       const issue = { configKey: path, envVar };
-
       if (isCritical) {
         critical.push(issue);
       } else {
@@ -242,99 +270,62 @@ class EnvOnlyValidator {
   }
 
   /**
-   * Determines if a config value is actually sourced from environment variable
+   * Simple environment variable detection - only checks process.env directly
    */
   _isEnvironmentVariable(path, value) {
-    // Skip if it's a function, complex object, or array
-    if (typeof value === "function" || Array.isArray(value)) {
+    // Skip functions, arrays, and complex objects
+    if (!this._isValidValueType(value)) {
       return false;
     }
 
-    if (typeof value === "object" && value !== null) {
-      return false;
-    }
-
-    // Skip common static config patterns
-    const staticConfigPatterns = [
-      /mappings/i,
-      /fields.*descriptions/i,
-      /positions.*labels/i,
-      /field\d+/i,
-      /defaults/i,
-      /item\./i,
-      /remove/i,
-      /operate/i,
-      /each/i,
-      /PREDEFINED_FILTER_VALUES/i,
-      /COMBINATIONS/i,
-      /ALIASES/i,
-      /METADATA_PATHS/i,
-      /THINGSPEAK/i,
-    ];
-
-    const pathUpper = path.toUpperCase();
-    if (staticConfigPatterns.some((pattern) => pattern.test(pathUpper))) {
-      return false;
-    }
-
-    // Check if there's a corresponding environment variable
+    // Convert config path to environment variable name
     const envVar = this._guessEnvVarName(path);
 
-    // If value matches process.env exactly, it's likely from env
-    if (process.env[envVar] === value) {
+    // Check if this environment variable exists in process.env
+    if (!(envVar in process.env)) {
+      return false;
+    }
+
+    // For simple values, check if they could be from this env var
+    const envValue = process.env[envVar];
+
+    // Direct match - definitely from environment
+    if (value === envValue) {
       return true;
     }
 
-    // If it's a string and looks like typical env var content
-    if (typeof value === "string") {
-      // Common env patterns: URLs, database strings, tokens, emails, etc.
-      const envValuePatterns = [
-        /mongodb:\/\//i,
-        /redis:\/\//i,
-        /postgres:\/\//i,
-        /http[s]?:\/\//i,
-        /@.*\.(com|org|net)/i, // emails
-        /^[A-Z0-9_]{8,}$/i, // tokens/keys
-        /localhost:\d+/i,
-        /:\d{4,5}$/i, // ports
-      ];
-
-      if (envValuePatterns.some((pattern) => pattern.test(value))) {
-        return true;
-      }
-    }
-
-    // If it's a simple value and env var exists, likely from env
-    if (
-      (typeof value === "string" || typeof value === "number") &&
-      process.env[envVar] !== undefined
-    ) {
+    // For undefined/null config values, still consider it an env var if process.env has it
+    if ((value === undefined || value === null) && envValue !== undefined) {
       return true;
     }
 
-    // Common environment variable naming patterns
-    const envVarPatterns = [
-      /^[A-Z_]+_URI$/i,
-      /^[A-Z_]+_URL$/i,
-      /^[A-Z_]+_PORT$/i,
-      /^[A-Z_]+_HOST$/i,
-      /^[A-Z_]+_TOKEN$/i,
-      /^[A-Z_]+_KEY$/i,
-      /^[A-Z_]+_SECRET$/i,
-      /^[A-Z_]+_PASSWORD$/i,
-      /^[A-Z_]+_EMAIL[S]?$/i,
-      /^[A-Z_]+_DATABASE$/i,
-      /^[A-Z_]+_SERVICE/i,
-      /^NODE_ENV$/i,
-      /^ENVIRONMENT$/i,
-    ];
+    // For numbers, check if env var can be parsed to match
+    if (typeof value === "number" && !isNaN(Number(envValue))) {
+      return Number(envValue) === value;
+    }
 
-    const envVarName = this._guessEnvVarName(path);
-    if (envVarPatterns.some((pattern) => pattern.test(envVarName))) {
-      return true;
+    // For booleans, check if env var can be parsed to match
+    if (typeof value === "boolean") {
+      const envBool = envValue?.toLowerCase();
+      return (
+        (value === true && (envBool === "true" || envBool === "1")) ||
+        (value === false &&
+          (envBool === "false" || envBool === "0" || envBool === ""))
+      );
     }
 
     return false;
+  }
+
+  /**
+   * Check if value type is valid for environment variables
+   */
+  _isValidValueType(value) {
+    return !(
+      typeof value === "function" ||
+      Array.isArray(value) ||
+      (typeof value === "object" && value !== null)
+    );
   }
 
   /**
