@@ -18,7 +18,19 @@ if (isDevelopment()) {
   // Full production configuration with Slack
   console.log("📝 Log4js configured with Slack alerts");
 
-  module.exports = {
+  // Validate Slack configuration before using it
+  const hasSlackConfig =
+    constants.SLACK_TOKEN &&
+    constants.SLACK_CHANNEL &&
+    constants.SLACK_USERNAME;
+
+  if (!hasSlackConfig) {
+    console.warn(
+      "⚠️  Slack configuration incomplete - some alerts may be disabled"
+    );
+  }
+
+  const config = {
     appenders: {
       access: {
         type: "dateFile",
@@ -41,17 +53,32 @@ if (isDevelopment()) {
         level: "ERROR",
         appender: "errorFile",
       },
-      alerts: {
-        type: "@log4js-node/slack",
-        token: constants.SLACK_TOKEN,
-        channel_id: constants.SLACK_CHANNEL,
-        username: constants.SLACK_USERNAME,
-      },
     },
     categories: {
-      default: { appenders: ["alerts"], level: "info" },
-      error: { appenders: ["alerts", "errors"], level: "error" },
+      default: { appenders: [], level: "info" },
+      error: { appenders: ["errors"], level: "error" },
       http: { appenders: ["access"], level: "DEBUG" },
+      "api-usage-logger": { appenders: [], level: "info" }, // Will be set below
     },
   };
+
+  // Only add Slack appender if configuration is complete
+  if (hasSlackConfig) {
+    config.appenders.alerts = {
+      type: "@log4js-node/slack",
+      token: constants.SLACK_TOKEN,
+      channel_id: constants.SLACK_CHANNEL,
+      username: constants.SLACK_USERNAME,
+    };
+
+    // Add alerts to relevant categories
+    config.categories.default.appenders.push("alerts");
+    config.categories.error.appenders.push("alerts");
+  }
+
+  // API Usage logger should only go to stdout (no Slack)
+  config.appenders.stdout = { type: "stdout" };
+  config.categories["api-usage-logger"].appenders = ["stdout"];
+
+  module.exports = config;
 }

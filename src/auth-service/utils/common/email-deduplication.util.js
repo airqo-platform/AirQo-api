@@ -60,10 +60,10 @@ class EmailDeduplicator {
     // Create hash of email content for additional uniqueness
     const content = html || text || "";
     const contentHash = crypto
-      .createHash("md5")
+      .createHash("sha256")
       .update(content)
       .digest("hex")
-      .substring(0, 8); // Use first 8 characters
+      .substring(0, 16); // Use first 16 characters for better collision resistance
 
     // Create composite key
     const compositeString = `${normalizedTo}:${normalizedSubject}:${contentHash}`;
