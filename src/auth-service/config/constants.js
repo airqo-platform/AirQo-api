@@ -1,6 +1,6 @@
 const environments = require("./environments");
 const global = require("./global");
-const { MinimalEnvValidator } = require("@utils/validation-reporter");
+const { DynamicEnvValidator } = require("../utils/validation-reporter");
 
 const environment = process.env.NODE_ENV || "production";
 
@@ -8,7 +8,7 @@ function envConfig(env) {
   const config = { ...global, ...environments[env] };
 
   // Minimal validation - only shows problems
-  const validator = new MinimalEnvValidator(env);
+  const validator = new DynamicEnvValidator(env);
 
   if (env === "development") {
     console.log("🔍 Environment Validation Check...");

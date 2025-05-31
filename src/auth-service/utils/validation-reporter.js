@@ -109,27 +109,26 @@ class ValidationReporter {
   }
 }
 
-// =============================================================================
-// MINIMAL Environment Variable Validator
-// =============================================================================
-
-class MinimalEnvValidator {
+class DynamicEnvValidator {
   constructor(environment = process.env.NODE_ENV || "production") {
     this.environment = environment;
     this.reporter = new ValidationReporter(environment);
     this.useConsole = environment === "development";
+
+    // Critical config keys that will crash the app if missing
+    this.criticalKeys = ["MONGO_URI", "COMMAND_MONGO_URI", "QUERY_MONGO_URI"];
   }
 
   /**
-   * Quick validation with minimal output
+   * Dynamic validation - checks actual config vs actual environment variables
    */
   validateMinimal(config) {
     const results = this._performValidation(config);
     const report = this.reporter.generateMinimalReport(results);
 
-    // Show environment issues table in development
+    // Show process.env issues in development
     if (this.environment === "development" && report.hasIssues) {
-      this._showEnvIssuesOnly();
+      this._showActualEnvIssues(results);
     }
 
     return {
@@ -140,46 +139,41 @@ class MinimalEnvValidator {
   }
 
   /**
-   * Shows only problematic environment variables from process.env
+   * Shows actual process.env issues for problematic variables only
    */
-  _showEnvIssuesOnly() {
-    // Common environment variables - update these to match your actual variable names
-    const commonEnvVars = [
-      "MONGO_URI",
-      "COMMAND_MONGO_URI",
-      "QUERY_MONGO_URI",
-      "REDIS_SERVER",
-      "REDIS_PORT",
-      "KAFKA_BOOTSTRAP_SERVERS",
-      "AUTH_SERVICE_URL",
-      "INTER_SERVICE_TOKEN",
-      "DEFAULT_COHORT",
-      "PARTNERS_EMAILS",
-      "COMMS_EMAILS",
-      "POLICY_EMAILS",
+  _showActualEnvIssues(results) {
+    const allIssues = [
+      ...results.missing,
+      ...results.empty,
+      ...results.critical,
     ];
 
-    const issues = commonEnvVars.filter((envVar) => {
-      const value = process.env[envVar];
-      return !value || value.trim() === "";
-    });
+    if (allIssues.length > 0) {
+      console.log("\n🔍 ACTUAL PROCESS.ENV ISSUES");
+      console.log("─".repeat(35));
 
-    if (issues.length > 0) {
-      console.log("\n🔍 PROCESS.ENV ISSUES DETECTED");
-      console.log("─".repeat(35));
-      issues.forEach((envVar) => {
-        const value = process.env[envVar];
-        const status = !value ? "Not Set" : "Empty";
-        console.log(`❌ ${envVar}: ${status}`);
+      allIssues.forEach((issue) => {
+        const value = process.env[issue.envVar];
+        const status = !value
+          ? "Not Set"
+          : value.trim() === ""
+          ? "Empty"
+          : "Invalid";
+        const icon =
+          issue.configKey && this.criticalKeys.includes(issue.configKey)
+            ? "🚨"
+            : "❌";
+        console.log(`${icon} ${issue.envVar}: ${status}`);
       });
+
       console.log("─".repeat(35));
-      console.log(`Total issues: ${issues.length}`);
+      console.log(`Total actual env issues: ${allIssues.length}`);
       console.log("");
     }
   }
 
   /**
-   * Performs validation and categorizes results
+   * Performs validation by walking the actual config structure
    */
   _performValidation(config) {
     const missing = [];
@@ -187,15 +181,11 @@ class MinimalEnvValidator {
     const valid = [];
     const critical = [];
 
-    // Critical variables that will crash the app
-    const criticalVars = ["MONGO_URI", "COMMAND_MONGO_URI", "QUERY_MONGO_URI"];
-
     this._validateConfigObject(config, "", {
       missing,
       empty,
       valid,
       critical,
-      criticalVars,
     });
 
     return { missing, empty, valid, critical };
@@ -216,12 +206,15 @@ class MinimalEnvValidator {
   }
 
   /**
-   * Validates individual values
+   * Validates individual values against actual environment variables
    */
   _validateValue(path, value, results) {
-    const { missing, empty, valid, critical, criticalVars } = results;
+    if (!path) return; // Skip root level
+
+    const { missing, empty, valid, critical } = results;
     const envVar = this._guessEnvVarName(path);
-    const isCritical = criticalVars.includes(path);
+    const isCritical = this.criticalKeys.includes(path);
+    const actualEnvValue = process.env[envVar];
 
     if (value === undefined || value === null) {
       const issue = { configKey: path, envVar };
@@ -245,69 +238,47 @@ class MinimalEnvValidator {
   }
 
   /**
-   * Guesses environment variable name from config path
+   * Converts config path to environment variable name
    */
   _guessEnvVarName(configPath) {
-    // Convert config path to environment variable format
-    // e.g., "PARTNERS.EMAILS" -> "PARTNERS_EMAILS"
-    // No automatic environment prefixes - use actual variable names
     return configPath.replace(/\./g, "_").toUpperCase();
   }
 
   /**
-   * Super quick summary - just counts
+   * Gets actual environment variable status from process.env
    */
-  quickSummary() {
-    // Common environment variables - update these to match your actual variable names
-    const commonEnvVars = [
-      "MONGO_URI",
-      "COMMAND_MONGO_URI",
-      "QUERY_MONGO_URI",
-      "REDIS_SERVER",
-      "REDIS_PORT",
-      "KAFKA_BOOTSTRAP_SERVERS",
-      "AUTH_SERVICE_URL",
-      "INTER_SERVICE_TOKEN",
-      "DEFAULT_COHORT",
-      "PARTNERS_EMAILS",
-      "COMMS_EMAILS",
-      "POLICY_EMAILS",
-    ];
+  getActualEnvStatus() {
+    const envVars = Object.keys(process.env);
+    const appEnvVars = envVars.filter(
+      (envVar) =>
+        !envVar.startsWith("npm_") &&
+        !envVar.startsWith("NODE_") &&
+        !["PATH", "HOME", "USER", "SHELL", "PWD"].includes(envVar)
+    );
 
     let valid = 0,
-      missing = 0,
       empty = 0;
 
-    commonEnvVars.forEach((envVar) => {
+    appEnvVars.forEach((envVar) => {
       const value = process.env[envVar];
-      if (!value) {
-        missing++;
-      } else if (value.trim() === "") {
-        empty++;
-      } else {
+      if (value && value.trim() !== "") {
         valid++;
+      } else {
+        empty++;
       }
     });
 
-    const total = valid + missing + empty;
-    const issues = missing + empty;
-
     if (this.useConsole) {
-      console.log("\n📈 QUICK ENV SUMMARY");
+      console.log("\n📈 ACTUAL ENV STATUS");
       console.log("═".repeat(25));
-      console.log(`Total: ${total} | Valid: ${valid} | Issues: ${issues}`);
+      console.log(`App Env Vars: ${appEnvVars.length}`);
+      console.log(`Valid: ${valid} | Empty: ${empty}`);
       console.log("═".repeat(25));
-
-      if (issues > 0) {
-        console.log(`❌ ${missing} missing, ⚠️  ${empty} empty`);
-      } else {
-        console.log("✅ All environment variables OK");
-      }
       console.log("");
     }
 
-    return { total, valid, missing, empty, issues };
+    return { total: appEnvVars.length, valid, empty };
   }
 }
 
-module.exports = { MinimalEnvValidator, ValidationReporter };
+module.exports = { DynamicEnvValidator, ValidationReporter };
