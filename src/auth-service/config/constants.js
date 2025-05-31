@@ -1,8 +1,23 @@
 const environments = require("./environments");
 const global = require("./global");
+const { MinimalEnvValidator } = require("@utils/validation-reporter");
+
+const environment = process.env.NODE_ENV || "production";
 
 function envConfig(env) {
-  return { ...global, ...environments[env] };
+  const config = { ...global, ...environments[env] };
+
+  // Minimal validation - only shows problems
+  const validator = new MinimalEnvValidator(env);
+
+  if (env === "development") {
+    console.log("🔍 Environment Validation Check...");
+    validator.validateMinimal(config);
+  } else {
+    validator.validateMinimal(config);
+  }
+
+  return config;
 }
-const environment = process.env.NODE_ENV || "production";
+
 module.exports = envConfig(environment);
