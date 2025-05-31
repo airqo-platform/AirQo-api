@@ -34,10 +34,8 @@ class ValidationReporter {
     const totalIssues = missing.length + empty.length + critical.length;
     const totalChecked = totalIssues + valid.length;
 
-    // Show summary statistics first
     this._showSummaryStats(totalChecked, valid.length, totalIssues);
 
-    // Only show tables if there are issues
     if (totalIssues > 0) {
       this._showIssuesTable(missing, empty, critical);
     }
@@ -76,19 +74,16 @@ class ValidationReporter {
     this._log("warn", "Variable Name                    Issue");
     this._log("warn", "─".repeat(50));
 
-    // Show critical issues first (these will crash the app)
     critical.forEach((issue) => {
       const name = issue.envVar.padEnd(32);
       this._log("error", `${name} 🚨 CRITICAL - Missing`);
     });
 
-    // Show missing variables
     missing.forEach((issue) => {
       const name = issue.envVar.padEnd(32);
       this._log("warn", `${name} ❌ Missing`);
     });
 
-    // Show empty variables
     empty.forEach((issue) => {
       const name = issue.envVar.padEnd(32);
       this._log("warn", `${name} ⚠️  Empty`);
@@ -97,7 +92,6 @@ class ValidationReporter {
     this._log("warn", "─".repeat(50));
     this._log("warn", "");
 
-    // Show quick fix instructions
     if (critical.length > 0) {
       this._log(
         "error",
@@ -109,26 +103,59 @@ class ValidationReporter {
   }
 }
 
-class DynamicEnvValidator {
-  constructor(environment = process.env.NODE_ENV || "production") {
+class EnvOnlyValidator {
+  constructor(options = {}) {
+    const {
+      environment = process.env.NODE_ENV || "production",
+      criticalKeys = null,
+      throwOnCritical = true,
+    } = options;
+
     this.environment = environment;
     this.reporter = new ValidationReporter(environment);
     this.useConsole = environment === "development";
+    this.throwOnCritical = throwOnCritical;
 
-    // Critical config keys that will crash the app if missing
-    this.criticalKeys = ["MONGO_URI", "COMMAND_MONGO_URI", "QUERY_MONGO_URI"];
+    this.criticalKeys = this._loadCriticalKeys(criticalKeys);
   }
 
   /**
-   * Dynamic validation - checks actual config vs actual environment variables
+   * Load critical keys from options, environment, or defaults
+   */
+  _loadCriticalKeys(providedKeys) {
+    if (providedKeys && Array.isArray(providedKeys)) {
+      return providedKeys;
+    }
+
+    const envCriticalKeys = process.env.CRITICAL_ENV_KEYS;
+    if (envCriticalKeys) {
+      return envCriticalKeys.split(",").map((key) => key.trim());
+    }
+
+    return ["MONGO_URI", "COMMAND_MONGO_URI", "QUERY_MONGO_URI"];
+  }
+
+  /**
+   * Validates only actual environment variables with proper error handling
    */
   validateMinimal(config) {
     const results = this._performValidation(config);
     const report = this.reporter.generateMinimalReport(results);
 
-    // Show process.env issues in development
     if (this.environment === "development" && report.hasIssues) {
       this._showActualEnvIssues(results);
+    }
+
+    // Handle critical validation failures
+    if (
+      this.throwOnCritical &&
+      results.critical &&
+      results.critical.length > 0
+    ) {
+      const criticalVars = results.critical.map((c) => c.envVar).join(", ");
+      throw new Error(
+        `Critical environment variables missing: ${criticalVars}`
+      );
     }
 
     return {
@@ -139,7 +166,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Shows actual process.env issues for problematic variables only
+   * Shows actual process.env issues with explicit status checking
    */
   _showActualEnvIssues(results) {
     const allIssues = [
@@ -154,11 +181,15 @@ class DynamicEnvValidator {
 
       allIssues.forEach((issue) => {
         const value = process.env[issue.envVar];
-        const status = !value
-          ? "Not Set"
-          : value.trim() === ""
-          ? "Empty"
-          : "Invalid";
+        const status =
+          value === undefined
+            ? "Not Set"
+            : value === null
+            ? "Null"
+            : value.trim() === ""
+            ? "Empty"
+            : "Invalid";
+
         const icon =
           issue.configKey && this.criticalKeys.includes(issue.configKey)
             ? "🚨"
@@ -173,7 +204,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Performs validation by walking the actual config structure
+   * Performs validation by walking only env-sourced values
    */
   _performValidation(config) {
     const missing = [];
@@ -192,7 +223,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Recursively validates configuration object
+   * Recursively validates configuration object - ONLY process.env values
    */
   _validateConfigObject(obj, path, results) {
     if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
@@ -206,19 +237,21 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Validates individual values against actual environment variables
+   * Validates individual values - ONLY checks env-sourced values
    */
   _validateValue(path, value, results) {
-    if (!path) return; // Skip root level
+    if (!path) return;
+
+    if (!this._isEnvironmentVariable(path, value)) {
+      return;
+    }
 
     const { missing, empty, valid, critical } = results;
     const envVar = this._guessEnvVarName(path);
     const isCritical = this.criticalKeys.includes(path);
-    const actualEnvValue = process.env[envVar];
 
     if (value === undefined || value === null) {
       const issue = { configKey: path, envVar };
-
       if (isCritical) {
         critical.push(issue);
       } else {
@@ -226,7 +259,6 @@ class DynamicEnvValidator {
       }
     } else if (typeof value === "string" && value.trim() === "") {
       const issue = { configKey: path, envVar };
-
       if (isCritical) {
         critical.push(issue);
       } else {
@@ -238,6 +270,65 @@ class DynamicEnvValidator {
   }
 
   /**
+   * Simple environment variable detection - only checks process.env directly
+   */
+  _isEnvironmentVariable(path, value) {
+    // Skip functions, arrays, and complex objects
+    if (!this._isValidValueType(value)) {
+      return false;
+    }
+
+    // Convert config path to environment variable name
+    const envVar = this._guessEnvVarName(path);
+
+    // Check if this environment variable exists in process.env
+    if (!(envVar in process.env)) {
+      return false;
+    }
+
+    // For simple values, check if they could be from this env var
+    const envValue = process.env[envVar];
+
+    // Direct match - definitely from environment
+    if (value === envValue) {
+      return true;
+    }
+
+    // For undefined/null config values, still consider it an env var if process.env has it
+    if ((value === undefined || value === null) && envValue !== undefined) {
+      return true;
+    }
+
+    // For numbers, check if env var can be parsed to match
+    if (typeof value === "number" && !isNaN(Number(envValue))) {
+      return Number(envValue) === value;
+    }
+
+    // For booleans, check if env var can be parsed to match
+    if (typeof value === "boolean") {
+      const envBool = envValue?.toLowerCase();
+      return (
+        (value === true && (envBool === "true" || envBool === "1")) ||
+        (value === false &&
+          (envBool === "false" || envBool === "0" || envBool === ""))
+      );
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if value type is valid for environment variables
+   */
+  _isValidValueType(value) {
+    return !(
+      typeof value === "function" ||
+      Array.isArray(value) ||
+      (typeof value === "object" && value !== null)
+    );
+  }
+
+  /**
    * Converts config path to environment variable name
    */
   _guessEnvVarName(configPath) {
@@ -245,7 +336,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Gets actual environment variable status from process.env
+   * Shows only actual environment variables and their status
    */
   getActualEnvStatus() {
     const envVars = Object.keys(process.env);
@@ -281,4 +372,4 @@ class DynamicEnvValidator {
   }
 }
 
-module.exports = { DynamicEnvValidator, ValidationReporter };
+module.exports = { EnvOnlyValidator, ValidationReporter };
