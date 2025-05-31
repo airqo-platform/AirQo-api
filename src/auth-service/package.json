@@ -32,7 +32,9 @@
     "env:debug": "DEBUG_ENV=true node config/check-environment.js",
     "dev:safe": "npm run env:check && npm run cleanup && cross-env NODE_ENV=development nodemon --trace-warnings ./bin",
     "dev:clean": "npm run cleanup && npm run dev",
-    "dev:debug": "npm run env:debug && npm run dev"
+    "dev:debug": "npm run env:debug && npm run dev",
+    "kafka:check": "node config/check-kafka-status.js",
+    "kafka:cleanup": "node config/cleanup-kafka.js"
   },
   "_moduleAliases": {
     "@root": ".",
