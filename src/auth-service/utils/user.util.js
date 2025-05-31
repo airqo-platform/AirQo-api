@@ -28,11 +28,10 @@ const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user util`);
-const { logObject, logText, HttpError } = require("@utils/shared");
+const { logObject, logText, HttpError, stringify } = require("@utils/shared");
 
 const {
   mailer,
-  stringify,
   generateFilter,
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
@@ -121,7 +120,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
 
     if (!isEmpty(updatedGroup.err)) {
       logger.error(
-        `error while attempting to delete User from the corresponding Group ${JSON.stringify(
+        `error while attempting to delete User from the corresponding Group ${stringify(
           updatedGroup.err
         )}`
       );
@@ -141,7 +140,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
 
     if (!isEmpty(updatedNetwork.err)) {
       logger.error(
-        `error while attempting to delete User from the corresponding Network ${JSON.stringify(
+        `error while attempting to delete User from the corresponding Network ${stringify(
           updatedNetwork.err
         )}`
       );
@@ -154,7 +153,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       status: httpStatus.OK,
     };
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -192,7 +191,7 @@ const setCache = async ({ data, request } = {}, next) => {
     const cacheID = generateCacheID(request, next);
     await redisSetAsync(
       cacheID,
-      JSON.stringify({
+      stringify({
         isCache: true,
         success: true,
         message: "Successfully retrieved the users",
@@ -471,7 +470,7 @@ const createUserModule = {
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
       }
 
       const filter = generateFilter.users(request, next);
@@ -507,14 +506,10 @@ const createUserModule = {
             const errors = resultOfCacheOperation.errors
               ? resultOfCacheOperation.errors
               : { message: "Internal Server Error" };
-            logger.error(
-              `🐛🐛 Internal Server Error -- ${JSON.stringify(errors)}`
-            );
+            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
           }
         } catch (error) {
-          logger.error(
-            `🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`
-          );
+          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
         }
 
         logText("Cache set.");
@@ -532,7 +527,7 @@ const createUserModule = {
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${JSON.stringify(
+          `Unable to retrieve events --- ${stringify(
             responseFromListUser.errors
           )}`
         );
@@ -1082,12 +1077,7 @@ const createUserModule = {
   setMobileUserCache: async ({ data, cacheID } = {}, next) => {
     try {
       logObject("cacheID supplied to setMobileUserCache", cacheID);
-      const result = await ioredis.set(
-        cacheID,
-        JSON.stringify(data),
-        "EX",
-        3600
-      );
+      const result = await ioredis.set(cacheID, stringify(data), "EX", 3600);
       return result;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2109,6 +2099,11 @@ const createUserModule = {
         next
       );
 
+      if (!responseFromCreateUser) {
+        // Handle the case where register threw an error via next()
+        return; // The error has already been passed to next()
+      }
+
       if (responseFromCreateUser.success === true) {
         if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
           return responseFromCreateUser;
@@ -2826,7 +2821,7 @@ const createUserModule = {
       logObject("responseFromMailChimp", responseFromMailChimp);
 
       logger.info(
-        `Unsubscription attempt: ${JSON.stringify(responseFromMailChimp)}`
+        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
       );
 
       if (responseFromMailChimp.status !== "unsubscribed") {
@@ -2914,7 +2909,7 @@ const createUserModule = {
       logObject("responseFromMailChimp", responseFromMailChimp);
 
       logger.info(
-        `Unsubscription attempt: ${JSON.stringify(responseFromMailChimp)}`
+        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
       );
 
       if (responseFromMailChimp.status_code !== 200) {
