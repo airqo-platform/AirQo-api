@@ -109,7 +109,7 @@ class ValidationReporter {
   }
 }
 
-class DynamicEnvValidator {
+class EnvOnlyValidator {
   constructor(environment = process.env.NODE_ENV || "production") {
     this.environment = environment;
     this.reporter = new ValidationReporter(environment);
@@ -120,7 +120,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Dynamic validation - checks actual config vs actual environment variables
+   * Validates only actual environment variables - ignores static config
    */
   validateMinimal(config) {
     const results = this._performValidation(config);
@@ -173,7 +173,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Performs validation by walking the actual config structure
+   * Performs validation by walking only env-sourced values
    */
   _performValidation(config) {
     const missing = [];
@@ -192,7 +192,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Recursively validates configuration object
+   * Recursively validates configuration object - ONLY process.env values
    */
   _validateConfigObject(obj, path, results) {
     if (typeof obj !== "object" || obj === null || Array.isArray(obj)) {
@@ -206,15 +206,19 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Validates individual values against actual environment variables
+   * Validates individual values - ONLY checks env-sourced values
    */
   _validateValue(path, value, results) {
     if (!path) return; // Skip root level
 
+    // CRITICAL FILTER: Only validate values that are actually from process.env
+    if (!this._isEnvironmentVariable(path, value)) {
+      return; // Skip static config, functions, objects, etc.
+    }
+
     const { missing, empty, valid, critical } = results;
     const envVar = this._guessEnvVarName(path);
     const isCritical = this.criticalKeys.includes(path);
-    const actualEnvValue = process.env[envVar];
 
     if (value === undefined || value === null) {
       const issue = { configKey: path, envVar };
@@ -238,6 +242,102 @@ class DynamicEnvValidator {
   }
 
   /**
+   * Determines if a config value is actually sourced from environment variable
+   */
+  _isEnvironmentVariable(path, value) {
+    // Skip if it's a function, complex object, or array
+    if (typeof value === "function" || Array.isArray(value)) {
+      return false;
+    }
+
+    if (typeof value === "object" && value !== null) {
+      return false;
+    }
+
+    // Skip common static config patterns
+    const staticConfigPatterns = [
+      /mappings/i,
+      /fields.*descriptions/i,
+      /positions.*labels/i,
+      /field\d+/i,
+      /defaults/i,
+      /item\./i,
+      /remove/i,
+      /operate/i,
+      /each/i,
+      /PREDEFINED_FILTER_VALUES/i,
+      /COMBINATIONS/i,
+      /ALIASES/i,
+      /METADATA_PATHS/i,
+      /THINGSPEAK/i,
+    ];
+
+    const pathUpper = path.toUpperCase();
+    if (staticConfigPatterns.some((pattern) => pattern.test(pathUpper))) {
+      return false;
+    }
+
+    // Check if there's a corresponding environment variable
+    const envVar = this._guessEnvVarName(path);
+
+    // If value matches process.env exactly, it's likely from env
+    if (process.env[envVar] === value) {
+      return true;
+    }
+
+    // If it's a string and looks like typical env var content
+    if (typeof value === "string") {
+      // Common env patterns: URLs, database strings, tokens, emails, etc.
+      const envValuePatterns = [
+        /mongodb:\/\//i,
+        /redis:\/\//i,
+        /postgres:\/\//i,
+        /http[s]?:\/\//i,
+        /@.*\.(com|org|net)/i, // emails
+        /^[A-Z0-9_]{8,}$/i, // tokens/keys
+        /localhost:\d+/i,
+        /:\d{4,5}$/i, // ports
+      ];
+
+      if (envValuePatterns.some((pattern) => pattern.test(value))) {
+        return true;
+      }
+    }
+
+    // If it's a simple value and env var exists, likely from env
+    if (
+      (typeof value === "string" || typeof value === "number") &&
+      process.env[envVar] !== undefined
+    ) {
+      return true;
+    }
+
+    // Common environment variable naming patterns
+    const envVarPatterns = [
+      /^[A-Z_]+_URI$/i,
+      /^[A-Z_]+_URL$/i,
+      /^[A-Z_]+_PORT$/i,
+      /^[A-Z_]+_HOST$/i,
+      /^[A-Z_]+_TOKEN$/i,
+      /^[A-Z_]+_KEY$/i,
+      /^[A-Z_]+_SECRET$/i,
+      /^[A-Z_]+_PASSWORD$/i,
+      /^[A-Z_]+_EMAIL[S]?$/i,
+      /^[A-Z_]+_DATABASE$/i,
+      /^[A-Z_]+_SERVICE/i,
+      /^NODE_ENV$/i,
+      /^ENVIRONMENT$/i,
+    ];
+
+    const envVarName = this._guessEnvVarName(path);
+    if (envVarPatterns.some((pattern) => pattern.test(envVarName))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Converts config path to environment variable name
    */
   _guessEnvVarName(configPath) {
@@ -245,7 +345,7 @@ class DynamicEnvValidator {
   }
 
   /**
-   * Gets actual environment variable status from process.env
+   * Shows only actual environment variables and their status
    */
   getActualEnvStatus() {
     const envVars = Object.keys(process.env);
@@ -281,4 +381,4 @@ class DynamicEnvValidator {
   }
 }
 
-module.exports = { DynamicEnvValidator, ValidationReporter };
+module.exports = { EnvOnlyValidator, ValidationReporter };
