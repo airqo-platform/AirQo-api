@@ -2355,7 +2355,6 @@ const mailer = {
         to: email,
         subject: `Thank you for your inquiry - AirQo ${category} team`,
         html: msgs.inquiry(fullName, email, category, message), // Include message parameter
-        bcc: subscribedBccEmails || undefined, // Fixed: Include BCC emails for inquiry routing
         attachments: attachments,
       };
 
@@ -2865,7 +2864,6 @@ const mailer = {
           to: email,
           subject: "Welcome to the AirQo KCCA Platform",
           html: msgs.welcome_kcca(firstName, lastName, password, email),
-          bcc: finalBccEmails || undefined,
           attachments: attachments,
         };
       } else {
@@ -2877,7 +2875,6 @@ const mailer = {
           to: email,
           subject: "Welcome to Your AirQo Account",
           html: msgs.welcome_general(firstName, lastName, password, email),
-          bcc: finalBccEmails || undefined,
           attachments: attachments,
         };
       }
@@ -3141,7 +3138,6 @@ const mailer = {
           token,
           category,
         }),
-        bcc: subscribedBccEmails || undefined, // Only include BCC if there are emails
         attachments: [
           {
             filename: "airqoLogo.png",
@@ -3247,18 +3243,6 @@ const mailer = {
       const emailData = emailResult.data;
 
       if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
-        logger.info(`Verification email successfully sent to: ${email}`, {
-          email,
-          user_id,
-          tenant,
-          category,
-          messageId: emailData.messageId,
-          bccCount: subscribedBccEmails
-            ? subscribedBccEmails.split(",").length
-            : 0,
-          sentAt: new Date(),
-        });
-
         return {
           success: true,
           message: "Verification email successfully sent",
@@ -3471,7 +3455,6 @@ const mailer = {
         to: email,
         subject: `Email Verification Code: ${token}`,
         html: msgs.mobileEmailVerification({ token, email }),
-        bcc: subscribedBccEmails || undefined, // Fixed: Include BCC emails for verification notifications
         attachments: [
           {
             filename: "airqoLogo.png",
@@ -3755,7 +3738,6 @@ const mailer = {
           firebase_uid,
           token,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for mobile verification notifications
         attachments: [
           {
             filename: "airqoLogo.png",
@@ -4020,7 +4002,6 @@ const mailer = {
           email,
           analyticsVersion,
         }),
-        bcc: subscribedBccEmails || undefined, // Fixed: Include BCC emails for verification notifications
         attachments: attachments,
       };
 
@@ -4292,7 +4273,6 @@ const mailer = {
         to: email,
         subject,
         html: htmlContent,
-        bcc: subscribedBccEmails || undefined, // Only include BCC if there are emails
         attachments: attachments,
       };
 
@@ -4546,7 +4526,6 @@ const mailer = {
           email,
           entity_title,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for onboarding notifications
         attachments: attachments,
       };
 
@@ -6449,7 +6428,6 @@ const mailer = {
         to: email,
         subject: subject,
         html: message,
-        bcc: subscribedBccEmails || undefined,
       };
 
       // ✅ STEP 7: Send email with deduplication protection
@@ -6709,7 +6687,6 @@ const mailer = {
         cc: email, // User receives a copy of their feedback
         subject: subject,
         text: message, // Use text for feedback content
-        bcc: subscribedBccEmails || undefined,
       };
 
       // ✅ STEP 6: Send email with deduplication protection
@@ -7902,7 +7879,6 @@ const mailer = {
           ip,
           email,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for security incident
         attachments: attachments,
       };
 
@@ -8131,7 +8107,6 @@ const mailer = {
           email,
           token,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for token expiry notifications
         attachments: attachments,
       };
 
@@ -8349,7 +8324,6 @@ const mailer = {
           lastName,
           email,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for token warning notifications
         attachments: attachments,
       };
 
@@ -8561,7 +8535,6 @@ const mailer = {
           lastName,
           email,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for profile reminder notifications
         attachments: attachments,
       };
 
@@ -8777,7 +8750,6 @@ const mailer = {
           lastName,
           email,
         }),
-        bcc: subscribedBccEmails || undefined, // Include BCC emails for access request notifications
         attachments: attachments,
       };
 
