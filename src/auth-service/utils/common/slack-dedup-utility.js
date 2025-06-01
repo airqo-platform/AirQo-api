@@ -69,14 +69,15 @@ class SlackDeduplicator {
     }
   }
 
-  // Wrapper function for logger calls
+  // Wrapper function for logger calls with full API compatibility
   wrapLogger(logger) {
-    const originalError = logger.error.bind(logger);
-    const originalWarn = logger.warn.bind(logger);
-    const originalInfo = logger.info.bind(logger);
+    const originalError = logger.error ? logger.error.bind(logger) : () => {};
+    const originalWarn = logger.warn ? logger.warn.bind(logger) : () => {};
+    const originalInfo = logger.info ? logger.info.bind(logger) : () => {};
 
     return {
       ...logger,
+      // Apply deduplication to methods that typically send Slack alerts
       error: (...args) => {
         const messageText = args.join(" ");
         if (this.shouldSendMessage(messageText, "ERROR", "error")) {
@@ -95,6 +96,22 @@ class SlackDeduplicator {
           originalInfo(...args);
         }
       },
+      // Preserve other log4js methods without deduplication (these rarely send Slack alerts)
+      debug: logger.debug ? logger.debug.bind(logger) : () => {},
+      trace: logger.trace ? logger.trace.bind(logger) : () => {},
+      fatal: logger.fatal ? logger.fatal.bind(logger) : () => {},
+      mark: logger.mark ? logger.mark.bind(logger) : () => {},
+      // Preserve any additional methods that might exist
+      level: logger.level,
+      category: logger.category,
+      context: logger.context,
+      addContext: logger.addContext ? logger.addContext.bind(logger) : () => {},
+      removeContext: logger.removeContext
+        ? logger.removeContext.bind(logger)
+        : () => {},
+      clearContext: logger.clearContext
+        ? logger.clearContext.bind(logger)
+        : () => {},
     };
   }
 }
