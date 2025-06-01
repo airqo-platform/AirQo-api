@@ -3,8 +3,6 @@ const express = require("express");
 const constants = require("@config/constants");
 const path = require("path");
 const cookieParser = require("cookie-parser");
-const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
 const app = express();
 const bodyParser = require("body-parser");
 const session = require("express-session");
@@ -12,9 +10,54 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
+
+// Initialize log4js with SAFE configuration and deduplication
+const log4js = require("log4js");
+let logger;
+
+try {
+  // Use the SAFE log4js configuration (no custom appenders)
+  const logConfig = require("@config/log4js");
+  log4js.configure(logConfig);
+  logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
+  console.log("✅ Log4js configured successfully");
+} catch (error) {
+  console.error("❌ Log4js configuration failed:", error.message);
+  console.log("📝 Falling back to console logging");
+
+  // Fallback to basic console logging
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.log,
+  };
+}
+
+// Add deduplication wrapper for Slack alerts
+try {
+  const { deduplicator } = require("@utils/common");
+
+  // Create a deduplicated logger for important alerts
+  const dedupLogger = deduplicator.wrapLogger(logger);
+
+  // Use dedupLogger for job alerts and critical messages
+  global.dedupLogger = dedupLogger;
+
+  console.log("✅ Slack deduplication utility loaded successfully");
+} catch (error) {
+  console.warn("⚠️  Slack deduplication utility not available:", error.message);
+  // Fallback to regular logger
+  global.dedupLogger = logger;
+}
+
+// Run startup migrations
 const runStartupMigrations = require("@bin/jobs/run-migrations");
 runStartupMigrations().catch((error) => {
-  logger.error(`🐛🐛 Failed to run startup migrations: ${error.message}`);
+  // Use deduplicated logger for critical startup errors
+  global.dedupLogger.error(
+    `🐛🐛 Failed to run startup migrations: ${error.message}`
+  );
 });
 
 const morgan = require("morgan");
@@ -24,7 +67,7 @@ const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
 
-const debug = require("debug")("auth-service:server");
+const debug = require("debug")("device-service:server");
 const isEmpty = require("is-empty");
 
 const {
@@ -34,6 +77,8 @@ const {
   HttpError,
 } = require("@utils/shared");
 const { stringify } = require("@utils/common");
+
+// Initialize all background jobs
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/v2.1-store-readings-job");
 require("@bin/jobs/v2.1-check-network-status-job");
@@ -57,6 +102,7 @@ app.use(
     saveUninitialized: false,
   })
 ); // session setup
+
 app.use(bodyParser.json({ limit: "50mb" })); // JSON body parser
 // Other common middlewares: morgan, cookieParser, passport, etc.
 if (isProd) {
@@ -69,7 +115,14 @@ if (isDev) {
 }
 
 app.use(cookieParser());
-app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+
+// Safe log4js middleware with fallback
+try {
+  app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+} catch (error) {
+  console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
+}
+
 app.use(express.json());
 app.use(
   bodyParser.urlencoded({
@@ -140,8 +193,10 @@ app.use(function(err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // logger.error(`Internal Server Error --- ${stringify(err)}`);
-      // logger.error(`Stack Trace: ${err.stack}`);
+      // Use deduplicated logger for internal server errors to prevent Slack spam
+      global.dedupLogger.error(
+        `🐛🐛 Internal Server Error --- ${stringify(err)}`
+      );
       logObject("the error", err);
       res.status(err.status).json({
         success: false,
@@ -156,9 +211,12 @@ app.use(function(err, req, res, next) {
         errors: { message: err.message },
       });
     } else {
-      logger.error(`Internal Server Error --- ${stringify(err)}`);
+      // Use deduplicated logger for unexpected errors
+      global.dedupLogger.error(
+        `🐛🐛 Internal Server Error --- ${stringify(err)}`
+      );
       logObject("Internal Server Error", err);
-      logger.error(`Stack Trace: ${err.stack}`);
+      global.dedupLogger.error(`Stack Trace: ${err.stack}`);
       res.status(err.statusCode || err.status || 500).json({
         success: false,
         message: err.message || "Internal Server Error",
@@ -299,6 +357,13 @@ const createServer = () => {
                 `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
               );
             }
+            // Simple job pattern (current pattern)
+            else if (typeof jobObj.stop === "function") {
+              jobObj.stop();
+              console.log(
+                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
+              );
+            }
             // Unknown pattern
             else {
               console.warn(
@@ -350,6 +415,10 @@ const createServer = () => {
             await global.redisClient.quit();
             console.log("✅ Redis connection closed");
             logger.info("✅ Redis connection closed");
+          } else if (typeof global.redisClient.disconnect === "function") {
+            await global.redisClient.disconnect();
+            console.log("✅ Redis connection disconnected");
+            logger.info("✅ Redis connection disconnected");
           }
         } catch (error) {
           console.error("❌ Error closing Redis connection:", error.message);
@@ -374,6 +443,25 @@ const createServer = () => {
             `❌ Error closing Firebase connections: ${error.message}`
           );
         }
+      }
+
+      // Safe log4js shutdown
+      console.log("Shutting down log4js...");
+      try {
+        if (typeof log4js.shutdown === "function") {
+          await new Promise((resolve) => {
+            log4js.shutdown((error) => {
+              if (error) {
+                console.error("❌ Error during log4js shutdown:", error);
+              } else {
+                console.log("✅ Log4js shutdown complete");
+              }
+              resolve();
+            });
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error shutting down log4js:", error.message);
       }
 
       // Close MongoDB connection
@@ -422,15 +510,42 @@ const createServer = () => {
 
   // Handle uncaught exceptions
   process.on("uncaughtException", (error) => {
-    logger.error(`💥 Uncaught Exception: ${error.message}`);
-    logger.error(`Stack: ${error.stack}`);
+    console.error(`💥 Uncaught Exception: ${error.message}`);
+    global.dedupLogger.error(`💥 Uncaught Exception: ${error.message}`);
+    global.dedupLogger.error(`Stack: ${error.stack}`);
     gracefulShutdown("UNCAUGHT_EXCEPTION");
   });
 
+  // Handle unhandled promise rejections
   process.on("unhandledRejection", (reason, promise) => {
-    logger.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    console.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    global.dedupLogger.error(
+      `🚫 Unhandled Rejection at:`,
+      promise,
+      "reason:",
+      reason
+    );
     gracefulShutdown("UNHANDLED_REJECTION");
   });
+
+  // Handle process warnings
+  process.on("warning", (warning) => {
+    console.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+    logger.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+  });
+
+  // Memory usage monitoring (optional - for debugging)
+  if (isDev) {
+    process.on("exit", (code) => {
+      const memUsage = process.memoryUsage();
+      console.log(`📊 Process exiting with code ${code}. Memory usage:`, {
+        rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+        heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+        external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+      });
+    });
+  }
 
   // Store server in global scope so it can be accessed elsewhere
   global.httpServer = server;
