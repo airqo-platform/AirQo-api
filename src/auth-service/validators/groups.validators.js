@@ -351,6 +351,592 @@ const getGroupById = [
   ],
 ];
 
+const enhancedSetManager = [
+  validateTenant,
+  validateGroupIdParam,
+  validateUserIdParam,
+  [
+    body("assign_manager_role")
+      .optional()
+      .isBoolean()
+      .withMessage("assign_manager_role must be a boolean")
+      .toBoolean(),
+    body("notify_user")
+      .optional()
+      .isBoolean()
+      .withMessage("notify_user must be a boolean")
+      .toBoolean(),
+    body("transition_previous_manager")
+      .optional()
+      .isBoolean()
+      .withMessage("transition_previous_manager must be a boolean")
+      .toBoolean(),
+    body("effective_date")
+      .optional()
+      .isISO8601()
+      .withMessage("effective_date must be a valid ISO8601 date")
+      .toDate(),
+    body("reason")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("reason must not exceed 500 characters"),
+  ],
+];
+
+const getGroupAnalytics = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    query("time_range")
+      .optional()
+      .isIn(["7d", "30d", "90d", "1y", "all"])
+      .withMessage("time_range must be one of: 7d, 30d, 90d, 1y, all"),
+    query("metric_type")
+      .optional()
+      .isIn([
+        "overview",
+        "members",
+        "activity",
+        "roles",
+        "engagement",
+        "performance",
+      ])
+      .withMessage(
+        "metric_type must be one of: overview, members, activity, roles, engagement, performance"
+      ),
+    query("include_trends")
+      .optional()
+      .isBoolean()
+      .withMessage("include_trends must be a boolean")
+      .toBoolean(),
+    query("include_comparisons")
+      .optional()
+      .isBoolean()
+      .withMessage("include_comparisons must be a boolean")
+      .toBoolean(),
+    query("granularity")
+      .optional()
+      .isIn(["daily", "weekly", "monthly"])
+      .withMessage("granularity must be one of: daily, weekly, monthly"),
+  ],
+];
+
+const bulkMemberManagement = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("actions")
+      .exists()
+      .withMessage("actions array is required")
+      .isArray({ min: 1, max: 100 })
+      .withMessage("actions must be an array with 1-100 items"),
+    body("actions.*.user_id")
+      .exists()
+      .withMessage("user_id is required for each action")
+      .isMongoId()
+      .withMessage("user_id must be a valid ObjectId"),
+    body("actions.*.action_type")
+      .exists()
+      .withMessage("action_type is required for each action")
+      .isIn([
+        "assign_role",
+        "remove_role",
+        "remove_member",
+        "change_status",
+        "update_permissions",
+      ])
+      .withMessage(
+        "action_type must be one of: assign_role, remove_role, remove_member, change_status, update_permissions"
+      ),
+    body("actions.*.role_id")
+      .optional()
+      .isMongoId()
+      .withMessage("role_id must be a valid ObjectId if provided"),
+    body("actions.*.reason")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("reason must not exceed 500 characters"),
+    body("actions.*.effective_date")
+      .optional()
+      .isISO8601()
+      .withMessage("effective_date must be a valid ISO8601 date")
+      .toDate(),
+    body("notify_affected_users")
+      .optional()
+      .isBoolean()
+      .withMessage("notify_affected_users must be a boolean")
+      .toBoolean(),
+    body("batch_reason")
+      .optional()
+      .trim()
+      .isLength({ max: 1000 })
+      .withMessage("batch_reason must not exceed 1000 characters"),
+  ],
+];
+
+const manageAccessRequests = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    query("action")
+      .optional()
+      .isIn(["list", "bulk_decision", "single_decision"])
+      .withMessage(
+        "action must be one of: list, bulk_decision, single_decision"
+      ),
+    query("status_filter")
+      .optional()
+      .isIn(["pending", "approved", "rejected", "expired", "all"])
+      .withMessage(
+        "status_filter must be one of: pending, approved, rejected, expired, all"
+      ),
+    query("date_from")
+      .optional()
+      .isISO8601()
+      .withMessage("date_from must be a valid ISO8601 date")
+      .toDate(),
+    query("date_to")
+      .optional()
+      .isISO8601()
+      .withMessage("date_to must be a valid ISO8601 date")
+      .toDate(),
+    body("request_ids")
+      .if(query("action").isIn(["bulk_decision"]))
+      .exists()
+      .withMessage("request_ids are required for bulk decisions")
+      .isArray({ min: 1, max: 50 })
+      .withMessage("request_ids must be an array with 1-50 items"),
+    body("request_ids.*")
+      .if(query("action").isIn(["bulk_decision"]))
+      .isMongoId()
+      .withMessage("each request_id must be a valid ObjectId"),
+    body("decision")
+      .if(query("action").isIn(["bulk_decision", "single_decision"]))
+      .exists()
+      .withMessage("decision is required for decision actions")
+      .isIn(["approved", "rejected"])
+      .withMessage("decision must be either 'approved' or 'rejected'"),
+    body("reason")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("reason must not exceed 500 characters"),
+    body("default_role")
+      .optional()
+      .isMongoId()
+      .withMessage("default_role must be a valid ObjectId if provided"),
+    body("send_notifications")
+      .optional()
+      .isBoolean()
+      .withMessage("send_notifications must be a boolean")
+      .toBoolean(),
+  ],
+];
+
+const assignMemberRole = [
+  validateTenant,
+  validateGroupIdParam,
+  validateUserIdParam,
+  [
+    body("role_id")
+      .exists()
+      .withMessage("role_id is required")
+      .isMongoId()
+      .withMessage("role_id must be a valid ObjectId"),
+    body("effective_date")
+      .optional()
+      .isISO8601()
+      .withMessage("effective_date must be a valid ISO8601 date")
+      .toDate(),
+    body("expiry_date")
+      .optional()
+      .isISO8601()
+      .withMessage("expiry_date must be a valid ISO8601 date")
+      .toDate()
+      .custom((value, { req }) => {
+        if (
+          value &&
+          req.body.effective_date &&
+          new Date(value) <= new Date(req.body.effective_date)
+        ) {
+          throw new Error("expiry_date must be after effective_date");
+        }
+        return true;
+      }),
+    body("reason")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("reason must not exceed 500 characters"),
+    body("notify_user")
+      .optional()
+      .isBoolean()
+      .withMessage("notify_user must be a boolean")
+      .toBoolean(),
+    body("replace_existing_role")
+      .optional()
+      .isBoolean()
+      .withMessage("replace_existing_role must be a boolean")
+      .toBoolean(),
+  ],
+];
+
+const sendGroupInvitations = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("invitations")
+      .exists()
+      .withMessage("invitations array is required")
+      .isArray({ min: 1, max: 50 })
+      .withMessage("invitations must be an array with 1-50 items"),
+    body("invitations.*.email")
+      .exists()
+      .withMessage("email is required for each invitation")
+      .isEmail()
+      .withMessage("email must be a valid email address")
+      .normalizeEmail()
+      .isLength({ max: 255 })
+      .withMessage("email must not exceed 255 characters"),
+    body("invitations.*.role_id")
+      .optional()
+      .isMongoId()
+      .withMessage("role_id must be a valid ObjectId if provided"),
+    body("invitations.*.message")
+      .optional()
+      .trim()
+      .isLength({ max: 1000 })
+      .withMessage("message must not exceed 1000 characters"),
+    body("invitations.*.permissions")
+      .optional()
+      .isArray()
+      .withMessage("permissions must be an array if provided"),
+    body("invitations.*.permissions.*")
+      .optional()
+      .isMongoId()
+      .withMessage("each permission must be a valid ObjectId"),
+    body("expiry_hours")
+      .optional()
+      .isInt({ min: 1, max: 8760 })
+      .withMessage("expiry_hours must be between 1 and 8760 (1 year)")
+      .toInt(),
+    body("auto_approve")
+      .optional()
+      .isBoolean()
+      .withMessage("auto_approve must be a boolean")
+      .toBoolean(),
+    body("send_welcome_email")
+      .optional()
+      .isBoolean()
+      .withMessage("send_welcome_email must be a boolean")
+      .toBoolean(),
+    body("custom_message")
+      .optional()
+      .trim()
+      .isLength({ max: 2000 })
+      .withMessage("custom_message must not exceed 2000 characters"),
+    body("invitation_type")
+      .optional()
+      .isIn(["standard", "urgent", "reminder"])
+      .withMessage(
+        "invitation_type must be one of: standard, urgent, reminder"
+      ),
+  ],
+];
+
+const updateGroupStatus = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("status")
+      .exists()
+      .withMessage("status is required")
+      .isIn(["ACTIVE", "INACTIVE", "SUSPENDED", "ARCHIVED", "MAINTENANCE"])
+      .withMessage(
+        "status must be one of: ACTIVE, INACTIVE, SUSPENDED, ARCHIVED, MAINTENANCE"
+      ),
+    body("reason")
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage("reason must not exceed 500 characters"),
+    body("notify_members")
+      .optional()
+      .isBoolean()
+      .withMessage("notify_members must be a boolean")
+      .toBoolean(),
+    body("notify_managers")
+      .optional()
+      .isBoolean()
+      .withMessage("notify_managers must be a boolean")
+      .toBoolean(),
+    body("effective_date")
+      .optional()
+      .isISO8601()
+      .withMessage("effective_date must be a valid ISO8601 date")
+      .toDate(),
+    body("auto_revert_date")
+      .optional()
+      .isISO8601()
+      .withMessage("auto_revert_date must be a valid ISO8601 date")
+      .toDate()
+      .custom((value, { req }) => {
+        if (
+          value &&
+          req.body.effective_date &&
+          new Date(value) <= new Date(req.body.effective_date)
+        ) {
+          throw new Error("auto_revert_date must be after effective_date");
+        }
+        return true;
+      }),
+    body("schedule_maintenance")
+      .optional()
+      .isBoolean()
+      .withMessage("schedule_maintenance must be a boolean")
+      .toBoolean(),
+    body("backup_before_change")
+      .optional()
+      .isBoolean()
+      .withMessage("backup_before_change must be a boolean")
+      .toBoolean(),
+  ],
+];
+
+const getActivityLog = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    query("start_date")
+      .optional()
+      .isISO8601()
+      .withMessage("start_date must be a valid ISO8601 date")
+      .toDate(),
+    query("end_date")
+      .optional()
+      .isISO8601()
+      .withMessage("end_date must be a valid ISO8601 date")
+      .toDate()
+      .custom((value, { req }) => {
+        if (
+          value &&
+          req.query.start_date &&
+          new Date(value) <= new Date(req.query.start_date)
+        ) {
+          throw new Error("end_date must be after start_date");
+        }
+        return true;
+      }),
+    query("activity_type")
+      .optional()
+      .isIn([
+        "member_added",
+        "member_removed",
+        "role_assigned",
+        "role_removed",
+        "manager_changed",
+        "settings_updated",
+        "status_changed",
+        "invitation_sent",
+        "invitation_accepted",
+        "invitation_declined",
+        "bulk_operation",
+        "export_generated",
+        "all",
+      ])
+      .withMessage("activity_type must be a valid activity type"),
+    query("actor_id")
+      .optional()
+      .isMongoId()
+      .withMessage("actor_id must be a valid ObjectId if provided"),
+    query("target_user_id")
+      .optional()
+      .isMongoId()
+      .withMessage("target_user_id must be a valid ObjectId if provided"),
+    query("severity")
+      .optional()
+      .isIn(["low", "medium", "high", "critical", "all"])
+      .withMessage("severity must be one of: low, medium, high, critical, all"),
+    query("include_details")
+      .optional()
+      .isBoolean()
+      .withMessage("include_details must be a boolean")
+      .toBoolean(),
+    query("export_format")
+      .optional()
+      .isIn(["json", "csv"])
+      .withMessage("export_format must be either 'json' or 'csv'"),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 1000 })
+      .withMessage("limit must be between 1 and 1000")
+      .toInt(),
+    query("skip")
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("skip must be a non-negative integer")
+      .toInt(),
+  ],
+];
+
+const searchGroupMembers = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    query("search")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage("search query must be between 1 and 100 characters")
+      .matches(/^[a-zA-Z0-9\s@._-]+$/)
+      .withMessage("search query contains invalid characters"),
+    query("role_id")
+      .optional()
+      .isMongoId()
+      .withMessage("role_id must be a valid ObjectId if provided"),
+    query("role_name")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 100 })
+      .withMessage("role_name must be between 1 and 100 characters"),
+    query("status")
+      .optional()
+      .isIn(["active", "inactive", "pending", "suspended", "all"])
+      .withMessage(
+        "status must be one of: active, inactive, pending, suspended, all"
+      ),
+    query("member_type")
+      .optional()
+      .isIn(["user", "admin", "manager", "guest", "all"])
+      .withMessage(
+        "member_type must be one of: user, admin, manager, guest, all"
+      ),
+    query("joined_after")
+      .optional()
+      .isISO8601()
+      .withMessage("joined_after must be a valid ISO8601 date")
+      .toDate(),
+    query("joined_before")
+      .optional()
+      .isISO8601()
+      .withMessage("joined_before must be a valid ISO8601 date")
+      .toDate(),
+    query("last_login_after")
+      .optional()
+      .isISO8601()
+      .withMessage("last_login_after must be a valid ISO8601 date")
+      .toDate(),
+    query("sort_by")
+      .optional()
+      .isIn(["name", "email", "joined_date", "last_login", "role", "status"])
+      .withMessage(
+        "sort_by must be one of: name, email, joined_date, last_login, role, status"
+      ),
+    query("sort_order")
+      .optional()
+      .isIn(["asc", "desc"])
+      .withMessage("sort_order must be either 'asc' or 'desc'"),
+    query("include_permissions")
+      .optional()
+      .isBoolean()
+      .withMessage("include_permissions must be a boolean")
+      .toBoolean(),
+    query("include_activity_summary")
+      .optional()
+      .isBoolean()
+      .withMessage("include_activity_summary must be a boolean")
+      .toBoolean(),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 500 })
+      .withMessage("limit must be between 1 and 500")
+      .toInt(),
+    query("skip")
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("skip must be a non-negative integer")
+      .toInt(),
+  ],
+];
+
+const exportGroupData = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    query("format")
+      .optional()
+      .isIn(["json", "csv", "xlsx", "pdf"])
+      .withMessage("format must be one of: json, csv, xlsx, pdf"),
+    query("include_members")
+      .optional()
+      .isBoolean()
+      .withMessage("include_members must be a boolean")
+      .toBoolean(),
+    query("include_roles")
+      .optional()
+      .isBoolean()
+      .withMessage("include_roles must be a boolean")
+      .toBoolean(),
+    query("include_permissions")
+      .optional()
+      .isBoolean()
+      .withMessage("include_permissions must be a boolean")
+      .toBoolean(),
+    query("include_activity")
+      .optional()
+      .isBoolean()
+      .withMessage("include_activity must be a boolean")
+      .toBoolean(),
+    query("include_analytics")
+      .optional()
+      .isBoolean()
+      .withMessage("include_analytics must be a boolean")
+      .toBoolean(),
+    query("include_settings")
+      .optional()
+      .isBoolean()
+      .withMessage("include_settings must be a boolean")
+      .toBoolean(),
+    query("date_range")
+      .optional()
+      .isIn(["7d", "30d", "90d", "1y", "all"])
+      .withMessage("date_range must be one of: 7d, 30d, 90d, 1y, all"),
+    query("member_status_filter")
+      .optional()
+      .isIn(["active", "inactive", "all"])
+      .withMessage(
+        "member_status_filter must be one of: active, inactive, all"
+      ),
+    query("compression")
+      .optional()
+      .isIn(["none", "zip", "gzip"])
+      .withMessage("compression must be one of: none, zip, gzip"),
+    query("password_protect")
+      .optional()
+      .isBoolean()
+      .withMessage("password_protect must be a boolean")
+      .toBoolean(),
+    query("encryption_level")
+      .optional()
+      .isIn(["basic", "standard", "high"])
+      .withMessage("encryption_level must be one of: basic, standard, high"),
+    query("delivery_method")
+      .optional()
+      .isIn(["download", "email", "cloud_storage"])
+      .withMessage(
+        "delivery_method must be one of: download, email, cloud_storage"
+      ),
+    query("email_recipient")
+      .if(query("delivery_method").equals("email"))
+      .exists()
+      .withMessage("email_recipient is required when delivery_method is email")
+      .isEmail()
+      .withMessage("email_recipient must be a valid email address"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -370,4 +956,14 @@ module.exports = {
   unAssignManyUsers,
   listRolesForGroup,
   getGroupById,
+  enhancedSetManager,
+  getGroupAnalytics,
+  bulkMemberManagement,
+  manageAccessRequests,
+  assignMemberRole,
+  sendGroupInvitations,
+  updateGroupStatus,
+  getActivityLog,
+  searchGroupMembers,
+  exportGroupData,
 };

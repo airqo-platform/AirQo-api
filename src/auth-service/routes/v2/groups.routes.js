@@ -151,6 +151,142 @@ router.get(
   groupController.listRolesForGroup
 );
 
+// Enhanced manager assignment with automatic role and permission handling
+router.put(
+  "/:grp_id/enhanced-set-manager/:user_id",
+  groupValidations.enhancedSetManager,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.enhancedSetManager
+);
+
+// Manager-specific dashboard with analytics and insights
+router.get(
+  "/:grp_id/manager/dashboard",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.getManagerDashboard
+);
+
+// Comprehensive group analytics for managers
+router.get(
+  "/:grp_id/analytics",
+  groupValidations.getGroupAnalytics,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.getGroupAnalytics
+);
+
+// Bulk member management operations
+router.post(
+  "/:grp_id/bulk-member-management",
+  groupValidations.bulkMemberManagement,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.bulkMemberManagement
+);
+
+// Access request management (list pending requests)
+router.get(
+  "/:grp_id/access-requests",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.manageAccessRequests
+);
+
+// Bulk decision on access requests (approve/reject multiple)
+router.post(
+  "/:grp_id/access-requests/bulk-decision",
+  groupValidations.manageAccessRequests,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.manageAccessRequests
+);
+
+// Assign specific role to group member
+router.put(
+  "/:grp_id/members/:user_id/role",
+  groupValidations.assignMemberRole,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.assignMemberRole
+);
+
+// Send group invitations via email
+router.post(
+  "/:grp_id/invitations",
+  groupValidations.sendGroupInvitations,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.sendGroupInvitations
+);
+
+// List group invitations and their status
+router.get(
+  "/:grp_id/invitations",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.listGroupInvitations
+);
+
+// Update group status with audit trail and notifications
+router.patch(
+  "/:grp_id/status",
+  groupValidations.updateGroupStatus,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.updateGroupStatus
+);
+
+// Get group activity log with filtering options
+router.get(
+  "/:grp_id/activity-log",
+  groupValidations.getActivityLog,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.getGroupActivityLog
+);
+
+// Advanced group member search and filtering
+router.get(
+  "/:grp_id/members/search",
+  groupValidations.searchGroupMembers,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.searchGroupMembers
+);
+
+// Export group data for managers
+router.get(
+  "/:grp_id/export",
+  groupValidations.exportGroupData,
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.exportGroupData
+);
+
+// Group health check and diagnostics
+router.get(
+  "/:grp_id/health",
+  setJWTAuth,
+  authJWT,
+  adminCheck,
+  groupController.getGroupHealth
+);
+
 router.get("/:grp_id", groupValidations.getGroupById, groupController.list);
 
 module.exports = router;
