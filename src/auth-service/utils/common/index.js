@@ -23,9 +23,11 @@ const generateFilter = require("./generate-filter.util");
 const winstonLogger = require("./log-winston.util");
 const handleResponse = require("./response-handler.util");
 const slugUtils = require("./slug.util");
+const { deduplicator } = require("./slack-dedup-utility");
 
 module.exports = {
   slugUtils,
+  deduplicator,
   winstonLogger,
   mailer,
   stringify,

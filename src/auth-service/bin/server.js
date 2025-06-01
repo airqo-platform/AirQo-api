@@ -38,12 +38,12 @@ require("@bin/jobs/profile-picture-update-job");
 const { startRoleInitJob } = require("@bin/jobs/role-init-job");
 startRoleInitJob();
 
-// Initialize log4js
+// Initialize log4js with SAFE configuration
 const log4js = require("log4js");
 let logger;
 
 try {
-  // Try to configure log4js
+  // Use the SAFE log4js configuration (no custom appenders)
   const logConfig = require("@config/log4js");
   log4js.configure(logConfig);
   logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server script`);
@@ -59,6 +59,23 @@ try {
     warn: console.warn,
     debug: console.log,
   };
+}
+
+// Add deduplication wrapper for Slack alerts
+try {
+  const { deduplicator } = require("@utils/common");
+
+  // Create a deduplicated logger for important alerts
+  const dedupLogger = deduplicator.wrapLogger(logger);
+
+  // Use dedupLogger for job alerts and critical messages
+  global.dedupLogger = dedupLogger;
+
+  console.log("✅ Slack deduplication utility loaded successfully");
+} catch (error) {
+  console.warn("⚠️  Slack deduplication utility not available:", error.message);
+  // Fallback to regular logger
+  global.dedupLogger = logger;
 }
 
 const debug = require("debug")("auth-service:server");
