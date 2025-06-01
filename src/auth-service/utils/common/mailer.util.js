@@ -4748,15 +4748,6 @@ const mailer = {
       if (!emailResult.success) {
         if (emailResult.duplicate) {
           // Duplicate password reset attempt - security consideration
-          logger.info(
-            `Duplicate password reset email prevented for: ${email}`,
-            {
-              email,
-              tenant,
-              version,
-              preventedAt: new Date(),
-            }
-          );
 
           return {
             success: true,
@@ -4803,14 +4794,6 @@ const mailer = {
       const emailData = emailResult.data;
 
       if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
-        logger.info(`Password reset email successfully sent to: ${email}`, {
-          email,
-          tenant,
-          version,
-          messageId: emailData.messageId,
-          sentAt: new Date(),
-        });
-
         return {
           success: true,
           message: "Password reset email successfully sent",
