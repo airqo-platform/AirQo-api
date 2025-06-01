@@ -161,6 +161,64 @@ router.delete(
   createRoleController.unAssignPermissionFromRole
 );
 
+router.post(
+  "/:role_id/user/enhanced",
+  roleValidations.assignUserToRole,
+  setJWTAuth,
+  authJWT,
+  createRoleController.enhancedAssignUserToRole
+);
+
+router.put(
+  "/:role_id/user/:user_id/enhanced",
+  roleValidations.assignUserToRolePut,
+  setJWTAuth,
+  authJWT,
+  createRoleController.enhancedAssignUserToRole
+);
+
+// Enhanced role unassignment with detailed feedback
+router.delete(
+  "/:role_id/user/:user_id/enhanced",
+  roleValidations.unAssignUserFromRole,
+  setJWTAuth,
+  authJWT,
+  createRoleController.enhancedUnAssignUserFromRole
+);
+
+// New user-centric role management endpoints
+router.get(
+  "/users/:user_id/network-roles",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserNetworkRoles
+);
+
+router.get(
+  "/users/:user_id/group-roles",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserGroupRoles
+);
+
+router.get(
+  "/users/:user_id/role-summary",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserRoleSummary
+);
+
+router.get(
+  "/admin/deprecated-field-audit",
+  roleValidations.auditDeprecatedFields,
+  setJWTAuth,
+  authJWT,
+  createRoleController.auditDeprecatedFields
+);
+
 router.get(
   "/:role_id",
   roleValidations.getRoleById,

@@ -408,6 +408,37 @@ const unAssignPermissionFromRole = [
 
 const getRoleById = [validateTenant, validateRoleIdParam];
 
+const getUserRoles = [
+  validateTenant,
+  [
+    param("user_id")
+      .exists()
+      .withMessage("the user ID param is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+];
+
+const auditDeprecatedFields = [
+  validateTenant,
+  query("include_user_details")
+    .optional()
+    .isBoolean()
+    .withMessage("include_user_details must be a boolean")
+    .toBoolean(),
+  query("export_format")
+    .optional()
+    .isIn(["json", "csv"])
+    .withMessage("export_format must be either 'json' or 'csv'")
+    .toLowerCase(),
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -430,4 +461,6 @@ module.exports = {
   updateRolePermissions,
   unAssignPermissionFromRole,
   getRoleById,
+  getUserRoles,
+  auditDeprecatedFields,
 };

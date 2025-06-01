@@ -1629,6 +1629,695 @@ const role = {
       );
     }
   },
+  /**
+   * Get detailed role summary for a user
+   */
+  getUserRoleSummary: async (userId, tenant) => {
+    try {
+      const user = await UserModel(tenant)
+        .findById(userId)
+        .populate("network_roles.role")
+        .populate("group_roles.role")
+        .populate("network_roles.network")
+        .populate("group_roles.group")
+        .lean();
+
+      if (!user) {
+        return null;
+      }
+
+      const networkRoles = (user.network_roles || []).map((nr) => ({
+        role_id: nr.role?._id,
+        role_name: nr.role?.role_name,
+        network_id: nr.network?._id,
+        network_name: nr.network?.net_name,
+        userType: nr.userType,
+        createdAt: nr.createdAt,
+      }));
+
+      const groupRoles = (user.group_roles || []).map((gr) => ({
+        role_id: gr.role?._id,
+        role_name: gr.role?.role_name,
+        group_id: gr.group?._id,
+        group_name: gr.group?.grp_title,
+        userType: gr.userType,
+        createdAt: gr.createdAt,
+      }));
+
+      return {
+        user_id: userId,
+        network_roles: {
+          count: networkRoles.length,
+          limit: ORGANISATIONS_LIMIT,
+          remaining: ORGANISATIONS_LIMIT - networkRoles.length,
+          roles: networkRoles,
+        },
+        group_roles: {
+          count: groupRoles.length,
+          limit: ORGANISATIONS_LIMIT,
+          remaining: ORGANISATIONS_LIMIT - groupRoles.length,
+          roles: groupRoles,
+        },
+        total_roles: networkRoles.length + groupRoles.length,
+      };
+    } catch (error) {
+      logger.error(`Error getting user role summary: ${error.message}`);
+      return null;
+    }
+  },
+
+  /**
+   * Enhanced assign user to role with detailed response
+   */
+  enhancedAssignUserToRole: async (request, next) => {
+    try {
+      const { role_id, user_id } = request.params;
+      const { tenant, user } = { ...request.body, ...request.query };
+      const userIdFromBody = user;
+      const userIdFromQuery = user_id;
+
+      if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "You cannot provide the user ID using query params and query body; choose one approach",
+          })
+        );
+      }
+
+      const userId = userIdFromQuery || userIdFromBody;
+
+      // Get initial role summary
+      const initialSummary = await newUtilFunctions.getUserRoleSummary(
+        userId,
+        tenant
+      );
+      if (!initialSummary) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${userId} not found`,
+          })
+        );
+      }
+
+      const role = await RoleModel(tenant).findById(role_id).lean();
+      const roleExists = await RoleModel(tenant).exists({ _id: role_id });
+
+      if (!roleExists) {
+        return next(
+          new HttpError("Role not found", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id} not found`,
+          })
+        );
+      }
+
+      const roleType = isGroupRoleOrNetworkRole(role);
+      if (roleType === "none") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id.toString()} is not associated with any network or group`,
+          })
+        );
+      }
+
+      const isNetworkRole = roleType === "network";
+      const currentRoles = isNetworkRole
+        ? initialSummary.network_roles
+        : initialSummary.group_roles;
+
+      // Check if user has space for this role type
+      if (currentRoles.count >= ORGANISATIONS_LIMIT) {
+        return next(
+          new HttpError("Role Limit Exceeded", httpStatus.BAD_REQUEST, {
+            message: `Cannot assign ${roleType} role. User has reached the maximum limit of ${ORGANISATIONS_LIMIT} ${roleType} roles.`,
+            current_state: {
+              role_type: roleType,
+              current_count: currentRoles.count,
+              limit: ORGANISATIONS_LIMIT,
+              remaining: 0,
+              existing_roles: currentRoles.roles,
+            },
+          })
+        );
+      }
+
+      // Check if role is already assigned
+      const isRoleAssigned = currentRoles.roles.some(
+        (r) => r.role_id && r.role_id.toString() === role_id.toString()
+      );
+
+      if (isRoleAssigned) {
+        return next(
+          new HttpError("Role Already Assigned", httpStatus.BAD_REQUEST, {
+            message: `User already has this ${roleType} role assigned`,
+            current_state: {
+              role_type: roleType,
+              current_count: currentRoles.count,
+              limit: ORGANISATIONS_LIMIT,
+              remaining: currentRoles.remaining,
+              existing_roles: currentRoles.roles,
+            },
+          })
+        );
+      }
+
+      // Find the associated network/group ID
+      const userObject = await UserModel(tenant).findById(userId).lean();
+      const userRoles = isNetworkRole
+        ? userObject.network_roles
+        : userObject.group_roles;
+      const associatedId = await findAssociatedIdForRole({
+        role_id,
+        roles: userRoles,
+        tenant,
+      });
+
+      if (isEmpty(associatedId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `The role ${role_id} is not associated with any of the ${
+              isNetworkRole ? "networks" : "groups"
+            } already assigned to user ${userId}`,
+            current_state: {
+              role_type: roleType,
+              current_count: currentRoles.count,
+              limit: ORGANISATIONS_LIMIT,
+              remaining: currentRoles.remaining,
+              existing_roles: currentRoles.roles,
+            },
+          })
+        );
+      }
+
+      // Check for super admin restrictions
+      const isSuperAdmin = await isAssignedUserSuperAdmin({
+        associatedId,
+        roles: userRoles,
+        tenant,
+      });
+
+      if (isSuperAdmin) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `SUPER ADMIN user ${userId} cannot be reassigned to a different role`,
+            current_state: {
+              role_type: roleType,
+              current_count: currentRoles.count,
+              limit: ORGANISATIONS_LIMIT,
+              remaining: currentRoles.remaining,
+              existing_roles: currentRoles.roles,
+            },
+          })
+        );
+      }
+
+      // Perform the assignment
+      const updateQuery = {
+        $addToSet: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            ...(isNetworkRole
+              ? { network: associatedId }
+              : { group: associatedId }),
+            role: role_id,
+            userType: "guest",
+            createdAt: new Date(),
+          },
+        },
+      };
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        { _id: userId },
+        updateQuery,
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedUser) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Failed to assign user to role",
+            }
+          )
+        );
+      }
+
+      // Get updated role summary
+      const updatedSummary = await newUtilFunctions.getUserRoleSummary(
+        userId,
+        tenant
+      );
+
+      return {
+        success: true,
+        message: `User successfully assigned to ${roleType} role`,
+        operation: "assign_role",
+        role_info: {
+          role_id: role_id,
+          role_name: role.role_name,
+          role_type: roleType,
+          associated_id: associatedId,
+        },
+        before_assignment: initialSummary,
+        after_assignment: updatedSummary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  /**
+   * Enhanced unassign user from role with detailed response
+   */
+  enhancedUnAssignUserFromRole: async (request, next) => {
+    try {
+      const { query, params } = request;
+      const { role_id, user_id, tenant } = { ...query, ...params };
+
+      // Get initial role summary
+      const initialSummary = await newUtilFunctions.getUserRoleSummary(
+        user_id,
+        tenant
+      );
+      if (!initialSummary) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${user_id} not found`,
+          })
+        );
+      }
+
+      const [userObject, role, userExists, roleExists] = await Promise.all([
+        UserModel(tenant)
+          .findById(user_id)
+          .populate("network_roles group_roles")
+          .lean(),
+        RoleModel(tenant).findById(role_id).lean(),
+        UserModel(tenant).exists({ _id: user_id }),
+        RoleModel(tenant).exists({ _id: role_id }),
+      ]);
+
+      if (!userExists || !roleExists) {
+        return next(
+          new HttpError("User or Role not found", httpStatus.BAD_REQUEST, {
+            message: `User ${user_id} or Role ${role_id} not found`,
+          })
+        );
+      }
+
+      const roleType = isGroupRoleOrNetworkRole(role);
+      if (roleType === "none") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Role ${role_id.toString()} is not associated with any network or group`,
+          })
+        );
+      }
+
+      const { network_roles, group_roles } = userObject;
+      const roles = roleType === "network" ? network_roles : group_roles;
+      const currentRoles =
+        roleType === "network"
+          ? initialSummary.network_roles
+          : initialSummary.group_roles;
+
+      // Check if role is actually assigned
+      const isRoleAssigned = currentRoles.roles.some(
+        (r) => r.role_id && r.role_id.toString() === role_id.toString()
+      );
+
+      if (!isRoleAssigned) {
+        return next(
+          new HttpError("Role Not Assigned", httpStatus.BAD_REQUEST, {
+            message: `User is not assigned to this ${roleType} role`,
+            current_state: {
+              role_type: roleType,
+              current_count: currentRoles.count,
+              limit: ORGANISATIONS_LIMIT,
+              remaining: currentRoles.remaining,
+              existing_roles: currentRoles.roles,
+            },
+          })
+        );
+      }
+
+      const associatedId = await findAssociatedIdForRole({
+        role_id,
+        roles,
+        tenant,
+      });
+
+      if (isEmpty(associatedId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `The role ${role_id} is not associated with any of the ${roleType.toUpperCase()}s already assigned to user ${user_id}`,
+          })
+        );
+      }
+
+      // Check for super admin restrictions
+      const isSuperAdmin = await isAssignedUserSuperAdmin({
+        associatedId,
+        roles,
+        tenant,
+      });
+
+      if (isSuperAdmin) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
+            current_state: {
+              role_type: roleType,
+              current_count: currentRoles.count,
+              limit: ORGANISATIONS_LIMIT,
+              remaining: currentRoles.remaining,
+              existing_roles: currentRoles.roles,
+            },
+          })
+        );
+      }
+
+      // Perform the unassignment
+      const filter = {
+        _id: user_id,
+        [`${roleType}_roles.${roleType}`]: associatedId,
+      };
+      const update = {
+        $set: { [`${roleType}_roles.$[elem].role`]: null },
+      };
+      const arrayFilters = [{ "elem.role": role_id }];
+
+      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+        filter,
+        update,
+        { new: true, arrayFilters }
+      );
+
+      if (isEmpty(updatedUser)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "User not found or not assigned to the specified Role in the Network or Group provided",
+          })
+        );
+      }
+
+      // Get updated role summary
+      const updatedSummary = await newUtilFunctions.getUserRoleSummary(
+        user_id,
+        tenant
+      );
+
+      return {
+        success: true,
+        message: `User successfully unassigned from ${roleType} role`,
+        operation: "unassign_role",
+        role_info: {
+          role_id: role_id,
+          role_name: role.role_name,
+          role_type: roleType,
+          associated_id: associatedId,
+        },
+        before_unassignment: initialSummary,
+        after_unassignment: updatedSummary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  /**
+   * Get user's network roles only
+   */
+  getUserNetworkRoles: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .populate("network_roles.role")
+        .populate("network_roles.network")
+        .lean();
+
+      if (!user) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${user_id} not found`,
+          })
+        );
+      }
+
+      const networkRoles = (user.network_roles || []).map((nr) => ({
+        role_id: nr.role?._id,
+        role_name: nr.role?.role_name,
+        network_id: nr.network?._id,
+        network_name: nr.network?.net_name,
+        userType: nr.userType,
+        createdAt: nr.createdAt,
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved user's network roles",
+        data: {
+          user_id: user_id,
+          role_type: "network",
+          count: networkRoles.length,
+          limit: ORGANISATIONS_LIMIT,
+          remaining: ORGANISATIONS_LIMIT - networkRoles.length,
+          roles: networkRoles,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  /**
+   * Get user's group roles only
+   */
+  getUserGroupRoles: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .populate("group_roles.role")
+        .populate("group_roles.group")
+        .lean();
+
+      if (!user) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${user_id} not found`,
+          })
+        );
+      }
+
+      const groupRoles = (user.group_roles || []).map((gr) => ({
+        role_id: gr.role?._id,
+        role_name: gr.role?.role_name,
+        group_id: gr.group?._id,
+        group_name: gr.group?.grp_title,
+        userType: gr.userType,
+        createdAt: gr.createdAt,
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved user's group roles",
+        data: {
+          user_id: user_id,
+          role_type: "group",
+          count: groupRoles.length,
+          limit: ORGANISATIONS_LIMIT,
+          remaining: ORGANISATIONS_LIMIT - groupRoles.length,
+          roles: groupRoles,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+  /**
+   * Audit deprecated field usage across all users
+   */
+  auditDeprecatedFieldUsage: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant, include_user_details, export_format } = query;
+
+      // Get the audit report from the User model
+      const auditResult = await UserModel(tenant).auditDeprecatedFieldUsage(
+        next
+      );
+
+      if (!auditResult || auditResult.success === false) {
+        return auditResult;
+      }
+
+      let enhancedReport = auditResult.data;
+
+      // If detailed user information is requested, fetch users with deprecated fields
+      if (include_user_details) {
+        const usersWithDeprecatedFields = await UserModel(tenant)
+          .find({
+            $or: [
+              { role: { $exists: true, $ne: null } },
+              { privilege: { $exists: true, $ne: null } },
+              { organization: { $exists: true, $ne: null } },
+              { long_organization: { $exists: true, $ne: null } },
+            ],
+          })
+          .select(
+            "_id email firstName lastName role privilege organization long_organization createdAt"
+          )
+          .lean();
+
+        enhancedReport.users_with_deprecated_fields =
+          usersWithDeprecatedFields.map((user) => ({
+            user_id: user._id,
+            email: user.email,
+            name: `${user.firstName} ${user.lastName}`,
+            deprecated_fields_present: {
+              role: !!user.role,
+              privilege: !!user.privilege,
+              organization: !!user.organization,
+              long_organization: !!user.long_organization,
+            },
+            created_at: user.createdAt,
+          }));
+      }
+
+      // Add migration recommendations
+      enhancedReport.migration_recommendations = {
+        immediate_actions: [],
+        next_steps: [],
+        timeline_suggestion: "",
+      };
+
+      const { deprecated_field_usage, migration_readiness } = enhancedReport;
+
+      if (migration_readiness.safe_to_migrate) {
+        enhancedReport.migration_recommendations.immediate_actions.push(
+          "✅ Safe to remove deprecated fields - no users are using them"
+        );
+        enhancedReport.migration_recommendations.next_steps.push(
+          "Update database schema to remove deprecated fields",
+          "Update API documentation to reflect changes",
+          "Deploy changes to production"
+        );
+        enhancedReport.migration_recommendations.timeline_suggestion =
+          "Can proceed immediately";
+      } else {
+        const percentage =
+          migration_readiness.percentage_using_deprecated_fields;
+
+        if (percentage > 50) {
+          enhancedReport.migration_recommendations.immediate_actions.push(
+            "⚠️ High usage of deprecated fields detected",
+            "Identify and update frontend applications using deprecated fields",
+            "Create migration plan for affected users"
+          );
+          enhancedReport.migration_recommendations.timeline_suggestion =
+            "3-6 months migration period recommended";
+        } else if (percentage > 10) {
+          enhancedReport.migration_recommendations.immediate_actions.push(
+            "🔄 Moderate usage of deprecated fields detected",
+            "Update remaining frontend applications",
+            "Prepare migration notices for affected users"
+          );
+          enhancedReport.migration_recommendations.timeline_suggestion =
+            "1-3 months migration period recommended";
+        } else {
+          enhancedReport.migration_recommendations.immediate_actions.push(
+            "✨ Low usage of deprecated fields detected",
+            "Complete final frontend updates",
+            "Schedule deprecated field removal"
+          );
+          enhancedReport.migration_recommendations.timeline_suggestion =
+            "2-4 weeks migration period recommended";
+        }
+
+        enhancedReport.migration_recommendations.next_steps.push(
+          "Send migration notices to affected users",
+          "Update API documentation with deprecation warnings",
+          "Set up monitoring for deprecated field usage",
+          "Plan phased removal of deprecated fields"
+        );
+      }
+
+      // Add timestamp and audit metadata
+      enhancedReport.audit_metadata = {
+        audit_timestamp: new Date().toISOString(),
+        audited_by: request.user ? request.user.email : "system",
+        tenant: tenant,
+        total_users_scanned: enhancedReport.total_users,
+        audit_scope: include_user_details ? "detailed" : "summary",
+      };
+
+      return {
+        success: true,
+        message: "Deprecated field usage audit completed successfully",
+        data: enhancedReport,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
 };
 
 module.exports = role;
