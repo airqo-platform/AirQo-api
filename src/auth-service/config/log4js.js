@@ -4,7 +4,10 @@ const crypto = require("crypto");
 
 // Deduplication cache to prevent duplicate Slack messages
 const messageCache = new Map();
-const DEDUP_WINDOW_MS = 10000; // 10 seconds window for deduplication (shorter for job-based logs)
+const DEDUP_WINDOW_MS = 10000; // 10 seconds window for deduplication
+// Cache cleanup optimization
+let lastCleanupTime = Date.now();
+const CLEANUP_INTERVAL_MS = 60000; // Clean up every minute
 
 // Custom Slack appender with deduplication
 class DedupSlackAppender {
@@ -39,9 +42,9 @@ class DedupSlackAppender {
         if (now - lastSent < DEDUP_WINDOW_MS) {
           // Skip sending to Slack - duplicate message within time window
           console.log(
-            `🔄 Deduplicating ${environment} message: ${messageText.substring(
+            `🔄 [AUTH-SERVICE] Deduplicating ${environment} message: ${messageText.substring(
               0,
-              100
+              80
             )}...`
           );
           return;
@@ -51,9 +54,9 @@ class DedupSlackAppender {
       // Update cache with current timestamp
       messageCache.set(messageHash, now);
 
-      // Clean up old entries periodically
-      if (messageCache.size > 1000) {
-        // Prevent memory leak
+      // Clean up old entries periodically (time-based instead of size-based)
+      if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
+        lastCleanupTime = now;
         for (const [hash, timestamp] of messageCache.entries()) {
           if (now - timestamp > DEDUP_WINDOW_MS) {
             messageCache.delete(hash);
@@ -62,14 +65,20 @@ class DedupSlackAppender {
       }
 
       console.log(
-        `📤 Sending ${environment} message to Slack: ${messageText.substring(
+        `📤 [AUTH-SERVICE] Sending ${environment} message to Slack: ${messageText.substring(
           0,
-          100
+          80
         )}...`
       );
 
-      // Send to Slack
-      this.slackAppender(loggingEvent);
+      // Send to Slack with error handling
+      try {
+        this.slackAppender(loggingEvent);
+      } catch (error) {
+        console.error(
+          `❌ [AUTH-SERVICE] Failed to send message to Slack: ${error.message}`
+        );
+      }
     };
   }
 }
@@ -88,9 +97,9 @@ if (isDevelopment()) {
     },
   };
 } else {
-  // Full production configuration with Slack
+  // Full production configuration with Slack and deduplication
   console.log(
-    "📝 Log4js configured with Slack alerts and 10-second deduplication for job messages"
+    "📝 [AUTH-SERVICE] Log4js configured with Slack alerts and 10-second deduplication"
   );
 
   // Validate Slack configuration before using it
@@ -133,28 +142,12 @@ if (isDevelopment()) {
       default: { appenders: [], level: "info" },
       error: { appenders: ["errors"], level: "error" },
       http: { appenders: ["access"], level: "DEBUG" },
-      "api-usage-logger": { appenders: [], level: "info" }, // Will be set below
+      "api-usage-logger": { appenders: [], level: "info" },
     },
   };
 
   // Only add Slack appender if configuration is complete
   if (hasSlackConfig) {
-    // Register custom dedup Slack appender
-    const log4js = require("log4js");
-    log4js.configure({
-      appenders: {
-        dedupSlack: {
-          type: DedupSlackAppender,
-          token: constants.SLACK_TOKEN,
-          channel_id: constants.SLACK_CHANNEL,
-          username: constants.SLACK_USERNAME,
-        },
-      },
-      categories: {
-        default: { appenders: ["dedupSlack"], level: "info" },
-      },
-    });
-
     config.appenders.alerts = {
       type: DedupSlackAppender,
       token: constants.SLACK_TOKEN,
@@ -165,6 +158,8 @@ if (isDevelopment()) {
     // Add alerts to relevant categories
     config.categories.default.appenders.push("alerts");
     config.categories.error.appenders.push("alerts");
+
+    console.log("✅ Slack appender with deduplication configured successfully");
   }
 
   // API Usage logger should only go to stdout (no Slack)
@@ -173,3 +168,6 @@ if (isDevelopment()) {
 
   module.exports = config;
 }
+
+// Export the custom appender class for proper registration in app startup
+module.exports.DedupSlackAppender = DedupSlackAppender;

@@ -26,6 +26,8 @@ const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const rateLimit = require("express-rate-limit");
 const options = { mongooseConnection: mongoose.connection };
+
+// Initialize background jobs
 require("@bin/jobs/active-status-job");
 require("@bin/jobs/token-expiration-job");
 require("@bin/jobs/incomplete-profile-job");
@@ -36,12 +38,31 @@ require("@bin/jobs/profile-picture-update-job");
 const { startRoleInitJob } = require("@bin/jobs/role-init-job");
 startRoleInitJob();
 
+// Initialize log4js
 const log4js = require("log4js");
+let logger;
+
+try {
+  // Try to configure log4js
+  const logConfig = require("@config/log4js");
+  log4js.configure(logConfig);
+  logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server script`);
+  console.log("✅ Log4js configured successfully");
+} catch (error) {
+  console.error("❌ Log4js configuration failed:", error.message);
+  console.log("📝 Falling back to console logging");
+
+  // Fallback to basic console logging
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.log,
+  };
+}
+
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/server script`
-);
 const fileUpload = require("express-fileupload");
 const { stringify } = require("@utils/common");
 
@@ -73,7 +94,14 @@ if (isDev) {
 app.use(passport.initialize());
 
 app.use(cookieParser());
-app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+
+// Safe log4js middleware with fallback
+try {
+  app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+} catch (error) {
+  console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
+}
+
 app.use(express.json());
 app.use(
   bodyParser.urlencoded({
@@ -408,6 +436,25 @@ const createServer = () => {
             `❌ Error closing Firebase connections: ${error.message}`
           );
         }
+      }
+
+      // Safe log4js shutdown
+      console.log("Shutting down log4js...");
+      try {
+        if (typeof log4js.shutdown === "function") {
+          await new Promise((resolve) => {
+            log4js.shutdown((error) => {
+              if (error) {
+                console.error("❌ Error during log4js shutdown:", error);
+              } else {
+                console.log("✅ Log4js shutdown complete");
+              }
+              resolve();
+            });
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error shutting down log4js:", error.message);
       }
 
       // Close MongoDB connection
