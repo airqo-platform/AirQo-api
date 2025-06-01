@@ -248,16 +248,6 @@ const organizationRequest = {
       const { query } = request;
       const { tenant, limit, skip, status } = query;
 
-      // Verify admin permissions
-      if (!request.user || request.user.privilege !== "admin") {
-        next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: "Only admins can view organization requests",
-          })
-        );
-        return;
-      }
-
       const filter = {};
       if (status) {
         filter.status = status;
@@ -285,16 +275,6 @@ const organizationRequest = {
       const { params, query, user } = request;
       const { request_id } = params;
       const { tenant } = query;
-
-      // Verify admin permissions
-      if (!user || user.privilege !== "admin") {
-        next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: "Only admins can approve organization requests",
-          })
-        );
-        return;
-      }
 
       const orgRequest = await OrganizationRequestModel(tenant).findById(
         request_id
@@ -403,15 +383,6 @@ const organizationRequest = {
       const { request_id } = params;
       const { tenant } = query;
       const { rejection_reason } = body;
-
-      // Verify admin permissions
-      if (!user || user.privilege !== "admin") {
-        next(
-          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-            message: "Only admins can reject organization requests",
-          })
-        );
-      }
 
       const orgRequest = await OrganizationRequestModel(tenant).findById(
         request_id
