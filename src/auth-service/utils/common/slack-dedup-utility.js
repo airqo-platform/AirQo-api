@@ -69,50 +69,72 @@ class SlackDeduplicator {
     }
   }
 
-  // Wrapper function for logger calls with full API compatibility
+  // Wrapper function for logger calls with dynamic API preservation via Proxy
   wrapLogger(logger) {
-    const originalError = logger.error ? logger.error.bind(logger) : () => {};
-    const originalWarn = logger.warn ? logger.warn.bind(logger) : () => {};
-    const originalInfo = logger.info ? logger.info.bind(logger) : () => {};
+    // Methods that should have deduplication applied (typically send Slack alerts)
+    const deduplicatedMethods = new Set(["error", "warn", "info"]);
 
-    return {
-      ...logger,
-      // Apply deduplication to methods that typically send Slack alerts
-      error: (...args) => {
-        const messageText = args.join(" ");
-        if (this.shouldSendMessage(messageText, "ERROR", "error")) {
-          originalError(...args);
+    return new Proxy(logger, {
+      get: (target, property, receiver) => {
+        const originalValue = Reflect.get(target, property, receiver);
+
+        // If it's a method we want to deduplicate and it's a function
+        if (
+          deduplicatedMethods.has(property) &&
+          typeof originalValue === "function"
+        ) {
+          return (...args) => {
+            const messageText = args.join(" ");
+            const levelMap = {
+              error: "ERROR",
+              warn: "WARN",
+              info: "INFO",
+            };
+            const categoryMap = {
+              error: "error",
+              warn: "default",
+              info: "default",
+            };
+
+            if (
+              this.shouldSendMessage(
+                messageText,
+                levelMap[property],
+                categoryMap[property]
+              )
+            ) {
+              return originalValue.apply(target, args);
+            }
+            // If message is deduplicated, don't call the original method
+          };
         }
+
+        // For all other properties/methods, return as-is
+        // This includes: debug, trace, fatal, mark, level, category, context,
+        // addContext, removeContext, clearContext, and any future additions
+        return originalValue;
       },
-      warn: (...args) => {
-        const messageText = args.join(" ");
-        if (this.shouldSendMessage(messageText, "WARN", "default")) {
-          originalWarn(...args);
-        }
+
+      set: (target, property, value, receiver) => {
+        // Allow setting properties (like level, context, etc.)
+        return Reflect.set(target, property, value, receiver);
       },
-      info: (...args) => {
-        const messageText = args.join(" ");
-        if (this.shouldSendMessage(messageText, "INFO", "default")) {
-          originalInfo(...args);
-        }
+
+      has: (target, property) => {
+        // Ensure 'in' operator works correctly
+        return Reflect.has(target, property);
       },
-      // Preserve other log4js methods without deduplication (these rarely send Slack alerts)
-      debug: logger.debug ? logger.debug.bind(logger) : () => {},
-      trace: logger.trace ? logger.trace.bind(logger) : () => {},
-      fatal: logger.fatal ? logger.fatal.bind(logger) : () => {},
-      mark: logger.mark ? logger.mark.bind(logger) : () => {},
-      // Preserve any additional methods that might exist
-      level: logger.level,
-      category: logger.category,
-      context: logger.context,
-      addContext: logger.addContext ? logger.addContext.bind(logger) : () => {},
-      removeContext: logger.removeContext
-        ? logger.removeContext.bind(logger)
-        : () => {},
-      clearContext: logger.clearContext
-        ? logger.clearContext.bind(logger)
-        : () => {},
-    };
+
+      ownKeys: (target) => {
+        // Ensure Object.keys() and similar work correctly
+        return Reflect.ownKeys(target);
+      },
+
+      getOwnPropertyDescriptor: (target, property) => {
+        // Ensure property descriptors are preserved
+        return Reflect.getOwnPropertyDescriptor(target, property);
+      },
+    });
   }
 }
 
