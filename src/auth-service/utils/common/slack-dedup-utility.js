@@ -84,7 +84,31 @@ class SlackDeduplicator {
           typeof originalValue === "function"
         ) {
           return (...args) => {
-            const messageText = args.join(" ");
+            // Enhanced message text construction to preserve object structure
+            const messageText = args
+              .map((arg) => {
+                if (typeof arg === "string") {
+                  return arg;
+                } else if (
+                  typeof arg === "number" ||
+                  typeof arg === "boolean"
+                ) {
+                  return String(arg);
+                } else if (arg === null) {
+                  return "null";
+                } else if (arg === undefined) {
+                  return "undefined";
+                } else {
+                  // For objects, arrays, functions, etc. - preserve structure
+                  try {
+                    return JSON.stringify(arg);
+                  } catch (error) {
+                    // Fallback for circular references or non-serializable objects
+                    return String(arg);
+                  }
+                }
+              })
+              .join(" ");
             const levelMap = {
               error: "ERROR",
               warn: "WARN",
