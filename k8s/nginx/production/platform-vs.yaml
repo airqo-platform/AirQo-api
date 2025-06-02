@@ -97,6 +97,23 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
+  name: superset
+  namespace: superset
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: superset
+      service: superset-svc
+      port: 8088
+  subroutes:
+    - path: /superset
+      action:
+        pass: superset
+        
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
   name: reports
   namespace: production
 spec:
@@ -186,6 +203,8 @@ spec:
       route: production/inventory 
     - path: /reports
       route: production/reports  
+    - path: /superset
+      route: superset/superset 
     - path: /website
       route: production/website       
     - path: ~ /api\/v[1-2]\/users
