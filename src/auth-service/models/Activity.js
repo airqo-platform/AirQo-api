@@ -6,16 +6,16 @@ var uniqueValidator = require("mongoose-unique-validator");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
-const httpStatus = require("http-status");
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject } = require("@utils/shared");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- activity-model`);
+
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const activitySchema = new Schema(
   {
@@ -98,45 +98,23 @@ activitySchema.statics = {
       const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "activity", {
           message: "activity created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "activity NOT successfully created but operation successful",
-          status: httpStatus.ACCEPTED,
-        };
-      }
-    } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
         });
       } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
+        return createEmptySuccessResponse(
+          "activity",
+          "activity NOT successfully created but operation successful"
+        );
       }
+    } catch (err) {
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "create", logger, "activity");
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filter", filter);
@@ -158,53 +136,22 @@ activitySchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the activitys",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "activitys do not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-          errors: { message: "unable to retrieve activitys" },
-        };
-      }
+      return createSuccessResponse("list", response, "activity", {
+        message: "successfully retrieved the activities", // Fixed grammar: "activitys" → "activities"
+        emptyMessage: "activities do not exist, please crosscheck", // Fixed grammar
+      });
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "list", logger, "activity");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
+      const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
+      // Remove tenant from update (immutable field)
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
@@ -216,91 +163,52 @@ activitySchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedActivity)) {
-        return {
-          success: true,
-          message: "successfully modified the activity",
-          data: updatedActivity._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedActivity)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "activity does not exist, please crosscheck -- Not Found",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedActivity._doc,
+          "activity"
+        );
+      } else {
+        return createNotFoundResponse(
+          "activity",
+          "update",
+          "activity does not exist, please crosscheck -- Not Found"
         );
       }
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "update", logger, "activity");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
-          _id: 1,
+          _id: 1, // Preserve minimal projection
         },
       };
+
       const removedActivity = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedActivity)) {
-        return {
-          success: true,
-          message: "successfully removed the activity",
-          data: removedActivity._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedActivity)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Bad Request, activity Not Found -- please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedActivity._doc,
+          "activity"
+        );
+      } else {
+        return createNotFoundResponse(
+          "activity",
+          "delete",
+          "Bad Request, activity Not Found -- please crosscheck"
         );
       }
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "delete", logger, "activity");
     }
   },
 };

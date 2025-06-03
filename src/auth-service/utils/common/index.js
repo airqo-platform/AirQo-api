@@ -24,8 +24,20 @@ const winstonLogger = require("./log-winston.util");
 const handleResponse = require("./response-handler.util");
 const slugUtils = require("./slug.util");
 const { deduplicator } = require("./slack-dedup-utility");
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+  createTokenResponse,
+} = require("./response-helpers");
 
 module.exports = {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+  createTokenResponse,
   slugUtils,
   deduplicator,
   winstonLogger,

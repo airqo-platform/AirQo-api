@@ -8,13 +8,14 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-location-history-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
+
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const LocationHistorySchema = new mongoose.Schema(
   {
@@ -73,44 +74,42 @@ LocationHistorySchema.pre("update", function (next) {
 LocationHistorySchema.statics = {
   async register(args, next) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "location history", {
           message: "Location History created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message:
-            "operation successful but Location History NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "location history",
+          "operation successful but Location History NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      let response = {};
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided fields",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "location history");
       }
-
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
@@ -124,7 +123,7 @@ LocationHistorySchema.statics = {
         delete filter.category;
       }
 
-      let pipeline = await this.aggregate()
+      const pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -134,36 +133,25 @@ LocationHistorySchema.statics = {
         .allowDiskUse(true);
 
       const location_histories = pipeline;
-      if (!isEmpty(location_histories)) {
-        return {
-          success: true,
-          data: location_histories,
+
+      return createSuccessResponse(
+        "list",
+        location_histories,
+        "location history",
+        {
           message: "successfully listed the Location Histories",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(location_histories)) {
-        return {
-          success: true,
-          message: "no Location Histories exist",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+          emptyMessage: "no Location Histories exist",
+        }
       );
+    } catch (error) {
+      return createErrorResponse(error, "list", logger, "location history");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      const modifiedUpdate = update;
 
       const updatedLocationHistory = await this.findOneAndUpdate(
         filter,
@@ -172,30 +160,23 @@ LocationHistorySchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedLocationHistory)) {
-        return {
-          success: true,
-          message: "successfully modified the Location History",
-          data: updatedLocationHistory._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedLocationHistory)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Location History does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedLocationHistory._doc,
+          "location history"
+        );
+      } else {
+        return createNotFoundResponse(
+          "location history",
+          "update",
+          "Location History does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "location history");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -210,34 +191,27 @@ LocationHistorySchema.statics = {
           date_time: 1,
         },
       };
+
       const removedLocationHistory = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedLocationHistory)) {
-        return {
-          success: true,
-          message: "successfully removed the Location History",
-          data: removedLocationHistory._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedLocationHistory)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Location History does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedLocationHistory._doc,
+          "location history"
+        );
+      } else {
+        return createNotFoundResponse(
+          "location history",
+          "delete",
+          "Location History does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "location history");
     }
   },
 };

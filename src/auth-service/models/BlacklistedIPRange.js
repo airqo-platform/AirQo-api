@@ -7,13 +7,13 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- blacklist-ip-range-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const BlacklistedIPRangeSchema = new mongoose.Schema(
   {
@@ -38,43 +38,43 @@ BlacklistedIPRangeSchema.index({ range: 1 }, { unique: true });
 BlacklistedIPRangeSchema.statics = {
   async register(args, next) {
     try {
-      let modifiedArgs = args;
+      const modifiedArgs = args;
       const data = await this.create({
         ...modifiedArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "IP range", {
           message: "IP Range created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but IP Range NOT successfully created",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "IP range",
+          "operation successful but IP Range NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      let response = {};
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided fields",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "IP range");
       }
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
@@ -93,104 +93,69 @@ BlacklistedIPRangeSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 300)
+        .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the range details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "No ips found, please crosscheck provided details",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "IP range", {
+        message: "successfully retrieved the range details",
+        emptyMessage: "No ips found, please crosscheck provided details",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "IP range");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
+      const options = { new: true };
+      const modifiedUpdate = Object.assign({}, update);
 
       const updatedIP = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedIP)) {
-        return {
-          success: true,
+        return createSuccessResponse("update", updatedIP._doc, "IP range", {
           message: "successfully modified the IP Range",
-          data: updatedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP Range does not exist, please crosscheck",
-          })
+        });
+      } else {
+        return createNotFoundResponse(
+          "IP range",
+          "update",
+          "IP Range does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "IP range");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 0,
-          range: 1,
+          range: 1, // Preserve range field projection
         },
       };
 
       const removedIP = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedIP)) {
-        return {
-          success: true,
+        return createSuccessResponse("delete", removedIP._doc, "IP range", {
           message: "successfully removed the IP Range",
-          data: removedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP Range does not exist, please crosscheck",
-          })
+        });
+      } else {
+        return createNotFoundResponse(
+          "IP range",
+          "delete",
+          "IP Range does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "IP range");
     }
   },
 };

@@ -5,7 +5,12 @@ const { getModelByTenant } = require("@config/database");
 const accessCodeGenerator = require("generate-password");
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
-const { logObject, logText, HttpError } = require("@utils/shared");
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- guest-user-model`
 );
@@ -33,6 +38,7 @@ const GuestUserSchema = new Schema(
 GuestUserSchema.statics = {
   async register(args, next) {
     try {
+      // Preserve guest_id generation logic
       const guestId = accessCodeGenerator
         .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
         .toUpperCase();
@@ -43,32 +49,20 @@ GuestUserSchema.statics = {
       });
 
       if (!isEmpty(createdGuestUser)) {
-        return {
-          success: true,
-          data: createdGuestUser,
+        return createSuccessResponse("create", createdGuestUser, "guest user", {
           message: "guest user created",
-          status: httpStatus.OK,
-        };
+        });
       } else {
-        return {
-          success: true,
-          data: createdGuestUser,
-          message:
-            "Operation successful but guest user NOT successfully created",
-          status: httpStatus.OK,
-        };
+        return createEmptySuccessResponse(
+          "guest user",
+          "Operation successful but guest user NOT successfully created"
+        );
       }
     } catch (err) {
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return createErrorResponse(err, "create", logger, "guest user");
     }
   },
+
   async list({ filter = {}, limit = 100, skip = 0, next } = {}) {
     try {
       const guestUsers = await this.aggregate()
@@ -78,94 +72,57 @@ GuestUserSchema.statics = {
         .limit(limit)
         .exec();
 
-      if (!isEmpty(guestUsers)) {
-        return {
-          success: true,
-          data: guestUsers,
-          message: "successfully listed the guest users",
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          data: [],
-          message: "No guest users found",
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", guestUsers, "guest user", {
+        message: "successfully listed the guest users",
+        emptyMessage: "No guest users found",
+      });
     } catch (err) {
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return createErrorResponse(err, "list", logger, "guest user");
     }
   },
+
   async modify({ filter = {}, update = {}, next } = {}) {
     try {
-      let modifiedGuestUser = await this.findOneAndUpdate(filter, update, {
+      const modifiedGuestUser = await this.findOneAndUpdate(filter, update, {
         new: true,
       }).exec();
+
       if (!isEmpty(modifiedGuestUser)) {
-        return {
-          success: true,
-          data: modifiedGuestUser,
-          message: "successfully modified the guest user",
-          status: httpStatus.OK,
-        };
+        return createSuccessResponse("update", modifiedGuestUser, "guest user");
       } else {
-        return {
-          success: false,
-          message: "guest user not found",
-          status: httpStatus.NOT_FOUND,
-        };
+        return createNotFoundResponse(
+          "guest user",
+          "update",
+          "guest user not found"
+        );
       }
     } catch (err) {
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return createErrorResponse(err, "update", logger, "guest user");
     }
   },
+
   async remove({ filter = {}, next } = {}) {
     try {
-      let removedGuestUser = await this.findOneAndRemove(filter).exec();
+      const removedGuestUser = await this.findOneAndRemove(filter).exec();
 
       if (!isEmpty(removedGuestUser)) {
-        return {
-          success: true,
-          data: removedGuestUser,
-          message: "successfully removed the guest user",
-          status: httpStatus.OK,
-        };
+        return createSuccessResponse("delete", removedGuestUser, "guest user");
       } else {
-        return {
-          success: false,
-          message: "guest user not found",
-          status: httpStatus.NOT_FOUND,
-        };
+        return createNotFoundResponse(
+          "guest user",
+          "delete",
+          "guest user not found"
+        );
       }
     } catch (err) {
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return createErrorResponse(err, "delete", logger, "guest user");
     }
   },
+
   async count({ filter = {}, next } = {}) {
     try {
       const total = await this.countDocuments(filter).exec();
+
       return {
         success: true,
         data: { total },
@@ -174,42 +131,32 @@ GuestUserSchema.statics = {
       };
     } catch (err) {
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
+      };
     }
   },
+
   async findOne({ filter = {}, next } = {}) {
     try {
       const guestUser = await this.findOne(filter).exec();
 
       if (!isEmpty(guestUser)) {
-        return {
-          success: true,
-          data: guestUser,
+        return createSuccessResponse("find", guestUser, "guest user", {
           message: "successfully retrieved the guest user",
-          status: httpStatus.OK,
-        };
+        });
       } else {
-        return {
-          success: false,
-          message: "guest user not found",
-          status: httpStatus.NOT_FOUND,
-        };
+        return createNotFoundResponse(
+          "guest user",
+          "find",
+          "guest user not found"
+        );
       }
     } catch (err) {
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return createErrorResponse(err, "find", logger, "guest user");
     }
   },
 };

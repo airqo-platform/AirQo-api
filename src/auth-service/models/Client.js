@@ -7,13 +7,13 @@ const httpStatus = require("http-status");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const ClientSchema = new Schema(
   {
@@ -53,32 +53,35 @@ ClientSchema.statics = {
   async register(args, next) {
     try {
       let createBody = args;
+
+      // Remove _id if present
       if (createBody._id) {
         delete createBody._id;
       }
-      data = await this.create({
+
+      const data = await this.create({
+        // Fixed: was undeclared variable
         ...createBody,
       });
 
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "client", {
           message: "client created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but client NOT successfully created",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "client",
+          "operation successful but client NOT successfully created"
+        );
       }
     } catch (err) {
-      logObject("the error", err);
+      logObject("the error", err); // Preserve custom logging
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
+
       let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
+
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -89,23 +92,28 @@ ClientSchema.statics = {
         });
       } else if (err.code === 11000) {
         response["message"] = "the Client must be unique for every client";
+      } else {
+        message = "Internal Server Error";
+        status = httpStatus.INTERNAL_SERVER_ERROR;
+        response = { message: err.message };
       }
 
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.CLIENTS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.CLIENTS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
+
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
@@ -131,40 +139,26 @@ ClientSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the client details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "no clients exist",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
-      }
+      return createSuccessResponse("list", response, "client", {
+        message: "successfully retrieved the client details",
+        emptyMessage: "no clients exist",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "client");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
+      // Preserve unique removeDuplicates function for IP addresses
       function removeDuplicates(arr) {
         return [...new Set(arr)];
       }
-      let options = { new: true };
+
+      const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
 
+      // Preserve IP address deduplication logic
       if (modifiedUpdate.ip_addresses) {
         modifiedUpdate.ip_addresses = removeDuplicates(
           modifiedUpdate.ip_addresses
@@ -178,59 +172,67 @@ ClientSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedClient)) {
-        return {
-          success: true,
-          message: "successfully modified the client",
-          data: updatedClient._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedClient)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "client does not exist, please crosscheck",
-          })
+        return createSuccessResponse("update", updatedClient._doc, "client");
+      } else {
+        return createNotFoundResponse(
+          "client",
+          "update",
+          "client does not exist, please crosscheck"
         );
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+
+      let response = {};
+      let message = "Internal Server Error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      if (error.code === 11000 || error.code === 11001) {
+        message = "duplicate values provided";
+        status = httpStatus.CONFLICT;
+        if (error.keyValue) {
+          Object.entries(error.keyValue).forEach(([key, value]) => {
+            return (response[key] = `the ${key} must be unique`);
+          });
+        }
+      } else if (error.errors) {
+        message = "validation errors for some of the provided fields";
+        status = httpStatus.CONFLICT;
+        Object.entries(error.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else {
+        response = { message: error.message };
+      }
+
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
-        projection: { _id: 1, client_secret: 1 },
+      const options = {
+        projection: { _id: 1, client_secret: 1 }, // Preserve client_secret projection
       };
+
       const removedClient = await this.findOneAndRemove(filter, options).exec();
+
       if (!isEmpty(removedClient)) {
-        return {
-          success: true,
-          message: "successfully removed the client",
-          data: removedClient._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedClient)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "client does not exist, please crosscheck",
-          })
+        return createSuccessResponse("delete", removedClient._doc, "client");
+      } else {
+        return createNotFoundResponse(
+          "client",
+          "delete",
+          "client does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "client");
     }
   },
 };

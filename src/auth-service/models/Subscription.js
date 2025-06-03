@@ -9,13 +9,14 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- subscriptions-model`
 );
+const { logObject } = require("@utils/shared");
+
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const SubscriptionSchema = new mongoose.Schema(
   {
@@ -75,240 +76,227 @@ SubscriptionSchema.methods = {
   },
 };
 
-SubscriptionSchema.statics.register = async function (args, next) {
-  try {
-    let createBody = args;
-    logObject("args", args);
-    if (createBody._id) {
-      delete createBody._id;
-    }
+SubscriptionSchema.statics = {
+  async register(args, next) {
+    try {
+      let createBody = args;
+      logObject("args", args);
 
-    logObject("createBody", createBody);
-    let data = await this.create({
-      ...createBody,
-    });
+      // Remove _id if present
+      if (createBody._id) {
+        delete createBody._id;
+      }
 
-    if (!isEmpty(data)) {
-      return {
-        success: true,
-        data,
-        message: "subscription created successfully with no issues detected",
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(data)) {
-      return {
-        success: true,
-        message: "subscription not created despite successful operation",
-        status: httpStatus.OK,
-        data: [],
-      };
-    }
-  } catch (err) {
-    logObject("error in the object", err);
-    logger.error(`Data conflicts detected -- ${err.message}`);
-    let response = {};
-    let errors = {};
-    let message = "Internal Server Error";
-    let status = httpStatus.INTERNAL_SERVER_ERROR;
-    if (err.code === 11000 || err.code === 11001) {
-      errors = err.keyValue;
-      message = "duplicate values provided";
-      status = httpStatus.CONFLICT;
-      Object.entries(errors).forEach(([key, value]) => {
-        return (response[key] = value);
+      logObject("createBody", createBody);
+      const data = await this.create({
+        ...createBody,
       });
-    } else {
-      message = "validation errors for some of the provided fields";
-      status = httpStatus.CONFLICT;
-      errors = err.errors;
-      Object.entries(errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
-      });
+
+      if (!isEmpty(data)) {
+        return createSuccessResponse("create", data, "subscription", {
+          message: "subscription created successfully with no issues detected",
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "subscription",
+          "subscription not created despite successful operation"
+        );
+      }
+    } catch (err) {
+      logObject("error in the object", err);
+      logger.error(`Data conflicts detected -- ${err.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+      return createErrorResponse(err, "create", logger, "subscription");
     }
+  },
 
-    logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-    next(new HttpError(message, status, response));
-  }
-};
+  async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
+    try {
+      const subscriptions = await this.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
 
-SubscriptionSchema.statics.list = async function (
-  { skip = 0, limit = 1000, filter = {} } = {},
-  next
-) {
-  try {
-    const subscriptions = await this.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .exec();
-
-    if (!isEmpty(subscriptions)) {
-      return {
-        success: true,
-        data: subscriptions,
+      return createSuccessResponse("list", subscriptions, "subscription", {
         message: "Successfully listed the subscriptions",
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(subscriptions)) {
-      return {
-        success: true,
-        message: "No subscriptions found for this search",
-        data: [],
-        status: httpStatus.OK,
-      };
+        emptyMessage: "No subscriptions found for this search",
+      });
+    } catch (error) {
+      return createErrorResponse(error, "list", logger, "subscription");
     }
-  } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-        message: error.message,
-      })
-    );
-  }
-};
+  },
 
-SubscriptionSchema.statics.modify = async function (
-  { filter = {}, update = {} } = {},
-  next
-) {
-  try {
-    const options = { new: true };
-    const updateBody = update;
+  async modify({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+      const updateBody = update;
 
-    if (updateBody._id) {
-      delete updateBody._id;
+      // Remove _id from update if present
+      if (updateBody._id) {
+        delete updateBody._id;
+      }
+
+      const updatedSubscription = await this.findOneAndUpdate(
+        filter,
+        updateBody,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedSubscription)) {
+        return createSuccessResponse(
+          "update",
+          updatedSubscription._doc,
+          "subscription"
+        );
+      } else {
+        return createNotFoundResponse(
+          "subscription",
+          "update",
+          "the User Subscription you are trying to UPDATE does not exist, please crosscheck"
+        );
+      }
+    } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
+
+      // Handle specific duplicate errors
+      if (err.code == 11000) {
+        return {
+          success: false,
+          message: "duplicate values provided",
+          status: httpStatus.CONFLICT,
+          errors: err.keyValue || { message: err.message },
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "subscription");
+      }
     }
+  },
 
-    const updatedSubscription = await this.findOneAndUpdate(
-      filter,
-      updateBody,
-      options
-    ).exec();
-
-    if (!isEmpty(updatedSubscription)) {
-      return {
-        success: true,
-        message: "successfully modified the subscription",
-        data: updatedSubscription._doc,
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(updatedSubscription)) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "the User Subscription  you are trying to UPDATE does not exist, please crosscheck",
-        })
-      );
-    }
-  } catch (err) {
-    logger.error(`Data conflicts detected -- ${err.message}`);
-    let errors = { message: err.message };
-    let message = "Internal Server Error";
-    let status = httpStatus.INTERNAL_SERVER_ERROR;
-    if (err.code == 11000) {
-      errors = err.keyValue;
-      message = "duplicate values provided";
-      status = httpStatus.CONFLICT;
-    }
-    next(new HttpError(message, status, errors));
-  }
-};
-
-SubscriptionSchema.statics.remove = async function (
-  { filter = {} } = {},
-  next
-) {
-  try {
-    let options = {
-      projection: {
-        _id: 1,
-      },
-    };
-    let removedSubscription = await this.findOneAndRemove(
-      filter,
-      options
-    ).exec();
-
-    if (!isEmpty(removedSubscription)) {
-      return {
-        success: true,
-        message: "successfully removed the subscription",
-        data: removedSubscription._doc,
-        status: httpStatus.OK,
-      };
-    } else if (isEmpty(removedSubscription)) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message:
-            "the User Subscription  you are trying to DELETE does not exist, please crosscheck",
-        })
-      );
-    }
-  } catch (error) {
-    logger.error(`Data conflicts detected -- ${error.message}`);
-    next(
-      new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-        message: error.message,
-      })
-    );
-    return;
-  }
-};
-
-SubscriptionSchema.statics.unsubscribe = async function (email, type) {
-  await this.updateOne({ email }, { [`notifications.${type}`]: false });
-};
-
-SubscriptionSchema.statics.checkNotificationStatus = async function (
-  { email, type },
-  next
-) {
-  try {
-    const subscription = await this.findOne({ email });
-
-    if (!subscription) {
-      return {
-        success: true,
-        message: `Not Found`,
-        status: httpStatus.OK,
-        errors: {
-          message: `No subscription found for email: ${email}`,
+  async remove({ filter = {} } = {}, next) {
+    try {
+      const options = {
+        projection: {
+          _id: 1,
         },
       };
-    } else if (isEmpty(subscription.notifications[type])) {
-      return {
-        success: true,
-        message: `not subscribed to type`,
-        status: httpStatus.OK,
-        errors: {
-          message: `User is not subscribed to ${type} notifications`,
-        },
-      };
-    } else if (subscription.notifications[type] === false) {
+
+      const removedSubscription = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
+
+      if (!isEmpty(removedSubscription)) {
+        return createSuccessResponse(
+          "delete",
+          removedSubscription._doc,
+          "subscription"
+        );
+      } else {
+        return createNotFoundResponse(
+          "subscription",
+          "delete",
+          "the User Subscription you are trying to DELETE does not exist, please crosscheck"
+        );
+      }
+    } catch (error) {
+      logger.error(`Data conflicts detected -- ${error.message}`);
       return {
         success: false,
-        message: `Forbidden`,
-        status: httpStatus.FORBIDDEN,
-        errors: {
-          message: `User unsubscribed from ${type} notifications`,
-        },
-      };
-    } else {
-      return {
-        success: true,
-        message: `User is subscribed to ${type} notifications`,
-        status: httpStatus.OK,
+        message: "Data conflicts detected",
+        status: httpStatus.CONFLICT,
+        errors: { message: error.message },
       };
     }
-  } catch (error) {
-    logger.error(`Data conflicts detected -- ${error.message}`);
-    next(
-      new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-        message: error.message,
-      })
-    );
-    return;
-  }
+  },
+
+  async unsubscribe(email, type) {
+    try {
+      const result = await this.updateOne(
+        { email },
+        { [`notifications.${type}`]: false }
+      );
+
+      if (result.matchedCount === 0) {
+        return {
+          success: false,
+          message: "Subscription not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `No subscription found for email: ${email}` },
+        };
+      }
+
+      return {
+        success: true,
+        message: `Successfully unsubscribed from ${type} notifications`,
+        data: { email, type, unsubscribed: true },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Unsubscribe error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  async checkNotificationStatus({ email, type }, next) {
+    try {
+      const subscription = await this.findOne({ email });
+
+      if (!subscription) {
+        return {
+          success: false,
+          message: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: `No subscription found for email: ${email}`,
+          },
+        };
+      } else if (isEmpty(subscription.notifications[type])) {
+        return {
+          success: false,
+          message: "not subscribed to type",
+          status: httpStatus.OK,
+          errors: {
+            message: `User is not subscribed to ${type} notifications`,
+          },
+        };
+      } else if (subscription.notifications[type] === false) {
+        return {
+          success: false,
+          message: "Forbidden",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            message: `User unsubscribed from ${type} notifications`,
+          },
+        };
+      } else {
+        return {
+          success: true,
+          message: `User is subscribed to ${type} notifications`,
+          data: {
+            email,
+            type,
+            subscribed: true,
+            notifications: subscription.notifications,
+          },
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`Notification status check error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Data conflicts detected",
+        status: httpStatus.CONFLICT,
+        errors: { message: error.message },
+      };
+    }
+  },
 };
 
 const SubscriptionModel = (tenant) => {

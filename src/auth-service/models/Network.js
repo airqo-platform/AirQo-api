@@ -10,13 +10,13 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- network-model`
 );
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 function validateProfilePicture(net_profile_picture) {
   const urlRegex =
@@ -312,51 +312,58 @@ NetworkSchema.statics = {
       const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "network", {
           message: "network created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "network NOT successfully created but operation successful",
-          status: httpStatus.NO_CONTENT,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "network",
+          "network NOT successfully created but operation successful"
+        );
       }
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
-      let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
+      // Handle specific duplicate key errors with custom messages
       if (
         !isEmpty(err.keyValue) &&
         (err.code === 11000 || err.code === 11001)
       ) {
-        message = "duplicate values provided";
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           logObject("err.keyValue", err.keyValue);
           response[key] = value;
           response["message"] = "duplicate values provided";
-          return response;
         });
+        return {
+          success: false,
+          message: "duplicate values provided",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
       } else if (!isEmpty(err.errors)) {
         logObject("err.errors", err.errors);
+        let response = {};
         Object.entries(err.errors).forEach(([key, value]) => {
           response[key] = value.message;
           response["message"] =
             "input validation errors for some of the provided fields";
-          return response;
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided fields",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "network");
       }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.NETWORKS_INCLUSION_PROJECTION;
@@ -369,6 +376,7 @@ NetworkSchema.statics = {
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -442,80 +450,53 @@ NetworkSchema.statics = {
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the network details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message:
-            "No network details exist for this operation, please crosscheck",
-          status: httpStatus.OK,
-          data: [],
-        };
-      }
+
+      return createSuccessResponse("list", response, "network", {
+        message: "successfully retrieved the network details",
+        emptyMessage:
+          "No network details exist for this operation, please crosscheck",
+      });
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("error", err);
-      let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-      if (
-        !isEmpty(err.keyValue) &&
-        (err.code === 11000 || err.code === 11001)
-      ) {
-        message = "duplicate values provided";
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          response[key] = value;
-          response["message"] = value;
-          return response;
-        });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          response[key] = value.message;
-          response["message"] = value.message;
-          return response;
-        });
-      }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "list", logger, "network");
     }
   },
+
   async oldModify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
+      const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
 
+      // Remove tenant from update (immutable field)
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
 
+      // Handle net_departments array with $addToSet
       if (modifiedUpdate.net_departments) {
-        modifiedUpdate["$addToSet"] = {};
-        modifiedUpdate["$addToSet"]["net_departments"] = {};
-        modifiedUpdate["$addToSet"]["net_departments"]["$each"] =
-          modifiedUpdate.net_departments;
+        modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
+        modifiedUpdate["$addToSet"]["net_departments"] = {
+          $each: modifiedUpdate.net_departments,
+        };
         delete modifiedUpdate["net_departments"];
       }
 
+      // Handle net_permissions array with $addToSet
       if (modifiedUpdate.net_permissions) {
-        modifiedUpdate["$addToSet"] = {};
-        modifiedUpdate["$addToSet"]["net_permissions"] = {};
-        modifiedUpdate["$addToSet"]["net_permissions"]["$each"] =
-          modifiedUpdate.net_permissions;
+        modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
+        modifiedUpdate["$addToSet"]["net_permissions"] = {
+          $each: modifiedUpdate.net_permissions,
+        };
         delete modifiedUpdate["net_permissions"];
       }
 
+      // Handle net_roles array with $addToSet
       if (modifiedUpdate.net_roles) {
-        modifiedUpdate["$addToSet"] = {};
-        modifiedUpdate["$addToSet"]["net_roles"] = {};
-        modifiedUpdate["$addToSet"]["net_roles"]["$each"] =
-          modifiedUpdate.net_roles;
+        modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
+        modifiedUpdate["$addToSet"]["net_roles"] = {
+          $each: modifiedUpdate.net_roles,
+        };
         delete modifiedUpdate["net_roles"];
       }
 
@@ -531,52 +512,35 @@ NetworkSchema.statics = {
       logObject("updatedNetwork", updatedNetwork);
 
       if (!isEmpty(updatedNetwork)) {
-        return {
-          success: true,
-          message: "successfully modified the network",
-          data: updatedNetwork._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedNetwork)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "No networks exist for this operation",
-          })
+        return createSuccessResponse("update", updatedNetwork._doc, "network");
+      } else {
+        return createNotFoundResponse(
+          "network",
+          "update",
+          "No networks exist for this operation"
         );
       }
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
-      let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
+
+      // Handle authorization errors specifically
       if (
-        !isEmpty(err.code) &&
-        !isEmpty(err.keyValue) &&
-        (err.code === 11000 || err.code === 11001)
-      ) {
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          response[key] = value;
-          response["message"] = value;
-          return response;
-        });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          response[key] = value.message;
-          response["message"] = value.message;
-          return response;
-        });
-      } else if (
         !isEmpty(err.code) &&
         !isEmpty(err.codeName) &&
         (err.code === 13 || err.codeName === "Unauthorized")
       ) {
-        response["message"] = "Unauthorized to carry out this operation";
+        return {
+          success: false,
+          message: "Unauthorized to carry out this operation",
+          status: httpStatus.UNAUTHORIZED,
+          errors: { message: "Unauthorized to carry out this operation" },
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "network");
       }
-      next(new HttpError(message, status, response));
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
@@ -588,56 +552,38 @@ NetworkSchema.statics = {
       ).exec();
 
       if (!updatedNetwork) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "No networks exist for this operation",
-          })
+        return createNotFoundResponse(
+          "network",
+          "update",
+          "No networks exist for this operation"
         );
       }
 
-      return {
-        success: true,
-        message: "successfully modified the network",
-        data: updatedNetwork._doc,
-        status: httpStatus.OK,
-      };
+      return createSuccessResponse("update", updatedNetwork._doc, "network");
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
 
-      let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-
+      // Handle authorization errors specifically
       if (
-        !isEmpty(err.code) &&
-        !isEmpty(err.keyValue) &&
-        (err.code === 11000 || err.code === 11001)
-      ) {
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          response[key] = value;
-          response["message"] = value;
-        });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          response[key] = value.message;
-          response["message"] = value.message;
-        });
-      } else if (
         !isEmpty(err.code) &&
         !isEmpty(err.codeName) &&
         (err.code === 13 || err.codeName === "Unauthorized")
       ) {
-        response["message"] = "Unauthorized to carry out this operation";
+        return {
+          success: false,
+          message: "Unauthorized to carry out this operation",
+          status: httpStatus.UNAUTHORIZED,
+          errors: { message: "Unauthorized to carry out this operation" },
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "network");
       }
-
-      return next(new HttpError(message, status, response));
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           net_email: 1,
@@ -646,6 +592,7 @@ NetworkSchema.statics = {
           net_manager: 1,
         },
       };
+
       logObject("the FILTER we are using", filter);
       const removedNetwork = await this.findOneAndRemove(
         filter,
@@ -653,44 +600,17 @@ NetworkSchema.statics = {
       ).exec();
 
       if (!isEmpty(removedNetwork)) {
-        return {
-          success: true,
-          message: "successfully removed the network",
-          data: removedNetwork._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedNetwork)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Network does not exist for this operation",
-          })
+        return createSuccessResponse("delete", removedNetwork._doc, "network");
+      } else {
+        return createNotFoundResponse(
+          "network",
+          "delete",
+          "Network does not exist for this operation"
         );
       }
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
-      let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-      if (
-        !isEmpty(err.code) &&
-        !isEmpty(err.keyValue) &&
-        (err.code === 11000 || err.code === 11001)
-      ) {
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          response[key] = value;
-          response["message"] = value;
-          return response;
-        });
-      } else if (!isEmpty(err.errors)) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          response[key] = value.message;
-          response["message"] = value.message;
-          return response;
-        });
-      }
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "delete", logger, "network");
     }
   },
 };

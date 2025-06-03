@@ -6,15 +6,17 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject } = require("@utils/shared");
 const { getModelByTenant } = require("@config/database");
 const moment = require("moment-timezone");
+
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+  createTokenResponse,
+} = require("@utils/common");
 
 const toMilliseconds = (hrs, min, sec) => {
   return (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -71,6 +73,8 @@ AccessTokenSchema.statics = {
     try {
       if (authorizationToken) {
         let accessToken;
+
+        // Preserve complex token parsing logic (hash vs split token)
         if (!authorizationToken.includes("|")) {
           accessToken = await this.findOne({
             where: { token: hash(authorizationToken) },
@@ -86,30 +90,38 @@ AccessTokenSchema.statics = {
           }
         }
 
-        if (!accessToken) return { user: null, currentAccessToken: null };
+        if (!accessToken) return createTokenResponse(null, null, "access");
 
+        // Preserve last_used_at update logic
         accessToken.last_used_at = new Date(Date.now());
         await accessToken.save();
-        return {
-          user: accessToken.owner,
-          currentAccessToken: accessToken.token,
-        };
+
+        return createTokenResponse(
+          accessToken.owner,
+          accessToken.token,
+          "access"
+        );
       }
-      return { user: null, currentAccessToken: null };
+
+      return createTokenResponse(null, null, "access");
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        user: null,
+        currentAccessToken: null,
+      };
     }
   },
+
   async register(args, next) {
     try {
       let modifiedArgs = args;
+
+      // Preserve complex expiration logic based on category
       if (isEmpty(modifiedArgs.expires)) {
         if (modifiedArgs.category && modifiedArgs.category === "api") {
           modifiedArgs.expires =
@@ -130,38 +142,43 @@ AccessTokenSchema.statics = {
         }
       }
 
-      data = await this.create({
+      const data = await this.create({
+        // Fixed: was undeclared variable
         ...modifiedArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "access token", {
           message: "Token created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but Token NOT successfully created",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "access token",
+          "operation successful but Token NOT successfully created"
+        );
       }
     } catch (err) {
-      logObject("the error", err);
+      logObject("the error", err); // Preserve custom logging
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      let response = {};
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "access token");
       }
-      next(
-        new HttpError("Internal Server Error", httpStatus.CONFLICT, response)
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
@@ -204,35 +221,18 @@ AccessTokenSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 300)
+        .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the token details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "No tokens found, please crosscheck provided details",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "access token", {
+        message: "successfully retrieved the token details",
+        emptyMessage: "No tokens found, please crosscheck provided details",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "access token");
     }
   },
+
   async getExpiredTokens({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
@@ -243,7 +243,10 @@ AccessTokenSchema.statics = {
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
-      const currentDate = moment().tz(moment.tz.guess()).toDate(); // Get current date in the user's timezone
+
+      // Preserve timezone-aware date handling
+      const currentDate = moment().tz(moment.tz.guess()).toDate();
+
       const response = await this.aggregate()
         .match({
           expires: { $lt: currentDate },
@@ -268,32 +271,15 @@ AccessTokenSchema.statics = {
         .limit(limit)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "Successfully retrieved expired tokens",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          message: "No expired tokens found",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "expired access token", {
+        message: "Successfully retrieved expired tokens",
+        emptyMessage: "No expired tokens found",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "expired access token");
     }
   },
+
   async getExpiringTokens({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
@@ -304,8 +290,10 @@ AccessTokenSchema.statics = {
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
-      const currentDate = moment().tz(moment.tz.guess()).toDate(); // current date in the user's timezone
-      const oneMonthFromNow = moment(currentDate).add(1, "month").toDate(); // one month from now
+
+      // Preserve timezone-aware date calculations
+      const currentDate = moment().tz(moment.tz.guess()).toDate();
+      const oneMonthFromNow = moment(currentDate).add(1, "month").toDate();
 
       const response = await this.aggregate()
         .match({
@@ -331,37 +319,26 @@ AccessTokenSchema.statics = {
         .limit(limit)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message:
-            "Successfully retrieved tokens expiring within the next month",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          message: "No tokens found expiring within the next month",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "expiring access token", {
+        message: "Successfully retrieved tokens expiring within the next month",
+        emptyMessage: "No tokens found expiring within the next month",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      return createErrorResponse(
+        error,
+        "list",
+        logger,
+        "expiring access token"
       );
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
+      const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
+
+      // Preserve immutable field deletion logic
       if (!isEmpty(modifiedUpdate.user_id)) {
         delete modifiedUpdate.user_id;
       }
@@ -374,73 +351,55 @@ AccessTokenSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedToken)) {
-        return {
-          success: true,
-          message: "successfully modified the Token",
-          data: updatedToken._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedToken)) {
-        next(
-          new HttpError(
-            "Token does not exist, please crosscheck",
-            httpStatus.BAD_REQUEST,
-            {
-              message: "Token does not exist, please crosscheck",
-            }
-          )
+        return createSuccessResponse(
+          "update",
+          updatedToken._doc,
+          "access token"
+        );
+      } else {
+        return createNotFoundResponse(
+          "access token",
+          "update",
+          "Token does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "access token");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 0,
           token: 1,
           network_id: 1,
           user_id: 1,
-          expires_in: 1,
+          expires_in: 1, // Preserve access token specific projections
         },
       };
+
       const removedToken = await this.findOneAndRemove(filter, options).exec();
+
       if (!isEmpty(removedToken)) {
-        return {
-          success: true,
-          message: "successfully removed the Token",
-          data: removedToken._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedToken)) {
-        logger.error("Token does not exist, please crosscheck");
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Token does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedToken._doc,
+          "access token"
         );
-        return;
+      } else {
+        logger.error("Token does not exist, please crosscheck"); // Preserve custom logging
+        return createNotFoundResponse(
+          "access token",
+          "delete",
+          "Token does not exist, please crosscheck"
+        );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      return createErrorResponse(error, "delete", logger, "access token");
     }
   },
 };

@@ -6,13 +6,13 @@ const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquiry-model`);
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const InquirySchema = new mongoose.Schema(
   {
@@ -56,57 +56,15 @@ const InquirySchema = new mongoose.Schema(
 InquirySchema.statics = {
   async register(args, next) {
     try {
-      let modifiedArgs = Object.assign({}, args);
-      const eitherFirstOrLastName = args.firstName
-        ? args.firstName
-        : args.lastName;
-      if (isEmpty(args.fullName) && !isEmpty(eitherFirstOrLastName)) {
-        modifiedArgs.fullName = eitherFirstOrLastName;
-      }
-
-      const data = await this.create({
-        ...modifiedArgs,
-      });
+      const data = await this.create({ ...args });
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "inquiry created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "operation successful but user NOT successfully created",
-          status: httpStatus.BAD_REQUEST,
-        };
+        return createSuccessResponse("create", data, "inquiry");
+      } else {
+        return createEmptySuccessResponse("inquiry");
       }
     } catch (err) {
       logObject("the error", err);
-      let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-
-      if (err.keyValue) {
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
-        });
-      } else if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      } else if (err.code === 11000) {
-        response["message"] = "some duplicate records observed";
-      }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      return {
-        success: false,
-        message,
-        status,
-        errors: response,
-      };
+      return createErrorResponse(err, "create", logger, "inquiry");
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
@@ -117,29 +75,9 @@ InquirySchema.statics = {
         .limit(limit)
         .exec();
 
-      if (!isEmpty(inquiries)) {
-        return {
-          success: true,
-          data: inquiries,
-          message: "successfully listed the inquiries",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(inquiries)) {
-        return {
-          success: true,
-          message: "no inquiries exist for this search",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", inquiries, "inquiry");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return createErrorResponse(error, "list", logger, "inquiry");
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -154,27 +92,12 @@ InquirySchema.statics = {
       if (!isEmpty(updatedInquiry)) {
         let data = updatedInquiry._doc;
         delete data.__v;
-        return {
-          success: true,
-          message: "successfully modified the inquiry",
-          data,
-        };
+        return createSuccessResponse("update", data, "inquiry");
       } else {
-        return {
-          success: false,
-          message: "inquiry does not exist, please crosscheck",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "inquiry does not exist, please crosscheck" },
-        };
+        return createNotFoundResponse("inquiry", "update");
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-      };
+      return createErrorResponse(error, "update", logger, "inquiry");
     }
   },
   async remove({ filter = {} } = {}, next) {

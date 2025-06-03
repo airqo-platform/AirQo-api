@@ -5,13 +5,14 @@ const { getTenantDB, getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- log-model`);
+
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
+
 const logSchema = new mongoose.Schema(
   {
     timestamp: { type: Date, required: true },
@@ -62,23 +63,27 @@ logSchema.statics = {
       const newLog = await this.create({
         ...args,
       });
+
       if (!isEmpty(newLog)) {
         return {
           success: true,
-          data: newLog._doc,
+          data: newLog._doc, // Preserve _doc usage
           message: "Log created",
+          status: httpStatus.OK, // Add missing status
         };
-      } else if (isEmpty(newLog)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but Log NOT successfully created",
-        };
+      } else {
+        return createEmptySuccessResponse(
+          "log",
+          "operation successful but Log NOT successfully created"
+        );
       }
     } catch (err) {
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -88,55 +93,46 @@ logSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
+        // Preserve complex duplicate handling for Log_name and Log_code
         const duplicate_record = args.Log_name ? args.Log_name : args.Log_code;
         response[duplicate_record] = `${duplicate_record} must be unique`;
         response["message"] =
           "the Log_name and Log_code must be unique for every Log";
+      } else {
+        response = { message: err.message };
       }
 
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
+
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const logs = await this.aggregate()
         .match(filter)
-        .sort({ timestamp: -1 })
+        .sort({ timestamp: -1 }) // Preserve timestamp sorting instead of createdAt
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 1000)
+        .limit(limit ? limit : 1000) // Preserve higher default limit
         .allowDiskUse(true);
 
-      if (!isEmpty(logs)) {
-        return {
-          success: true,
-          data: logs,
-          message: "successfully listed the logs",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(logs)) {
-        return {
-          success: true,
-          message: "logs not found for this operation",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", logs, "log", {
+        message: "successfully listed the logs",
+        emptyMessage: "logs not found for this operation",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "log");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
+      const modifiedUpdate = Object.assign({}, update);
 
       const updatedLog = await this.findOneAndUpdate(
         filter,
@@ -145,60 +141,34 @@ logSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedLog)) {
-        return {
-          success: true,
-          message: "successfully modified the Log",
-          data: updatedLog._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedLog)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Log not found",
-          })
-        );
+        return createSuccessResponse("update", updatedLog._doc, "log");
+      } else {
+        return createNotFoundResponse("log", "update", "Log not found");
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "log");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
-        projection: { _id: 1 },
+      const options = {
+        projection: { _id: 1 }, // Preserve minimal projection
       };
+
       const removedLog = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedLog)) {
-        return {
-          success: true,
-          message: "successfully removed the Log",
-          data: removedLog._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedLog)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Log does not exist, please crosscheck",
-          })
+        return createSuccessResponse("delete", removedLog._doc, "log");
+      } else {
+        return createNotFoundResponse(
+          "log",
+          "delete",
+          "Log does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "log");
     }
   },
 };

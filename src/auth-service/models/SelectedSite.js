@@ -8,13 +8,13 @@ const logger = require("log4js").getLogger(
 
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const { logObject, logText } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const SelectedSiteSchema = new Schema(
   {
@@ -59,27 +59,25 @@ SelectedSiteSchema.statics = {
       const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "selected site", {
           message: "selected site created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message:
-            "Operation successful but selected site NOT successfully created",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "selected site",
+          "Operation successful but selected site NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.code === 11000) {
         logObject("the err.code again", err.code);
         const duplicate_record = args.email ? args.email : args.userName;
@@ -94,11 +92,19 @@ SelectedSiteSchema.statics = {
         Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
+      } else {
+        response = { message: err.message };
       }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const response = await this.aggregate()
@@ -108,39 +114,25 @@ SelectedSiteSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the selected site details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "no selected sites exist",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", response, "selected site", {
+        message: "successfully retrieved the selected site details",
+        emptyMessage: "no selected sites exist",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "selected site");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the selected site modification function........");
-      let options = { new: true };
+      const options = { new: true };
+
+      // Preserve dynamic field selection logic
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
-      let modifiedUpdate = update;
+      const modifiedUpdate = update;
+
       const updatedSelectedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -148,30 +140,23 @@ SelectedSiteSchema.statics = {
       ).select(fieldsString);
 
       if (!isEmpty(updatedSelectedSite)) {
-        return {
-          success: true,
-          message: "successfully modified the selected site",
-          data: updatedSelectedSite._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedSelectedSite)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "selected site does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedSelectedSite._doc,
+          "selected site"
+        );
+      } else {
+        return createNotFoundResponse(
+          "selected site",
+          "update",
+          "selected site does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "selected site");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -183,35 +168,31 @@ SelectedSiteSchema.statics = {
           lat_long: 1,
         },
       };
+
       const removedSelectedSite = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedSelectedSite)) {
-        return {
-          success: true,
-          message: "Successfully removed the selected site",
-          data: removedSelectedSite._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedSelectedSite)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Provided User does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedSelectedSite._doc,
+          "selected site",
+          {
+            message: "Successfully removed the selected site",
+          }
+        );
+      } else {
+        return createNotFoundResponse(
+          "selected site",
+          "delete",
+          "Selected site does not exist, please crosscheck"
         );
       }
     } catch (error) {
       logObject("the models error", error);
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "selected site");
     }
   },
 };

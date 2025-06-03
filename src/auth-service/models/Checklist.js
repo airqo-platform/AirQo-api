@@ -7,12 +7,11 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- checklist-model`);
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const checklistItemSchema = new mongoose.Schema({
   title: {
@@ -73,92 +72,58 @@ ChecklistSchema.statics = {
   async register(args, next) {
     try {
       let body = args;
+
+      // Remove _id if present
       if (body._id) {
         delete body._id;
       }
-      let data = await this.create({
+
+      const data = await this.create({
         ...body,
       });
 
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "checklist", {
           message: "checklist created successfully with no issues detected",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "checklist not created despite successful operation",
-          status: httpStatus.OK,
-          data: [],
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "checklist",
+          "checklist not created despite successful operation"
+        );
       }
     } catch (err) {
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "create", logger, "checklist");
     }
   },
+
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const checklists = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
+        .limit(limit) // Preserve higher limit (1000)
         .exec();
 
-      if (!isEmpty(checklists)) {
-        return {
-          success: true,
-          data: checklists,
-          message: "successfully listed the checklists",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(checklists)) {
-        return {
-          success: true,
-          message: "no checklists found for this search",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", checklists, "checklist", {
+        message: "successfully listed the checklists",
+        emptyMessage: "no checklists found for this search",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "checklist");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
+
+      // Remove _id from update if present
       if (update._id) {
         delete update._id;
       }
+
       const updatedChecklist = await this.findOneAndUpdate(
         filter,
         update,
@@ -166,70 +131,75 @@ ChecklistSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedChecklist)) {
-        return {
-          success: true,
-          message: "successfully modified the checklist",
-          data: updatedChecklist._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedChecklist)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Checklist you are trying to UPDATE does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedChecklist._doc,
+          "checklist"
+        );
+      } else {
+        return createNotFoundResponse(
+          "checklist",
+          "update",
+          "the User Checklist you are trying to UPDATE does not exist, please crosscheck"
         );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      // Handle specific duplicate errors with enhanced validation handling
       if (err.code == 11000) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
+        return {
+          success: false,
+          message: "duplicate values provided",
+          status: httpStatus.CONFLICT,
+          errors: err.keyValue || { message: err.message },
+        };
+      } else if (err.errors) {
+        let errors = {};
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (errors[key] = value.message);
+        });
+        return {
+          success: false,
+          message: "validation errors for some of the provided fields",
+          status: httpStatus.CONFLICT,
+          errors,
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "checklist");
       }
-      next(new HttpError(message, status, errors));
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
-          user_id: 1,
+          user_id: 1, // Preserve user_id projection for checklist tracking
         },
       };
+
       const removedChecklist = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedChecklist)) {
-        return {
-          success: true,
-          message: "successfully removed the checklist",
-          data: removedChecklist._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedChecklist)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Checklist  you are trying to DELETE does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedChecklist._doc,
+          "checklist"
+        );
+      } else {
+        return createNotFoundResponse(
+          "checklist",
+          "delete",
+          "the User Checklist you are trying to DELETE does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "checklist");
     }
   },
 };

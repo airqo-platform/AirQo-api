@@ -3,13 +3,14 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
+
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 
 const ScopeSchema = new mongoose.Schema(
   {
@@ -41,45 +42,45 @@ ScopeSchema.index({ scope: 1 }, { unique: true });
 ScopeSchema.statics = {
   async register(args, next) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "scope", {
           message: "Scope created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but Scope NOT successfully created",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "scope",
+          "operation successful but Scope NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
-      let response = {};
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided inputs",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "scope");
       }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "validation errors for some of the provided inputs",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
-      let scopes = await this.aggregate()
+      const scopes = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
@@ -102,36 +103,21 @@ ScopeSchema.statics = {
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
-      if (!isEmpty(scopes)) {
-        return {
-          success: true,
-          data: scopes,
-          message: "successfully listed the Scopes",
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          message: "no Scopes exist",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
-      }
+
+      return createSuccessResponse("list", scopes, "scope", {
+        message: "successfully listed the Scopes",
+        emptyMessage: "no Scopes exist",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "scope");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      const modifiedUpdate = update;
+
       const updatedScope = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -139,62 +125,40 @@ ScopeSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedScope)) {
-        let data = updatedScope._doc;
-        return {
-          success: true,
-          message: "successfully modified the Scope",
-          data,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedScope)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Scope does not exist, please crosscheck",
-          })
+        const data = updatedScope._doc;
+        return createSuccessResponse("update", data, "scope");
+      } else {
+        return createNotFoundResponse(
+          "scope",
+          "update",
+          "Scope does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "scope");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, scope: 1, description: 1 },
       };
-      let removedScope = await this.findOneAndRemove(filter, options).exec();
+
+      const removedScope = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedScope)) {
-        let data = removedScope._doc;
-        return {
-          success: true,
-          message: "successfully removed the Scope",
-          data,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedScope)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Scope does not exist, please crosscheck",
-          })
+        const data = removedScope._doc;
+        return createSuccessResponse("delete", data, "scope");
+      } else {
+        return createNotFoundResponse(
+          "scope",
+          "delete",
+          "Scope does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "scope");
     }
   },
 };
