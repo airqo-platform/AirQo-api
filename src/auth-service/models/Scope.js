@@ -4,13 +4,16 @@ const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const { logObject } = require("@utils/shared");
+const log4js = require("log4js");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- scope-model`);
 
 const {
   createSuccessResponse,
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const ScopeSchema = new mongoose.Schema(
   {

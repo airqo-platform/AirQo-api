@@ -16,7 +16,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const SubscriptionSchema = new mongoose.Schema(
   {

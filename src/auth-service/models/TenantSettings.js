@@ -13,7 +13,7 @@ const {
   createSuccessResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const TenantSettingsSchema = new Schema({
   tenant: { type: String, required: true, unique: true },

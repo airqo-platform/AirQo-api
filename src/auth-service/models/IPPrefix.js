@@ -14,7 +14,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 function getDay() {
   const now = new Date();

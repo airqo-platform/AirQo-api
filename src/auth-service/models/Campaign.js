@@ -11,7 +11,7 @@ const {
   createSuccessResponse,
   createErrorResponse,
   createNotFoundResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const CampaignSchema = new Schema(
   {

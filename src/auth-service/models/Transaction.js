@@ -13,7 +13,7 @@ const {
   createSuccessResponse,
   createErrorResponse,
   createNotFoundResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const TransactionSchema = new Schema(
   {
@@ -44,7 +44,7 @@ const TransactionSchema = new Schema(
       type: String,
       required: [true, "Paddle customer ID is required!"],
     },
-
+    transaction_type: { type: String },
     // Payment details
     amount: {
       type: Number,

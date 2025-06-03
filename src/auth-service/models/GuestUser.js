@@ -10,7 +10,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- guest-user-model`
 );

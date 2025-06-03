@@ -16,7 +16,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 function validateProfilePicture(net_profile_picture) {
   const urlRegex =
@@ -463,42 +463,39 @@ NetworkSchema.statics = {
     }
   },
 
-  async oldModify({ filter = {}, update = {} } = {}, next) {
+  async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
 
-      // Remove tenant from update (immutable field)
-      if (modifiedUpdate.tenant) {
-        delete modifiedUpdate.tenant;
-      }
+      // Remove immutable fields using destructuring (performance improvement)
+      const { tenant, ...cleanUpdate } = update;
+      let modifiedUpdate = { ...cleanUpdate };
 
-      // Handle net_departments array with $addToSet
-      if (modifiedUpdate.net_departments) {
-        modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
-        modifiedUpdate["$addToSet"]["net_departments"] = {
-          $each: modifiedUpdate.net_departments,
-        };
-        delete modifiedUpdate["net_departments"];
-      }
+      // Define array fields that need $addToSet handling (easy to extend)
+      const arrayFields = ["net_departments", "net_permissions", "net_roles"];
 
-      // Handle net_permissions array with $addToSet
-      if (modifiedUpdate.net_permissions) {
-        modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
-        modifiedUpdate["$addToSet"]["net_permissions"] = {
-          $each: modifiedUpdate.net_permissions,
-        };
-        delete modifiedUpdate["net_permissions"];
-      }
+      // Handle array fields efficiently in a single loop
+      arrayFields.forEach((field) => {
+        if (modifiedUpdate[field]) {
+          // Initialize $addToSet if not exists
+          modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
 
-      // Handle net_roles array with $addToSet
-      if (modifiedUpdate.net_roles) {
-        modifiedUpdate["$addToSet"] = modifiedUpdate["$addToSet"] || {};
-        modifiedUpdate["$addToSet"]["net_roles"] = {
-          $each: modifiedUpdate.net_roles,
-        };
-        delete modifiedUpdate["net_roles"];
-      }
+          // Add field to $addToSet with $each operator
+          modifiedUpdate["$addToSet"][field] = {
+            $each: modifiedUpdate[field],
+          };
+
+          // Remove field from update (using undefined for better performance)
+          modifiedUpdate[field] = undefined;
+        }
+      });
+
+      // Clean up undefined values for cleaner update object
+      Object.keys(modifiedUpdate).forEach((key) => {
+        if (modifiedUpdate[key] === undefined) {
+          delete modifiedUpdate[key];
+        }
+      });
 
       logObject("modifiedUpdate", modifiedUpdate);
       logObject("filter", filter);
@@ -541,7 +538,7 @@ NetworkSchema.statics = {
     }
   },
 
-  async modify({ filter = {}, update = {} } = {}, next) {
+  async simpleModify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
 

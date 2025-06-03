@@ -10,7 +10,7 @@ const {
   createSuccessResponse,
   createErrorResponse,
   createNotFoundResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- candidate-model`);

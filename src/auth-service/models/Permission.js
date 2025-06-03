@@ -13,7 +13,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const PermissionSchema = new mongoose.Schema(
   {

@@ -12,7 +12,7 @@ const {
   createNotFoundResponse,
   createEmptySuccessResponse,
   createTokenResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const toMilliseconds = (hrs, min, sec) => {
   return (hrs * 60 * 60 + min * 60 + sec) * 1000;

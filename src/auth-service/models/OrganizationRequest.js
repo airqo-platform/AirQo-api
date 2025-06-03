@@ -15,7 +15,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const OrganizationRequestSchema = new Schema(
   {
