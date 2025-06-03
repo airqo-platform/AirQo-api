@@ -6,6 +6,13 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { addWeeksToProvideDateTime } = require("@utils/common");
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
+
 const constants = require("@config/constants");
 const currentDate = new Date();
 const ThemeSchema = require("@models/ThemeSchema");
@@ -446,10 +453,13 @@ PreferenceSchema.statics = {
     try {
       let createBody = args;
       logObject("args", args);
+
+      // Remove _id if present
       if (createBody._id) {
         delete createBody._id;
       }
 
+      // Preserve default period creation logic
       if (isEmpty(createBody.period)) {
         createBody.period = {
           value: "Last 7 days",
@@ -460,56 +470,33 @@ PreferenceSchema.statics = {
       }
 
       logObject("createBody", createBody);
-      let data = await this.create({
+      const data = await this.create({
         ...createBody,
       });
 
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "preference", {
           message: "preference created successfully with no issues detected",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "preference not created despite successful operation",
-          status: httpStatus.OK,
-          data: [],
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "preference",
+          "preference not created despite successful operation"
+        );
       }
     } catch (err) {
       logObject("error in the object", err);
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "create", logger, "preference");
     }
   },
+
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const { user_id } = filter;
 
+      // Preserve complex group_id logic with DEFAULT_GROUP fallback
       const groupIdPresent = filter.group_id !== undefined;
 
       let preferences;
@@ -525,6 +512,7 @@ PreferenceSchema.statics = {
           };
         }
 
+        // Try to find preferences with default group first
         preferences = await this.find({ user_id, group_id: defaultGroupId })
           .sort({ lastAccessed: -1 })
           .skip(skip)
@@ -532,6 +520,7 @@ PreferenceSchema.statics = {
           .lean()
           .exec();
 
+        // Fallback to any preferences for the user if none found with default group
         if (isEmpty(preferences)) {
           preferences = await this.find({ user_id })
             .sort({ lastAccessed: -1 })
@@ -549,10 +538,10 @@ PreferenceSchema.statics = {
           .exec();
       }
 
-      // Sort selected arrays by createdAt (only if preferences were found)
+      // Preserve complex array sorting and timestamp updating logic
       if (!isEmpty(preferences)) {
         preferences.forEach((preference) => {
-          // Check if the field exists and is an array before sorting
+          // Sort selected arrays by createdAt (preserve all field types)
           if (Array.isArray(preference.selected_sites)) {
             preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
           }
@@ -576,7 +565,7 @@ PreferenceSchema.statics = {
           }
         });
 
-        // Update lastAccessed timestamp (only if preferences were found)
+        // Update lastAccessed timestamp for all found preferences
         preferences.forEach(async (preference) => {
           await this.findByIdAndUpdate(preference._id, {
             lastAccessed: new Date(),
@@ -591,21 +580,16 @@ PreferenceSchema.statics = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "preference");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       const updateBody = update;
 
+      // Preserve complex field handling arrays
       const fieldsToUpdate = [
         "selected_sites",
         "selected_grids",
@@ -624,6 +608,7 @@ PreferenceSchema.statics = {
         "group_ids",
       ];
 
+      // Preserve complex field update handling with createdAt timestamps
       const handleFieldUpdate = (field) => {
         if (updateBody[field]) {
           updateBody[field] = updateBody[field].map((item) => ({
@@ -631,23 +616,24 @@ PreferenceSchema.statics = {
             createdAt: item.createdAt || new Date(),
           }));
 
-          updateBody["$addToSet"] = {
-            [field]: { $each: updateBody[field] },
-          };
+          updateBody["$addToSet"] = updateBody["$addToSet"] || {};
+          updateBody["$addToSet"][field] = { $each: updateBody[field] };
           delete updateBody[field];
         }
       };
 
+      // Process all field types
       fieldsToUpdate.forEach(handleFieldUpdate);
+
       fieldsToAddToSet.forEach((field) => {
         if (updateBody[field]) {
-          updateBody["$addToSet"] = {
-            [field]: { $each: updateBody[field] },
-          };
+          updateBody["$addToSet"] = updateBody["$addToSet"] || {};
+          updateBody["$addToSet"][field] = { $each: updateBody[field] };
           delete updateBody[field];
         }
       });
 
+      // Remove _id from update if present
       if (updateBody._id) {
         delete updateBody._id;
       }
@@ -659,71 +645,73 @@ PreferenceSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedPreference)) {
-        return {
-          success: true,
-          message: "successfully modified the preference",
-          data: updatedPreference._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedPreference)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Preference  you are trying to UPDATE does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedPreference._doc,
+          "preference"
+        );
+      } else {
+        return createNotFoundResponse(
+          "preference",
+          "update",
+          "the User Preference you are trying to UPDATE does not exist, please crosscheck"
         );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      // Handle specific duplicate errors
       if (err.code == 11000) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
+        return {
+          success: false,
+          message: "duplicate values provided",
+          status: httpStatus.CONFLICT,
+          errors: err.keyValue || { message: err.message },
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "preference");
       }
-      next(new HttpError(message, status, errors));
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           user_id: 1,
           chartTitle: 1,
           chartSubTitle: 1,
-          airqloud_id: 1,
+          airqloud_id: 1, // Preserve preference-specific projections
         },
       };
-      let removedPreference = await this.findOneAndRemove(
+
+      const removedPreference = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedPreference)) {
-        return {
-          success: true,
-          message: "successfully removed the preference",
-          data: removedPreference._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedPreference)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Preference  you are trying to DELETE does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedPreference._doc,
+          "preference"
+        );
+      } else {
+        return createNotFoundResponse(
+          "preference",
+          "delete",
+          "the User Preference you are trying to DELETE does not exist, please crosscheck"
         );
       }
     } catch (error) {
       logger.error(`Data conflicts detected -- ${error.message}`);
-      next(
-        new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-          message: error.message,
-        })
-      );
+      return {
+        success: false,
+        message: "Data conflicts detected",
+        status: httpStatus.CONFLICT,
+        errors: { message: error.message },
+      };
     }
   },
 };

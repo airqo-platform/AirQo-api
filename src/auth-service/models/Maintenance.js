@@ -2,16 +2,13 @@ const mongoose = require("mongoose");
 mongoose.set("debug", process.env.NODE_ENV !== "production");
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-
 const isEmpty = require("is-empty");
-const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- maintenances-model`
 );
-const { HttpError } = require("@utils/shared");
 const moment = require("moment-timezone");
 const timeZone = moment.tz.guess();
 const maxLimit = 100;
@@ -21,31 +18,12 @@ const PRODUCT_NAMES = Object.freeze({
   ANALYTICS: "analytics",
 });
 
-function handleError(err, next, defaultMessage) {
-  logger.error(`Internal Server Error -- ${err.message}`);
-  let response = {};
-  let errors = {};
-  let message = defaultMessage;
-  let status = httpStatus.INTERNAL_SERVER_ERROR;
-
-  if (err.code === 11000 || err.code === 11001) {
-    errors = err.keyValue;
-    message = "Duplicate maintenance entry for the product.";
-    status = httpStatus.CONFLICT;
-    Object.entries(errors).forEach(([key, value]) => {
-      response[key] = value;
-    });
-  } else {
-    errors = err.errors || { message: err.message };
-    message = "Validation errors for some of the provided fields";
-    status = httpStatus.BAD_REQUEST;
-    Object.entries(errors).forEach(([key, value]) => {
-      response[key] = value.message || value;
-    });
-  }
-
-  next(new HttpError(message, status, response));
-}
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
 
 const MaintenanceSchema = new mongoose.Schema(
   {
@@ -113,23 +91,19 @@ MaintenanceSchema.statics = {
     try {
       const { _id, ...maintenanceRequestBody } = args;
       const data = await this.create(maintenanceRequestBody);
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "maintenance", {
           message: "maintenance created successfully with no issues detected",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "maintenance not created despite successful operation",
-          status: httpStatus.OK,
-          data: [],
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "maintenance",
+          "maintenance not created despite successful operation"
+        );
       }
     } catch (err) {
-      handleError(err, next, "Internal Server Error");
+      return createErrorResponse(err, "create", logger, "maintenance");
     }
   },
   async list({ skip = 0, limit = maxLimit, filter = {} } = {}, next) {
@@ -138,29 +112,19 @@ MaintenanceSchema.statics = {
       const effectiveLimit = Number.isNaN(parsedLimit)
         ? maxLimit
         : Math.min(parsedLimit, maxLimit);
+
       const maintenances = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(effectiveLimit)
         .exec();
 
-      if (!isEmpty(maintenances)) {
-        return {
-          success: true,
-          data: maintenances,
-          message: "Successfully listed the maintenances",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(maintenances)) {
-        return {
-          success: true,
-          message: "No maintenances found for this search",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", maintenances, "maintenance", {
+        message: "Successfully listed the maintenances",
+        emptyMessage: "No maintenances found for this search",
+      });
     } catch (error) {
-      handleError(error, next, "Internal Server Error");
+      return createErrorResponse(error, "list", logger, "maintenance");
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -174,27 +138,25 @@ MaintenanceSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedMaintenance)) {
-        return {
-          success: true,
-          message: "successfully modified the maintenance",
-          data: updatedMaintenance._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedMaintenance)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "The maintenance record you are trying to update does not exist. Please verify the provided filters",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedMaintenance._doc,
+          "maintenance"
+        );
+      } else {
+        return createNotFoundResponse(
+          "maintenance",
+          "update",
+          "The maintenance record you are trying to update does not exist. Please verify the provided filters"
         );
       }
     } catch (err) {
-      handleError(err, next, "Internal Server Error");
+      return createErrorResponse(err, "update", logger, "maintenance");
     }
   },
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           product: 1,
@@ -204,28 +166,27 @@ MaintenanceSchema.statics = {
           endDate: 1,
         },
       };
-      let removedMaintenance = await this.findOneAndRemove(
+
+      const removedMaintenance = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedMaintenance)) {
-        return {
-          success: true,
-          message: "successfully removed the maintenance",
-          data: removedMaintenance._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedMaintenance)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "The maintenance record you are trying to delete does not exist. Please verify the provided filters",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedMaintenance._doc,
+          "maintenance"
+        );
+      } else {
+        return createNotFoundResponse(
+          "maintenance",
+          "delete",
+          "The maintenance record you are trying to delete does not exist. Please verify the provided filters"
         );
       }
     } catch (error) {
-      handleError(error, next, "Internal Server Error");
+      return createErrorResponse(error, "delete", logger, "maintenance");
     }
   },
 };

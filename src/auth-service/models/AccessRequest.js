@@ -2,15 +2,14 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/common");
 const isEmpty = require("is-empty");
-const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
@@ -57,37 +56,26 @@ const AccessRequestSchema = new Schema(
 AccessRequestSchema.statics = {
   async register(args, next) {
     try {
-      let newArgs = Object.assign({}, args);
+      const newArgs = Object.assign({}, args);
       const data = await this.create({
         ...newArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "access request", {
           message: "access request created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message:
-            "operation successful but Access Request NOT successfully created",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "access request",
+          "operation successful but Access Request NOT successfully created"
+        );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "create", logger, "access request");
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
@@ -96,9 +84,11 @@ AccessRequestSchema.statics = {
         constants.ACCESS_REQUESTS_EXCLUSION_PROJECTION(
           filter.category ? filter.category : "none"
         );
+
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
+
       const data = await this.aggregate()
         .match(filter)
         .lookup({
@@ -114,32 +104,15 @@ AccessRequestSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "successfully listed the access_requests",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "no access_requests exist",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", data, "access request", {
+        message: "successfully listed the access requests", // Fixed grammar: "access_requests" → "access requests"
+        emptyMessage: "no access requests exist", // Fixed grammar
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "access request");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
@@ -150,30 +123,23 @@ AccessRequestSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedAccessRequest)) {
-        return {
-          success: true,
-          message: "successfully modified the access request",
-          data: updatedAccessRequest._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedAccessRequest)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "access request does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedAccessRequest._doc,
+          "access request"
+        );
+      } else {
+        return createNotFoundResponse(
+          "access request",
+          "update",
+          "access request does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "access request");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -186,34 +152,28 @@ AccessRequestSchema.statics = {
           status: 1,
         },
       };
+
       const removedAccessRequest = await this.findOneAndRemove(
         filter,
         options
       ).exec();
+
       if (!isEmpty(removedAccessRequest)) {
-        return {
-          success: true,
-          message: "successfully removed the access request",
-          data: removedAccessRequest._doc,
-          status: httpStatus.OK,
-        };
+        return createSuccessResponse(
+          "delete",
+          removedAccessRequest._doc,
+          "access request"
+        );
       } else {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "access request does not exist, please crosscheck",
-          })
+        return createNotFoundResponse(
+          "access request",
+          "delete",
+          "access request does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logObject("the model error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      logObject("the model error", error); // Preserve custom logging
+      return createErrorResponse(error, "delete", logger, "access request");
     }
   },
 };

@@ -5,12 +5,13 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- token-model`);
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+  createTokenResponse,
 } = require("@utils/shared");
 
 const toMilliseconds = (hrs, min, sec) => {
@@ -55,6 +56,8 @@ VerifyTokenSchema.statics = {
     try {
       if (authorizationToken) {
         let verifyToken;
+
+        // Preserve complex token parsing logic (hash vs split token)
         if (!authorizationToken.includes("|")) {
           verifyToken = await this.findOne({
             where: { token: hash(authorizationToken) },
@@ -70,30 +73,38 @@ VerifyTokenSchema.statics = {
           }
         }
 
-        if (!verifyToken) return { user: null, currentVerifyToken: null };
+        if (!verifyToken) return createTokenResponse(null, null, "verify");
 
+        // Preserve last_used_at update logic
         verifyToken.last_used_at = new Date(Date.now());
         await verifyToken.save();
-        return {
-          user: verifyToken.owner,
-          currentVerifyToken: verifyToken.token,
-        };
+
+        return createTokenResponse(
+          verifyToken.owner,
+          verifyToken.token,
+          "verify"
+        );
       }
-      return { user: null, currentVerifyToken: null };
+
+      return createTokenResponse(null, null, "verify");
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        user: null,
+        currentVerifyToken: null,
+      };
     }
   },
+
   async register(args, next) {
     try {
       let modifiedArgs = args;
+
+      // Preserve complex expiration logic based on category
       if (isEmpty(modifiedArgs.expires)) {
         if (modifiedArgs.category && modifiedArgs.category === "api") {
           modifiedArgs.expires =
@@ -114,40 +125,57 @@ VerifyTokenSchema.statics = {
         }
       }
 
-      data = await this.create({
+      const data = await this.create({
+        // Fixed: was undeclared variable
         ...modifiedArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "verify token", {
           message: "Token created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but Token NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "verify token",
+          "operation successful but Token NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
       let response = {};
-      if (err.keyValue) {
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          return (response[key] = `the ${key} must be unique`);
+      let message = "Internal Server Error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      if (err.code === 11000 || err.code === 11001) {
+        message = "input validation errors"; // Preserve specific error message
+        status = httpStatus.CONFLICT;
+        if (err.keyValue) {
+          Object.entries(err.keyValue).forEach(([key, value]) => {
+            return (response[key] = `the ${key} must be unique`);
+          });
+        }
+      } else if (err.errors) {
+        message = "validation errors for some of the provided fields";
+        status = httpStatus.CONFLICT;
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
         });
+      } else {
+        response = { message: err.message };
       }
 
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError("input validation errors", httpStatus.CONFLICT, response)
-      );
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
@@ -166,39 +194,24 @@ VerifyTokenSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 300)
+        .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the token details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "No tokens found, please crosscheck provided details",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "verify token", {
+        message: "successfully retrieved the token details",
+        emptyMessage: "No tokens found, please crosscheck provided details",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "verify token");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
+      const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
+
+      // Preserve immutable field deletion logic
       if (!isEmpty(modifiedUpdate.user_id)) {
         delete modifiedUpdate.user_id;
       }
@@ -211,67 +224,53 @@ VerifyTokenSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedToken)) {
-        return {
-          success: true,
-          message: "successfully modified the Token",
-          data: updatedToken._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedToken)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Token does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedToken._doc,
+          "verify token"
+        );
+      } else {
+        return createNotFoundResponse(
+          "verify token",
+          "update",
+          "Token does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "verify token");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 0,
           token: 1,
           name: 1,
-          expires_in: 1,
+          expires_in: 1, // Preserve token-specific projections
         },
       };
 
       const removedToken = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedToken)) {
-        return {
-          success: true,
-          message: "successfully removed the Token",
-          data: removedToken._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedToken)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Token does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedToken._doc,
+          "verify token"
+        );
+      } else {
+        return createNotFoundResponse(
+          "verify token",
+          "delete",
+          "Token does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "verify token");
     }
   },
 };
