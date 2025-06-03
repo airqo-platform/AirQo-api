@@ -20,6 +20,9 @@ const {
   createNotFoundResponse,
   createEmptySuccessResponse,
   createTokenResponse,
+  handleResponse,
+  createControllerHandler,
+  createCRUDControllers,
 } = require("./response-helpers");
 
 module.exports = {
@@ -28,6 +31,9 @@ module.exports = {
   createNotFoundResponse,
   createEmptySuccessResponse,
   createTokenResponse,
+  handleResponse,
+  createControllerHandler,
+  createCRUDControllers,
   EnvironmentDetector,
   stringify,
   isDevelopment,

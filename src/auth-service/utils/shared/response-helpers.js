@@ -1,4 +1,6 @@
+//response-helpers.js
 const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
 
 /**
  * Creates standardized success responses for model operations
@@ -190,10 +192,103 @@ const createTokenResponse = (user, token, tokenType = "access") => {
   };
 };
 
+/**
+ * Handles HTTP response sending based on standardized result objects
+ * @param {Object} res - Express response object
+ * @param {Object} result - Result object from util functions
+ * @param {string} successDataKey - Key to use for success data (defaults to "data")
+ */
+const handleResponse = (res, result, successDataKey = "data") => {
+  if (isEmpty(result) || res.headersSent) {
+    return;
+  }
+
+  const status =
+    result.status ||
+    (result.success ? httpStatus.OK : httpStatus.INTERNAL_SERVER_ERROR);
+
+  if (result.success) {
+    res.status(status).json({
+      success: true,
+      message: result.message,
+      [successDataKey]: result.data,
+    });
+  } else {
+    res.status(status).json({
+      success: false,
+      message: result.message,
+      errors: result.errors || { message: "" },
+    });
+  }
+};
+
+/**
+ * Higher-level controller wrapper that handles common controller patterns
+ * @param {Function} utilFunction - The util function to call
+ * @param {string} resourceName - Name of the resource for response data key
+ * @param {Object} logger - Logger instance
+ * @returns {Function} Express middleware function
+ */
+const createControllerHandler = (utilFunction, resourceName, logger) => {
+  return async (req, res, next) => {
+    try {
+      const { extractErrorsFromRequest, HttpError } = require("@utils/shared");
+
+      // Check for validation errors
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      // Call the util function
+      const result = await utilFunction(req, next);
+
+      // Handle response
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      handleResponse(res, result, resourceName);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: "An unexpected error occurred." }
+        )
+      );
+      return;
+    }
+  };
+};
+
+/**
+ * Creates a complete set of CRUD controller handlers
+ * @param {Object} util - Util object with CRUD methods
+ * @param {string} resourceName - Name of the resource
+ * @param {Object} logger - Logger instance
+ * @returns {Object} Object with create, list, update, delete handlers
+ */
+const createCRUDControllers = (util, resourceName, logger) => {
+  return {
+    create: createControllerHandler(util.create, resourceName, logger),
+    list: createControllerHandler(util.list, resourceName, logger),
+    update: createControllerHandler(util.update, resourceName, logger),
+    delete: createControllerHandler(util.delete, resourceName, logger),
+  };
+};
+
 module.exports = {
   createSuccessResponse,
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
   createTokenResponse,
+  handleResponse,
+  createControllerHandler,
+  createCRUDControllers,
 };
