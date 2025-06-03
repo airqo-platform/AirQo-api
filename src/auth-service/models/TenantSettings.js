@@ -9,6 +9,11 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- tenant-settings-model`
 );
+const {
+  createSuccessResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
 
 const TenantSettingsSchema = new Schema({
   tenant: { type: String, required: true, unique: true },
@@ -17,33 +22,37 @@ const TenantSettingsSchema = new Schema({
   defaultGroup: { type: Schema.Types.ObjectId, ref: "Group" },
   defaultGroupRole: { type: Schema.Types.ObjectId, ref: "Role" },
 });
+
 TenantSettingsSchema.statics = {
   async register(args, next) {
     try {
       const createdTenantSettings = await this.create({
         ...args,
       });
+
       if (!isEmpty(createdTenantSettings)) {
-        return {
-          success: true,
-          data: createdTenantSettings,
-          message: "tenant settings created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(createdTenantSettings)) {
-        return {
-          success: true,
-          data: createdTenantSettings,
-          message:
-            "Operation successful but tenant settings NOT successfully created",
-          status: httpStatus.OK,
-        };
+        return createSuccessResponse(
+          "create",
+          createdTenantSettings,
+          "tenant settings",
+          {
+            message: "tenant settings created",
+          }
+        );
+      } else {
+        return createEmptySuccessResponse(
+          "tenant settings",
+          "Operation successful but tenant settings NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.code === 11000) {
         logObject("the err.code again", err.code);
         const duplicate_record = args.tenant ? args.tenant : "unknown";
@@ -58,89 +67,113 @@ TenantSettingsSchema.statics = {
         Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
+      } else {
+        response = { message: err.message };
       }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
+      // Preserve totalCount functionality
       const totalCount = await this.countDocuments(filter).exec();
+
       const data = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip ? parseInt(skip) : 0)
         .limit(limit ? parseInt(limit) : parseInt(constants.DEFAULT_LIMIT))
         .exec();
+
       if (!isEmpty(data)) {
         return {
           success: true,
           message: "successfully retrieved the tenant settings",
           data,
-          totalCount,
+          totalCount, // Preserve totalCount in response
           status: httpStatus.OK,
         };
-      } else if (isEmpty(data)) {
+      } else {
         return {
           success: true,
           message: "no tenant settings exist",
           data: [],
-          totalCount,
+          totalCount, // Preserve totalCount even for empty results
           status: httpStatus.OK,
         };
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+
+      // Preserve HttpError instanceof check
       if (error instanceof HttpError) {
-        return next(error);
+        return error;
       }
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       logText("the tenant settings modification function........");
       const options = { new: true };
+
+      // Preserve dynamic field selection logic
       const fieldNames = Object.keys(update);
       const fieldsString = fieldNames.join(" ");
+
       const updatedTenantSettings = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).select(fieldsString);
+
       if (!isEmpty(updatedTenantSettings)) {
+        // Preserve _id removal from response
         const { _id, ...tenantSettingsData } = updatedTenantSettings._doc;
+
         return {
           success: true,
           message: "successfully modified the tenant settings",
           data: tenantSettingsData,
           status: httpStatus.OK,
         };
+      } else {
+        return createNotFoundResponse(
+          "tenant settings",
+          "update",
+          "tenant settings do not exist, please crosscheck"
+        );
       }
-      return next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "tenant settings do not exist, please crosscheck",
-        })
-      );
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+
+      // Preserve HttpError instanceof check
       if (error instanceof HttpError) {
-        return next(error);
+        return error;
       }
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -149,38 +182,43 @@ TenantSettingsSchema.statics = {
           tenant: 1,
         },
       };
+
       const removedTenantSettings = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedTenantSettings)) {
-        return {
-          success: true,
-          message: "Successfully removed the tenant settings",
-          data: removedTenantSettings._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedTenantSettings)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Provided Tenant Settings do not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedTenantSettings._doc,
+          "tenant settings",
+          {
+            message: "Successfully removed the tenant settings",
+          }
+        );
+      } else {
+        return createNotFoundResponse(
+          "tenant settings",
+          "delete",
+          "Provided Tenant Settings do not exist, please crosscheck"
         );
       }
     } catch (error) {
       logObject("the models error", error);
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+
+      // Preserve HttpError instanceof check
       if (error instanceof HttpError) {
-        return next(error);
+        return error;
       }
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
 };

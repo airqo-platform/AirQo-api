@@ -3,17 +3,16 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
-const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- department-model`);
+const { logObject, logElement } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
 } = require("@utils/shared");
 
 const DepartmentSchema = new Schema(
@@ -98,52 +97,32 @@ DepartmentSchema.statics = {
     try {
       let modifiedArgs = args;
       let tenant = modifiedArgs.tenant;
+
+      // Preserve tenant sanitization logic
       if (tenant) {
         modifiedArgs["tenant"] = sanitizeName(tenant);
       }
-      let data = await this.create({
+
+      const data = await this.create({
         ...modifiedArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "department", {
           message: "department created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message:
-            "department NOT successfully created but operation successful",
-          status: httpStatus.OK,
-        };
-      }
-    } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
         });
       } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
+        return createEmptySuccessResponse(
+          "department",
+          "department NOT successfully created but operation successful"
+        );
       }
+    } catch (err) {
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "create", logger, "department");
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const response = await this.aggregate()
@@ -213,56 +192,28 @@ DepartmentSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the departments",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "departments do not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "department", {
+        message: "successfully retrieved the departments",
+        emptyMessage: "departments do not exist, please crosscheck",
+      });
     } catch (err) {
       logObject("err", err);
-      let response = {};
-      let errors = {};
-      let message = "internal server error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        errors = err.errors;
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-      logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "list", logger, "department");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      let modifiedUpdate = { ...update };
       modifiedUpdate["$addToSet"] = {};
 
+      // Remove tenant from update
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
 
+      // Handle dep_users array with $addToSet
       if (modifiedUpdate.dep_users) {
         modifiedUpdate["$addToSet"]["dep_users"] = {};
         modifiedUpdate["$addToSet"]["dep_users"]["$each"] =
@@ -270,6 +221,7 @@ DepartmentSchema.statics = {
         delete modifiedUpdate["dep_users"];
       }
 
+      // Handle dep_children array with $addToSet
       if (modifiedUpdate.dep_children) {
         modifiedUpdate["$addToSet"]["dep_children"] = {};
         modifiedUpdate["$addToSet"]["dep_children"]["$each"] =
@@ -284,95 +236,55 @@ DepartmentSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedDepartment)) {
-        return {
-          success: true,
-          message: "successfully modified the department",
-          data: updatedDepartment._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedDepartment)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "The provided department does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedDepartment._doc,
+          "department"
+        );
+      } else {
+        return createNotFoundResponse(
+          "department",
+          "update",
+          "The provided department does not exist, please crosscheck"
         );
       }
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "update", logger, "department");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           dep_parent: 1,
           dep_title: 1,
         },
       };
-      let removedDepartment = await this.findOneAndRemove(
+
+      const removedDepartment = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedDepartment)) {
-        return {
-          success: true,
-          message: "successfully removed the department",
-          data: removedDepartment._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedDepartment)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "The department does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedDepartment._doc,
+          "department"
+        );
+      } else {
+        return createNotFoundResponse(
+          "department",
+          "delete",
+          "The department does not exist, please crosscheck"
         );
       }
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
       logger.error(`🐛🐛 Internal Server Error ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "delete", logger, "department");
     }
   },
 };

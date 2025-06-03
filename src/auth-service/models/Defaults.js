@@ -9,7 +9,13 @@ const currentDate = new Date();
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
-const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
 
 const periodSchema = new mongoose.Schema(
   {
@@ -137,9 +143,13 @@ DefaultsSchema.statics = {
   async register(args, next) {
     try {
       let body = args;
+
+      // Remove _id if present
       if (body._id) {
         delete body._id;
       }
+
+      // Preserve default period logic
       if (isEmpty(args.period)) {
         args.period = {
           value: "Last 7 days",
@@ -148,50 +158,27 @@ DefaultsSchema.statics = {
           unit: "day",
         };
       }
-      let data = await this.create({
+
+      const data = await this.create({
         ...body,
       });
 
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "default", {
           message: "default created successfully with no issues detected",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "default not created despite successful operation",
-          status: httpStatus.OK,
-          data: [],
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "default",
+          "default not created despite successful operation"
+        );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "create", logger, "default");
     }
   },
+
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const defaults = await this.find(filter)
@@ -200,38 +187,24 @@ DefaultsSchema.statics = {
         .limit(limit)
         .exec();
 
-      if (!isEmpty(defaults)) {
-        return {
-          success: true,
-          data: defaults,
-          message: "successfully listed the defaults",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(defaults)) {
-        return {
-          success: true,
-          message: "no defaults found for this search",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", defaults, "default", {
+        message: "successfully listed the defaults",
+        emptyMessage: "no defaults found for this search",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "default");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
+
+      // Remove _id from update if present
       if (update._id) {
         delete update._id;
       }
+
       const updatedDefault = await this.findOneAndUpdate(
         filter,
         update,
@@ -239,36 +212,34 @@ DefaultsSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedDefault)) {
-        return {
-          success: true,
-          message: "successfully modified the default",
-          data: updatedDefault._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedDefault)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "The User Default you are trying to UPDATE does not exist, please crosscheck",
-          })
+        return createSuccessResponse("update", updatedDefault._doc, "default");
+      } else {
+        return createNotFoundResponse(
+          "default",
+          "update",
+          "The User Default you are trying to UPDATE does not exist, please crosscheck"
         );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      // Handle specific duplicate errors
       if (err.code == 11000) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
+        return {
+          success: false,
+          message: "duplicate values provided",
+          status: httpStatus.CONFLICT,
+          errors: err.keyValue || { message: err.message },
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "default");
       }
-      next(new HttpError(message, status, errors));
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           user: 1,
@@ -277,35 +248,23 @@ DefaultsSchema.statics = {
           airqloud: 1,
         },
       };
+
       const removedDefault = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedDefault)) {
-        return {
-          success: true,
-          message: "successfully removed the default",
-          data: removedDefault._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedDefault)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Default  you are trying to DELETE does not exist, please crosscheck",
-          })
+        return createSuccessResponse("delete", removedDefault._doc, "default");
+      } else {
+        return createNotFoundResponse(
+          "default",
+          "delete",
+          "the User Default you are trying to DELETE does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "default");
     }
   },
 };
