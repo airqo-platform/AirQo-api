@@ -5,13 +5,13 @@ var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
+const { addWeeksToProvideDateTime } = require("@utils/common");
 const {
-  addWeeksToProvideDateTime,
   createSuccessResponse,
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 
 const constants = require("@config/constants");
 const currentDate = new Date();
