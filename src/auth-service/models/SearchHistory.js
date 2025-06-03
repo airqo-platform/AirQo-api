@@ -7,13 +7,14 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-search-history-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
 } = require("@utils/shared");
+
 const SearchHistorySchema = new mongoose.Schema(
   {
     place_id: {
@@ -67,44 +68,42 @@ SearchHistorySchema.pre("update", function (next) {
 SearchHistorySchema.statics = {
   async register(args, next) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "search history", {
           message: "Search History created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message:
-            "operation successful but Search History NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "search history",
+          "operation successful but Search History NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
-      let response = {};
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided input",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "search history");
       }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "validation errors for some of the provided input",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
@@ -113,11 +112,12 @@ SearchHistorySchema.statics = {
         constants.SEARCH_HISTORIES_EXCLUSION_PROJECTION(
           filter.category ? filter.category : "none"
         );
+
       if (!isEmpty(filter.category)) {
         delete filter.category;
       }
 
-      let pipeline = await this.aggregate()
+      const pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -127,36 +127,20 @@ SearchHistorySchema.statics = {
         .allowDiskUse(true);
 
       const search_histories = pipeline;
-      if (!isEmpty(search_histories)) {
-        return {
-          success: true,
-          data: search_histories,
-          message: "successfully listed the Search Histories",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(search_histories)) {
-        return {
-          success: true,
-          message: "no Search Histories exist",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+
+      return createSuccessResponse("list", search_histories, "search history", {
+        message: "successfully listed the Search Histories",
+        emptyMessage: "no Search Histories exist",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "search history");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      const modifiedUpdate = update;
 
       const updatedSearchHistory = await this.findOneAndUpdate(
         filter,
@@ -165,30 +149,23 @@ SearchHistorySchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedSearchHistory)) {
-        return {
-          success: true,
-          message: "successfully modified the Search History",
-          data: updatedSearchHistory._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedSearchHistory)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Search History does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedSearchHistory._doc,
+          "search history"
+        );
+      } else {
+        return createNotFoundResponse(
+          "search history",
+          "update",
+          "Search History does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "search history");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -203,34 +180,27 @@ SearchHistorySchema.statics = {
           date_time: 1,
         },
       };
+
       const removedSearchHistory = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedSearchHistory)) {
-        return {
-          success: true,
-          message: "successfully removed the Search History",
-          data: removedSearchHistory._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedSearchHistory)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Search History does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedSearchHistory._doc,
+          "search history"
+        );
+      } else {
+        return createNotFoundResponse(
+          "search history",
+          "delete",
+          "Search History does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "search history");
     }
   },
 };

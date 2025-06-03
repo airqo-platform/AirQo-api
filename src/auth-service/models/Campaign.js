@@ -8,11 +8,9 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- campaign-model`);
 const { getModelByTenant } = require("@config/database");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
 } = require("@utils/shared");
 
 const CampaignSchema = new Schema(
@@ -135,6 +133,7 @@ CampaignSchema.statics = {
    */
   async create(args, next) {
     try {
+      // Remove _id if present
       if (args._id) {
         delete args._id;
       }
@@ -146,33 +145,34 @@ CampaignSchema.statics = {
           success: true,
           data,
           message: "Campaign created successfully",
-          status: httpStatus.CREATED,
+          status: httpStatus.CREATED, // Preserve original CREATED status
         };
       } else {
         return {
           success: false,
           data: [],
           message: "Campaign could not be created",
-          status: httpStatus.UNPROCESSABLE_ENTITY,
+          status: httpStatus.UNPROCESSABLE_ENTITY, // Preserve original status
         };
       }
     } catch (err) {
       logger.error(`Campaign Creation Error: ${err.message}`);
 
-      let response = {};
+      // Handle validation errors specifically
       if (err.errors) {
+        let response = {};
         Object.entries(err.errors).forEach(([key, value]) => {
           response[key] = value.message;
         });
+        return {
+          success: false,
+          message: "Validation errors for campaign",
+          status: httpStatus.BAD_REQUEST,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "campaign");
       }
-
-      next(
-        new HttpError(
-          "Validation errors for campaign",
-          httpStatus.BAD_REQUEST,
-          response
-        )
-      );
     }
   },
 
@@ -188,61 +188,152 @@ CampaignSchema.statics = {
     try {
       const response = await this.aggregate()
         .match(filter)
-        .sort(sort)
+        .sort(sort) // Preserve custom sort parameter
         .skip(skip)
         .limit(limit)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "Successfully retrieved campaigns",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          message: "No campaigns found",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
-      }
+      return createSuccessResponse("list", response, "campaign", {
+        message: "Successfully retrieved campaigns",
+        emptyMessage: "No campaigns found",
+      });
     } catch (error) {
       logger.error(`Campaign Listing Error: ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "campaign");
+    }
+  },
+
+  /**
+   * Update a campaign
+   * @param {Object} options - Update options
+   * @param {Function} next - Error handling callback
+   */
+  async modify({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+
+      // Remove _id from update if present
+      if (update._id) {
+        delete update._id;
+      }
+
+      const updatedCampaign = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedCampaign)) {
+        return createSuccessResponse(
+          "update",
+          updatedCampaign._doc,
+          "campaign"
+        );
+      } else {
+        return createNotFoundResponse(
+          "campaign",
+          "update",
+          "Campaign does not exist, please crosscheck"
+        );
+      }
+    } catch (err) {
+      logger.error(`Campaign Update Error: ${err.message}`);
+      return createErrorResponse(err, "update", logger, "campaign");
+    }
+  },
+
+  /**
+   * Remove a campaign
+   * @param {Object} options - Remove options
+   * @param {Function} next - Error handling callback
+   */
+  async remove({ filter = {} } = {}, next) {
+    try {
+      const options = {
+        projection: {
+          _id: 1,
+          title: 1,
+          category: 1,
+          target_amount: 1,
+          current_amount: 1,
+          status: 1,
+        },
+      };
+
+      const removedCampaign = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
+
+      if (!isEmpty(removedCampaign)) {
+        return createSuccessResponse(
+          "delete",
+          removedCampaign._doc,
+          "campaign"
+        );
+      } else {
+        return createNotFoundResponse(
+          "campaign",
+          "delete",
+          "Campaign does not exist, please crosscheck"
+        );
+      }
+    } catch (error) {
+      logger.error(`Campaign Removal Error: ${error.message}`);
+      return createErrorResponse(error, "delete", logger, "campaign");
     }
   },
 
   /**
    * Get campaign statistics
    * @param {Object} filter - Aggregation filter
+   * @returns {Promise<Array>} Aggregation results
    */
   async getStats(filter = {}) {
-    return this.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          totalCampaigns: { $sum: 1 },
-          totalTargetAmount: { $sum: "$target_amount" },
-          totalRaisedAmount: { $sum: "$current_amount" },
-          campaignsByCategory: {
-            $push: {
-              category: "$category",
-              count: 1,
-              amount: "$current_amount",
+    try {
+      const stats = await this.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            totalCampaigns: { $sum: 1 },
+            totalTargetAmount: { $sum: "$target_amount" },
+            totalRaisedAmount: { $sum: "$current_amount" },
+            campaignsByCategory: {
+              $push: {
+                category: "$category",
+                count: 1,
+                amount: "$current_amount",
+              },
             },
           },
         },
-      },
-    ]);
+      ]);
+
+      if (!isEmpty(stats)) {
+        return {
+          success: true,
+          data: stats[0] || {},
+          message: "Successfully retrieved campaign statistics",
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          data: {},
+          message: "No campaign statistics found",
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`Campaign Stats Error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve campaign statistics",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
   },
 };
 

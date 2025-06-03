@@ -5,13 +5,13 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
 } = require("@utils/shared");
+
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- candidate-model`);
 
@@ -68,61 +68,55 @@ CandidateSchema.statics = {
   async register(args, next) {
     try {
       let newArgs = Object.assign({}, args);
+
+      // Preserve complex network_id default assignment logic
       if (isEmpty(newArgs.network_id)) {
         if (isEmpty(constants.DEFAULT_NETWORK)) {
           logger.error(
             `Unable to determine the Network to which User will belong`
           );
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message:
-                  "Contact support@airqo.net -- unable to determine the Network to which User will belong",
-              }
-            )
-          );
+          return {
+            success: false,
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message:
+                "Contact support@airqo.net -- unable to determine the Network to which User will belong",
+            },
+          };
         }
         newArgs.network_id = constants.DEFAULT_NETWORK;
         logObject("newArgs.network_id", newArgs.network_id);
       }
+
       const data = await this.create({
         ...newArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "candidate", {
           message: "candidate created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
+        });
+      } else {
+        // Preserve specific error handling for empty data case
         logger.error(
           "Operation successful but candidate NOT successfully created"
         );
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message:
-                "Operation not successful, please try again or contact support",
-            }
-          )
-        );
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "Operation not successful, please try again or contact support",
+          },
+        };
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "create", logger, "candidate");
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.CANDIDATES_INCLUSION_PROJECTION;
@@ -155,32 +149,15 @@ CandidateSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "successfully listed the candidates",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "no candidates exist",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", data, "candidate", {
+        message: "successfully listed the candidates",
+        emptyMessage: "no candidates exist",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "candidate");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
@@ -191,62 +168,49 @@ CandidateSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedCandidate)) {
-        return {
-          success: true,
-          message: "successfully modified the candidate",
-          data: updatedCandidate._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedCandidate)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "candidate does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedCandidate._doc,
+          "candidate"
+        );
+      } else {
+        return createNotFoundResponse(
+          "candidate",
+          "update",
+          "candidate does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "candidate");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
+
       const removedCandidate = await this.findOneAndRemove(
         filter,
         options
       ).exec();
+
       if (!isEmpty(removedCandidate)) {
-        return {
-          success: true,
-          message: "successfully removed the candidate",
-          data: removedCandidate._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedCandidate)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "candidate does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedCandidate._doc,
+          "candidate"
+        );
+      } else {
+        return createNotFoundResponse(
+          "candidate",
+          "delete",
+          "candidate does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "candidate");
     }
   },
 };

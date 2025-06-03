@@ -7,14 +7,15 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-model`
 );
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject } = require("@utils/shared");
 const { getModelByTenant } = require("@config/database");
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
+
 const FavoriteSchema = new mongoose.Schema(
   {
     place_id: {
@@ -65,43 +66,43 @@ FavoriteSchema.pre("update", function (next) {
 FavoriteSchema.statics = {
   async register(args, next) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "favorite", {
           message: "Favorite created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but Favorite NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "favorite",
+          "operation successful but Favorite NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
       logger.error(`🐛🐛 Internal Server Error -- ${JSON.stringify(err)}`);
-      let response = {};
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided fields",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "favorite");
       }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.FAVORITES_INCLUSION_PROJECTION;
@@ -113,7 +114,7 @@ FavoriteSchema.statics = {
         delete filter.category;
       }
 
-      let pipeline = await this.aggregate()
+      const pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -123,36 +124,20 @@ FavoriteSchema.statics = {
         .allowDiskUse(true);
 
       const favorites = pipeline;
-      if (!isEmpty(favorites)) {
-        return {
-          success: true,
-          data: favorites,
-          message: "successfully listed the favorites",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(favorites)) {
-        return {
-          success: true,
-          message: "no favorites exist",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+
+      return createSuccessResponse("list", favorites, "favorite", {
+        message: "successfully listed the favorites",
+        emptyMessage: "no favorites exist",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "favorite");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      const modifiedUpdate = update;
 
       const updatedFavorite = await this.findOneAndUpdate(
         filter,
@@ -161,30 +146,23 @@ FavoriteSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedFavorite)) {
-        return {
-          success: true,
-          message: "successfully modified the Favorite",
-          data: updatedFavorite._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedFavorite)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Favorite does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedFavorite._doc,
+          "favorite"
+        );
+      } else {
+        return createNotFoundResponse(
+          "favorite",
+          "update",
+          "Favorite does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "favorite");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -198,36 +176,30 @@ FavoriteSchema.statics = {
           firebase_user_id: 1,
         },
       };
+
       const removedFavorite = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedFavorite)) {
-        return {
-          success: true,
-          message: "successfully removed the Favorite",
-          data: removedFavorite._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedFavorite)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Favorite does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedFavorite._doc,
+          "favorite"
+        );
+      } else {
+        return createNotFoundResponse(
+          "favorite",
+          "delete",
+          "Favorite does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "favorite");
     }
   },
+
   syncFavorites: async (request, next) => {
     try {
       const { query, body, params } = request;
@@ -277,6 +249,7 @@ FavoriteSchema.statics = {
           success: true,
           message: "No favorite places to sync",
           data: [],
+          status: httpStatus.OK,
         };
       }
 
@@ -366,20 +339,18 @@ FavoriteSchema.statics = {
         responseFromCreateFavorite.success === false &&
         responseFromDeleteFavorite.success === false
       ) {
-        next(
-          new HttpError(
-            "Error Synchronizing favorites",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: `Response from Create Favorite: ${
-                responseFromCreateFavorite?.errors?.message || "Unknown error"
-              }
-             + Response from Delete Favorite: ${
-               responseFromDeleteFavorite?.errors?.message || "Unknown error"
-             }`,
-            }
-          )
-        );
+        return {
+          success: false,
+          message: "Error Synchronizing favorites",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: `Response from Create Favorite: ${
+              responseFromCreateFavorite?.errors?.message || "Unknown error"
+            } + Response from Delete Favorite: ${
+              responseFromDeleteFavorite?.errors?.message || "Unknown error"
+            }`,
+          },
+        };
       }
 
       return {
@@ -390,15 +361,15 @@ FavoriteSchema.statics = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
+
   async upsert(args, next) {
     try {
       const { place_id, firebase_user_id, ...updateData } = args;
@@ -437,13 +408,12 @@ FavoriteSchema.statics = {
       }
 
       // For other errors, use the standard error handling
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: err.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
+      };
     }
   },
 };
