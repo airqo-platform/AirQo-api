@@ -6,7 +6,7 @@ Device Registry is responsible for managing the creation of devices, sites, and 
 
 It follows the Model-View-Controller (MVC) architectural pattern.
 
-## Folder Structure
+## Folder Structure.
 
 ```
 .
