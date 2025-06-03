@@ -109,7 +109,6 @@ SubscriptionSchema.statics = {
       return createErrorResponse(err, "create", logger, "subscription");
     }
   },
-
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
       const subscriptions = await this.find(filter)
@@ -126,7 +125,6 @@ SubscriptionSchema.statics = {
       return createErrorResponse(error, "list", logger, "subscription");
     }
   },
-
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
@@ -172,7 +170,6 @@ SubscriptionSchema.statics = {
       }
     }
   },
-
   async remove({ filter = {} } = {}, next) {
     try {
       const options = {
@@ -209,7 +206,6 @@ SubscriptionSchema.statics = {
       };
     }
   },
-
   async unsubscribe(email, type) {
     try {
       const result = await this.updateOne(
@@ -242,7 +238,6 @@ SubscriptionSchema.statics = {
       };
     }
   },
-
   async checkNotificationStatus({ email, type }, next) {
     try {
       const subscription = await this.findOne({ email });
@@ -250,31 +245,43 @@ SubscriptionSchema.statics = {
       if (!subscription) {
         return {
           success: false,
-          message: "Not Found",
+          message: "No subscription record found",
           status: httpStatus.NOT_FOUND,
           errors: {
             message: `No subscription found for email: ${email}`,
           },
         };
-      } else if (isEmpty(subscription.notifications[type])) {
+      }
+
+      // Check if the notification type exists and its value
+      const notificationSetting = subscription.notifications[type];
+
+      if (notificationSetting === undefined || notificationSetting === null) {
+        // Notification type not configured - default to allow
         return {
-          success: false,
-          message: "not subscribed to type",
-          status: httpStatus.OK,
-          errors: {
-            message: `User is not subscribed to ${type} notifications`,
+          success: true, // Allow by default for undefined types
+          message: `Notification type ${type} not configured, allowing by default`,
+          data: {
+            email,
+            type,
+            subscribed: true,
+            defaulted: true,
+            notifications: subscription.notifications,
           },
+          status: httpStatus.OK,
         };
-      } else if (subscription.notifications[type] === false) {
+      } else if (notificationSetting === false) {
+        // User explicitly unsubscribed from this notification type
         return {
           success: false,
-          message: "Forbidden",
+          message: "User unsubscribed from notifications",
           status: httpStatus.FORBIDDEN,
           errors: {
             message: `User unsubscribed from ${type} notifications`,
           },
         };
-      } else {
+      } else if (notificationSetting === true) {
+        // User is subscribed
         return {
           success: true,
           message: `User is subscribed to ${type} notifications`,
@@ -286,13 +293,70 @@ SubscriptionSchema.statics = {
           },
           status: httpStatus.OK,
         };
+      } else {
+        // Unexpected value
+        logger.warn(
+          `Unexpected notification setting value for ${email}, type ${type}: ${notificationSetting}`
+        );
+        return {
+          success: true, // Fail open - allow the email
+          message: `Unexpected notification setting, allowing by default`,
+          data: {
+            email,
+            type,
+            subscribed: true,
+            fallback: true,
+            notifications: subscription.notifications,
+          },
+          status: httpStatus.OK,
+        };
       }
     } catch (error) {
       logger.error(`Notification status check error -- ${error.message}`);
       return {
         success: false,
-        message: "Data conflicts detected",
-        status: httpStatus.CONFLICT,
+        message: "Database error during subscription check",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+  async createDefaultSubscription(email, isSystemUser = false) {
+    try {
+      const subscription = await this.create({
+        email,
+        subscribed: true,
+        isSystemUser,
+        notifications: {
+          twitter: true,
+          email: true,
+          phone: true,
+          sms: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: "Default subscription created",
+        data: subscription,
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      if (error.code === 11000) {
+        // Subscription already exists - not an error
+        return {
+          success: true,
+          message: "Subscription already exists",
+          status: httpStatus.OK,
+          data: { email, alreadyExists: true },
+        };
+      }
+
+      logger.error(`Error creating default subscription -- ${error.message}`);
+      return {
+        success: false,
+        message: "Error creating subscription",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
