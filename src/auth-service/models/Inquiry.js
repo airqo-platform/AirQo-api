@@ -87,6 +87,7 @@ InquirySchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -100,7 +101,12 @@ InquirySchema.statics = {
       }
 
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
@@ -128,13 +134,12 @@ InquirySchema.statics = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -155,21 +160,21 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "inquiry does not exist, please crosscheck",
-          })
-        );
+        return {
+          success: false,
+          message: "inquiry does not exist, please crosscheck",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "inquiry does not exist, please crosscheck" },
+        };
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   async remove({ filter = {} } = {}, next) {
@@ -186,21 +191,21 @@ InquirySchema.statics = {
           data,
         };
       } else {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "inquiry does not exist, please crosscheck",
-          })
-        );
+        return {
+          success: false,
+          message: "inquiry does not exist, please crosscheck",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "inquiry does not exist, please crosscheck" },
+        };
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
 };
