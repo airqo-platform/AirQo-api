@@ -88,11 +88,32 @@ const OrganizationRequestSchema = new Schema(
       primary_color: String,
       secondary_color: String,
     },
+    onboarding_token: {
+      type: String,
+      index: true,
+      sparse: true,
+      //the JWT token for onboarding flow
+    },
+    onboarding_completed: {
+      type: Boolean,
+      default: false,
+    },
+    onboarding_completed_at: {
+      type: Date,
+    },
+    onboarding_method: {
+      type: String,
+      enum: ["traditional", "secure_setup"],
+      default: "traditional",
+    },
   },
   {
     timestamps: true,
   }
 );
+
+OrganizationRequestSchema.index({ onboarding_token: 1 }, { sparse: true });
+OrganizationRequestSchema.index({ onboarding_completed: 1, createdAt: 1 });
 
 OrganizationRequestSchema.statics = {
   async register(args, next) {

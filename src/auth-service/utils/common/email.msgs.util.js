@@ -20,7 +20,7 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: ({ token, email, version }) => {
+  recovery_email: ({ token, email, version = 3 }) => {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     let instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     if (version && parseInt(version) === 3) {
@@ -893,6 +893,142 @@ module.exports = {
     </td>
   </tr>
   `;
+
+    return constants.EMAIL_BODY({ email: contact_email, content, name });
+  },
+  notifyOrgRequestApprovedWithOnboarding: ({
+    organization_name,
+    contact_name,
+    contact_email,
+    onboarding_url,
+    organization_slug,
+  }) => {
+    const name = contact_name;
+
+    const content = `
+  <tr>
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+      <p>🎉 <strong>Congratulations!</strong> Your organization request for "${organization_name}" has been approved.</p>
+      
+      <div style="padding: 16px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745; margin: 20px 0;">
+        <h3 style="color: #28a745; margin-top: 0;">Next Steps - Complete Your Account Setup</h3>
+        <p style="margin-bottom: 8px;">To get started with your AirQo organization account, please complete the following steps:</p>
+        <ol style="margin: 12px 0; padding-left: 20px;">
+          <li><strong>Set up your password</strong> - Create a secure password for your account</li>
+          <li><strong>Verify your account</strong> - Confirm your email address</li>
+          <li><strong>Access your dashboard</strong> - Start managing your air quality data</li>
+        </ol>
+      </div>
+      
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${onboarding_url}" 
+           style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
+          Complete Account Setup
+        </a>
+      </div>
+      
+      <div style="padding: 12px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #856404;">
+          <strong>⏰ Important:</strong> This setup link will expire in 7 days. Please complete your account setup soon to ensure uninterrupted access.
+        </p>
+      </div>
+      
+      <p><strong>What you'll get access to:</strong></p>
+      <ul>
+        <li>Real-time air quality data dashboard</li>
+        <li>Historical data analysis and reporting</li>
+        <li>API access for custom integrations</li>
+        <li>User management for your organization</li>
+      </ul>
+      
+      <p>If you have any questions or need assistance during setup, please contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+      
+      <p>Welcome to the AirQo community!</p>
+    </td>
+  </tr>
+`;
+
+    return constants.EMAIL_BODY({ email: contact_email, content, name });
+  },
+
+  onboardingAccountSetup: ({
+    organization_name,
+    contact_name,
+    contact_email,
+    setup_url,
+  }) => {
+    const name = contact_name;
+
+    const content = `
+  <tr>
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+      <p>Welcome to AirQo, ${contact_name}!</p>
+      
+      <p>Your organization "${organization_name}" has been set up successfully. To complete your account activation, please set up your password by clicking the link below:</p>
+      
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${setup_url}" 
+           style="display: inline-block; padding: 12px 24px; background-color: #135DFF; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
+          Set Up Your Password
+        </a>
+      </div>
+      
+      <p>This link will expire in 7 days for security reasons. If you need a new setup link, please contact support.</p>
+      
+      <div style="padding: 12px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #135DFF; margin: 16px 0;">
+        <p style="margin: 0; font-size: 14px; color: #6c757d;">
+          <strong>Security Note:</strong> For your protection, this email contains a secure one-time setup link. 
+          Do not share this link with anyone else.
+        </p>
+      </div>
+      
+      <p>If you didn't request this account setup, please ignore this email or contact our support team.</p>
+    </td>
+  </tr>
+`;
+
+    return constants.EMAIL_BODY({ email: contact_email, content, name });
+  },
+
+  onboardingCompleted: ({
+    organization_name,
+    contact_name,
+    contact_email,
+    login_url,
+  }) => {
+    const name = contact_name;
+
+    const content = `
+  <tr>
+    <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+      <p>🎉 <strong>Account Setup Complete!</strong></p>
+      
+      <p>Congratulations ${contact_name}! You have successfully completed the setup for your AirQo organization account for "${organization_name}".</p>
+      
+      <p>You can now access your dashboard and start exploring air quality data:</p>
+      
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="${login_url}" 
+           style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">
+          Access Your Dashboard
+        </a>
+      </div>
+      
+      <div style="padding: 16px; background-color: #f8f9fa; border-radius: 8px; margin: 20px 0;">
+        <h4 style="color: #135DFF; margin-top: 0;">Getting Started Resources:</h4>
+        <ul style="margin: 8px 0; padding-left: 20px;">
+          <li><a href="https://docs.airqo.net/airqo-platform/">User Guide</a> - Learn how to navigate the platform</li>
+          <li><a href="https://docs.airqo.net/airqo-rest-api-documentation/">API Documentation</a> - For developers and integrations</li>
+          <li><a href="https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/">Terms and Conditions</a> - Important usage guidelines</li>
+        </ul>
+      </div>
+      
+      <p>If you need any assistance or have questions, please don't hesitate to contact our support team at <a href="mailto:support@airqo.net">support@airqo.net</a>.</p>
+      
+      <p>Thank you for joining AirQo. Together, we're working towards cleaner air for everyone!</p>
+    </td>
+  </tr>
+`;
 
     return constants.EMAIL_BODY({ email: contact_email, content, name });
   },

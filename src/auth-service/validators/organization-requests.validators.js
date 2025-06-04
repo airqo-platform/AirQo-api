@@ -66,7 +66,61 @@ module.exports = {
       .withMessage("Invalid status"),
   ],
 
-  approve: [param("request_id").isMongoId().withMessage("Invalid request ID")],
+  validateOnboardingToken: [
+    param("token")
+      .exists()
+      .withMessage("Token is required")
+      .bail()
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("Token should not be empty")
+      .bail()
+      .isJWT()
+      .withMessage("Token must be a valid JWT"),
+  ],
+
+  completeOnboarding: [
+    body("token")
+      .exists()
+      .withMessage("Onboarding token is missing")
+      .bail()
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("Onboarding token should not be empty")
+      .bail()
+      .isJWT()
+      .withMessage("Onboarding token must be a valid JWT"),
+
+    body("password")
+      .exists()
+      .withMessage("Password is missing")
+      .bail()
+      .trim()
+      .isLength({ min: 6 })
+      .withMessage("Password should be at least 6 characters")
+      .bail()
+      .matches(/^(?=.*[A-Za-z])(?=.*\d)/)
+      .withMessage("Password must contain at least one letter and one number")
+      .bail()
+      .isLength({ max: 128 })
+      .withMessage("Password should not exceed 128 characters"),
+  ],
+
+  approve: [
+    param("request_id").isMongoId().withMessage("Invalid request ID"),
+    body("useOnboardingFlow")
+      .optional()
+      .isBoolean()
+      .withMessage("useOnboardingFlow must be a boolean"),
+    body("onboardingOptions.tokenExpiryDays")
+      .optional()
+      .isInt({ min: 1, max: 30 })
+      .withMessage("Token expiry days must be between 1 and 30"),
+    body("onboardingOptions.sendWelcomeEmail")
+      .optional()
+      .isBoolean()
+      .withMessage("sendWelcomeEmail must be a boolean"),
+  ],
 
   reject: [
     param("request_id").isMongoId().withMessage("Invalid request ID"),

@@ -409,6 +409,15 @@ const getEmailSubject = (functionName, params) => {
     notifyOrgRequestRejected: `Organization Request Status: ${sanitizeEmailString(
       params.organization_name || ""
     )}`,
+    notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    onboardingCompleted: `Welcome to AirQo: Your Account is Ready! - ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
 
     // ===== USER MANAGEMENT FUNCTIONS =====
     candidate: "Your AirQo Account JOIN request",
@@ -477,6 +486,7 @@ const EMAIL_CATEGORIES = {
     "compromisedToken",
     "expiredToken",
     "expiringToken",
+    "onboardingAccountSetup",
   ],
 
   ORG_MANAGEMENT: [
@@ -484,6 +494,8 @@ const EMAIL_CATEGORIES = {
     "confirmOrgRequestReceived",
     "notifyOrgRequestApproved",
     "notifyOrgRequestRejected",
+    "notifyOrgRequestApprovedWithOnboarding",
+    "onboardingCompleted",
   ],
 
   USER_MANAGEMENT: [
@@ -1421,6 +1433,42 @@ const mailer = {
         name: fullName,
       });
     }
+  ),
+  notifyOrgRequestApprovedWithOnboarding: createMailerFunction(
+    "notifyOrgRequestApprovedWithOnboarding",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.notifyOrgRequestApprovedWithOnboarding({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        onboarding_url: params.onboarding_url,
+        organization_slug: params.organization_slug,
+      })
+  ),
+
+  onboardingAccountSetup: createMailerFunction(
+    "onboardingAccountSetup",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.onboardingAccountSetup({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        setup_url: params.setup_url,
+      })
+  ),
+
+  onboardingCompleted: createMailerFunction(
+    "onboardingCompleted",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.onboardingCompleted({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        login_url: params.login_url,
+      })
   ),
 };
 
