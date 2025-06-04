@@ -334,7 +334,7 @@ const organizationRequest = {
               request_id: orgRequest._id,
               tenant: tenant,
               purpose: "organization_onboarding",
-              exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days expiry
+              exp: constants.ONBOARDING_TOKEN_EXPIRY_DAYS,
             },
             constants.JWT_SECRET
           );
@@ -361,14 +361,15 @@ const organizationRequest = {
               request_id: orgRequest._id,
               tenant: tenant,
               purpose: "organization_onboarding",
-              exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days expiry
+              exp: constants.ONBOARDING_TOKEN_EXPIRY_DAYS,
             },
             constants.JWT_SECRET
           );
 
           // Create user without password (will be set during onboarding)
           const userBody = {
-            firstName: orgRequest.contact_name.split(" ")[0],
+            firstName:
+              orgRequest.contact_name.split(" ")[0] || orgRequest.contact_name,
             lastName:
               orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
             email: orgRequest.contact_email,
@@ -395,7 +396,8 @@ const organizationRequest = {
 
           // Create the initial admin user
           const userBody = {
-            firstName: orgRequest.contact_name.split(" ")[0],
+            firstName:
+              orgRequest.contact_name.split(" ")[0] || orgRequest.contact_name,
             lastName:
               orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
             email: orgRequest.contact_email,
@@ -775,7 +777,7 @@ const organizationRequest = {
         {
           filter: { email: contact_email },
           update: {
-            password: password, // This will be hashed by the pre-save hook
+            password: password, // Will be hashed by UserModel.modify before saving
             verified: true,
             isActive: true,
           },

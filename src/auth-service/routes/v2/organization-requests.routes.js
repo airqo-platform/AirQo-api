@@ -6,6 +6,8 @@ const organizationRequestValidations = require("@validators/organization-request
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const { validate } = require("@validators/common");
 const { airqoAdminCheck } = require("@middleware/admin-access.middleware");
+const rateLimit = require("express-rate-limit");
+const onboardingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -59,6 +61,7 @@ router.get(
 // Validate onboarding token
 router.get(
   "/onboarding/validate/:token",
+  onboardingLimiter,
   organizationRequestValidations.validateOnboardingToken,
   validate,
   organizationRequestController.validateOnboardingToken
@@ -67,6 +70,7 @@ router.get(
 // Complete onboarding setup
 router.post(
   "/onboarding/complete",
+  onboardingLimiter,
   organizationRequestValidations.completeOnboarding,
   validate,
   organizationRequestController.completeOnboarding
