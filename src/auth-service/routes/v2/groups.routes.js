@@ -193,6 +193,7 @@ router.post(
 // Access request management (list pending requests)
 router.get(
   "/:grp_id/access-requests",
+  groupValidations.manageAccessRequests,
   setJWTAuth,
   authJWT,
   adminCheck,

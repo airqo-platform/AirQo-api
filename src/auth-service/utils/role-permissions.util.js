@@ -13,6 +13,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- role-permissions util`
 );
+const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 
 const convertToUpperCaseWithUnderscore = (inputString, next) => {
   try {
@@ -104,7 +105,7 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
   }
 };
 
-const role = {
+const rolePermissionUtil = {
   /******* roles *******************************************/
   listRole: async (request, next) => {
     try {
@@ -1707,8 +1708,7 @@ const role = {
 
       const userId = userIdFromQuery || userIdFromBody;
 
-      // Get initial role summary
-      const initialSummary = await newUtilFunctions.getUserRoleSummary(
+      const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
         tenant
       );
@@ -1864,7 +1864,7 @@ const role = {
       }
 
       // Get updated role summary
-      const updatedSummary = await newUtilFunctions.getUserRoleSummary(
+      const updatedSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
         tenant
       );
@@ -1906,7 +1906,7 @@ const role = {
       const { role_id, user_id, tenant } = { ...query, ...params };
 
       // Get initial role summary
-      const initialSummary = await newUtilFunctions.getUserRoleSummary(
+      const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
         tenant
       );
@@ -2034,7 +2034,7 @@ const role = {
       }
 
       // Get updated role summary
-      const updatedSummary = await newUtilFunctions.getUserRoleSummary(
+      const updatedSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
         tenant
       );
@@ -2320,4 +2320,4 @@ const role = {
   },
 };
 
-module.exports = role;
+module.exports = rolePermissionUtil;

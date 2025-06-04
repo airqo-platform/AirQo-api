@@ -2954,14 +2954,11 @@ const groupUtil = {
           status: httpStatus.OK,
         };
       } else if (format === "xlsx") {
-        // In production, you'd use a library like xlsx to generate Excel files
-        const xlsxData =
-          "Excel format not implemented - would use xlsx library";
+        // we will use library like xlsx to generate Excel files
         return {
-          success: true,
-          message: "Group data exported to Excel successfully",
-          data: xlsxData,
-          status: httpStatus.OK,
+          success: false,
+          message: "Excel export format is not yet implemented",
+          status: httpStatus.NOT_IMPLEMENTED,
         };
       } else {
         // Default JSON format
@@ -3248,6 +3245,230 @@ const groupUtil = {
     } catch (error) {
       logger.error(`Error calculating health score: ${error.message}`);
       return 0;
+    }
+  },
+  /**
+   * Get group analytics data
+   */
+  getGroupAnalytics: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const {
+        tenant,
+        time_range = "30d",
+        metric_type = "overview",
+      } = request.query;
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      const group = await GroupModel(actualTenant).findById(grp_id).lean();
+      if (!group) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${grp_id} not found`,
+          })
+        );
+      }
+
+      // Get various analytics based on metric_type
+      let analyticsData = {};
+
+      switch (metric_type) {
+        case "members":
+          analyticsData = await groupUtil.getMemberAnalyticsData(
+            grp_id,
+            actualTenant,
+            time_range
+          );
+          break;
+        case "activity":
+          analyticsData = await groupUtil.getActivityAnalyticsData(
+            grp_id,
+            actualTenant,
+            time_range
+          );
+          break;
+        case "roles":
+          analyticsData = await groupUtil.getRoleAnalyticsData(
+            grp_id,
+            actualTenant,
+            time_range
+          );
+          break;
+        default:
+          analyticsData = await groupUtil.getOverviewAnalyticsData(
+            grp_id,
+            actualTenant,
+            time_range
+          );
+      }
+
+      return {
+        success: true,
+        message: `Group ${metric_type} analytics retrieved successfully`,
+        data: {
+          group_info: {
+            name: group.grp_title,
+            id: grp_id,
+          },
+          time_range,
+          metric_type,
+          data: analyticsData,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Helper: Get member analytics data
+   */
+  getMemberAnalyticsData: async (grp_id, tenant, timeRange) => {
+    try {
+      const pipeline = [
+        { $match: { "group_roles.group": ObjectId(grp_id) } },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$createdAt",
+              },
+            },
+            new_members: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+        { $limit: 30 },
+      ];
+
+      const dailyGrowth = await UserModel(tenant).aggregate(pipeline);
+
+      return {
+        daily_growth: dailyGrowth,
+        total_members: await UserModel(tenant).countDocuments({
+          "group_roles.group": grp_id,
+        }),
+        active_members: await UserModel(tenant).countDocuments({
+          "group_roles.group": grp_id,
+          isActive: true,
+        }),
+      };
+    } catch (error) {
+      logger.error(`Error getting member analytics: ${error.message}`);
+      return { daily_growth: [], total_members: 0, active_members: 0 };
+    }
+  },
+
+  /**
+   * Helper: Get activity analytics data
+   */
+  getActivityAnalyticsData: async (grp_id, tenant, timeRange) => {
+    try {
+      // This would connect to your activity logging system
+      // For now, return structure for frontend integration
+      return {
+        login_frequency: {
+          daily: [],
+          weekly: [],
+          monthly: [],
+        },
+        engagement_metrics: {
+          average_session_duration: 0,
+          feature_usage: {},
+          content_interactions: 0,
+        },
+        trend_analysis: {
+          growth_rate: 0,
+          retention_rate: 0,
+          churn_rate: 0,
+        },
+      };
+    } catch (error) {
+      logger.error(`Error getting activity analytics: ${error.message}`);
+      return {
+        login_frequency: {},
+        engagement_metrics: {},
+        trend_analysis: {},
+      };
+    }
+  },
+
+  /**
+   * Helper: Get role analytics data
+   */
+  getRoleAnalyticsData: async (grp_id, tenant, timeRange) => {
+    try {
+      const roleDistribution = await UserModel(tenant).aggregate([
+        { $match: { "group_roles.group": ObjectId(grp_id) } },
+        { $unwind: "$group_roles" },
+        { $match: { "group_roles.group": ObjectId(grp_id) } },
+        {
+          $lookup: {
+            from: "roles",
+            localField: "group_roles.role",
+            foreignField: "_id",
+            as: "role_info",
+          },
+        },
+        { $unwind: "$role_info" },
+        {
+          $group: {
+            _id: "$role_info.role_name",
+            count: { $sum: 1 },
+            permissions: { $first: "$role_info.role_permissions" },
+          },
+        },
+      ]);
+
+      return {
+        role_distribution: roleDistribution,
+        role_changes: [], // Would come from audit logs
+        permission_usage: {}, // Would track which permissions are most used
+      };
+    } catch (error) {
+      logger.error(`Error getting role analytics: ${error.message}`);
+      return { role_distribution: [], role_changes: [], permission_usage: {} };
+    }
+  },
+
+  /**
+   * Helper: Get overview analytics data
+   */
+  getOverviewAnalyticsData: async (grp_id, tenant, timeRange) => {
+    try {
+      const [memberAnalytics, roleAnalytics] = await Promise.all([
+        groupUtil.getMemberAnalyticsData(grp_id, tenant, timeRange),
+        groupUtil.getRoleAnalyticsData(grp_id, tenant, timeRange),
+      ]);
+
+      return {
+        summary: {
+          total_members: memberAnalytics.total_members,
+          active_members: memberAnalytics.active_members,
+          total_roles: roleAnalytics.role_distribution.length,
+          engagement_score: Math.round(
+            (memberAnalytics.active_members /
+              Math.max(memberAnalytics.total_members, 1)) *
+              100
+          ),
+        },
+        quick_stats: memberAnalytics,
+        role_overview: roleAnalytics.role_distribution.slice(0, 5), // Top 5 roles
+      };
+    } catch (error) {
+      logger.error(`Error getting overview analytics: ${error.message}`);
+      return { summary: {}, quick_stats: {}, role_overview: [] };
     }
   },
 };

@@ -790,7 +790,7 @@ const searchGroupMembers = [
       .trim()
       .isLength({ min: 1, max: 100 })
       .withMessage("search query must be between 1 and 100 characters")
-      .matches(/^[a-zA-Z0-9\s@._-]+$/)
+      .matches(/^[\p{L}\p{N}\s@._-]+$/u)
       .withMessage("search query contains invalid characters"),
     query("role_id")
       .optional()
