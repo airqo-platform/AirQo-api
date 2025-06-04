@@ -11,21 +11,26 @@ const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
 
-// Initialize log4js with SAFE configuration and deduplication
+// ========================================
+// ENHANCED LOGGING SETUP WITH DEDUPLICATION
+// ========================================
 const log4js = require("log4js");
-let logger;
+let logger, alertLoggers;
 
 try {
-  // Use the SAFE log4js configuration (no custom appenders)
-  const logConfig = require("@config/log4js");
+  // Apply the enhanced log4js configuration
+  const logConfig = require("@config/beta-log4js");
   log4js.configure(logConfig);
+
+  // Create base logger for server operations
   logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server`);
-  console.log("✅ Log4js configured successfully");
+
+  console.log("✅ Enhanced log4js configured successfully");
 } catch (error) {
   console.error("❌ Log4js configuration failed:", error.message);
   console.log("📝 Falling back to console logging");
 
-  // Fallback to basic console logging
+  // Fallback logger
   logger = {
     info: console.log,
     error: console.error,
@@ -34,29 +39,51 @@ try {
   };
 }
 
-// Add deduplication wrapper for Slack alerts
+// Setup enhanced deduplication with specialized alert loggers
 try {
   const { deduplicator } = require("@utils/common");
 
-  // Create a deduplicated logger for important alerts
-  const dedupLogger = deduplicator.wrapLogger(logger);
+  // Create specialized alert loggers using the new categories
+  alertLoggers = deduplicator.createAlertLoggers(log4js);
 
-  // Use dedupLogger for job alerts and critical messages
-  global.dedupLogger = dedupLogger;
+  // Setup global loggers for different use cases
+  global.logger = logger; // Regular server logging
+  global.alertLogger = alertLoggers.alerts; // Job alerts & monitoring (Slack)
+  global.criticalLogger = alertLoggers.critical; // Critical errors (Slack)
+  global.appLogger = alertLoggers.app; // Application logs (no Slack)
 
-  console.log("✅ Slack deduplication utility loaded successfully");
+  // Legacy compatibility
+  global.dedupLogger = alertLoggers.alerts;
+
+  console.log(
+    "✅ Enhanced Slack deduplication and alert loggers configured successfully"
+  );
+
+  // Log initial statistics
+  setTimeout(() => {
+    const stats = deduplicator.getStats();
+    console.log("📊 [DEDUP] Initial deduplicator status:", stats);
+  }, 5000);
 } catch (error) {
-  console.warn("⚠️  Slack deduplication utility not available:", error.message);
-  // Fallback to regular logger
+  console.warn(
+    "⚠️  Enhanced deduplication utility not available:",
+    error.message
+  );
+
+  // Fallback to regular loggers
+  global.logger = logger;
+  global.alertLogger = logger;
+  global.criticalLogger = logger;
+  global.appLogger = logger;
   global.dedupLogger = logger;
 }
 
 // Run startup migrations
 const runStartupMigrations = require("@bin/jobs/run-migrations");
 runStartupMigrations().catch((error) => {
-  // Use deduplicated logger for critical startup errors
-  global.dedupLogger.error(
-    `🐛🐛 Failed to run startup migrations: ${error.message}`
+  // Use critical logger for startup failures
+  global.criticalLogger.error(
+    `💥 Failed to run startup migrations: ${error.message}`
   );
 });
 
@@ -81,7 +108,7 @@ const { stringify } = require("@utils/common");
 // Initialize all background jobs
 require("@bin/jobs/store-signals-job");
 require("@bin/jobs/store-readings-job");
-require("@bin/jobs/check-network-status-job");
+require("@bin/jobs/beta-check-network-status-job");
 require("@bin/jobs/check-unassigned-devices-job");
 require("@bin/jobs/check-active-statuses");
 require("@bin/jobs/check-unassigned-sites-job");
@@ -145,6 +172,9 @@ app.use((req, res, next) => {
   next(err);
 });
 
+// ========================================
+// ENHANCED ERROR HANDLING WITH PROPER CATEGORIZATION
+// ========================================
 app.use(function(err, req, res, next) {
   if (!res.headersSent) {
     if (err instanceof HttpError) {
@@ -172,30 +202,30 @@ app.use(function(err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 400) {
-      logger.error(`Bad request error --- ${stringify(err)}`);
+      global.appLogger.error(`Bad request error --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Bad request error",
         errors: { message: err.message },
       });
     } else if (err.status === 401) {
-      logger.error(`Unauthorized --- ${stringify(err)}`);
+      global.appLogger.error(`Unauthorized --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Unauthorized",
         errors: { message: err.message },
       });
     } else if (err.status === 403) {
-      logger.error(`Forbidden --- ${stringify(err)}`);
+      global.appLogger.error(`Forbidden --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: "Forbidden",
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // Use deduplicated logger for internal server errors to prevent Slack spam
-      global.dedupLogger.error(
-        `🐛🐛 Internal Server Error --- ${stringify(err)}`
+      // Use critical logger for internal server errors (will alert in Slack)
+      global.criticalLogger.error(
+        `💥 Internal Server Error --- ${stringify(err)}`
       );
       logObject("the error", err);
       res.status(err.status).json({
@@ -204,19 +234,18 @@ app.use(function(err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 502 || err.status === 503 || err.status === 504) {
-      logger.error(`${err.message} --- ${stringify(err)}`);
+      // Use critical logger for gateway/service errors
+      global.criticalLogger.error(`🔴 ${err.message} --- ${stringify(err)}`);
       res.status(err.status).json({
         success: false,
         message: err.message,
         errors: { message: err.message },
       });
     } else {
-      // Use deduplicated logger for unexpected errors
-      global.dedupLogger.error(
-        `🐛🐛 Internal Server Error --- ${stringify(err)}`
-      );
-      logObject("Internal Server Error", err);
-      global.dedupLogger.error(`Stack Trace: ${err.stack}`);
+      // Use critical logger for unexpected errors
+      global.criticalLogger.error(`💥 Unexpected Error --- ${stringify(err)}`);
+      logObject("Unexpected Error", err);
+      global.criticalLogger.error(`Stack Trace: ${err.stack}`);
       res.status(err.statusCode || err.status || 500).json({
         success: false,
         message: err.message || "Internal Server Error",
@@ -224,8 +253,8 @@ app.use(function(err, req, res, next) {
       });
     }
   } else {
-    logger.info(
-      `🍻🍻 HTTP response already sent to the client -- ${stringify(err)}`
+    global.appLogger.info(
+      `🍻 HTTP response already sent to the client -- ${stringify(err)}`
     );
   }
 });
@@ -290,44 +319,48 @@ const createServer = () => {
     debug("Listening on " + bind);
   });
 
-  // Enhanced graceful shutdown handler
+  // ========================================
+  // ENHANCED GRACEFUL SHUTDOWN WITH PROPER LOGGING
+  // ========================================
   const gracefulShutdown = async (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
-    logger.info(`${signal} received. Shutting down gracefully...`);
+    global.appLogger.info(`${signal} received. Shutting down gracefully...`);
 
-    // Set global shutdown flag to signal running jobs to stop
+    // Set global shutdown flag
     global.isShuttingDown = true;
 
-    // Close the server first to stop accepting new connections
+    // Close the server first
     server.close(async () => {
       console.log("HTTP server closed");
-      logger.info("HTTP server closed");
+      global.appLogger.info("HTTP server closed");
 
       // Enhanced cron job shutdown handling
       if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
         console.log(
           `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
         );
-        logger.info(
+        global.appLogger.info(
           `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
         );
 
-        // Stop each job individually with error handling
         for (const [jobName, jobObj] of Object.entries(global.cronJobs)) {
           try {
             console.log(`Stopping cron job: ${jobName}`);
-            logger.info(`Stopping cron job: ${jobName}`);
+            global.appLogger.info(`Stopping cron job: ${jobName}`);
 
-            // Enhanced pattern: Use the async stop method if available
             if (jobObj.stop && typeof jobObj.stop === "function") {
               await jobObj.stop();
               console.log(`✅ Successfully stopped cron job: ${jobName}`);
-              logger.info(`✅ Successfully stopped cron job: ${jobName}`);
+              global.appLogger.info(
+                `✅ Successfully stopped cron job: ${jobName}`
+              );
             }
             // Legacy pattern: Direct job manipulation
             else if (jobObj.job) {
               console.log(`🔄 Using legacy stop method for job: ${jobName}`);
-              logger.info(`🔄 Using legacy stop method for job: ${jobName}`);
+              global.appLogger.info(
+                `🔄 Using legacy stop method for job: ${jobName}`
+              );
 
               // Stop the schedule
               if (typeof jobObj.job.stop === "function") {
@@ -343,7 +376,7 @@ const createServer = () => {
                 console.log(
                   `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
                 );
-                logger.warn(
+                global.appLogger.warn(
                   `Job ${jobName} doesn't have destroy method (older node-cron version)`
                 );
               }
@@ -353,7 +386,7 @@ const createServer = () => {
               console.log(
                 `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
               );
-              logger.info(
+              global.appLogger.info(
                 `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
               );
             }
@@ -369,14 +402,16 @@ const createServer = () => {
               console.warn(
                 `⚠️  Job ${jobName} has unknown structure, skipping`
               );
-              logger.warn(`Job ${jobName} has unknown structure, skipping`);
+              global.appLogger.warn(
+                `Job ${jobName} has unknown structure, skipping`
+              );
             }
           } catch (error) {
             console.error(
               `❌ Error stopping cron job ${jobName}:`,
               error.message
             );
-            logger.error(
+            global.criticalLogger.error(
               `❌ Error stopping cron job ${jobName}: ${error.message}`
             );
 
@@ -392,7 +427,7 @@ const createServer = () => {
                 `💥 Emergency cleanup failed for ${jobName}:`,
                 emergencyError.message
               );
-              logger.error(
+              global.criticalLogger.error(
                 `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
               );
             }
@@ -400,49 +435,66 @@ const createServer = () => {
         }
 
         console.log("All cron jobs stopped");
-        logger.info("All cron jobs stopped");
+        global.appLogger.info("All cron jobs stopped");
       } else {
         console.log("No cron jobs to stop");
-        logger.info("No cron jobs to stop");
+        global.appLogger.info("No cron jobs to stop");
       }
 
       // Close any Redis connections if they exist
       if (global.redisClient) {
         console.log("Closing Redis connection...");
-        logger.info("Closing Redis connection...");
+        global.appLogger.info("Closing Redis connection...");
         try {
           if (typeof global.redisClient.quit === "function") {
             await global.redisClient.quit();
             console.log("✅ Redis connection closed");
-            logger.info("✅ Redis connection closed");
+            global.appLogger.info("✅ Redis connection closed");
           } else if (typeof global.redisClient.disconnect === "function") {
             await global.redisClient.disconnect();
             console.log("✅ Redis connection disconnected");
-            logger.info("✅ Redis connection disconnected");
+            global.appLogger.info("✅ Redis connection disconnected");
           }
         } catch (error) {
           console.error("❌ Error closing Redis connection:", error.message);
-          logger.error(`❌ Error closing Redis connection: ${error.message}`);
+          global.appLogger.error(
+            `❌ Error closing Redis connection: ${error.message}`
+          );
         }
       }
 
       // Close any additional cleanup (Firebase, etc.)
       if (global.firebaseApp) {
         console.log("Closing Firebase connections...");
-        logger.info("Closing Firebase connections...");
+        global.appLogger.info("Closing Firebase connections...");
         try {
           // Add Firebase cleanup if needed
           console.log("✅ Firebase connections closed");
-          logger.info("✅ Firebase connections closed");
+          global.appLogger.info("✅ Firebase connections closed");
         } catch (error) {
           console.error(
             "❌ Error closing Firebase connections:",
             error.message
           );
-          logger.error(
+          global.appLogger.error(
             `❌ Error closing Firebase connections: ${error.message}`
           );
         }
+      }
+
+      // Final deduplication statistics
+      try {
+        const { deduplicator } = require("@utils/common");
+        const finalStats = deduplicator.getStats();
+        console.log("📊 [DEDUP] Final statistics:", finalStats);
+        global.appLogger.info(
+          `📊 [DEDUP] Final statistics: ${JSON.stringify(finalStats)}`
+        );
+      } catch (error) {
+        console.warn(
+          "Could not get final deduplication statistics:",
+          error.message
+        );
       }
 
       // Safe log4js shutdown
@@ -466,7 +518,7 @@ const createServer = () => {
 
       // Close MongoDB connection
       console.log("Closing MongoDB connection...");
-      logger.info("Closing MongoDB connection...");
+      global.appLogger.info("Closing MongoDB connection...");
 
       try {
         await new Promise((resolve, reject) => {
@@ -480,50 +532,49 @@ const createServer = () => {
         });
 
         console.log("✅ MongoDB connection closed");
-        logger.info("✅ MongoDB connection closed");
+        global.appLogger.info("✅ MongoDB connection closed");
       } catch (error) {
         console.error("❌ Error closing MongoDB connection:", error.message);
-        logger.error(`❌ Error closing MongoDB connection: ${error.message}`);
+        global.appLogger.error(
+          `❌ Error closing MongoDB connection: ${error.message}`
+        );
       }
 
       // Final cleanup
       console.log("Exiting process...");
-      logger.info("Exiting process...");
+      global.appLogger.info("Exiting process...");
       process.exit(0);
     });
 
-    // Force exit after timeout if graceful shutdown fails
+    // Force exit timeout
     setTimeout(() => {
       console.error(
         "Could not close connections in time, forcefully shutting down"
       );
-      logger.error(
+      global.criticalLogger.error(
         "Could not close connections in time, forcefully shutting down"
       );
       process.exit(1);
-    }, 15000); // Increased timeout to 15 seconds to allow for async job stopping
+    }, 15000);
   };
 
-  // Add signal handlers
+  // Enhanced signal handlers
   process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
-  // Handle uncaught exceptions
+  // Handle uncaught exceptions with critical logging
   process.on("uncaughtException", (error) => {
     console.error(`💥 Uncaught Exception: ${error.message}`);
-    global.dedupLogger.error(`💥 Uncaught Exception: ${error.message}`);
-    global.dedupLogger.error(`Stack: ${error.stack}`);
+    global.criticalLogger.error(`💥 Uncaught Exception: ${error.message}`);
+    global.criticalLogger.error(`Stack: ${error.stack}`);
     gracefulShutdown("UNCAUGHT_EXCEPTION");
   });
 
   // Handle unhandled promise rejections
   process.on("unhandledRejection", (reason, promise) => {
     console.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
-    global.dedupLogger.error(
-      `🚫 Unhandled Rejection at:`,
-      promise,
-      "reason:",
-      reason
+    global.criticalLogger.error(
+      `🚫 Unhandled Rejection at: ${promise}, reason: ${reason}`
     );
     gracefulShutdown("UNHANDLED_REJECTION");
   });
@@ -531,7 +582,9 @@ const createServer = () => {
   // Handle process warnings
   process.on("warning", (warning) => {
     console.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
-    logger.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+    global.appLogger.warn(
+      `⚠️  Process Warning: ${warning.name}: ${warning.message}`
+    );
   });
 
   // Memory usage monitoring (optional - for debugging)
