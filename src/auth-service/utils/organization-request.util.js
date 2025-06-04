@@ -13,6 +13,8 @@ const createGroupUtil = require("@utils/group.util");
 const { mailer, slugUtils } = require("@utils/common");
 const { sanitizeEmailString } = require("@utils/shared");
 const isEmpty = require("is-empty");
+const accessCodeGenerator = require("generate-password");
+const jwt = require("jsonwebtoken");
 
 const organizationRequest = {
   createOrganizationRequest: async (request, next) => {
@@ -160,7 +162,7 @@ const organizationRequest = {
             mailer.notifyAdminsOfNewOrgRequest({
               organization_name: body.organization_name,
               contact_name: body.contact_name,
-              contact_email: body.contact_email,
+              email: body.contact_email,
               tenant,
             }),
 
@@ -168,7 +170,7 @@ const organizationRequest = {
             mailer.confirmOrgRequestReceived({
               organization_name: body.organization_name,
               contact_name: body.contact_name,
-              contact_email: body.contact_email,
+              email: body.contact_email,
             }),
           ]);
         } catch (emailError) {
@@ -272,64 +274,210 @@ const organizationRequest = {
 
   approveOrganizationRequest: async (request, next) => {
     try {
-      const { params, query, user } = request;
+      const { params, query, user, body } = request;
       const { request_id } = params;
       const { tenant } = query;
+
+      // Optional: Check for onboarding preference in request body or config
+      const useOnboardingFlow =
+        body?.useOnboardingFlow ||
+        constants.DEFAULT_USE_ONBOARDING_FLOW ||
+        false;
 
       const orgRequest = await OrganizationRequestModel(tenant).findById(
         request_id
       );
 
       if (!orgRequest) {
-        next(
-          new HttpError("Not Found", httpStatus.NOT_FOUND, {
-            message: "Organization request not found",
-          })
-        );
+        return {
+          success: false,
+          message: "Organization request not found",
+          status: httpStatus.NOT_FOUND,
+        };
       }
 
       if (orgRequest.status !== "pending") {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Request has already been processed",
-          })
-        );
+        return {
+          success: false,
+          message: "Request has already been processed",
+          status: httpStatus.BAD_REQUEST,
+        };
       }
 
-      // Create the group
-      const groupBody = {
-        grp_title: orgRequest.organization_name,
-        grp_description: orgRequest.use_case,
-        organization_slug: orgRequest.organization_slug,
-        grp_profile_picture: orgRequest.branding_settings?.logo_url,
-      };
+      // ✅ CHECK IF USER ALREADY EXISTS
+      const existingUser = await UserModel(tenant)
+        .findOne({
+          email: orgRequest.contact_email,
+        })
+        .lean();
 
-      // Create the initial admin user
-      const userBody = {
-        firstName: orgRequest.contact_name.split(" ")[0],
-        lastName: orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
-        email: orgRequest.contact_email,
-        organization: orgRequest.organization_name,
-        tenant,
-      };
+      let userResponse;
+      let onboardingToken = null;
+      let isExistingUser = !!existingUser;
 
-      // Create group with the user as manager
-      const createGroupRequest = {
-        body: { ...groupBody, user_id: null },
-        query: { tenant },
-        user: null,
-      };
+      if (existingUser) {
+        // ===== USER ALREADY EXISTS =====
+        logText(`User with email ${orgRequest.contact_email} already exists`);
 
-      // First create the user
-      const userResponse = await UserModel(tenant).register(userBody, next);
+        // Check if user is already active or if we need to update them
+        if (
+          useOnboardingFlow &&
+          (!existingUser.verified || !existingUser.isActive)
+        ) {
+          // Generate onboarding token for existing unverified users
+          onboardingToken = jwt.sign(
+            {
+              email: orgRequest.contact_email,
+              organization_name: orgRequest.organization_name,
+              organization_slug: orgRequest.organization_slug,
+              contact_name: orgRequest.contact_name,
+              request_id: orgRequest._id,
+              tenant: tenant,
+              purpose: "organization_onboarding",
+              exp: constants.ONBOARDING_TOKEN_EXPIRY_DAYS,
+            },
+            constants.JWT_SECRET
+          );
+        }
+
+        // Use existing user data structure
+        userResponse = {
+          success: true,
+          data: existingUser,
+          message: "Using existing user account",
+        };
+      } else {
+        // ===== CREATE NEW USER =====
+        if (useOnboardingFlow) {
+          // ===== ENHANCED ONBOARDING FLOW =====
+
+          // Generate a secure onboarding token
+          onboardingToken = jwt.sign(
+            {
+              email: orgRequest.contact_email,
+              organization_name: orgRequest.organization_name,
+              organization_slug: orgRequest.organization_slug,
+              contact_name: orgRequest.contact_name,
+              request_id: orgRequest._id,
+              tenant: tenant,
+              purpose: "organization_onboarding",
+              exp: constants.ONBOARDING_TOKEN_EXPIRY_DAYS,
+            },
+            constants.JWT_SECRET
+          );
+
+          // Create user without password (will be set during onboarding)
+          const userBody = {
+            firstName:
+              orgRequest.contact_name.split(" ")[0] || orgRequest.contact_name,
+            lastName:
+              orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
+            email: orgRequest.contact_email,
+            organization: orgRequest.organization_name,
+            // Generate a temporary password that will be replaced during onboarding
+            password: accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(32)
+            ),
+            verified: false, // User needs to complete onboarding
+            isActive: false, // Activate after onboarding completion
+            tenant,
+          };
+
+          userResponse = await UserModel(tenant).register(userBody, next);
+        } else {
+          // ===== ORIGINAL FLOW WITH GENERATED PASSWORD =====
+
+          // Generate a random password for the new user
+          const generatedPassword = accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(
+              constants.TOKEN_LENGTH || 12
+            )
+          );
+
+          // Create the initial admin user
+          const userBody = {
+            firstName:
+              orgRequest.contact_name.split(" ")[0] || orgRequest.contact_name,
+            lastName:
+              orgRequest.contact_name.split(" ").slice(1).join(" ") || "",
+            email: orgRequest.contact_email,
+            organization: orgRequest.organization_name,
+            password: generatedPassword, // ✅ Generated password
+            verified: true, // Auto-verify for generated password flow
+            isActive: true, // Auto-activate for generated password flow
+            tenant,
+          };
+
+          userResponse = await UserModel(tenant).register(userBody, next);
+        }
+      }
 
       if (userResponse.success === true) {
-        createGroupRequest.body.user_id = userResponse.data._id;
+        // Create the group
+        const groupBody = {
+          grp_title: orgRequest.organization_name,
+          grp_description: orgRequest.use_case,
+          organization_slug: orgRequest.organization_slug,
+          grp_profile_picture: orgRequest.branding_settings?.logo_url,
+        };
 
-        const groupResponse = await createGroupUtil.create(
-          createGroupRequest,
-          next
-        );
+        // ✅ CHECK IF GROUP ALREADY EXISTS
+        const existingGroup = await GroupModel(tenant)
+          .findOne({
+            organization_slug: orgRequest.organization_slug,
+          })
+          .lean();
+
+        let groupResponse;
+
+        if (existingGroup) {
+          // Check if user is already a member of this group
+          const isUserInGroup =
+            existingGroup.users &&
+            existingGroup.users.some(
+              (u) => u.user_id.toString() === userResponse.data._id.toString()
+            );
+
+          if (!isUserInGroup) {
+            // Add user to existing group
+            const updateResult = await GroupModel(tenant).findByIdAndUpdate(
+              existingGroup._id,
+              {
+                $addToSet: {
+                  users: {
+                    user_id: userResponse.data._id,
+                    user_role: "admin", // Make them admin since they're requesting org access
+                  },
+                },
+              },
+              { new: true }
+            );
+
+            groupResponse = {
+              success: true,
+              data: updateResult,
+              message: "User added to existing group",
+            };
+          } else {
+            groupResponse = {
+              success: true,
+              data: existingGroup,
+              message: "User already in group",
+            };
+          }
+        } else {
+          // Create new group with the user as manager
+          const createGroupRequest = {
+            body: { ...groupBody, user_id: userResponse.data._id },
+            query: { tenant },
+            user: null,
+          };
+
+          groupResponse = await createGroupUtil.create(
+            createGroupRequest,
+            next
+          );
+        }
 
         if (groupResponse.success === true) {
           // Update the organization request
@@ -337,6 +485,7 @@ const organizationRequest = {
             status: "approved",
             approved_by: user._id,
             approved_at: new Date(),
+            onboarding_token: onboardingToken, // Store token if using onboarding flow
           };
 
           const responseFromUpdate = await OrganizationRequestModel(
@@ -344,28 +493,84 @@ const organizationRequest = {
           ).modify({ filter: { _id: request_id }, update }, next);
 
           if (responseFromUpdate.success === true) {
-            // Send approval email
-            await mailer.notifyOrgRequestApproved({
-              organization_name: orgRequest.organization_name,
-              contact_name: orgRequest.contact_name,
-              contact_email: orgRequest.contact_email,
-              login_url: `${constants.PLATFORM_URL}/login/${orgRequest.organization_slug}`,
-            });
+            // Send appropriate approval email based on flow and user status
+            if (useOnboardingFlow && (!isExistingUser || onboardingToken)) {
+              // Send onboarding email with secure setup link
+              await mailer.notifyOrgRequestApprovedWithOnboarding({
+                organization_name: orgRequest.organization_name,
+                contact_name: orgRequest.contact_name,
+                email: orgRequest.contact_email,
+                onboarding_url: `${constants.ANALYTICS_BASE_URL}/onboarding/setup-account?token=${onboardingToken}`,
+                organization_slug: orgRequest.organization_slug,
+                isExistingUser,
+              });
+            } else {
+              // Send traditional approval email
+              await mailer.notifyOrgRequestApproved({
+                organization_name: orgRequest.organization_name,
+                contact_name: orgRequest.contact_name,
+                email: orgRequest.contact_email,
+                login_url: `${constants.ANALYTICS_BASE_URL}/login/${orgRequest.organization_slug}`,
+                isExistingUser,
+              });
+            }
 
             return {
               success: true,
-              message: "Organization request approved successfully",
+              message: `Organization request approved successfully${
+                useOnboardingFlow ? " with onboarding flow" : ""
+              }${isExistingUser ? " (existing user)" : " (new user)"}`,
               data: {
                 request: responseFromUpdate.data,
                 group: groupResponse.data,
                 user: userResponse.data,
+                onboardingFlow: useOnboardingFlow,
+                isExistingUser,
+                ...(useOnboardingFlow &&
+                  onboardingToken && { onboardingToken: onboardingToken }),
               },
               status: httpStatus.OK,
             };
           }
+        } else {
+          return {
+            success: false,
+            message: "Failed to create or update group",
+            errors: groupResponse.errors,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
         }
+      } else {
+        return {
+          success: false,
+          message: "Failed to create user",
+          errors: userResponse.errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
       }
     } catch (error) {
+      // ✅ ENHANCED ERROR HANDLING FOR DUPLICATE USERS
+      if (
+        error.code === 11000 &&
+        error.keyPattern &&
+        error.keyPattern.userName
+      ) {
+        logger.warn(
+          `Duplicate user error for email: ${error.keyValue.userName}`
+        );
+        return {
+          success: false,
+          message:
+            "A user with this email already exists. Please use the existing account or contact support.",
+          status: httpStatus.CONFLICT,
+          errors: {
+            email: "User already exists",
+            suggestion:
+              "Try logging in with existing credentials or contact support",
+          },
+        };
+      }
+
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -421,7 +626,7 @@ const organizationRequest = {
         await mailer.notifyOrgRequestRejected({
           organization_name: orgRequest.organization_name,
           contact_name: orgRequest.contact_name,
-          contact_email: orgRequest.contact_email,
+          email: orgRequest.contact_email,
           rejection_reason,
         });
 
@@ -544,6 +749,72 @@ const organizationRequest = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  completeOnboarding: async (request, next) => {
+    try {
+      const { body } = request;
+      const { token, password } = body;
+
+      // Verify the onboarding token
+      const decoded = jwt.verify(token, constants.JWT_SECRET);
+
+      if (decoded.purpose !== "organization_onboarding") {
+        throw new Error("Invalid onboarding token");
+      }
+
+      const { contact_email, tenant, request_id } = decoded;
+
+      // Update user password and activate account
+      const userUpdateResult = await UserModel(tenant).modify(
+        {
+          filter: { email: contact_email },
+          update: {
+            password: password, // Will be hashed by UserModel.modify before saving
+            verified: true,
+            isActive: true,
+          },
+        },
+        next
+      );
+
+      if (userUpdateResult.success) {
+        // Mark onboarding as completed
+        await OrganizationRequestModel(tenant).modify(
+          {
+            filter: { _id: request_id },
+            update: {
+              onboarding_completed: true,
+              onboarding_completed_at: new Date(),
+            },
+          },
+          next
+        );
+
+        // Send completion email
+        await mailer.onboardingCompleted({
+          organization_name: decoded.organization_name,
+          contact_name: decoded.contact_name,
+          email: decoded.contact_email,
+          login_url: `${constants.ANALYTICS_BASE_URL}/login/${decoded.organization_slug}`,
+        });
+
+        return {
+          success: true,
+          message: "Onboarding completed successfully",
+          data: { email: contact_email },
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Onboarding completion error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

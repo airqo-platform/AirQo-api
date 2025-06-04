@@ -45,6 +45,9 @@ const stageConfig = {
   PADDLE_SECRET_KEY: process.env.STAGE_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.STAGE_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.STAGE_PADDLE_API_KEY,
+  ONBOARDING_BASE_URL:
+    process.env.STAGE_ONBOARDING_BASE_URL ||
+    "https://staging-analytics.airqo.net/onboarding",
 };
 
 module.exports = stageConfig;
