@@ -5,7 +5,7 @@ const organizationRequestController = require("@controllers/organization-request
 const organizationRequestValidations = require("@validators/organization-requests.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const { validate } = require("@validators/common");
-const { airqoAdminCheck } = require("@middleware/admin-access.middleware");
+const { requireSystemAdmin } = require("@middleware/enhancedAdminAccess");
 const rateLimit = require("express-rate-limit");
 const onboardingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 
@@ -34,7 +34,7 @@ router.get(
   "/",
   setJWTAuth,
   authJWT,
-  airqoAdminCheck,
+  requireSystemAdmin(),
   organizationRequestValidations.list,
   validate,
   organizationRequestController.list
@@ -45,7 +45,7 @@ router.patch(
   "/:request_id/approve",
   setJWTAuth,
   authJWT,
-  airqoAdminCheck,
+  requireSystemAdmin(),
   organizationRequestValidations.approve,
   validate,
   organizationRequestController.approve
@@ -81,7 +81,7 @@ router.patch(
   "/:request_id/reject",
   setJWTAuth,
   authJWT,
-  airqoAdminCheck,
+  requireSystemAdmin(),
   organizationRequestValidations.reject,
   validate,
   organizationRequestController.reject
@@ -92,7 +92,7 @@ router.get(
   "/:request_id",
   setJWTAuth,
   authJWT,
-  airqoAdminCheck,
+  requireSystemAdmin(),
   organizationRequestValidations.getById,
   validate,
   organizationRequestController.getById

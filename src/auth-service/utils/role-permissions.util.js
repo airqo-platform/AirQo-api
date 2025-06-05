@@ -64,7 +64,6 @@ const findAssociatedIdForRole = async ({
   }
   return null;
 };
-
 const isAssignedUserSuperAdmin = async ({
   associatedId,
   roles = [],
@@ -102,6 +101,1125 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
       logObject("role_id.toString()", role_id.toString());
       return role.role.toString() === role_id.toString();
     });
+  }
+};
+
+/**
+ * Setup default permissions and roles for the system
+ * Called at application startup
+ */
+const setupDefaultPermissions = async (tenant = "airqo") => {
+  try {
+    console.log(
+      `🚀 Setting up default permissions and roles for tenant: ${tenant}`
+    );
+
+    const defaultPermissions = [
+      // === System Administration ===
+      {
+        permission: "SYSTEM_ADMIN",
+        description: "System-wide administrative access",
+      },
+      {
+        permission: "SUPER_ADMIN",
+        description: "Super administrator with all permissions",
+      },
+      {
+        permission: "DATABASE_ADMIN",
+        description: "Database administration access",
+      },
+
+      // === Organization Management ===
+      {
+        permission: "ORG_CREATE",
+        description: "Create new organizations",
+      },
+      {
+        permission: "ORG_VIEW",
+        description: "View organization information",
+      },
+      {
+        permission: "ORG_UPDATE",
+        description: "Update organization settings",
+      },
+      {
+        permission: "ORG_DELETE",
+        description: "Delete organizations",
+      },
+      {
+        permission: "ORG_APPROVE",
+        description: "Approve organization requests",
+      },
+      {
+        permission: "ORG_REJECT",
+        description: "Reject organization requests",
+      },
+
+      // === Group Management ===
+      {
+        permission: "GROUP_VIEW",
+        description: "View group information and basic details",
+      },
+      {
+        permission: "GROUP_CREATE",
+        description: "Create new groups",
+      },
+      {
+        permission: "GROUP_EDIT",
+        description: "Edit group settings and information",
+      },
+      {
+        permission: "GROUP_DELETE",
+        description: "Delete groups",
+      },
+      {
+        permission: "GROUP_MANAGEMENT",
+        description: "Full group management access",
+      },
+
+      // === User Management ===
+      {
+        permission: "USER_VIEW",
+        description: "View user information",
+      },
+      {
+        permission: "USER_CREATE",
+        description: "Create new users",
+      },
+      {
+        permission: "USER_EDIT",
+        description: "Edit user information",
+      },
+      {
+        permission: "USER_DELETE",
+        description: "Delete users",
+      },
+      {
+        permission: "USER_MANAGEMENT",
+        description: "Full user management access",
+      },
+      {
+        permission: "USER_INVITE",
+        description: "Invite new users to organization",
+      },
+
+      // === Member Management ===
+      {
+        permission: "MEMBER_VIEW",
+        description: "View organization members",
+      },
+      {
+        permission: "MEMBER_INVITE",
+        description: "Invite new members to organization",
+      },
+      {
+        permission: "MEMBER_REMOVE",
+        description: "Remove members from organization",
+      },
+      {
+        permission: "MEMBER_SEARCH",
+        description: "Search organization members",
+      },
+      {
+        permission: "MEMBER_EXPORT",
+        description: "Export member data",
+      },
+
+      // === Role and Permission Management ===
+      {
+        permission: "ROLE_VIEW",
+        description: "View roles and their permissions",
+      },
+      {
+        permission: "ROLE_CREATE",
+        description: "Create new roles",
+      },
+      {
+        permission: "ROLE_EDIT",
+        description: "Edit existing roles",
+      },
+      {
+        permission: "ROLE_DELETE",
+        description: "Delete roles",
+      },
+      {
+        permission: "ROLE_ASSIGNMENT",
+        description: "Assign roles to users",
+      },
+
+      // === Device Management (from requirements) ===
+      {
+        permission: "DEVICE_VIEW",
+        description: "View device information",
+      },
+      {
+        permission: "DEVICE_DEPLOY",
+        description: "Deploy devices to sites",
+      },
+      {
+        permission: "DEVICE_RECALL",
+        description: "Recall devices from deployment",
+      },
+      {
+        permission: "DEVICE_MAINTAIN",
+        description: "Perform device maintenance",
+      },
+      {
+        permission: "DEVICE_UPDATE",
+        description: "Update device configuration",
+      },
+      {
+        permission: "DEVICE_DELETE",
+        description: "Delete device records",
+      },
+
+      // === Site Management ===
+      {
+        permission: "SITE_VIEW",
+        description: "View site information",
+      },
+      {
+        permission: "SITE_CREATE",
+        description: "Create new sites",
+      },
+      {
+        permission: "SITE_UPDATE",
+        description: "Update site information",
+      },
+      {
+        permission: "SITE_DELETE",
+        description: "Delete sites",
+      },
+
+      // === Dashboard and Analytics ===
+      {
+        permission: "DASHBOARD_VIEW",
+        description: "View dashboard",
+      },
+      {
+        permission: "ANALYTICS_VIEW",
+        description: "View analytics and reports",
+      },
+      {
+        permission: "ANALYTICS_EXPORT",
+        description: "Export analytics data",
+      },
+      {
+        permission: "DATA_VIEW",
+        description: "View data",
+      },
+      {
+        permission: "DATA_EXPORT",
+        description: "Export data",
+      },
+      {
+        permission: "DATA_COMPARE",
+        description: "Compare data across sources",
+      },
+
+      // === Settings and Configuration ===
+      {
+        permission: "SETTINGS_VIEW",
+        description: "View system and organization settings",
+      },
+      {
+        permission: "SETTINGS_EDIT",
+        description: "Edit system and organization settings",
+      },
+      {
+        permission: "GROUP_SETTINGS",
+        description: "Manage group-specific settings",
+      },
+
+      // === Content Management ===
+      {
+        permission: "CONTENT_VIEW",
+        description: "View content",
+      },
+      {
+        permission: "CONTENT_CREATE",
+        description: "Create content",
+      },
+      {
+        permission: "CONTENT_EDIT",
+        description: "Edit content",
+      },
+      {
+        permission: "CONTENT_DELETE",
+        description: "Delete content",
+      },
+      {
+        permission: "CONTENT_MODERATION",
+        description: "Moderate content",
+      },
+
+      // === Activity and Audit ===
+      {
+        permission: "ACTIVITY_VIEW",
+        description: "View activity logs",
+      },
+      {
+        permission: "AUDIT_VIEW",
+        description: "View audit trails",
+      },
+      {
+        permission: "AUDIT_EXPORT",
+        description: "Export audit logs",
+      },
+      {
+        permission: "REPORT_GENERATE",
+        description: "Generate reports",
+      },
+
+      // === API and Integration ===
+      {
+        permission: "API_ACCESS",
+        description: "Access API endpoints",
+      },
+      {
+        permission: "TOKEN_GENERATE",
+        description: "Generate API tokens",
+      },
+      {
+        permission: "TOKEN_MANAGE",
+        description: "Manage API tokens",
+      },
+
+      // === Network Management ===
+      {
+        permission: "NETWORK_VIEW",
+        description: "View network information",
+      },
+      {
+        permission: "NETWORK_CREATE",
+        description: "Create new networks",
+      },
+      {
+        permission: "NETWORK_EDIT",
+        description: "Edit network settings",
+      },
+      {
+        permission: "NETWORK_DELETE",
+        description: "Delete networks",
+      },
+      {
+        permission: "NETWORK_MANAGEMENT",
+        description: "Full network management access",
+      },
+    ];
+
+    // Create default permissions
+    for (const permissionData of defaultPermissions) {
+      try {
+        const existingPermission = await PermissionModel(tenant)
+          .findOne({ permission: permissionData.permission })
+          .lean();
+
+        if (!existingPermission) {
+          await PermissionModel(tenant).create(permissionData);
+          console.log(`✅ Created permission: ${permissionData.permission}`);
+        } else {
+          console.log(
+            `⏭️  Permission already exists: ${permissionData.permission}`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `❌ Error creating permission ${permissionData.permission}: ${error.message}`
+        );
+      }
+    }
+
+    // Create AirQo organization if it doesn't exist
+    const GroupModel = require("@models/Group");
+    let airqoGroup = await GroupModel(tenant).findOne({
+      grp_title: { $regex: /^airqo$/i },
+    });
+
+    if (!airqoGroup) {
+      airqoGroup = await GroupModel(tenant).create({
+        grp_title: "AirQo",
+        grp_description: "AirQo Organization - System Administrator Group",
+        grp_status: "ACTIVE",
+        organization_slug: "airqo",
+      });
+      console.log("✅ Created AirQo organization");
+    }
+
+    // Define default roles for AirQo organization
+    const defaultRoles = [
+      {
+        role_name: "AIRQO_SUPER_ADMIN",
+        role_code: "AIRQO_SUPER_ADMIN",
+        role_description: "AirQo Super Administrator with all permissions",
+        group_id: airqoGroup._id,
+        permissions: [
+          "SUPER_ADMIN",
+          "SYSTEM_ADMIN",
+          "DATABASE_ADMIN",
+          "ORG_CREATE",
+          "ORG_VIEW",
+          "ORG_UPDATE",
+          "ORG_DELETE",
+          "ORG_APPROVE",
+          "ORG_REJECT",
+          "GROUP_MANAGEMENT",
+          "USER_MANAGEMENT",
+          "ROLE_ASSIGNMENT",
+          "SETTINGS_EDIT",
+          "ANALYTICS_VIEW",
+          "AUDIT_VIEW",
+          "AUDIT_EXPORT",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_RECALL",
+          "DEVICE_MAINTAIN",
+          "DEVICE_UPDATE",
+          "DEVICE_DELETE",
+          "SITE_VIEW",
+          "SITE_CREATE",
+          "SITE_UPDATE",
+          "SITE_DELETE",
+          "API_ACCESS",
+          "TOKEN_GENERATE",
+          "TOKEN_MANAGE",
+          "NETWORK_MANAGEMENT",
+        ],
+      },
+      {
+        role_name: "AIRQO_ADMIN",
+        role_code: "AIRQO_ADMIN",
+        role_description: "AirQo Administrator",
+        group_id: airqoGroup._id,
+        permissions: [
+          "ORG_VIEW",
+          "ORG_APPROVE",
+          "ORG_REJECT",
+          "GROUP_VIEW",
+          "GROUP_EDIT",
+          "USER_MANAGEMENT",
+          "MEMBER_VIEW",
+          "MEMBER_INVITE",
+          "MEMBER_REMOVE",
+          "ROLE_VIEW",
+          "ROLE_ASSIGNMENT",
+          "SETTINGS_VIEW",
+          "ANALYTICS_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_MAINTAIN",
+          "SITE_VIEW",
+          "SITE_CREATE",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+        ],
+      },
+    ];
+
+    // Create system-wide default role templates
+    const organizationRoleTemplates = [
+      {
+        role_name: "{ORG}_SUPER_ADMIN",
+        role_description: "Super Administrator for {ORG}",
+        permissions: [
+          "GROUP_MANAGEMENT",
+          "USER_MANAGEMENT",
+          "ROLE_ASSIGNMENT",
+          "SETTINGS_EDIT",
+          "ANALYTICS_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_MAINTAIN",
+          "SITE_VIEW",
+          "SITE_CREATE",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+          "MEMBER_VIEW",
+          "MEMBER_INVITE",
+          "MEMBER_REMOVE",
+          "API_ACCESS",
+          "TOKEN_GENERATE",
+        ],
+      },
+      {
+        role_name: "{ORG}_ADMIN",
+        role_description: "Administrator for {ORG}",
+        permissions: [
+          "GROUP_VIEW",
+          "GROUP_EDIT",
+          "USER_MANAGEMENT",
+          "MEMBER_VIEW",
+          "MEMBER_INVITE",
+          "MEMBER_REMOVE",
+          "ROLE_VIEW",
+          "SETTINGS_VIEW",
+          "ANALYTICS_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_MAINTAIN",
+          "SITE_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+        ],
+      },
+      {
+        role_name: "{ORG}_TECHNICIAN",
+        role_description: "Field Technician for {ORG}",
+        permissions: [
+          "GROUP_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_MAINTAIN",
+          "SITE_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "MEMBER_VIEW",
+        ],
+      },
+      {
+        role_name: "{ORG}_ANALYST",
+        role_description: "Data Analyst for {ORG}",
+        permissions: [
+          "GROUP_VIEW",
+          "ANALYTICS_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+          "DATA_COMPARE",
+          "DEVICE_VIEW",
+          "SITE_VIEW",
+          "MEMBER_VIEW",
+        ],
+      },
+      {
+        role_name: "{ORG}_DEVELOPER",
+        role_description: "Developer for {ORG}",
+        permissions: [
+          "GROUP_VIEW",
+          "API_ACCESS",
+          "TOKEN_GENERATE",
+          "TOKEN_MANAGE",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+          "DEVICE_VIEW",
+          "SITE_VIEW",
+          "DASHBOARD_VIEW",
+        ],
+      },
+      {
+        role_name: "{ORG}_VIEWER",
+        role_description: "Read-only Viewer for {ORG}",
+        permissions: [
+          "GROUP_VIEW",
+          "DEVICE_VIEW",
+          "SITE_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "MEMBER_VIEW",
+        ],
+      },
+    ];
+
+    // Create AirQo-specific roles
+    const roleCreationResults = [];
+    for (const roleData of defaultRoles) {
+      try {
+        const result = await createOrUpdateRole(tenant, roleData);
+        if (result) {
+          roleCreationResults.push(result);
+        }
+      } catch (error) {
+        console.error(
+          `❌ Failed to create role ${roleData.role_name}: ${error.message}`
+        );
+        // Continue with other roles even if one fails
+        continue;
+      }
+    }
+
+    console.log(
+      "🎉 Default permissions and roles setup completed successfully!"
+    );
+
+    return {
+      success: true,
+      message: "Default permissions and roles setup complete",
+      data: {
+        permissions_created: defaultPermissions.length,
+        roles_processed: defaultRoles.length,
+        roles_created: roleCreationResults.length,
+        organization: airqoGroup.grp_title,
+      },
+    };
+  } catch (error) {
+    console.error(`❌ Error setting up default permissions: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Helper function to create or update a role with E11000 duplicate handling
+ * Inspired by the register function pattern
+ */
+const createOrUpdateRole = async (tenant, roleData) => {
+  try {
+    console.log(`🔍 Processing role: ${roleData.role_name}`);
+
+    // Get permission IDs for the role
+    const permissions = await PermissionModel(tenant)
+      .find({ permission: { $in: roleData.permissions } })
+      .select("_id")
+      .lean();
+
+    const permissionIds = permissions.map((p) => p._id);
+
+    // Try to create the role directly
+    const newRole = await RoleModel(tenant).create({
+      role_name: roleData.role_name,
+      role_code: roleData.role_code || roleData.role_name,
+      role_description: roleData.role_description,
+      group_id: roleData.group_id,
+      network_id: roleData.network_id, // Include network_id if provided
+      role_permissions: permissionIds,
+      role_status: "ACTIVE",
+    });
+
+    console.log(`✅ Created new role: ${roleData.role_name}`);
+    return {
+      success: true,
+      data: newRole,
+      message: `Role ${roleData.role_name} created successfully`,
+      status: httpStatus.OK,
+    };
+  } catch (err) {
+    console.log(`⚠️  Error creating role ${roleData.role_name}:`, err.message);
+
+    // Handle E11000 duplicate key error specifically
+    if (err.code === 11000) {
+      console.log(
+        `🔄 Duplicate detected for role: ${roleData.role_name}, finding existing...`
+      );
+
+      try {
+        // Try multiple search strategies to find the existing role
+        const searchStrategies = [
+          { role_code: roleData.role_code || roleData.role_name },
+          { role_name: roleData.role_name },
+          {
+            role_name: roleData.role_name,
+            group_id: roleData.group_id,
+          },
+        ];
+
+        let existingRole = null;
+        for (const searchQuery of searchStrategies) {
+          existingRole = await RoleModel(tenant).findOne(searchQuery).lean();
+          if (existingRole) {
+            console.log(
+              `✅ Found existing role: ${existingRole.role_name} (ID: ${existingRole._id})`
+            );
+            break;
+          }
+        }
+
+        if (existingRole) {
+          // Optionally update permissions on existing role
+          try {
+            const permissions = await PermissionModel(tenant)
+              .find({ permission: { $in: roleData.permissions } })
+              .select("_id")
+              .lean();
+
+            const permissionIds = permissions.map((p) => p._id);
+
+            const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
+              existingRole._id,
+              {
+                role_description: roleData.role_description,
+                role_permissions: permissionIds,
+                role_status: "ACTIVE",
+                updatedAt: new Date(),
+              },
+              { new: true }
+            );
+
+            console.log(`🔄 Updated existing role: ${roleData.role_name}`);
+
+            return {
+              success: true,
+              data: updatedRole || existingRole,
+              message: `Role ${roleData.role_name} already exists and was updated`,
+              status: httpStatus.OK,
+            };
+          } catch (updateError) {
+            console.log(
+              `⚠️  Update failed, using existing role: ${roleData.role_name}`
+            );
+            return {
+              success: true,
+              data: existingRole,
+              message: `Role ${roleData.role_name} already exists`,
+              status: httpStatus.OK,
+            };
+          }
+        } else {
+          // Could not find existing role even though duplicate error occurred
+          console.log(
+            `❌ Duplicate error but role not found: ${roleData.role_name}`
+          );
+
+          // Extract duplicate field info from error
+          let duplicateField = "role_code";
+          let duplicateValue = roleData.role_code || roleData.role_name;
+
+          if (err.keyValue) {
+            const [key, value] = Object.entries(err.keyValue)[0];
+            duplicateField = key;
+            duplicateValue = value;
+          }
+
+          return {
+            success: false,
+            message:
+              "Duplicate role detected but could not locate existing role",
+            status: httpStatus.CONFLICT,
+            errors: {
+              [duplicateField]: `the ${duplicateField} must be unique`,
+              message: `Role with ${duplicateField} '${duplicateValue}' already exists`,
+              suggestion: "Try using a different role name or code",
+            },
+          };
+        }
+      } catch (findError) {
+        console.error(`❌ Error finding existing role: ${findError.message}`);
+        return {
+          success: false,
+          message: "Duplicate role error and failed to find existing role",
+          status: httpStatus.CONFLICT,
+          errors: {
+            message: `Role ${roleData.role_name} appears to be duplicate but could not be located`,
+            original_error: err.message,
+            search_error: findError.message,
+          },
+        };
+      }
+    } else if (err.keyValue) {
+      // Handle other duplicate field errors
+      let response = {};
+      Object.entries(err.keyValue).forEach(([key, value]) => {
+        response[key] = `the ${key} must be unique`;
+      });
+
+      return {
+        success: false,
+        message: "Validation errors for some of the provided fields",
+        status: httpStatus.CONFLICT,
+        errors: response,
+      };
+    } else if (err.errors) {
+      // Handle validation errors
+      let response = {};
+      Object.entries(err.errors).forEach(([key, value]) => {
+        response[key] = value.message;
+      });
+
+      return {
+        success: false,
+        message: "Validation errors for some of the provided fields",
+        status: httpStatus.CONFLICT,
+        errors: response,
+      };
+    } else {
+      // Handle other errors
+      console.error(
+        `❌ Unexpected error creating role ${roleData.role_name}: ${err.message}`
+      );
+      return {
+        success: false,
+        message: "Error creating role",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: err.message,
+        },
+      };
+    }
+  }
+};
+
+/**
+ * Create default roles for a new organization
+ * Uses improved E11000 duplicate handling
+ */
+const createDefaultRolesForOrganization = async (
+  groupId,
+  organizationName,
+  tenant = "airqo"
+) => {
+  try {
+    const orgName = organizationName.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+
+    const roleTemplates = [
+      {
+        role_name: `${orgName}_SUPER_ADMIN`,
+        role_description: `Super Administrator for ${organizationName}`,
+        permissions: [
+          "GROUP_MANAGEMENT",
+          "USER_MANAGEMENT",
+          "ROLE_ASSIGNMENT",
+          "SETTINGS_EDIT",
+          "ANALYTICS_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_MAINTAIN",
+          "SITE_VIEW",
+          "SITE_CREATE",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+          "MEMBER_VIEW",
+          "MEMBER_INVITE",
+          "MEMBER_REMOVE",
+          "API_ACCESS",
+          "TOKEN_GENERATE",
+        ],
+      },
+      {
+        role_name: `${orgName}_ADMIN`,
+        role_description: `Administrator for ${organizationName}`,
+        permissions: [
+          "GROUP_VIEW",
+          "GROUP_EDIT",
+          "USER_MANAGEMENT",
+          "MEMBER_VIEW",
+          "MEMBER_INVITE",
+          "MEMBER_REMOVE",
+          "ROLE_VIEW",
+          "SETTINGS_VIEW",
+          "ANALYTICS_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_DEPLOY",
+          "DEVICE_MAINTAIN",
+          "SITE_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DATA_EXPORT",
+        ],
+      },
+      {
+        role_name: `${orgName}_DEFAULT_MEMBER`,
+        role_description: `Default Member role for ${organizationName}`,
+        permissions: [
+          "GROUP_VIEW",
+          "MEMBER_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DEVICE_VIEW",
+          "SITE_VIEW",
+        ],
+      },
+    ];
+
+    const createdRoles = [];
+    const roleErrors = [];
+
+    for (const roleTemplate of roleTemplates) {
+      try {
+        const roleData = {
+          ...roleTemplate,
+          group_id: groupId,
+          role_code: roleTemplate.role_name,
+        };
+
+        const result = await createOrUpdateRole(tenant, roleData);
+
+        if (result.success) {
+          createdRoles.push(result.data);
+          console.log(
+            `✅ Created role for ${organizationName}: ${roleTemplate.role_name}`
+          );
+        } else {
+          roleErrors.push({
+            role_name: roleTemplate.role_name,
+            error: result.message,
+            details: result.errors,
+          });
+          console.error(
+            `❌ Failed to create role ${roleTemplate.role_name}: ${result.message}`
+          );
+        }
+      } catch (error) {
+        roleErrors.push({
+          role_name: roleTemplate.role_name,
+          error: error.message,
+          type: "unexpected_error",
+        });
+        console.error(
+          `❌ Unexpected error creating role ${roleTemplate.role_name}: ${error.message}`
+        );
+        // Continue with other roles
+        continue;
+      }
+    }
+
+    return {
+      success: roleErrors.length === 0,
+      data: {
+        roles_created: createdRoles,
+        roles_failed: roleErrors,
+        organization_name: organizationName,
+        total_attempted: roleTemplates.length,
+        successful_count: createdRoles.length,
+        failed_count: roleErrors.length,
+      },
+      message:
+        roleErrors.length === 0
+          ? `All default roles created for ${organizationName}`
+          : `Some roles failed to create for ${organizationName}`,
+    };
+  } catch (error) {
+    console.error(
+      `Error creating roles for organization ${organizationName}: ${error.message}`
+    );
+    return {
+      success: false,
+      message: `Failed to create roles for ${organizationName}`,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Reset/cleanup RBAC data (use with caution!)
+ */
+const resetRBACData = async (tenant = "airqo", options = {}) => {
+  try {
+    const {
+      resetPermissions = false,
+      resetRoles = false,
+      resetUserRoles = false,
+      dryRun = true,
+    } = options;
+
+    console.log(
+      `🧹 ${dryRun ? "DRY RUN:" : ""} Resetting RBAC data for tenant: ${tenant}`
+    );
+
+    const results = {
+      permissions_deleted: 0,
+      roles_deleted: 0,
+      users_updated: 0,
+      errors: [],
+    };
+
+    if (resetUserRoles) {
+      const updateResult = await UserModel(tenant).updateMany(
+        {},
+        {
+          $unset: {
+            group_roles: 1,
+            network_roles: 1,
+            // Optionally clear deprecated fields too
+            role: 1,
+            privilege: 1,
+          },
+        },
+        { dryRun }
+      );
+      results.users_updated = updateResult.modifiedCount || 0;
+      console.log(
+        `${dryRun ? "[DRY RUN]" : ""} Updated ${results.users_updated} users`
+      );
+    }
+
+    if (resetRoles) {
+      const deleteResult = await RoleModel(tenant).deleteMany({}, { dryRun });
+      results.roles_deleted = deleteResult.deletedCount || 0;
+      console.log(
+        `${dryRun ? "[DRY RUN]" : ""} Deleted ${results.roles_deleted} roles`
+      );
+    }
+
+    if (resetPermissions) {
+      const deleteResult = await PermissionModel(tenant).deleteMany(
+        {},
+        { dryRun }
+      );
+      results.permissions_deleted = deleteResult.deletedCount || 0;
+      console.log(
+        `${dryRun ? "[DRY RUN]" : ""} Deleted ${
+          results.permissions_deleted
+        } permissions`
+      );
+    }
+
+    return {
+      success: true,
+      message: `${dryRun ? "DRY RUN: " : ""}RBAC reset completed`,
+      data: results,
+    };
+  } catch (error) {
+    console.error(`❌ Error resetting RBAC data: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Ensure AIRQO_SUPER_ADMIN role exists (fallback utility)
+ * Uses E11000 duplicate handling pattern
+ */
+const ensureSuperAdminRole = async (tenant = "airqo") => {
+  try {
+    console.log("🔍 Ensuring AIRQO_SUPER_ADMIN role exists...");
+
+    // Try to find existing super admin role first
+    let superAdminRole = await RoleModel(tenant)
+      .findOne({
+        $or: [
+          { role_code: "AIRQO_SUPER_ADMIN" },
+          { role_name: "AIRQO_SUPER_ADMIN" },
+        ],
+      })
+      .lean();
+
+    if (superAdminRole) {
+      console.log(
+        `✅ Found existing AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`
+      );
+      return superAdminRole;
+    }
+
+    console.log("🆕 AIRQO_SUPER_ADMIN role not found, creating...");
+
+    // Get or create AirQo group
+    const GroupModel = require("@models/Group");
+    let airqoGroup = await GroupModel(tenant).findOne({
+      grp_title: { $regex: /^airqo$/i },
+    });
+
+    if (!airqoGroup) {
+      airqoGroup = await GroupModel(tenant).create({
+        grp_title: "AirQo",
+        grp_description: "AirQo Organization - System Administrator Group",
+        grp_status: "ACTIVE",
+        organization_slug: "airqo",
+      });
+      console.log("✅ Created AirQo organization");
+    }
+
+    // Get some basic permissions (create minimal set if none exist)
+    let basicPermissions = await PermissionModel(tenant)
+      .find({
+        permission: {
+          $in: [
+            "SUPER_ADMIN",
+            "SYSTEM_ADMIN",
+            "GROUP_MANAGEMENT",
+            "USER_MANAGEMENT",
+          ],
+        },
+      })
+      .select("_id")
+      .lean();
+
+    // If no permissions exist, create minimal set
+    if (basicPermissions.length === 0) {
+      console.log("⚠️  No permissions found, creating minimal set...");
+
+      const minimalPermissions = [
+        {
+          permission: "SUPER_ADMIN",
+          description: "Super administrator access",
+        },
+        {
+          permission: "SYSTEM_ADMIN",
+          description: "System administrator access",
+        },
+        {
+          permission: "GROUP_MANAGEMENT",
+          description: "Group management access",
+        },
+        {
+          permission: "USER_MANAGEMENT",
+          description: "User management access",
+        },
+      ];
+
+      for (const permData of minimalPermissions) {
+        try {
+          const newPerm = await PermissionModel(tenant).create(permData);
+          basicPermissions.push({ _id: newPerm._id });
+          console.log(`✅ Created permission: ${permData.permission}`);
+        } catch (permError) {
+          if (permError.code === 11000) {
+            // Permission already exists, find it
+            const existingPerm = await PermissionModel(tenant)
+              .findOne({ permission: permData.permission })
+              .select("_id")
+              .lean();
+            if (existingPerm) {
+              basicPermissions.push(existingPerm);
+            }
+          }
+        }
+      }
+    }
+
+    const permissionIds = basicPermissions.map((p) => p._id);
+
+    // Use the E11000 pattern to create the super admin role
+    try {
+      superAdminRole = await RoleModel(tenant).create({
+        role_name: "AIRQO_SUPER_ADMIN",
+        role_code: "AIRQO_SUPER_ADMIN",
+        role_description: "AirQo Super Administrator with all permissions",
+        group_id: airqoGroup._id,
+        role_permissions: permissionIds,
+        role_status: "ACTIVE",
+      });
+
+      console.log(
+        `✅ Created AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`
+      );
+      return superAdminRole;
+    } catch (err) {
+      console.log(`⚠️  Error creating super admin role:`, err.message);
+
+      // Handle E11000 duplicate key error
+      if (err.code === 11000) {
+        console.log("🔄 Duplicate detected, searching for existing role...");
+
+        // Try to find the existing role
+        superAdminRole = await RoleModel(tenant)
+          .findOne({
+            $or: [
+              { role_code: "AIRQO_SUPER_ADMIN" },
+              { role_name: "AIRQO_SUPER_ADMIN" },
+            ],
+          })
+          .lean();
+
+        if (superAdminRole) {
+          console.log(
+            `✅ Found existing role after duplicate error (ID: ${superAdminRole._id})`
+          );
+          return superAdminRole;
+        } else {
+          console.error("❌ Duplicate error but could not find existing role");
+          throw new Error(
+            "AIRQO_SUPER_ADMIN role appears to exist but could not be located"
+          );
+        }
+      } else {
+        // Some other error occurred
+        throw err;
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Error ensuring super admin role: ${error.message}`);
+    throw error;
   }
 };
 
@@ -2320,4 +3438,11 @@ const rolePermissionUtil = {
   },
 };
 
-module.exports = rolePermissionUtil;
+module.exports = {
+  ...rolePermissionUtil,
+  setupDefaultPermissions,
+  createDefaultRolesForOrganization,
+  createOrUpdateRole,
+  resetRBACData,
+  ensureSuperAdminRole,
+};

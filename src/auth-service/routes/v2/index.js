@@ -119,6 +119,12 @@ const authRoutes = [
     description: "Role-based access control",
   },
   {
+    path: "/admin",
+    route: "@routes/v2/admin.routes",
+    name: "admin",
+    description: "Admin setup utilities (development)",
+  },
+  {
     path: "/inquiries",
     route: "@routes/v2/inquiries.routes",
     name: "inquiries",

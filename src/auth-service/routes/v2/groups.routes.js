@@ -1,10 +1,31 @@
-// groups.routes.js
+// group.routes.js - Updated with new RBAC system
 const express = require("express");
 const router = express.Router();
 const groupController = require("@controllers/group.controller");
 const groupValidations = require("@validators/groups.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const { adminCheck } = require("@middleware/admin-access.middleware");
+
+// New RBAC middleware
+const {
+  requirePermissions,
+  requireGroupPermissions,
+  requireGroupMembership,
+  requireGroupManager,
+  debugPermissions,
+} = require("@middleware/permissionAuth");
+
+const {
+  requireGroupAdmin,
+  requireGroupAccess,
+  requireGroupUserManagement,
+  requireGroupSettings,
+} = require("@middleware/enhancedAdminAccess");
+
+const {
+  requireGroupManagerAccess,
+  requireGroupAdminAccess,
+  requireGroupMemberManagementAccess,
+} = require("@middleware/groupNetworkAuth");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -15,108 +36,118 @@ const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
   next();
 };
+
 router.use(headers);
 router.use(groupValidations.pagination);
 
-router.delete(
-  "/:grp_id",
-  groupValidations.deleteGroup,
-  setJWTAuth,
-  authJWT,
-  groupController.delete
-);
+// Debug middleware for development
+if (process.env.NODE_ENV !== "production") {
+  router.use(debugPermissions());
+}
 
-router.put("/:grp_id", groupValidations.update, groupController.update);
-
-router.get("/", groupValidations.list, groupController.list);
-
-router.post(
+// Public/minimal access endpoints
+router.get(
   "/",
-  groupValidations.create,
+  groupValidations.list,
   setJWTAuth,
   authJWT,
-  groupController.create
-);
-
-router.get(
-  "/:groupSlug/dashboard",
-  setJWTAuth,
-  authJWT,
-  adminCheck,
-  groupController.getDashboard
-);
-
-router.get(
-  "/:groupSlug/members",
-  setJWTAuth,
-  authJWT,
-  adminCheck,
-  groupController.getMembers
-);
-
-router.get(
-  "/:groupSlug/settings",
-  setJWTAuth,
-  authJWT,
-  adminCheck,
-  groupController.getSettings
-);
-
-// Update group settings
-router.put(
-  "/:groupSlug/settings",
-  setJWTAuth,
-  authJWT,
-  adminCheck,
-  groupController.updateSettings
-);
-
-router.post(
-  "/removeUniqueConstraints",
-  groupValidations.removeUniqueConstraint,
-  setJWTAuth,
-  authJWT,
-  groupController.removeUniqueConstraint
-);
-
-router.put(
-  "/:grp_id/assign-user/:user_id",
-  groupValidations.assignOneUser,
-  setJWTAuth,
-  authJWT,
-  groupController.assignOneUser
+  requirePermissions(["GROUP_VIEW"]),
+  groupController.list
 );
 
 router.get(
   "/summary",
   groupValidations.listSummary,
+  setJWTAuth,
+  authJWT,
+  requirePermissions(["GROUP_VIEW"]),
   groupController.listSummary
 );
 
-router.put(
-  "/:grp_id/set-manager/:user_id",
-  groupValidations.setManager,
+// Group creation - requires system-level permissions
+router.post(
+  "/",
+  groupValidations.create,
   setJWTAuth,
   authJWT,
-  groupController.setManager
+  requirePermissions(["GROUP_CREATE", "SYSTEM_ADMIN"]),
+  groupController.create
 );
 
+// Group-specific endpoints requiring membership or admin access
 router.get(
-  "/:grp_id/assigned-users",
-  groupValidations.listAssignedUsers,
-  groupController.listAssignedUsers
+  "/:grp_id",
+  groupValidations.getGroupById,
+  setJWTAuth,
+  authJWT,
+  requireGroupAccess(["GROUP_VIEW"]),
+  groupController.list
 );
 
-router.get(
-  "/:grp_id/all-users",
-  groupValidations.listAllGroupUsers,
-  groupController.listAllGroupUsers
+// Group update - requires admin access to the specific group
+router.put(
+  "/:grp_id",
+  groupValidations.update,
+  setJWTAuth,
+  authJWT,
+  requireGroupAdmin(),
+  groupController.update
 );
 
+// Group deletion - requires super admin
+router.delete(
+  "/:grp_id",
+  groupValidations.deleteGroup,
+  setJWTAuth,
+  authJWT,
+  requireGroupAdmin({ requireSuperAdmin: true }),
+  groupController.delete
+);
+
+// Dashboard access - group members with dashboard permissions
 router.get(
-  "/:grp_id/available-users",
-  groupValidations.listAvailableUsers,
-  groupController.listAvailableUsers
+  "/:groupSlug/dashboard",
+  setJWTAuth,
+  authJWT,
+  requireGroupPermissions(["DASHBOARD_VIEW", "GROUP_VIEW"], "groupSlug"),
+  groupController.getDashboard
+);
+
+// Members management - requires member view permissions
+router.get(
+  "/:groupSlug/members",
+  setJWTAuth,
+  authJWT,
+  requireGroupPermissions(["MEMBER_VIEW", "GROUP_VIEW"], "groupSlug"),
+  groupController.getMembers
+);
+
+// Settings access - group members can view, admins can modify
+router.get(
+  "/:groupSlug/settings",
+  setJWTAuth,
+  authJWT,
+  requireGroupPermissions(["SETTINGS_VIEW", "GROUP_VIEW"], "groupSlug"),
+  groupController.getSettings
+);
+
+// Update group settings - requires admin access
+router.put(
+  "/:groupSlug/settings",
+  setJWTAuth,
+  authJWT,
+  requireGroupSettings("groupSlug"),
+  groupController.updateSettings
+);
+
+// User assignment - requires user management permissions
+router.put(
+  "/:grp_id/assign-user/:user_id",
+  groupValidations.assignOneUser,
+  setJWTAuth,
+  authJWT,
+  requireGroupUserManagement(),
+  groupController.assignOneUser
 );
 
 router.post(
@@ -124,6 +155,7 @@ router.post(
   groupValidations.assignUsers,
   setJWTAuth,
   authJWT,
+  requireGroupUserManagement(),
   groupController.assignUsers
 );
 
@@ -132,6 +164,7 @@ router.delete(
   groupValidations.unAssignUser,
   setJWTAuth,
   authJWT,
+  requireGroupUserManagement(),
   groupController.unAssignUser
 );
 
@@ -140,154 +173,200 @@ router.delete(
   groupValidations.unAssignManyUsers,
   setJWTAuth,
   authJWT,
+  requireGroupUserManagement(),
   groupController.unAssignManyUsers
 );
 
-router.get(
-  "/:grp_id/roles",
-  groupValidations.listRolesForGroup,
+// Manager assignment - requires admin access
+router.put(
+  "/:grp_id/set-manager/:user_id",
+  groupValidations.setManager,
   setJWTAuth,
   authJWT,
-  groupController.listRolesForGroup
+  requireGroupAdmin(),
+  groupController.setManager
 );
 
-// Enhanced manager assignment with automatic role and permission handling
+// Enhanced manager assignment with automatic role handling
 router.put(
   "/:grp_id/enhanced-set-manager/:user_id",
   groupValidations.enhancedSetManager,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupAdmin(),
   groupController.enhancedSetManager
 );
 
-// Manager-specific dashboard with analytics and insights
+// User listing endpoints - different permission levels
+router.get(
+  "/:grp_id/assigned-users",
+  groupValidations.listAssignedUsers,
+  setJWTAuth,
+  authJWT,
+  requireGroupPermissions(["MEMBER_VIEW"], "grp_id"),
+  groupController.listAssignedUsers
+);
+
+router.get(
+  "/:grp_id/all-users",
+  groupValidations.listAllGroupUsers,
+  setJWTAuth,
+  authJWT,
+  requireGroupPermissions(["MEMBER_VIEW", "USER_VIEW"], "grp_id"),
+  groupController.listAllGroupUsers
+);
+
+router.get(
+  "/:grp_id/available-users",
+  groupValidations.listAvailableUsers,
+  setJWTAuth,
+  authJWT,
+  requireGroupUserManagement(),
+  groupController.listAvailableUsers
+);
+
+// Role management for groups
+router.get(
+  "/:grp_id/roles",
+  groupValidations.listRolesForGroup,
+  setJWTAuth,
+  authJWT,
+  requireGroupPermissions(["ROLE_VIEW"], "grp_id"),
+  groupController.listRolesForGroup
+);
+
+// Manager-specific features - requires manager access
 router.get(
   "/:grp_id/manager/dashboard",
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.getManagerDashboard
 );
 
-// Comprehensive group analytics for managers
 router.get(
   "/:grp_id/analytics",
   groupValidations.getGroupAnalytics,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.getGroupAnalytics
 );
 
-// Bulk member management operations
+// Bulk operations - requires admin access
 router.post(
   "/:grp_id/bulk-member-management",
   groupValidations.bulkMemberManagement,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupAdminAccess(),
   groupController.bulkMemberManagement
 );
 
-// Access request management (list pending requests)
+// Access request management - manager level access
 router.get(
   "/:grp_id/access-requests",
   groupValidations.manageAccessRequests,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.manageAccessRequests
 );
 
-// Bulk decision on access requests (approve/reject multiple)
 router.post(
   "/:grp_id/access-requests/bulk-decision",
   groupValidations.manageAccessRequests,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.manageAccessRequests
 );
 
-// Assign specific role to group member
+// Role assignment to specific members - admin access
 router.put(
   "/:grp_id/members/:user_id/role",
   groupValidations.assignMemberRole,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupAdminAccess(),
   groupController.assignMemberRole
 );
 
-// Send group invitations via email
+// Invitation management - manager access
 router.post(
   "/:grp_id/invitations",
   groupValidations.sendGroupInvitations,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.sendGroupInvitations
 );
 
-// List group invitations and their status
 router.get(
   "/:grp_id/invitations",
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.listGroupInvitations
 );
 
-// Update group status with audit trail and notifications
+// Status management - admin access
 router.patch(
   "/:grp_id/status",
   groupValidations.updateGroupStatus,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupAdminAccess(),
   groupController.updateGroupStatus
 );
 
-// Get group activity log with filtering options
+// Activity and audit logs - manager access
 router.get(
   "/:grp_id/activity-log",
   groupValidations.getActivityLog,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.getGroupActivityLog
 );
 
-// Advanced group member search and filtering
+// Advanced search - member access with view permissions
 router.get(
   "/:grp_id/members/search",
   groupValidations.searchGroupMembers,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupPermissions(["MEMBER_VIEW", "MEMBER_SEARCH"], "grp_id"),
   groupController.searchGroupMembers
 );
 
-// Export group data for managers
+// Data export - manager access
 router.get(
   "/:grp_id/export",
   groupValidations.exportGroupData,
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupManagerAccess(),
   groupController.exportGroupData
 );
 
-// Group health check and diagnostics
+// Health diagnostics - admin access
 router.get(
   "/:grp_id/health",
   setJWTAuth,
   authJWT,
-  adminCheck,
+  requireGroupAdminAccess(),
   groupController.getGroupHealth
 );
 
-router.get("/:grp_id", groupValidations.getGroupById, groupController.list);
+// System-level operations - requires super admin
+router.post(
+  "/removeUniqueConstraints",
+  groupValidations.removeUniqueConstraint,
+  setJWTAuth,
+  authJWT,
+  requirePermissions(["SYSTEM_ADMIN", "DATABASE_ADMIN"]),
+  groupController.removeUniqueConstraint
+);
 
 module.exports = router;

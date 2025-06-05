@@ -1230,6 +1230,314 @@ const createRole = {
       );
     }
   },
+  // Enhanced user details with role information
+  getEnhancedUserDetails: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const { user_id } = req.params;
+      const { tenant, include_deprecated = false } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      const filter = user_id ? { _id: user_id } : {};
+      const includeDeprecated = include_deprecated === "true";
+
+      const result = await UserModel(actualTenant).getEnhancedUserDetails(
+        { filter, includeDeprecated },
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          enhanced_user_details: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // System health check for role assignments
+  getSystemRoleHealth: async (req, res, next) => {
+    try {
+      const { tenant } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      // Get role distribution statistics
+      const roleStats = await UserModel(actualTenant).aggregate([
+        {
+          $facet: {
+            groupRoleStats: [
+              {
+                $unwind: {
+                  path: "$group_roles",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "roles",
+                  localField: "group_roles.role",
+                  foreignField: "_id",
+                  as: "group_role_details",
+                },
+              },
+              {
+                $group: {
+                  _id: "$group_role_details.role_name",
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            networkRoleStats: [
+              {
+                $unwind: {
+                  path: "$network_roles",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "roles",
+                  localField: "network_roles.role",
+                  foreignField: "_id",
+                  as: "network_role_details",
+                },
+              },
+              {
+                $group: {
+                  _id: "$network_role_details.role_name",
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            usersWithoutRoles: [
+              {
+                $match: {
+                  $and: [
+                    {
+                      $or: [
+                        { group_roles: { $size: 0 } },
+                        { group_roles: { $exists: false } },
+                      ],
+                    },
+                    {
+                      $or: [
+                        { network_roles: { $size: 0 } },
+                        { network_roles: { $exists: false } },
+                      ],
+                    },
+                  ],
+                },
+              },
+              { $count: "count" },
+            ],
+            totalUsers: [{ $count: "count" }],
+          },
+        },
+      ]);
+
+      const stats = roleStats[0];
+      const totalUsers = stats.totalUsers[0]?.count || 0;
+      const usersWithoutRoles = stats.usersWithoutRoles[0]?.count || 0;
+
+      const health = {
+        total_users: totalUsers,
+        users_without_roles: usersWithoutRoles,
+        users_with_roles: totalUsers - usersWithoutRoles,
+        coverage_percentage:
+          totalUsers > 0
+            ? Math.round(((totalUsers - usersWithoutRoles) / totalUsers) * 100)
+            : 0,
+        group_role_distribution: stats.groupRoleStats.filter(
+          (stat) => stat._id && stat._id.length > 0
+        ),
+        network_role_distribution: stats.networkRoleStats.filter(
+          (stat) => stat._id && stat._id.length > 0
+        ),
+        health_status:
+          usersWithoutRoles === 0
+            ? "healthy"
+            : usersWithoutRoles < totalUsers * 0.1
+            ? "good"
+            : "needs_attention",
+        recommendations: [],
+      };
+
+      // Add recommendations based on health status
+      if (health.health_status === "needs_attention") {
+        health.recommendations.push(
+          "Assign roles to users without role assignments"
+        );
+        health.recommendations.push("Review user onboarding process");
+      }
+
+      if (health.coverage_percentage < 90) {
+        health.recommendations.push("Improve role assignment coverage");
+      }
+
+      res.status(httpStatus.OK).json({
+        success: true,
+        message: "System role health retrieved successfully",
+        system_role_health: health,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // Bulk role operations
+  bulkRoleOperations: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const { operation, user_ids, role_id, group_id, tenant } = req.body;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      if (!["assign", "unassign", "reassign"].includes(operation)) {
+        return next(
+          new HttpError("Invalid operation", httpStatus.BAD_REQUEST, {
+            message: "Operation must be one of: assign, unassign, reassign",
+          })
+        );
+      }
+
+      const results = {
+        operation,
+        total_users: user_ids.length,
+        successful: 0,
+        failed: 0,
+        errors: [],
+        details: [],
+      };
+
+      for (const userId of user_ids) {
+        try {
+          let result;
+          const request = {
+            params: { role_id, user_id: userId },
+            query: { tenant: actualTenant },
+            body: { group_id },
+          };
+
+          switch (operation) {
+            case "assign":
+              result = await rolePermissionsUtil.enhancedAssignUserToRole(
+                request,
+                next
+              );
+              break;
+            case "unassign":
+              result = await rolePermissionsUtil.enhancedUnAssignUserFromRole(
+                request,
+                next
+              );
+              break;
+            case "reassign":
+              // First unassign, then assign
+              await rolePermissionsUtil.enhancedUnAssignUserFromRole(
+                request,
+                next
+              );
+              result = await rolePermissionsUtil.enhancedAssignUserToRole(
+                request,
+                next
+              );
+              break;
+          }
+
+          if (result && result.success) {
+            results.successful++;
+            results.details.push({
+              user_id: userId,
+              status: "success",
+              operation,
+            });
+          } else {
+            results.failed++;
+            results.errors.push({
+              user_id: userId,
+              error: result?.message || "Unknown error",
+            });
+          }
+        } catch (error) {
+          results.failed++;
+          results.errors.push({
+            user_id: userId,
+            error: error.message,
+          });
+        }
+      }
+
+      // Clear RBAC cache for all affected users
+      const RBACService = require("@services/rbac.service");
+      const rbacService = new RBACService(actualTenant);
+      for (const userId of user_ids) {
+        rbacService.clearUserCache(userId);
+      }
+
+      const status =
+        results.failed === 0 ? httpStatus.OK : httpStatus.PARTIAL_CONTENT;
+
+      res.status(status).json({
+        success: results.failed === 0,
+        message: `Bulk ${operation} operation completed`,
+        bulk_operation_results: results,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createRole;

@@ -13,13 +13,7 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject, HttpError, logText } = require("@utils/shared");
 const isUserAssignedToGroup = (user, grp_id) => {
   if (user && user.group_roles && user.group_roles.length > 0) {
     return user.group_roles.some((assignment) => {
@@ -1483,6 +1477,7 @@ const groupUtil = {
    */
   enhancedSetManager: async (request, next) => {
     try {
+      logText("starting enhancedSetManager");
       const { grp_id, user_id } = request.params;
       const { tenant } = request.query;
       const { assign_manager_role = true, notify_user = true } = request.body;
@@ -1492,6 +1487,9 @@ const groupUtil = {
         UserModel(tenant).findById(user_id).lean(),
         GroupModel(tenant).findById(grp_id).lean(),
       ]);
+
+      logObject("User details", user);
+      logObject("Group details", group);
 
       if (!user) {
         return next(
