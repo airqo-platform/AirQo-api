@@ -84,7 +84,21 @@ const OrganizationRequestSchema = new Schema(
     },
     rejected_at: Date,
     branding_settings: {
-      logo_url: String,
+      logo_url: {
+        type: String,
+        validate: {
+          validator: function (v) {
+            if (!v) return true; // Allow empty values
+            return (
+              validator.isURL(v, {
+                protocols: ["http", "https"],
+                require_protocol: true,
+              }) && v.length <= 200
+            );
+          },
+          message: "Logo URL must be a valid URL and not exceed 200 characters",
+        },
+      },
       primary_color: String,
       secondary_color: String,
     },
