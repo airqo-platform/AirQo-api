@@ -588,8 +588,6 @@ const organizationRequest = {
                     `Failed to create unique group title after ${maxAttempts} attempts`
                   );
                 }
-                // Continue to next iteration with new title
-                continue;
               } else {
                 // Different error, throw immediately
                 throw error;
