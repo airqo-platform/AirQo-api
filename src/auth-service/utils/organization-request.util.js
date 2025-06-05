@@ -15,6 +15,42 @@ const { sanitizeEmailString } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const accessCodeGenerator = require("generate-password");
 const jwt = require("jsonwebtoken");
+const validator = require("validator");
+
+// Add this helper function at the top level
+const validateAndSanitizeProfilePicture = (url) => {
+  // If no URL provided, return null
+  if (!url || typeof url !== "string" || url.trim() === "") {
+    return null;
+  }
+
+  const trimmedUrl = url.trim();
+
+  // Check if URL is valid
+  if (
+    !validator.isURL(trimmedUrl, {
+      protocols: ["http", "https"],
+      require_protocol: true,
+      require_valid_protocol: true,
+      allow_underscores: true,
+    })
+  ) {
+    logger.warn(`Invalid profile picture URL provided: ${trimmedUrl}`);
+    return null;
+  }
+
+  // Check length constraint (200 characters max)
+  if (trimmedUrl.length > 200) {
+    logger.warn(
+      `Profile picture URL too long (${
+        trimmedUrl.length
+      } chars): ${trimmedUrl.substring(0, 50)}...`
+    );
+    return null;
+  }
+
+  return trimmedUrl;
+};
 
 const organizationRequest = {
   createOrganizationRequest: async (request, next) => {
@@ -413,40 +449,47 @@ const organizationRequest = {
       }
 
       if (userResponse.success === true) {
-        // Create the group
-        const groupBody = {
+        // ✅ VALIDATE AND SANITIZE PROFILE PICTURE URL
+        const validatedProfilePicture = validateAndSanitizeProfilePicture(
+          orgRequest.branding_settings?.logo_url
+        );
+
+        // Create the group with validated profile picture
+        const baseGroupBody = {
           grp_title: orgRequest.organization_name,
           grp_description: orgRequest.use_case,
           organization_slug: orgRequest.organization_slug,
-          grp_profile_picture: orgRequest.branding_settings?.logo_url,
         };
 
-        // ✅ CHECK IF GROUP ALREADY EXISTS
-        const existingGroup = await GroupModel(tenant)
-          .findOne({
-            organization_slug: orgRequest.organization_slug,
-          })
+        // Only add profile picture if it's valid
+        if (validatedProfilePicture) {
+          baseGroupBody.grp_profile_picture = validatedProfilePicture;
+        }
+
+        // ✅ SIMPLIFIED GROUP CREATION WITH DIRECT ERROR HANDLING
+        // Check if group already exists by slug
+        const existingGroupBySlug = await GroupModel(tenant)
+          .findOne({ organization_slug: orgRequest.organization_slug })
           .lean();
 
         let groupResponse;
 
-        if (existingGroup) {
-          // Check if user is already a member of this group
+        if (existingGroupBySlug) {
+          // Group exists, add user if not already a member
           const isUserInGroup =
-            existingGroup.users &&
-            existingGroup.users.some(
+            existingGroupBySlug.users &&
+            existingGroupBySlug.users.some(
               (u) => u.user_id.toString() === userResponse.data._id.toString()
             );
 
           if (!isUserInGroup) {
-            // Add user to existing group
             const updateResult = await GroupModel(tenant).findByIdAndUpdate(
-              existingGroup._id,
+              existingGroupBySlug._id,
               {
                 $addToSet: {
                   users: {
                     user_id: userResponse.data._id,
-                    user_role: "admin", // Make them admin since they're requesting org access
+                    user_role: "admin",
                   },
                 },
               },
@@ -461,22 +504,109 @@ const organizationRequest = {
           } else {
             groupResponse = {
               success: true,
-              data: existingGroup,
+              data: existingGroupBySlug,
               message: "User already in group",
             };
           }
         } else {
-          // Create new group with the user as manager
-          const createGroupRequest = {
-            body: { ...groupBody, user_id: userResponse.data._id },
-            query: { tenant },
-            user: null,
-          };
+          // Create new group with error handling for duplicate titles
+          let createAttempts = 0;
+          const maxAttempts = 10;
+          let groupCreated = false;
+          let currentGroupTitle = orgRequest.organization_name;
 
-          groupResponse = await createGroupUtil.create(
-            createGroupRequest,
-            next
-          );
+          while (!groupCreated && createAttempts < maxAttempts) {
+            createAttempts++;
+
+            // Generate unique title for each attempt after the first
+            if (createAttempts > 1) {
+              const suffix =
+                createAttempts === 2
+                  ? Date.now().toString().slice(-6)
+                  : Math.random().toString(36).substring(2, 8);
+              currentGroupTitle = `${orgRequest.organization_name}_${suffix}`;
+            }
+
+            const currentGroupBody = {
+              ...baseGroupBody,
+              grp_title: currentGroupTitle,
+            };
+
+            try {
+              logger.info(
+                `🔧 Attempt ${createAttempts}: Creating group with title: "${currentGroupTitle}"`
+              );
+
+              const createGroupRequest = {
+                body: { ...currentGroupBody, user_id: userResponse.data._id },
+                query: { tenant },
+                user: null,
+              };
+
+              groupResponse = await createGroupUtil.create(
+                createGroupRequest,
+                next
+              );
+
+              if (groupResponse && groupResponse.success) {
+                groupCreated = true;
+                logger.info(
+                  `✅ Successfully created group with title: "${currentGroupTitle}"`
+                );
+
+                // Add metadata if title was modified
+                if (currentGroupTitle !== orgRequest.organization_name) {
+                  groupResponse.titleModified = true;
+                  groupResponse.originalTitle = orgRequest.organization_name;
+                  groupResponse.finalTitle = currentGroupTitle;
+                }
+              } else {
+                logger.warn(
+                  `❌ Group creation failed (attempt ${createAttempts}): ${groupResponse?.message}`
+                );
+                if (createAttempts >= maxAttempts) {
+                  throw new Error(
+                    groupResponse?.message || "Group creation failed"
+                  );
+                }
+              }
+            } catch (error) {
+              logger.warn(
+                `❌ Group creation error (attempt ${createAttempts}): ${error.message}`
+              );
+
+              // If it's a validation error for duplicate title, try again
+              if (
+                error.name === "ValidationError" &&
+                error.errors?.grp_title?.kind === "unique"
+              ) {
+                logger.info(
+                  `🔄 Duplicate title detected, retrying with different name...`
+                );
+                if (createAttempts >= maxAttempts) {
+                  throw new Error(
+                    `Failed to create unique group title after ${maxAttempts} attempts`
+                  );
+                }
+                // Continue to next iteration with new title
+                continue;
+              } else {
+                // Different error, throw immediately
+                throw error;
+              }
+            }
+          }
+
+          if (!groupCreated) {
+            return {
+              success: false,
+              message: `Failed to create group after ${maxAttempts} attempts`,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: {
+                group_creation: "Multiple creation attempts failed",
+              },
+            };
+          }
         }
 
         if (groupResponse.success === true) {
@@ -519,13 +649,30 @@ const organizationRequest = {
               success: true,
               message: `Organization request approved successfully${
                 useOnboardingFlow ? " with onboarding flow" : ""
-              }${isExistingUser ? " (existing user)" : " (new user)"}`,
+              }${isExistingUser ? " (existing user)" : " (new user)"}${
+                !validatedProfilePicture &&
+                orgRequest.branding_settings?.logo_url
+                  ? " (invalid profile picture URL was skipped)"
+                  : ""
+              }${
+                groupResponse.titleModified
+                  ? ` (group title modified from '${groupResponse.originalTitle}' to '${groupResponse.finalTitle}')`
+                  : ""
+              }`,
               data: {
                 request: responseFromUpdate.data,
                 group: groupResponse.data,
                 user: userResponse.data,
                 onboardingFlow: useOnboardingFlow,
                 isExistingUser,
+                profilePictureSkipped:
+                  !validatedProfilePicture &&
+                  orgRequest.branding_settings?.logo_url,
+                groupTitleModified: groupResponse.titleModified || false,
+                ...(groupResponse.titleModified && {
+                  originalGroupTitle: groupResponse.originalTitle,
+                  finalGroupTitle: groupResponse.finalTitle,
+                }),
                 ...(useOnboardingFlow &&
                   onboardingToken && { onboardingToken: onboardingToken }),
               },
@@ -549,36 +696,67 @@ const organizationRequest = {
         };
       }
     } catch (error) {
-      // ✅ ENHANCED ERROR HANDLING FOR DUPLICATE USERS
-      if (
-        error.code === 11000 &&
-        error.keyPattern &&
-        error.keyPattern.userName
-      ) {
+      logger.error(`🐛🐛 Approval error: ${error.message}`);
+      logger.error(`🐛🐛 Error stack: ${error.stack}`);
+
+      // Enhanced error handling
+      if (error.name === "ValidationError") {
+        const validationErrors = {};
+        for (const field in error.errors) {
+          validationErrors[field] = error.errors[field].message;
+        }
+
         logger.warn(
-          `Duplicate user error for email: ${error.keyValue.userName}`
+          `Validation error during approval: ${JSON.stringify(
+            validationErrors
+          )}`
         );
         return {
           success: false,
-          message:
-            "A user with this email already exists. Please use the existing account or contact support.",
-          status: httpStatus.CONFLICT,
-          errors: {
-            email: "User already exists",
-            suggestion:
-              "Try logging in with existing credentials or contact support",
-          },
+          message: "Validation failed during organization approval",
+          status: httpStatus.BAD_REQUEST,
+          errors: validationErrors,
         };
       }
 
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      if (error.code === 11000) {
+        if (error.keyPattern && error.keyPattern.userName) {
+          logger.warn(
+            `Duplicate user error for email: ${error.keyValue.userName}`
+          );
+          return {
+            success: false,
+            message:
+              "A user with this email already exists. Please use the existing account or contact support.",
+            status: httpStatus.CONFLICT,
+            errors: {
+              email: "User already exists",
+              suggestion:
+                "Try logging in with existing credentials or contact support",
+            },
+          };
+        } else if (error.keyPattern && error.keyPattern.grp_title) {
+          logger.warn(
+            `Duplicate group title error: ${error.keyValue.grp_title}`
+          );
+          return {
+            success: false,
+            message: "A group with this name already exists. Please try again.",
+            status: httpStatus.CONFLICT,
+            errors: {
+              group_title: "Group name already exists",
+              suggestion: "Please try approving the request again",
+            },
+          };
+        }
+      }
+
+      return {
+        success: false,
+        message: "Internal server error during organization approval",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
 
