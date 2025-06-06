@@ -3472,7 +3472,7 @@ const rolePermissionUtil = {
       );
     }
   },
-  etSystemRoleHealth: async (request, next) => {
+  getSystemRoleHealth: async (request, next) => {
     try {
       const { tenant } = request.query;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
