@@ -452,6 +452,5 @@ module.exports = {
   legacyAdminCheck,
   requireSystemAdmin,
   debugAdminAccess,
-  // Export the old adminCheck name for backward compatibility
   adminCheck: legacyAdminCheck,
 };
