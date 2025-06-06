@@ -1,5 +1,6 @@
 const httpStatus = require("http-status");
 const rolePermissionsUtil = require("@utils/role-permissions.util");
+const RBACService = require("@services/rbac.service");
 const {
   logObject,
   logText,
@@ -12,905 +13,332 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- role-controller`);
 
-const createRole = {
+// Helper function for standard request validation and setup
+const validateAndSetupRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return null;
+  }
+
+  const request = req;
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  request.query.tenant = isEmpty(req.query.tenant)
+    ? defaultTenant
+    : req.query.tenant;
+
+  return request;
+};
+
+// Helper function for standard response handling
+const handleStandardResponse = (res, result, responseConfig = {}) => {
+  if (isEmpty(result) || res.headersSent) {
+    return;
+  }
+
+  const {
+    successKey = "data",
+    successMessage = result.message,
+    errorMessage = result.message,
+    errorKey = "errors",
+  } = responseConfig;
+
+  if (result.success === true) {
+    const status = result.status ? result.status : httpStatus.OK;
+    res.status(status).json({
+      success: true,
+      message: successMessage,
+      [successKey]: result.data,
+    });
+  } else if (result.success === false) {
+    const status = result.status
+      ? result.status
+      : httpStatus.INTERNAL_SERVER_ERROR;
+    res.status(status).json({
+      success: false,
+      message: errorMessage,
+      [errorKey]: result.errors ? result.errors : { message: "" },
+    });
+  }
+};
+
+// Helper function for standard error handling
+const handleStandardError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: error.message,
+    })
+  );
+};
+
+// Helper function for parameter validation
+const validateParameterError = (condition, message, next) => {
+  if (condition) {
+    next(
+      new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: message,
+      })
+    );
+    return true;
+  }
+  return false;
+};
+
+const roleController = {
   list: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.listRole(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          roles: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "roles" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   listSummary: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
       request.query.category = "summary";
-
       const result = await rolePermissionsUtil.listRole(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          roles: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "roles" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   create: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.createRole(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          created_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "created_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   update: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.updateRole(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          message: result.message,
-          updated_role: result.data,
-          success: true,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-          success: false,
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "updated_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   delete: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.deleteRole(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: result.message,
-          deleted_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
+      handleStandardResponse(res, result, {
+        successKey: "deleted_role",
+        errorKey: "errors",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   listUsersWithRole: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.listUsersWithRole(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          users_with_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "users_with_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   listAvailableUsersForRole: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.listAvailableUsersForRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "successfully listed the available users",
-          available_users: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, {
+        successKey: "available_users",
+        successMessage: "successfully listed the available users",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   assignUserToRole: async (req, res, next) => {
     try {
       logText("assignUserToRole...");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.assignUserToRole(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "updated_records" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   assignManyUsersToRole: async (req, res, next) => {
     try {
       logText("assignManyUsersToRole...");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.assignManyUsersToRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "updated_records" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   unAssignUserFromRole: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.unAssignUserFromRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          user_unassigned: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERRORS" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "user_unassigned" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   unAssignManyUsersFromRole: async (req, res, next) => {
     try {
       logText("assignManyUsersToRole...");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.unAssignManyUsersFromRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "updated_records" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   listPermissionsForRole: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.listPermissionsForRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "successfully listed the permissions for the role",
-          permissions_list: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "internal server error" },
-        });
-      }
+      handleStandardResponse(res, result, {
+        successKey: "permissions_list",
+        successMessage: "successfully listed the permissions for the role",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   listAvailablePermissionsForRole: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.listAvailablePermissionsForRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          available_permissions: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
+      handleStandardResponse(res, result, {
+        successKey: "available_permissions",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   assignPermissionToRole: async (req, res, next) => {
     try {
       logText("assignPermissionToRole....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.assignPermissionsToRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERROR" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "updated_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   unAssignPermissionFromRole: async (req, res, next) => {
     try {
       logText("unAssignPermissionFromRole....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.unAssignPermissionFromRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          modified_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "modified_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   unAssignManyPermissionsFromRole: async (req, res, next) => {
     try {
       logText("unAssign Many Permissions From Role....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.unAssignManyPermissionsFromRole(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          modified_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "modified_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   updateRolePermissions: async (req, res, next) => {
     try {
       logText("  updateRolePermissions....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.updateRolePermissions(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          modified_role: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "modified_role" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleStandardError(error, next);
     }
   },
+
   // Enhanced assign user to role with detailed feedback
   enhancedAssignUserToRole: async (req, res, next) => {
     try {
@@ -959,14 +387,7 @@ const createRole = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
 
@@ -1018,119 +439,36 @@ const createRole = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
 
   // Get user's network roles
   getUserNetworkRoles: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.getUserNetworkRoles(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          network_roles: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "network_roles" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
 
   // Get user's group roles
   getUserGroupRoles: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.getUserGroupRoles(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          group_roles: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "group_roles" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
 
@@ -1168,258 +506,56 @@ const createRole = {
         user_role_summary: summary,
       });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
+
   auditDeprecatedFields: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
       const result = await rolePermissionsUtil.auditDeprecatedFieldUsage(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          audit_report: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, { successKey: "audit_report" });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
-  // Enhanced user details with role information
+
+  // Enhanced user details with role information - REFACTORED
   getEnhancedUserDetails: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
-      const { user_id } = req.params;
-      const { tenant, include_deprecated = false } = req.query;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
-
-      const filter = user_id ? { _id: user_id } : {};
-      const includeDeprecated = include_deprecated === "true";
-
-      const result = await UserModel(actualTenant).getEnhancedUserDetails(
-        { filter, includeDeprecated },
+      const result = await rolePermissionsUtil.getEnhancedUserDetails(
+        request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          enhanced_user_details: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      handleStandardResponse(res, result, {
+        successKey: "enhanced_user_details",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
 
-  // System health check for role assignments
+  // System health check for role assignments - REFACTORED
   getSystemRoleHealth: async (req, res, next) => {
     try {
-      const { tenant } = req.query;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
 
-      // Get role distribution statistics
-      const roleStats = await UserModel(actualTenant).aggregate([
-        {
-          $facet: {
-            groupRoleStats: [
-              {
-                $unwind: {
-                  path: "$group_roles",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $lookup: {
-                  from: "roles",
-                  localField: "group_roles.role",
-                  foreignField: "_id",
-                  as: "group_role_details",
-                },
-              },
-              {
-                $group: {
-                  _id: "$group_role_details.role_name",
-                  count: { $sum: 1 },
-                },
-              },
-            ],
-            networkRoleStats: [
-              {
-                $unwind: {
-                  path: "$network_roles",
-                  preserveNullAndEmptyArrays: true,
-                },
-              },
-              {
-                $lookup: {
-                  from: "roles",
-                  localField: "network_roles.role",
-                  foreignField: "_id",
-                  as: "network_role_details",
-                },
-              },
-              {
-                $group: {
-                  _id: "$network_role_details.role_name",
-                  count: { $sum: 1 },
-                },
-              },
-            ],
-            usersWithoutRoles: [
-              {
-                $match: {
-                  $and: [
-                    {
-                      $or: [
-                        { group_roles: { $size: 0 } },
-                        { group_roles: { $exists: false } },
-                      ],
-                    },
-                    {
-                      $or: [
-                        { network_roles: { $size: 0 } },
-                        { network_roles: { $exists: false } },
-                      ],
-                    },
-                  ],
-                },
-              },
-              { $count: "count" },
-            ],
-            totalUsers: [{ $count: "count" }],
-          },
-        },
-      ]);
-
-      const stats = roleStats[0];
-      const totalUsers = stats.totalUsers[0]?.count || 0;
-      const usersWithoutRoles = stats.usersWithoutRoles[0]?.count || 0;
-
-      const health = {
-        total_users: totalUsers,
-        users_without_roles: usersWithoutRoles,
-        users_with_roles: totalUsers - usersWithoutRoles,
-        coverage_percentage:
-          totalUsers > 0
-            ? Math.round(((totalUsers - usersWithoutRoles) / totalUsers) * 100)
-            : 0,
-        group_role_distribution: stats.groupRoleStats.filter(
-          (stat) => stat._id && stat._id.length > 0
-        ),
-        network_role_distribution: stats.networkRoleStats.filter(
-          (stat) => stat._id && stat._id.length > 0
-        ),
-        health_status:
-          usersWithoutRoles === 0
-            ? "healthy"
-            : usersWithoutRoles < totalUsers * 0.1
-            ? "good"
-            : "needs_attention",
-        recommendations: [],
-      };
-
-      // Add recommendations based on health status
-      if (health.health_status === "needs_attention") {
-        health.recommendations.push(
-          "Assign roles to users without role assignments"
-        );
-        health.recommendations.push("Review user onboarding process");
-      }
-
-      if (health.coverage_percentage < 90) {
-        health.recommendations.push("Improve role assignment coverage");
-      }
-
-      res.status(httpStatus.OK).json({
-        success: true,
-        message: "System role health retrieved successfully",
-        system_role_health: health,
-      });
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      const result = await rolePermissionsUtil.getSystemRoleHealth(
+        request,
+        next
       );
+      handleStandardResponse(res, result, { successKey: "system_role_health" });
+    } catch (error) {
+      handleStandardError(error, next);
     }
   },
 
@@ -1513,7 +649,6 @@ const createRole = {
       }
 
       // Clear RBAC cache for all affected users
-      const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(actualTenant);
       for (const userId of user_ids) {
         rbacService.clearUserCache(userId);
@@ -1528,16 +663,9 @@ const createRole = {
         bulk_operation_results: results,
       });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleStandardError(error, next);
     }
   },
 };
 
-module.exports = createRole;
+module.exports = roleController;

@@ -3436,6 +3436,178 @@ const rolePermissionUtil = {
       );
     }
   },
+  getEnhancedUserDetails: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant, include_deprecated = false } = request.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      const filter = user_id ? { _id: user_id } : {};
+      const includeDeprecated = include_deprecated === "true";
+
+      const result = await UserModel(actualTenant).getEnhancedUserDetails(
+        { filter, includeDeprecated },
+        next
+      );
+
+      if (isEmpty(result)) {
+        return {
+          success: false,
+          message: "No user found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  etSystemRoleHealth: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      // Get role distribution statistics
+      const roleStats = await UserModel(actualTenant).aggregate([
+        {
+          $facet: {
+            groupRoleStats: [
+              {
+                $unwind: {
+                  path: "$group_roles",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "roles",
+                  localField: "group_roles.role",
+                  foreignField: "_id",
+                  as: "group_role_details",
+                },
+              },
+              {
+                $group: {
+                  _id: "$group_role_details.role_name",
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            networkRoleStats: [
+              {
+                $unwind: {
+                  path: "$network_roles",
+                  preserveNullAndEmptyArrays: true,
+                },
+              },
+              {
+                $lookup: {
+                  from: "roles",
+                  localField: "network_roles.role",
+                  foreignField: "_id",
+                  as: "network_role_details",
+                },
+              },
+              {
+                $group: {
+                  _id: "$network_role_details.role_name",
+                  count: { $sum: 1 },
+                },
+              },
+            ],
+            usersWithoutRoles: [
+              {
+                $match: {
+                  $and: [
+                    {
+                      $or: [
+                        { group_roles: { $size: 0 } },
+                        { group_roles: { $exists: false } },
+                      ],
+                    },
+                    {
+                      $or: [
+                        { network_roles: { $size: 0 } },
+                        { network_roles: { $exists: false } },
+                      ],
+                    },
+                  ],
+                },
+              },
+              { $count: "count" },
+            ],
+            totalUsers: [{ $count: "count" }],
+          },
+        },
+      ]);
+
+      const stats = roleStats[0];
+      const totalUsers = stats.totalUsers[0]?.count || 0;
+      const usersWithoutRoles = stats.usersWithoutRoles[0]?.count || 0;
+
+      const health = {
+        total_users: totalUsers,
+        users_without_roles: usersWithoutRoles,
+        users_with_roles: totalUsers - usersWithoutRoles,
+        coverage_percentage:
+          totalUsers > 0
+            ? Math.round(((totalUsers - usersWithoutRoles) / totalUsers) * 100)
+            : 0,
+        group_role_distribution: stats.groupRoleStats.filter(
+          (stat) => stat._id && stat._id.length > 0
+        ),
+        network_role_distribution: stats.networkRoleStats.filter(
+          (stat) => stat._id && stat._id.length > 0
+        ),
+        health_status:
+          usersWithoutRoles === 0
+            ? "healthy"
+            : usersWithoutRoles < totalUsers * 0.1
+            ? "good"
+            : "needs_attention",
+        recommendations: [],
+      };
+
+      // Add recommendations based on health status
+      if (health.health_status === "needs_attention") {
+        health.recommendations.push(
+          "Assign roles to users without role assignments"
+        );
+        health.recommendations.push("Review user onboarding process");
+      }
+
+      if (health.coverage_percentage < 90) {
+        health.recommendations.push("Improve role assignment coverage");
+      }
+
+      return {
+        success: true,
+        message: "System role health retrieved successfully",
+        status: httpStatus.OK,
+        data: health,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = {
