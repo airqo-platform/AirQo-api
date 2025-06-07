@@ -1109,6 +1109,318 @@ UserSchema.statics = {
   },
 };
 
+// Enhanced user details with role clarity
+UserSchema.statics.getEnhancedUserDetails = async function (
+  { filter = {}, includeDeprecated = false } = {},
+  next
+) {
+  try {
+    const users = await this.aggregate()
+      .match(filter)
+      .lookup({
+        from: "permissions",
+        localField: "permissions",
+        foreignField: "_id",
+        as: "permissions",
+      })
+      .lookup({
+        from: "roles",
+        localField: "network_roles.role",
+        foreignField: "_id",
+        as: "network_role_details",
+      })
+      .lookup({
+        from: "roles",
+        localField: "group_roles.role",
+        foreignField: "_id",
+        as: "group_role_details",
+      })
+      .lookup({
+        from: "networks",
+        localField: "network_roles.network",
+        foreignField: "_id",
+        as: "network_details",
+      })
+      .lookup({
+        from: "groups",
+        localField: "group_roles.group",
+        foreignField: "_id",
+        as: "group_details",
+      })
+      .addFields({
+        // Enhanced role information with clear separation
+        enhanced_network_roles: {
+          $map: {
+            input: "$network_roles",
+            as: "nr",
+            in: {
+              network: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$network_details",
+                      cond: { $eq: ["$$this._id", "$$nr.network"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              role: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$network_role_details",
+                      cond: { $eq: ["$$this._id", "$$nr.role"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              userType: "$$nr.userType",
+              createdAt: "$$nr.createdAt",
+            },
+          },
+        },
+        enhanced_group_roles: {
+          $map: {
+            input: "$group_roles",
+            as: "gr",
+            in: {
+              group: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$group_details",
+                      cond: { $eq: ["$$this._id", "$$gr.group"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              role: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$group_role_details",
+                      cond: { $eq: ["$$this._id", "$$gr.role"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              userType: "$$gr.userType",
+              createdAt: "$$gr.createdAt",
+            },
+          },
+        },
+        // Role summary statistics for clear understanding
+        role_summary: {
+          network_roles_count: { $size: { $ifNull: ["$network_roles", []] } },
+          group_roles_count: { $size: { $ifNull: ["$group_roles", []] } },
+          network_roles_limit: ORGANISATIONS_LIMIT,
+          group_roles_limit: ORGANISATIONS_LIMIT,
+          network_roles_remaining: {
+            $subtract: [
+              ORGANISATIONS_LIMIT,
+              { $size: { $ifNull: ["$network_roles", []] } },
+            ],
+          },
+          group_roles_remaining: {
+            $subtract: [
+              ORGANISATIONS_LIMIT,
+              { $size: { $ifNull: ["$group_roles", []] } },
+            ],
+          },
+          total_roles: {
+            $add: [
+              { $size: { $ifNull: ["$network_roles", []] } },
+              { $size: { $ifNull: ["$group_roles", []] } },
+            ],
+          },
+        },
+      })
+      .project({
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        userName: 1,
+        verified: 1,
+        isActive: 1,
+        country: 1,
+        website: 1,
+        category: 1,
+        jobTitle: 1,
+        description: 1,
+        profilePicture: 1,
+        phoneNumber: 1,
+        timezone: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        permissions: 1,
+
+        // Enhanced role information with clear separation
+        enhanced_network_roles: 1,
+        enhanced_group_roles: 1,
+        role_summary: 1,
+
+        // Include deprecated fields only if requested for backward compatibility
+        ...(includeDeprecated && {
+          role: 1,
+          privilege: 1,
+          organization: 1,
+          long_organization: 1,
+          network_roles: 1,
+          group_roles: 1,
+        }),
+      })
+      .allowDiskUse(true);
+
+    if (!isEmpty(users)) {
+      return {
+        success: true,
+        message: "Successfully retrieved enhanced user details",
+        data: users,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: true,
+        message: "No users found",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    if (error instanceof HttpError) {
+      return next(error);
+    }
+    return next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
+// Method to audit deprecated field usage for migration planning
+UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
+  try {
+    const usersWithDeprecatedFields = await this.aggregate([
+      {
+        $match: {
+          $or: [
+            { role: { $exists: true, $ne: null } },
+            { privilege: { $exists: true, $ne: null } },
+            { organization: { $exists: true, $ne: null } },
+            { long_organization: { $exists: true, $ne: null } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total_users_with_deprecated_fields: { $sum: 1 },
+          users_with_role_field: {
+            $sum: {
+              $cond: [
+                { $and: [{ $exists: ["$role"] }, { $ne: ["$role", null] }] },
+                1,
+                0,
+              ],
+            },
+          },
+          users_with_privilege_field: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $exists: ["$privilege"] },
+                    { $ne: ["$privilege", null] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          users_with_organization_field: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $exists: ["$organization"] },
+                    { $ne: ["$organization", null] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          users_with_long_organization_field: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $exists: ["$long_organization"] },
+                    { $ne: ["$long_organization", null] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const totalUsers = await this.countDocuments();
+
+    return {
+      success: true,
+      message: "Deprecated field usage audit completed",
+      data: {
+        total_users: totalUsers,
+        deprecated_field_usage: usersWithDeprecatedFields[0] || {
+          total_users_with_deprecated_fields: 0,
+          users_with_role_field: 0,
+          users_with_privilege_field: 0,
+          users_with_organization_field: 0,
+          users_with_long_organization_field: 0,
+        },
+        migration_readiness: {
+          percentage_using_deprecated_fields:
+            totalUsers > 0
+              ? Math.round(
+                  ((usersWithDeprecatedFields[0]
+                    ?.total_users_with_deprecated_fields || 0) /
+                    totalUsers) *
+                    100
+                )
+              : 0,
+          safe_to_migrate:
+            (usersWithDeprecatedFields[0]?.total_users_with_deprecated_fields ||
+              0) === 0,
+        },
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    if (error instanceof HttpError) {
+      return next(error);
+    }
+    return next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+
 UserSchema.methods = {
   authenticateUser(password) {
     return bcrypt.compareSync(password, this.password);
