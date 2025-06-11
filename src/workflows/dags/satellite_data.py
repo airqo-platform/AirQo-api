@@ -8,6 +8,7 @@ from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import DataType, DeviceCategory, Frequency
 from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.commons import delete_old_files
 
 
 @dag(
@@ -69,16 +70,19 @@ def copernicus_hourly_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def clean_data(**kwargs) -> pd.DataFrame:
-        data_to_download = {
+        data_to_read = {
             "pm10": "tmp/pm10_download.zip",
             "pm2p5": "tmp/pm25_download.zip",
         }
+        files_to_delete = []
         dfs: list[pd.DataFrame] = []
-        for variable, destination in data_to_download.items():
+        for variable, destination in data_to_read.items():
             dfs.append(SatelliteUtils.process_netcdf(destination, variable))
-
+            files_to_delete.append(destination)
         dfs1, dfs2 = dfs
         merged_df = pd.merge(dfs1, dfs2, on=["time", "latitude", "longitude"])
+        if not merged_df.empty:
+            delete_old_files(files_to_delete)
         return merged_df
 
     @task(
@@ -86,12 +90,12 @@ def copernicus_hourly_measurements():
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
-    def store_data(**kwargs) -> pd.DataFrame:
-        data, table = DataUtils.format_data_for_bigquery(
+    def store_data(data, **kwargs) -> pd.DataFrame:
+        formated_data, table = DataUtils.format_data_for_bigquery(
             data, DataType.RAW, DeviceCategory.SATELLITE, Frequency.RAW
         )
         big_query_api = BigQueryApi()
-        big_query_api.load_data(data, table=table)
+        big_query_api.load_data(formated_data, table=table)
 
     extraction = extract_data()
     cleaned = clean_data().set_upstream(extraction)
