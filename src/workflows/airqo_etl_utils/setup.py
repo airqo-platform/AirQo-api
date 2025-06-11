@@ -37,6 +37,8 @@ setup(
         "confluent-kafka==2.5.0",
         "lz4==4.3.3",
         "earthengine-api",
+        "netCDF4",
+        "cdsapi>=0.7.4",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

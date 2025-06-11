@@ -37,3 +37,5 @@ confluent-kafka==2.5.0
 lz4==4.3.3
 earthengine-api
 tenacity==8.2.3
+netCDF4
+cdsapi>=0.7.4

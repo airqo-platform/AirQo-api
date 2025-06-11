@@ -67,6 +67,9 @@ class Config:
     # Raw data
     BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE = os.getenv("BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE")
     BIGQUERY_RAW_EVENTS_TABLE = os.getenv("BIGQUERY_RAW_EVENTS_TABLE")
+    BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE = os.getenv(
+        "BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE"
+    )
     BIGQUERY_LATEST_EVENTS_TABLE = os.getenv("BIGQUERY_LATEST_EVENTS_TABLE")
     BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE = os.getenv(
         "BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE"
@@ -475,6 +478,9 @@ class Config:
     DataSource = {
         DataType.RAW: {
             DeviceCategory.GENERAL: {
+                Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
+            },
+            DeviceCategory.SATELLITE: {
                 Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
             },
             DeviceCategory.MOBILE: {
