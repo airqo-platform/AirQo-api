@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
-
 from airflow.decorators import dag, task
+import concurrent.futures
 
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
-
+from airqo_etl_utils.satellite_utils import SatelliteUtils
+from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.constants import DataType, DeviceCategory, Frequency
 from airqo_etl_utils.config import configuration as Config
 
 
@@ -18,8 +21,6 @@ def retrieve_satellite_data():
     @task()
     def fetch_data():
         # TODO: Break this down into smaller tasks, challenge is xcom support only df & json atm
-        from airqo_etl_utils.satellite_utils import SatelliteUtils
-
         return SatelliteUtils.extract_satellite_data(
             locations=Config.satellite_cities,
             start_date=datetime.now() - timedelta(days=30),
@@ -38,4 +39,64 @@ def retrieve_satellite_data():
     save_to_bigquery(data)
 
 
+@dag(
+    "Copernicus-Climate-measurements",
+    schedule="10 * * * *",
+    catchup=False,
+    tags=["hourly", "raw", "satellite", "Copernicus"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def copernicus_hourly_measurements():
+    import pandas as pd
+
+    @task(
+        provide_context=True,
+        retries=2,
+        retry_delay=timedelta(minutes=5),
+    )
+    def extract_data(**kwargs) -> pd.DataFrame:
+        data_to_download = {
+            "particulate_matter_10um": "tmp/pm10_download.zip",
+            "particulate_matter_2.5um": "tmp/pm25_download.zip",
+        }
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            for variable, destination in data_to_download.items():
+                SatelliteUtils.retrieve_cams_variable(variable, destination)
+
+    @task(
+        provide_context=True,
+        retries=1,
+        retry_delay=timedelta(minutes=5),
+    )
+    def clean_data(**kwargs) -> pd.DataFrame:
+        data_to_download = {
+            "pm10": "tmp/pm10_download.zip",
+            "pm2p5": "tmp/pm25_download.zip",
+        }
+        dfs: list[pd.DataFrame] = []
+        for variable, destination in data_to_download.items():
+            dfs.append(SatelliteUtils.process_netcdf(destination, variable))
+
+        dfs1, dfs2 = dfs
+        merged_df = pd.merge(dfs1, dfs2, on=["time", "latitude", "longitude"])
+        return merged_df
+
+    @task(
+        provide_context=True,
+        retries=1,
+        retry_delay=timedelta(minutes=5),
+    )
+    def store_data(**kwargs) -> pd.DataFrame:
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.RAW, DeviceCategory.SATELLITE, Frequency.RAW
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=table)
+
+    extraction = extract_data()
+    cleaned = clean_data().set_upstream(extraction)
+    store_data(cleaned)
+
+
+copernicus_hourly_measurements()
 retrieve_satellite_data()
