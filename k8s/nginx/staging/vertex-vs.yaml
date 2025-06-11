@@ -1,14 +1,14 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: staging-netmanager-virtual-server
+  name: staging-vertex-virtual-server
   namespace: staging
 spec:
-  host: staging-netmanager.airqo.net
+  host: staging-vertex.airqo.net
   upstreams:
-    - name: platform-ui
-      service: airqo-stage-platform-frontend-svc
-      port: 80  
+    - name: vertex-ui
+      service: airqo-stage-vertex-svc
+      port: 3000  
     - name: auth-service
       service: airqo-stage-auth-api-svc
       port: 3000
@@ -60,7 +60,7 @@ spec:
   routes:
     - path: /
       action:
-        pass: platform-ui
+        pass: vertex-ui
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -189,4 +189,3 @@ spec:
             add:
               - name: Content-Type
                 value: application/json 
-               
