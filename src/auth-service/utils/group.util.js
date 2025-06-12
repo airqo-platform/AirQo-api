@@ -116,6 +116,277 @@ const getPermissionIds = async (tenant, permissions, next) => {
   }
 };
 const createGroup = {
+  // Add these functions to the createGroup object in utils/group.util.js
+
+  getDashboard: async (request, next) => {
+    try {
+      const { userGroupContext } = request;
+      const { group, role } = userGroupContext;
+      const { tenant } = request.query;
+
+      // Get group information
+      const groupDetails = await GroupModel(tenant)
+        .findById(group._id)
+        .populate("grp_manager", "firstName lastName email")
+        .lean();
+
+      if (!groupDetails) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${group._id} not found`,
+          })
+        );
+      }
+
+      // Get user count for the group
+      const userCount = await UserModel(tenant).countDocuments({
+        "group_roles.group": group._id,
+      });
+
+      // Get most recent users
+      const recentUsers = await UserModel(tenant)
+        .find({ "group_roles.group": group._id })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("firstName lastName email profilePicture")
+        .lean();
+
+      // Compile dashboard data
+      const dashboardData = {
+        groupName: group.grp_title,
+        groupDescription: group.grp_description,
+        profilePicture: group.grp_profile_picture,
+        manager: groupDetails.grp_manager,
+        createdAt: group.createdAt,
+        userCount,
+        recentUsers,
+        userRole: role.role_name,
+      };
+
+      return {
+        success: true,
+        message: "Dashboard data retrieved successfully",
+        data: dashboardData,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getMembers: async (request, next) => {
+    try {
+      const { userGroupContext } = request;
+      const { group } = userGroupContext;
+      const { tenant, limit = 100, skip = 0 } = request.query;
+
+      // This leverages the existing listAssignedUsers function with some modifications
+      const groupMembers = await UserModel(tenant)
+        .aggregate([
+          { $match: { "group_roles.group": ObjectId(group._id) } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": ObjectId(group._id) } },
+          {
+            $lookup: {
+              from: "roles",
+              let: {
+                groupId: ObjectId(group._id),
+                roleId: "$group_roles.role",
+              },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "role",
+            },
+          },
+          { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 1,
+              firstName: 1,
+              lastName: 1,
+              userName: 1,
+              profilePicture: 1,
+              isActive: 1,
+              lastLogin: 1,
+              email: 1,
+              role_name: { $ifNull: ["$role.role_name", "No Role"] },
+              role_id: { $ifNull: ["$role._id", null] },
+              userType: { $ifNull: ["$group_roles.userType", "guest"] },
+              joined: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: { $ifNull: ["$group_roles.createdAt", "$_id"] },
+                },
+              },
+            },
+          },
+          { $sort: { joined: -1 } },
+          { $skip: parseInt(skip) },
+          { $limit: parseInt(limit) },
+        ])
+        .exec();
+
+      // Get total count for pagination
+      const totalCount = await UserModel(tenant).countDocuments({
+        "group_roles.group": group._id,
+      });
+
+      return {
+        success: true,
+        message: "Members retrieved successfully",
+        data: {
+          groupName: group.grp_title,
+          members: groupMembers,
+          totalCount,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getSettings: async (request, next) => {
+    try {
+      const { userGroupContext } = request;
+      const { group } = userGroupContext;
+      const { tenant } = request.query;
+
+      // Get full group details
+      const groupDetails = await GroupModel(tenant)
+        .findById(group._id)
+        .populate("grp_manager", "firstName lastName email profilePicture")
+        .lean();
+
+      if (!groupDetails) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${group._id} not found`,
+          })
+        );
+      }
+
+      // Extract settings
+      const settings = {
+        name: groupDetails.grp_title,
+        slug: groupDetails.organization_slug,
+        description: groupDetails.grp_description,
+        profilePicture: groupDetails.grp_profile_picture,
+        website: groupDetails.grp_website,
+        manager: groupDetails.grp_manager,
+        createdAt: groupDetails.createdAt,
+        updatedAt: groupDetails.updatedAt,
+      };
+
+      return {
+        success: true,
+        message: "Group settings retrieved successfully",
+        data: settings,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateSettings: async (request, next) => {
+    try {
+      const { userGroupContext, body } = request;
+      const { group } = userGroupContext;
+      const { tenant } = request.query;
+      const { name, description, profilePicture, website } = body;
+
+      // Create update object with only provided fields
+      const updateFields = {};
+      if (name !== undefined) updateFields.grp_title = name;
+      if (description !== undefined) updateFields.grp_description = description;
+      if (profilePicture !== undefined)
+        updateFields.grp_profile_picture = profilePicture;
+      if (website !== undefined) updateFields.grp_website = website;
+
+      // Only proceed if there are fields to update
+      if (Object.keys(updateFields).length === 0) {
+        return {
+          success: true,
+          message: "No changes to update",
+          data: {
+            name: group.grp_title,
+            description: group.grp_description,
+            profilePicture: group.grp_profile_picture,
+            website: group.grp_website,
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      // Update the group
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        group._id,
+        updateFields,
+        { new: true }
+      );
+
+      if (!updatedGroup) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${group._id} not found`,
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "Group settings updated successfully",
+        data: {
+          name: updatedGroup.grp_title,
+          description: updatedGroup.grp_description,
+          profilePicture: updatedGroup.grp_profile_picture,
+          website: updatedGroup.grp_website,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   removeUniqueConstraint: async (request, next) => {
     try {
       const { tenant } = request.query;

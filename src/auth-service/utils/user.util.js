@@ -14,6 +14,7 @@ const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
+const createGroupUtil = require("@utils/group.util.js");
 
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
@@ -27,11 +28,10 @@ const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user util`);
-const { logObject, logText, HttpError } = require("@utils/shared");
+const { logObject, logText, HttpError, stringify } = require("@utils/shared");
 
 const {
   mailer,
-  stringify,
   generateFilter,
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
@@ -120,7 +120,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
 
     if (!isEmpty(updatedGroup.err)) {
       logger.error(
-        `error while attempting to delete User from the corresponding Group ${JSON.stringify(
+        `error while attempting to delete User from the corresponding Group ${stringify(
           updatedGroup.err
         )}`
       );
@@ -140,7 +140,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
 
     if (!isEmpty(updatedNetwork.err)) {
       logger.error(
-        `error while attempting to delete User from the corresponding Network ${JSON.stringify(
+        `error while attempting to delete User from the corresponding Network ${stringify(
           updatedNetwork.err
         )}`
       );
@@ -153,7 +153,7 @@ const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
       status: httpStatus.OK,
     };
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error --- ${JSON.stringify(error)}`);
+    logger.error(`🐛🐛 Internal Server Error --- ${stringify(error)}`);
     next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
@@ -191,7 +191,7 @@ const setCache = async ({ data, request } = {}, next) => {
     const cacheID = generateCacheID(request, next);
     await redisSetAsync(
       cacheID,
-      JSON.stringify({
+      stringify({
         isCache: true,
         success: true,
         message: "Successfully retrieved the users",
@@ -470,7 +470,7 @@ const createUserModule = {
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`);
+        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
       }
 
       const filter = generateFilter.users(request, next);
@@ -506,14 +506,10 @@ const createUserModule = {
             const errors = resultOfCacheOperation.errors
               ? resultOfCacheOperation.errors
               : { message: "Internal Server Error" };
-            logger.error(
-              `🐛🐛 Internal Server Error -- ${JSON.stringify(errors)}`
-            );
+            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
           }
         } catch (error) {
-          logger.error(
-            `🐛🐛 Internal Server Errors -- ${JSON.stringify(error)}`
-          );
+          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
         }
 
         logText("Cache set.");
@@ -531,7 +527,7 @@ const createUserModule = {
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${JSON.stringify(
+          `Unable to retrieve events --- ${stringify(
             responseFromListUser.errors
           )}`
         );
@@ -1081,12 +1077,7 @@ const createUserModule = {
   setMobileUserCache: async ({ data, cacheID } = {}, next) => {
     try {
       logObject("cacheID supplied to setMobileUserCache", cacheID);
-      const result = await ioredis.set(
-        cacheID,
-        JSON.stringify(data),
-        "EX",
-        3600
-      );
+      const result = await ioredis.set(cacheID, stringify(data), "EX", 3600);
       return result;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -2108,6 +2099,11 @@ const createUserModule = {
         next
       );
 
+      if (!responseFromCreateUser) {
+        // Handle the case where register threw an error via next()
+        return; // The error has already been passed to next()
+      }
+
       if (responseFromCreateUser.success === true) {
         if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
           return responseFromCreateUser;
@@ -2825,7 +2821,7 @@ const createUserModule = {
       logObject("responseFromMailChimp", responseFromMailChimp);
 
       logger.info(
-        `Unsubscription attempt: ${JSON.stringify(responseFromMailChimp)}`
+        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
       );
 
       if (responseFromMailChimp.status !== "unsubscribed") {
@@ -2913,7 +2909,7 @@ const createUserModule = {
       logObject("responseFromMailChimp", responseFromMailChimp);
 
       logger.info(
-        `Unsubscription attempt: ${JSON.stringify(responseFromMailChimp)}`
+        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
       );
 
       if (responseFromMailChimp.status_code !== 200) {
@@ -3261,6 +3257,178 @@ const createUserModule = {
         )
       );
       return;
+    }
+  },
+  getOrganizationBySlug: async (request, next) => {
+    try {
+      const { params, query } = request;
+      const { org_slug } = params;
+      const { tenant } = query;
+
+      const group = await GroupModel(tenant).findOne({
+        organization_slug: org_slug,
+      });
+
+      if (!group) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Organization not found",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "Organization found successfully",
+        data: {
+          name: group.grp_title,
+          slug: group.organization_slug,
+          logo: group.grp_profile_picture,
+          theme: group.theme,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  registerViaOrgSlug: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { org_slug } = params;
+      const { tenant } = query;
+
+      // Find the organization
+      const group = await GroupModel(tenant).findOne({
+        organization_slug: org_slug,
+      });
+
+      if (!group) {
+        next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: "Organization not found",
+          })
+        );
+      }
+
+      // Create user with organization pre-populated
+      const userBody = {
+        ...body,
+        organization: group.grp_title,
+        long_organization: group.grp_title,
+      };
+
+      // Register the user
+      const responseFromCreateUser = await UserModel(tenant).register(
+        userBody,
+        next
+      );
+
+      if (responseFromCreateUser.success === true) {
+        const createdUser = responseFromCreateUser.data;
+        const user_id = createdUser._doc._id;
+
+        // Generate verification token
+        const token = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          )
+          .toUpperCase();
+
+        // Create token record
+        const tokenCreationBody = {
+          token,
+          name: createdUser._doc.firstName,
+        };
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          tenant.toLowerCase()
+        ).register(tokenCreationBody, next);
+
+        if (responseFromCreateToken.success === false) {
+          return responseFromCreateToken;
+        }
+
+        // Assign user to the group
+        const assignRequest = {
+          params: {
+            grp_id: group._id,
+            user_id: user_id,
+          },
+          query: { tenant },
+        };
+
+        await createGroupUtil.assignOneUser(assignRequest, next);
+
+        // Send verification email with organization context
+        const responseFromSendEmail = await mailer.verifyEmail(
+          {
+            user_id,
+            token,
+            email: createdUser._doc.email,
+            firstName: createdUser._doc.firstName,
+            organization: group.grp_title, // Add organization context
+            org_slug: org_slug, // Add organization slug for branded links
+          },
+          next
+        );
+
+        // Track analytics event
+        logObject("New user registration via branded URL", {
+          user_id: user_id,
+          org_slug,
+          group_id: group._id,
+        });
+
+        if (responseFromSendEmail && responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message:
+              "User registered successfully. An email has been sent for verification.",
+            data: {
+              firstName: createdUser._doc.firstName,
+              lastName: createdUser._doc.lastName,
+              email: createdUser._doc.email,
+              organization: group.grp_title,
+              verified: createdUser._doc.verified,
+            },
+            status: httpStatus.CREATED,
+          };
+        } else if (
+          responseFromSendEmail &&
+          responseFromSendEmail.success === false
+        ) {
+          return responseFromSendEmail;
+        } else {
+          logger.error("mailer.verifyEmail did not return a response");
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              { message: "Failed to send verification email" }
+            )
+          );
+        }
+      }
+
+      return responseFromCreateUser;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
     }
   },
 };

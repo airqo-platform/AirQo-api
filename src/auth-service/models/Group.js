@@ -1,19 +1,20 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
-const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
+const ThemeSchema = require("@models/ThemeSchema");
 const httpStatus = require("http-status");
+const { logObject, logText, HttpError } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
 } = require("@utils/shared");
+
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- group-model`);
 
@@ -40,6 +41,24 @@ const GroupSchema = new Schema(
       type: String,
       unique: true,
       required: [true, "grp_title is required"],
+    },
+    organization_slug: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null values but ensure uniqueness when present
+      lowercase: true,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          if (!v) return true; // Allow null/undefined
+          return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v);
+        },
+        message: "Slug must be lowercase alphanumeric with hyphens only",
+      },
+    },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
     },
     grp_status: { type: String, default: "INACTIVE" },
     grp_tasks: { type: Number },
@@ -200,60 +219,34 @@ GroupSchema.statics = {
     try {
       let modifiedArgs = Object.assign({}, args);
 
+      // Preserve grp_title transformation logic
       if (modifiedArgs.grp_title) {
         modifiedArgs.grp_title = convertToLowerCaseWithUnderscore(
           modifiedArgs.grp_title
         );
       }
+
       const data = await this.create({
         ...modifiedArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "group", {
           message: "group created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: null,
-          message: "group NOT successfully created but operation successful",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "group",
+          "group NOT successfully created but operation successful"
+        );
       }
     } catch (err) {
       logObject("the error for registering a group", err);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      return {
-        success: false,
-        data: null,
-        message,
-        errors,
-        status,
-      };
+      return createErrorResponse(err, "create", logger, "group");
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filter", filter);
@@ -287,54 +280,23 @@ GroupSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the groups",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "groups do not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-          errors: { message: "unable to retrieve groups" },
-        };
-      }
+      return createSuccessResponse("list", response, "group", {
+        message: "successfully retrieved the groups",
+        emptyMessage: "groups do not exist, please crosscheck",
+      });
     } catch (err) {
       logObject("the error for listing a group", err);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "list", logger, "group");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
+      const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
+      // Remove fields that shouldn't be updated
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
@@ -350,46 +312,23 @@ GroupSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedGroup)) {
-        return {
-          success: true,
-          message: "successfully modified the group",
-          data: updatedGroup._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedGroup)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "group does not exist, please crosscheck -- Not Found",
-          })
+        return createSuccessResponse("update", updatedGroup._doc, "group");
+      } else {
+        return createNotFoundResponse(
+          "group",
+          "update",
+          "group does not exist, please crosscheck -- Not Found"
         );
       }
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "update", logger, "group");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           grp_title: 1,
@@ -398,44 +337,20 @@ GroupSchema.statics = {
           createdAt: 1,
         },
       };
+
       const removedGroup = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedGroup)) {
-        return {
-          success: true,
-          message: "successfully removed the group",
-          data: removedGroup._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedGroup)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Bad Request, Group Not Found -- please crosscheck",
-          })
+        return createSuccessResponse("delete", removedGroup._doc, "group");
+      } else {
+        return createNotFoundResponse(
+          "group",
+          "delete",
+          "Bad Request, Group Not Found -- please crosscheck"
         );
       }
     } catch (err) {
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "delete", logger, "group");
     }
   },
 };

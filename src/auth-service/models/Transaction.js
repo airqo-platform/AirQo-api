@@ -10,11 +10,9 @@ const logger = log4js.getLogger(
 );
 const { getModelByTenant } = require("@config/database");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
 } = require("@utils/shared");
 
 const TransactionSchema = new Schema(
@@ -46,7 +44,7 @@ const TransactionSchema = new Schema(
       type: String,
       required: [true, "Paddle customer ID is required!"],
     },
-
+    transaction_type: { type: String },
     // Payment details
     amount: {
       type: Number,
@@ -139,37 +137,40 @@ TransactionSchema.statics = {
           success: true,
           data,
           message: "Transaction recorded successfully",
-          status: httpStatus.OK,
+          status: httpStatus.OK, // Preserve original status
         };
       } else {
         return {
           success: false,
           data: [],
           message: "Transaction could not be recorded",
-          status: httpStatus.UNPROCESSABLE_ENTITY,
+          status: httpStatus.UNPROCESSABLE_ENTITY, // Preserve original status
         };
       }
     } catch (err) {
       logger.error(`Transaction Registration Error: ${err.message}`);
 
-      let response = {};
-      if (err.keyValue) {
-        Object.entries(err.keyValue).forEach(([key, value]) => {
-          response[key] = `${key} must be unique`;
-        });
-      } else if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          response[key] = value.message;
-        });
+      // Handle validation errors specifically
+      if (err.keyValue || err.errors) {
+        let response = {};
+        if (err.keyValue) {
+          Object.entries(err.keyValue).forEach(([key, value]) => {
+            response[key] = `${key} must be unique`;
+          });
+        } else if (err.errors) {
+          Object.entries(err.errors).forEach(([key, value]) => {
+            response[key] = value.message;
+          });
+        }
+        return {
+          success: false,
+          message: "Validation errors for transaction",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "transaction");
       }
-
-      next(
-        new HttpError(
-          "Validation errors for transaction",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
 
@@ -185,54 +186,163 @@ TransactionSchema.statics = {
     try {
       const response = await this.aggregate()
         .match(filter)
-        .sort(sort)
+        .sort(sort) // Preserve flexible sort parameter
         .skip(skip)
         .limit(limit)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "Successfully retrieved transactions",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: true,
-          message: "No transactions found",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
-      }
+      return createSuccessResponse("list", response, "transaction", {
+        message: "Successfully retrieved transactions",
+        emptyMessage: "No transactions found",
+      });
     } catch (error) {
       logger.error(`Transaction Listing Error: ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "transaction");
+    }
+  },
+
+  /**
+   * Update a transaction
+   * @param {Object} options - Update options
+   * @param {Function} next - Error handling callback
+   */
+  async modify({ filter = {}, update = {} } = {}, next) {
+    try {
+      const options = { new: true };
+
+      // Remove _id from update if present
+      if (update._id) {
+        delete update._id;
+      }
+
+      const updatedTransaction = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedTransaction)) {
+        return createSuccessResponse(
+          "update",
+          updatedTransaction._doc,
+          "transaction"
+        );
+      } else {
+        return createNotFoundResponse(
+          "transaction",
+          "update",
+          "Transaction does not exist, please crosscheck"
+        );
+      }
+    } catch (err) {
+      logger.error(`Transaction Update Error: ${err.message}`);
+      return createErrorResponse(err, "update", logger, "transaction");
+    }
+  },
+
+  /**
+   * Remove a transaction
+   * @param {Object} options - Remove options
+   * @param {Function} next - Error handling callback
+   */
+  async remove({ filter = {} } = {}, next) {
+    try {
+      const options = {
+        projection: {
+          _id: 1,
+          amount: 1,
+          user_id: 1,
+          transaction_type: 1,
+          status: 1,
+          createdAt: 1,
+        },
+      };
+
+      const removedTransaction = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
+
+      if (!isEmpty(removedTransaction)) {
+        return createSuccessResponse(
+          "delete",
+          removedTransaction._doc,
+          "transaction"
+        );
+      } else {
+        return createNotFoundResponse(
+          "transaction",
+          "delete",
+          "Transaction does not exist, please crosscheck"
+        );
+      }
+    } catch (error) {
+      logger.error(`Transaction Removal Error: ${error.message}`);
+      return createErrorResponse(error, "delete", logger, "transaction");
     }
   },
 
   /**
    * Calculate transaction statistics
    * @param {Object} filter - Aggregation filter
+   * @returns {Promise<Object>} Transaction statistics
    */
   async getStats(filter = {}) {
-    return this.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: "$amount" },
-          totalTransactions: { $sum: 1 },
-          uniqueUsers: { $addToSet: "$user_id" },
+    try {
+      const stats = await this.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            totalAmount: { $sum: "$amount" },
+            totalTransactions: { $sum: 1 },
+            uniqueUsers: { $addToSet: "$user_id" },
+          },
         },
-      },
-    ]);
+        {
+          $addFields: {
+            uniqueUserCount: { $size: "$uniqueUsers" },
+            averageTransactionAmount: {
+              $cond: {
+                if: { $gt: ["$totalTransactions", 0] },
+                then: { $divide: ["$totalAmount", "$totalTransactions"] },
+                else: 0,
+              },
+            },
+          },
+        },
+      ]);
+
+      if (!isEmpty(stats)) {
+        return {
+          success: true,
+          data: stats[0] || {},
+          message: "Successfully retrieved transaction statistics",
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          data: {
+            totalAmount: 0,
+            totalTransactions: 0,
+            uniqueUsers: [],
+            uniqueUserCount: 0,
+            averageTransactionAmount: 0,
+          },
+          message: "No transaction statistics found",
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`Transaction Stats Error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve transaction statistics",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
   },
 };
 

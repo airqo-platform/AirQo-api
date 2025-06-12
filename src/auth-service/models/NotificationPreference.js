@@ -2,22 +2,12 @@ const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
-const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
-const { addWeeksToProvideDateTime } = require("@utils/common");
 const constants = require("@config/constants");
-const currentDate = new Date();
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- notification preferences-model`
 );
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
 
 const NotificationPreferencesSchema = new mongoose.Schema(
   {

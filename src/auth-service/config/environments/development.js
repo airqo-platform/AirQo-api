@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const devConfig = {
+  BYPASS_CAPTCHA: process.env.DEV_BYPASS_CAPTCHA === "true" || false,
+  RECAPTCHA_SITE_KEY: process.env.DEV_RECAPTCHA_SITE_KEY,
+  RECAPTCHA_SECRET_KEY: process.env.DEV_RECAPTCHA_SECRET_KEY,
+  BYPASS_RATE_LIMIT: process.env.DEV_BYPASS_RATE_LIMIT === "true" || false,
   DEFAULT_AIRQLOUD: process.env.DEV_DEFAULT_AIRQLOUD,
   DEFAULT_GRID: process.env.DEV_DEFAULT_GRID,
   DEFAULT_GROUP: process.env.DEV_DEFAULT_GROUP,
@@ -40,5 +44,8 @@ const devConfig = {
   PADDLE_SECRET_KEY: process.env.DEV_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.DEV_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.DEV_PADDLE_API_KEY,
+  ONBOARDING_BASE_URL:
+    process.env.DEV_ONBOARDING_BASE_URL ||
+    "https://analytics.airqo.net/onboarding",
 };
 module.exports = devConfig;

@@ -1,11 +1,35 @@
 from datetime import datetime
 from unittest.mock import MagicMock
-
+import os
 import numpy as np
 import pandas as pd
 import pytest
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.bigquery_api import BigQueryApi
+
+TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+
+
+def load_test_data(filename: str) -> pd.DataFrame:
+    """
+    Loads test data from a CSV file.
+
+    Args:
+        filename: The name of the CSV file in the test_data directory.
+
+    Returns:
+        A pandas DataFrame containing the test data.  Raises FileNotFoundError if the file doesn't exist.
+    """
+    filepath = os.path.join(TEST_DATA_DIR, filename)
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Test data file not found: {filepath}")
+    data = pd.read_csv(filepath)
+    # Drop auto index
+    data.drop(columns=data.columns[0], inplace=True)
+    return data
 
 
 def pytest_configure(config):
@@ -14,6 +38,18 @@ def pytest_configure(config):
     )
 
 
+LC_RAW_DATA = load_test_data("test_low_cost_raw_data_v1.csv")
+LC_NO_DATA = load_test_data("test_low_cost_raw_data_empty_v1.csv")
+LC_AVERAGED_DATA = load_test_data("test_low_cost_averaged_data_v1.csv")
+BAM_RAW_DATA = load_test_data("test_bam_raw_data_v1.csv")
+BAM_AVERAGED_DATA = load_test_data("test_bam_averaged_data_v1.csv")
+CONSOLIDATE_DATA = load_test_data("test_consolidated_data_v1.csv")
+WEATHER_DATA = load_test_data("test_weather_data_v1.csv")
+DEVICES = load_test_data("test_device_data_v1.csv")
+
+# -------------------------------------
+# Fixtures
+# -------------------------------------
 class ForecastFixtures:
     @staticmethod
     @pytest.fixture(scope="session")
@@ -168,3 +204,75 @@ class FaultDetectionFixtures:
                 "created_at": [datetime.now().isoformat(timespec="seconds")],
             }
         )
+
+
+# ----------------------------------------------------------------
+# Tests for querying devices and sites data from device registry.
+# ----------------------------------------------------------------
+@pytest.fixture
+def mock_load_cached_data(monkeypatch):
+    """Fixture to mock the load_cached_data method."""
+    mock_load_cached_data = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.load_cached_data", mock_load_cached_data
+    )
+    return mock_load_cached_data
+
+
+@pytest.fixture
+def mock_fetch_devices_from_api(monkeypatch):
+    """Fixture to mock the fetch_devices_from_api method."""
+    mock_fetch_devices_from_api = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.fetch_devices_from_api",
+        mock_fetch_devices_from_api,
+    )
+    return mock_fetch_devices_from_api
+
+
+@pytest.fixture(scope="session")
+def airqo_device_keys():
+    keys = {
+        "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
+        "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
+    }
+    return keys
+
+
+@pytest.fixture
+def cached_sites_df():
+    pass
+
+
+@pytest.fixture
+def api_sites_df():
+    pass
+
+
+# ----------------------------------------------------------------
+# Tests for querying data from bigquery.
+# ----------------------------------------------------------------
+@pytest.fixture
+def mock_bigquery_api(monkeypatch):
+    """Fixture to mock the BigQueryApi class."""
+    mock_api = MagicMock()
+    monkeypatch.setattr("airqo_etl_utils.datautils.BigQueryApi", lambda: mock_api)
+    return mock_api
+
+
+@pytest.fixture
+def mock_data_utils(monkeypatch):
+    """Fixture to mock the DataUtils module."""
+    mock_utils = MagicMock()
+    monkeypatch.setattr("airqo_etl_utils.datautils.DataUtils", mock_utils)
+    return mock_utils
+
+
+@pytest.fixture
+def mock_data_validation_utils(monkeypatch):
+    """Fixture to mock the DataValidationUtils module."""
+    mock_validation = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataValidationUtils", mock_validation
+    )
+    return mock_validation

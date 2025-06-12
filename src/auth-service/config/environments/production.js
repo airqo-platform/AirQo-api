@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const prodConfig = {
+  BYPASS_CAPTCHA: process.env.PROD_BYPASS_CAPTCHA === "true" || false,
+  RECAPTCHA_SITE_KEY: process.env.PROD_RECAPTCHA_SITE_KEY,
+  RECAPTCHA_SECRET_KEY: process.env.PROD_RECAPTCHA_SECRET_KEY,
+  BYPASS_RATE_LIMIT: process.env.PROD_BYPASS_RATE_LIMIT === "true" || false,
   DEFAULT_AIRQLOUD: process.env.PROD_DEFAULT_AIRQLOUD,
   DEFAULT_GRID: process.env.PROD_DEFAULT_GRID,
   DEFAULT_GROUP: process.env.PROD_DEFAULT_GROUP,
@@ -40,5 +44,8 @@ const prodConfig = {
   PADDLE_SECRET_KEY: process.env.PROD_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.PROD_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.PROD_PADDLE_API_KEY,
+  ONBOARDING_BASE_URL:
+    process.env.PROD_ONBOARDING_BASE_URL ||
+    "https://analytics.airqo.net/onboarding",
 };
 module.exports = prodConfig;

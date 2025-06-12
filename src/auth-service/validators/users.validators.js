@@ -911,6 +911,67 @@ const resetPassword = [
     .trim(),
 ];
 
+const getOrganizationBySlug = [
+  param("org_slug")
+    .exists()
+    .withMessage("Organization slug is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("Organization slug cannot be empty")
+    .bail()
+    .isAlphanumeric("en-US", { ignore: "-_" })
+    .withMessage(
+      "Organization slug must be alphanumeric with optional hyphens and underscores"
+    ),
+];
+
+const registerViaOrgSlug = [
+  param("org_slug")
+    .exists()
+    .withMessage("Organization slug is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("Organization slug cannot be empty")
+    .bail()
+    .isAlphanumeric("en-US", { ignore: "-_" })
+    .withMessage(
+      "Organization slug must be alphanumeric with optional hyphens and underscores"
+    ),
+  body("firstName")
+    .exists()
+    .withMessage("firstName is missing in your request")
+    .bail()
+    .trim(),
+  body("lastName")
+    .exists()
+    .withMessage("lastName is missing in your request")
+    .bail()
+    .trim(),
+  body("email")
+    .exists()
+    .withMessage("email is missing in your request")
+    .bail()
+    .isEmail()
+    .withMessage("this is not a valid email address")
+    .trim(),
+  body("password")
+    .exists()
+    .withMessage("password is missing in your request")
+    .bail()
+    .trim()
+    .isLength({ min: 6, max: 30 })
+    .withMessage("Password must be between 6 and 30 characters long")
+    .bail()
+    .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
+    .withMessage("Password must contain at least one letter and one number"),
+  body("captchaToken")
+    .optional()
+    .notEmpty()
+    .withMessage("captchaToken should not be empty if provided"),
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -948,4 +1009,6 @@ module.exports = {
   resetPasswordRequest,
   resetPassword,
   verifyMobileEmail,
+  getOrganizationBySlug,
+  registerViaOrgSlug,
 };

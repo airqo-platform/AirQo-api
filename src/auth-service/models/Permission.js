@@ -3,16 +3,17 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject } = require("@utils/shared");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- permission-model`);
+
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
 
 const PermissionSchema = new mongoose.Schema(
   {
@@ -49,46 +50,44 @@ PermissionSchema.index({ permission: 1 }, { unique: true });
 PermissionSchema.statics = {
   async register(args, next) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "permission", {
           message: "Permission created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message:
-            "operation successful but Permission NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "permission",
+          "operation successful but Permission NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
-      let response = {};
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "validation errors for some of the provided fields",
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "permission");
       }
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError(
-          "validation errors for some of the provided fields",
-          httpStatus.CONFLICT,
-          response
-        )
-      );
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
-      let permissions = await this.aggregate()
+      const permissions = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
@@ -118,37 +117,21 @@ PermissionSchema.statics = {
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
-      if (!isEmpty(permissions)) {
-        let data = permissions;
-        return {
-          success: true,
-          data,
-          message: "successfully listed the permissions",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(permissions)) {
-        return {
-          success: true,
-          message: "no permissions exist",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
-      }
+
+      return createSuccessResponse("list", permissions, "permission", {
+        message: "successfully listed the permissions",
+        emptyMessage: "no permissions exist",
+      });
     } catch (error) {
-      next(
-        new HttpError(
-          "internal server error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "permission");
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      const modifiedUpdate = { ...update };
 
+      // Remove permission field from update if present
       if (modifiedUpdate.permission) {
         delete modifiedUpdate.permission;
       }
@@ -160,63 +143,48 @@ PermissionSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedPermission)) {
-        return {
-          success: true,
-          message: "successfully modified the Permission",
-          data: updatedPermission._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedPermission)) {
-        return {
-          success: true,
-          message: "Permission does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.OK,
-        };
+        return createSuccessResponse(
+          "update",
+          updatedPermission._doc,
+          "permission"
+        );
+      } else {
+        return createNotFoundResponse(
+          "permission",
+          "update",
+          "Permission does not exist, please crosscheck"
+        );
       }
     } catch (error) {
-      next(
-        new HttpError(
-          "internal server error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "permission");
     }
   },
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, permission: 1, description: 1 },
       };
-      let removedPermission = await this.findOneAndRemove(
+
+      const removedPermission = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedPermission)) {
-        return {
-          success: true,
-          message: "successfully removed the Permission",
-          data: removedPermission._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedPermission)) {
-        return {
-          success: true,
-          message: "Permission does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.NOT_FOUND,
-        };
+        return createSuccessResponse(
+          "delete",
+          removedPermission._doc,
+          "permission"
+        );
+      } else {
+        return createNotFoundResponse(
+          "permission",
+          "delete",
+          "Permission does not exist, please crosscheck"
+        );
       }
     } catch (error) {
-      next(
-        new HttpError(
-          "internal server error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "permission");
     }
   },
 };

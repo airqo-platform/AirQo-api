@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const stageConfig = {
+  BYPASS_CAPTCHA: process.env.STAGE_BYPASS_CAPTCHA === "true" || false,
+  RECAPTCHA_SITE_KEY: process.env.STAGE_RECAPTCHA_SITE_KEY,
+  RECAPTCHA_SECRET_KEY: process.env.STAGE_RECAPTCHA_SECRET_KEY,
+  BYPASS_RATE_LIMIT: process.env.STAGE_BYPASS_RATE_LIMIT === "true" || false,
   DEFAULT_AIRQLOUD: process.env.STAGE_DEFAULT_AIRQLOUD,
   DEFAULT_GRID: process.env.STAGE_DEFAULT_GRID,
   DEFAULT_GROUP: process.env.STAGE_DEFAULT_GROUP,
@@ -41,6 +45,9 @@ const stageConfig = {
   PADDLE_SECRET_KEY: process.env.STAGE_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.STAGE_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.STAGE_PADDLE_API_KEY,
+  ONBOARDING_BASE_URL:
+    process.env.STAGE_ONBOARDING_BASE_URL ||
+    "https://staging-analytics.airqo.net/onboarding",
 };
 
 module.exports = stageConfig;

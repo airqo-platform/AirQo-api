@@ -10,14 +10,30 @@ class HttpError extends Error {
     logObject("the errors we are getting", errors);
     super(message);
     this.statusCode = statusCode;
-    this.errors = errors;
+
+    // Format the errors to have a consistent structure
+    if (errors) {
+      // If errors is an object (param -> message), convert to array format
+      if (typeof errors === "object" && !Array.isArray(errors)) {
+        this.errors = Object.entries(errors).map(([param, message]) => ({
+          param,
+          message,
+          location: "body", // Default location
+        }));
+      } else {
+        this.errors = errors;
+      }
+    } else {
+      this.errors = null;
+    }
   }
 }
 
 const convertErrorArrayToObject = (arrays) => {
   const initialValue = {};
   return arrays.reduce((obj, item) => {
-    obj[item.param] = item.msg;
+    // Use item.message if available, otherwise use item.msg
+    obj[item.param] = item.message || item.msg;
     return obj;
   }, initialValue);
 };

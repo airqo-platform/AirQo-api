@@ -32,6 +32,13 @@ def validate_mutually_exclusive_sites_devices_fields(data):
         )
 
 
+def validate_dates(data):
+    if data["endDateTime"] < data["startDateTime"]:
+        raise ValidationError(
+            "endDateTime must not be earlier than startDateTime.", "endDateTime"
+        )
+
+
 class RawDataSchema(Schema):
     network = ma_fields.String(
         required=True,
@@ -51,6 +58,10 @@ class RawDataSchema(Schema):
             error="Invalid data frequency.",
         ),
     )
+
+    @validates_schema
+    def validate_request_dates(data, **kwargs):
+        validate_dates(data)
 
 
 class DataDownloadSchema(Schema):
@@ -100,6 +111,10 @@ class DataDownloadSchema(Schema):
     @validates_schema
     def validate_data_filter(self, data, **kwargs):
         validate_mutually_exclusive_sites_devices_fields(data)
+
+    @validates_schema
+    def validate_request_dates(self, data, **kwargs):
+        validate_dates(data)
 
     @validates_schema
     def validate_calibrated_frequency(self, data, **kwargs):
@@ -157,3 +172,7 @@ class DataExportSchema(Schema):
     @validates_schema
     def validate_data_filter(self, data, **kwargs):
         validate_mutually_exclusive_sites_devices_fields(data)
+
+    @validates_schema
+    def validate_request_dates(self, data, **kwargs):
+        validate_dates(data)

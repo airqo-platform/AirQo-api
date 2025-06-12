@@ -1,8 +1,9 @@
 import os
-from enum import Enum
+from enum import Enum, unique, IntEnum
 
 
-class DeviceCategory(Enum):
+@unique
+class DeviceCategory(IntEnum):
     """
     LOW_COST -> Reference monitors
     BAM -> Low cost sensors
@@ -31,7 +32,8 @@ class DeviceCategory(Enum):
         return self.__str__()
 
 
-class DeviceNetwork(Enum):
+@unique
+class DeviceNetwork(IntEnum):
     """
     METONE -> Us embassy
     AIRQO -> Airqo
@@ -47,6 +49,10 @@ class DeviceNetwork(Enum):
     IQAIR = 4
     NASA = 5
     KCCA = 6
+    AIRBEAM = 7
+    PLUMELABS = 8
+    TAHMO = 9
+    PURPLEAIR = 10
 
     def __str__(self) -> str:
         return self.name.lower()
@@ -62,7 +68,8 @@ class DeviceNetwork(Enum):
         return self.__str__()
 
 
-class DataType(Enum):
+@unique
+class DataType(IntEnum):
     """
     RAW -> Raw/unprocessed data.(raw_data table).
     AVERAGED -> Processed(averaged), duplicates dropped.(averaged_data table)
@@ -88,7 +95,8 @@ class DataType(Enum):
         return self.__str__()
 
 
-class MetaDataType(Enum):
+@unique
+class MetaDataType(IntEnum):
     """
     Enumeration representing metadata types.
 
@@ -121,7 +129,8 @@ class MetaDataType(Enum):
         return self.__str__()
 
 
-class Frequency(Enum):
+@unique
+class Frequency(IntEnum):
     """
     RAW -> Raw current data returned from all devices
     RAW-LOW-COST -> Raw data returned from the low-cost devices
@@ -157,7 +166,8 @@ class Frequency(Enum):
         return self.__str__()
 
 
-class DataSource(Enum):
+@unique
+class DataSource(IntEnum):
     THINGSPEAK = 1
     CLARITY = 2
     PLUME_LABS = 3
@@ -181,12 +191,14 @@ class DataSource(Enum):
         return self.__str__()
 
 
-class QueryType(Enum):
+@unique
+class QueryType(IntEnum):
     GET = 1
     DELETE = 2
 
 
-class JobAction(Enum):
+@unique
+class JobAction(IntEnum):
     APPEND = 1
     OVERWRITE = 2
 
@@ -199,7 +211,8 @@ class JobAction(Enum):
             return "WRITE_EMPTY"
 
 
-class ColumnDataType(Enum):
+@unique
+class ColumnDataType(IntEnum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
@@ -221,7 +234,8 @@ class ColumnDataType(Enum):
         return self.__str__()
 
 
-class QualityCategorization(Enum):
+@unique
+class QualityCategorization(IntEnum):
     GOOD = 1
     MODERATE = 2
     UNHEALTHY_FSGs = 3
@@ -243,7 +257,8 @@ class QualityCategorization(Enum):
         return self.__str__()
 
 
-class Pollutant(Enum):
+@unique
+class Pollutant(IntEnum):
     PM2_5 = 1
     PM10 = 2
     NO2 = 3
@@ -262,6 +277,7 @@ class Pollutant(Enum):
         return self.__str__()
 
 
+@unique
 class CityModels(Enum):
     NAIROBI = "nairobi"
     KAMPALA = "kampala"
@@ -282,6 +298,7 @@ class CityModels(Enum):
         return self.__str__()
 
 
+@unique
 class CountryModels(Enum):
     KENYA = "kenya"
     UGANDA = "uganda"

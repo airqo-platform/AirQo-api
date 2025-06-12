@@ -5,7 +5,7 @@ const PreferenceModel = require("@models/Preference");
 const SelectedSiteModel = require("@models/SelectedSite");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const { logObject } = require("@utils/shared");
+const { logObject, logText } = require("@utils/shared");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preference-update-job`
@@ -14,6 +14,8 @@ const { stringify } = require("@utils/common");
 
 const isEmpty = require("is-empty");
 const BATCH_SIZE = 100;
+const NUMBER_OF_SITES_PER_USER = 2; // Number of sites to select for each user
+const SELECTION_POOL_SIZE = 20; // Size of the pool to select from
 
 // Function to validate critical default values
 const validateDefaultValues = () => {
@@ -72,21 +74,21 @@ const validateUserGroupMembership = (user, defaultGroupId) => {
   );
 };
 
-// Function to get selected sites based on the specified method
-const getSelectedSites = async (method = "featured") => {
+// Function to get a pool of selected sites
+const getSelectedSitesPool = async (method = "featured") => {
   try {
     let selectedSites;
     if (method === "featured") {
       selectedSites = await SelectedSiteModel("airqo")
         .find({ isFeatured: true })
         .sort({ createdAt: -1 })
-        .limit(4)
+        .limit(SELECTION_POOL_SIZE) // Get more sites to create a pool for random selection
         .lean();
     } else {
       selectedSites = await SelectedSiteModel("airqo")
         .find()
         .sort({ createdAt: -1 })
-        .limit(4)
+        .limit(SELECTION_POOL_SIZE) // Get more sites to create a pool for random selection
         .lean();
     }
     const modifiedSelectedSites = selectedSites.map((site) => ({
@@ -98,6 +100,19 @@ const getSelectedSites = async (method = "featured") => {
     logger.error(`🐛🐛 Error fetching selected sites: ${stringify(error)}`);
     return [];
   }
+};
+
+// Function to randomly select n sites from a pool
+const getRandomSites = (
+  sitesPool,
+  numberOfSites = NUMBER_OF_SITES_PER_USER
+) => {
+  if (sitesPool.length <= numberOfSites) {
+    return sitesPool;
+  }
+
+  const shuffled = [...sitesPool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, numberOfSites);
 };
 
 // Helper function to check if an error is a duplicate key error (E11000)
@@ -115,11 +130,13 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
     const batchSize = BATCH_SIZE;
     let skip = 0;
 
-    // Fetch selected sites data
-    const selectedSites = await getSelectedSites(siteSelectionMethod);
+    // Fetch pool of selected sites
+    const sitesPool = await getSelectedSitesPool(siteSelectionMethod);
 
-    if (isEmpty(selectedSites) || selectedSites.length < 4) {
-      logger.error("☹️☹️ No selected sites found. Aborting preference update.");
+    if (isEmpty(sitesPool) || sitesPool.length < NUMBER_OF_SITES_PER_USER) {
+      logger.error(
+        `☹️☹️ Not enough selected sites found (need at least ${NUMBER_OF_SITES_PER_USER}). Aborting preference update.`
+      );
       return;
     }
 
@@ -165,12 +182,15 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
         const userIdStr = user._id.toString();
         const preference = preferencesMap.get(userIdStr);
 
+        // Randomly select sites for this user
+        const randomSelectedSites = getRandomSites(sitesPool);
+
         // Prepare the default preference object with the specific group_id
         const defaultPreferenceWithGroupId = {
           ...defaultPreference,
           user_id: user._id,
           group_id: defaultGroupId,
-          selected_sites: selectedSites,
+          selected_sites: randomSelectedSites,
         };
 
         if (!preference) {
@@ -197,7 +217,7 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
               },
               {
                 $set: {
-                  selected_sites: selectedSites,
+                  selected_sites: randomSelectedSites,
                   group_id: defaultGroupId,
                 },
               },
@@ -222,6 +242,10 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
 
       skip += batchSize;
     }
+
+    logText(
+      `✅ Successfully completed preference update for users with ${NUMBER_OF_SITES_PER_USER} randomly selected sites each`
+    );
   } catch (error) {
     // Only log the error if it's not a duplicate key error
     if (!isDuplicateKeyError(error)) {
@@ -231,10 +255,16 @@ const updatePreferences = async (siteSelectionMethod = "featured") => {
   }
 };
 
+global.cronJobs = global.cronJobs || {};
 const schedule = "30 * * * *"; // At minute 30 of every hour
-cron.schedule(schedule, () => updatePreferences("featured"), {
-  scheduled: true,
-  timezone: "Africa/Nairobi",
-});
+const jobName = "preferences-update-job";
+global.cronJobs[jobName] = cron.schedule(
+  schedule,
+  () => updatePreferences("featured"),
+  {
+    scheduled: true,
+    timezone: "Africa/Nairobi",
+  }
+);
 
 module.exports = { updatePreferences };

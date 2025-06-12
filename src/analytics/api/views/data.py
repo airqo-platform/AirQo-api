@@ -76,8 +76,6 @@ class DataExportResource(Resource):
         except ValidationError as err:
             return {"errors": err.messages}, 400
 
-        startDateTime = json_data["startDateTime"]
-        endDateTime = json_data["endDateTime"]
         try:
             filter_type, filter_value, error_message = get_validated_filter(json_data)
             if error_message:
@@ -88,6 +86,8 @@ class DataExportResource(Resource):
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
 
+        startDateTime = json_data["startDateTime"]
+        endDateTime = json_data["endDateTime"]
         download_type = (json_data.get("downloadType"),)
         output_format = (json_data.get("outputFormat"),)
         data_type = json_data.get("datatype")
@@ -106,17 +106,23 @@ class DataExportResource(Resource):
                 if device_category
                 else DeviceCategory.LOWCOST
             )
-            data_frame = DataUtils.extract_data_from_bigquery(
-                datatype=datatype,
-                start_date_time=startDateTime,
-                end_date_time=endDateTime,
-                frequency=frequency,
-                dynamic_query=True,
-                device_category=device_category,
-                columns=pollutants,
-                data_filter=data_filter,
-                use_cache=True,
-            )
+            if data_filter:
+                data_frame = DataUtils.extract_data_from_bigquery(
+                    datatype=datatype,
+                    start_date_time=startDateTime,
+                    end_date_time=endDateTime,
+                    frequency=frequency,
+                    dynamic_query=True,
+                    device_category=device_category,
+                    columns=pollutants,
+                    data_filter=data_filter,
+                    use_cache=True,
+                )
+            else:
+                return (
+                    AirQoRequests.create_response("No data filter provided.", data=[]),
+                    AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+                )
 
             if data_frame.empty:
                 return (

@@ -14,6 +14,9 @@ class Publication(BaseModel):
 
     title = models.CharField(max_length=255)
     authors = models.TextField(null=True, blank=True)
+    description = models.TextField(
+        null=True, blank=True, help_text="Optional description of the publication"
+    )
     link = models.URLField(null=True, blank=True)
     resource_file = CloudinaryField(
         folder="website/uploads/publications/files",

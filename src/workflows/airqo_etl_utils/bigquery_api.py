@@ -1,10 +1,11 @@
 import logging
 import os
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
 from google.cloud import bigquery
+from google.api_core import exceptions as google_api_exceptions
 
 from .config import configuration
 from .constants import (
@@ -593,7 +594,7 @@ class BigQueryApi:
         null_cols: Optional[List] = None,
         time_granularity: Optional[str] = "HOUR",
         use_cache: Optional[bool] = False,
-    ) -> pd.DataFrame:
+    ) -> pd.DataFrame | None:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
 
@@ -630,12 +631,40 @@ class BigQueryApi:
                 time_granularity=time_granularity,
             )
 
-        job_config = bigquery.QueryJobConfig(use_query_cache=use_cache)
-        measurements = (
-            self.client.query(query=query, job_config=job_config)
-            .result()
-            .to_dataframe()
-        )
+        try:
+            job_config = bigquery.QueryJobConfig(use_query_cache=use_cache)
+            measurements = (
+                self.client.query(query=query, job_config=job_config)
+                .result()
+                .to_dataframe()
+            )
+        except google_api_exceptions.GoogleAPIError as e:
+            if isinstance(e, google_api_exceptions.NotFound):
+                logger.error(
+                    f"Query on {table} failed: A specified resource (e.g., dataset or table) was not found. {e.message}"
+                )
+                raise google_api_exceptions.NotFound(
+                    "Query failed: A specified resource (e.g., dataset or table) was not found."
+                )
+            elif isinstance(e, google_api_exceptions.Forbidden):
+                logger.error(
+                    f"Query on {table} failed: Permission denied. Check IAM roles for the BigQuery API. {e.message}"
+                )
+                raise google_api_exceptions.Forbidden(
+                    "Query failed: Permission denied. Check IAM roles for the BigQuery API."
+                )
+            elif isinstance(e, google_api_exceptions.BadRequest):
+                logger.error(
+                    f"Query on {table} failed: Bad request. This could be due to an invalid query, incorrect parameters, or other issues. {e.message}"
+                )
+                raise google_api_exceptions.BadRequest(
+                    "Query failed: Bad request. This could be due to an invalid query, incorrect parameters, or other issues."
+                )
+        except Exception as e:
+            logger.exception(
+                f"An error occurred while executing a query on {table}: {e}"
+            )
+            return None
 
         expected_columns = self.get_columns(table=table)
         if measurements.empty:

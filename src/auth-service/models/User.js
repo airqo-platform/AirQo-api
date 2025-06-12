@@ -8,6 +8,7 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
+const ThemeSchema = require("@models/ThemeSchema");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
@@ -56,6 +57,10 @@ const UserSchema = new Schema(
     country: { type: String },
     firebase_uid: { type: String },
     city: { type: String },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
+    },
     department_id: {
       type: ObjectId,
       ref: "department",
@@ -647,22 +652,20 @@ UserSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.code === 11000) {
         logObject("the err.code again", err.code);
         const duplicate_record = args.email ? args.email : args.userName;
         response[duplicate_record] = `${duplicate_record} must be unique`;
         response["message"] =
           "the email and userName must be unique for every user";
+
         try {
           const email = args.email;
           const firstName = args.firstName;
           const lastName = args.lastName;
           const emailResponse = await mailer.existingUserRegistrationRequest(
-            {
-              email,
-              firstName,
-              lastName,
-            },
+            { email, firstName, lastName },
             next
           );
           if (emailResponse && emailResponse.success === false) {
@@ -682,8 +685,16 @@ UserSchema.statics = {
           return (response[key] = value.message);
         });
       }
+
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+
+      // Return error response instead of calling next()
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
   async listStatistics(next) {

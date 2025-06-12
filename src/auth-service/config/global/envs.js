@@ -1,5 +1,32 @@
 const mongoose = require("mongoose");
 
+// Helper functions for type conversion
+const parseNumber = (value, defaultValue) => {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+  const parsed = Number(value);
+  return isNaN(parsed) ? defaultValue : parsed;
+};
+
+const parseBoolean = (value, defaultValue) => {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  // Handle string representations
+  const stringValue = String(value).toLowerCase();
+  if (stringValue === "true" || stringValue === "1") {
+    return true;
+  }
+  if (stringValue === "false" || stringValue === "0") {
+    return false;
+  }
+  return defaultValue;
+};
+
 const envs = {
   KICKBOX_API_KEY: process.env.KICKBOX_API_KEY,
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
@@ -19,8 +46,19 @@ const envs = {
   DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
   PARTNERS_EMAILS: process.env.PARTNERS_EMAILS,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
-  DEFAULT_LIMIT: process.env.DEFAULT_LIMIT,
-  PORT: process.env.PORT || 3000,
+
+  // ✅ NUMERIC VALUES - Properly converted
+  DEFAULT_LIMIT: parseNumber(process.env.DEFAULT_LIMIT, 100),
+  PORT: parseNumber(process.env.PORT, 3000),
+  ONBOARDING_TOKEN_EXPIRY_DAYS: parseNumber(
+    process.env.ONBOARDING_TOKEN_EXPIRY_DAYS,
+    7
+  ),
+  MAX_ONBOARDING_TOKEN_EXPIRY_DAYS: parseNumber(
+    process.env.MAX_ONBOARDING_TOKEN_EXPIRY_DAYS,
+    30
+  ),
+
   CLIENT_ORIGIN: process.env.AIRQO_WEBSITE,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
@@ -67,5 +105,12 @@ const envs = {
     process.env.PADDLE_DEFAULT_SUBSCRIPTION_PRICE_ID,
   DEFAULT_ORGANISATION_PROFILE_PICTURE:
     process.env.DEFAULT_ORGANISATION_PROFILE_PICTURE,
+
+  // ✅ BOOLEAN VALUES - Properly converted
+  DEFAULT_USE_ONBOARDING_FLOW: parseBoolean(
+    process.env.DEFAULT_USE_ONBOARDING_FLOW,
+    false
+  ),
 };
+
 module.exports = envs;

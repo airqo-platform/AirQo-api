@@ -6,12 +6,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- unknown-ip-model`);
 const { getModelByTenant } = require("@config/database");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
 } = require("@utils/shared");
 
 function getDay() {
@@ -82,41 +82,43 @@ UnknownIPSchema.index({ ip: 1, "ipCounts.day": 1 }, { unique: true });
 UnknownIPSchema.statics = {
   async register(args, next) {
     try {
-      let modifiedArgs = args;
+      const modifiedArgs = args;
       const data = await this.create({
         ...modifiedArgs,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "unknown IP", {
           message: "IP created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but IP NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "unknown IP",
+          "operation successful but IP NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
 
-      let response = {};
+      // Handle specific duplicate key errors
       if (err.keyValue) {
+        let response = {};
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+        return {
+          success: false,
+          message: "input validation errors", // Preserve specific error message
+          status: httpStatus.CONFLICT,
+          errors: response,
+        };
+      } else {
+        return createErrorResponse(err, "create", logger, "unknown IP");
       }
-
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(
-        new HttpError("input validation errors", httpStatus.CONFLICT, response)
-      );
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
@@ -147,101 +149,69 @@ UnknownIPSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 300)
+        .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the ip details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "No ips found, please crosscheck provided details",
-          status: httpStatus.OK,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "unknown IP", {
+        message: "successfully retrieved the ip details",
+        emptyMessage: "No ips found, please crosscheck provided details",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "unknown IP");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
+      const options = { new: true };
+      const modifiedUpdate = Object.assign({}, update);
+
       const updatedIP = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedIP)) {
-        return {
-          success: true,
+        return createSuccessResponse("update", updatedIP._doc, "unknown IP", {
           message: "successfully modified the IP",
-          data: updatedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP does not exist, please crosscheck",
-          })
+        });
+      } else {
+        return createNotFoundResponse(
+          "unknown IP",
+          "update",
+          "IP does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "unknown IP");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 0,
-          ip: 1,
+          ip: 1, // Preserve ip field projection
         },
       };
+
       const removedIP = await this.findOneAndRemove(filter, options).exec();
+
       if (!isEmpty(removedIP)) {
-        return {
-          success: true,
+        return createSuccessResponse("delete", removedIP._doc, "unknown IP", {
           message: "successfully removed the IP",
-          data: removedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP does not exist, please crosscheck",
-          })
+        });
+      } else {
+        return createNotFoundResponse(
+          "unknown IP",
+          "delete",
+          "IP does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "unknown IP");
     }
   },
 };

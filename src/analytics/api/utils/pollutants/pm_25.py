@@ -49,7 +49,7 @@ AQCSV_QC_CODE_MAPPER = {
 FREQUENCY_MAPPER = {"hourly": 60, "daily": 1440, "raw": 1}
 
 COMMON_POLLUTANT_MAPPING = {
-    "pm2_5_calibrated": ["pm2_5_calibrated_value"],
+    "pm2_5_calibrated": ["pm2_5_calibrated_value", "pm2_5"],
     "pm2_5_raw": ["pm2_5_raw_value", "pm2_5"],
     "pm2_5": [
         "pm2_5",

@@ -60,47 +60,66 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
         keys: Dict = {}
-        # Load devices from cache
-        try:
-            devices = DataUtils.load_cached_data(
-                local_file_path, MetaDataType.DEVICES.str
+        devices = DataUtils._load_devices_from_cache(local_file_path)
+
+        if devices is not None and not devices.empty:
+            devices = DataUtils._process_cached_devices(
+                devices, device_category, device_network
             )
-            if not devices.empty:
-                devices["device_number"] = (
-                    devices["device_number"].fillna(-1).astype(int)
-                )
-
-                if device_category:
-                    devices = devices.loc[
-                        devices.device_category == device_category.str
-                    ]
-
-                if device_network:
-                    devices = devices.loc[devices.network == device_network.str]
-
-                keys = dict(
-                    zip(
-                        devices.loc[
-                            devices.network == "airqo", "device_number"
-                        ].to_numpy(),
-                        devices.loc[devices.network == "airqo", "key"].to_numpy(),
-                    )
-                )
-
-        except Exception as e:
-            logger.exception(f"No devices currently cached: {e}")
-
-        # If cache is empty, fetch from API
-        if devices.empty:
+            keys = DataUtils._extract_keys(devices, DeviceNetwork.AIRQO)
+            return devices, keys
+        else:
             devices, keys = DataUtils.fetch_devices_from_api(
                 device_network, device_category
             )
-            if not keys:
-                raise RuntimeError("Failed to retrieve device keys")
+            if not devices.empty:
+                return devices, keys
+            else:
+                raise RuntimeError(
+                    "Failed to retrieve devices data from both cache and API."
+                )
 
-        if devices.empty:
-            raise RuntimeError("Failed to retrieve cached/api devices data.")
-        return devices, keys
+    def _load_devices_from_cache(file_path: str) -> Optional[pd.DataFrame]:
+        """Loads devices data from the local cache."""
+        try:
+            devices = DataUtils.load_cached_data(file_path, MetaDataType.DEVICES.str)
+            return devices
+        except FileNotFoundError:
+            logger.info(f"Cache file not found at: {file_path}")
+            return None
+        except pd.errors.EmptyDataError:
+            logger.info(f"Cache file at {file_path} is empty.")
+            return None
+        except Exception as e:
+            logger.exception(f"Error loading devices from cache: {e}")
+            return None
+
+    def _process_cached_devices(
+        devices: pd.DataFrame,
+        device_category: Optional[DeviceCategory],
+        device_network: Optional[DeviceNetwork],
+    ) -> pd.DataFrame:
+        """Processes the DataFrame loaded from the cache."""
+
+        devices["device_number"] = devices["device_number"].fillna(-1).astype(int)
+
+        if device_category:
+            devices = devices.loc[devices.device_category == device_category.str]
+
+        if device_network:
+            devices = devices.loc[devices.network == device_network.str]
+
+        return devices
+
+    def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
+        """Extracts device numbers and keys for a specific network."""
+        keys = dict(
+            zip(
+                devices.loc[devices.network == network.str, "device_number"].to_numpy(),
+                devices.loc[devices.network == network.str, "key"].to_numpy(),
+            )
+        )
+        return keys
 
     @staticmethod
     def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -130,7 +149,8 @@ class DataUtils:
         if sites.empty:
             data_api = DataApi()
             try:
-                sites = pd.DataFrame(data_api.get_sites())
+                sites_data = data_api.get_sites()
+                sites = pd.DataFrame(sites_data)
             except Exception as e:
                 logger.exception(f"Failed to load sites data from api. {e}")
 
@@ -148,7 +168,7 @@ class DataUtils:
         device_category: DeviceCategory,
         device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_names: Optional[list] = None,
+        device_names: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -183,10 +203,12 @@ class DataUtils:
             end_date_time=end_date_time,
         )
         data_store: List[pd.DataFrame] = []
+
         for _, device in devices.iterrows():
             data, meta_data = DataUtils._extract_device_api_data(
                 device, dates, config, keys, resolution
             )
+
             if isinstance(data, pd.DataFrame) and not data.empty:
                 data = DataUtils._process_and_append_device_data(
                     device, data, meta_data, config
@@ -196,20 +218,16 @@ class DataUtils:
 
             if not data.empty:
                 data_store.append(data)
+            else:
+                logger.info(
+                    f"No data returned from {device.name} for the given date range"
+                )
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
-        else:
-            devices_data = pd.DataFrame()
-
-        if "vapor_pressure" in devices_data.columns.to_list():
-            is_airqo_network = devices_data["network"] == "airqo"
-            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                is_airqo_network, "vapor_pressure"
-            ].apply(DataValidationUtils.convert_pressure_values)
-
-        devices_data.dropna(subset=["site_id"], how="any", inplace=True)
-
+            devices_data = devices_data[
+                devices_data["timestamp"].between(start_date_time, end_date_time)
+            ]
         return devices_data
 
     @staticmethod
@@ -234,19 +252,19 @@ class DataUtils:
     def fetch_devices_from_api(
         device_network: Optional[DeviceNetwork] = None,
         device_category: Optional[DeviceCategory] = None,
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, Dict[int, str]]:
         """Fetch devices from the API if the cached file is empty."""
         data_api = DataApi()
+
         try:
-            devices = pd.DataFrame(
-                data_api.get_devices_by_network(
-                    device_network=device_network,
-                    device_category=device_category,
-                )
+            devices = data_api.get_devices_by_network(
+                device_network=device_network,
+                device_category=device_category,
             )
+            devices = pd.DataFrame(devices)
             devices["device_number"] = devices["device_number"].fillna(-1)
-            devices_airqo = devices.loc[devices.network == "airqo"]
-            keys = data_api.get_thingspeak_read_keys(devices_airqo)
+            airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
+            keys = data_api.get_thingspeak_read_keys(airqo_devices)
             return devices, keys
         except Exception as e:
             logger.exception(
@@ -390,10 +408,88 @@ class DataUtils:
             use_cache=use_cache,
         )
 
+        if not isinstance(raw_data, pd.DataFrame):
+            raise ValueError(
+                "No data returned from BigQuery query, but data was expected. Check your logs for more information"
+            )
+
         if remove_outliers:
             raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
         return raw_data
+
+    @staticmethod
+    def extract_purpleair_data(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+        """
+        Extracts PurpleAir sensor data for all NASA network devices between specified datetime ranges.
+
+        Args:
+            start_date_time(str): The start datetime in ISO 8601 format.
+            end_date_time(str): The end datetime in ISO 8601 format.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing aggregated sensor readings along with metadata (device number, location, and ID).
+        """
+        all_data: List[Any] = []
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
+
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.PURPLE_AIR,
+        )
+
+        for _, device in devices.iterrows():
+            device_number = device["device_number"]
+            device_id = device["device_id"]
+            latitude = device["latitude"]
+            longitude = device["longitude"]
+
+            for start, end in dates:
+                query_data = DataUtils.query_purpleair_data(
+                    start_date_time=start,
+                    end_date_time=end,
+                    device_number=device_number,
+                )
+
+                if not query_data.empty:
+                    query_data = query_data.assign(
+                        device_number=device_number,
+                        device_id=device_id,
+                        latitude=latitude,
+                        longitude=longitude,
+                    )
+                    all_data.append(query_data)
+        return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
+
+    @staticmethod
+    def query_purpleair_data(
+        start_date_time: str, end_date_time: str, device_number: int
+    ) -> pd.DataFrame:
+        """
+        Queries the PurpleAir API for a specific sensor and time range.
+
+        Args:
+            start_date_time (str): The start datetime in ISO 8601 format.
+            end_date_time (str): The end datetime in ISO 8601 format.
+            device_number (int): The PurpleAir sensor ID to query.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the queried data. Returns an empty DataFrame if no data is found.
+        """
+        data_api = DataApi()
+        response = data_api.extract_purpleair_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            sensor=device_number,
+        )
+
+        return pd.DataFrame(
+            columns=response.get("fields", []),
+            data=response.get("data", []),
+        )
 
     @staticmethod
     def remove_duplicates(
@@ -473,6 +569,9 @@ class DataUtils:
 
         return cleaned_data
 
+    # --------------------------------------------------------------------
+    # Weather Data
+    # --------------------------------------------------------------------
     @staticmethod
     def transform_weather_data(data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -536,6 +635,35 @@ class DataUtils:
         return DataValidationUtils.remove_outliers_fix_types(weather_data)
 
     @staticmethod
+    def extract_tahmo_data(
+        start_time: str, end_time: str, station_codes: List[str]
+    ) -> List[Dict]:
+        """
+        Extracts measurement data from the TAHMO API for a list of station codes over a specified time range.
+
+        Args:
+            start_time(str): Start timestamp in ISO 8601 format (e.g., "2024-01-01T00:00:00Z").
+            end_time(str): End timestamp in ISO 8601 format.
+            station_codes(list[str]): List of TAHMO station codes to query.
+
+        Returns:
+            list[dict]: A list of measurement records, each as a dictionary with keys such as "value", "variable", "station", and "time". If no data is available,returns an empty list.
+
+        Notes:
+            - Only data under the "controlled" measurement endpoint is fetched.
+            - Any station errors are logged but do not halt execution for other stations.
+        """
+        data_api = DataApi()
+
+        if not isinstance(station_codes, list):
+            raise TypeError("station_codes must be a list of station codes.")
+
+        stations = set(station_codes)
+        measurements = data_api.get_tahmo_data(start_time, end_time, stations)
+
+        return measurements.to_dict(orient="records")
+
+    @staticmethod
     def aggregate_weather_data(data: pd.DataFrame) -> pd.DataFrame:
         """
         Aggregates weather data by station code, calculating hourly averages and sums.
@@ -583,6 +711,10 @@ class DataUtils:
 
         return aggregated_data
 
+    # ---------------------------------------------------------------------------
+    # TODO Add section
+    # ---------------------------------------------------------------------------
+
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
         """
@@ -597,7 +729,7 @@ class DataUtils:
         """
         restructured_data = []
 
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
         devices, _ = DataUtils.get_devices()
@@ -611,18 +743,19 @@ class DataUtils:
                 device_id = row["device_id"]
                 device_details = None
 
-                if device_id in devices.index:
-                    device_details = devices.loc[device_id]
-                else:
+                if device_id not in devices.index:
                     logger.exception(
                         f"Device number {device_id} not found in device list"
                     )
                     continue
 
                 if row["site_id"] is None or pd.isna(row["site_id"]):
-                    logger.exception(f"Invalid site id in data.")
+                    logger.exception(
+                        f"Invalid site_id: Device {device_id} might have been recalled."
+                    )
                     continue
 
+                device_details = devices.loc[device_id]
                 row_data = {
                     "device": device_id,
                     "device_id": device_details["_id"],
@@ -667,7 +800,9 @@ class DataUtils:
                 }
                 restructured_data.append(row_data)
             except Exception as e:
-                logger.exception(f"An error occurred: {e}")
+                logger.exception(
+                    f"An error occurred while processing data for the api: {e}"
+                )
 
         return restructured_data
 
@@ -824,9 +959,9 @@ class DataUtils:
         5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
 
         Args:
-            data (pd.DataFrame): The input data to be cleaned.
-            device_category (DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
-            remove_outliers (bool, optional): Determines whether outliers should be removed. Defaults to True.
+            data(pd.DataFrame): The input data to be cleaned.
+            device_category(DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
+            remove_outliers(bool, optional): Determines whether outliers should be removed. Defaults to True.
 
         Returns:
             pd.DataFrame: The cleaned DataFrame.
@@ -834,21 +969,36 @@ class DataUtils:
         Raises:
             KeyError: If there are issues with the 'timestamp' column during processing.
         """
+        # It's assumed that if a row has no site_id, it could be from an undeployed device.
+        data.dropna(subset=["site_id"], how="any", inplace=True)
+
         if remove_outliers:
             data = DataValidationUtils.remove_outliers_fix_types(data)
 
-        # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
-        match device_category:
-            case DeviceCategory.GAS:
-                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                    data
-                )
-            case DeviceCategory.LOWCOST:
-                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
+        # Perform data quality checks on separate thread.
+        Utils.execute_and_forget_async_task(
+            lambda: DataUtils.__perform_data_quality_checks(
+                device_category, data.copy()
+            )
+        )
+
         try:
-            dropna_subset = ["pm2_5", "pm10"]
-            if DeviceNetwork.AIRQO.str in data.network.unique():
+            networks = set(data.network.unique())
+            dropna_subset = []
+
+            if "airqo" in networks:
+                if "vapor_pressure" in data.columns:
+                    values = pd.to_numeric(data["vapor_pressure"], errors="coerce")
+                    converted = values * 0.1
+                    mask_valid = ~values.isna()
+                    data.loc[:, "vapor_pressure"] = converted[mask_valid]
+
+                # Airqo devices specific fields
                 dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
+
+            if networks - {"airqo"}:
+                # Expected fields from non-airqo devices
+                dropna_subset.extend(["pm2_5", "pm10"])
 
             data.dropna(
                 subset=dropna_subset,
@@ -900,6 +1050,9 @@ class DataUtils:
         data = DataValidationUtils.remove_outliers_fix_types(
             data, remove_outliers=remove_outliers
         )
+        data.dropna(subset=["timestamp"], inplace=True)
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
 
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
@@ -1308,8 +1461,8 @@ class DataUtils:
         it returns a Series with None values.
 
         Args:
-            devices (pd.DataFrame): A DataFrame containing device information, including 'device_id'.
-            device_id: The ID of the device to search for in the DataFrame.
+            devices(pd.DataFrame): A DataFrame containing device information, including 'device_id'.
+            device_id(str): The ID of the device to search for in the DataFrame.
 
         Returns:
             pd.Series: A Series containing 'site_id' and 'device_number' for the specified device ID,
@@ -1375,3 +1528,29 @@ class DataUtils:
                 f"An unexpected error occurred during column retrieval: {e}"
             )
         return None, []
+
+    def __perform_data_quality_checks(
+        device_category: DeviceCategory, data: pd.DataFrame
+    ) -> None:
+        """
+        Perform data quality checks on the provided DataFrame based on the device category.
+
+        This function routes the data quality check to the appropriate Great Expectations validation suite depending on the type of device. It does not modify the original DataFrame or return any results. Intended to run as a fire-and-forget task.
+
+        Args:
+            device_category(DeviceCategory): The category of the device (e.g., GAS, LOWCOST).
+            data(pd.DataFrame): The raw sensor data to be validated.
+        """
+
+        # TODO Find a more structured and robust way to implement raw data quality checks.
+        """
+            - Future improvements could include structured validation logging, metrics collection,
+                and exception handling for failures.
+        """
+        match device_category:
+            case DeviceCategory.GAS:
+                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                    data
+                )
+            case DeviceCategory.LOWCOST:
+                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)

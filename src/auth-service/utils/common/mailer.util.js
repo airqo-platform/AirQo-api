@@ -1,0 +1,1475 @@
+const transporter = require("@config/mailer.config");
+const isEmpty = require("is-empty");
+const SubscriptionModel = require("@models/Subscription");
+const constants = require("@config/constants");
+const msgs = require("./email.msgs.util");
+const msgTemplates = require("./email.templates.util");
+const httpStatus = require("http-status");
+const path = require("path");
+const {
+  sendMailWithDeduplication,
+  emailDeduplicator,
+} = require("./email-deduplication.util");
+const {
+  logObject,
+  logText,
+  HttpError,
+  sanitizeEmailString,
+} = require("@utils/shared");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-util`);
+const processString = (inputString) => {
+  const stringWithSpaces = inputString.replace(/[^a-zA-Z0-9]+/g, " ");
+  const uppercasedString = stringWithSpaces.toUpperCase();
+  return uppercasedString;
+};
+const projectRoot = path.join(__dirname, "..", "..");
+const imagePath = path.join(projectRoot, "config", "images");
+
+let attachments = [
+  {
+    filename: "airqoLogo.png",
+    path: path.join(imagePath, "airqoLogo.png"),
+    cid: "AirQoEmailLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "faceBookLogo.png",
+    path: imagePath + "/facebookLogo.png",
+    cid: "FacebookLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "youtubeLogo.png",
+    path: imagePath + "/youtubeLogo.png",
+    cid: "YoutubeLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "twitterLogo.png",
+    path: imagePath + "/Twitter.png",
+    cid: "Twitter",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "linkedInLogo.png",
+    path: imagePath + "/linkedInLogo.png",
+    cid: "LinkedInLogo",
+    contentDisposition: "inline",
+  },
+];
+
+const createMailerFunction = (
+  functionName,
+  category,
+  emailMessageFunction,
+  customMailOptionsModifier = null
+) => {
+  return async (params, next) => {
+    try {
+      // JavaScript destructuring with rest operator
+      const { email, tenant = "airqo", ...otherParams } = params;
+
+      // ✅ STEP 1: Input validation
+      if (!email) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: `Email is required for ${functionName}`,
+          missing: ["email"],
+        });
+        if (next) {
+          next(error);
+          return;
+        }
+        throw error;
+      }
+
+      // ✅ STEP 2: Handle test emails early
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: `Test ${functionName} email bypassed`,
+          data: {
+            email,
+            testBypass: true,
+            functionName,
+            bypassedAt: new Date(),
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      // ✅ STEP 3: Subscription check based on category
+      const isCoreFunction =
+        EMAIL_CATEGORIES.CORE_CRITICAL.includes(functionName);
+
+      if (!isCoreFunction) {
+        const checkResult = await SubscriptionModel(
+          tenant
+        ).checkNotificationStatus({
+          email,
+          type: "email",
+        });
+
+        if (!checkResult.success) {
+          switch (checkResult.status) {
+            case httpStatus.NOT_FOUND:
+              // New user - create default subscription and proceed
+              logText(`Creating default subscription for new user: ${email}`);
+              try {
+                await SubscriptionModel(tenant).createDefaultSubscription(
+                  email,
+                  false
+                );
+              } catch (createError) {
+                logger.warn(
+                  `Failed to create default subscription for ${email}: ${createError.message}`
+                );
+              }
+              break;
+
+            case httpStatus.FORBIDDEN:
+              // User explicitly unsubscribed - block the email
+              logger.warn(`Email blocked - user unsubscribed: ${email}`);
+              return {
+                success: false,
+                message: "User has unsubscribed from email notifications",
+                status: httpStatus.FORBIDDEN,
+                data: {
+                  email,
+                  unsubscribed: true,
+                  functionName,
+                  blockedAt: new Date(),
+                },
+              };
+
+            case httpStatus.INTERNAL_SERVER_ERROR:
+              // Database error - log but proceed (fail open)
+              logger.error(
+                `Subscription check failed for ${email}, proceeding anyway: ${checkResult.message}`
+              );
+              break;
+
+            default:
+              // Other errors - log and proceed
+              logger.warn(
+                `Subscription check issue for ${email}, proceeding: ${checkResult.message}`
+              );
+              break;
+          }
+        }
+      } else {
+        logText(
+          `Skipping subscription check for core function ${functionName}: ${email}`
+        );
+      }
+
+      // ✅ STEP 4: Continue with email sending logic
+
+      // ✅ STEP 4a: Process BCC emails with subscription validation (if needed)
+      let subscribedBccEmails = "";
+
+      const shouldProcessBcc = [
+        "candidate",
+        "request",
+        "requestToJoinGroupByEmail",
+        "siteActivity",
+        "fieldActivity",
+        "existingUserAccessRequest",
+        "clientActivationRequest",
+        "existingUserRegistrationRequest",
+      ].includes(functionName);
+
+      if (shouldProcessBcc) {
+        const bccEmailSource =
+          functionName === "siteActivity" || functionName === "fieldActivity"
+            ? constants.HARDWARE_AND_DS_EMAILS
+            : constants.REQUEST_ACCESS_EMAILS;
+
+        if (bccEmailSource) {
+          const bccEmails = bccEmailSource.split(",");
+          const subscribedEmails = [];
+
+          const bccCheckPromises = bccEmails.map(async (bccEmail) => {
+            const trimmedEmail = bccEmail.trim();
+            try {
+              const bccCheckResult = await SubscriptionModel(
+                tenant
+              ).checkNotificationStatus({
+                email: trimmedEmail,
+                type: "email",
+              });
+
+              return bccCheckResult.success ? trimmedEmail : null;
+            } catch (error) {
+              logger.error(
+                `BCC subscription check failed for ${trimmedEmail}: ${error.message}`,
+                {
+                  primary_email: email,
+                  operation: functionName,
+                }
+              );
+              return null;
+            }
+          });
+
+          const bccResults = await Promise.all(bccCheckPromises);
+          subscribedEmails.push(
+            ...bccResults.filter((email) => email !== null)
+          );
+          subscribedBccEmails = subscribedEmails.join(",");
+        }
+      }
+
+      // ✅ STEP 4b: Prepare base mail options
+      const baseMailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: email,
+        subject: getEmailSubject(functionName, otherParams),
+        html: emailMessageFunction({ email, ...otherParams }),
+        bcc: subscribedBccEmails || undefined,
+        attachments: attachments,
+      };
+
+      // ✅ STEP 4c: Apply custom mail options modifier if provided
+      const mailOptions = customMailOptionsModifier
+        ? customMailOptionsModifier(baseMailOptions, { email, ...otherParams })
+        : baseMailOptions;
+
+      // ✅ STEP 4d: Send email with deduplication protection
+      const emailResult = await sendMailWithDeduplication(
+        transporter,
+        mailOptions,
+        {
+          skipDeduplication: false,
+          logDuplicates: true,
+          throwOnDuplicate: false,
+        }
+      );
+
+      // ✅ STEP 4e: Handle email sending results
+      if (!emailResult.success) {
+        if (emailResult.duplicate) {
+          return {
+            success: true,
+            message: `${functionName} email already sent recently - duplicate prevented`,
+            data: {
+              email,
+              functionName,
+              duplicate: true,
+              preventedAt: new Date(),
+              ...otherParams,
+            },
+            status: httpStatus.OK,
+          };
+        } else {
+          const errorMessage =
+            emailResult.message || `${functionName} email sending failed`;
+          logger.error(
+            `${functionName} email failed for ${email}: ${errorMessage}`,
+            {
+              email,
+              tenant,
+              functionName,
+              error: errorMessage,
+              params: otherParams,
+            }
+          );
+
+          const error = new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Unable to send ${functionName} email at this time`,
+              operation: functionName,
+              emailResults: emailResult,
+            }
+          );
+
+          if (next) {
+            next(error);
+            return;
+          }
+          throw error;
+        }
+      }
+
+      // ✅ STEP 4f: Validate successful email delivery
+      const emailData = emailResult.data;
+
+      if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
+        return {
+          success: true,
+          message: `${functionName} email successfully sent`,
+          data: {
+            email,
+            functionName,
+            messageId: emailData.messageId,
+            emailResults: emailData,
+            bccCount: subscribedBccEmails
+              ? subscribedBccEmails.split(",").length
+              : 0,
+            duplicate: false,
+            sentAt: new Date(),
+            ...otherParams,
+          },
+          status: httpStatus.OK,
+        };
+      } else {
+        logger.error(`${functionName} email partially failed for ${email}:`, {
+          email,
+          functionName,
+          accepted: emailData?.accepted,
+          rejected: emailData?.rejected,
+          tenant,
+          params: otherParams,
+        });
+
+        const error = new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: `${functionName} email delivery failed or partially rejected`,
+            operation: functionName,
+            emailResults: emailData,
+            accepted: emailData?.accepted || [],
+            rejected: emailData?.rejected || [],
+          }
+        );
+
+        if (next) {
+          next(error);
+          return;
+        }
+        throw error;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 ${functionName} error for ${email}: ${error.message}`,
+        {
+          stack: error.stack,
+          email,
+          tenant,
+          functionName,
+          params: otherParams,
+        }
+      );
+
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message: `An unexpected error occurred while processing ${functionName}`,
+          operation: functionName,
+          email,
+        }
+      );
+
+      if (next) {
+        next(httpError);
+        return;
+      }
+      throw httpError;
+    }
+  };
+};
+
+// Helper function to get email subjects
+const getEmailSubject = (functionName, params) => {
+  const subjects = {
+    // ===== CORE CRITICAL FUNCTIONS =====
+    verifyEmail: "Verify Your AirQo Account",
+    sendVerificationEmail: `Email Verification Code: ${params.token || ""}`,
+    verifyMobileEmail: "Your Login Code for AirQo Mobile",
+    afterEmailVerification: "Welcome to AirQo!",
+    forgot: "Link To Reset Password",
+    sendPasswordResetEmail: `Password Reset Code: ${params.token || ""}`,
+    updateForgottenPassword: "Your AirQo Account Password Reset Successful",
+    updateKnownPassword: "Your AirQo Account Password Update Successful",
+    signInWithEmailLink: "Verify your email address!",
+    deleteMobileAccountEmail: "Confirm Account Deletion - AirQo",
+    authenticateEmail: "Changes to your AirQo email",
+    compromisedToken:
+      "Urgent Security Alert - Potential Compromise of Your AIRQO API Token",
+    expiredToken: "Action Required: Your AirQo API Token is expired",
+    expiringToken: "AirQo API Token Expiry: Create New Token Urgently",
+
+    // ===== ORG MANAGEMENT FUNCTIONS =====
+    notifyAdminsOfNewOrgRequest: `New Organization Request: ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    confirmOrgRequestReceived: `Your Organization Request: ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    notifyOrgRequestApproved: `Organization Request Approved: ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    notifyOrgRequestRejected: `Organization Request Status: ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    notifyOrgRequestApprovedWithOnboarding: `Welcome to AirQo: Complete Your Setup - ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    onboardingAccountSetup: `Complete Your AirQo Account Setup - ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+    onboardingCompleted: `Welcome to AirQo: Your Account is Ready! - ${sanitizeEmailString(
+      params.organization_name || ""
+    )}`,
+
+    // ===== USER MANAGEMENT FUNCTIONS =====
+    candidate: "Your AirQo Account JOIN request",
+    request: `Your AirQo Account Request to Access ${processString(
+      params.entity_title || ""
+    )} Team`,
+    requestToJoinGroupByEmail: `Your AirQo Account Request to Access ${processString(
+      params.entity_title || ""
+    )} Team`,
+    afterAcceptingInvitation: `Welcome to ${
+      params.entity_title || "the team"
+    }!`,
+    user: "Welcome to Your AirQo Account",
+    assign: "Welcome to Your New Group/Network at Your AirQo Account",
+    update: "Your AirQo Account account updated",
+    existingUserAccessRequest:
+      "Your AirQo Account: Existing User Access Request",
+    existingUserRegistrationRequest:
+      "Your AirQo Account: Existing User Registration Request",
+
+    // ===== CLIENT MANAGEMENT FUNCTIONS =====
+    clientActivationRequest: "AirQo API Client Activation Request",
+    afterClientActivation:
+      params.action === "activate"
+        ? "AirQo API Client Activated!"
+        : "AirQo API Client Deactivated!",
+
+    // ===== OPTIONAL FUNCTIONS =====
+    yearEndEmail: "Your AirQo Account 2024 Year in Review 🌍",
+    inquiry: `Thank you for your inquiry - AirQo ${params.category || ""} team`,
+    newMobileAppUser: params.subject || "AirQo Mobile App Notification",
+    feedback: params.subject || "AirQo Feedback Submission",
+    sendReport: "Your AirQo Account Report",
+    siteActivity: "Your AirQo Account: Monitor Deployment/Recall Alert",
+    fieldActivity: (() => {
+      const subjectMap = {
+        recall: "Field Alert: Device Recall Notification",
+        deployment: "Field Alert: Device Deployment Notification",
+        maintenance: "Field Alert: Device Maintenance Notification",
+        inspection: "Field Alert: Device Inspection Notification",
+      };
+      return subjectMap[params.activityType] || "Field Activity Notification";
+    })(),
+    updateProfileReminder:
+      "Your AirQo Account: Update Your Name to Enhance Your Experience",
+    sendPollutionAlert: params.subject || "AirQo Pollution Alert",
+  };
+
+  return subjects[functionName] || `AirQo Account Notification`;
+};
+
+// Email Categories Definition
+const EMAIL_CATEGORIES = {
+  CORE_CRITICAL: [
+    "verifyEmail",
+    "sendVerificationEmail",
+    "verifyMobileEmail",
+    "afterEmailVerification",
+    "forgot",
+    "sendPasswordResetEmail",
+    "updateForgottenPassword",
+    "updateKnownPassword",
+    "signInWithEmailLink",
+    "deleteMobileAccountEmail",
+    "authenticateEmail",
+    "compromisedToken",
+    "expiredToken",
+    "expiringToken",
+    "onboardingAccountSetup",
+  ],
+
+  ORG_MANAGEMENT: [
+    "notifyAdminsOfNewOrgRequest",
+    "confirmOrgRequestReceived",
+    "notifyOrgRequestApproved",
+    "notifyOrgRequestRejected",
+    "notifyOrgRequestApprovedWithOnboarding",
+    "onboardingCompleted",
+  ],
+
+  USER_MANAGEMENT: [
+    "candidate",
+    "request",
+    "requestToJoinGroupByEmail",
+    "afterAcceptingInvitation",
+    "user",
+    "assign",
+    "update",
+    "existingUserAccessRequest",
+    "existingUserRegistrationRequest",
+  ],
+
+  CLIENT_MANAGEMENT: ["clientActivationRequest", "afterClientActivation"],
+
+  OPTIONAL: [
+    "yearEndEmail",
+    "inquiry",
+    "newMobileAppUser",
+    "feedback",
+    "sendReport",
+    "siteActivity",
+    "fieldActivity",
+    "updateProfileReminder",
+    "sendPollutionAlert",
+  ],
+};
+
+const mailer = {
+  notifyAdminsOfNewOrgRequest: createMailerFunction(
+    "notifyAdminsOfNewOrgRequest",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.notifyAdminsOfNewOrgRequest({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+      })
+  ),
+  confirmOrgRequestReceived: createMailerFunction(
+    "confirmOrgRequestReceived",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.confirmOrgRequestReceived({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+      })
+  ),
+  notifyOrgRequestApproved: createMailerFunction(
+    "notifyOrgRequestApproved",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.notifyOrgRequestApproved({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        login_url: params.login_url,
+      })
+  ),
+  notifyOrgRequestRejected: createMailerFunction(
+    "notifyOrgRequestRejected",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.notifyOrgRequestRejected({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        rejection_reason: params.rejection_reason,
+      })
+  ),
+  candidate: createMailerFunction("candidate", "USER_MANAGEMENT", (params) =>
+    msgs.joinRequest(params.firstName, params.lastName, params.email)
+  ),
+  request: createMailerFunction("request", "USER_MANAGEMENT", (params) =>
+    msgs.joinEntityRequest(params.email, params.entity_title)
+  ),
+
+  yearEndEmail: createMailerFunction("yearEndEmail", "OPTIONAL", (params) =>
+    msgs.yearEndSummary(params.userStat)
+  ),
+  requestToJoinGroupByEmail: createMailerFunction(
+    "requestToJoinGroupByEmail",
+    "USER_MANAGEMENT",
+    (params) =>
+      msgTemplates.acceptInvitation({
+        email: params.email,
+        entity_title: params.entity_title,
+        targetId: params.targetId,
+        inviterEmail: params.inviterEmail,
+        userExists: params.userExists,
+      })
+  ),
+  inquiry: createMailerFunction("inquiry", "OPTIONAL", (params) =>
+    msgs.inquiry(params.fullName, params.email, params.category, params.message)
+  ),
+  clientActivationRequest: createMailerFunction(
+    "clientActivationRequest",
+    "CLIENT_MANAGEMENT",
+    (params) =>
+      msgs.clientActivationRequest({
+        name: params.name,
+        email: params.email,
+        client_id: params.client_id,
+      })
+  ),
+  user: createMailerFunction("user", "USER_MANAGEMENT", (params) => {
+    if (params.tenant?.toLowerCase() === "kcca") {
+      return msgs.welcome_kcca(
+        params.firstName,
+        params.lastName,
+        params.password,
+        params.email
+      );
+    } else {
+      return msgs.welcome_general(
+        params.firstName,
+        params.lastName,
+        params.password,
+        params.email
+      );
+    }
+  }),
+  verifyEmail: createMailerFunction("verifyEmail", "CORE_CRITICAL", (params) =>
+    msgTemplates.composeEmailVerificationMessage({
+      email: params.email,
+      firstName: params.firstName,
+      user_id: params.user_id,
+      token: params.token,
+      category: params.category,
+    })
+  ),
+  clearEmailDeduplication: async (email, subject, content = "") => {
+    try {
+      const mockMailOptions = {
+        to: email,
+        subject: subject,
+        html: content,
+      };
+
+      const removed = await emailDeduplicator.removeEmailKey(mockMailOptions);
+      return {
+        success: true,
+        message: removed ? "Deduplication key removed" : "Key not found",
+        removed,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  },
+  getDeduplicationStats: async () => {
+    try {
+      const stats = await emailDeduplicator.getStats();
+      return {
+        success: true,
+        data: stats,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  },
+  sendVerificationEmail: createMailerFunction(
+    "sendVerificationEmail",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.mobileEmailVerification({ token: params.token, email: params.email })
+  ),
+  verifyMobileEmail: createMailerFunction(
+    "verifyMobileEmail",
+    "CORE_CRITICAL",
+    (params) =>
+      msgTemplates.mobileEmailVerification({
+        email: params.email,
+        firebase_uid: params.firebase_uid,
+        token: params.token,
+      })
+  ),
+  afterEmailVerification: createMailerFunction(
+    "afterEmailVerification",
+    "CORE_CRITICAL",
+    (params) =>
+      msgTemplates.afterEmailVerification({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        username: params.username,
+        email: params.email,
+        analyticsVersion: params.analyticsVersion,
+      })
+  ),
+  afterClientActivation: createMailerFunction(
+    "afterClientActivation",
+    "CLIENT_MANAGEMENT",
+    (params) => {
+      const isActivation = params.action === "activate";
+      return isActivation
+        ? msgs.afterClientActivation({
+            name: params.name,
+            email: params.email,
+            client_id: params.client_id,
+          })
+        : msgs.afterClientDeactivation({
+            name: params.name,
+            email: params.email,
+            client_id: params.client_id,
+          });
+    }
+  ),
+  afterAcceptingInvitation: createMailerFunction(
+    "afterAcceptingInvitation",
+    "USER_MANAGEMENT",
+    (params) =>
+      msgTemplates.afterAcceptingInvitation({
+        firstName: params.firstName,
+        username: params.username,
+        email: params.email,
+        entity_title: params.entity_title,
+      })
+  ),
+  forgot: createMailerFunction("forgot", "CORE_CRITICAL", (params) =>
+    msgs.recovery_email({
+      token: params.token,
+      tenant: params.tenant,
+      email: params.email,
+      version: params.version,
+    })
+  ),
+  sendPasswordResetEmail: createMailerFunction(
+    "sendPasswordResetEmail",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.mobilePasswordReset({
+        token: params.token,
+        email: params.email,
+      })
+  ),
+  signInWithEmailLink: createMailerFunction(
+    "signInWithEmailLink",
+    "CORE_CRITICAL",
+    (params) => msgs.join_by_email(params.email, params.token)
+  ),
+  deleteMobileAccountEmail: createMailerFunction(
+    "deleteMobileAccountEmail",
+    "CORE_CRITICAL",
+    (params) =>
+      msgTemplates.deleteMobileAccountEmail(params.email, params.token)
+  ),
+  authenticateEmail: createMailerFunction(
+    "authenticateEmail",
+    "CORE_CRITICAL",
+    (params) => msgs.authenticate_email(params.token, params.email)
+  ),
+
+  update: createMailerFunction("update", "USER_MANAGEMENT", (params) =>
+    msgs.user_updated({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      updatedUserDetails: params.updatedUserDetails,
+      email: params.email,
+    })
+  ),
+  assign: createMailerFunction("assign", "USER_MANAGEMENT", (params) =>
+    msgs.user_assigned(
+      params.firstName,
+      params.lastName,
+      params.assignedTo,
+      params.email
+    )
+  ),
+  updateForgottenPassword: createMailerFunction(
+    "updateForgottenPassword",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.forgotten_password_updated(
+        params.firstName,
+        params.lastName,
+        params.email
+      )
+  ),
+  updateKnownPassword: createMailerFunction(
+    "updateKnownPassword",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.known_password_updated(
+        params.firstName,
+        params.lastName,
+        params.email
+      )
+  ),
+  newMobileAppUser: createMailerFunction(
+    "newMobileAppUser",
+    "OPTIONAL",
+    (params) => params.message // Direct HTML content
+  ),
+  feedback: createMailerFunction(
+    "feedback",
+    "OPTIONAL",
+    (params) => params.message, // Just return the message content
+    // Custom mail options modifier for feedback routing
+    (baseMailOptions, params) => {
+      // Validate SUPPORT_EMAIL exists
+      if (!constants.SUPPORT_EMAIL) {
+        throw new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "Support email configuration is missing",
+            missing: ["SUPPORT_EMAIL"],
+          }
+        );
+      }
+
+      return {
+        ...baseMailOptions,
+        to: constants.SUPPORT_EMAIL, // Send to support
+        cc: params.email, // Copy user on their feedback
+        subject: params.subject, // Use provided subject
+        text: params.message, // Use text instead of HTML for feedback
+        html: undefined, // Remove HTML for feedback emails
+        bcc: undefined, // No BCC for feedback
+        attachments: undefined, // No attachments for feedback
+      };
+    }
+  ),
+  sendReport: async (
+    {
+      senderEmail,
+      normalizedRecepientEmails,
+      pdfFile,
+      csvFile,
+      tenant = "airqo",
+    } = {},
+    next
+  ) => {
+    try {
+      // Add function categorization check
+      if (!EMAIL_CATEGORIES.OPTIONAL.includes("sendReport")) {
+        logger.warn(
+          "sendReport function not properly categorized - treating as OPTIONAL"
+        );
+      }
+
+      // ✅ STEP 1: Input validation
+      if (!senderEmail) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: "Sender email is required for report sending",
+          missing: ["senderEmail"],
+        });
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "Bad Request",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "Sender email is required for report sending",
+              missing: ["senderEmail"],
+            },
+          };
+        }
+      }
+
+      if (
+        !normalizedRecepientEmails ||
+        !Array.isArray(normalizedRecepientEmails) ||
+        normalizedRecepientEmails.length === 0
+      ) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: "Recipient emails are required for report sending",
+          missing: ["normalizedRecepientEmails"],
+        });
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "Bad Request",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "Recipient emails are required for report sending",
+              missing: ["normalizedRecepientEmails"],
+            },
+          };
+        }
+      }
+
+      if (!pdfFile && !csvFile) {
+        const error = new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+          message: "At least one report file (PDF or CSV) is required",
+          missing: ["pdfFile", "csvFile"],
+        });
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "Bad Request",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "At least one report file (PDF or CSV) is required",
+              missing: ["pdfFile", "csvFile"],
+            },
+          };
+        }
+      }
+
+      // ✅ STEP 2: REMOVED SENDER SUBSCRIPTION CHECK
+      // The sender is initiating the report, their subscription status shouldn't block it
+      // We only need to check recipient subscription status (done later)
+
+      logText(
+        `Processing report send from ${senderEmail} to ${normalizedRecepientEmails.length} recipients`
+      );
+
+      // ✅ STEP 3: Prepare report attachments
+      let format;
+      let reportAttachments = [...attachments];
+
+      if (pdfFile) {
+        format = "PDF";
+        const pdfBase64 = pdfFile.data.toString("base64");
+        const pdfAttachment = {
+          filename: "Report.pdf",
+          contentType: "application/pdf",
+          content: pdfBase64,
+          encoding: "base64",
+        };
+        reportAttachments.push(pdfAttachment);
+      }
+
+      if (csvFile) {
+        format = pdfFile ? "PDF and CSV" : "CSV";
+        const csvBase64 = csvFile.data.toString("base64");
+        const csvAttachment = {
+          filename: "Report.csv",
+          contentType: "text/csv",
+          content: csvBase64,
+          encoding: "base64",
+        };
+        reportAttachments.push(csvAttachment);
+      }
+
+      // ✅ STEP 4: Process each recipient with subscription validation and deduplication
+      const emailResults = [];
+      const subscribedRecipients = [];
+
+      // Parallel processing for recipient subscription validation
+      const recipientCheckPromises = normalizedRecepientEmails.map(
+        async (recipientEmail) => {
+          try {
+            // Handle test email bypass
+            if (recipientEmail === "automated-tests@airqo.net") {
+              return {
+                email: recipientEmail,
+                subscribed: true,
+                testBypass: true,
+              };
+            }
+
+            const checkResult = await SubscriptionModel(
+              tenant
+            ).checkNotificationStatus({
+              email: recipientEmail,
+              type: "email",
+            });
+
+            return {
+              email: recipientEmail,
+              subscribed: checkResult.success,
+              checkResult: checkResult,
+            };
+          } catch (error) {
+            logger.error(
+              `Recipient subscription check failed for ${recipientEmail}: ${error.message}`,
+              {
+                senderEmail,
+                operation: "sendReport",
+                format,
+              }
+            );
+            return {
+              email: recipientEmail,
+              subscribed: false,
+              error: error.message,
+            };
+          }
+        }
+      );
+
+      const recipientResults = await Promise.all(recipientCheckPromises);
+
+      // Filter subscribed recipients and handle new users
+      for (const result of recipientResults) {
+        if (result.subscribed) {
+          subscribedRecipients.push(result.email);
+        } else if (result.testBypass) {
+          subscribedRecipients.push(result.email);
+        } else if (result.checkResult?.status === httpStatus.NOT_FOUND) {
+          // New user - create default subscription and include them
+          logText(
+            `Creating default subscription for new report recipient: ${result.email}`
+          );
+          try {
+            await SubscriptionModel(tenant).createDefaultSubscription(
+              result.email,
+              false
+            );
+            subscribedRecipients.push(result.email);
+            logText(
+              `Default subscription created for ${result.email}, including in report send`
+            );
+          } catch (createError) {
+            logger.warn(
+              `Failed to create default subscription for ${result.email}: ${createError.message}`
+            );
+            // Still add them to results as non-subscribed
+            emailResults.push({
+              success: false,
+              message: "Failed to create subscription for new user",
+              data: {
+                recipientEmail: result.email,
+                senderEmail,
+                subscriptionCreationFailed: true,
+                error: createError.message,
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            });
+          }
+        } else {
+          // User explicitly unsubscribed or other error
+          emailResults.push({
+            success: false,
+            message: "Recipient not subscribed to email notifications",
+            data: {
+              recipientEmail: result.email,
+              senderEmail,
+              unsubscribed: true,
+              checkResult: result.checkResult,
+            },
+            status: httpStatus.OK, // Not an error, just unsubscribed
+          });
+        }
+      }
+
+      // ✅ STEP 5: Send emails to subscribed recipients with deduplication protection
+      const sendPromises = subscribedRecipients.map(async (recipientEmail) => {
+        try {
+          // Handle test email bypass
+          if (recipientEmail === "automated-tests@airqo.net") {
+            return {
+              success: true,
+              message: "Test report email bypassed",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                testBypass: true,
+                bypassedAt: new Date(),
+              },
+              status: httpStatus.OK,
+            };
+          }
+
+          // ✅ STEP 6: Prepare mail options for this recipient
+          const mailOptions = {
+            from: {
+              name: constants.EMAIL_NAME,
+              address: constants.EMAIL,
+            },
+            to: recipientEmail,
+            subject: "Your AirQo Account Report",
+            html: msgs.report(senderEmail, recipientEmail, format),
+            attachments: reportAttachments,
+          };
+
+          // ✅ STEP 7: Send email with deduplication protection
+          const emailResult = await sendMailWithDeduplication(
+            transporter,
+            mailOptions,
+            {
+              skipDeduplication: false, // Enable deduplication for report emails
+              logDuplicates: true, // Log duplicate attempts
+              throwOnDuplicate: false, // Handle duplicates gracefully
+            }
+          );
+
+          // ✅ STEP 8: Handle email sending results
+          if (!emailResult.success) {
+            if (emailResult.duplicate) {
+              // Duplicate report email detected
+              return {
+                success: true,
+                message:
+                  "Report email already sent recently - duplicate prevented",
+                data: {
+                  recipientEmail,
+                  senderEmail,
+                  format,
+                  reportEmail: true,
+                  duplicate: true,
+                  preventedAt: new Date(),
+                },
+                status: httpStatus.OK,
+              };
+            } else {
+              // Other email sending failure
+              const errorMessage =
+                emailResult.message || "Report email sending failed";
+              logger.error(
+                `Report email failed for ${recipientEmail}: ${errorMessage}`,
+                {
+                  recipientEmail,
+                  senderEmail,
+                  tenant,
+                  format,
+                  error: errorMessage,
+                }
+              );
+
+              return {
+                success: false,
+                message: "Report email sending failed",
+                data: {
+                  recipientEmail,
+                  senderEmail,
+                  format,
+                  error: errorMessage,
+                  emailResults: emailResult,
+                },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+          }
+
+          // ✅ STEP 9: Validate successful email delivery
+          const emailData = emailResult.data;
+
+          if (isEmpty(emailData?.rejected) && !isEmpty(emailData?.accepted)) {
+            return {
+              success: true,
+              message: "Report email successfully sent",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                messageId: emailData.messageId,
+                emailResults: emailData,
+                reportEmail: true,
+                duplicate: false,
+                sentAt: new Date(),
+              },
+              status: httpStatus.OK,
+            };
+          } else {
+            // Email was sent but had rejections
+            logger.error(
+              `Report email partially failed for ${recipientEmail}:`,
+              {
+                recipientEmail,
+                senderEmail,
+                accepted: emailData?.accepted,
+                rejected: emailData?.rejected,
+                tenant,
+                format,
+              }
+            );
+
+            return {
+              success: false,
+              message: "Report email delivery failed or partially rejected",
+              data: {
+                recipientEmail,
+                senderEmail,
+                format,
+                emailResults: emailData,
+                accepted: emailData?.accepted || [],
+                rejected: emailData?.rejected || [],
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        } catch (error) {
+          logger.error(
+            `🐛🐛 Report email error for ${recipientEmail}: ${error.message}`,
+            {
+              stack: error.stack,
+              recipientEmail,
+              senderEmail,
+              tenant,
+              format,
+              operation: "sendReport",
+            }
+          );
+
+          return {
+            success: false,
+            message: "Report email processing failed",
+            data: {
+              recipientEmail,
+              senderEmail,
+              format,
+              error: error.message,
+            },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      });
+
+      const sendResults = await Promise.all(sendPromises);
+      emailResults.push(...sendResults);
+
+      // ✅ STEP 10: Analyze overall results
+      const hasFailedEmail = emailResults.some((result) => !result.success);
+      const successfulSends = emailResults.filter((result) => result.success);
+      const failedSends = emailResults.filter((result) => !result.success);
+      const duplicatePrevented = emailResults.filter(
+        (result) => result.data?.duplicate
+      );
+
+      const summaryData = {
+        senderEmail,
+        format,
+        totalRecipients: normalizedRecepientEmails.length,
+        subscribedRecipients: subscribedRecipients.length,
+        successfulSends: successfulSends.length,
+        failedSends: failedSends.length,
+        duplicatesPrevented: duplicatePrevented.length,
+        unsubscribedRecipients:
+          normalizedRecepientEmails.length - subscribedRecipients.length,
+        emailResults,
+        reportSent: !hasFailedEmail || successfulSends.length > 0,
+        sentAt: new Date(),
+      };
+
+      if (hasFailedEmail && successfulSends.length === 0) {
+        // All emails failed
+        const error = new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "All report emails failed to send",
+            ...summaryData,
+          }
+        );
+
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: false,
+            message: "All report emails failed to send",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: summaryData,
+          };
+        }
+      } else if (hasFailedEmail) {
+        // Partial success
+        logger.warn(
+          `Some report emails failed to send for sender ${senderEmail}:`,
+          summaryData
+        );
+
+        const error = new HttpError(
+          "Partial Success",
+          httpStatus.MULTI_STATUS,
+          {
+            message: "Some report emails failed to send",
+            ...summaryData,
+          }
+        );
+
+        if (next) {
+          next(error);
+          return;
+        } else {
+          return {
+            success: true,
+            message: "Some report emails sent successfully, others failed",
+            status: httpStatus.MULTI_STATUS,
+            data: summaryData,
+          };
+        }
+      } else {
+        // All emails successful
+        return {
+          success: true,
+          message: "All report emails successfully sent",
+          data: summaryData,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Report sending error for sender ${senderEmail}: ${error.message}`,
+        {
+          stack: error.stack,
+          senderEmail,
+          recipientCount: normalizedRecepientEmails?.length || 0,
+          tenant,
+          operation: "sendReport",
+        }
+      );
+
+      const httpError = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        {
+          message:
+            "An unexpected error occurred while processing report emails",
+          operation: "sendReport",
+          senderEmail,
+        }
+      );
+
+      if (next) {
+        next(httpError);
+        return;
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              "An unexpected error occurred while processing report emails",
+            operation: "sendReport",
+            senderEmail,
+          },
+        };
+      }
+    }
+  },
+  siteActivity: createMailerFunction("siteActivity", "OPTIONAL", (params) =>
+    msgs.site_activity({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      siteActivityDetails: params.siteActivityDetails,
+      email: params.email,
+      activityDetails: params.activityDetails,
+      deviceDetails: params.deviceDetails,
+    })
+  ),
+  fieldActivity: createMailerFunction("fieldActivity", "OPTIONAL", (params) =>
+    msgs.field_activity({
+      firstName: params.firstName,
+      lastName: params.lastName,
+      activityDetails: params.activityDetails,
+      deviceDetails: params.deviceDetails,
+      activityType: params.activityType,
+      email: params.email,
+    })
+  ),
+  compromisedToken: createMailerFunction(
+    "compromisedToken",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.token_compromised({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        ip: params.ip,
+        email: params.email,
+      })
+  ),
+  expiredToken: createMailerFunction(
+    "expiredToken",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.tokenExpired({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+        token: params.token,
+      })
+  ),
+  expiringToken: createMailerFunction(
+    "expiringToken",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.tokenExpiringSoon({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+      })
+  ),
+  updateProfileReminder: createMailerFunction(
+    "updateProfileReminder",
+    "OPTIONAL",
+    (params) =>
+      msgs.updateProfilePrompt({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+      })
+  ),
+  existingUserAccessRequest: createMailerFunction(
+    "existingUserAccessRequest",
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.existing_user({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+      })
+  ),
+  existingUserRegistrationRequest: createMailerFunction(
+    "existingUserRegistrationRequest",
+    "USER_MANAGEMENT",
+    (params) =>
+      msgs.existing_user({
+        firstName: params.firstName,
+        lastName: params.lastName,
+        email: params.email,
+      })
+  ),
+  sendPollutionAlert: createMailerFunction(
+    "sendPollutionAlert",
+    "OPTIONAL",
+    (params) => {
+      const fullName =
+        `${params.firstName} ${params.lastName}`.trim() || "User";
+      return constants.EMAIL_BODY({
+        email: params.email,
+        content: params.content,
+        name: fullName,
+      });
+    }
+  ),
+  notifyOrgRequestApprovedWithOnboarding: createMailerFunction(
+    "notifyOrgRequestApprovedWithOnboarding",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.notifyOrgRequestApprovedWithOnboarding({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        onboarding_url: params.onboarding_url,
+        organization_slug: params.organization_slug,
+      })
+  ),
+
+  onboardingAccountSetup: createMailerFunction(
+    "onboardingAccountSetup",
+    "CORE_CRITICAL",
+    (params) =>
+      msgs.onboardingAccountSetup({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        setup_url: params.setup_url,
+      })
+  ),
+
+  onboardingCompleted: createMailerFunction(
+    "onboardingCompleted",
+    "ORG_MANAGEMENT",
+    (params) =>
+      msgs.onboardingCompleted({
+        organization_name: params.organization_name,
+        contact_name: params.contact_name,
+        contact_email: params.contact_email,
+        login_url: params.login_url,
+      })
+  ),
+};
+
+module.exports = mailer;
