@@ -1,12 +1,21 @@
-from datetime import datetime
-from typing import List, Dict, Any
+from datetime import datetime, timedelta, timezone
+from typing import List, Dict, Any, Tuple
+import cdsapi
+import netCDF4 as nc
+from pathlib import Path
+import zipfile
+import tempfile
 
 import ee
 import numpy as np
 import pandas as pd
+import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
+import logging
+
+logger = logging.getLogger("airflow.task")
 
 
 class SatelliteUtils:
@@ -139,3 +148,214 @@ class SatelliteUtils:
         ]
 
         return df_fixed
+
+    @staticmethod
+    def retrieve_cams_variable(variable_name: str, output_zip_path: str) -> None:
+        """
+        Downloads atmospheric composition forecast data for a specified variable from the CAMS (Copernicus Atmosphere Monitoring Service) using the CDS API.
+
+        Args:
+            variable_name(str): The name of the atmospheric variable to retrieve (e.g. 'pm10', 'pm2p5', etc.).
+            output_zip_path(str): The local file path where the downloaded NetCDF ZIP file will be saved.
+
+        Raises:
+            Exception: If the data retrieval fails, an exception is raised with a message including the variable name and the underlying error.
+        """
+        try:
+            cams_api = cdsapi.Client()
+            today = datetime.today()
+            yesterday = today - timedelta(days=1)
+            date_range = f"{yesterday:%Y-%m-%d}/{today:%Y-%m-%d}"
+            latest_time = (
+                "0"
+                if (hour_val := datetime.now(timezone.utc).hour % 12) == 0
+                else str(hour_val)
+            )
+            request_payload = {
+                "date": date_range,
+                "type": "forecast",
+                "format": "netcdf_zip",
+                "leadtime_hour": [latest_time],
+                "time": ["00:00", latest_time],
+                "variable": variable_name,
+                # 'area':[46.07, -57.13, -45.83, 121.46],
+            }
+            cams_api.retrieve(
+                "cams-global-atmospheric-composition-forecasts",
+                request_payload,
+                output_zip_path,
+            )
+        except Exception as e:
+            raise Exception(f"Failed to download {variable_name}: {e}")
+
+    @staticmethod
+    def process_netcdf(zip_file_path: str, variable_short_name: str) -> pd.DataFrame:
+        """
+        Processes a NetCDF file contained within a ZIP archive.
+        It extracts the ZIP, reads specified variables, performs data transformations,
+        and returns an xarray Dataset along with the path to the temporary directory.
+
+        Args:
+            zip_file_path (str): The path to the input ZIP file.
+            variable_short_name (str): The short name of the variable to extract and process
+                                       (e.g., 'PM25', 'O3').
+
+        Returns:
+            Tuple[pandas.DataFrame, str]: A tuple containing:
+                - pandas.DataFrame: The processed Dataset.
+                - str: The path to the temporary directory where files were extracted.
+        Raises:
+            FileNotFoundError: If the ZIP file does not exist or no .nc files are found inside it.
+            zipfile.BadZipFile: If the provided zip_file_path is not a valid ZIP archive.
+            KeyError: If a required variable is not found in the NetCDF file.
+            ValueError: If the variable data has an unexpected shape or other data processing issues occur.
+            Exception: For any other unforeseen errors during processing.
+        """
+        # Use TemporaryDirectory for automatic cleanup of the extracted files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            extract_dir = Path(temp_dir)
+            try:
+                with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                    zip_ref.extractall(extract_dir)
+                logger.info(
+                    f"Successfully extracted '{zip_file_path}' to '{extract_dir}'"
+                )
+
+                nc_files: List[Path] = list(extract_dir.glob("*.nc"))
+                if not nc_files:
+                    logger.error(
+                        f"No .nc files found in extracted directory: {extract_dir}"
+                    )
+                    raise FileNotFoundError(
+                        f"No .nc files found in '{zip_file_path}' after extraction."
+                    )
+
+                file_path: Path = nc_files[0]
+                (
+                    longitude,
+                    latitude,
+                    valid_time,
+                    variable_data,
+                ) = SatelliteUtils._read_netcdf_variables(
+                    file_path, variable_short_name
+                )
+
+                # Create xarray Dataset
+                ds: xr.Dataset = xr.Dataset(
+                    {
+                        variable_short_name: (
+                            ["time", "latitude", "longitude"],
+                            variable_data,
+                        )
+                    },
+                    coords={
+                        "longitude": longitude,
+                        "latitude": latitude,
+                        "time": valid_time,
+                    },
+                )
+                logger.info(f"Initial xarray Dataset created with shape: {ds.dims}")
+
+                # Further xarray transformations
+                # Resample time to daily maximum and remove singleton dimensions
+                ds = ds.resample(time="1D").max()
+                ds = ds.squeeze(
+                    drop=True
+                )  # Removes dimensions of size 1 (e.g., if height dim becomes 1)
+                logger.info(f"Dataset after resampling and squeezing: {ds.dims}")
+
+                # Convert units from kg/m³ to µg/m³ (assuming this is always needed)
+                # 1 kg = 1e9 µg
+                ds[variable_short_name] *= 1e9
+                df = ds.to_dataframe().reset_index()
+                df.columns = [col.lower() for col in df.columns]
+                return df
+
+            except FileNotFoundError as fnf_e:
+                logger.error(f"File not found error: {fnf_e}")
+                raise
+            except zipfile.BadZipFile as bzf_e:
+                logger.error(f"Bad ZIP file error for '{zip_file_path}': {bzf_e}")
+                raise
+            except KeyError as ke_e:
+                logger.error(f"Missing variable error: {ke_e}")
+                raise
+            except ValueError as ve_e:
+                logger.error(f"Data processing error: {ve_e}")
+                raise
+            except Exception as e:
+                logger.exception(
+                    f"An error occurred while processing '{zip_file_path}'."
+                )
+                raise
+
+    def _read_netcdf_variables(
+        file_path: Path, variable_short_name: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Reads essential variables (longitude, latitude, valid_time, and the specified data variable) from a NetCDF file, performs necessary data cleaning and reshaping.
+
+        Args:
+            file_path(Path): The path to the NetCDF file.
+            variable_short_name(str): The short name of the variable to extract (e.g., 'PM25').
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: A tuple containing (longitude, latitude, valid_time, variable_data) as NumPy arrays.
+
+        Raises:
+            KeyError: If a required variable .i.e (longitude, latitude, valid_time) is not found in the NetCDF file.
+            ValueError: If 'variable_data' has an unexpected shape (not 4D).
+        """
+        with nc.Dataset(file_path) as dataset:
+            # Check for essential variables
+            required_vars = ["longitude", "latitude", "valid_time", variable_short_name]
+            for var in required_vars:
+                if var not in dataset.variables:
+                    logger.error(
+                        f"Required variable '{var}' not found in NetCDF file: {file_path.name}"
+                    )
+                    raise KeyError(
+                        f"Required variable '{var}' not found in NetCDF file."
+                    )
+
+            # Extract data
+            longitude: np.ndarray = dataset.variables["longitude"][:]
+            latitude: np.ndarray = dataset.variables["latitude"][:]
+            valid_time: np.ndarray = dataset.variables["valid_time"][:]
+            variable_data: np.ndarray = dataset.variables[variable_short_name][:]
+
+            # --- Data Transformations ---
+            # Fix longitude values from 0-360 to -180-180
+            longitude = np.where(longitude > 180, longitude - 360, longitude)
+
+            # Reshape valid_time if it's 2D (e.g., (1, X) or (X, 1)) to 1D
+            if len(valid_time.shape) == 2:
+                valid_time = valid_time.reshape(-1)
+            elif len(valid_time.shape) != 1:
+                logger.warning(
+                    f"'valid_time' has unexpected shape: {valid_time.shape}. Attempting to proceed."
+                )
+
+            # Convert numerical time to datetime objects
+            time_units: str = dataset.variables["valid_time"].units
+            valid_time = nc.num2date(valid_time, units=time_units)
+
+            # Reshape variable_data from 4D to 3D if necessary
+            # Assuming a structure like (time_dim, height_dim, lat_dim, lon_dim)
+            # and we want (time_dim, lat_dim, lon_dim)
+            if len(variable_data.shape) == 4:
+                # Assuming the second dimension (index 1) is a height/level dimension to be squeezed
+                # The .squeeze() operation might be a more general solution -- TODO followup
+                # but explicit reshape is used here to match original logic.
+                variable_data = variable_data.reshape(
+                    -1, variable_data.shape[2], variable_data.shape[3]
+                )
+            elif len(variable_data.shape) != 3:  # Expecting 3D after potential reshape
+                logger.error(
+                    f"Variable '{variable_short_name}' has an unsupported shape after initial processing: {variable_data.shape}"
+                )
+                raise ValueError(
+                    f"Variable '{variable_short_name}' has an unsupported shape. Expected 3D or 4D convertible to 3D."
+                )
+
+        return longitude, latitude, valid_time, variable_data

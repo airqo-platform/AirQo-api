@@ -1,6 +1,8 @@
 import pandas as pd
 from google.cloud import storage
 from typing import List, Optional
+import os
+
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -28,6 +30,27 @@ def download_file_from_gcs(
         f"file: {destination_file} downloaded from bucket: {bucket_name} successfully"
     )
     return destination_file
+
+
+def delete_old_files(files: List[str]) -> None:
+    """
+    Deletes the specified list of files if they exist.
+
+    Args:
+        files(List[str]): A list of file paths to delete.
+    Logs:
+        - Info message for each successfully deleted file.
+        - Warning message if deletion fails for a file.
+    """
+    for file_path in files:
+        try:
+            if os.path.exists(file_path):
+                os.unlink(file_path)
+                logger.info(f"Deleted file: {file_path}")
+            else:
+                logger.debug(f"File not found, skipping: {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete file '{file_path}': {e}")
 
 
 def upload_dataframe_to_gcs(

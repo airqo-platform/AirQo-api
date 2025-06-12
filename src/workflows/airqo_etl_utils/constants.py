@@ -18,6 +18,7 @@ class DeviceCategory(IntEnum):
     WEATHER = 4
     GENERAL = 5
     MOBILE = 6
+    SATELLITE = 7
     NONE = 20
 
     def __str__(self) -> str:
