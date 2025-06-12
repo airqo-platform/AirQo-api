@@ -1,40 +1,36 @@
-from fastapi import FastAPI, Depends, HTTPException, Response
-from sqlalchemy import create_engine, text, func
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, Field, Extra
-import os
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-from decimal import Decimal
- 
-from datetime import datetime, timezone
-from dateutil import tz
-
-import json
-import math
-import sys
-from app.device_performance_endpoint import router as performance_router, register_with_app
-from app.site_performance_endpoint import router as site_router, register_with_app as register_site_endpoints
-from app.data_transmission_endpoint import router as data_transmission_router, register_with_app as register_data_analytics
-
-
-from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from typing import List, Optional
+
+from sqlalchemy import create_engine, text, func
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, EmailStr, Field, Extra
+
 from passlib.context import CryptContext
 from jose import JWTError, jwt
-import datetime
+
+from datetime import datetime, timedelta, timezone, date
+from dateutil import tz
+from decimal import Decimal
+import json
+import math
+import os
+import sys
+
+from app.device_performance_endpoint import router as performance_router, register_with_app
+from app.site_performance_endpoint import router as site_router, register_with_app as register_site_endpoints
+from app.data_transmission_endpoint import router as data_transmission_router, register_with_app as register_data_analytics
 
 from . import database
-from app.superAdmin import create_super_admin
 from . import models, schemas
+from app.superAdmin import create_super_admin
+
 app = FastAPI()
+
 
 
 register_with_app(app)
@@ -55,18 +51,12 @@ class CustomJSONEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-# Add CORS middleware with updated configuration
+raw_origins = os.getenv("CORS_ORIGINS", "")
+allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    # Update to include both localhost and your VM hostname
-    allow_origins=[
-        "http://localhost:3000",
-        "http://srv792913.hstgr.cloud:3000",
-        # It's good practice to include HTTPS variants as well
-        "https://srv792913.hstgr.cloud:3000",
-        # You might also want to add a wildcard for all subdomains
-        "http://*.hstgr.cloud:3000"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -765,7 +755,9 @@ def get_valid_device_locations(db=Depends(get_db)):
 models.Base.metadata.create_all(bind=database.engine)
 
 # JWT Configuration
-SECRET_KEY = "your-secret-key-change-in-production"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("JWT_SECRET_KEY environment variable must be set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -882,57 +874,6 @@ def create_user(
     return db_user
 
     
-
-@app.post("/users/", response_model=schemas.User)
-def create_user(
-    user: schemas.UserCreate,
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """
-    Create a new user.
-    Only users with the 'superadmin' role are authorized to access this endpoint.
-    """
-    # Ensure the requester is a superadmin
-    if not current_user or current_user.role.lower() != "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin can create new users."
-        )
-
-    # Check if the user already exists
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with this email already exists."
-        )
-
-    # Hash the user's password
-    hashed_password = get_password_hash(user.password)
-
-    # Create the new user object
-    new_user = models.User(
-        email=user.email,
-        password_hash=hashed_password,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        role=user.role,
-        status=user.status,
-        phone=user.phone,
-        location=user.location,
-        created_at=datetime.datetime.utcnow(),
-        updated_at=datetime.datetime.utcnow()
-    )
-
-    # Add and commit the new user
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return new_user
-
-
 @app.get("/users/", response_model=List[schemas.User])
 def get_users(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
     users = db.query(models.User).all()
