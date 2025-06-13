@@ -12,6 +12,12 @@ const isEmpty = require("is-empty");
 const { HttpError } = require("@utils/shared");
 const httpStatus = require("http-status");
 
+// Centralized AQI Range Configuration
+const AQI_RANGES = constants.AQI_RANGES;
+
+// Export AQI_RANGES so they can be used in other files if needed
+module.exports.AQI_RANGES = AQI_RANGES;
+
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -91,6 +97,161 @@ const commonValidations = {
 };
 
 const healthTipValidations = {
+  bulkUpdate: [
+    ...commonValidations.tenant,
+    body("updates")
+      .exists()
+      .withMessage("the updates array is missing in request")
+      .bail()
+      .isArray()
+      .withMessage("updates must be an array")
+      .bail()
+      .notEmpty()
+      .withMessage("updates array cannot be empty")
+      .custom((updates) => {
+        // Custom validation to check for duplicate title and aqi_category within the updates array
+        const seen = new Set();
+        for (const update of updates) {
+          // Skip validation if title isn't provided (for mass updates)
+          if (!update.tips.some((tip) => tip.title)) continue;
+
+          const key = `${update.title}-${JSON.stringify(update.aqi_category)}`;
+          if (seen.has(key)) {
+            throw new Error(
+              `Duplicate title "${
+                update.title
+              }" and aqi_category "${JSON.stringify(
+                update.aqi_category
+              )}" found within the updates array`
+            );
+          }
+          seen.add(key);
+        }
+        return true;
+      }),
+    body("updates.*.aqi_category")
+      .exists()
+      .withMessage("aqi_category is required for each update")
+      .bail()
+      .isObject()
+      .withMessage("aqi_category must be an object")
+      .bail()
+      .custom((aqi_category) => {
+        // Validate against predefined AQI ranges
+        const { min, max } = aqi_category;
+        const isValidRange = Object.values(AQI_RANGES).some(
+          (range) =>
+            Math.abs(range.min - min) < 0.001 && // Using small epsilon for float comparison
+            ((range.max === null && max === null) ||
+              (range.max !== null &&
+                max !== null &&
+                Math.abs(range.max - max) < 0.001))
+        );
+
+        if (!isValidRange) {
+          throw new Error(
+            `Invalid AQI range: min=${min}, max=${max}. Must match one of the predefined ranges.`
+          );
+        }
+        return true;
+      }),
+    body("updates.*.aqi_category.min")
+      .exists()
+      .withMessage("aqi_category.min is required")
+      .bail()
+      .isNumeric()
+      .withMessage("aqi_category.min must be a number"),
+    body("updates.*.aqi_category.max")
+      .exists()
+      .withMessage("aqi_category.max is required")
+      .bail()
+      .custom((value) => {
+        // Allow null for the max value of the hazardous range
+        return value === null || typeof value === "number";
+      })
+      .withMessage("aqi_category.max must be a number or null")
+      .custom((value, { req }) => {
+        // Skip this validation if max is null
+        if (value === null) return true;
+
+        if (
+          value <=
+          req.body.updates[
+            req.body.updates.indexOf(
+              req.body.updates.find(
+                (update) => update.aqi_category.max === value
+              )
+            )
+          ].aqi_category.min
+        ) {
+          throw new Error("max value must be greater than min value");
+        }
+        return true;
+      }),
+    body("updates.*.tips")
+      .exists()
+      .withMessage("tips array is required for each update")
+      .bail()
+      .isArray()
+      .withMessage("tips must be an array")
+      .bail()
+      .notEmpty()
+      .withMessage("tips array cannot be empty")
+      .custom((tips, { req, location, path }) => {
+        // Custom validation to check for duplicate title only if title is provided
+        const seen = new Set();
+        for (const tip of tips) {
+          // Skip validation if title isn't provided (for mass updates)
+          if (!tip.title) continue;
+
+          const updateIndex = req.body.updates.indexOf(
+            req.body.updates.find((update) => update.tips === tips)
+          );
+          const key = `${tip.title}-${JSON.stringify(
+            req.body.updates[updateIndex].aqi_category
+          )}`;
+          if (seen.has(key)) {
+            throw new Error(
+              `Duplicate title "${
+                tip.title
+              }" and aqi_category "${JSON.stringify(
+                req.body.updates[updateIndex].aqi_category
+              )}" found within the tips array`
+            );
+          }
+          seen.add(key);
+        }
+        return true;
+      }),
+    body("updates.*.tips.*.title")
+      .optional() // Make title optional for mass updates
+      .notEmpty()
+      .withMessage("title cannot be empty if provided")
+      .trim(),
+    body("updates.*.tips.*.tag_line")
+      .exists()
+      .withMessage("tag_line is required")
+      .bail()
+      .notEmpty()
+      .withMessage("tag_line cannot be empty")
+      .trim(),
+    body("updates.*.tips.*.tag_line")
+      .optional()
+      .notEmpty()
+      .withMessage("tag_line cannot be empty if provided")
+      .trim(),
+    body("updates.*.tips.*.description")
+      .optional() // Make description optional for partial updates
+      .notEmpty()
+      .withMessage("description cannot be empty if provided")
+      .trim(),
+    body("updates.*.tips.*.image")
+      .optional() // Make image optional for updates
+      .notEmpty()
+      .withMessage("image cannot be empty if provided")
+      .trim(),
+    handleValidationErrors,
+  ],
   create: [
     ...commonValidations.tenant,
     body("description")
@@ -133,6 +294,13 @@ const healthTipValidations = {
         }
         return true;
       }),
+    body("tag_line")
+      .exists()
+      .withMessage("Tag line is required")
+      .bail()
+      .notEmpty()
+      .withMessage("Tag line cannot be empty")
+      .trim(),
     handleValidationErrors,
   ],
   list: [
@@ -194,6 +362,11 @@ const healthTipValidations = {
         }
         return true;
       }),
+    body("tag_line")
+      .optional()
+      .notEmpty()
+      .withMessage("Tag line cannot be empty if provided")
+      .trim(),
     handleValidationErrors,
   ],
   delete: [
@@ -209,6 +382,7 @@ const tipsValidations = {
   updateTip: healthTipValidations.update,
   deleteTip: healthTipValidations.delete,
   pagination: commonValidations.pagination,
+  bulkUpdateTips: healthTipValidations.bulkUpdate,
 };
 
 module.exports = tipsValidations;

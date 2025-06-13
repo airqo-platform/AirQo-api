@@ -50,6 +50,16 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "deployed",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "active",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "last_updated",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"

@@ -1,7 +1,15 @@
 import os
 from pathlib import Path
 
-from .constants import DataType, DeviceCategory, Frequency
+from .constants import (
+    DataType,
+    MetaDataType,
+    DeviceCategory,
+    DeviceNetwork,
+    Frequency,
+    QualityCategorization,
+    Pollutant,
+)
 import pymongo as pm
 import tweepy
 import urllib3
@@ -36,6 +44,9 @@ class Config:
 
     # Aggregated data
     BIGQUERY_HOURLY_EVENTS_TABLE = os.getenv("BIGQUERY_HOURLY_EVENTS_TABLE")
+    BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE = os.getenv(
+        "BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE"
+    )
     BIGQUERY_HOURLY_EVENTS_TABLE_PROD = os.getenv("BIGQUERY_PROD_HOURLY_EVENTS_TABLE")
     BIGQUERY_DAILY_EVENTS_TABLE = os.getenv("BIGQUERY_DAILY_EVENTS_TABLE")
     BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE = os.getenv(
@@ -123,9 +134,6 @@ class Config:
     # Airnow
     AIRNOW_BASE_URL = os.getenv("AIRNOW_BASE_URL")
     AIRNOW_API_KEY = os.getenv("AIRNOW_API_KEY")
-    AIRNOW_COUNTRIES_METADATA_JSON_FILE = os.getenv(
-        "AIRNOW_COUNTRIES_METADATA_JSON_FILE"
-    )
 
     # US Embassy
     US_EMBASSY_API_KEY = os.getenv("US_EMBASSY_API_KEY")
@@ -166,6 +174,68 @@ class Config:
     PURPLE_AIR_BASE_URL = os.getenv("PURPLE_AIR_BASE_URL")
     PURPLE_AIR_API_KEY = os.getenv("PURPLE_AIR_API_KEY")
 
+    # Integrations:
+    INTEGRATION_DETAILS = {
+        "airqo": {
+            "url": AIRQO_BASE_URL_V2,
+            "auth": {"Authorization": f"JWT {AIRQO_API_KEY}"},
+            "secret": {"token": AIRQO_API_TOKEN},
+            "endpoints": {},
+        },
+        "metone": {
+            "url": AIRNOW_BASE_URL,
+            "auth": {"API_KEY": US_EMBASSY_API_KEY},
+            "endpoints": {"get_data": "/aq/data"},
+            "extras": {
+                "boundary_box": "-16.9530804676,-33.957634112,54.8058474018,37.2697926495",
+                "parameters": "pm25,pm10,ozone,co,no2,so2",
+            },
+        },
+        "plumelabs": {
+            "url": PLUME_LABS_BASE_URL,
+        },
+        "airbeam": {"url": AIR_BEAM_BASE_URL},
+        "tahmo": {
+            "url": TAHMO_BASE_URL,
+            "auth": {"api_key": TAHMO_API_KEY},
+            "secret": {"secret": TAHMO_API_SECRET},
+            "endpoints": {},
+        },
+        "openweather": {
+            "url": OPENWEATHER_BASE_URL,
+            "auth": {"appid": OPENWEATHER_API_KEY},
+            "endpoints": {},
+        },
+    }
+
+    # ---------------------------------------------------------------------
+    # Mapping
+    # ----------------------------------------------------------------------
+    # AirQuality Categories
+    AIR_QUALITY_CATEGORY = {
+        Pollutant.PM10: [
+            (55, QualityCategorization.GOOD),
+            (155, QualityCategorization.MODERATE),
+            (255, QualityCategorization.UNHEALTHY_FSGs),
+            (355, QualityCategorization.UNHEALTHY),
+            (425, QualityCategorization.VERY_UNHEALTHY),
+            (float("inf"), QualityCategorization.HAZARDOUS),
+        ],
+        Pollutant.PM2_5: [
+            (12.1, QualityCategorization.GOOD),
+            (35.5, QualityCategorization.MODERATE),
+            (55.5, QualityCategorization.UNHEALTHY_FSGs),
+            (150.5, QualityCategorization.UNHEALTHY),
+            (250.5, QualityCategorization.VERY_UNHEALTHY),
+            (float("inf"), QualityCategorization.HAZARDOUS),
+        ],
+        Pollutant.NO2: [
+            (54, QualityCategorization.GOOD),
+            (101, QualityCategorization.MODERATE),
+            (361, QualityCategorization.UNHEALTHY_FSGs),
+        ],
+    }
+
     AIRQO_BAM_CONFIG = {
         0: "timestamp",
         1: "realtime_conc",
@@ -200,9 +270,7 @@ class Config:
         },
     }
 
-    AIRQO_BAM_MAPPING = {
-        "hourly_conc": "pm2_5",
-    }
+    AIRQO_BAM_MAPPING = {"hourly_conc": "pm2_5", "air_flow": "airflow"}
 
     AIRQO_LOW_COST_GAS_FIELD_MAPPING = {
         "field1": "pm2_5",
@@ -273,6 +341,8 @@ class Config:
         "ts": "timestamp",
     }
 
+    AIRBEAM_BAM_FIELD_MAPPING = {"pm2.5": "pm2_5", "pm10": "pm10", "no2": "no2"}
+
     DATA_RESOLUTION_MAPPING = {
         "iqair": {"hourly": "instant", "raw": "instant", "current": "current"}
     }
@@ -331,7 +401,11 @@ class Config:
     device_config_mapping = {
         "bam": {
             "field_8_cols": list(AIRQO_BAM_MAPPING_NEW.get("field8", {}).values()),
-            "mapping": {"airqo": AIRQO_BAM_MAPPING_NEW},
+            "mapping": {
+                "airqo": AIRQO_BAM_MAPPING_NEW,
+                "airbeam": AIRBEAM_BAM_FIELD_MAPPING,
+                "metone": AIRBEAM_BAM_FIELD_MAPPING,
+            },
             "other_fields_cols": [],
         },
         "gas": {
@@ -370,6 +444,7 @@ class Config:
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {
         BIGQUERY_HOURLY_EVENTS_TABLE: "measurements.json",
+        BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE: "measurements.json",
         BIGQUERY_DAILY_EVENTS_TABLE: "measurements.json",
         BIGQUERY_RAW_EVENTS_TABLE: "raw_measurements.json",
         BIGQUERY_HOURLY_WEATHER_TABLE: "weather_data.json",
@@ -393,6 +468,8 @@ class Config:
         BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE: "airqo_mobile_measurements.json",
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
+        BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
+        BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         "all": None,
     }
     DataSource = {
@@ -400,11 +477,16 @@ class Config:
             DeviceCategory.GENERAL: {
                 Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
             },
+            DeviceCategory.MOBILE: {
+                Frequency.RAW: BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE,
+                Frequency.NONE: BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE,
+            },
             DeviceCategory.BAM: {Frequency.RAW: BIGQUERY_RAW_BAM_DATA_TABLE},
             DeviceCategory.WEATHER: {Frequency.RAW: BIGQUERY_RAW_WEATHER_TABLE},
         },
         DataType.AVERAGED: {
             DeviceCategory.GENERAL: {
+                Frequency.RAW: BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE,
                 Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
                 Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
             },
@@ -414,6 +496,12 @@ class Config:
         DataType.CONSOLIDATED: {
             DeviceCategory.GENERAL: {
                 Frequency.HOURLY: BIGQUERY_ANALYTICS_TABLE,
+            }
+        },
+        # TODO Expand usage
+        DataType.EXTRAS: {
+            DeviceNetwork.URBANBETTER: {
+                MetaDataType.SENSORPOSITIONS: SENSOR_POSITIONS_TABLE
             }
         },
     }
@@ -620,6 +708,7 @@ class Config:
     MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME", "airqo_db")
     ENVIRONMENT = os.getenv("ENVIRONMENT")
+    CALIBRATEBY = os.getenv("CALIBRATEBY", "country")
 
     # Twitter bot
     TWITTER_BOT_API_KEY = os.getenv("TWITTER_BOT_API_KEY")

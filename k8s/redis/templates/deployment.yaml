@@ -37,20 +37,21 @@ spec:
                   operator: In
                   values:
                   - high-cpu
+              weight: 1
       containers:
         - env:
             - name: GET_HOSTS_FROM
               value: dns
           name: {{ .Values.app.name }}
-          image: redis:latest
+          image: redis:7.2.4
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 6379
+            - containerPort: {{ .Values.app.port }}
           resources:
             requests:
-              cpu: 100m
-              memory: 100Mi
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
             limits:
-              cpu: 500m
-              memory: 500Mi
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
       restartPolicy: Always

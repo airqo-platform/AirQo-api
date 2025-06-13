@@ -1,4 +1,5 @@
 const UserModel = require("@models/User");
+const RoleModel = require("@models/Role");
 const AccessRequestModel = require("@models/AccessRequest");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
@@ -36,7 +37,356 @@ const findGroupAssignmentIndex = (user, grp_id) => {
   );
 };
 
+// Improved getSuperAdminPermissions function
+const assignPermissionsToRole = async (tenant, role_id, next) => {
+  const superAdminPermissions = getSuperAdminPermissions(tenant);
+  const permissionIds = await getPermissionIds(
+    tenant,
+    superAdminPermissions,
+    next
+  );
+
+  try {
+    await RoleModel(tenant).findByIdAndUpdate(role_id, {
+      $addToSet: { role_permissions: { $each: permissionIds } },
+    });
+  } catch (error) {
+    const errorMessage = `Error assigning permissions to role ${role_id}: ${error.message}`;
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: errorMessage }
+    );
+  }
+};
+
+const getSuperAdminPermissions = (tenant) => {
+  const superAdminPermissions = (
+    process.env[`SUPER_ADMIN_PERMISSIONS_${tenant.toUpperCase()}`] ||
+    process.env.SUPER_ADMIN_PERMISSIONS
+  )
+    ?.split(",")
+    .map((p) => p.trim())
+    .filter((p) => p); // Filter out empty strings
+
+  if (!superAdminPermissions || superAdminPermissions.length === 0) {
+    throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+      message: "SUPER_ADMIN_PERMISSIONS environment variable is not set",
+    });
+  }
+  return superAdminPermissions;
+};
+
+const getPermissionIds = async (tenant, permissions, next) => {
+  try {
+    const existingPermissions = await PermissionModel(tenant)
+      .find({ permission: { $in: permissions } })
+      .lean()
+      .exec();
+
+    const existingPermissionIds = existingPermissions.map((p) => p._id);
+    const existingPermissionNames = existingPermissions.map(
+      (p) => p.permission
+    );
+
+    const missingPermissions = permissions.filter(
+      (permission) => !existingPermissionNames.includes(permission)
+    );
+
+    if (missingPermissions.length > 0) {
+      const errorMessage = `The following permissions do not exist for tenant '${tenant}': ${missingPermissions.join(
+        ", "
+      )}. Please create them using the appropriate API endpoint.`;
+      throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+        message: errorMessage,
+      });
+    }
+
+    return existingPermissionIds;
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    logger.error(`Error in getPermissionIds: ${error.message}`);
+    throw new HttpError(
+      "Internal Server Error",
+      httpStatus.INTERNAL_SERVER_ERROR,
+      { message: "Failed to retrieve permission IDs" }
+    );
+  }
+};
 const createGroup = {
+  // Add these functions to the createGroup object in utils/group.util.js
+
+  getDashboard: async (request, next) => {
+    try {
+      const { userGroupContext } = request;
+      const { group, role } = userGroupContext;
+      const { tenant } = request.query;
+
+      // Get group information
+      const groupDetails = await GroupModel(tenant)
+        .findById(group._id)
+        .populate("grp_manager", "firstName lastName email")
+        .lean();
+
+      if (!groupDetails) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${group._id} not found`,
+          })
+        );
+      }
+
+      // Get user count for the group
+      const userCount = await UserModel(tenant).countDocuments({
+        "group_roles.group": group._id,
+      });
+
+      // Get most recent users
+      const recentUsers = await UserModel(tenant)
+        .find({ "group_roles.group": group._id })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("firstName lastName email profilePicture")
+        .lean();
+
+      // Compile dashboard data
+      const dashboardData = {
+        groupName: group.grp_title,
+        groupDescription: group.grp_description,
+        profilePicture: group.grp_profile_picture,
+        manager: groupDetails.grp_manager,
+        createdAt: group.createdAt,
+        userCount,
+        recentUsers,
+        userRole: role.role_name,
+      };
+
+      return {
+        success: true,
+        message: "Dashboard data retrieved successfully",
+        data: dashboardData,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getMembers: async (request, next) => {
+    try {
+      const { userGroupContext } = request;
+      const { group } = userGroupContext;
+      const { tenant, limit = 100, skip = 0 } = request.query;
+
+      // This leverages the existing listAssignedUsers function with some modifications
+      const groupMembers = await UserModel(tenant)
+        .aggregate([
+          { $match: { "group_roles.group": ObjectId(group._id) } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": ObjectId(group._id) } },
+          {
+            $lookup: {
+              from: "roles",
+              let: {
+                groupId: ObjectId(group._id),
+                roleId: "$group_roles.role",
+              },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
+              as: "role",
+            },
+          },
+          { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              _id: 1,
+              firstName: 1,
+              lastName: 1,
+              userName: 1,
+              profilePicture: 1,
+              isActive: 1,
+              lastLogin: 1,
+              email: 1,
+              role_name: { $ifNull: ["$role.role_name", "No Role"] },
+              role_id: { $ifNull: ["$role._id", null] },
+              userType: { $ifNull: ["$group_roles.userType", "guest"] },
+              joined: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: { $ifNull: ["$group_roles.createdAt", "$_id"] },
+                },
+              },
+            },
+          },
+          { $sort: { joined: -1 } },
+          { $skip: parseInt(skip) },
+          { $limit: parseInt(limit) },
+        ])
+        .exec();
+
+      // Get total count for pagination
+      const totalCount = await UserModel(tenant).countDocuments({
+        "group_roles.group": group._id,
+      });
+
+      return {
+        success: true,
+        message: "Members retrieved successfully",
+        data: {
+          groupName: group.grp_title,
+          members: groupMembers,
+          totalCount,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getSettings: async (request, next) => {
+    try {
+      const { userGroupContext } = request;
+      const { group } = userGroupContext;
+      const { tenant } = request.query;
+
+      // Get full group details
+      const groupDetails = await GroupModel(tenant)
+        .findById(group._id)
+        .populate("grp_manager", "firstName lastName email profilePicture")
+        .lean();
+
+      if (!groupDetails) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${group._id} not found`,
+          })
+        );
+      }
+
+      // Extract settings
+      const settings = {
+        name: groupDetails.grp_title,
+        slug: groupDetails.organization_slug,
+        description: groupDetails.grp_description,
+        profilePicture: groupDetails.grp_profile_picture,
+        website: groupDetails.grp_website,
+        manager: groupDetails.grp_manager,
+        createdAt: groupDetails.createdAt,
+        updatedAt: groupDetails.updatedAt,
+      };
+
+      return {
+        success: true,
+        message: "Group settings retrieved successfully",
+        data: settings,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateSettings: async (request, next) => {
+    try {
+      const { userGroupContext, body } = request;
+      const { group } = userGroupContext;
+      const { tenant } = request.query;
+      const { name, description, profilePicture, website } = body;
+
+      // Create update object with only provided fields
+      const updateFields = {};
+      if (name !== undefined) updateFields.grp_title = name;
+      if (description !== undefined) updateFields.grp_description = description;
+      if (profilePicture !== undefined)
+        updateFields.grp_profile_picture = profilePicture;
+      if (website !== undefined) updateFields.grp_website = website;
+
+      // Only proceed if there are fields to update
+      if (Object.keys(updateFields).length === 0) {
+        return {
+          success: true,
+          message: "No changes to update",
+          data: {
+            name: group.grp_title,
+            description: group.grp_description,
+            profilePicture: group.grp_profile_picture,
+            website: group.grp_website,
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      // Update the group
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        group._id,
+        updateFields,
+        { new: true }
+      );
+
+      if (!updatedGroup) {
+        return next(
+          new HttpError("Not Found", httpStatus.NOT_FOUND, {
+            message: `Group ${group._id} not found`,
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: "Group settings updated successfully",
+        data: {
+          name: updatedGroup.grp_title,
+          description: updatedGroup.grp_description,
+          profilePicture: updatedGroup.grp_profile_picture,
+          website: updatedGroup.grp_website,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   removeUniqueConstraint: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -76,12 +426,15 @@ const createGroup = {
       const { tenant } = query;
       const { user_id } = body;
 
-      const user = user_id
-        ? await UserModel(tenant).findById(user_id)
-        : request.user;
+      let user;
+      if (user_id) {
+        user = await UserModel(tenant).findById(user_id).lean();
+      } else {
+        user = request.user;
+      }
 
       if (isEmpty(request.user) && isEmpty(user_id)) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "creator's account is not provided",
           })
@@ -89,7 +442,7 @@ const createGroup = {
       }
 
       if (isEmpty(user)) {
-        next(
+        return next(
           new HttpError(
             "Your account is not registered",
             httpStatus.BAD_REQUEST,
@@ -99,6 +452,7 @@ const createGroup = {
           )
         );
       }
+
       const modifiedBody = {
         ...body,
         grp_manager: ObjectId(user._id),
@@ -108,166 +462,96 @@ const createGroup = {
       };
 
       logObject("the user making the request", user);
-      const responseFromRegisterGroup = await GroupModel(
-        tenant.toLowerCase()
-      ).register(modifiedBody, next);
+      const responseFromRegisterGroup = await GroupModel(tenant).register(
+        modifiedBody,
+        next
+      );
 
-      logObject("responseFromRegisterGroup", responseFromRegisterGroup);
+      if (responseFromRegisterGroup.success === false) {
+        return responseFromRegisterGroup;
+      }
 
-      if (responseFromRegisterGroup.success === true) {
-        const grp_id = responseFromRegisterGroup.data._doc._id;
-        if (isEmpty(grp_id)) {
-          next(
+      const grp_id = responseFromRegisterGroup.data._id;
+      if (!grp_id) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Unable to retrieve the group Id of created group",
+            }
+          )
+        );
+      }
+
+      const requestForRole = {
+        query: { tenant },
+        body: {
+          role_code: "SUPER_ADMIN",
+          role_name: "SUPER_ADMIN",
+          group_id: grp_id,
+        },
+      };
+
+      const responseFromCreateRole = await rolePermissionsUtil.createRole(
+        requestForRole,
+        next
+      );
+
+      if (responseFromCreateRole.success === false) {
+        return responseFromCreateRole;
+      }
+
+      const role_id = responseFromCreateRole.data._id;
+      if (!role_id) {
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message:
+                "Unable to retrieve the role id of the newly created super admin of this group",
+            }
+          )
+        );
+      }
+
+      try {
+        // Attempt to assign permissions; error handling within this function
+        await assignPermissionsToRole(tenant, role_id, next);
+
+        const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+          user._id,
+          {
+            $addToSet: {
+              group_roles: {
+                group: grp_id,
+                role: role_id,
+                userType: "user",
+              },
+            },
+          },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          return next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
               {
-                message: "Unable to retrieve the group Id of created group",
+                message: `Unable to assign the group to the User ${user._id}`,
               }
             )
           );
         }
 
-        const requestForRole = {
-          query: {
-            tenant: tenant,
-          },
-          body: {
-            role_code: "SUPER_ADMIN",
-            role_name: "SUPER_ADMIN",
-            group_id: grp_id,
-          },
-        };
-
-        const responseFromCreateRole = await rolePermissionsUtil.createRole(
-          requestForRole
-        );
-
-        if (responseFromCreateRole.success === false) {
-          return responseFromCreateRole;
-        } else if (responseFromCreateRole.success === true) {
-          logObject("responseFromCreateRole", responseFromCreateRole);
-          const role_id = responseFromCreateRole.data._id;
-          if (isEmpty(role_id)) {
-            next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                {
-                  message:
-                    "Unable to retrieve the role id of the newly create super admin of this group",
-                }
-              )
-            );
-          }
-
-          logObject(
-            "constants.SUPER_ADMIN_PERMISSIONS",
-            constants.SUPER_ADMIN_PERMISSIONS
-          );
-
-          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
-            ? constants.SUPER_ADMIN_PERMISSIONS
-            : [];
-          const trimmedPermissions = superAdminPermissions.map((permission) =>
-            permission.trim()
-          );
-
-          const uniquePermissions = [...new Set(trimmedPermissions)];
-
-          const existingPermissionIds = await PermissionModel(tenant)
-            .find({
-              permission: { $in: uniquePermissions },
-            })
-            .distinct("_id");
-
-          const existingPermissionNames = await PermissionModel(tenant)
-            .find({
-              permission: { $in: uniquePermissions },
-            })
-            .distinct("permission");
-
-          logObject("existingPermissionIds", existingPermissionIds);
-
-          const newPermissionDocuments = uniquePermissions
-            .filter(
-              (permission) => !existingPermissionNames.includes(permission)
-            )
-            .map((permission) => ({
-              permission: permission
-                .replace(/[^A-Za-z]/g, " ")
-                .toUpperCase()
-                .replace(/ /g, "_"),
-              description: permission
-                .replace(/[^A-Za-z]/g, " ")
-                .toUpperCase()
-                .replace(/ /g, "_"),
-            }));
-
-          logObject("newPermissionDocuments", newPermissionDocuments);
-
-          // Step 3: Insert the filtered permissions
-          const insertedPermissions = await PermissionModel(tenant).insertMany(
-            newPermissionDocuments
-          );
-          logObject("insertedPermissions", insertedPermissions);
-          const allPermissionIds = [
-            ...existingPermissionIds,
-            ...insertedPermissions.map((permission) => permission._id),
-          ];
-
-          logObject("allPermissionIds", allPermissionIds);
-
-          const requestToAssignPermissions = {
-            body: {
-              permissions: allPermissionIds,
-            },
-            query: {
-              tenant: tenant,
-            },
-            params: {
-              role_id,
-            },
-          };
-
-          const responseFromAssignPermissionsToRole =
-            await rolePermissionsUtil.assignPermissionsToRole(
-              requestToAssignPermissions
-            );
-          if (responseFromAssignPermissionsToRole.success === false) {
-            return responseFromAssignPermissionsToRole;
-          } else if (responseFromAssignPermissionsToRole.success === true) {
-            const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-              user._id,
-              {
-                $addToSet: {
-                  group_roles: {
-                    group: grp_id,
-                    role: role_id,
-                    userType: "user",
-                  },
-                },
-              },
-              { new: true }
-            );
-
-            if (isEmpty(updatedUser)) {
-              next(
-                new HttpError(
-                  "Internal Server Error",
-                  httpStatus.INTERNAL_SERVER_ERROR,
-                  {
-                    message: `Unable to assign the group to the User ${user._id}`,
-                  }
-                )
-              );
-            }
-
-            return responseFromRegisterGroup;
-          }
-        }
-      } else if (responseFromRegisterGroup.success === false) {
         return responseFromRegisterGroup;
+      } catch (error) {
+        //Rollback group and role creation if permission assignment fails
+        await GroupModel(tenant).findByIdAndDelete(grp_id);
+        await RoleModel(tenant).findByIdAndDelete(role_id);
+        return next(error); // Re-throw the error for handling by the calling function
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -384,10 +668,23 @@ const createGroup = {
         );
       }
 
+      // Fetch the default role for this group
+      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+        tenant,
+        grp_id
+      );
+
+      if (!defaultGroupRole || !defaultGroupRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for group ID ${grp_id}`,
+          })
+        );
+      }
+      const defaultRoleId = defaultGroupRole._id;
       const notAssignedUsers = [];
       let assignedUsers = 0;
       const bulkWriteOperations = [];
-      const cleanupOperations = [];
 
       for (const user_id of user_ids) {
         const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
@@ -397,7 +694,7 @@ const createGroup = {
             user_id,
             reason: `User ${user_id} not found`,
           });
-          continue; // Continue to the next user
+          continue;
         }
 
         const existingAssignment = user.group_roles
@@ -417,23 +714,17 @@ const createGroup = {
             updateOne: {
               filter: { _id: user_id },
               update: {
-                $addToSet: { group_roles: { group: grp_id } },
+                $addToSet: {
+                  group_roles: {
+                    group: grp_id,
+                    role: defaultRoleId,
+                    userType: "user",
+                  },
+                },
               },
             },
           });
         }
-
-        cleanupOperations.push({
-          updateOne: {
-            filter: {
-              _id: { _id: user_id },
-              "group_roles.group": { $exists: true, $eq: null },
-            },
-            update: {
-              $pull: { group_roles: { group: { $exists: true, $eq: null } } },
-            },
-          },
-        });
       }
 
       if (bulkWriteOperations.length > 0) {
@@ -450,10 +741,6 @@ const createGroup = {
         message = "All users have been assigned to the group.";
       } else {
         message = `Operation partially successful; ${assignedUsers} of ${user_ids.length} users have been assigned to the group.`;
-      }
-
-      if (cleanupOperations.length > 0) {
-        await UserModel(tenant).bulkWrite(cleanupOperations);
       }
 
       if (notAssignedUsers.length > 0) {
@@ -486,6 +773,7 @@ const createGroup = {
       );
     }
   },
+
   assignOneUser: async (request, next) => {
     try {
       const { grp_id, user_id, tenant } = {
@@ -818,19 +1106,29 @@ const createGroup = {
 
       const responseFromListAssignedUsers = await UserModel(tenant)
         .aggregate([
-          {
-            $match: {
-              "group_roles.group": group._id,
-            },
-          },
+          { $match: { "group_roles.group": group._id } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": group._id } },
           {
             $lookup: {
               from: "roles",
-              localField: "group_roles.role",
-              foreignField: "_id",
+              let: { groupId: group._id, roleId: "$group_roles.role" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
               as: "role",
             },
           },
+          { $unwind: "$role" },
           {
             $lookup: {
               from: "permissions",
@@ -851,14 +1149,11 @@ const createGroup = {
               status: 1,
               jobTitle: 1,
               createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
+                $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: { $arrayElemAt: ["$role.role_name", 0] },
-              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_name: "$role.role_name",
+              role_id: "$role._id",
               role_permissions: "$role_permissions",
             },
           },
@@ -908,19 +1203,29 @@ const createGroup = {
 
       const users = await UserModel(tenant)
         .aggregate([
-          {
-            $match: {
-              "group_roles.group": group._id,
-            },
-          },
+          { $match: { "group_roles.group": group._id } },
+          { $unwind: "$group_roles" },
+          { $match: { "group_roles.group": group._id } },
           {
             $lookup: {
               from: "roles",
-              localField: "group_roles.role",
-              foreignField: "_id",
+              let: { groupId: group._id, roleId: "$group_roles.role" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$group_id", "$$groupId"] },
+                        { $eq: ["$_id", "$$roleId"] },
+                      ],
+                    },
+                  },
+                },
+              ],
               as: "role",
             },
           },
+          { $unwind: "$role" }, // Unwind role after lookup
           {
             $lookup: {
               from: "permissions",
@@ -942,14 +1247,11 @@ const createGroup = {
               status: 1,
               jobTitle: 1,
               createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
+                $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: { $arrayElemAt: ["$role.role_name", 0] },
-              role_id: { $arrayElemAt: ["$role._id", 0] },
+              role_name: "$role.role_name", // Access directly after $unwind
+              role_id: "$role._id", // Access directly after $unwind
               role_permissions: "$role_permissions",
             },
           },

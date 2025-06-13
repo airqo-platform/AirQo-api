@@ -7,7 +7,7 @@ from .config import configuration
 import logging
 from typing import Any, Dict, List, Union, Tuple, Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DataSourcesApis:
@@ -113,7 +113,7 @@ class DataSourcesApis:
         data = None
         response_data = None
         try:
-            base_url = device.get("api_code")
+            base_url = device.get("api_code", "").rstrip("/")
             device_id = device.get("serial_number")
             if base_url and device_id and not pd.isna(base_url):
                 url = f"{base_url}/{device_id}"

@@ -101,7 +101,8 @@ knowYourAirLessonSchema.statics = {
   async list({ skip = 0, limit = 1000, filter = {}, user_id } = {}, next) {
     try {
       const inclusionProjection = constants.KYA_LESSONS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
+      const exclusionProjection = constants.getExclusionProjection(
+        "kyaLessons",
         filter.path ? filter.path : "none"
       );
 

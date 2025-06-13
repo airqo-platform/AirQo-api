@@ -133,6 +133,6 @@ class UrbanBetterUtils:
         )
 
         data["temperature"] = data["temperature"].apply(lambda x: ((x - 32) * 5 / 9))
-        data["tenant"] = str(Tenant.URBAN_BETTER)
+        data["network"] = DeviceNetwork.URBANBETTER.str
 
         return AirQualityUtils.add_categorisation(data)

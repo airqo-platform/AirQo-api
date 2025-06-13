@@ -14,7 +14,14 @@ router.get(
   healthTipController.list
 );
 router.post("/", tipsValidations.createTip, healthTipController.create);
+router.put(
+  "/bulk",
+  tipsValidations.bulkUpdateTips,
+  healthTipController.bulkUpdate
+);
+router.post("/migrate-taglines", healthTipController.migrateTagLines);
 router.put("/", tipsValidations.updateTip, healthTipController.update);
 router.delete("/", tipsValidations.deleteTip, healthTipController.delete);
+router.delete("/invalid", healthTipController.removeInvalidTips);
 
 module.exports = router;

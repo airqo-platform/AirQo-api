@@ -1,8 +1,20 @@
 const mongoose = require("mongoose");
 
 const staticLists = {
+  VALID_ORGANIZATION_TYPES: [
+    "academic",
+    "government",
+    "ngo",
+    "private",
+    "other",
+  ],
   SUPER_ADMIN_PERMISSIONS: process.env.SUPER_ADMIN_PERMISSIONS
     ? process.env.SUPER_ADMIN_PERMISSIONS.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
+  DEFAULT_MEMBER_PERMISSIONS: process.env.DEFAULT_MEMBER_PERMISSIONS
+    ? process.env.DEFAULT_MEMBER_PERMISSIONS.split(",").filter(
         (value) => value.trim() !== ""
       )
     : [],

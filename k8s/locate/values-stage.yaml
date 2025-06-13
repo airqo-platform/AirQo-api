@@ -17,6 +17,8 @@ resources:
   requests:
     cpu: 5m
     memory: 80Mi
+nodeSelector:
+  role: moderate-usage
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:

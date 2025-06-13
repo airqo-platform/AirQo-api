@@ -1,23 +1,103 @@
 const mongoose = require("mongoose").set("debug", true);
+const Schema = mongoose.Schema;
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("@config/database");
 const { addWeeksToProvideDateTime } = require("@utils/common");
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
+
 const constants = require("@config/constants");
 const currentDate = new Date();
+const ThemeSchema = require("@models/ThemeSchema");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- preferences-model`
 );
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
+const { logObject, HttpError } = require("@utils/shared");
+
+const chartConfigSchema = new Schema({
+  fieldId: { type: Number, required: true, min: 1, max: 8 }, // ThingSpeak field ID
+  title: { type: String, default: "Chart Title" },
+  xAxisLabel: { type: String, default: "Time" },
+  yAxisLabel: { type: String, default: "Value" },
+  color: { type: String, default: "#d62020" },
+  backgroundColor: { type: String, default: "#ffffff" },
+  chartType: {
+    type: String,
+    enum: ["Column", "Line", "Bar", "Spline", "Step"],
+    default: "line",
+  },
+  days: { type: Number, default: 1 },
+  results: { type: Number, default: 20 },
+  timescale: { type: Number, default: 10 }, // Or String for named intervals
+  average: { type: Number, default: 10 }, // Or String
+  median: { type: Number, default: 10 }, // Or String
+  sum: { type: Number, default: 10 }, // Or String
+  rounding: { type: Number, default: 2 },
+  dataMin: { type: Number },
+  dataMax: { type: Number },
+  yAxisMin: { type: Number },
+  yAxisMax: { type: Number },
+  showLegend: { type: Boolean, default: true },
+  showGrid: { type: Boolean, default: true },
+  showTooltip: { type: Boolean, default: true },
+  referenceLines: [
+    {
+      value: { type: Number, required: true },
+      label: { type: String },
+      color: { type: String, default: "#FF0000" },
+      style: {
+        type: String,
+        enum: ["solid", "dashed", "dotted"],
+        default: "dashed",
+      },
+    },
+  ],
+  annotations: [
+    {
+      x: { type: Number }, // x coordinate or timestamp
+      y: { type: Number }, // y coordinate or value
+      text: { type: String },
+      color: { type: String, default: "#000000" },
+    },
+  ],
+  // For data transformations
+  transformation: {
+    type: {
+      type: String,
+      enum: ["none", "log", "sqrt", "pow"],
+      default: "none",
+    },
+    factor: { type: Number, default: 1 }, // For pow transformation
+  },
+  // For comparison with historical data
+  comparisonPeriod: {
+    enabled: { type: Boolean, default: false },
+    type: {
+      type: String,
+      enum: ["previousDay", "previousWeek", "previousMonth", "previousYear"],
+      default: "previousDay",
+    },
+  },
+  // For multi-series charts
+  showMultipleSeries: { type: Boolean, default: false },
+  additionalSeries: [
+    {
+      fieldId: { type: Number, required: true },
+      label: { type: String },
+      color: { type: String },
+    },
+  ],
+  isPublic: { type: Boolean, default: false },
+  refreshInterval: { type: Number, default: 0 }, // 0 means no auto-refresh, value in seconds
+});
 
 const periodSchema = new mongoose.Schema(
   {
@@ -96,9 +176,18 @@ const PreferenceSchema = new mongoose.Schema(
     pollutant: {
       type: String,
       trim: true,
-      required: [true, "pollutant is required!"],
       default: "pm2_5",
     },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
+    },
+    pollutants: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     frequency: {
       type: String,
       required: [true, "frequency is required!"],
@@ -177,6 +266,7 @@ const PreferenceSchema = new mongoose.Schema(
       ref: "group",
       default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
     },
+    lastAccessed: { type: Date },
     group_ids: [
       {
         type: ObjectId,
@@ -199,7 +289,6 @@ const PreferenceSchema = new mongoose.Schema(
     selected_devices: [{ type: deviceSchema }],
     selected_cohorts: [{ type: cohortSchema }],
     selected_airqlouds: [{ type: airqloudSchema }],
-
     device_ids: [
       {
         type: ObjectId,
@@ -207,6 +296,7 @@ const PreferenceSchema = new mongoose.Schema(
       },
     ],
     period: { type: periodSchema, required: [true, "period is required!"] },
+    chartConfigurations: [chartConfigSchema],
   },
   {
     timestamps: true,
@@ -327,6 +417,7 @@ PreferenceSchema.methods = {
     return {
       _id: this._id,
       pollutant: this.pollutant,
+      pollutants: this.pollutants,
       frequency: this.frequency,
       user_id: this.user_id,
       airqloud_id: this.airqloud_id,
@@ -362,10 +453,13 @@ PreferenceSchema.statics = {
     try {
       let createBody = args;
       logObject("args", args);
+
+      // Remove _id if present
       if (createBody._id) {
         delete createBody._id;
       }
 
+      // Preserve default period creation logic
       if (isEmpty(createBody.period)) {
         createBody.period = {
           value: "Last 7 days",
@@ -376,99 +470,126 @@ PreferenceSchema.statics = {
       }
 
       logObject("createBody", createBody);
-      let data = await this.create({
+      const data = await this.create({
         ...createBody,
       });
 
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "preference", {
           message: "preference created successfully with no issues detected",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "preference not created despite successful operation",
-          status: httpStatus.OK,
-          data: [],
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "preference",
+          "preference not created despite successful operation"
+        );
       }
     } catch (err) {
       logObject("error in the object", err);
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let response = {};
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
-
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+      return createErrorResponse(err, "create", logger, "preference");
     }
   },
+
   async list({ skip = 0, limit = 1000, filter = {} } = {}, next) {
     try {
-      const preferences = await this.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
+      const { user_id } = filter;
 
-      preferences.forEach((preference) => {
-        preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_airqlouds.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_cohorts.sort((a, b) => b.createdAt - a.createdAt);
-        preference.selected_devices.sort((a, b) => b.createdAt - a.createdAt);
-      });
+      // Preserve complex group_id logic with DEFAULT_GROUP fallback
+      const groupIdPresent = filter.group_id !== undefined;
 
-      if (!isEmpty(preferences)) {
-        return {
-          success: true,
-          data: preferences,
-          message: "Successfully listed the preferences",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(preferences)) {
-        return {
-          success: true,
-          message: "No preferences found for this search",
-          data: [],
-          status: httpStatus.OK,
-        };
+      let preferences;
+      if (!groupIdPresent) {
+        const defaultGroupId = constants.DEFAULT_GROUP;
+        if (!defaultGroupId) {
+          return {
+            success: false,
+            message:
+              "Internal Server Error: DEFAULT_GROUP constant not defined",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: "DEFAULT_GROUP constant not defined" },
+          };
+        }
+
+        // Try to find preferences with default group first
+        preferences = await this.find({ user_id, group_id: defaultGroupId })
+          .sort({ lastAccessed: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec();
+
+        // Fallback to any preferences for the user if none found with default group
+        if (isEmpty(preferences)) {
+          preferences = await this.find({ user_id })
+            .sort({ lastAccessed: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+            .exec();
+        }
+      } else {
+        preferences = await this.find(filter)
+          .sort({ lastAccessed: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean()
+          .exec();
       }
+
+      // Preserve complex array sorting and timestamp updating logic
+      if (!isEmpty(preferences)) {
+        preferences.forEach((preference) => {
+          // Sort selected arrays by createdAt (preserve all field types)
+          if (Array.isArray(preference.selected_sites)) {
+            preference.selected_sites.sort((a, b) => b.createdAt - a.createdAt);
+          }
+          if (Array.isArray(preference.selected_airqlouds)) {
+            preference.selected_airqlouds.sort(
+              (a, b) => b.createdAt - a.createdAt
+            );
+          }
+          if (Array.isArray(preference.selected_grids)) {
+            preference.selected_grids.sort((a, b) => b.createdAt - a.createdAt);
+          }
+          if (Array.isArray(preference.selected_cohorts)) {
+            preference.selected_cohorts.sort(
+              (a, b) => b.createdAt - a.createdAt
+            );
+          }
+          if (Array.isArray(preference.selected_devices)) {
+            preference.selected_devices.sort(
+              (a, b) => b.createdAt - a.createdAt
+            );
+          }
+        });
+
+        // Update lastAccessed timestamp for all found preferences
+        preferences.forEach(async (preference) => {
+          await this.findByIdAndUpdate(preference._id, {
+            lastAccessed: new Date(),
+          });
+        });
+      }
+
+      return {
+        success: true,
+        data: preferences,
+        message: "Successfully listed preferences",
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "preference");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       const options = { new: true };
       const updateBody = update;
 
+      // Preserve complex field handling arrays
       const fieldsToUpdate = [
         "selected_sites",
         "selected_grids",
@@ -487,6 +608,7 @@ PreferenceSchema.statics = {
         "group_ids",
       ];
 
+      // Preserve complex field update handling with createdAt timestamps
       const handleFieldUpdate = (field) => {
         if (updateBody[field]) {
           updateBody[field] = updateBody[field].map((item) => ({
@@ -494,23 +616,24 @@ PreferenceSchema.statics = {
             createdAt: item.createdAt || new Date(),
           }));
 
-          updateBody["$addToSet"] = {
-            [field]: { $each: updateBody[field] },
-          };
+          updateBody["$addToSet"] = updateBody["$addToSet"] || {};
+          updateBody["$addToSet"][field] = { $each: updateBody[field] };
           delete updateBody[field];
         }
       };
 
+      // Process all field types
       fieldsToUpdate.forEach(handleFieldUpdate);
+
       fieldsToAddToSet.forEach((field) => {
         if (updateBody[field]) {
-          updateBody["$addToSet"] = {
-            [field]: { $each: updateBody[field] },
-          };
+          updateBody["$addToSet"] = updateBody["$addToSet"] || {};
+          updateBody["$addToSet"][field] = { $each: updateBody[field] };
           delete updateBody[field];
         }
       });
 
+      // Remove _id from update if present
       if (updateBody._id) {
         delete updateBody._id;
       }
@@ -522,71 +645,73 @@ PreferenceSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedPreference)) {
-        return {
-          success: true,
-          message: "successfully modified the preference",
-          data: updatedPreference._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedPreference)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Preference  you are trying to UPDATE does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedPreference._doc,
+          "preference"
+        );
+      } else {
+        return createNotFoundResponse(
+          "preference",
+          "update",
+          "the User Preference you are trying to UPDATE does not exist, please crosscheck"
         );
       }
     } catch (err) {
       logger.error(`Data conflicts detected -- ${err.message}`);
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+      // Handle specific duplicate errors
       if (err.code == 11000) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = httpStatus.CONFLICT;
+        return {
+          success: false,
+          message: "duplicate values provided",
+          status: httpStatus.CONFLICT,
+          errors: err.keyValue || { message: err.message },
+        };
+      } else {
+        return createErrorResponse(err, "update", logger, "preference");
       }
-      next(new HttpError(message, status, errors));
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 1,
           user_id: 1,
           chartTitle: 1,
           chartSubTitle: 1,
-          airqloud_id: 1,
+          airqloud_id: 1, // Preserve preference-specific projections
         },
       };
-      let removedPreference = await this.findOneAndRemove(
+
+      const removedPreference = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedPreference)) {
-        return {
-          success: true,
-          message: "successfully removed the preference",
-          data: removedPreference._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedPreference)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "the User Preference  you are trying to DELETE does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedPreference._doc,
+          "preference"
+        );
+      } else {
+        return createNotFoundResponse(
+          "preference",
+          "delete",
+          "the User Preference you are trying to DELETE does not exist, please crosscheck"
         );
       }
     } catch (error) {
       logger.error(`Data conflicts detected -- ${error.message}`);
-      next(
-        new HttpError("Data conflicts detected", httpStatus.CONFLICT, {
-          message: error.message,
-        })
-      );
+      return {
+        success: false,
+        message: "Data conflicts detected",
+        status: httpStatus.CONFLICT,
+        errors: { message: error.message },
+      };
     }
   },
 };

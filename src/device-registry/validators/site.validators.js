@@ -2,8 +2,21 @@ const { query, body, oneOf, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const decimalPlaces = require("decimal-places");
 const createSiteUtil = require("@utils/site.util");
+const Decimal = require("decimal.js");
+
+const countDecimalPlaces = (value) => {
+  try {
+    const decimal = new Decimal(value);
+    const decimalStr = decimal.toString();
+    if (decimalStr.includes(".")) {
+      return decimalStr.split(".")[1].length;
+    }
+    return 0;
+  } catch (err) {
+    return 0;
+  }
+};
 
 // Utility Functions
 const validateDecimalPlaces = (
@@ -11,7 +24,7 @@ const validateDecimalPlaces = (
   minPlaces = 5,
   fieldName = "coordinate"
 ) => {
-  let dp = decimalPlaces(value);
+  let dp = countDecimalPlaces(value);
   if (dp < minPlaces) {
     return Promise.reject(
       `the ${fieldName} must have ${minPlaces} or more decimal places`
@@ -185,7 +198,13 @@ const siteIdentifierChains = [
   query("name")
     .optional()
     .notEmpty()
-    .trim(),
+    .withMessage("the site name should not be empty if provided")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the site name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
 ];
 
 const validateSiteIdParam = oneOf([
@@ -283,8 +302,12 @@ const validateCreateSite = [
     .bail()
     .trim()
     .custom((value) => createSiteUtil.validateSiteName(value))
+    .withMessage("The name should be greater than 5 and less than 50 in length")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "The name should be greater than 5 and less than 50 in length"
+      "the site name can only contain letters, numbers, spaces, hyphens and underscores"
     ),
   body("site_tags")
     .optional()
@@ -333,8 +356,12 @@ const validateUpdateSite = [
     .bail()
     .trim()
     .custom((value) => createSiteUtil.validateSiteName(value))
+    .withMessage("The name should be greater than 5 and less than 50 in length")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
     .withMessage(
-      "The name should be greater than 5 and less than 50 in length"
+      "the site name can only contain letters, numbers, spaces, hyphens and underscores"
     ),
   body("status")
     .optional()

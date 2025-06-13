@@ -1,18 +1,24 @@
 import logging
 import os
-from datetime import datetime, timezone
-from typing import List
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
 from google.cloud import bigquery
-from google.oauth2 import service_account
+from google.api_core import exceptions as google_api_exceptions
 
 from .config import configuration
-from .constants import JobAction, ColumnDataType, DeviceNetwork, QueryType
+from .constants import (
+    JobAction,
+    ColumnDataType,
+    DeviceNetwork,
+    QueryType,
+    MetaDataType,
+)
 from .date import date_to_str
 from .utils import Utils
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class BigQueryApi:
@@ -20,6 +26,9 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.schema_mapping = configuration.SCHEMA_FILE_MAPPING
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.hourly_uncalibrated_measurements_table = (
+            configuration.BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE
+        )
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
         self.hourly_forecasts_table = (
             configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
@@ -61,6 +70,16 @@ class BigQueryApi:
         self,
         day: datetime,
     ) -> pd.DataFrame:
+        """
+        Retrieves hourly air quality data for all devices from the specified date onward.
+
+        Parameters:
+            day(datetime): The starting date from which to fetch hourly data.
+                            Data from this day and onwards will be included.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the distinct hourly measurements for each device, including calibrated and raw PM2.5 values, site ID, device ID, and timestamp.
+        """
         query = (
             f" SELECT `{self.hourly_measurements_table}`.pm2_5_calibrated_value , "
             f" `{self.hourly_measurements_table}`.pm2_5_raw_value ,"
@@ -183,8 +202,8 @@ class BigQueryApi:
 
     def get_columns(
         self,
-        table: str = "all",
-        column_type: List[ColumnDataType] = [ColumnDataType.NONE],
+        table: Optional[str] = "all",
+        column_type: Optional[List[ColumnDataType]] = [ColumnDataType.NONE],
     ) -> List[str]:
         """
         Retrieves a list of columns that match a schema of a given table and or match data type as well. The schemas should match the tables in bigquery.
@@ -218,6 +237,7 @@ class BigQueryApi:
                 "airqo_mobile_measurements",
                 "bam_measurements",
                 "bam_raw_measurements",
+                "daily_24_hourly_forecasts",
             ]:
                 file_schema = Utils.load_schema(file_name=f"{file}.json")
                 schema.extend(file_schema)
@@ -242,8 +262,20 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        job_action: JobAction = JobAction.APPEND,
+        job_action: Optional[JobAction] = JobAction.APPEND,
     ) -> None:
+        """
+        Loads a Pandas DataFrame into a specified BigQuery table.
+
+        Args:
+            dataframe (pd.DataFrame): The DataFrame containing the data to be loaded.
+            table (str): The fully qualified BigQuery table ID (e.g., "project.dataset.table").
+            job_action (JobAction, optional): The job action determining the write mode.
+                Defaults to JobAction.APPEND.
+
+        Raises:
+            google.cloud.exceptions.GoogleCloudError: If the job fails.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
@@ -257,98 +289,14 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {len(dataframe)} rows to {table}")
-        print(f"Total rows after load :  {destination_table.num_rows}")
-
-    @staticmethod
-    def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
-        dataframe[id_column] = dataframe.apply(
-            lambda row: BigQueryApi.device_unique_col(
-                network=row["network"],
-                device_number=row["device_number"],
-                device_id=row["device_id"],
-            ),
-            axis=1,
-        )
-        return dataframe
-
-    @staticmethod
-    def device_unique_col(network: DeviceNetwork, device_id: str, device_number: int):
-        return str(f"{str(network)}:{device_id}:{device_number}").lower()
-
-    def update_airqlouds(self, dataframe: pd.DataFrame, table=None) -> None:
-        if table is None:
-            table = self.airqlouds_table
-        unique_cols = ["id", "network"]
-
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            table=table,
-        )
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
-    def update_grids(self, dataframe: pd.DataFrame, table=None) -> None:
-        if table is None:
-            table = self.grids_table
-        unique_cols = ["id", "network"]
-
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            table=table,
-        )
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
-    def update_cohorts(self, dataframe: pd.DataFrame, table=None) -> None:
-        if table is None:
-            table = self.cohorts_table
-        unique_cols = ["id", "network"]
-
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            table=table,
-        )
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
-        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
+        logger.info(f"Loaded {len(dataframe)} rows to {table}")
+        logger.info(f"Total rows after load :  {destination_table.num_rows}")
 
     def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
         if table is None:
             table = self.airqlouds_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -370,7 +318,6 @@ class BigQueryApi:
             table = self.grids_sites_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -391,7 +338,6 @@ class BigQueryApi:
             table = self.cohorts_devices_table
 
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe["last_updated"] = datetime.now(timezone.utc)
         dataframe = self.validate_data(
             dataframe=dataframe,
             table=table,
@@ -407,55 +353,70 @@ class BigQueryApi:
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
 
-    def update_sites_and_devices(
+    def update_meta_data(
         self,
         dataframe: pd.DataFrame,
         table: str,
-        component: str,
+        component: MetaDataType,
     ) -> None:
+        """
+        Updates the site or device data by validating, deduplicating, and merging it with existing records.
+
+        Args:
+            dataframe(pd.DataFrame): The input data containing site or device information.
+            table(str): The database table name to update.
+            component(str): Specifies whether the data is for 'sites' or 'devices'.
+
+        Raises:
+            Exception: If an invalid component is provided.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
+        unique_ids = {
+            "sites": ["id"],
+            "devices": ["device_id"],
+            "grids": ["id", "network"],
+            "airqlouds": ["id", "network"],
+            "cohorts": ["id", "network"],
+        }
 
-        if component == "sites":
-            unique_id = "id"
+        unique_id = unique_ids.get(component.str, None)
 
-        elif component == "devices":
-            unique_id = "unique_id"
-            dataframe = self.add_unique_id(dataframe)
+        if unique_id is None:
+            raise Exception(f"Invalid metadata component: {component.str}")
 
-        else:
-            raise Exception("Invalid component. Valid values are sites and devices.")
+        dataframe.drop_duplicates(subset=[unique_id[0]], inplace=True, keep="first")
 
-        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+        q = f"SELECT * FROM `{table}` "
 
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
+        if "last_updated" in dataframe.columns.to_list():
+            q += "ORDER BY last_updated"
 
-        if available_data.empty:
-            up_to_date_data = dataframe
-        else:
-            if component == "devices":
-                available_data = self.add_unique_id(available_data)
+        available_data = self.client.query(query=q).result().to_dataframe()
 
-            available_data.drop_duplicates(
-                subset=[unique_id], inplace=True, keep="first"
-            )
+        if not available_data.empty:
+            available_data.drop_duplicates(subset=unique_id, inplace=True, keep="first")
             data_not_for_updating = available_data.loc[
-                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+                ~available_data[unique_id[0]].isin(dataframe[unique_id[0]].to_list())
             ]
-            up_to_date_data = pd.concat(
-                [data_not_for_updating, dataframe], ignore_index=True
-            )
+            dataframe = pd.concat([data_not_for_updating, dataframe], ignore_index=True)
 
-        if component == "devices":
-            del up_to_date_data[unique_id]
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
+        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.OVERWRITE)
 
     def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
+        """
+        Updates the site metadata by validating, deduplicating, and merging it with existing records.
+
+        Args:
+            dataframe (pd.DataFrame): The input data containing site metadata.
+
+        Returns:
+            None
+
+        This function ensures that the provided dataframe is validated, removes duplicates based on 'site_id',
+        and merges it with existing site metadata in the database. The updated data is then loaded back
+        into the database with an overwrite operation.
+        """
         dataframe.reset_index(drop=True, inplace=True)
         table = self.sites_meta_data_table
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -485,55 +446,16 @@ class BigQueryApi:
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
         )
 
-    def update_data(
-        self,
-        dataframe: pd.DataFrame,
-        table: str,
-    ) -> None:
-        dataframe.reset_index(drop=True, inplace=True)
-        dataframe = self.validate_data(dataframe=dataframe, table=table)
-        dataframe = self.add_unique_id(dataframe=dataframe)
-        dataframe.drop_duplicates(subset=["unique_id"], inplace=True, keep="first")
-
-        available_data = (
-            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
-        )
-
-        if available_data.empty:
-            up_to_date_data = dataframe
-        else:
-            available_data["timestamp"] = available_data["timestamp"].apply(
-                pd.to_datetime
-            )
-            available_data = self.add_unique_id(dataframe=available_data)
-
-            available_data.drop_duplicates(
-                subset=["unique_id"], inplace=True, keep="first"
-            )
-            data_not_for_updating = available_data.loc[
-                ~available_data["unique_id"].isin(dataframe["unique_id"].to_list())
-            ]
-            up_to_date_data = pd.concat(
-                [data_not_for_updating, dataframe], ignore_index=True
-            )
-
-        up_to_date_data["timestamp"] = up_to_date_data["timestamp"].apply(date_to_str)
-        del up_to_date_data["unique_id"]
-
-        self.load_data(
-            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
-        )
-
     def compose_query(
         self,
         query_type: QueryType,
         table: str,
         start_date_time: str,
         end_date_time: str,
-        network: DeviceNetwork = None,
-        where_fields: dict = None,
-        null_cols: list = None,
-        columns: list = None,
+        network: Optional[DeviceNetwork] = None,
+        where_fields: Optional[Dict[str, str | int | tuple]] = None,
+        null_cols: Optional[List] = None,
+        columns: Optional[List] = None,
     ) -> str:
         """
         Composes a SQL query for BigQuery based on the query type (GET or DELETE),
@@ -545,7 +467,7 @@ class BigQueryApi:
             start_date_time (str): The start datetime for filtering records.
             end_date_time (str): The end datetime for filtering records.
             network (DeviceNetwork, optional): The network or ownership information (e.g., to filter data).
-            where_fields (dict, optional):  Dictionary of fields to filter on.
+            where_fields (dict, optional):  Dictionary of fields to filter on i.e {"device_id":["aq_001", "aq_002"]}.
             null_cols (list, optional):  List of columns to check for null values.
             columns (list, optional):  List of columns to select. If None, selects all.
             exclude_columns (list, optional): List of columns to exclude from aggregation if dynamically selecting numeric columns.
@@ -565,7 +487,7 @@ class BigQueryApi:
         where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
 
         if network:
-            where_clause += f"AND network = '{str(network)}' "
+            where_clause += f"AND network = '{network.str}' "
 
         valid_cols = self.get_columns(table=table)
 
@@ -574,7 +496,10 @@ class BigQueryApi:
                 raise Exception(
                     f"Invalid table column. {key} is not among the columns for {table}"
                 )
-            where_clause = where_clause + f" and {key} = '{value}' "
+            if isinstance(value, (str, int)):
+                where_clause += f" AND {key} = '{value}' "
+            elif isinstance(value, list):
+                where_clause += f" AND {key} in UNNEST({value}) "
 
         for field in null_cols:
             if field not in valid_cols:
@@ -601,11 +526,11 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        network: DeviceNetwork = None,
-        start_date_time: str = None,
-        end_date_time: str = None,
-        where_fields: dict = None,
-        null_cols: list = None,
+        network: Optional[DeviceNetwork] = None,
+        start_date_time: Optional[str] = None,
+        end_date_time: Optional[str] = None,
+        where_fields: Optional[Dict[str, Any]] = None,
+        null_cols: Optional[List] = None,
     ) -> None:
         """
         Reloads data into a specified table in BigQuery by:
@@ -636,13 +561,11 @@ class BigQueryApi:
                 raise ValueError(
                     "The DataFrame must contain a 'timestamp' column to derive the date range."
                 )
-            data = (
-                dataframe.copy()
-            )  # Not sure why this dataframe is being copied. # Memory wastage?
-            data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
             try:
-                start_date_time = date_to_str(data["timestamp"].min())
-                end_date_time = date_to_str(data["timestamp"].max())
+                start_date_time = date_to_str(dataframe["timestamp"].min())
+                end_date_time = date_to_str(dataframe["timestamp"].max())
             except Exception as e:
                 logger.exception(f"Time conversion error {e}")
 
@@ -655,7 +578,6 @@ class BigQueryApi:
             where_fields=where_fields,
             null_cols=null_cols,
         )
-
         self.client.query(query=query).result()
 
         self.load_data(dataframe=dataframe, table=table)
@@ -665,13 +587,14 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         table: str,
-        network: DeviceNetwork = None,
-        dynamic_query: bool = False,
-        columns: list = None,
-        where_fields: dict = None,
-        null_cols: list = None,
-        time_granularity: str = "HOUR",
-    ) -> pd.DataFrame:
+        network: Optional[DeviceNetwork] = None,
+        dynamic_query: Optional[bool] = False,
+        columns: Optional[List] = None,
+        where_fields: Optional[Dict[str, Any]] = None,
+        null_cols: Optional[List] = None,
+        time_granularity: Optional[str] = "HOUR",
+        use_cache: Optional[bool] = False,
+    ) -> pd.DataFrame | None:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
 
@@ -708,7 +631,40 @@ class BigQueryApi:
                 time_granularity=time_granularity,
             )
 
-        measurements = self.client.query(query=query).result().to_dataframe()
+        try:
+            job_config = bigquery.QueryJobConfig(use_query_cache=use_cache)
+            measurements = (
+                self.client.query(query=query, job_config=job_config)
+                .result()
+                .to_dataframe()
+            )
+        except google_api_exceptions.GoogleAPIError as e:
+            if isinstance(e, google_api_exceptions.NotFound):
+                logger.error(
+                    f"Query on {table} failed: A specified resource (e.g., dataset or table) was not found. {e.message}"
+                )
+                raise google_api_exceptions.NotFound(
+                    "Query failed: A specified resource (e.g., dataset or table) was not found."
+                )
+            elif isinstance(e, google_api_exceptions.Forbidden):
+                logger.error(
+                    f"Query on {table} failed: Permission denied. Check IAM roles for the BigQuery API. {e.message}"
+                )
+                raise google_api_exceptions.Forbidden(
+                    "Query failed: Permission denied. Check IAM roles for the BigQuery API."
+                )
+            elif isinstance(e, google_api_exceptions.BadRequest):
+                logger.error(
+                    f"Query on {table} failed: Bad request. This could be due to an invalid query, incorrect parameters, or other issues. {e.message}"
+                )
+                raise google_api_exceptions.BadRequest(
+                    "Query failed: Bad request. This could be due to an invalid query, incorrect parameters, or other issues."
+                )
+        except Exception as e:
+            logger.exception(
+                f"An error occurred while executing a query on {table}: {e}"
+            )
+            return None
 
         expected_columns = self.get_columns(table=table)
         if measurements.empty:
@@ -730,10 +686,10 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        exclude_columns: list = None,
-        group_by: list = None,
-        network: DeviceNetwork = None,
-        time_granularity: str = "HOUR",
+        exclude_columns: Optional[List] = None,
+        group_by: Optional[List] = None,
+        network: Optional[DeviceNetwork] = None,
+        time_granularity: Optional[str] = "HOUR",
     ) -> str:
         """
         Constructs a dynamic SQL query to select and average numeric columns, allowing exclusions,
@@ -807,44 +763,18 @@ class BigQueryApi:
 
         return query
 
-    def query_devices(self, network: DeviceNetwork = None) -> pd.DataFrame:
-        if not network:
-            query = f"""
-              SELECT * FROM `{self.devices_table}`
-          """
-        else:
-            query = f"""
-                SELECT * FROM `{self.devices_table}` WHERE network = '{network.str}'
-            """
-
-        dataframe = self.client.query(query=query).result().to_dataframe()
-        return dataframe.drop_duplicates(keep="first")
-
-    def query_sites(self, network: DeviceNetwork = None) -> pd.DataFrame:
-        if not network:
-            query = f"""
-              SELECT * FROM `{self.sites_table}`
-          """
-        else:
-            query = f"""
-                SELECT * FROM `{self.sites_table}` WHERE network = '{network.str}'
-            """
-
-        dataframe = self.client.query(query=query).result().to_dataframe()
-        return dataframe.drop_duplicates(keep="first")
-
     def fetch_raw_readings(self) -> pd.DataFrame:
         """
         TODO: Document
         """
         query = f"""
-        SELECT DISTINCT 
+        SELECT DISTINCT
         raw_device_data_table.timestamp AS timestamp,
-         raw_device_data_table.device_id AS device_id, 
+         raw_device_data_table.device_id AS device_id,
          raw_device_data_table.latitude AS latitude,
          raw_device_data_table.longitude AS longitude,
 -- review model performance with and without location
-         raw_device_data_table.s1_pm2_5 AS s1_pm2_5, 
+         raw_device_data_table.s1_pm2_5 AS s1_pm2_5,
          raw_device_data_table.s2_pm2_5 AS s2_pm2_5,
          raw_device_data_table.pm2_5 AS pm2_5,
          raw_device_data_table.battery AS battery
@@ -852,7 +782,7 @@ class BigQueryApi:
            `{self.raw_measurements_table}` AS raw_device_data_table
            WHERE
            DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL 21 DAY) 
+               CURRENT_DATE(), INTERVAL 21 DAY)
             ORDER BY device_id, timestamp
            """
         # TODO: May need to review frequency
@@ -861,7 +791,7 @@ class BigQueryApi:
             job_config.use_query_cache = True
             results = self.client.query(f"{query}", job_config).result().to_dataframe()
         except Exception as e:
-            print(f"Error when fetching data from bigquery, {e}")
+            logger.exception(f"Error when fetching data from bigquery, {e}")
         else:
             if results.empty:
                 raise Exception("No data found from bigquery")
@@ -882,83 +812,113 @@ class BigQueryApi:
         start_date_time: str,
         job_type: str,
     ) -> pd.DataFrame:
+        """
+        Fetches device data for a forecasting job from BigQuery.
+
+        Args:
+            start_date_time(str): The start date-time in string format (YYYY-MM-DD).
+            job_type(str): The type of job ("train" or "predict).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the device data.
+
+        Raises:
+            ValueError: If the provided start_date_time is invalid.
+            RuntimeError: If there is an error fetching data from BigQuery.
+        """
         try:
             pd.to_datetime(start_date_time)
         except ValueError:
             raise ValueError(f"Invalid start date time: {start_date_time}")
 
-        query = f"""
-        SELECT DISTINCT 
-            t1.device_id, 
-            t1.timestamp,  
-            t1.pm2_5_calibrated_value as pm2_5, 
-            t2.latitude, 
-            t2.longitude,"""
-
-        if job_type != "train":
-            query += """
-            t1.site_id,
+        select_fields = """
+            t1.device_id,
+            t1.device_number,
+            t1.timestamp,
+            t1.pm2_5_calibrated_value as pm2_5,
+            t2.latitude,
+            t2.longitude
             """
 
-        query += f"""
-        FROM `{self.hourly_measurements_table}` t1 
-        JOIN `{self.sites_table}` t2 on t1.site_id = t2.id """
+        if job_type != "train":
+            select_fields += ", t1.site_id"
 
-        query += f"""
-        WHERE date(t1.timestamp) >= '{start_date_time}' and t1.device_id IS NOT NULL 
-        ORDER BY device_id, timestamp"""
+        query = f"""
+        SELECT DISTINCT {select_fields}
+        FROM `{self.hourly_measurements_table}` t1
+        JOIN `{self.sites_table}` t2
+        ON t1.site_id = t2.id
+        WHERE DATE(t1.timestamp) >= '{start_date_time}'
+        AND t1.device_id IS NOT NULL
+        ORDER BY t1.device_id, t1.timestamp
+        """
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
+        job_config = bigquery.QueryJobConfig(use_query_cache=True)
+
         try:
-            df = self.client.query(query, job_config).result().to_dataframe()
-            return df
+            return (
+                self.client.query(query, job_config=job_config).result().to_dataframe()
+            )
         except Exception as e:
-            print("Error fetching data from bigquery", {e})
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
     def fetch_device_data_for_satellite_job(
         self,
         start_date_time: str,
         job_type: str,
     ) -> pd.DataFrame:
+        """
+        Fetches device data for a satellite-based job from BigQuery.
+
+        Args:
+            start_date_time (str): The start date-time in string format (YYYY-MM-DD HH:MM:SS).
+            job_type (str): The type of job (not currently used but can be extended for future logic).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing aggregated device data.
+
+        Raises:
+            ValueError: If the provided start_date_time is invalid.
+            RuntimeError: If there is an error fetching data from BigQuery.
+        """
         try:
             pd.to_datetime(start_date_time)
         except ValueError as e:
             raise ValueError(f"Invalid start date time: {start_date_time}") from e
 
         query = f"""
-SELECT DISTINCT 
-    TIMESTAMP_TRUNC(t1.timestamp, DAY) as timestamp,
-    t2.city,
-    t1.device_id,
-    t2.latitude,
-    t2.longitude,
-    AVG(t1.pm2_5_calibrated_value) as pm2_5
-FROM {self.hourly_measurements_table} as t1 
-INNER JOIN {self.sites_table} as t2 
-    ON t1.site_id = t2.id 
-WHERE 
-    t1.timestamp > '{start_date_time}' 
-    AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
-    AND t1.device_id IS NOT NULL
-GROUP BY 
-    timestamp,
-    t1.device_id,
-    t2.city,
-    t2.latitude,
-    t2.longitude
-ORDER BY 
-    t1.device_id,
-    timestamp;
+        SELECT DISTINCT
+            TIMESTAMP_TRUNC(t1.timestamp, DAY) AS timestamp,
+            t2.city,
+            t1.device_id,
+            t2.latitude,
+            t2.longitude,
+            AVG(t1.pm2_5_calibrated_value) AS pm2_5
+        FROM `{self.hourly_measurements_table}` AS t1
+        INNER JOIN `{self.sites_table}` AS t2
+            ON t1.site_id = t2.id
+        WHERE
+            t1.timestamp > '{start_date_time}'
+            AND t2.city IN ('Kampala', 'Nairobi', 'Kisumu', 'Lagos', 'Accra', 'Bujumbura', 'Yaounde')
+            AND t1.device_id IS NOT NULL
+        GROUP BY
+            timestamp,
+            t1.device_id,
+            t2.city,
+            t2.latitude,
+            t2.longitude
+        ORDER BY
+            t1.device_id,
+            timestamp;
         """
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
+        job_config = bigquery.QueryJobConfig(use_query_cache=True)
         try:
-            df = self.client.query(query, job_config).result().to_dataframe()
-            return df
+            return (
+                self.client.query(query, job_config=job_config).result().to_dataframe()
+            )
         except Exception as e:
-            print("Error fetching data from bigquery", {e})
+            raise RuntimeError(f"Error fetching data from BigQuery: {e}")
 
     def fetch_satellite_readings(
         self,
@@ -976,7 +936,7 @@ ORDER BY
 
         if job_type == "train":
             query += f"""
-            WHERE date(timestamp) >= '{start_date_time}' 
+            WHERE date(timestamp) >= '{start_date_time}'
             """
 
         query += "ORDER BY timestamp" ""
@@ -987,18 +947,66 @@ ORDER BY
             df = self.client.query(query, job_config).result().to_dataframe()
             return df
         except Exception as e:
-            print("Error fetching data from bigquery", {e})
+            logger.info(f"Error fetching data from bigquery", {e})
 
-    @staticmethod
-    def save_data_to_bigquery(data: pd.DataFrame, table: str):
-        """saves the dataframes to the bigquery tables"""
-        credentials = service_account.Credentials.from_service_account_file(
-            configuration.GOOGLE_APPLICATION_CREDENTIALS
-        )
-        data.to_gbq(
-            destination_table=f"{table}",
-            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
-            if_exists="append",
-            credentials=credentials,
-        )
-        print(" data saved to bigquery")
+    def generate_missing_data_query(
+        self,
+        date: str,
+        table: str,
+        network: Optional[DeviceNetwork] = DeviceNetwork.AIRQO,
+    ) -> str:
+        """
+        Generates a BigQuery SQL query to find missing hourly air quality data for devices.
+
+        Args:
+            date (str): The target date in 'YYYY-MM-DD' format.
+            dataset (str): The name of the BigQuery dataset.
+            table (str): The name of the BigQuery table.
+            network (str): The network identifier to filter the data.
+
+        Returns:
+            str: The SQL query as a formatted string.
+        """
+        query = f"""
+            WITH timestamp_hours AS (
+            SELECT TIMESTAMP_TRUNC('{date}', HOUR) + INTERVAL n HOUR AS timestamp
+            FROM UNNEST(GENERATE_ARRAY(0, 23)) AS n
+            ),
+            device_data AS (
+            SELECT device_id, TIMESTAMP_TRUNC(timestamp, HOUR) AS timestamp
+            FROM `{table}`
+            WHERE
+            TIMESTAMP_TRUNC(timestamp, DAY) = '{date}'
+            AND s1_pm2_5 IS NOT NULL
+            AND s2_pm2_5 IS NOT NULL
+            AND s1_pm10 IS NOT NULL
+            AND s2_pm10 IS NOT NULL
+            AND pm2_5_calibrated_value IS NULL
+            AND network = '{network.str}'
+            )
+            SELECT
+                dd.device_id,
+                dt.timestamp
+            FROM
+                device_data dd
+            LEFT JOIN
+                timestamp_hours dt ON dd.timestamp = dt.timestamp
+            ORDER BY
+                dt.timestamp, dd.device_id;
+            """
+        return query
+
+    def execute_missing_data_query(self, query: str) -> pd.DataFrame:
+        """
+        Executes the given SQL query using the BigQuery client and returns the result as a Pandas DataFrame.
+
+        Args:
+            query(str): The SQL query to be executed.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the query results.
+
+        Raises:
+            google.api_core.exceptions.GoogleAPIError: If the query execution fails.
+        """
+        return self.client.query(query=query).result().to_dataframe()

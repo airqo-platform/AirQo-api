@@ -59,6 +59,7 @@ jobs:
       run_website: ${{ steps.check_files.outputs.run_website }} # website
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
+      run_redis: ${{ steps.check_files.outputs.run_redis }} # redis
 
     runs-on: ubuntu-latest
     steps:
@@ -102,6 +103,7 @@ jobs:
           echo "run_website=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
+          echo "run_redis=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
@@ -287,6 +289,10 @@ jobs:
               echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
 
+            if [[ $file == k8s/redis/* ]]; then
+              echo "run_redis=true" >>$GITHUB_OUTPUT
+            fi
+
             if [[ $file == workflow-trigger ]]; then
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
@@ -310,6 +316,7 @@ jobs:
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
               echo "run_nginx=true" >>$GITHUB_OUTPUT
+              echo "run_redis=true" >>$GITHUB_OUTPUT
             fi
 
           done < files.txt
@@ -1734,7 +1741,6 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-spatial-api-config-files | kubectl replace -f - -n staging
 
-
   ### website ###
   website:
     name: build-push-deploy-website
@@ -1792,8 +1798,60 @@ jobs:
           gcloud secrets versions access latest --secret="sta-env-website-backend" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-website-api-config | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging          
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-website-api-config-files | kubectl replace -f - -n staging
 
+  ### RabbitMQ ###
+  # rabbitmq-deploy:
+  #   name: build-deploy-rabbitmq
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@v3.5.3
+
+  #     - name: Login to K8S
+  #       uses: azure/k8s-set-context@v3.0
+  #       with:
+  #         method: kubeconfig
+  #         kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+  #     - name: Deploy RabbitMQ Helm Chart
+  #       run: |
+  #         helm install rabbitmq bitnami/rabbitmq \ --namespace message-broker-rabbit \   -f values.yaml
+
+  #     - name: Check RabbitMQ Pods Status
+  #       run: |
+  #         kubectl get pods -n message-broker-rabbit -o wide
+
+  ### Redis Staging ###
+  redis:
+    name: build-push-deploy-redis
+    needs: [check]
+    if: needs.check.outputs.run_redis == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      - name: Login to GCR
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Deploy Redis via Helm
+        run: |
+          echo "Deploying Redis to staging..."
+          helm upgrade --install redis k8s/redis \
+            --namespace staging \
+            --values k8s/redis/values-stage.yaml \
   ### apply nginx ###
   nginx:
     name: apply-nginx

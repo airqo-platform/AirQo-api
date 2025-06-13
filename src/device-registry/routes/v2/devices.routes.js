@@ -14,13 +14,97 @@ const {
   validateArrayBody,
   validateBulkUpdateDevices,
   validateDeviceIdParam,
+  validateClaimDevice,
+  validateGetMyDevices,
+  validateDeviceAvailability,
+  validateOrganizationAssignment,
+  validateOrganizationSwitch,
+  validateQRCodeGeneration,
+  validateMigrationRequest,
+  validateGetUserOrganizations,
+  validatePrepareDeviceShipping,
+  validateBulkPrepareDeviceShipping,
+  validateGetShippingStatus,
+  validateGenerateShippingLabels,
 } = require("@validators/device.validators");
 
 const { validate } = require("@validators/common");
 
 router.use(headers);
 
-// Decrypt key route
+// =============================================================================
+// SPECIFIC ROUTES FIRST (before any parameterized routes like /:id)
+// =============================================================================
+
+// DEVICE CLAIMING ROUTES
+router.post(
+  "/claim",
+  validateTenant,
+  validateClaimDevice,
+  validate,
+  deviceController.claimDevice
+);
+
+router.get(
+  "/my-devices",
+  validateTenant,
+  validateGetMyDevices,
+  validate,
+  deviceController.getMyDevices
+);
+
+router.get(
+  "/check-availability/:deviceName",
+  validateTenant,
+  validateDeviceAvailability,
+  validate,
+  deviceController.checkDeviceAvailability
+);
+
+// ORGANIZATION ROUTES
+router.post(
+  "/assign-to-organization",
+  validateTenant,
+  validateOrganizationAssignment,
+  validate,
+  deviceController.assignDeviceToOrganization
+);
+
+router.get(
+  "/user-organizations",
+  validateTenant,
+  validateGetUserOrganizations,
+  validate,
+  deviceController.getUserOrganizations
+);
+
+router.post(
+  "/switch-organization/:organization_id",
+  validateTenant,
+  validateOrganizationSwitch,
+  validate,
+  deviceController.switchOrganizationContext
+);
+
+// QR CODE & ADMIN ROUTES
+router.get(
+  "/qr-code/:deviceName",
+  validateTenant,
+  validateQRCodeGeneration,
+  validate,
+  deviceController.generateClaimQRCode
+);
+
+// MIGRATION ROUTE - MUST BE BEFORE /:id ROUTE
+router.post(
+  "/migrate-for-claiming",
+  validateTenant,
+  validateMigrationRequest,
+  validate,
+  deviceController.migrateDevicesForClaiming
+);
+
+// DECRYPT ROUTES
 router.post(
   "/decrypt",
   validateTenant,
@@ -28,7 +112,6 @@ router.post(
   deviceController.decryptKey
 );
 
-// Decrypt bulk keys route
 router.post(
   "/decrypt/bulk",
   validateTenant,
@@ -37,7 +120,7 @@ router.post(
   deviceController.decryptManyKeys
 );
 
-// Encrypt keys route
+// ENCRYPT ROUTE
 router.put(
   "/encrypt",
   validateTenant,
@@ -46,7 +129,7 @@ router.put(
   deviceController.encryptKeys
 );
 
-// Get devices count route
+// COUNT ROUTE
 router.get(
   "/count",
   validateTenant,
@@ -54,16 +137,7 @@ router.get(
   deviceController.getDevicesCount
 );
 
-// List devices route
-router.get(
-  "/",
-  validateTenant,
-  validateListDevices,
-  pagination(),
-  deviceController.list
-);
-
-// List devices summary route
+// SUMMARY ROUTE
 router.get(
   "/summary",
   validateTenant,
@@ -72,35 +146,7 @@ router.get(
   deviceController.listSummary
 );
 
-// Create device route
-router.post("/", validateTenant, validateCreateDevice, deviceController.create);
-
-// Delete device route
-router.delete(
-  "/",
-  validateTenant,
-  validateDeviceIdentifier,
-  deviceController.delete
-);
-
-// Update device route
-router.put(
-  "/",
-  validateTenant,
-  validateDeviceIdentifier,
-  validateUpdateDevice,
-  deviceController.update
-);
-
-// Refresh device route
-router.put(
-  "/refresh",
-  validateTenant,
-  validateDeviceIdentifier,
-  deviceController.refresh
-);
-
-// List devices by nearest coordinates route
+// NEAREST COORDINATES ROUTE
 router.get(
   "/by/nearest-coordinates",
   validateTenant,
@@ -108,7 +154,7 @@ router.get(
   deviceController.listAllByNearestCoordinates
 );
 
-// Soft create device route
+// SOFT OPERATIONS
 router.post(
   "/soft",
   validateTenant,
@@ -116,7 +162,6 @@ router.post(
   deviceController.createOnPlatform
 );
 
-// Soft delete device route
 router.delete(
   "/soft",
   validateTenant,
@@ -124,7 +169,6 @@ router.delete(
   deviceController.deleteOnPlatform
 );
 
-// Soft update device route
 router.put(
   "/soft",
   validateTenant,
@@ -133,7 +177,7 @@ router.put(
   deviceController.updateOnPlatform
 );
 
-// Generate QR code route
+// EXISTING QR CODE ROUTE (different from new one)
 router.get(
   "/qrcode",
   validateTenant,
@@ -142,7 +186,7 @@ router.get(
   deviceController.generateQRCode
 );
 
-// New Bulk Update Devices route
+// BULK OPERATIONS
 router.put(
   "/bulk",
   validateTenant,
@@ -150,6 +194,92 @@ router.put(
   deviceController.updateManyDevicesOnPlatform
 );
 
+// =============================================================================
+// SHIPPING PREPARATION ROUTES
+// =============================================================================
+
+// Prepare single device for shipping
+router.post(
+  "/prepare-for-shipping",
+  validateTenant,
+  validatePrepareDeviceShipping,
+  validate,
+  deviceController.prepareDeviceForShipping
+);
+
+// Prepare multiple devices for shipping
+router.post(
+  "/prepare-bulk-for-shipping",
+  validateTenant,
+  validateBulkPrepareDeviceShipping,
+  validate,
+  deviceController.prepareBulkDevicesForShipping
+);
+
+// Get shipping preparation status
+router.get(
+  "/shipping-status",
+  validateTenant,
+  validateGetShippingStatus,
+  validate,
+  deviceController.getShippingPreparationStatus
+);
+
+// Generate shipping labels for printing
+router.post(
+  "/generate-shipping-labels",
+  validateTenant,
+  validateGenerateShippingLabels,
+  validate,
+  deviceController.generateShippingLabels
+);
+
+// =============================================================================
+// GENERIC ROUTES (should be at the end)
+// =============================================================================
+
+// LIST DEVICES - Generic GET route
+router.get(
+  "/",
+  validateTenant,
+  validateListDevices,
+  pagination(),
+  deviceController.list
+);
+
+// CREATE DEVICE
+router.post("/", validateTenant, validateCreateDevice, deviceController.create);
+
+// DELETE DEVICE
+router.delete(
+  "/",
+  validateTenant,
+  validateDeviceIdentifier,
+  deviceController.delete
+);
+
+// UPDATE DEVICE
+router.put(
+  "/",
+  validateTenant,
+  validateDeviceIdentifier,
+  validateUpdateDevice,
+  deviceController.update
+);
+
+// REFRESH DEVICE
+router.put(
+  "/refresh",
+  validateTenant,
+  validateDeviceIdentifier,
+  deviceController.refresh
+);
+
+// =============================================================================
+// PARAMETERIZED ROUTES - MUST BE LAST
+// =============================================================================
+
+// GET DEVICE BY ID - This should be the LAST route
 router.get(
   "/:id",
   validateTenant,
@@ -157,4 +287,5 @@ router.get(
   validate,
   deviceController.getDeviceDetailsById
 );
+
 module.exports = router;

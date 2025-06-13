@@ -1,11 +1,15 @@
 import numpy as np
 import pandas as pd
+import json
 from pathlib import Path
+from confluent_kafka import KafkaException
+from typing import List, Dict, Any, Union, Tuple, Optional
+import ast
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs
+from .commons import download_file_from_gcs, drop_rows_with_bad_data
 from .bigquery_api import BigQueryApi
-from .airqo_api import AirQoApi
+from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
 from .airqo_gx_expectations import AirQoGxExpectations
 from .constants import (
@@ -16,14 +20,15 @@ from .constants import (
     DataType,
     MetaDataType,
 )
+from .message_broker_utils import MessageBrokerUtils
+
 from .utils import Utils
-from .date import date_to_str
+from .date import date_to_str, str_to_date
 from .data_validator import DataValidationUtils
-from typing import List, Dict, Any, Union, Tuple, Optional
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class DataUtils:
@@ -55,27 +60,66 @@ class DataUtils:
         local_file_path = "/tmp/devices.csv"
         devices: pd.DataFrame = pd.DataFrame()
         keys: Dict = {}
-        # Load devices from cache
-        try:
-            devices = DataUtils.load_cached_data(
-                local_file_path, MetaDataType.DEVICES.str
-            )
-            if not devices.empty:
-                devices["device_number"] = devices["device_number"].fillna(-1)
-        except Exception as e:
-            logger.exception(f"No devices currently cached: {e}")
+        devices = DataUtils._load_devices_from_cache(local_file_path)
 
-        # If cache is empty, fetch from API
-        if devices.empty:
+        if devices is not None and not devices.empty:
+            devices = DataUtils._process_cached_devices(
+                devices, device_category, device_network
+            )
+            keys = DataUtils._extract_keys(devices, DeviceNetwork.AIRQO)
+            return devices, keys
+        else:
             devices, keys = DataUtils.fetch_devices_from_api(
                 device_network, device_category
             )
-            if not keys:
-                raise RuntimeError("Failed to retrieve device keys")
+            if not devices.empty:
+                return devices, keys
+            else:
+                raise RuntimeError(
+                    "Failed to retrieve devices data from both cache and API."
+                )
 
-        if devices.empty:
-            raise RuntimeError("Failed to retrieve cached/api devices data.")
-        return devices, keys
+    def _load_devices_from_cache(file_path: str) -> Optional[pd.DataFrame]:
+        """Loads devices data from the local cache."""
+        try:
+            devices = DataUtils.load_cached_data(file_path, MetaDataType.DEVICES.str)
+            return devices
+        except FileNotFoundError:
+            logger.info(f"Cache file not found at: {file_path}")
+            return None
+        except pd.errors.EmptyDataError:
+            logger.info(f"Cache file at {file_path} is empty.")
+            return None
+        except Exception as e:
+            logger.exception(f"Error loading devices from cache: {e}")
+            return None
+
+    def _process_cached_devices(
+        devices: pd.DataFrame,
+        device_category: Optional[DeviceCategory],
+        device_network: Optional[DeviceNetwork],
+    ) -> pd.DataFrame:
+        """Processes the DataFrame loaded from the cache."""
+
+        devices["device_number"] = devices["device_number"].fillna(-1).astype(int)
+
+        if device_category:
+            devices = devices.loc[devices.device_category == device_category.str]
+
+        if device_network:
+            devices = devices.loc[devices.network == device_network.str]
+
+        return devices
+
+    def _extract_keys(devices: pd.DataFrame, network: DeviceNetwork) -> Dict:
+        """Extracts device numbers and keys for a specific network."""
+        keys = dict(
+            zip(
+                devices.loc[devices.network == network.str, "device_number"].to_numpy(),
+                devices.loc[devices.network == network.str, "key"].to_numpy(),
+            )
+        )
+        return keys
 
     @staticmethod
     def get_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -103,9 +147,10 @@ class DataUtils:
 
         # If cache is empty, fetch from API
         if sites.empty:
-            airqo_api = AirQoApi()
+            data_api = DataApi()
             try:
-                sites = pd.DataFrame(airqo_api.get_sites())
+                sites_data = data_api.get_sites()
+                sites = pd.DataFrame(sites_data)
             except Exception as e:
                 logger.exception(f"Failed to load sites data from api. {e}")
 
@@ -121,9 +166,9 @@ class DataUtils:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
-        device_network: DeviceNetwork = None,
+        device_network: Optional[DeviceNetwork] = None,
         resolution: Frequency = Frequency.RAW,
-        device_names: list = None,
+        device_names: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
         Extracts sensor measurements from network devices recorded between specified date and time ranges.
@@ -158,10 +203,12 @@ class DataUtils:
             end_date_time=end_date_time,
         )
         data_store: List[pd.DataFrame] = []
+
         for _, device in devices.iterrows():
             data, meta_data = DataUtils._extract_device_api_data(
                 device, dates, config, keys, resolution
             )
+
             if isinstance(data, pd.DataFrame) and not data.empty:
                 data = DataUtils._process_and_append_device_data(
                     device, data, meta_data, config
@@ -171,18 +218,16 @@ class DataUtils:
 
             if not data.empty:
                 data_store.append(data)
+            else:
+                logger.info(
+                    f"No data returned from {device.name} for the given date range"
+                )
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
-        else:
-            devices_data = pd.DataFrame()
-
-        if "vapor_pressure" in devices_data.columns.to_list():
-            is_airqo_network = devices_data["network"] == "airqo"
-            devices_data.loc[is_airqo_network, "vapor_pressure"] = devices_data.loc[
-                is_airqo_network, "vapor_pressure"
-            ].apply(DataValidationUtils.convert_pressure_values)
-
+            devices_data = devices_data[
+                devices_data["timestamp"].between(start_date_time, end_date_time)
+            ]
         return devices_data
 
     @staticmethod
@@ -190,13 +235,13 @@ class DataUtils:
         """Download and load the cached CSV from GCS if available."""
         try:
             file = Path(local_file_path)
-            if not file.exists():
+            if not file.exists() or file.stat().st_size == 0:
                 download_file_from_gcs(
                     bucket_name=Config.AIRFLOW_XCOM_BUCKET,
-                    source_file=file_name + ".csv",
+                    source_file=f"{file_name}.csv",
                     destination_file=local_file_path,
                 )
-            data = pd.read_csv(local_file_path) if file.exists() else pd.DataFrame()
+            data = pd.read_csv(local_file_path)
             if not data.empty:
                 return data
         except Exception as e:
@@ -205,20 +250,21 @@ class DataUtils:
 
     @staticmethod
     def fetch_devices_from_api(
-        device_network: DeviceNetwork = None, device_category: DeviceCategory = None
-    ) -> pd.DataFrame:
+        device_network: Optional[DeviceNetwork] = None,
+        device_category: Optional[DeviceCategory] = None,
+    ) -> Tuple[pd.DataFrame, Dict[int, str]]:
         """Fetch devices from the API if the cached file is empty."""
-        airqo_api = AirQoApi()
+        data_api = DataApi()
+
         try:
-            devices = pd.DataFrame(
-                airqo_api.get_devices_by_network(
-                    device_network=device_network,
-                    device_category=device_category,
-                )
+            devices = data_api.get_devices_by_network(
+                device_network=device_network,
+                device_category=device_category,
             )
+            devices = pd.DataFrame(devices)
             devices["device_number"] = devices["device_number"].fillna(-1)
-            devices_airqo = devices.loc[devices.network == "airqo"]
-            keys = airqo_api.get_thingspeak_read_keys(devices_airqo)
+            airqo_devices = devices.loc[devices.network == DeviceNetwork.AIRQO.str]
+            keys = data_api.get_thingspeak_read_keys(airqo_devices)
             return devices, keys
         except Exception as e:
             logger.exception(
@@ -240,7 +286,11 @@ class DataUtils:
         api_data = []
         data_source_api = DataSourcesApis()
 
-        if device_number and not np.isnan(device_number) and network == "airqo":
+        if (
+            device_number
+            and not np.isnan(device_number)
+            and network == DeviceNetwork.AIRQO.str
+        ):
             for start, end in dates:
                 data_, meta_data, data_available = data_source_api.thingspeak(
                     device_number=int(device_number),
@@ -253,7 +303,7 @@ class DataUtils:
             if api_data:
                 mapping = config["mapping"][network]
                 return DataUtils.map_and_extract_data(mapping, api_data), meta_data
-        elif network == "iqair":
+        elif network == DeviceNetwork.IQAIR.str:
             mapping = config["mapping"][network]
             try:
                 iqair_data = data_source_api.iqair(device, resolution=resolution)
@@ -311,6 +361,8 @@ class DataUtils:
         device_network: Optional[DeviceNetwork] = None,
         dynamic_query: Optional[bool] = False,
         remove_outliers: Optional[bool] = True,
+        data_filter: Optional[Dict[str, Any]] = None,
+        use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
@@ -324,6 +376,8 @@ class DataUtils:
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
             dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
             remove_outliers(bool, optional): If True, removes outliers from the extracted data. Defaults to True.
+            data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
+            use_cach(bool, optional): Use biqquery cache
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
@@ -336,17 +390,10 @@ class DataUtils:
 
         if not device_category:
             device_category = DeviceCategory.GENERAL
-        try:
-            source = Config.DataSource.get(datatype)
-            table = source.get(device_category).get(frequency)
-        except KeyError as e:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category}, {frequency}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
+
+        table, _ = DataUtils._get_table(
+            datatype, device_category, frequency, device_network
+        )
 
         if not table:
             raise ValueError("No table information provided.")
@@ -357,54 +404,92 @@ class DataUtils:
             end_date_time=end_date_time,
             network=device_network,
             dynamic_query=dynamic_query,
+            where_fields=data_filter,
+            use_cache=use_cache,
         )
 
+        if not isinstance(raw_data, pd.DataFrame):
+            raise ValueError(
+                "No data returned from BigQuery query, but data was expected. Check your logs for more information"
+            )
+
         if remove_outliers:
-            raw_data = DataValidationUtils.remove_outliers(raw_data)
+            raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
         return raw_data
 
-    def format_data_for_bigquery(
-        data: pd.DataFrame,
-        datatype: DataType,
-        device_category: DeviceCategory,
-        frequency: Frequency,
+    @staticmethod
+    def extract_purpleair_data(
+        start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         """
-        Formats a pandas DataFrame for BigQuery by ensuring all required columns are present
-        and the timestamp column is correctly parsed to datetime.
+        Extracts PurpleAir sensor data for all NASA network devices between specified datetime ranges.
 
         Args:
-            data (pd.DataFrame): The input DataFrame to be formatted.
-            data_type (DataType): The type of data (e.g., raw, averaged or processed).
-            device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
-            frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
+            start_date_time(str): The start datetime in ISO 8601 format.
+            end_date_time(str): The end datetime in ISO 8601 format.
 
         Returns:
-            pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
-
-        Raises:
-            KeyError: If the combination of data_type, device_category, and frequency is invalid.
-            Exception: For unexpected errors during column retrieval or data processing.
+            pd.DataFrame: A DataFrame containing aggregated sensor readings along with metadata (device number, location, and ID).
         """
-        bigquery = BigQueryApi()
-        data.dropna(subset=["timestamp"], inplace=True)
-        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        all_data: List[Any] = []
+        devices, _ = DataUtils.get_devices(device_network=DeviceNetwork.NASA)
 
-        try:
-            datasource = Config.DataSource
-            table = datasource.get(datatype).get(device_category).get(frequency)
-            cols = bigquery.get_columns(table=table)
-        except KeyError:
-            logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
-            )
-        except Exception as e:
-            logger.exception(
-                f"An unexpected error occurred during column retrieval: {e}"
-            )
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.PURPLE_AIR,
+        )
 
-        return Utils.populate_missing_columns(data=data, columns=cols)
+        for _, device in devices.iterrows():
+            device_number = device["device_number"]
+            device_id = device["device_id"]
+            latitude = device["latitude"]
+            longitude = device["longitude"]
+
+            for start, end in dates:
+                query_data = DataUtils.query_purpleair_data(
+                    start_date_time=start,
+                    end_date_time=end,
+                    device_number=device_number,
+                )
+
+                if not query_data.empty:
+                    query_data = query_data.assign(
+                        device_number=device_number,
+                        device_id=device_id,
+                        latitude=latitude,
+                        longitude=longitude,
+                    )
+                    all_data.append(query_data)
+        return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
+
+    @staticmethod
+    def query_purpleair_data(
+        start_date_time: str, end_date_time: str, device_number: int
+    ) -> pd.DataFrame:
+        """
+        Queries the PurpleAir API for a specific sensor and time range.
+
+        Args:
+            start_date_time (str): The start datetime in ISO 8601 format.
+            end_date_time (str): The end datetime in ISO 8601 format.
+            device_number (int): The PurpleAir sensor ID to query.
+
+        Returns:
+            pd.DataFrame: A DataFrame with the queried data. Returns an empty DataFrame if no data is found.
+        """
+        data_api = DataApi()
+        response = data_api.extract_purpleair_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            sensor=device_number,
+        )
+
+        return pd.DataFrame(
+            columns=response.get("fields", []),
+            data=response.get("data", []),
+        )
 
     @staticmethod
     def remove_duplicates(
@@ -412,7 +497,7 @@ class DataUtils:
         timestamp_col: str,
         id_col: str,
         group_col: str,
-        exclude_cols: list = None,
+        exclude_cols: Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Removes duplicate rows from a pandas DataFrame based on unique identifiers while
@@ -484,6 +569,9 @@ class DataUtils:
 
         return cleaned_data
 
+    # --------------------------------------------------------------------
+    # Weather Data
+    # --------------------------------------------------------------------
     @staticmethod
     def transform_weather_data(data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -540,9 +628,40 @@ class DataUtils:
 
         cols = [value for value in parameter_mappings.values()]
 
-        weather_data = Utils.populate_missing_columns(data=weather_data, columns=cols)
+        weather_data = DataValidationUtils.fill_missing_columns(
+            data=weather_data, cols=cols
+        )
 
-        return DataValidationUtils.remove_outliers(weather_data)
+        return DataValidationUtils.remove_outliers_fix_types(weather_data)
+
+    @staticmethod
+    def extract_tahmo_data(
+        start_time: str, end_time: str, station_codes: List[str]
+    ) -> List[Dict]:
+        """
+        Extracts measurement data from the TAHMO API for a list of station codes over a specified time range.
+
+        Args:
+            start_time(str): Start timestamp in ISO 8601 format (e.g., "2024-01-01T00:00:00Z").
+            end_time(str): End timestamp in ISO 8601 format.
+            station_codes(list[str]): List of TAHMO station codes to query.
+
+        Returns:
+            list[dict]: A list of measurement records, each as a dictionary with keys such as "value", "variable", "station", and "time". If no data is available,returns an empty list.
+
+        Notes:
+            - Only data under the "controlled" measurement endpoint is fetched.
+            - Any station errors are logged but do not halt execution for other stations.
+        """
+        data_api = DataApi()
+
+        if not isinstance(station_codes, list):
+            raise TypeError("station_codes must be a list of station codes.")
+
+        stations = set(station_codes)
+        measurements = data_api.get_tahmo_data(start_time, end_time, stations)
+
+        return measurements.to_dict(orient="records")
 
     @staticmethod
     def aggregate_weather_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -592,22 +711,9 @@ class DataUtils:
 
         return aggregated_data
 
-    @staticmethod
-    def transform_for_bigquery_weather(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Transforms the input DataFrame to match the schema of the BigQuery hourly weather table.
-
-        This function retrieves the required columns from the BigQuery hourly weather table and populates any missing columns in the input DataFrame.
-
-        Args:
-            data(pd.DataFrame): The input DataFrame containing weather data that needs to be transformed.
-
-        Returns:
-            pd.DataFrame: A transformed DataFrame that includes all required columns for the BigQuery hourly weather table, with missing columns populated.
-        """
-        bigquery = BigQueryApi()
-        cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
-        return Utils.populate_missing_columns(data=data, columns=cols)
+    # ---------------------------------------------------------------------------
+    # TODO Add section
+    # ---------------------------------------------------------------------------
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
@@ -623,7 +729,7 @@ class DataUtils:
         """
         restructured_data = []
 
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
         devices, _ = DataUtils.get_devices()
@@ -637,18 +743,19 @@ class DataUtils:
                 device_id = row["device_id"]
                 device_details = None
 
-                if device_id in devices.index:
-                    device_details = devices.loc[device_id]
-                else:
+                if device_id not in devices.index:
                     logger.exception(
                         f"Device number {device_id} not found in device list"
                     )
                     continue
 
                 if row["site_id"] is None or pd.isna(row["site_id"]):
-                    logger.exception(f"Invalid site id in data.")
+                    logger.exception(
+                        f"Invalid site_id: Device {device_id} might have been recalled."
+                    )
                     continue
 
+                device_details = devices.loc[device_id]
                 row_data = {
                     "device": device_id,
                     "device_id": device_details["_id"],
@@ -693,106 +800,11 @@ class DataUtils:
                 }
                 restructured_data.append(row_data)
             except Exception as e:
-                logger.exception(f"An error occurred: {e}")
+                logger.exception(
+                    f"An error occurred while processing data for the api: {e}"
+                )
 
         return restructured_data
-
-    @staticmethod
-    def clean_low_cost_sensor_data(
-        data: pd.DataFrame,
-        device_category: DeviceCategory,
-        remove_outliers: bool = True,
-    ) -> pd.DataFrame:
-        """
-        Cleans low-cost sensor data by performing outlier removal, raw data quality checks,
-        timestamp conversion, duplicate removal, and network-specific calculations.
-
-        The cleaning process includes:
-        1. Optional removal of outliers.
-        2. Device-specific raw data quality checks.
-        3. Conversion of the 'timestamp' column to pandas datetime format.
-        4. Removal of duplicate rows based on 'timestamp' and 'device_id'.
-        5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
-
-        Args:
-            data (pd.DataFrame): The input data to be cleaned.
-            device_category (DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
-            remove_outliers (bool, optional): Determines whether outliers should be removed. Defaults to True.
-
-        Returns:
-            pd.DataFrame: The cleaned DataFrame.
-
-        Raises:
-            KeyError: If there are issues with the 'timestamp' column during processing.
-        """
-        if remove_outliers:
-            data = DataValidationUtils.remove_outliers(data)
-
-        # Perform data check here: TODO Find a more structured and robust way to implement raw data quality checks.
-        match device_category:
-            case DeviceCategory.GAS:
-                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                    data
-                )
-            case DeviceCategory.LOWCOST:
-                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
-        try:
-            data.dropna(subset=["timestamp"], inplace=True)
-            data["timestamp"] = pd.to_datetime(data["timestamp"])
-        except Exception as e:
-            logger.exception(
-                f"There is an issue with the timestamp column. Shape of data: {data.shape}"
-            )
-            raise KeyError(f"An error has occurred with the 'timestamp' column: {e}")
-
-        data.drop_duplicates(
-            subset=["timestamp", "device_id"], keep="first", inplace=True
-        )
-        # TODO Find an appropriate place to put this
-        if device_category == DeviceCategory.LOWCOST:
-            is_airqo_network = data["network"] == "airqo"
-
-            pm2_5_mean = data.loc[is_airqo_network, ["s1_pm2_5", "s2_pm2_5"]].mean(
-                axis=1
-            )
-            pm10_mean = data.loc[is_airqo_network, ["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-            data.loc[is_airqo_network, "pm2_5_raw_value"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm2_5"] = pm2_5_mean
-            data.loc[is_airqo_network, "pm10_raw_value"] = pm10_mean
-            data.loc[is_airqo_network, "pm10"] = pm10_mean
-        return data
-
-    @staticmethod
-    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-        """
-        Resamples and averages out the numeric type fields on an hourly basis.
-
-        Args:
-            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
-
-        Returns:
-            A pandas DataFrame object containing hourly averages of data.
-        """
-
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-
-        group_metadata = (
-            data[["device_id", "site_id", "device_number", "network"]]
-            .drop_duplicates("device_id")
-            .set_index("device_id")
-        )
-        numeric_columns = data.select_dtypes(include=["number"]).columns
-        numeric_columns = numeric_columns.difference(["device_number"])
-        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
-        aggregated = (
-            data_for_aggregation.groupby("device_id")
-            .apply(lambda group: group.resample("1H", on="timestamp").mean())
-            .reset_index()
-        )
-        aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
-
-        return aggregated
 
     @staticmethod
     def map_and_extract_data(
@@ -889,3 +901,656 @@ class DataUtils:
             Any: The extracted value or None if not found.
         """
         return data.get(key)
+
+    # ----------------------------------------------------------------------------------
+    # Lowcost
+    # ----------------------------------------------------------------------------------
+    @staticmethod
+    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Resamples and averages out the numeric type fields on an hourly basis.
+
+        Args:
+            data(pandas.DataFrame): A pandas DataFrame object containing cleaned/converted (numeric) data.
+
+        Returns:
+            A pandas DataFrame object containing hourly averages of data.
+        """
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        group_metadata = (
+            data[
+                ["device_id", "site_id", "device_number", "network", "device_category"]
+            ]
+            .drop_duplicates("device_id")
+            .set_index("device_id")
+        )
+        numeric_columns = data.select_dtypes(include=["number"]).columns
+        numeric_columns = numeric_columns.difference(["device_number"])
+        data_for_aggregation = data[["timestamp", "device_id"] + list(numeric_columns)]
+        try:
+            aggregated = (
+                data_for_aggregation.groupby("device_id")
+                .apply(lambda group: group.resample("1H", on="timestamp").mean())
+                .reset_index()
+            )
+            aggregated = aggregated.merge(group_metadata, on="device_id", how="left")
+        except Exception as e:
+            logger.exception(f"An error occured: No data passed - {e}")
+            aggregated = pd.DataFrame(columns=data.columns)
+
+        return drop_rows_with_bad_data("number", aggregated, exclude=["device_number"])
+
+    @staticmethod
+    def clean_low_cost_sensor_data(
+        data: pd.DataFrame,
+        device_category: DeviceCategory,
+        remove_outliers: Optional[bool] = True,
+    ) -> pd.DataFrame:
+        """
+        Cleans low-cost sensor data by performing outlier removal, raw data quality checks,
+        timestamp conversion, duplicate removal, and network-specific calculations.
+
+        The cleaning process includes:
+        1. Optional removal of outliers.
+        2. Device-specific raw data quality checks.
+        3. Conversion of the 'timestamp' column to pandas datetime format.
+        4. Removal of duplicate rows based on 'timestamp' and 'device_id'.
+        5. Computation of mean values for PM2.5 and PM10 raw data, specifically for the AirQo network.
+
+        Args:
+            data(pd.DataFrame): The input data to be cleaned.
+            device_category(DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
+            remove_outliers(bool, optional): Determines whether outliers should be removed. Defaults to True.
+
+        Returns:
+            pd.DataFrame: The cleaned DataFrame.
+
+        Raises:
+            KeyError: If there are issues with the 'timestamp' column during processing.
+        """
+        # It's assumed that if a row has no site_id, it could be from an undeployed device.
+        data.dropna(subset=["site_id"], how="any", inplace=True)
+
+        if remove_outliers:
+            data = DataValidationUtils.remove_outliers_fix_types(data)
+
+        # Perform data quality checks on separate thread.
+        Utils.execute_and_forget_async_task(
+            lambda: DataUtils.__perform_data_quality_checks(
+                device_category, data.copy()
+            )
+        )
+
+        try:
+            networks = set(data.network.unique())
+            dropna_subset = []
+
+            if "airqo" in networks:
+                if "vapor_pressure" in data.columns:
+                    values = pd.to_numeric(data["vapor_pressure"], errors="coerce")
+                    converted = values * 0.1
+                    mask_valid = ~values.isna()
+                    data.loc[:, "vapor_pressure"] = converted[mask_valid]
+
+                # Airqo devices specific fields
+                dropna_subset.extend(["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"])
+
+            if networks - {"airqo"}:
+                # Expected fields from non-airqo devices
+                dropna_subset.extend(["pm2_5", "pm10"])
+
+            data.dropna(
+                subset=dropna_subset,
+                how="all",
+                inplace=True,
+            )
+            data.dropna(subset=["timestamp"], inplace=True)
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
+        except Exception as e:
+            logger.exception(
+                f"There is an issue with the timestamp column. Shape of data: {data.shape}"
+            )
+            raise KeyError(
+                f"An error has occurred with the 'timestamp' column: {e}"
+            ) from e
+
+        data.drop_duplicates(
+            subset=["timestamp", "device_id"], keep="first", inplace=True
+        )
+        return data
+
+    # ----------------------------------------------------------------------------------
+    # BAM data
+    # ----------------------------------------------------------------------------------
+    @staticmethod
+    def clean_bam_data(
+        data: pd.DataFrame, datatype: DataType, frequency: Frequency
+    ) -> pd.DataFrame:
+        """
+        Cleans and transforms BAM data for BigQuery insertion.
+
+        This function processes the input DataFrame by removing outliers, dropping duplicate entries based on timestamp and device number, and renaming columns according to a
+        specified mapping. It also adds a network identifier and ensures that all required columns for the BigQuery BAM hourly measurements table are present.
+
+        Args:
+            data(pd.DataFrame): The input DataFrame containing BAM data with columns such as 'timestamp' and 'device_number'.
+
+        Returns:
+            pd.DataFrame: A cleaned DataFrame containing only the required columns, with outliers removed, duplicates dropped, and column names mapped according to the defined configuration.
+        """
+        remove_outliers = True
+        data["network"] = DeviceNetwork.AIRQO.str
+
+        if datatype == DataType.RAW:
+            remove_outliers = False
+        else:
+            data.rename(columns=Config.AIRQO_BAM_MAPPING, inplace=True)
+
+        data = DataValidationUtils.remove_outliers_fix_types(
+            data, remove_outliers=remove_outliers
+        )
+        data.dropna(subset=["timestamp"], inplace=True)
+
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+
+        data.drop_duplicates(
+            subset=["timestamp", "device_number"], keep="first", inplace=True
+        )
+        _, required_cols = DataUtils._get_table(datatype, DeviceCategory.BAM, frequency)
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
+
+        return drop_rows_with_bad_data("number", data, exclude=["device_number"])
+
+    @staticmethod
+    def extract_bam_data_airnow(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+        """
+        Extracts BAM (Beta Attenuation Monitor) data from AirNow API for the given date range.
+
+        This function fetches device information for the BAM network, queries data for each device over the specified date range,
+        and compiles it into a pandas DataFrame.
+
+        Args:
+            start_date_time(str): Start of the date range in ISO 8601 format (e.g., "2024-11-01T00:00").
+            end_date_time(str): End of the date range in ISO 8601 format (e.g., "2024-11-07T23:59").
+
+        Returns:
+            pd.DataFrame: A DataFrame containing BAM data for all devices within the specified date range,
+                        including a `network` column indicating the device network.
+
+        Raises:
+            ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
+        """
+        bam_data = pd.DataFrame()
+        data_api = DataApi()
+
+        dates: List[str] = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.AIRNOW,
+        )
+
+        if not dates:
+            raise ValueError("Invalid or empty date range provided.")
+
+        dates = [
+            (
+                str_to_date(sdate).strftime("%Y-%m-%dT%H:%M"),
+                str_to_date(edate).strftime("%Y-%m-%dT%H:%M"),
+            )
+            for sdate, edate in dates
+        ]
+        device_data: List[pd.DataFrame] = []
+        for start, end in dates:
+            query_data = data_api.get_airnow_data(
+                start_date_time=start, end_date_time=end
+            )
+            if query_data:
+                device_data.extend(query_data)
+
+        if device_data:
+            bam_data = pd.DataFrame(device_data)
+            bam_data["network"] = DeviceNetwork.METONE.str
+
+        if bam_data.empty:
+            logger.info("No BAM data found for the specified date range.")
+
+        return bam_data
+
+    @staticmethod
+    def process_bam_data_airnow(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Processes raw BAM device data by matching it to corresponding device details and constructing
+        a structured DataFrame of air quality measurements.
+
+        Steps:
+        1. Maps each device code to its corresponding device details using a device mapping.
+        2. Iterates over the input DataFrame, validates the device details, and retrieves pollutant values.
+        3. Constructs a list of air quality measurements with relevant device information and pollutant data.
+        4. Removes outliers from the processed data.
+
+        Args:
+            data(pd.DataFrame): A DataFrame containing raw BAM device data, with columns such as 'FullAQSCode', 'Parameter', 'Value', 'Latitude', 'Longitude', and 'UTC'.
+
+        Returns:
+            pd.DataFrame: A cleaned and structured DataFrame containing processed air quality data. The resulting DataFrame includes columns such as 'timestamp', 'network', 'site_id', 'device_id', and pollutant values ('pm2_5', 'pm10', 'no2', etc.).
+        """
+        air_now_data = []
+
+        devices, _ = DataUtils.get_devices(
+            device_category=DeviceCategory.BAM, device_network=DeviceNetwork.METONE
+        )
+        device_mapping = {
+            device_code: device
+            for device in devices.to_dict(orient="records")
+            for device_code in ast.literal_eval(device.get("device_codes", []))
+        }
+        for _, row in data.iterrows():
+            pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
+            try:
+                # Temp external device id  # Lookup device details based on FullAQSCode
+                device_id_ = str(row["FullAQSCode"])
+                device_details = device_mapping.get(device_id_)
+
+                if not device_details:
+                    logger.exception(f"Device with ID {device_id_} not found")
+                    continue
+
+                parameter_col_name = (
+                    Config.device_config_mapping.get(DeviceCategory.BAM.str, {})
+                    .get("mapping", {})
+                    .get(DeviceNetwork.METONE.str, {})
+                    .get(row["Parameter"].lower(), None)
+                )
+                if parameter_col_name and parameter_col_name in pollutant_value:
+                    pollutant_value[parameter_col_name] = row["Value"]
+
+                if row["network"] != device_details.get("network"):
+                    logger.exception(f"Network mismatch for device ID {device_id_}")
+                    continue
+
+                air_now_data.append(
+                    {
+                        "timestamp": row["UTC"],
+                        "network": row["network"],
+                        "site_id": device_details.get("site_id"),
+                        "device_id": device_details.get("name"),
+                        "mongo_id": device_details.get("_id"),
+                        "device_number": device_details.get("device_number"),
+                        "frequency": Frequency.HOURLY.str,
+                        "latitude": row["Latitude"],
+                        "longitude": row["Longitude"],
+                        "device_category": DeviceCategory.BAM.str,
+                        "pm2_5": pollutant_value["pm2_5"],
+                        "pm2_5_calibrated_value": pollutant_value["pm2_5"],
+                        "pm2_5_raw_value": pollutant_value["pm2_5"],
+                        "pm10": pollutant_value["pm10"],
+                        "pm10_calibrated_value": pollutant_value["pm10"],
+                        "pm10_raw_value": pollutant_value["pm10"],
+                        "no2": pollutant_value["no2"],
+                        "no2_calibrated_value": pollutant_value["no2"],
+                        "no2_raw_value": pollutant_value["no2"],
+                    }
+                )
+            except Exception as e:
+                logger.exception(f"Error processing row: {e}")
+
+        air_now_data = pd.DataFrame(air_now_data)
+        air_now_data = DataValidationUtils.remove_outliers_fix_types(air_now_data)
+
+        return air_now_data
+
+    # ----------------------------------------------------------------------------------
+    # Storage
+    # ----------------------------------------------------------------------------------
+    def format_data_for_bigquery(
+        data: pd.DataFrame,
+        datatype: DataType,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+        device_network: Optional[DeviceNetwork] = None,
+        extra_type: Optional[Any] = None,
+    ) -> Tuple[pd.DataFrame, str]:
+        """
+        Formats a pandas DataFrame for BigQuery by ensuring all required columns are present
+        and the timestamp column is correctly parsed to datetime.
+
+        Args:
+            data (pd.DataFrame): The input DataFrame to be formatted.
+            data_type (DataType): The type of data (e.g., raw, averaged or processed).
+            device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
+            frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
+            device_network(DeviceNetwork):
+            extra_type(Any):
+
+        Returns:
+            pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
+            str: Name of the table.
+
+        Raises:
+            KeyError: If the combination of data_type, device_category, and frequency is invalid.
+            Exception: For unexpected errors during column retrieval or data processing.
+        """
+        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
+        data.dropna(subset=["timestamp"], inplace=True)
+        table, cols = DataUtils._get_table(
+            datatype, device_category, frequency, device_network, extra_type
+        )
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=cols)
+        data = DataValidationUtils.remove_outliers_fix_types(data)
+        return data[cols], table
+
+    @staticmethod
+    def transform_for_bigquery_weather(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transforms the input DataFrame to match the schema of the BigQuery hourly weather table.
+
+        This function retrieves the required columns from the BigQuery hourly weather table and populates any missing columns in the input DataFrame.
+
+        Args:
+            data(pd.DataFrame): The input DataFrame containing weather data that needs to be transformed.
+
+        Returns:
+            pd.DataFrame: A transformed DataFrame that includes all required columns for the BigQuery hourly weather table, with missing columns populated.
+        """
+        bigquery = BigQueryApi()
+        cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
+        return DataValidationUtils.fill_missing_columns(data=data, cols=cols)
+
+    @staticmethod
+    def get_devices_kafka(group_id: str) -> pd.DataFrame:
+        """
+        Fetches and returns a DataFrame of devices from the 'devices-topic' Kafka topic.
+
+        Args:
+            group_id (str): The consumer group ID used to track message consumption from the topic.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the list of devices, where each device is represented as a row.
+                      If any errors occur during the process, an empty DataFrame is returned.
+        """
+        broker = MessageBrokerUtils()
+        devices_list: List = []
+
+        for message in broker.consume_from_topic(
+            topic="devices-topic",
+            group_id=group_id,
+            auto_offset_reset="earliest",
+            auto_commit=False,
+        ):
+            try:
+                key = message.get("key", None)
+                try:
+                    value = json.loads(message.get("value", None))
+                except json.JSONDecodeError as e:
+                    logger.exception(f"Error decoding JSON: {e}")
+                    continue
+
+                if not key or not value.get("device_id"):
+                    logger.warning(
+                        f"Skipping message with key: {key}, missing 'device_id'."
+                    )
+                    continue
+
+                devices_list.append(value)
+            except KafkaException as e:
+                logger.exception(f"Error while consuming message: {e}")
+            continue
+
+        try:
+            devices = pd.DataFrame(devices_list)
+        except Exception as e:
+            logger.exception(f"Failed to convert consumed messages to DataFrame: {e}")
+            # Return empty DataFrame on failure
+            devices = pd.DataFrame()
+
+        if "device_name" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_name"], keep="last")
+        elif "device_id" in devices.columns.tolist():
+            devices.drop_duplicates(subset=["device_id"], keep="last")
+
+        return devices
+
+    @staticmethod
+    def process_data_for_message_broker(
+        data: pd.DataFrame,
+        frequency: Frequency = Frequency.HOURLY,
+    ) -> pd.DataFrame:
+        """
+        Processes the input DataFrame for message broker consumption based on the specified network, frequency.
+
+        Args:
+            data (pd.DataFrame): The input data to be processed.
+            frequency (Frequency): The data frequency (e.g., hourly), defaults to Frequency.HOURLY.
+
+        Returns:
+            pd.DataFrame: The processed DataFrame ready for message broker consumption.
+        """
+
+        data["frequency"] = frequency.str
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = data["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        devices, _ = DataUtils.get_devices()
+
+        data.rename(columns={"device_id": "device_name"}, inplace=True)
+        devices.rename(columns={"name": "device_name"}, inplace=True)
+        try:
+            devices = devices[
+                [
+                    "device_name",
+                    "site_id",
+                    "device_latitude",
+                    "device_longitude",
+                    "network",
+                ]
+            ]
+
+            data = pd.merge(
+                left=data,
+                right=devices,
+                on=["device_name", "site_id", "network"],
+                how="left",
+            )
+        except KeyError as e:
+            logger.exception(
+                f"KeyError: The key(s) '{e.args}' are not available in the returned devices data."
+            )
+            return None
+        except Exception as e:
+            logger.exception(f"An error occured: {e}")
+            return None
+        return data
+
+    # Clarity
+    def _flatten_location_coordinates_clarity(coordinates: str) -> pd.Series:
+        """
+        Extracts latitude and longitude from a string representation of coordinates.
+
+        Args:
+            coordinates(str): A string containing a list or tuple with two numeric values representing latitude and longitude (e.g., "[37.7749, -122.4194]").
+
+        Returns:
+            pd.Series: A Pandas Series containing two values:
+                    - latitude (float) at index 0
+                    - longitude (float) at index 1
+                    If parsing fails or the format is invalid, returns Series([None, None]).
+        """
+        try:
+            coords = ast.literal_eval(coordinates)
+
+            if isinstance(coords, (list, tuple)) and len(coords) == 2:
+                return pd.Series(coords)
+        except (ValueError, SyntaxError):
+            logger.exception("Error occurred while cleaning up coordinates")
+
+        return pd.Series([None, None])
+
+    def _transform_clarity_data(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transforms Clarity API data by renaming columns, extracting location details,
+        mapping devices, and ensuring required columns are present.
+
+        Args:
+            data(pd.DataFrame): The input data frame containing raw Clarity API data.
+
+        Returns:
+            pd.DataFrame: The transformed data frame with cleaned and formatted data.
+
+        Processing Steps:
+        1. Renames columns for consistency.
+        2. Extracts latitude and longitude from the `location.coordinates` field.
+        3. Adds site and device details from the `device_id` field.
+        4. Retrieves required columns from BigQuery and fills missing ones.
+        5. Removes outliers before returning the final dataset.
+        """
+        data.rename(
+            columns={
+                "time": "timestamp",
+                "deviceCode": "device_id",
+                "characteristics.pm2_5ConcMass.value": "pm2_5",
+                "characteristics.pm2_5ConcMass.raw": "pm2_5_raw_value",
+                "characteristics.pm2_5ConcMass.calibratedValue": "pm2_5_calibrated_value",
+                "characteristics.pm10ConcMass.value": "pm10",
+                "characteristics.pm10ConcMass.raw": "pm10_raw_value",
+                "characteristics.pm10ConcMass.calibratedValue": "pm10_calibrated_value",
+                "characteristics.pm1ConcMass.value": "pm1",
+                "characteristics.pm1ConcMass.raw": "pm1_raw_value",
+                "characteristics.pm1ConcMass.calibratedValue": "pm1_calibrated_value",
+                "characteristics.no2Conc.value": "no2",
+                "characteristics.no2Conc.raw": "no2_raw_value",
+                "characteristics.no2Conc.calibratedValue": "no2_calibrated_value",
+                "characteristics.windSpeed.value": "wind_speed",
+                "characteristics.temperature.value": "temperature",
+                "characteristics.relHumid.value": "humidity",
+                "characteristics.altitude.value": "altitude",
+            },
+            inplace=True,
+        )
+
+        data[["latitude", "longitude"]] = data["location.coordinates"].apply(
+            DataUtils._flatten_location_coordinates_clarity
+        )
+
+        devices, _ = DataUtils.get_devices()
+        data[["site_id", "device_number"]] = data["device_id"].apply(
+            lambda device_id: DataUtils._add_site_and_device_details(
+                devices=devices, device_id=device_id
+            )
+        )
+
+        big_query_api = BigQueryApi()
+        required_cols = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table
+        )
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
+
+        return DataValidationUtils.remove_outliers_fix_types(data)
+
+    def _add_site_and_device_details(devices: pd.DataFrame, device_id) -> pd.Series:
+        """
+        Retrieves site and device details for a given device ID from the provided DataFrame.
+
+        This function filters the `devices` DataFrame to find a row matching the specified `device_id`.
+        If a matching device is found, it returns a pandas Series containing the `site_id` and
+        `device_number` associated with that device. If no matching device is found or an error occurs,
+        it returns a Series with None values.
+
+        Args:
+            devices(pd.DataFrame): A DataFrame containing device information, including 'device_id'.
+            device_id(str): The ID of the device to search for in the DataFrame.
+
+        Returns:
+            pd.Series: A Series containing 'site_id' and 'device_number' for the specified device ID,
+                    or None values if the device is not found or an error occurs.
+        """
+        try:
+            filtered_devices = devices.loc[devices.name == device_id]
+            if not filtered_devices.empty:
+                result = filtered_devices.iloc[0]
+                return pd.Series(
+                    {
+                        "site_id": result.get("site_id", None),
+                        "device_number": result.get("device_number", None),
+                    }
+                )
+        except Exception as e:
+            logger.exception(f"An erro has occurred: {e}")
+
+        logger.info("No matching device_id found.")
+        return pd.Series({"site_id": None, "device_number": None})
+
+    def _get_table(
+        datatype: DataType,
+        device_category: DeviceCategory,
+        frequency: Frequency,
+        device_network: Optional[DeviceNetwork] = None,
+        extra_type: Optional[Any] = None,
+    ) -> Tuple[str, List[str]]:
+        """
+        Retrieves the appropriate BigQuery table name and its column names based on the given parameters.
+
+        Args:
+            datatype(DataType): The type of data to retrieve (e.g., EXTRAS, AIR_QUALITY).
+            device_category(DeviceCategory): The category of the device.
+            frequency(Frequency): The data collection frequency.
+            device_network(DeviceNetwork, optional): The device network, required for EXTRAS data.
+            extra_type(Any, optional): The specific extra type, required for EXTRAS data.
+
+        Returns:
+            Tuple[str, List[str]]: A tuple containing:
+                - The table name (str) if found, otherwise None.
+                - A list of column names if found, otherwise an empty list.
+
+        Raises:
+            KeyError: If the combination of parameters does not exist in the data source.
+            Exception: Logs and handles unexpected errors during retrieval.
+        """
+        bigquery = BigQueryApi()
+        try:
+            datasource = Config.DataSource
+            if datatype == DataType.EXTRAS:
+                table = datasource.get(datatype).get(device_network).get(extra_type)
+            else:
+                table = datasource.get(datatype).get(device_category).get(frequency)
+            cols = bigquery.get_columns(table=table)
+            return table, cols
+        except KeyError:
+            logger.exception(
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during column retrieval: {e}"
+            )
+        return None, []
+
+    def __perform_data_quality_checks(
+        device_category: DeviceCategory, data: pd.DataFrame
+    ) -> None:
+        """
+        Perform data quality checks on the provided DataFrame based on the device category.
+
+        This function routes the data quality check to the appropriate Great Expectations validation suite depending on the type of device. It does not modify the original DataFrame or return any results. Intended to run as a fire-and-forget task.
+
+        Args:
+            device_category(DeviceCategory): The category of the device (e.g., GAS, LOWCOST).
+            data(pd.DataFrame): The raw sensor data to be validated.
+        """
+
+        # TODO Find a more structured and robust way to implement raw data quality checks.
+        """
+            - Future improvements could include structured validation logging, metrics collection,
+                and exception handling for failures.
+        """
+        match device_category:
+            case DeviceCategory.GAS:
+                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
+                    data
+                )
+            case DeviceCategory.LOWCOST:
+                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)

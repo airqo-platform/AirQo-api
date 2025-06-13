@@ -8,6 +8,7 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
+const ThemeSchema = require("@models/ThemeSchema");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
@@ -17,6 +18,9 @@ const validUserTypes = ["user", "guest"];
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
+const TenantSettingsModel = require("@models/TenantSettings");
+
+const maxLengthOfProfilePictures = 1024;
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -35,10 +39,10 @@ function validateProfilePicture(profilePicture) {
     logger.error(`🙅🙅 Bad Request Error -- Not a valid profile picture URL`);
     return false;
   }
-  if (profilePicture.length > 200) {
-    logText("longer than 200 chars");
+  if (profilePicture.length > maxLengthOfProfilePictures) {
+    logText(`longer than ${maxLengthOfProfilePictures} chars`);
     logger.error(
-      `🙅🙅 Bad Request Error -- profile picture URL exceeds 200 characters`
+      `🙅🙅 Bad Request Error -- profile picture URL exceeds ${maxLengthOfProfilePictures} characters`
     );
     return false;
   }
@@ -53,6 +57,10 @@ const UserSchema = new Schema(
     country: { type: String },
     firebase_uid: { type: String },
     city: { type: String },
+    theme: {
+      type: ThemeSchema,
+      default: () => ({}),
+    },
     department_id: {
       type: ObjectId,
       ref: "department",
@@ -219,15 +227,14 @@ const UserSchema = new Schema(
     },
     profilePicture: {
       type: String,
-      maxLength: 200,
+      maxLength: maxLengthOfProfilePictures,
       validate: {
         validator: function (v) {
           const urlRegex =
             /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
           return urlRegex.test(v);
         },
-        message:
-          "Profile picture URL must be a valid URL & must not exceed 200 characters.",
+        message: `Profile picture URL must be a valid URL & must not exceed ${maxLengthOfProfilePictures} characters.`,
       },
     },
     google_id: { type: String, trim: true },
@@ -416,63 +423,58 @@ UserSchema.pre(
           this.profilePicture &&
           !validateProfilePicture(this.profilePicture)
         ) {
+          // Truncate if too long
+          if (this.profilePicture.length > maxLengthOfProfilePictures) {
+            this.profilePicture = this.profilePicture.substring(
+              0,
+              maxLengthOfProfilePictures
+            );
+          }
+          //validate again after truncating
+          if (!validateProfilePicture(this.profilePicture)) {
+            return next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "Invalid profile picture URL",
+              })
+            );
+          }
+        }
+
+        const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
+        const tenantSettings = await TenantSettingsModel(tenant)
+          .findOne({
+            tenant,
+          })
+          .lean();
+
+        if (!tenantSettings) {
           return next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: "Invalid profile picture URL",
+            new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
+              message: "Tenant Settings not found, please contact support",
             })
           );
         }
 
         // Network roles handling - only for new documents
         if (!this.network_roles || this.network_roles.length === 0) {
-          if (
-            !constants ||
-            !constants.DEFAULT_NETWORK ||
-            !constants.DEFAULT_NETWORK_ROLE
-          ) {
-            throw new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message:
-                  "Contact support@airqo.net -- unable to retrieve the default Network or Role to which the User will belong",
-              }
-            );
-          }
-
           this.network_roles = [
             {
-              network: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
+              network: tenantSettings.defaultNetwork,
               userType: "guest",
               createdAt: new Date(),
-              role: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
+              role: tenantSettings.defaultNetworkRole,
             },
           ];
         }
 
         // Group roles handling - only for new documents
         if (!this.group_roles || this.group_roles.length === 0) {
-          if (
-            !constants ||
-            !constants.DEFAULT_GROUP ||
-            !constants.DEFAULT_GROUP_ROLE
-          ) {
-            throw new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message:
-                  "Contact support@airqo.net -- unable to retrieve the default Group or Role",
-              }
-            );
-          }
-
           this.group_roles = [
             {
-              group: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
+              group: tenantSettings.defaultGroup,
               userType: "guest",
               createdAt: new Date(),
-              role: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
+              role: tenantSettings.defaultGroupRole,
             },
           ];
         }
@@ -650,22 +652,20 @@ UserSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.code === 11000) {
         logObject("the err.code again", err.code);
         const duplicate_record = args.email ? args.email : args.userName;
         response[duplicate_record] = `${duplicate_record} must be unique`;
         response["message"] =
           "the email and userName must be unique for every user";
+
         try {
           const email = args.email;
           const firstName = args.firstName;
           const lastName = args.lastName;
           const emailResponse = await mailer.existingUserRegistrationRequest(
-            {
-              email,
-              firstName,
-              lastName,
-            },
+            { email, firstName, lastName },
             next
           );
           if (emailResponse && emailResponse.success === false) {
@@ -685,8 +685,16 @@ UserSchema.statics = {
           return (response[key] = value.message);
         });
       }
+
       logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
-      next(new HttpError(message, status, response));
+
+      // Return error response instead of calling next()
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
   async listStatistics(next) {
@@ -870,6 +878,14 @@ UserSchema.statics = {
           foreignField: "_id",
           as: "group_role",
         })
+        .unwind({
+          path: "$network_role",
+          preserveNullAndEmptyArrays: true,
+        })
+        .unwind({
+          path: "$group_role",
+          preserveNullAndEmptyArrays: true,
+        })
         .lookup({
           from: "permissions",
           localField: "network_role.role_permissions",
@@ -907,8 +923,6 @@ UserSchema.statics = {
           phoneNumber: { $first: "$phoneNumber" },
           group_roles: { $first: "$group_roles" },
           network_roles: { $first: "$network_roles" },
-          group_role: { $first: "$group_role" },
-          network_role: { $first: "$network_role" },
           clients: { $first: "$clients" },
           groups: {
             $addToSet: {
@@ -920,8 +934,8 @@ UserSchema.statics = {
                 $cond: {
                   if: { $ifNull: ["$group_role", false] },
                   then: {
-                    _id: { $arrayElemAt: ["$group_role._id", 0] },
-                    role_name: { $arrayElemAt: ["$group_role.role_name", 0] },
+                    _id: "$group_role._id",
+                    role_name: "$group_role.role_name",
                     role_permissions: "$group_role_permissions",
                   },
                   else: null,
@@ -949,8 +963,8 @@ UserSchema.statics = {
                 $cond: {
                   if: { $ifNull: ["$network_role", false] },
                   then: {
-                    _id: { $arrayElemAt: ["$network_role._id", 0] },
-                    role_name: { $arrayElemAt: ["$network_role.role_name", 0] },
+                    _id: "$network_role._id",
+                    role_name: "$network_role.role_name",
                     role_permissions: "$network_role_permissions",
                   },
                   else: null,
@@ -974,6 +988,7 @@ UserSchema.statics = {
         .skip(skip ? parseInt(skip) : 0)
         .limit(limit ? parseInt(limit) : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
+
       if (!isEmpty(response)) {
         return {
           success: true,

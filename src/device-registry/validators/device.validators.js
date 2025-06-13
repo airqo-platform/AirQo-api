@@ -4,8 +4,21 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
-const decimalPlaces = require("decimal-places");
 const { validateNetwork, validateAdminLevels } = require("@validators/common");
+const Decimal = require("decimal.js");
+
+const countDecimalPlaces = (value) => {
+  try {
+    const decimal = new Decimal(value);
+    const decimalStr = decimal.toString();
+    if (decimalStr.includes(".")) {
+      return decimalStr.split(".")[1].length;
+    }
+    return 0;
+  } catch (err) {
+    return 0;
+  }
+};
 
 const validateTenant = oneOf([
   query("tenant")
@@ -73,7 +86,14 @@ const validateDeviceIdentifier = oneOf([
     .withMessage("device name should be lower case")
     .bail()
     .matches(constants.WHITE_SPACES_REGEX, "i")
-    .withMessage("the device names do not have spaces in them"),
+    .withMessage("the device names do not have spaces in them")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+    )
+    .bail(),
 ]);
 
 const validateDeviceIdParam = [
@@ -98,7 +118,14 @@ const validateCreateDevice = [
       .bail()
       .trim()
       .notEmpty()
-      .withMessage("the name should not be empty if provided"),
+      .withMessage("the name should not be empty if provided")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     body("long_name")
       .exists()
       .withMessage(
@@ -107,7 +134,13 @@ const validateCreateDevice = [
       .bail()
       .trim()
       .notEmpty()
-      .withMessage("the long_name should not be empty if provided"),
+      .withMessage("the long_name should not be empty if provided")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the device long_name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ]),
   oneOf([
     [
@@ -198,7 +231,7 @@ const validateCreateDevice = [
         .withMessage("please provide valid latitude value")
         .bail()
         .custom((value) => {
-          let dp = decimalPlaces(value);
+          let dp = countDecimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
               "the latitude must have 5 or more characters"
@@ -222,7 +255,7 @@ const validateCreateDevice = [
         .withMessage("please provide valid longitude value")
         .bail()
         .custom((value) => {
-          let dp = decimalPlaces(value);
+          let dp = countDecimalPlaces(value);
           if (dp < 5) {
             return Promise.reject(
               "the longitude must have 5 or more characters"
@@ -388,7 +421,13 @@ const validateUpdateDevice = [
   body("long_name")
     .optional()
     .notEmpty()
-    .trim(),
+    .withMessage("the long_name should not be empty if provided")
+    .bail()
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the device long_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
   body("mountType")
     .optional()
     .notEmpty()
@@ -517,7 +556,7 @@ const validateUpdateDevice = [
     .withMessage("please provide valid latitude value")
     .bail()
     .custom((value) => {
-      let dp = decimalPlaces(value);
+      let dp = countDecimalPlaces(value);
       if (dp < 5) {
         return Promise.reject("the latitude must have 5 or more characters");
       }
@@ -537,7 +576,7 @@ const validateUpdateDevice = [
     .withMessage("please provide valid longitude value")
     .bail()
     .custom((value) => {
-      let dp = decimalPlaces(value);
+      let dp = countDecimalPlaces(value);
       if (dp < 5) {
         return Promise.reject("the longitude must have 5 or more characters");
       }
@@ -616,7 +655,14 @@ const validateListDevices = oneOf([
     query("name")
       .optional()
       .notEmpty()
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the device name can only contain letters, numbers, spaces, hyphens and underscores"
+      )
+      .bail(),
     query("online_status")
       .optional()
       .notEmpty()
@@ -818,6 +864,298 @@ const validateBulkUpdateDevices = [
   ...validateUpdateDevice,
 ];
 
+const validateClaimDevice = [
+  body("device_name")
+    .exists()
+    .withMessage("device_name is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  body("claim_token")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("claim_token cannot be empty if provided"),
+
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validateGetMyDevices = [
+  query("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+
+  query("organization_id")
+    .optional()
+    .trim()
+    .isMongoId()
+    .withMessage("organization_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validateDeviceAvailability = [
+  param("deviceName")
+    .exists()
+    .withMessage("deviceName parameter is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("deviceName cannot be empty")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+];
+
+const validateOrganizationAssignment = [
+  body("device_name")
+    .exists()
+    .withMessage("device_name is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty"),
+
+  body("organization_id")
+    .exists()
+    .withMessage("organization_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("organization_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validateOrganizationSwitch = [
+  param("organization_id")
+    .exists()
+    .withMessage("organization_id parameter is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("organization_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+
+  body("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validateQRCodeGeneration = [
+  param("deviceName")
+    .exists()
+    .withMessage("deviceName parameter is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("deviceName cannot be empty")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "deviceName can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  query("include_token")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("include_token must be 'true' or 'false'"),
+
+  query("format")
+    .optional()
+    .isIn(["data", "image"])
+    .withMessage("format must be 'data' or 'image'"),
+];
+
+const validateMigrationRequest = [
+  body("dry_run")
+    .optional()
+    .isBoolean()
+    .withMessage("dry_run must be a boolean"),
+
+  body("batch_size")
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage("batch_size must be an integer between 1 and 1000"),
+
+  body("generate_tokens")
+    .optional()
+    .isBoolean()
+    .withMessage("generate_tokens must be a boolean"),
+];
+
+const validateGetUserOrganizations = [
+  query("user_id")
+    .exists()
+    .withMessage("user_id is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("user_id cannot be empty")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId")
+    .customSanitizer((value) => ObjectId(value)),
+];
+
+const validatePrepareDeviceShipping = [
+  body("device_name")
+    .exists()
+    .withMessage("device_name is required")
+    .bail()
+    .trim()
+    .notEmpty()
+    .withMessage("device_name cannot be empty")
+    .bail()
+    .isLength({ min: 3, max: 50 })
+    .withMessage("device_name must be between 3 and 50 characters")
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "device_name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+
+  body("token_type")
+    .optional()
+    .trim()
+    .isIn(["hex", "readable"])
+    .withMessage("token_type must be either 'hex' or 'readable'"),
+];
+
+const validateBulkPrepareDeviceShipping = [
+  body("device_names")
+    .exists()
+    .withMessage("device_names is required")
+    .bail()
+    .isArray({ min: 1, max: 50 })
+    .withMessage("device_names must be an array with 1-50 device names")
+    .bail()
+    .custom((deviceNames) => {
+      // Check each device name format
+      const invalidNames = deviceNames.filter(
+        (name) =>
+          typeof name !== "string" ||
+          name.trim().length < 3 ||
+          name.trim().length > 50 ||
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+      );
+
+      if (invalidNames.length > 0) {
+        throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
+      }
+
+      // Check for duplicates
+      const duplicates = deviceNames.filter(
+        (name, index) => deviceNames.indexOf(name) !== index
+      );
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Duplicate device names found: ${[...new Set(duplicates)].join(", ")}`
+        );
+      }
+
+      return true;
+    }),
+
+  body("token_type")
+    .optional()
+    .trim()
+    .isIn(["hex", "readable"])
+    .withMessage("token_type must be either 'hex' or 'readable'"),
+];
+
+const validateGetShippingStatus = [
+  query("device_names")
+    .optional()
+    .custom((value) => {
+      if (typeof value === "string") {
+        // Single device name or comma-separated list
+        const names = value.split(",").map((name) => name.trim());
+        const invalidNames = names.filter(
+          (name) =>
+            name.length < 3 ||
+            name.length > 50 ||
+            !/^[a-zA-Z0-9\s\-_]+$/.test(name)
+        );
+
+        if (invalidNames.length > 0) {
+          throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
+        }
+      } else if (Array.isArray(value)) {
+        // Array of device names
+        const invalidNames = value.filter(
+          (name) =>
+            typeof name !== "string" ||
+            name.trim().length < 3 ||
+            name.trim().length > 50 ||
+            !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+        );
+
+        if (invalidNames.length > 0) {
+          throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
+        }
+      }
+
+      return true;
+    }),
+];
+
+const validateGenerateShippingLabels = [
+  body("device_names")
+    .exists()
+    .withMessage("device_names is required")
+    .bail()
+    .isArray({ min: 1, max: 20 })
+    .withMessage("device_names must be an array with 1-20 device names")
+    .bail()
+    .custom((deviceNames) => {
+      const invalidNames = deviceNames.filter(
+        (name) =>
+          typeof name !== "string" ||
+          name.trim().length < 3 ||
+          name.trim().length > 50 ||
+          !/^[a-zA-Z0-9\s\-_]+$/.test(name.trim())
+      );
+
+      if (invalidNames.length > 0) {
+        throw new Error(`Invalid device names: ${invalidNames.join(", ")}`);
+      }
+
+      return true;
+    }),
+];
+
 module.exports = {
   validateTenant,
   pagination,
@@ -831,4 +1169,16 @@ module.exports = {
   validateDecryptKeys,
   validateDecryptManyKeys,
   validateBulkUpdateDevices,
+  validateClaimDevice,
+  validateGetMyDevices,
+  validateDeviceAvailability,
+  validateOrganizationAssignment,
+  validateOrganizationSwitch,
+  validateQRCodeGeneration,
+  validateMigrationRequest,
+  validateGetUserOrganizations,
+  validatePrepareDeviceShipping,
+  validateBulkPrepareDeviceShipping,
+  validateGetShippingStatus,
+  validateGenerateShippingLabels,
 };

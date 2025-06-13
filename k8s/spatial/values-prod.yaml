@@ -6,17 +6,29 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-spatial-api
-  tag: prod-85a0a843-1739265138
+  tag: prod-d0c535ad-1749747588
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 350Mi
+    cpu: 200m
+    memory: 500Mi
   requests:
     cpu: 10m
     memory: 250Mi
+nodeSelector:
+  role: high-cpu
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-cpu
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

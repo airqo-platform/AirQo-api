@@ -1,6 +1,7 @@
 from airflow.decorators import dag, task
-
+import pandas as pd
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from airqo_etl_utils.datautils import DataUtils
 
 
 @dag(
@@ -11,18 +12,13 @@ from airqo_etl_utils.workflows_custom_utils import AirflowUtils
     tags=["raw", "nasa", "historical"],
 )
 def nasa_historical_data():
-    import pandas as pd
-
     @task()
     def extract_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True, **kwargs
-        )
-        from airqo_etl_utils.purple_air_utils import PurpleDataUtils
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
-        return PurpleDataUtils.extract_data(
+        return DataUtils.extract_purpleair_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
@@ -57,16 +53,13 @@ def nasa_historical_data():
     tags=["raw", "nasa", "realtime"],
 )
 def nasa_realtime_data():
-    import pandas as pd
-
     @task()
     def extract_data():
-        from airqo_etl_utils.purple_air_utils import PurpleDataUtils
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_query_date_time_values()
 
-        return PurpleDataUtils.extract_data(
+        return DataUtils.extract_purpleair_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 

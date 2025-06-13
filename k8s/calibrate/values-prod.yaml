@@ -6,21 +6,31 @@ app:
 initContainer:
   image:
     repository: eu.gcr.io/airqo-250220/airqo-calibrate-pickle-file
-    tag: prod-60918d69-1738923703
+    tag: prod-d9efd80f-1739880640
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-calibrate-api
-  tag: prod-60918d69-1738923703
+  tag: prod-d9efd80f-1739880640
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 1500Mi
+    cpu: 700m
+    memory: 200Mi
   requests:
     cpu: 10m
-    memory: 950Mi
+    memory: 20Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-mem
+        weight: 1
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

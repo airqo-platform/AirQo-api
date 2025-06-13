@@ -1,7 +1,8 @@
 import pandas as pd
+from datetime import datetime, timezone
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.datautils import DataUtils
 from airqo_etl_utils.constants import DataType, Frequency, DeviceCategory
 from airqo_etl_utils.config import configuration as Config
 from typing import Optional
@@ -34,6 +35,7 @@ class DailyDataUtils:
 
         for (network, device_id), group in data.groupby(["network", "device_id"]):
             network = group["network"].iloc[0]
+            device_category = group["device_category"].iloc[0]
             site_id = group["site_id"].iloc[0]
             device_number = group["device_number"].iloc[0]
 
@@ -44,6 +46,7 @@ class DailyDataUtils:
             )
 
             device_averages["network"] = network
+            device_averages["device_category"] = device_category
             device_averages["device_id"] = device_id
             device_averages["site_id"] = site_id
             device_averages["device_number"] = device_number
@@ -51,7 +54,7 @@ class DailyDataUtils:
             averaged_data_list.append(device_averages)
 
         averaged_data = pd.concat(averaged_data_list, ignore_index=True)
-
+        averaged_data["last_updated"] = datetime.now(timezone.utc)
         return averaged_data
 
     @staticmethod
@@ -77,25 +80,22 @@ class DailyDataUtils:
         Returns:
             None
         """
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        bigquery_api = BigQueryApi()
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["last_updated"] = pd.to_datetime(data["last_updated"])
+        data.sort_values(by="last_updated", ascending=True, inplace=True)
         data.drop_duplicates(
             subset=["device_number", "device_id", "timestamp"],
-            keep="first",
+            keep="last",
             inplace=True,
         )
 
-        bigquery_api = BigQueryApi()
-
-        source = Config.DataSource.get(DataType.AVERAGED)
-        table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.DAILY
         )
         bigquery_api.reload_data(
-            table=table,
             dataframe=data,
+            table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
@@ -118,14 +118,8 @@ class DailyDataUtils:
         """
         bigquery_api = BigQueryApi()
 
-        source = Config.DataSource.get(DataType.AVERAGED)
-        table = source.get(DeviceCategory.GENERAL).get(Frequency.DAILY)
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data,
-            table=table,
+        data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.DAILY
         )
 
-        bigquery_api.load_data(
-            table=table,
-            dataframe=data,
-        )
+        bigquery_api.load_data(dataframe=data, table=table)

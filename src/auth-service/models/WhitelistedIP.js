@@ -7,12 +7,12 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- whitelist-ip-model`
 );
 const { getModelByTenant } = require("@config/database");
+const { logObject } = require("@utils/shared");
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
 } = require("@utils/shared");
 
 const WhitelistedIPSchema = new mongoose.Schema(
@@ -42,26 +42,25 @@ WhitelistedIPSchema.statics = {
       const data = await this.create({
         ...args,
       });
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "whitelisted IP", {
           message: "IP created",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(data)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but IP NOT successfully created",
-          status: httpStatus.ACCEPTED,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "whitelisted IP",
+          "operation successful but IP NOT successfully created"
+        );
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -71,22 +70,23 @@ WhitelistedIPSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
+        // Preserve specific IP duplicate handling
         const duplicate_record = args.ip ? args.ip : "";
         response[duplicate_record] = `${duplicate_record} must be unique`;
         response["message"] = "the ip must be unique";
+      } else {
+        response = { message: err.message };
       }
 
-      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
       return {
         success: false,
         message,
         status,
         errors: response,
       };
-      // next(new HttpError(message, status, response));
-      // return;
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       logObject("filtering here", filter);
@@ -105,103 +105,79 @@ WhitelistedIPSchema.statics = {
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 300)
+        .limit(limit ? limit : 300) // Preserve higher default limit (300)
         .allowDiskUse(true);
 
-      if (!isEmpty(response)) {
-        return {
-          success: true,
-          message: "successfully retrieved the ip details",
-          data: response,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(response)) {
-        return {
-          success: true,
-          message: "No ips found, please crosscheck provided details",
-          status: httpStatus.NOT_FOUND,
-          data: [],
-        };
-      }
+      return createSuccessResponse("list", response, "whitelisted IP", {
+        message: "successfully retrieved the ip details",
+        emptyMessage: "No ips found, please crosscheck provided details",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "whitelisted IP");
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = Object.assign({}, update);
+      const options = { new: true };
+      const modifiedUpdate = Object.assign({}, update);
 
       const updatedIP = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedIP)) {
-        return {
-          success: true,
-          message: "successfully modified the IP",
-          data: updatedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "update",
+          updatedIP._doc,
+          "whitelisted IP",
+          {
+            message: "successfully modified the IP",
+          }
+        );
+      } else {
+        return createNotFoundResponse(
+          "whitelisted IP",
+          "update",
+          "IP does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "whitelisted IP");
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: {
           _id: 0,
-          ip: 1,
+          ip: 1, // Preserve ip field projection
         },
       };
 
       const removedIP = await this.findOneAndRemove(filter, options).exec();
+
       if (!isEmpty(removedIP)) {
-        return {
-          success: true,
-          message: "successfully removed the IP",
-          data: removedIP._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(removedIP)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "IP does not exist, please crosscheck",
-          })
+        return createSuccessResponse(
+          "delete",
+          removedIP._doc,
+          "whitelisted IP",
+          {
+            message: "successfully removed the IP",
+          }
+        );
+      } else {
+        return createNotFoundResponse(
+          "whitelisted IP",
+          "delete",
+          "IP does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "whitelisted IP");
     }
   },
 };

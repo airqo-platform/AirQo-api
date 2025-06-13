@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from typing import Dict, List, Any
+from pymongo.errors import ServerSelectionTimeoutError
 
 import gcsfs
 import joblib
@@ -12,6 +14,12 @@ from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 from .config import configuration, db
+from .constants import Frequency
+
+import logging
+
+logger = logging.getLogger("airflow.task")
+
 
 project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
 bucket = configuration.FORECAST_MODELS_BUCKET
@@ -30,10 +38,39 @@ class GCSUtils:
     # TODO: In future, save and retrieve models from mlflow instead of GCS
     @staticmethod
     def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
+        """
+        Retrieves a trained model from Google Cloud Storage (GCS). If the specified model file
+        does not exist, a default model is returned based on the pollutant type.
+
+        Args:
+            project_name (str): The GCP project name.
+            bucket_name (str): The name of the GCS bucket containing the model files.
+            source_blob_name (str): The file path of the trained model in the GCS bucket.
+
+        Returns:
+            object: The trained model loaded using joblib.
+
+        Raises:
+            FileNotFoundError: If neither the requested model nor the default model exists.
+        """
         fs = gcsfs.GCSFileSystem(project=project_name)
-        fs.ls(bucket_name)
-        with fs.open(bucket_name + "/" + source_blob_name, "rb") as handle:
+
+        # Store the original requested model name
+        original_model = source_blob_name
+
+        if not fs.exists(f"{bucket_name}/{source_blob_name}"):
+            default_model = (
+                "default_pm2_5.pkl"
+                if "pm2_5" in source_blob_name
+                else "default_pm10.pkl"
+            )
+            source_blob_name = default_model
+
+            logger.exception(f"Model '{original_model}' not found in '{bucket_name}'")
+
+        with fs.open(f"{bucket_name}/{source_blob_name}", "rb") as handle:
             job = joblib.load(handle)
+
         return job
 
     @staticmethod
@@ -60,7 +97,31 @@ class BaseMlUtils:
     # TODO: need to review this, may need to make better abstractions
 
     @staticmethod
-    def preprocess_data(data, data_frequency, job_type):
+    def preprocess_data(
+        data: pd.DataFrame, data_frequency: Frequency, job_type: str
+    ) -> pd.DataFrame:
+        """
+        Preprocess the input DataFrame for time series analysis or prediction.
+
+        This function checks for the presence of necessary columns, converts the 'timestamp' column to datetime format, and performs interpolation to fill
+        missing values in the 'pm2_5' column. It also resamples the data based on the specified frequency.
+
+        Args:
+        data(pd.DataFrame): The input DataFrame containing time series data. It must include 'device_id', 'pm2_5', and 'timestamp' columns.
+        data_frequency(Frequency): A Frequency object that indicates the frequency of the time series data (e.g daily, hourly).
+        job_type(str): A string indicating the type of job being performed. If the job type is "prediction", additional columns may be included for grouping.
+
+         Returns:
+            pd.DataFrame: The preprocessed DataFrame with interpolated 'pm2_5' values and resampled according to the specified frequency. Any rows with NaN values in 'pm2_5' are dropped.
+
+        Raises:
+            ValueError: If the input DataFrame is missing any required columns or if there is an error in converting the 'timestamp' column to datetime format.
+
+        Notes:
+            - The function performs linear interpolation on the 'pm2_5' column to fill missing values, applying this operation in both forward and backward directions.
+            - When the frequency is daily, the function resamples the data to daily frequency and takes the mean of the numeric columns.
+            - After preprocessing, rows with NaN values in 'pm2_5' are dropped to ensure data integrity.
+        """
         required_columns = {
             "device_id",
             "pm2_5",
@@ -85,7 +146,7 @@ class BaseMlUtils:
         data["pm2_5"] = data.groupby(group_columns)["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
-        if data_frequency == "daily":
+        if data_frequency.str == "daily":
             data = (
                 data.groupby(group_columns)
                 .resample("D", on="timestamp")
@@ -99,7 +160,35 @@ class BaseMlUtils:
         return data
 
     @staticmethod
-    def get_lag_and_roll_features(df, target_col, freq):
+    def get_lag_and_roll_features(
+        df: pd.DataFrame, target_col: str, freq: Frequency
+    ) -> pd.DataFrame:
+        """
+        Generate lag and rolling statistical features for a specified target column in a DataFrame.
+
+        This function calculates lag features (previous values) and rolling statistics (mean, standard deviation, etc.) for the specified target column, grouped by device ID. It supports both daily and hourly frequency data.
+
+        Args:
+            df(pd.DataFrame): A DataFrame containing time series data. It must include 'timestamp', 'device_id', and the target column specified by `target_col`.
+            target_col(str):The name of the column for which lag and rolling features are to be calculated.
+            freq(Frequency): A Frequency object that indicates the frequency of the time series data (e.g., daily, hourly).
+
+        Returns:
+            pd.DataFrame: A DataFrame with additional columns for lag and rolling features based on the specified target column, grouped by device ID.
+
+        Raises:
+            ValueError: If the DataFrame is empty, if any of the required columns ('timestamp', 'device_id', target_col) are missing, or if the specified frequency is invalid.
+
+        Notes:
+            The function calculates the following features:
+            - For daily frequency:
+                - Lag features for the last 1, 2, 3, and 7 days.
+                - Rolling statistics (mean, standard deviation, max, min) for the last 2, 3, and 7 days.
+
+            - For hourly frequency:
+                - Lag features for the last 1, 2, 6, and 12 hours.
+                - Rolling statistics (mean, standard deviation, median, skew) for the last 3, 6, 12, and 24 hours.
+        """
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -113,7 +202,7 @@ class BaseMlUtils:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
         df1 = df.copy()  # use copy to prevent terminal warning
-        if freq == "daily":
+        if freq.str == "daily":
             shifts = [1, 2, 3, 7]
             for s in shifts:
                 df1[f"pm2_5_last_{s}_day"] = df1.groupby(["device_id"])[
@@ -129,7 +218,7 @@ class BaseMlUtils:
                         .rolling(s)
                         .agg(f)
                     )
-        elif freq == "hourly":
+        elif freq.str == "hourly":
             shifts = [1, 2, 6, 12]
             for s in shifts:
                 df1[f"pm2_5_last_{s}_hour"] = df1.groupby(["device_id"])[
@@ -150,7 +239,28 @@ class BaseMlUtils:
         return df1
 
     @staticmethod
-    def get_time_features(df, freq):
+    def get_time_features(df: pd.DataFrame, freq: Frequency) -> pd.DataFrame:
+        """
+        Extracts time-based features from a timestamp column in a DataFrame.
+
+        Args:
+            df(pd.DataFrame): The input DataFrame containing a "timestamp" column.
+            freq(Frequency): The frequency of the data, either "daily" or "hourly".
+
+        Returns:
+            pd.DataFrame: A new DataFrame with additional time-based features.
+
+        Raises:
+            ValueError: If the input DataFrame is empty.
+            ValueError: If the "timestamp" column is missing.
+            ValueError: If an invalid frequency is provided.
+
+        Example:
+            >>> df = pd.DataFrame({"timestamp": ["2025-02-01 12:00:00", "2024-02-02 14:30:00"]})
+            >>> df = get_time_features(df, Frequency)
+            >>> df.columns
+            Index(['timestamp', 'year', 'month', 'day', 'dayofweek', 'hour', 'week'], dtype='object')
+        """
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -159,29 +269,55 @@ class BaseMlUtils:
 
         df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-        if freq not in ["daily", "hourly"]:
-            raise ValueError("Invalid frequency")
+        if freq.str not in {"daily", "hourly"}:
+            raise ValueError(
+                f"Invalid frequency '{freq.str}', must be 'daily' or 'hourly'"
+            )
 
-        df1 = df.copy()
-        df1["timestamp"] = pd.to_datetime(df1["timestamp"])
         attributes = ["year", "month", "day", "dayofweek"]
-        if freq == "hourly":
+        if freq.str == "hourly":
             attributes.append("hour")
 
-        for a in attributes:
-            df1[a] = df1["timestamp"].dt.__getattribute__(a)
+        attributes = {
+            "year": df["timestamp"].dt.year,
+            "month": df["timestamp"].dt.month,
+            "day": df["timestamp"].dt.day,
+            "dayofweek": df["timestamp"].dt.dayofweek,
+            "week": df["timestamp"].dt.isocalendar().week,
+        }
 
-        df1["week"] = df1["timestamp"].dt.isocalendar().week
+        if freq.str == "hourly":
+            attributes["hour"] = df["timestamp"].dt.hour
 
-        return df1
+        df = df.assign(**attributes)
+
+        return df
 
     @staticmethod
-    def get_cyclic_features(df, freq):
+    def get_cyclic_features(df: pd.DataFrame, freq: Frequency):
+        """
+        Generate cyclic features for time-based attributes in a DataFrame.
+
+        This function takes a DataFrame containing time-related data and a frequency to compute sine and cosine transformations for cyclic features such as
+        year, month, day, day of the week, and optionally hour, to capture seasonal patterns in the data.
+
+        Args:
+            df(pd.DataFrame): A DataFrame containing time-related attributes. The DataFrame is expected to have columns for year, month, day, dayofweek, and optionally hour and week.
+            freq(Frequency): A Frequency object that indicates the frequency of the time series data(e.g hourly, daily).
+
+        Returns:
+            pd.DataFrame: A DataFrame with additional cyclic features for the specified time attributes. The new features are in the form of sine and cosine transformations of the
+                original time attributes, which help in modeling cyclical behavior.
+
+        Notes:
+            - The function drops the original time attributes after creating the cyclic features.
+            - The week attribute is also dropped after feature generation.
+        """
         df1 = BaseMlUtils.get_time_features(df, freq)
 
         attributes = ["year", "month", "day", "dayofweek"]
         max_vals = [2023, 12, 30, 7]
-        if freq == "hourly":
+        if freq.str == "hourly":
             attributes.append("hour")
             max_vals.append(23)
 
@@ -197,7 +333,25 @@ class BaseMlUtils:
         return df1
 
     @staticmethod
-    def get_location_features(df):
+    def get_location_features(df: pd.DataFrame):
+        """
+        Generate 3D Cartesian coordinates from geographical coordinates (latitude and longitude).
+
+        This function takes a DataFrame containing timestamp, latitude, and longitude columns, converts the timestamp to a datetime format, and calculates the
+        corresponding 3D Cartesian coordinates (x, y, z) for each geographical point.
+
+        Args:
+            df(pd.DataFrame): A DataFrame containing at least three columns: 'timestamp', 'latitude', and 'longitude'. The latitude and longitude should be in radians for correct calculations.
+
+        Returns:
+            pd.DataFrame: The input DataFrame with additional columns for the calculated x, y, and z coordinates based on the geographical coordinates.
+
+        Raises:
+            ValueError: If the DataFrame is empty or if any of the required columns ('timestamp', 'latitude', 'longitude') are missing.
+
+        Notes:
+            - The latitude and longitude must be provided in radians for accurate calculations. If they are in degrees, they should be converted to radians prior to calling this function.
+        """
         if df.empty:
             raise ValueError("Empty dataframe provided")
 
@@ -213,27 +367,6 @@ class BaseMlUtils:
 
         return df
 
-    #     df_tmp = get_lag_features(df_tmp, target_column, data_frequency)
-    #     df_tmp = get_time_and_cyclic_features(df_tmp, data_frequency)
-    #     df_tmp = get_location_cord(df_tmp)
-    #     if job_type == "train":
-    #         df_tmp = DecodingUtils.encode_categorical_training_features(
-    #             df_tmp, data_frequency
-    #         )
-    #     elif job_type == "predict":
-    #         df_tmp = DecodingUtils.decode_categorical_features_pred(
-    #             df_tmp, data_frequency
-    #         )
-    #         df_tmp.dropna(
-    #             subset=["device_id", "site_id", "device_category"], inplace=True
-    #         )  # only 1 row, not sure why
-    #
-    #         df_tmp["device_id"] = df_tmp["device_id"].astype(int)
-    #         df_tmp["site_id"] = df_tmp["site_id"].astype(int)
-    #         df_tmp["device_category"] = df_tmp["device_category"].astype(int)
-    #
-    #     return df_tmp
-
 
 class ForecastUtils(BaseMlUtils):
     @staticmethod
@@ -248,7 +381,7 @@ class ForecastUtils(BaseMlUtils):
             for c in training_data.columns
             if c not in ["timestamp", "pm2_5", "latitude", "longitude", "device_id"]
         ]
-        print(features)
+        logger.info(features)
 
         target_col = "pm2_5"
         train_data = validation_data = test_data = pd.DataFrame()
@@ -437,19 +570,16 @@ class ForecastUtils(BaseMlUtils):
     #     upload_trained_model_to_gcs(m, project_id, bucket, f"{n}.pkl")
 
     @staticmethod
-    def generate_forecasts(data, project_name, bucket_name, frequency):
-        data = data.dropna(subset=["device_id"])
+    def generate_forecasts(
+        data: pd.DataFrame, project_name: str, bucket_name: str, frequency: Frequency
+    ) -> pd.DataFrame:
+        data = data.dropna(subset=["site_id", "device_id"])
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data.columns = data.columns.str.strip()
 
         # data["margin_of_error"] = data["adjusted_forecast"] = 0
 
-        def get_forecasts(
-            df_tmp,
-            forecast_model,
-            frequency,
-            horizon,
-        ):
+        def get_forecasts(df_tmp, forecast_model, frequency, horizon):
             """This method generates forecasts for a given device dataframe basing on horizon provided"""
             for i in range(int(horizon)):
                 df_tmp = pd.concat([df_tmp, df_tmp.iloc[-1:]], ignore_index=True)
@@ -520,6 +650,7 @@ class ForecastUtils(BaseMlUtils):
                 excluded_columns = [
                     "device_id",
                     "site_id",
+                    "device_number",
                     "pm2_5",
                     "timestamp",
                     "latitude",
@@ -549,7 +680,7 @@ class ForecastUtils(BaseMlUtils):
 
         forecasts = pd.DataFrame()
         forecast_model = GCSUtils.get_trained_model_from_gcs(
-            project_name, bucket_name, f"{frequency}_forecast_model.pkl"
+            project_name, bucket_name, f"{frequency.str}_forecast_model.pkl"
         )
         # error_model = GCSUtils.get_trained_model_from_gcs(
         #     project_name, bucket_name, f"{frequency}_error_model.pkl"
@@ -560,13 +691,13 @@ class ForecastUtils(BaseMlUtils):
             test_copy = df_tmp[df_tmp["device_id"] == device]
             horizon = (
                 configuration.HOURLY_FORECAST_HORIZON
-                if frequency == "hourly"
+                if frequency.str == "hourly"
                 else configuration.DAILY_FORECAST_HORIZON
             )
             device_forecasts = get_forecasts(
                 test_copy,
                 forecast_model,
-                frequency,
+                frequency.str,
                 horizon,
             )
 
@@ -577,8 +708,9 @@ class ForecastUtils(BaseMlUtils):
 
         return forecasts[
             [
-                "device_id",
                 "site_id",
+                "device_id",
+                "device_number",
                 "timestamp",
                 "pm2_5",
                 # "margin_of_error",
@@ -587,27 +719,42 @@ class ForecastUtils(BaseMlUtils):
         ]
 
     @staticmethod
-    def save_forecasts_to_mongo(data, frequency):
-        device_ids = data["device_id"].unique()
-        created_at = pd.to_datetime(datetime.now()).isoformat()
+    def save_forecasts_to_mongo(data: pd.DataFrame, frequency: Frequency):
+        """
+        Saves forecast data to a MongoDB collection based on the given frequency.
 
-        forecast_results = []
-        for i in device_ids:
-            doc = {
-                "device_id": i,
-                "created_at": created_at,
-                "site_id": data[data["device_id"] == i]["site_id"].unique()[0],
-                "pm2_5": data[data["device_id"] == i]["pm2_5"].tolist(),
-                "timestamp": data[data["device_id"] == i]["timestamp"].tolist(),
-            }
-            forecast_results.append(doc)
+        Args:
+            data (pd.DataFrame): A DataFrame containing forecast data with columns:
+                - site_id(str)
+                - device_id(str)
+                - device_number(int)
+                - pm2_5(float)
+                - timestamp(datetime)
+            frequency(Frequency): The forecast frequency, either "hourly" or "daily".
 
-        if frequency == "hourly":
+        Raises:
+            ValueError: If an invalid frequency is provided.
+        """
+
+        if frequency.str == "hourly":
             collection = db.hourly_forecasts_1
-        elif frequency == "daily":
+        elif frequency.str == "daily":
             collection = db.daily_forecasts_1
         else:
-            raise ValueError("Invalid frequency argument")
+            raise ValueError("Invalid frequency argument. Must be 'hourly' or 'daily'.")
+
+        created_at = pd.Timestamp.now().isoformat()
+        forecast_results: List[Dict[str, Any]] = [
+            {
+                "device_id": device_id,
+                "device_number": group["device_number"].iloc[0],
+                "created_at": created_at,
+                "site_id": group["site_id"].iloc[0],
+                "pm2_5": group["pm2_5"].tolist(),
+                "timestamp": group["timestamp"].tolist(),
+            }
+            for device_id, group in data.groupby("device_id")
+        ]
 
         for doc in forecast_results:
             try:
@@ -624,8 +771,12 @@ class ForecastUtils(BaseMlUtils):
                 }
                 collection.update_one(filter_query, update_query, upsert=True)
             except Exception as e:
-                print(
-                    f"Failed to update forecast for device {doc['device_id']}: {str(e)}"
+                logger.exception(
+                    f"Failed to update forecast for device {doc['device_id']}: {e}"
+                )
+            except ServerSelectionTimeoutError as e:
+                raise ServerSelectionTimeoutError(
+                    "Could not connect to MongoDB server within timeout."
                 )
 
 

@@ -45,7 +45,37 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
-const createHealthTips = {
+const {
+  migrateTagLines,
+  addMigrationEndpoint,
+} = require("@migrations/migration-add-taglines");
+
+const healthTipsController = {
+  migrateTagLines: async (req, res, next) => {
+    try {
+      const { tenant } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const dbTenant = tenant || defaultTenant;
+
+      const result = await migrateTagLines(dbTenant);
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          message: `Successfully migrated ${result.updatedCount} tips`,
+          data: result.details || [],
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: "Migration failed",
+          error: result.error,
+        });
+      }
+    } catch (error) {
+      next(new HttpError("Migration Error", 500, { message: error.message }));
+    }
+  },
   list: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -74,6 +104,110 @@ const createHealthTips = {
           success: true,
           message: result.message,
           tips: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  bulkUpdate: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createHealthTipUtil.bulkUpdate(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          updated_tips: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  removeInvalidTips: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createHealthTipUtil.removeInvalidTips(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: result.message,
+          removed_tips_count: result.data.removedCount,
+          invalid_tips_removed: result.data.invalidTipsRemoved,
+          categories_without_tips: result.data.categoriesWithoutTips,
         });
       } else if (result.success === false) {
         const status = result.status
@@ -252,4 +386,4 @@ const createHealthTips = {
   },
 };
 
-module.exports = createHealthTips;
+module.exports = healthTipsController;

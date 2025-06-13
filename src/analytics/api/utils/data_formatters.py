@@ -9,10 +9,11 @@ from api.utils.pollutants.pm_25 import (
     FREQUENCY_MAPPER,
     AQCSV_UNIT_MAPPER,
     AQCSV_QC_CODE_MAPPER,
-    BIGQUERY_FREQUENCY_MAPPER,
+    BQ_FREQUENCY_MAPPER,
     AQCSV_DATA_STATUS_MAPPER,
 )
 from api.utils.http import AirQoRequests
+from constants import Frequency
 
 import logging
 
@@ -197,12 +198,12 @@ def compute_airqloud_summary(
 
 
 def format_to_aqcsv(
-    data: List, pollutants: List, frequency: str
+    data: List, pollutants: List, frequency: Frequency
 ) -> Union[List[Any], List[Dict]]:
     # Compulsory fields : site, datetime, parameter, duration, value, unit, qc, poc, data_status,
     # Optional fields : lat, lon,
 
-    pollutant_mappers = BIGQUERY_FREQUENCY_MAPPER.get(frequency)
+    pollutant_mappers = BQ_FREQUENCY_MAPPER.get(frequency.value)
 
     dataframe = pd.DataFrame(data)
     if dataframe.empty:
@@ -305,8 +306,11 @@ def filter_non_private_sites_devices(
     if len(filter_value) == 0:
         raise ValueError(f"{filter_type} can't be empty")
 
-    endpoint: Dict = {
-        "devices": "devices/cohorts/filterNonPrivateDevices",
+    endpoint_base = "devices/cohorts/filterNonPrivateDevices"
+    endpoint: Dict[str, str] = {
+        "devices": endpoint_base,
+        "device_ids": endpoint_base,
+        "device_names": endpoint_base,
         "sites": "devices/grids/filterNonPrivateSites",
     }
 
@@ -318,12 +322,66 @@ def filter_non_private_sites_devices(
             method="post",
         )
         if response and response.get("status") == "success":
+            data_type = "sites" if filter_type == "sites" else "devices"
             return airqo_requests.create_response(
                 message="Successfully returned data.",
-                data=response.get("data", {}).get(filter_type, []),
+                data=response.get("data", {}).get(data_type, []),
                 success=True,
             )
         else:
             return airqo_requests.create_response(response, success=False)
     except Exception as e:
         logger.exception(f"Error while filtering non private {filter_type}: {e}")
+
+
+def get_validated_filter(json_data):
+    """
+    Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
+    and applies filtering if necessary.
+
+    Args:
+        json_data (dict): JSON payload from the request.
+
+    Returns:
+        tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
+
+    Raises:
+        ValueError: If more than one or none of the filters are provided.
+    """
+    filter_type: str = None
+    validated_value: Dict[str, Any] = None
+    validated_data: List[str] = None
+    error_message: str = ""
+
+    # TODO Lias with device registry to cleanup this makeshift implementation
+    devices = ["device_ids", "device_names"]
+    sites = [
+        "sites",
+    ]
+
+    valid_filters = [
+        "sites",
+        "device_ids",
+        "device_names",
+    ]
+
+    provided_filters = [key for key in valid_filters if json_data.get(key)]
+    filter_type = provided_filters[0]
+    filter_value = json_data.get(filter_type)
+
+    # TODO Uncomment when access control
+    # if filter_type in sites:
+    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
+    # elif filter_type in devices:
+    #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
+
+    # if validated_value and validated_value.get("status") == "success":
+    #     validated_data = validated_value.get("data", [])
+    # else:
+    #     error_message = validated_value.get("message", "Data filter validation failed")
+    #     logger.warning(f"The supplied {filter_type} might be private")
+
+    # TODO Delete
+    validated_data = filter_value
+
+    return filter_type, validated_data, error_message

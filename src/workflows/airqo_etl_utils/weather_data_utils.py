@@ -1,19 +1,17 @@
 import concurrent.futures
 import time
+import ast
 from datetime import datetime, timezone
+from typing import List, Dict, Optional, Any
 
 import pandas as pd
 
-from .airqo_api import AirQoApi
+from .data_api import DataApi
 from .config import configuration as Config
 from .constants import DataSource, DataType, Frequency, DeviceCategory
 from .datautils import DataUtils
 from .openweather_api import OpenWeatherApi
-from .tahmo_api import TahmoApi
 from .utils import Utils
-import ast
-
-from typing import List, Dict, Optional
 
 
 class WeatherDataUtils:
@@ -23,7 +21,7 @@ class WeatherDataUtils:
         start_date_time: str,
         end_date_time: str,
         frequency: Frequency,
-        remove_outliers: bool = False,
+        remove_outliers: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
         Extracts hourly weather data from BigQuery for a specified time range.
@@ -63,10 +61,10 @@ class WeatherDataUtils:
 
         """
         data = []
-        airqo_api = AirQoApi()
+        data_api = DataApi()
 
         for _, record in records.iterrows():
-            weather_stations = airqo_api.get_nearest_weather_stations(
+            weather_stations = data_api.get_nearest_weather_stations(
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )
@@ -96,10 +94,10 @@ class WeatherDataUtils:
             pd.DataFrame: A DataFrame containing the original metadata along with the nearest weather station information. The resulting DataFrame includes columns such as `station_code` and `distance` to the station.
         """
         data = []
-        airqo_api = AirQoApi()
+        data_api = DataApi()
 
         for record in meta_data:
-            weather_stations = airqo_api.get_nearest_weather_stations(
+            weather_stations = data_api.get_nearest_weather_stations(
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )
@@ -151,7 +149,6 @@ class WeatherDataUtils:
         station_codes = list(set(station_codes))
 
         measurements: List = []
-        tahmo_api = TahmoApi()
 
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -160,7 +157,7 @@ class WeatherDataUtils:
         )
 
         for start, end in dates:
-            range_measurements = tahmo_api.get_measurements(start, end, station_codes)
+            range_measurements = DataUtils.extract_tahmo_data(start, end, station_codes)
             measurements.extend(range_measurements)
 
         measurements = (
@@ -172,9 +169,34 @@ class WeatherDataUtils:
         return measurements
 
     @staticmethod
-    def fetch_openweathermap_data_for_sites(sites):
-        def process_batch(batch_of_coordinates):
-            with concurrent.futures.ThreadPoolExecutor() as executor:
+    def fetch_openweathermap_data_for_sites(sites: pd.DataFrame) -> pd.DataFrame:
+        """
+        A utility class for fetching weather data from OpenWeatherMap API
+        for multiple sites in parallel batches.
+        """
+
+        def process_batch(
+            batch_of_coordinates: List[Dict[str, Any]]
+        ) -> List[Dict[str, Any]]:
+            """
+            Fetches weather data from OpenWeatherMap API for a given list of sites.
+
+            This function processes site coordinates in batches, makes concurrent API
+            requests to OpenWeatherMap, and returns the results as a pandas DataFrame.
+
+            Args:
+                sites (pd.DataFrame): A DataFrame containing site information with "latitude"
+                                    and "longitude" columns.
+
+            Returns:
+                pd.DataFrame: A DataFrame containing weather data for each site, including
+                            temperature, humidity, pressure, wind speed, and other parameters.
+
+            Raises:
+                ValueError: If the `sites` DataFrame does not contain the required columns.
+            """
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
                 results = executor.map(
                     OpenWeatherApi.get_current_weather_for_each_site,
                     batch_of_coordinates,
@@ -208,7 +230,7 @@ class WeatherDataUtils:
             ]
 
         coordinates_tuples = []
-        for site in sites:
+        for _, site in sites.iterrows():
             coordinates_tuples.append((site.get("latitude"), site.get("longitude")))
 
         weather_data = []

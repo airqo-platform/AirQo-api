@@ -97,7 +97,13 @@ const commonValidations = {
       .bail()
       .notEmpty()
       .withMessage("The name should not be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
 
   nameQuery: [
@@ -105,7 +111,13 @@ const commonValidations = {
       .optional()
       .notEmpty()
       .withMessage("name cannot be empty")
-      .trim(),
+      .trim()
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
   ],
 
   adminLevel: [
@@ -571,7 +583,13 @@ const gridsValidations = {
       .optional()
       .not()
       .exists()
-      .withMessage("admin level names cannot be updated"),
+      .withMessage("admin level names cannot be updated")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -623,6 +641,29 @@ const gridsValidations = {
   getGrid: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("grid_id"),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
+  ],
+  findNearestCountry: [
+    ...commonValidations.tenant,
+    ...commonValidations.latitude,
+    ...commonValidations.longitude,
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage("Limit must be a number between 1 and 10")
+      .toInt(),
     (req, res, next) => {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

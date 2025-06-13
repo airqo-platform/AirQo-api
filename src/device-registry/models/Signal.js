@@ -12,6 +12,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- signal-model`);
 const HealthTipsSchema = new Schema(
   {
     title: String,
+    tag_line: String,
     description: String,
     image: String,
   },

@@ -338,9 +338,60 @@ const commonValidations = {
         return true;
       }),
   ],
+  atLeastOneRequired: (fields, message) => [
+    query().custom((value, { req }) => {
+      const hasAtLeastOne = fields.some((field) => req.query[field]);
+      if (!hasAtLeastOne) {
+        throw new Error(message);
+      }
+      return true;
+    }),
+  ],
 };
 
 const readingsValidations = {
+  nearestReadings: [
+    ...commonValidations.tenant,
+    query("latitude")
+      .exists()
+      .withMessage("latitude is required")
+      .bail()
+      .matches(constants.LATITUDE_REGEX, "i")
+      .withMessage("Invalid latitude format")
+      .bail()
+      .custom((value) => {
+        let dp = decimalPlaces(value);
+        if (dp < 2) {
+          throw new Error("Latitude must have at least 2 decimal places");
+        }
+        return true;
+      }),
+    query("longitude")
+      .exists()
+      .withMessage("longitude is required")
+      .bail()
+      .matches(constants.LONGITUDE_REGEX, "i")
+      .withMessage("Invalid longitude format")
+      .bail()
+      .custom((value) => {
+        let dp = decimalPlaces(value);
+        if (dp < 2) {
+          throw new Error("Longitude must have at least 2 decimal places");
+        }
+        return true;
+      }),
+    query("radius")
+      .optional()
+      .isFloat({ min: 0.1, max: 100 })
+      .withMessage("Radius must be between 0.1 and 100 kilometers")
+      .toFloat(),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 10 })
+      .withMessage("Limit must be between 1 and 10")
+      .toInt(),
+    commonValidations.errorHandler,
+  ],
   list: [
     ...commonValidations.tenant,
     ...commonValidations.timeRange,
@@ -413,6 +464,26 @@ const readingsValidations = {
     ...commonValidations.test,
   ],
   listRecent: [...commonValidations.tenant],
+  worstReadingForDevices: [
+    ...commonValidations.atLeastOneRequired(
+      ["cohort_id", "device_id"],
+      "At least one of cohort_id or device_id is required."
+    ),
+    commonValidations.objectId("cohort_id"),
+    commonValidations.objectId("device_id"),
+    ...commonValidations.checkConflictingParams("cohort_id", "device_id"),
+    ...commonValidations.checkForEmptyArrays(["cohort_id", "device_id"]),
+  ],
+  worstReadingForSites: [
+    ...commonValidations.atLeastOneRequired(
+      ["grid_id", "site_id"],
+      "At least one of grid_id or site_id is required."
+    ),
+    commonValidations.objectId("grid_id"),
+    commonValidations.objectId("site_id"),
+    ...commonValidations.checkConflictingParams("grid_id", "site_id"),
+    ...commonValidations.checkForEmptyArrays(["grid_id", "site_id"]),
+  ],
 };
 
 module.exports = {

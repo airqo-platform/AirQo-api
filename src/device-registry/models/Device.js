@@ -237,6 +237,40 @@ const deviceSchema = new mongoose.Schema(
       default: false,
     },
     pictures: [{ type: String }],
+    owner_id: {
+      type: ObjectId,
+      ref: "user",
+      default: null,
+      index: true,
+    },
+
+    claim_status: {
+      type: String,
+      enum: ["unclaimed", "claimed", "deployed"],
+      default: "unclaimed",
+      index: true,
+    },
+
+    claimed_at: {
+      type: Date,
+    },
+
+    claim_token: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    assigned_organization_id: {
+      type: ObjectId,
+      ref: "group",
+      default: null,
+      index: true,
+    },
+
+    organization_assigned_at: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -502,6 +536,11 @@ deviceSchema.methods = {
       category: this.category,
       access_code: this.access_code,
       cohorts: this.cohorts,
+      owner_id: this.owner_id,
+      claim_status: this.claim_status,
+      claimed_at: this.claimed_at,
+      assigned_organization_id: this.assigned_organization_id,
+      organization_assigned_at: this.organization_assigned_at,
     };
   },
 };
@@ -730,16 +769,20 @@ deviceSchema.statics = {
           .toUpperCase();
       }
 
+      let updateOperation = { $set: { ...sanitizedUpdate } };
+
+      if (update.groups) {
+        // Check the original update object for groups
+        updateOperation.$addToSet = { groups: { $each: update.groups } }; //Merge $addToSet
+        delete updateOperation.$set.groups; // Delete .groups from the $set
+      }
+
       // Perform bulk update with additional options
-      const bulkUpdateResult = await this.updateMany(
-        filter,
-        { $set: sanitizedUpdate },
-        {
-          new: true,
-          runValidators: true,
-          ...opts,
-        }
-      );
+      const bulkUpdateResult = await this.updateMany(filter, updateOperation, {
+        new: true,
+        runValidators: true,
+        ...opts,
+      });
 
       if (bulkUpdateResult.nModified > 0) {
         return {

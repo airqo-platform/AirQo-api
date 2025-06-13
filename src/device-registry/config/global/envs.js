@@ -2,10 +2,12 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const isEmpty = require("is-empty");
+const moment = require("moment-timezone");
 const { logObject, logText } = require("@utils/shared");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const envs = {
+  TIMEZONE: moment.tz.guess(),
   SESSION_SECRET: process.env.SESSION_SECRET,
   NETWORKS: process.env.NETWORKS
     ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
@@ -97,5 +99,6 @@ const envs = {
   INTER_CORRELATION_PARAMETER:
     process.env.INTER_CORRELATION_PARAMETER || "pm2_5",
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+  THINGSPEAK_BASE_URL: process.env.THINGSPEAK_BASE_URL,
 };
 module.exports = envs;

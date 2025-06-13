@@ -8,7 +8,7 @@ images:
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-03791aba-1738072144
+  tag: stage-79bf27a0-1746280013
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
@@ -17,7 +17,7 @@ api:
   podAnnotations: {}
   resources:
     limits:
-      cpu: 50m
+      cpu: 200m
       memory: 1000Mi
     requests:
       cpu: 10m
@@ -38,9 +38,6 @@ jobs:
   reports:
     name: stage-analytics-report
     configmap: env-analytics-report-staging
-  devicesSummaryJob:
-    name: stage-analytics-devices-summary
-    configmap: env-analytics-staging
   resources:
     limits:
       cpu: 1000m

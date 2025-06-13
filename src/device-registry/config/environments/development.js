@@ -8,6 +8,8 @@ const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 const devConfig = {
   DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_DEV,
+  COMMAND_MONGO_URI: process.env.COMMAND_MONGO_URI_DEV,
+  QUERY_MONGO_URI: process.env.QUERY_MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -37,5 +39,10 @@ const devConfig = {
   BIGQUERY_HOURLY_DATA: process.env.DEV_BIGQUERY_HOURLY_DATA,
   BIGQUERY_DEVICES: process.env.DEV_BIGQUERY_DEVICES,
   BIGQUERY_DEVICE_UPTIME_TABLE: process.env.DEV_BIGQUERY_DEVICE_UPTIME_TABLE,
+  AUTH_SERVICE_URL: process.env.DEV_AUTH_SERVICE_URL,
+  INTER_SERVICE_TOKEN: process.env.DEV_INTER_SERVICE_TOKEN,
+  ADMIN_MIGRATION_KEY: process.env.DEV_ADMIN_MIGRATION_KEY,
+  DEPLOYMENT_URL: process.env.DEV_DEPLOYMENT_URL,
+  SERVICE_JWT_TOKEN: process.env.DEV_SERVICE_JWT_TOKEN,
 };
 module.exports = devConfig;

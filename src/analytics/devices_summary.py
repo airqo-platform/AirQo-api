@@ -1,10 +1,10 @@
 import copy
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from api.models import EventsModel
 from api.utils.data_formatters import compute_devices_summary
 from api.utils.dates import str_to_date
-from config import Config
+from config import BaseConfig as Config
 
 
 def create_date_list(start_date: datetime, end_date: datetime):
@@ -32,7 +32,8 @@ def compute_historical_summary():
 if __name__ == "__main__":
     events_model = EventsModel("airqo")
     data = events_model.get_devices_hourly_data(
-        day=datetime.utcnow() - timedelta(days=int(Config.DATA_SUMMARY_DAYS_INTERVAL))
+        day=datetime.now(timezone.utc)
+        - timedelta(days=int(Config.DATA_SUMMARY_DAYS_INTERVAL))
     )
     summary = compute_devices_summary(copy.deepcopy(data))
     events_model.save_devices_summary_data(copy.deepcopy(summary))

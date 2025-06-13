@@ -4,6 +4,241 @@ const { ObjectId } = require("mongoose").Types;
 const isEmpty = require("is-empty");
 const { isMongoId } = require("validator");
 
+const themeValidations = {
+  theme: [
+    body("theme.primaryColor")
+      .optional()
+      .isString()
+      .withMessage("Primary color must be a string")
+      .custom((value) => {
+        const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+        const cssColorRegex =
+          /^(red|blue|green|yellow|purple|orange|pink|cyan|magenta|black|white|gray|grey|brown)$/i;
+        return hexColorRegex.test(value) || cssColorRegex.test(value);
+      })
+      .withMessage(
+        "Invalid color format. Use hex (#RRGGBB) or CSS color names"
+      ),
+    body("theme.mode")
+      .optional()
+      .isIn(["light", "dark", "system"])
+      .withMessage("Mode must be one of: light, dark, system"),
+    body("theme.interfaceStyle")
+      .optional()
+      .isIn(["default", "bordered"])
+      .withMessage("Interface style must be one of: default, bordered"),
+    body("theme.contentLayout")
+      .optional()
+      .isIn(["compact", "wide"])
+      .withMessage("Content layout must be one of: compact, wide"),
+  ],
+};
+
+const createNestedValidations = (prefix) => {
+  return [
+    // Basic fields
+    body(`${prefix}.title`)
+      .optional()
+      .isString()
+      .withMessage("Title must be a string"),
+    body(`${prefix}.xAxisLabel`)
+      .optional()
+      .isString()
+      .withMessage("X-Axis Label must be a string"),
+    body(`${prefix}.yAxisLabel`)
+      .optional()
+      .isString()
+      .withMessage("Y-Axis Label must be a string"),
+    body(`${prefix}.color`)
+      .optional()
+      .isString()
+      .withMessage("Color must be a string"),
+    body(`${prefix}.backgroundColor`)
+      .optional()
+      .isString()
+      .withMessage("Background Color must be a string"),
+    body(`${prefix}.chartType`)
+      .optional()
+      .isIn([
+        "Column",
+        "Line",
+        "Bar",
+        "Spline",
+        "Step",
+        "Area",
+        "Scatter",
+        "Bubble",
+        "Heatmap",
+        "Pie",
+      ])
+      .withMessage(
+        "Chart type must be one of: Column, Line, Bar, Spline, Step, Area, Scatter, Bubble, Heatmap, Pie"
+      ),
+    body(`${prefix}.days`)
+      .optional()
+      .isInt()
+      .withMessage("Days must be an integer"),
+    body(`${prefix}.results`)
+      .optional()
+      .isInt()
+      .withMessage("Results must be an integer"),
+    body(`${prefix}.timescale`)
+      .optional()
+      .isInt()
+      .withMessage("Timescale must be an integer"),
+    body(`${prefix}.average`)
+      .optional()
+      .isInt()
+      .withMessage("Average must be an integer"),
+    body(`${prefix}.median`)
+      .optional()
+      .isInt()
+      .withMessage("Median must be an integer"),
+    body(`${prefix}.sum`)
+      .optional()
+      .isInt()
+      .withMessage("Sum must be an integer"),
+    body(`${prefix}.rounding`)
+      .optional()
+      .isInt()
+      .withMessage("Rounding must be an integer"),
+    body(`${prefix}.dataMin`)
+      .optional()
+      .isNumeric()
+      .withMessage("Data Min must be a number"),
+    body(`${prefix}.dataMax`)
+      .optional()
+      .isNumeric()
+      .withMessage("Data Max must be a number"),
+    body(`${prefix}.yAxisMin`)
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Min must be a number"),
+    body(`${prefix}.yAxisMax`)
+      .optional()
+      .isNumeric()
+      .withMessage("Y-Axis Max must be a number"),
+
+    // Boolean fields
+    body(`${prefix}.showLegend`)
+      .optional()
+      .isBoolean()
+      .withMessage("showLegend must be a boolean"),
+    body(`${prefix}.showGrid`)
+      .optional()
+      .isBoolean()
+      .withMessage("showGrid must be a boolean"),
+    body(`${prefix}.showTooltip`)
+      .optional()
+      .isBoolean()
+      .withMessage("showTooltip must be a boolean"),
+    body(`${prefix}.isPublic`)
+      .optional()
+      .isBoolean()
+      .withMessage("isPublic must be a boolean"),
+    body(`${prefix}.showMultipleSeries`)
+      .optional()
+      .isBoolean()
+      .withMessage("showMultipleSeries must be a boolean"),
+    body(`${prefix}.refreshInterval`)
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage("refreshInterval must be a non-negative integer"),
+
+    // Complex nested objects
+    body(`${prefix}.referenceLines`)
+      .optional()
+      .isArray()
+      .withMessage("referenceLines must be an array"),
+    body(`${prefix}.referenceLines.*.value`)
+      .optional()
+      .isNumeric()
+      .withMessage("Reference line value must be a number"),
+    body(`${prefix}.referenceLines.*.label`)
+      .optional()
+      .isString()
+      .withMessage("Reference line label must be a string"),
+    body(`${prefix}.referenceLines.*.color`)
+      .optional()
+      .isString()
+      .withMessage("Reference line color must be a string"),
+    body(`${prefix}.referenceLines.*.style`)
+      .optional()
+      .isIn(["solid", "dashed", "dotted"])
+      .withMessage(
+        "Reference line style must be one of: solid, dashed, dotted"
+      ),
+
+    body(`${prefix}.annotations`)
+      .optional()
+      .isArray()
+      .withMessage("annotations must be an array"),
+    body(`${prefix}.annotations.*.x`)
+      .optional()
+      .isNumeric()
+      .withMessage("Annotation x value must be a number"),
+    body(`${prefix}.annotations.*.y`)
+      .optional()
+      .isNumeric()
+      .withMessage("Annotation y value must be a number"),
+    body(`${prefix}.annotations.*.text`)
+      .optional()
+      .isString()
+      .withMessage("Annotation text must be a string"),
+    body(`${prefix}.annotations.*.color`)
+      .optional()
+      .isString()
+      .withMessage("Annotation color must be a string"),
+
+    body(`${prefix}.transformation`)
+      .optional()
+      .isObject()
+      .withMessage("transformation must be an object"),
+    body(`${prefix}.transformation.type`)
+      .optional()
+      .isIn(["none", "log", "sqrt", "pow"])
+      .withMessage("Transformation type must be one of: none, log, sqrt, pow"),
+    body(`${prefix}.transformation.factor`)
+      .optional()
+      .isNumeric()
+      .withMessage("Transformation factor must be a number"),
+
+    body(`${prefix}.comparisonPeriod`)
+      .optional()
+      .isObject()
+      .withMessage("comparisonPeriod must be an object"),
+    body(`${prefix}.comparisonPeriod.enabled`)
+      .optional()
+      .isBoolean()
+      .withMessage("comparisonPeriod.enabled must be a boolean"),
+    body(`${prefix}.comparisonPeriod.type`)
+      .optional()
+      .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
+      .withMessage(
+        "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+      ),
+
+    body(`${prefix}.additionalSeries`)
+      .optional()
+      .isArray()
+      .withMessage("additionalSeries must be an array"),
+    body(`${prefix}.additionalSeries.*.fieldId`)
+      .optional()
+      .isInt({ min: 1, max: 8 })
+      .withMessage(
+        "Additional series fieldId must be an integer between 1 and 8"
+      ),
+    body(`${prefix}.additionalSeries.*.label`)
+      .optional()
+      .isString()
+      .withMessage("Additional series label must be a string"),
+    body(`${prefix}.additionalSeries.*.color`)
+      .optional()
+      .isString()
+      .withMessage("Additional series color must be a string"),
+  ];
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -487,6 +722,188 @@ const commonValidations = {
   ],
 };
 
+const chartConfigValidation = [
+  body("fieldId")
+    .optional()
+    .isInt({ min: 1, max: 8 })
+    .withMessage("Invalid fieldId"),
+  body("title").optional().isString().withMessage("Title must be a string"),
+  body("xAxisLabel")
+    .optional()
+    .isString()
+    .withMessage("X-Axis Label must be a string"),
+  body("yAxisLabel")
+    .optional()
+    .isString()
+    .withMessage("Y-Axis Label must be a string"),
+  body("color").optional().isString().withMessage("Color must be a string"),
+  body("backgroundColor")
+    .optional()
+    .isString()
+    .withMessage("Background Color must be a string"),
+  // Extended chart types
+  body("chartType")
+    .optional()
+    .isIn([
+      "Column",
+      "Line",
+      "Bar",
+      "Spline",
+      "Step",
+      "Area",
+      "Scatter",
+      "Bubble",
+      "Heatmap",
+      "Pie",
+    ])
+    .withMessage("Invalid chart type"),
+  body("days").optional().isInt().withMessage("Days must be an integer"),
+  body("results").optional().isInt().withMessage("Results must be an integer"),
+  body("timescale")
+    .optional()
+    .isInt()
+    .withMessage("Timescale must be an integer"),
+  body("average").optional().isInt().withMessage("Average must be an integer"),
+  body("median").optional().isInt().withMessage("Median must be an integer"),
+  body("sum").optional().isInt().withMessage("Sum must be an integer"),
+  body("rounding")
+    .optional()
+    .isInt()
+    .withMessage("Rounding must be an integer"),
+  body("dataMin")
+    .optional()
+    .isNumeric()
+    .withMessage("Data Min must be a number"),
+  body("dataMax")
+    .optional()
+    .isNumeric()
+    .withMessage("Data Max must be a number"),
+  body("yAxisMin")
+    .optional()
+    .isNumeric()
+    .withMessage("Y-Axis Min must be a number"),
+  body("yAxisMax")
+    .optional()
+    .isNumeric()
+    .withMessage("Y-Axis Max must be a number"),
+
+  // New fields
+  body("showLegend")
+    .optional()
+    .isBoolean()
+    .withMessage("showLegend must be a boolean"),
+  body("showGrid")
+    .optional()
+    .isBoolean()
+    .withMessage("showGrid must be a boolean"),
+  body("showTooltip")
+    .optional()
+    .isBoolean()
+    .withMessage("showTooltip must be a boolean"),
+  body("isPublic")
+    .optional()
+    .isBoolean()
+    .withMessage("isPublic must be a boolean"),
+  body("refreshInterval")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("refreshInterval must be a non-negative integer"),
+  body("showMultipleSeries")
+    .optional()
+    .isBoolean()
+    .withMessage("showMultipleSeries must be a boolean"),
+
+  // Validation for nested objects
+  body("referenceLines")
+    .optional()
+    .isArray()
+    .withMessage("referenceLines must be an array"),
+  body("referenceLines.*.value")
+    .optional()
+    .isNumeric()
+    .withMessage("Reference line value must be a number"),
+  body("referenceLines.*.label")
+    .optional()
+    .isString()
+    .withMessage("Reference line label must be a string"),
+  body("referenceLines.*.color")
+    .optional()
+    .isString()
+    .withMessage("Reference line color must be a string"),
+  body("referenceLines.*.style")
+    .optional()
+    .isIn(["solid", "dashed", "dotted"])
+    .withMessage("Reference line style must be one of: solid, dashed, dotted"),
+
+  body("annotations")
+    .optional()
+    .isArray()
+    .withMessage("annotations must be an array"),
+  body("annotations.*.x")
+    .optional()
+    .isNumeric()
+    .withMessage("Annotation x value must be a number"),
+  body("annotations.*.y")
+    .optional()
+    .isNumeric()
+    .withMessage("Annotation y value must be a number"),
+  body("annotations.*.text")
+    .optional()
+    .isString()
+    .withMessage("Annotation text must be a string"),
+  body("annotations.*.color")
+    .optional()
+    .isString()
+    .withMessage("Annotation color must be a string"),
+
+  body("transformation")
+    .optional()
+    .isObject()
+    .withMessage("transformation must be an object"),
+  body("transformation.type")
+    .optional()
+    .isIn(["none", "log", "sqrt", "pow"])
+    .withMessage("Transformation type must be one of: none, log, sqrt, pow"),
+  body("transformation.factor")
+    .optional()
+    .isNumeric()
+    .withMessage("Transformation factor must be a number"),
+
+  body("comparisonPeriod")
+    .optional()
+    .isObject()
+    .withMessage("comparisonPeriod must be an object"),
+  body("comparisonPeriod.enabled")
+    .optional()
+    .isBoolean()
+    .withMessage("comparisonPeriod.enabled must be a boolean"),
+  body("comparisonPeriod.type")
+    .optional()
+    .isIn(["previousDay", "previousWeek", "previousMonth", "previousYear"])
+    .withMessage(
+      "comparisonPeriod.type must be one of: previousDay, previousWeek, previousMonth, previousYear"
+    ),
+
+  body("additionalSeries")
+    .optional()
+    .isArray()
+    .withMessage("additionalSeries must be an array"),
+  body("additionalSeries.*.fieldId")
+    .optional()
+    .isInt({ min: 1, max: 8 })
+    .withMessage(
+      "Additional series fieldId must be an integer between 1 and 8"
+    ),
+  body("additionalSeries.*.label")
+    .optional()
+    .isString()
+    .withMessage("Additional series label must be a string"),
+  body("additionalSeries.*.color")
+    .optional()
+    .isString()
+    .withMessage("Additional series color must be a string"),
+];
+
 const preferenceValidations = {
   upsert: [
     ...commonValidations.tenant,
@@ -612,6 +1029,148 @@ const preferenceValidations = {
       next();
     };
   },
+  // Replace the existing createChart validation with this improved version
+  createChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .bail()
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    body("chartConfig")
+      .exists()
+      .withMessage("chartConfig object is required")
+      .bail()
+      .isObject()
+      .withMessage("chartConfig must be an object"),
+    body("chartConfig.fieldId")
+      .exists()
+      .withMessage("fieldId is required in chartConfig")
+      .bail()
+      .isInt({ min: 1, max: 8 })
+      .withMessage("fieldId must be an integer between 1 and 8"),
+    ...createNestedValidations("chartConfig"),
+  ],
+  updateChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+    // Use all validations from chartConfigValidation
+    ...chartConfigValidation,
+  ],
+  deleteChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+  ],
+  getChartConfigurations: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+  ],
+  getChartConfigurationById: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+  ],
+  copyChart: [
+    ...commonValidations.tenant,
+    param("deviceId")
+      .exists()
+      .withMessage("Device ID is required")
+      .isMongoId()
+      .withMessage("Invalid Device ID"),
+    param("chartId")
+      .exists()
+      .withMessage("Chart ID is required")
+      .isMongoId()
+      .withMessage("Invalid Chart ID"),
+  ],
+
+  getUserTheme: [
+    ...commonValidations.tenant,
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+  ],
+
+  updateUserTheme: [
+    ...commonValidations.tenant,
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+    body("theme")
+      .exists()
+      .withMessage("Theme object is required")
+      .isObject()
+      .withMessage("Theme must be an object"),
+    ...themeValidations.theme,
+  ],
+
+  getOrganizationTheme: [
+    ...commonValidations.tenant,
+    param("group_id")
+      .exists()
+      .withMessage("Group ID is required")
+      .isMongoId()
+      .withMessage("Invalid Group ID"),
+  ],
+
+  updateOrganizationTheme: [
+    ...commonValidations.tenant,
+    param("group_id")
+      .exists()
+      .withMessage("Group ID is required")
+      .isMongoId()
+      .withMessage("Invalid Group ID"),
+    body("theme")
+      .exists()
+      .withMessage("Theme object is required")
+      .isObject()
+      .withMessage("Theme must be an object"),
+    ...themeValidations.theme,
+  ],
+
+  getEffectiveTheme: [
+    ...commonValidations.tenant,
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .isMongoId()
+      .withMessage("Invalid User ID"),
+  ],
 };
 
 module.exports = preferenceValidations;

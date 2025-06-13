@@ -60,7 +60,7 @@ spec:
   routes:
     - path: /
       action:
-        pass: platform-ui 
+        pass: platform-ui
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

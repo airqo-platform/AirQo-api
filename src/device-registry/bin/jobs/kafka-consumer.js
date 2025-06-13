@@ -4,7 +4,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/kafka-consumer`
 );
-const { logObject } = require("@utils/shared");
+const { logObject, logText } = require("@utils/shared");
 const createEventUtil = require("@utils/event.util");
 const createForecastUtil = require("@utils/forecast.util");
 const Joi = require("joi");
@@ -248,10 +248,8 @@ const consumeForecasts = async (messageData) => {
     if (response.success === false) {
       logger.error(`KAFKA: failed to store forecasts --- ${response.message}`);
     } else if (response.success === true) {
-      logger.info(
-        `KAFKA: successfully stored forecasts --- ${response.message}`
-      );
-      logger.info(`KAFKA: stored ${response.data.length} forecast days`);
+      logText(`KAFKA: successfully stored forecasts --- ${response.message}`);
+      logText(`KAFKA: stored ${response.data.length} forecast days`);
     }
   } catch (error) {
     logger.error(`🐛🐛 KAFKA: forecast error message --- ${error.message}`);

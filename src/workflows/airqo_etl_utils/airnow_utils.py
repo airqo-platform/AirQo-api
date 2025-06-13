@@ -1,112 +1,42 @@
-import traceback
-
 import pandas as pd
-
-from .airnow_api import AirNowApi
-from .airqo_api import AirQoApi
-from .constants import DataSource, DeviceCategory, Frequency, DeviceNetwork
-from .data_validator import DataValidationUtils
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.data_api import DataApi
+from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.config import configuration as Config
+from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+from airflow.exceptions import AirflowFailException
+from airqo_etl_utils.constants import Frequency, DataType, DeviceCategory
 from .date import str_to_date, date_to_str
-from .utils import Utils
 
-from .config import configuration
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("airflow.task")
 
 
 class AirnowDataUtils:
     @staticmethod
-    def parameter_column_name(parameter: str) -> str:
-        parameter = parameter.lower()
-        if parameter == "pm2.5":
-            return "pm2_5"
-        elif parameter == "pm10":
-            return "pm10"
-        elif parameter == "no2":
-            return "no2"
-        else:
-            raise Exception(f"Unknown parameter {parameter}")
-
-    @staticmethod
-    def query_bam_data(
-        api_key: str, start_date_time: str, end_date_time: str
-    ) -> pd.DataFrame:
-        airnow_api = AirNowApi()
-        start_date_time = date_to_str(
-            str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
-        )
-        end_date_time = date_to_str(
-            str_to_date(end_date_time), str_format="%Y-%m-%dT%H:%M"
-        )
-
-        data = airnow_api.get_data(
-            api_key=api_key,
-            start_date_time=start_date_time,
-            boundary_box="-16.9530804676,-33.957634112,54.8058474018,37.2697926495",
-            end_date_time=end_date_time,
-        )
-
-        return pd.DataFrame(data)
-
-    @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         """
-        Extracts BAM (Beta Attenuation Monitor) data from AirNow API for the given date range.
+        Queries BAM (Beta Attenuation Monitor) data from the AirNow API within the given date range.
 
-        This function fetches device information for the BAM network, queries data for each device over the specified date range,
-        and compiles it into a pandas DataFrame.
+        This function converts the input date strings into the required format for the API,
+        retrieves air quality data, and returns it as a Pandas DataFrame.
 
         Args:
-            start_date_time (str): Start of the date range in ISO 8601 format (e.g., "2024-11-01T00:00:00Z").
-            end_date_time (str): End of the date range in ISO 8601 format (e.g., "2024-11-07T23:59:59Z").
+            api_key(str): The API key required for authentication with AirNow.
+            start_date_time(str): The start datetime in string format (expected format: "YYYY-MM-DD HH:MM").
+            end_date_time(str): The end datetime in string format (expected format: "YYYY-MM-DD HH:MM").
 
         Returns:
-            pd.DataFrame: A DataFrame containing BAM data for all devices within the specified date range,
-                        including a `network` column indicating the device network.
+            pd.DataFrame: A DataFrame containing the air quality data retrieved from the AirNow API.
 
-        Raises:
-            ValueError: If no devices are found for the BAM network or if no data is returned for the specified date range.
+        Example:
+            >>> df = query_bam_data("your_api_key", "2024-03-01 00:00", "2024-03-02 23:59")
+            >>> print(df.head())
         """
-        devices = AirQoApi().get_devices_by_network(
-            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
-        )
-        bam_data = pd.DataFrame()
-
-        if not devices:
-            raise ValueError("No devices found for the BAM network.")
-
-        dates = Utils.query_dates_array(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            data_source=DataSource.AIRNOW,
-        )
-
-        if not dates:
-            raise ValueError("Invalid or empty date range provided.")
-
-        api_key = configuration.US_EMBASSY_API_KEY
-
-        all_device_data = []
-        for device in devices:
-            device_data = []
-            for start, end in dates:
-                query_data = AirnowDataUtils.query_bam_data(
-                    api_key=api_key, start_date_time=start, end_date_time=end
-                )
-                if not query_data.empty:
-                    device_data.append(query_data)
-            if device_data:
-                device_df = pd.concat(device_data, ignore_index=True)
-                device_df["network"] = device["network"]
-                all_device_data.append(device_df)
-
-        if not all_device_data:
-            logger.info("No BAM data found for the specified date range.")
-
-        bam_data = pd.concat(all_device_data, ignore_index=True)
-
-        return bam_data
+        data = DataUtils.extract_bam_data_airnow(start_date_time, end_date_time)
+        return data
 
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -126,67 +56,58 @@ class AirnowDataUtils:
         Returns:
             pd.DataFrame: A cleaned and structured DataFrame containing processed air quality data. The resulting DataFrame includes columns such as 'timestamp', 'network', 'site_id', 'device_id', and pollutant values ('pm2_5', 'pm10', 'no2', etc.).
         """
-        air_now_data = []
+        return DataUtils.process_bam_data_airnow(data=data)
 
-        devices = AirQoApi().get_devices_by_network(
-            device_network=DeviceNetwork.METONE, device_category=DeviceCategory.BAM
+    @staticmethod
+    def send_to_bigquery(data: pd.DataFrame) -> None:
+        """
+        Sends the provided DataFrame to BigQuery after processing.
+
+        Args:
+            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
+
+        Returns:
+            None
+        """
+        big_query_api = BigQueryApi()
+        processed_data, table = DataUtils.format_data_for_bigquery(
+            data, DataType.AVERAGED, DeviceCategory.GENERAL, Frequency.HOURLY
         )
+        big_query_api.load_data(dataframe=processed_data, table=table)
 
-        pollutant_value = {"pm2_5": None, "pm10": None, "no2": None}
+    @staticmethod
+    def send_to_api(data: pd.DataFrame, **kwargs) -> None:
+        """
+        Sends the provided DataFrame to the api after processing.
 
-        device_mapping = {
-            device_code: device
-            for device in devices
-            for device_code in device["device_codes"]
-        }
+        Args:
+            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
 
-        for _, row in data.iterrows():
-            try:
-                # Temp external device id  # Lookup device details based on FullAQSCode
-                device_id_ = str(row["FullAQSCode"])
-                device_details = device_mapping.get(device_id_)
+        Returns:
+            None
+        """
+        send_to_api_param = kwargs.get("params", {}).get("send_to_api")
+        if send_to_api_param:
+            data = DataUtils.process_data_for_api(data, Frequency.HOURLY)
+            data_api = DataApi()
+            data_api.save_events(measurements=data)
 
-                if not device_details:
-                    logger.exception(f"Device with ID {device_id_} not found")
-                    continue
+    @staticmethod
+    def send_to_broker(data: pd.DataFrame) -> None:
+        """
+        Sends the provided DataFrame to kafka after processing.
 
-                parameter_col_name = AirnowDataUtils.parameter_column_name(
-                    row["Parameter"]
-                )
-                if parameter_col_name in pollutant_value:
-                    pollutant_value[parameter_col_name] = row["Value"]
+        Args:
+            data (pd.DataFrame): The DataFrame containing data to be sent to BigQuery.
 
-                if row["network"] != device_details.get("network"):
-                    logger.exception(f"Network mismatch for device ID {device_id_}")
-                    continue
+        Returns:
+            None
+        """
+        data = DataUtils.process_data_for_message_broker(data=data)
+        if not isinstance(data, pd.DataFrame):
+            raise AirflowFailException(
+                "Processing for message broker failed. Please check if kafka is up and running."
+            )
 
-                air_now_data.append(
-                    {
-                        "timestamp": row["UTC"],
-                        "network": row["network"],
-                        "site_id": device_details.get("site_id"),
-                        "device_id": device_details.get("name"),
-                        "mongo_id": device_details.get("_id"),
-                        "device_number": device_details.get("device_number"),
-                        "frequency": Frequency.HOURLY.str,
-                        "latitude": row["Latitude"],
-                        "longitude": row["Longitude"],
-                        "device_category": DeviceCategory.BAM.str,
-                        "pm2_5": pollutant_value["pm2_5"],
-                        "pm2_5_calibrated_value": pollutant_value["pm2_5"],
-                        "pm2_5_raw_value": pollutant_value["pm2_5"],
-                        "pm10": pollutant_value["pm10"],
-                        "pm10_calibrated_value": pollutant_value["pm10"],
-                        "pm10_raw_value": pollutant_value["pm10"],
-                        "no2": pollutant_value["no2"],
-                        "no2_calibrated_value": pollutant_value["no2"],
-                        "no2_raw_value": pollutant_value["no2"],
-                    }
-                )
-            except Exception as e:
-                logger.exception(f"Error processing row: {e}")
-
-        air_now_data = pd.DataFrame(air_now_data)
-        air_now_data = DataValidationUtils.remove_outliers(air_now_data)
-
-        return air_now_data
+        broker = MessageBrokerUtils()
+        broker.publish_to_topic(topic=Config.HOURLY_MEASUREMENTS_TOPIC, data=data)

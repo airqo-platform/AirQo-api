@@ -519,6 +519,7 @@ siteSchema.methods = {
     return {
       _id: this._id,
       grids: this.grids,
+      devices: this.devices,
       name: this.name,
       site_category: this.site_category,
       visibility: this.visibility,
@@ -848,16 +849,20 @@ siteSchema.statics = {
       ];
       const sanitizedUpdate = sanitizeObject(update, invalidKeys);
 
+      let updateOperation = { $set: { ...sanitizedUpdate } };
+
+      if (update.groups) {
+        // Check the original update object for groups
+        updateOperation.$addToSet = { groups: { $each: update.groups } }; //Merge $addToSet
+        delete updateOperation.$set.groups; // Delete .groups from the $set
+      }
+
       // Perform bulk update with additional options
-      const bulkUpdateResult = await this.updateMany(
-        filter,
-        { $set: sanitizedUpdate },
-        {
-          new: true,
-          runValidators: true,
-          ...opts,
-        }
-      );
+      const bulkUpdateResult = await this.updateMany(filter, updateOperation, {
+        new: true,
+        runValidators: true,
+        ...opts,
+      });
 
       if (bulkUpdateResult.nModified > 0) {
         return {

@@ -3,46 +3,58 @@ app:
   label: workflows
   namespace: pipeline
   configmap: airflow-config
-replicaCount: 2
+replicaCount: 3
 serviceAccountName: airflow-sa
 images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
-  tag: prod-85a0a843-1739265138
+  tag: prod-f76c382a-1747983200
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   webserver:
     requests:
-      cpu: 500m
-      memory: 500Mi
+      cpu: 125m
+      memory: 1000Mi
     limits:
-      cpu: 1500m
+      cpu: 500m
       memory: 2000Mi
   scheduler:
     requests:
-      cpu: 125m
-      memory: 500Mi
+      cpu: 500m
+      memory: 1000Mi
     limits:
-      cpu: 1000m
-      memory: 3000Mi
+      cpu: 3000m
+      memory: 1800Mi
   celery:
     requests:
       cpu: 125m
-      memory: 2565Mi
+      memory: 500Mi
     limits:
       cpu: 3000m
       memory: 4000Mi
   redis:
     requests:
       cpu: 50m
-      memory: 125Mi
+      memory: 10Mi
     limits:
-      cpu: 1000m
-      memory: 3000Mi
+      cpu: 300m
+      memory: 50Mi
+nodeSelector:
+  role: high-cpu
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - high-cpu
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

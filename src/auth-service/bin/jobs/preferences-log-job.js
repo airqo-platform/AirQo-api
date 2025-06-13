@@ -4,6 +4,7 @@ const UserModel = require("@models/User");
 const PreferenceModel = require("@models/Preference");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const { logText } = require("@utils/shared");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- bin/jobs/preferences-log-job`
 );
@@ -91,7 +92,7 @@ const logUserPreferences = async () => {
           `💔💔 Total count of users without Customised Locations in the default group: ${totalCountWithoutSelectedSites}, which is ${percentageWithoutSelectedSites}% of processed users.`
         );
       } else {
-        logger.info(`😎🎉✅ All users have Customised Locations.`);
+        logText(`😎🎉✅ All users have Customised Locations.`);
       }
     } else {
       logger.info(
@@ -103,8 +104,10 @@ const logUserPreferences = async () => {
   }
 };
 
+global.cronJobs = global.cronJobs || {};
 const schedule = "30 */2 * * *"; // At minute 30 of every 2nd hour
-cron.schedule(schedule, logUserPreferences, {
+const jobName = "preferences-log-job";
+global.cronJobs[jobName] = cron.schedule(schedule, logUserPreferences, {
   scheduled: true,
   timezone: "Africa/Nairobi",
 });

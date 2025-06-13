@@ -26,6 +26,8 @@ const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const rateLimit = require("express-rate-limit");
 const options = { mongooseConnection: mongoose.connection };
+
+// Initialize background jobs
 require("@bin/jobs/active-status-job");
 require("@bin/jobs/token-expiration-job");
 require("@bin/jobs/incomplete-profile-job");
@@ -33,12 +35,51 @@ require("@bin/jobs/preferences-log-job");
 require("@bin/jobs/preferences-update-job");
 // require("@bin/jobs/update-user-activities-job");
 require("@bin/jobs/profile-picture-update-job");
+const { startRoleInitJob } = require("@bin/jobs/role-init-job");
+startRoleInitJob();
+
+// Initialize log4js with SAFE configuration
 const log4js = require("log4js");
+let logger;
+
+try {
+  // Use the SAFE log4js configuration (no custom appenders)
+  const logConfig = require("@config/log4js");
+  log4js.configure(logConfig);
+  logger = log4js.getLogger(`${constants.ENVIRONMENT} -- bin/server script`);
+  console.log("✅ Log4js configured successfully");
+} catch (error) {
+  console.error("❌ Log4js configuration failed:", error.message);
+  console.log("📝 Falling back to console logging");
+
+  // Fallback to basic console logging
+  logger = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    debug: console.log,
+  };
+}
+
+// Add deduplication wrapper for Slack alerts
+try {
+  const { deduplicator } = require("@utils/common");
+
+  // Create a deduplicated logger for important alerts
+  const dedupLogger = deduplicator.wrapLogger(logger);
+
+  // Use dedupLogger for job alerts and critical messages
+  global.dedupLogger = dedupLogger;
+
+  console.log("✅ Slack deduplication utility loaded successfully");
+} catch (error) {
+  console.warn("⚠️  Slack deduplication utility not available:", error.message);
+  // Fallback to regular logger
+  global.dedupLogger = logger;
+}
+
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- bin/server script`
-);
 const fileUpload = require("express-fileupload");
 const { stringify } = require("@utils/common");
 
@@ -70,7 +111,14 @@ if (isDev) {
 app.use(passport.initialize());
 
 app.use(cookieParser());
-app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+
+// Safe log4js middleware with fallback
+try {
+  app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+} catch (error) {
+  console.warn("⚠️  Log4js HTTP middleware failed, skipping:", error.message);
+}
+
 app.use(express.json());
 app.use(
   bodyParser.urlencoded({
@@ -79,7 +127,22 @@ app.use(
     parameterLimit: 50000,
   })
 );
-// app.use(fileUpload());
+
+// Header protection middleware - ensures headers exist before fileUpload
+app.use((req, res, next) => {
+  // Ensure headers object exists
+  if (!req.headers) {
+    req.headers = {};
+  }
+
+  // Ensure content-type header exists (even if empty)
+  if (req.headers["content-type"] === undefined) {
+    req.headers["content-type"] = "";
+  }
+
+  next();
+});
+
 app.use(
   fileUpload({
     createParentPath: true,
@@ -154,8 +217,6 @@ app.use(function (err, req, res, next) {
         errors: { message: err.message },
       });
     } else if (err.status === 500) {
-      // logger.error(`🐛🐛 Internal Server Error --- ${stringify(err)}`);
-      // logger.error(`Stack Trace: ${err.stack}`);
       logObject("the error", err);
       res.status(err.status).json({
         success: false,
@@ -255,6 +316,243 @@ const createServer = () => {
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
   });
+
+  // Graceful shutdown handler
+  const gracefulShutdown = async (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+
+    // Set global shutdown flag to signal running jobs to stop
+    global.isShuttingDown = true;
+
+    // Close the server first to stop accepting new connections
+    server.close(async () => {
+      console.log("HTTP server closed");
+
+      // Enhanced cron job shutdown handling
+      if (global.cronJobs && Object.keys(global.cronJobs).length > 0) {
+        console.log(
+          `Stopping ${Object.keys(global.cronJobs).length} cron jobs...`
+        );
+
+        // Stop each job individually with error handling
+        for (const [jobName, jobObj] of Object.entries(global.cronJobs)) {
+          try {
+            console.log(`Stopping cron job: ${jobName}`);
+
+            // Enhanced pattern: Use the async stop method if available
+            if (jobObj.stop && typeof jobObj.stop === "function") {
+              await jobObj.stop();
+              console.log(`✅ Successfully stopped cron job: ${jobName}`);
+            }
+            // Legacy pattern: Direct job manipulation (for backward compatibility)
+            else if (jobObj.job) {
+              console.log(`🔄 Using legacy stop method for job: ${jobName}`);
+
+              // Stop the schedule
+              if (typeof jobObj.job.stop === "function") {
+                jobObj.job.stop();
+                console.log(`📅 Stopped schedule for job: ${jobName}`);
+              }
+
+              // Try to destroy if method exists
+              if (typeof jobObj.job.destroy === "function") {
+                jobObj.job.destroy();
+                console.log(`💥 Destroyed job: ${jobName}`);
+              } else {
+                console.log(
+                  `⚠️  Job ${jobName} doesn't have destroy method (older node-cron version)`
+                );
+                logger.warn(
+                  `Job ${jobName} doesn't have destroy method (older node-cron version)`
+                );
+              }
+
+              // Remove from registry
+              delete global.cronJobs[jobName];
+              console.log(
+                `✅ Successfully stopped cron job: ${jobName} (legacy mode)`
+              );
+            }
+            // Simple job pattern (current auth service pattern)
+            else if (typeof jobObj.stop === "function") {
+              jobObj.stop();
+              console.log(
+                `✅ Successfully stopped cron job: ${jobName} (simple mode)`
+              );
+            }
+            // Unknown pattern
+            else {
+              console.warn(
+                `⚠️  Job ${jobName} has unknown structure, skipping`
+              );
+              logger.warn(`Job ${jobName} has unknown structure, skipping`);
+            }
+          } catch (error) {
+            console.error(
+              `❌ Error stopping cron job ${jobName}:`,
+              error.message
+            );
+            logger.error(
+              `❌ Error stopping cron job ${jobName}: ${error.message}`
+            );
+
+            // Try emergency cleanup
+            try {
+              if (jobObj.job && typeof jobObj.job.stop === "function") {
+                jobObj.job.stop();
+                console.log(`🆘 Emergency stopped job: ${jobName}`);
+              }
+              delete global.cronJobs[jobName];
+            } catch (emergencyError) {
+              console.error(
+                `💥 Emergency cleanup failed for ${jobName}:`,
+                emergencyError.message
+              );
+              logger.error(
+                `💥 Emergency cleanup failed for ${jobName}: ${emergencyError.message}`
+              );
+            }
+          }
+        }
+
+        console.log("All cron jobs stopped");
+      } else {
+        console.log("No cron jobs to stop");
+      }
+
+      // Close any Redis connections if they exist
+      if (global.redisClient) {
+        console.log("Closing Redis connection...");
+
+        try {
+          if (typeof global.redisClient.quit === "function") {
+            await global.redisClient.quit();
+            console.log("✅ Redis connection closed");
+          } else if (typeof global.redisClient.disconnect === "function") {
+            await global.redisClient.disconnect();
+            console.log("✅ Redis connection disconnected");
+          }
+        } catch (error) {
+          console.error("❌ Error closing Redis connection:", error.message);
+          logger.error(`❌ Error closing Redis connection: ${error.message}`);
+        }
+      }
+
+      // Close Firebase connections if they exist
+      if (global.firebaseApp) {
+        console.log("Closing Firebase connections...");
+        try {
+          // Firebase cleanup if needed
+          console.log("✅ Firebase connections closed");
+        } catch (error) {
+          console.error(
+            "❌ Error closing Firebase connections:",
+            error.message
+          );
+          logger.error(
+            `❌ Error closing Firebase connections: ${error.message}`
+          );
+        }
+      }
+
+      // Safe log4js shutdown
+      console.log("Shutting down log4js...");
+      try {
+        if (typeof log4js.shutdown === "function") {
+          await new Promise((resolve) => {
+            log4js.shutdown((error) => {
+              if (error) {
+                console.error("❌ Error during log4js shutdown:", error);
+              } else {
+                console.log("✅ Log4js shutdown complete");
+              }
+              resolve();
+            });
+          });
+        }
+      } catch (error) {
+        console.error("❌ Error shutting down log4js:", error.message);
+      }
+
+      // Close MongoDB connection
+      console.log("Closing MongoDB connection...");
+
+      try {
+        await new Promise((resolve, reject) => {
+          mongoose.connection.close(false, (error) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        });
+
+        console.log("✅ MongoDB connection closed");
+      } catch (error) {
+        console.error("❌ Error closing MongoDB connection:", error.message);
+        logger.error(`❌ Error closing MongoDB connection: ${error.message}`);
+      }
+
+      // Final cleanup
+      console.log("Exiting process...");
+      process.exit(0);
+    });
+
+    // Force exit after timeout if graceful shutdown fails (increased from 10s to 15s)
+    setTimeout(() => {
+      console.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      logger.error(
+        "Could not close connections in time, forcefully shutting down"
+      );
+      process.exit(1);
+    }, 15000); // timeout to 15 seconds
+  };
+
+  // Add signal handlers
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    console.error(`💥 Uncaught Exception: ${error.message}`);
+    logger.error(`💥 Uncaught Exception: ${error.message}`);
+    logger.error(`Stack: ${error.stack}`);
+    gracefulShutdown("UNCAUGHT_EXCEPTION");
+  });
+
+  // Handle unhandled promise rejections
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    logger.error(`🚫 Unhandled Rejection at:`, promise, "reason:", reason);
+    gracefulShutdown("UNHANDLED_REJECTION");
+  });
+
+  // Handle process warnings
+  process.on("warning", (warning) => {
+    console.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+    logger.warn(`⚠️  Process Warning: ${warning.name}: ${warning.message}`);
+  });
+
+  // Memory usage monitoring (optional - for debugging)
+  if (isDev) {
+    process.on("exit", (code) => {
+      const memUsage = process.memoryUsage();
+      console.log(`📊 Process exiting with code ${code}. Memory usage:`, {
+        rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+        heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+        external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+      });
+    });
+  }
+
+  // Store server in global scope so it can be accessed elsewhere
+  global.httpServer = server;
+
+  return server; // Return the server instance
 };
 
 module.exports = createServer;

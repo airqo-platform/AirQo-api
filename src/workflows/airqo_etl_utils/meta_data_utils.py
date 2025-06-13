@@ -1,14 +1,19 @@
 import pandas as pd
+import ast
+from typing import Optional, Callable, List, Dict, Any
+from datetime import datetime, timezone
 
-from .airqo_api import AirQoApi
+from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
 from .constants import DeviceNetwork
 from .datautils import DataUtils
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
-from datetime import datetime, timezone
-from typing import Optional
-import ast
+from .constants import MetaDataType
+
+import logging
+
+logger = logging.getLogger("airflow.task")
 
 
 class MetaDataUtils:
@@ -24,9 +29,14 @@ class MetaDataUtils:
             pd.DataFrame: A DataFrame containing device information.
         """
         devices, _ = DataUtils.get_devices()
-        dataframe = devices[
+        devices["status"] = devices["status"].replace(
+            {"deployed": True, "not deployed": False}
+        )
+        devices = devices[
             [
                 "network",
+                "status",
+                "isActive",
                 "latitude",
                 "longitude",
                 "site_id",
@@ -37,23 +47,28 @@ class MetaDataUtils:
                 "device_category",
             ]
         ]
-        dataframe["device_id"] = dataframe["name"]
-        dataframe["last_updated"] = datetime.now(timezone.utc)
+        devices.rename(
+            columns={"isActive": "active", "status": "deployed"}, inplace=True
+        )
+        devices["device_id"] = devices["name"]
+        devices["last_updated"] = datetime.now(timezone.utc)
 
-        return dataframe
+        return devices
 
     @staticmethod
     def extract_airqlouds_from_api(
         network: Optional[DeviceNetwork] = None,
     ) -> pd.DataFrame:
         # Airclouds are deprecated.
-        airqlouds = AirQoApi().get_airqlouds(network=network)
+        data_api = DataApi()
+        airqlouds = data_api.get_airqlouds(network=network)
         airqlouds = [
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
             for airqloud in airqlouds
         ]
-
-        return pd.DataFrame(airqlouds)
+        airqlouds = pd.DataFrame(airqlouds)
+        airqlouds["last_updated"] = datetime.now(timezone.utc)
+        return airqlouds
 
     @staticmethod
     def extract_grids_from_api(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -68,13 +83,15 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the grid data, with site lists represented as comma-separated strings.
         """
-        grids = AirQoApi().get_grids(network=network)
+        data_api = DataApi()
+        grids = data_api.get_grids(network=network)
         grids = [
             {**grid, **{"sites": ",".join(map(str, grid.get("sites", [""])))}}
             for grid in grids
         ]
-
-        return pd.DataFrame(grids)
+        grids = pd.DataFrame(grids)
+        grids["last_updated"] = datetime.now(timezone.utc)
+        return grids
 
     @staticmethod
     def extract_cohorts_from_api(
@@ -91,13 +108,15 @@ class MetaDataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the cohort data, with device lists represented as comma-separated strings.
         """
-        cohorts = AirQoApi().get_cohorts(network=network)
+        data_api = DataApi()
+        cohorts = data_api.get_cohorts(network=network)
         cohorts = [
             {**cohort, **{"devices": ",".join(map(str, cohort.get("devices", [""])))}}
             for cohort in cohorts
         ]
-
-        return pd.DataFrame(cohorts)
+        cohorts = pd.DataFrame(cohorts)
+        cohorts["last_updated"] = datetime.now(timezone.utc)
+        return cohorts
 
     @staticmethod
     def merge_airqlouds_and_sites(data: pd.DataFrame) -> pd.DataFrame:
@@ -114,8 +133,9 @@ class MetaDataUtils:
                     for site in row["sites"].split(",")
                 ]
             )
-
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def merge_grids_and_sites(data: pd.DataFrame) -> pd.DataFrame:
@@ -141,8 +161,9 @@ class MetaDataUtils:
                     for site in row["sites"].split(",")
                 ]
             )
-
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def merge_cohorts_and_devices(data: pd.DataFrame) -> pd.DataFrame:
@@ -169,7 +190,9 @@ class MetaDataUtils:
                 ]
             )
 
-        return pd.DataFrame(merged_data)
+        merged_data = pd.DataFrame(merged_data)
+        merged_data["last_updated"] = datetime.now(timezone.utc)
+        return merged_data
 
     @staticmethod
     def extract_sites(network: Optional[DeviceNetwork] = None) -> pd.DataFrame:
@@ -257,7 +280,7 @@ class MetaDataUtils:
         Returns:
             None: This function updates site data in place and does not return a value.
         """
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         sites_data = DataUtils.get_sites(network=network)
         sites_data.rename(
             columns={
@@ -276,7 +299,7 @@ class MetaDataUtils:
             }
             for site in updated_sites
         ]
-        airqo_api.update_sites(updated_sites)
+        data_api.update_sites(updated_sites)
 
     @staticmethod
     def update_sites_distance_measures(network: Optional[DeviceNetwork] = None) -> None:
@@ -291,7 +314,7 @@ class MetaDataUtils:
         Returns:
             None: This function updates site data in place and does not return a value.
         """
-        airqo_api = AirQoApi()
+        data_api = DataApi()
         sites = DataUtils.get_sites(network=network)
         updated_sites = []
         for _, site in sites.iterrows():
@@ -303,7 +326,7 @@ class MetaDataUtils:
                 "latitude": latitude,
                 "longitude": longitude,
             }
-            meta_data = airqo_api.get_meta_data(
+            meta_data = data_api.get_meta_data(
                 latitude=latitude,
                 longitude=longitude,
             )
@@ -316,20 +339,103 @@ class MetaDataUtils:
                     }
                 )
 
-        airqo_api.update_sites(updated_sites)
+        data_api.update_sites(updated_sites)
 
     @staticmethod
     def refresh_airqlouds(network: DeviceNetwork) -> None:
-        airqo_api = AirQoApi()
-        airqlouds = airqo_api.get_airqlouds(network=network)
+        data_api = DataApi()
+        airqlouds = data_api.get_airqlouds(network=network)
 
         for airqloud in airqlouds:
-            airqo_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
+            data_api.refresh_airqloud(airqloud_id=airqloud.get("id"))
 
     @staticmethod
     def refresh_grids(network: DeviceNetwork) -> None:
-        airqo_api = AirQoApi()
-        grids = airqo_api.get_grids(network=network)
+        data_api = DataApi()
+        grids = data_api.get_grids(network=network)
 
         for grid in grids:
-            airqo_api.refresh_grid(grid_id=grid.get("id"))
+            data_api.refresh_grid(grid_id=grid.get("id"))
+
+    def extract_transform_and_decrypt_metadata(
+        metadata_type: MetaDataType,
+    ) -> pd.DataFrame:
+        """
+        Extracts, transforms, and decrypts metadata for a given type.
+
+        For metadata type 'DEVICES':
+        - Retrieves devices data,
+        - Decrypts read keys,
+        - Adds a 'key' column to the DataFrame.
+
+        For metadata type 'SITES':
+        - Retrieves site data and converts it to a DataFrame.
+
+        Returns:
+            pd.DataFrame: The processed metadata DataFrame. If no data is found, returns an empty DataFrame.
+        """
+        data_api = DataApi()
+        endpoints: Dict[str, Callable[[], Any]] = {
+            "devices": lambda: data_api.get_devices_by_network(),
+            "sites": lambda: data_api.get_sites(),
+        }
+        result: pd.DataFrame = pd.DataFrame()
+        match metadata_type:
+            case MetaDataType.DEVICES:
+                devices_raw = endpoints.get(metadata_type.str)()
+                if devices_raw:
+                    devices_df = pd.DataFrame(devices_raw)
+                    keys = data_api.get_thingspeak_read_keys(devices_df)
+                    if keys:
+                        devices_df["key"] = (
+                            devices_df["device_number"].map(keys).fillna(-1)
+                        )
+                    result = devices_df
+            case MetaDataType.SITES:
+                sites_raw = endpoints.get(metadata_type.str)()
+                if sites_raw:
+                    result = pd.DataFrame(sites_raw)
+        return result
+
+    def transform_devices(devices: List[Dict[str, Any]], taskinstance) -> pd.DataFrame:
+        """
+        Transforms and processes the devices DataFrame. If the checksum of the
+        devices data has not changed since the last execution, it returns an empty DataFrame.
+        Otherwise, it updates the checksum in XCom and returns the transformed DataFrame.
+
+        Args:
+            devices (pd.DataFrame): A Pandas DataFrame containing the devices data.
+            task_instance: The Airflow task instance used to pull and push XCom values.
+
+        Returns:
+            pd.DataFrame: Transformed DataFrame if the devices data has changed since
+                        the last execution; otherwise, an empty DataFrame.
+        """
+        import hashlib
+
+        devices = pd.DataFrame(devices)
+        devices.rename(
+            columns={
+                "device_id": "device_name",
+                "_id": "device_id",
+                "latitude": "device_latitude",
+                "longitude": "device_longitude",
+            },
+            inplace=True,
+        )
+
+        # Convert devices DataFrame to JSON for consistency since JSON stores metadata and compute checksum
+        if not devices.empty:
+            devices_json = devices.to_json(orient="records", date_format="iso")
+            api_devices_checksum = hashlib.md5(devices_json.encode()).hexdigest()
+
+            previous_checksum = taskinstance.xcom_pull(key="devices_checksum")
+
+            if previous_checksum == api_devices_checksum:
+                return pd.DataFrame()
+
+            taskinstance.xcom_push(key="devices_checksum", value=api_devices_checksum)
+        else:
+            logger.warning("No devices returned.")
+
+        return devices

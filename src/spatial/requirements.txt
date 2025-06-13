@@ -1,9 +1,10 @@
+#requirements.txt
+flask~=3.0.3
+pandas~=2.2.3
 tensorflow==2.15.1
-Flask==3.1.0
 earthengine-api~=1.1.1
 Flask-Cors==5.0.0
 geopandas == 1.0.1
-pandas == 2.2.3
 numpy == 1.26.4
 shapely == 2.0.6
 pymongo == 4.10.1
@@ -36,5 +37,5 @@ geopy~=2.4.1
 esda~=2.6.0
 joblib~=1.4.2
 lightgbm~=4.1.0 
-numpy
 google-generativeai 
+

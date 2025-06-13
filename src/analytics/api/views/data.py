@@ -1,7 +1,4 @@
-import datetime
-import traceback
-from typing import List
-
+from datetime import datetime, timezone
 import flask_excel as excel
 import pandas as pd
 from flasgger import swag_from
@@ -14,16 +11,25 @@ from api.models import (
 from api.models.data_export import (
     DataExportRequest,
     DataExportModel,
+)
+from constants import (
     DataExportStatus,
     DataExportFormat,
     Frequency,
+    DataType,
+    DeviceCategory,
+    DeviceNetwork,
 )
-from api.utils.data_formatters import (
-    filter_non_private_sites_devices,
+from api.utils.datautils import DataUtils
+from api.models.datadownload.datadownload import (
+    raw_data_model,
+    data_download_model,
+    data_export_model,
 )
-
-# Middlewares
+from schemas.datadownload import RawDataSchema, DataDownloadSchema, DataExportSchema
+from marshmallow import ValidationError
 from api.utils.data_formatters import (
+    get_validated_filter,
     format_to_aqcsv,
     compute_airqloud_summary,
 )
@@ -32,6 +38,7 @@ from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import AirQoRequests
 from api.utils.request_validators import validate_request_json, validate_request_params
 from main import rest_api_v2
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -54,24 +61,7 @@ class DataExportResource(Resource):
     """
 
     @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
-    @validate_request_json(
-        "startDateTime|required:datetime",
-        "endDateTime|required:datetime",
-        "frequency|optional:str",
-        "weatherFields|optional:list",
-        "downloadType|optional:str",
-        "outputFormat|optional:str",
-        "pollutants|optional:list",
-        "sites|optional:list",
-        "site_ids|optional:list",
-        "site_names|optional:list",
-        "device_ids|optional:list",
-        "devices|optional:list",
-        "device_names|optional:list",
-        "airqlouds|optional:list",
-        "datatype|optional:str",
-        "minimum|optional:bool",
-    )
+    @rest_api_v2.expect(data_download_model)
     def post(self):
         """
         Handles POST requests for downloading air quality data. Validates inputs, retrieves data from BigQuery,
@@ -81,22 +71,13 @@ class DataExportResource(Resource):
             - JSON response with air quality data if downloadType is 'json'.
             - CSV file download response if downloadType is 'csv'.
         """
-        valid_options = {
-            "pollutants": ["pm2_5", "pm10", "no2"],
-            "download_types": ["csv", "json"],
-            "data_types": ["calibrated", "raw"],
-            "output_formats": ["airqo-standard", "aqcsv"],
-            "frequencies": ["hourly", "daily", "raw", "weekly", "monthly", "yearly"],
-        }
-
-        json_data = request.get_json()
-
-        start_date = json_data["startDateTime"]
-        end_date = json_data["endDateTime"]
         try:
-            filter_type, filter_value, error_message = self._get_validated_filter(
-                json_data
-            )
+            json_data = DataDownloadSchema().load(request.json)
+        except ValidationError as err:
+            return {"errors": err.messages}, 400
+
+        try:
+            filter_type, filter_value, error_message = get_validated_filter(json_data)
             if error_message:
                 return (
                     AirQoRequests.create_response(error_message, success=False),
@@ -105,73 +86,58 @@ class DataExportResource(Resource):
         except Exception as e:
             logger.exception(f"An error has occured; {e}")
 
-        try:
-            frequency = self._get_valid_option(
-                json_data.get("frequency"), valid_options["frequencies"], "frequency"
-            )
-            download_type = self._get_valid_option(
-                json_data.get("downloadType"),
-                valid_options["download_types"],
-                "downloadType",
-            )
-            output_format = self._get_valid_option(
-                json_data.get("outputFormat"),
-                valid_options["output_formats"],
-                "outputFormat",
-            )
-            data_type = self._get_valid_option(
-                json_data.get("datatype"), valid_options["data_types"], "datatype"
-            )
-        except ValueError as e:
-            return (
-                AirQoRequests.create_response(f"An error occured: {e}", success=False),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
-        pollutants = json_data.get("pollutants", valid_options["pollutants"])
-        weather_fields = json_data.get("weatherFields", None)
+        startDateTime = json_data["startDateTime"]
+        endDateTime = json_data["endDateTime"]
+        download_type = (json_data.get("downloadType"),)
+        output_format = (json_data.get("outputFormat"),)
+        data_type = json_data.get("datatype")
+        device_category = json_data.get("device_category")
+        frequency = json_data.get("frequency")
+        pollutants = json_data.get("pollutants")
         minimum_output = json_data.get("minimum", True)
-
-        if not all(p in valid_options["pollutants"] for p in pollutants):
-            return (
-                AirQoRequests.create_response(
-                    f"Invalid pollutant. Valid values are {', '.join(valid_options['pollutants'])}",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
         postfix = "-" if output_format == "airqo-standard" else "-aqcsv-"
+        data_filter = {filter_type: filter_value}
+        datatype = DataType[data_type.upper()]
+        frequency = Frequency[frequency.upper()]
 
         try:
-            data_frame = EventsModel.download_from_bigquery(
-                filter_type=filter_type,  # Pass one filter[sites, airqlouds, devices] that has been passed in the api query
-                filter_value=filter_value,
-                start_date=start_date,
-                end_date=end_date,
-                frequency=frequency,
-                pollutants=pollutants,
-                data_type=data_type,
-                weather_fields=weather_fields,
+            device_category = (
+                DeviceCategory[device_category.upper()]
+                if device_category
+                else DeviceCategory.LOWCOST
             )
+            if data_filter:
+                data_frame = DataUtils.extract_data_from_bigquery(
+                    datatype=datatype,
+                    start_date_time=startDateTime,
+                    end_date_time=endDateTime,
+                    frequency=frequency,
+                    dynamic_query=True,
+                    device_category=device_category,
+                    columns=pollutants,
+                    data_filter=data_filter,
+                    use_cache=True,
+                )
+            else:
+                return (
+                    AirQoRequests.create_response("No data filter provided.", data=[]),
+                    AirQoRequests.Status.HTTP_400_BAD_REQUEST,
+                )
 
             if data_frame.empty:
                 return (
                     AirQoRequests.create_response("No data found", data=[]),
                     AirQoRequests.Status.HTTP_404_NOT_FOUND,
                 )
+
             if minimum_output:
                 # Drop unnecessary columns
                 columns_to_drop = ["site_id"]
-                columns_to_drop.append("timestamp") if frequency in [
+                columns_to_drop.append("timestamp") if frequency.value in [
                     "hourly",
                     "daily",
                 ] else columns_to_drop
-                print(data_frame.columns.to_list())
-                data_frame.drop(
-                    columns=columns_to_drop,
-                    inplace=True,
-                )
+                data_frame.drop(columns=columns_to_drop, inplace=True, errors="ignore")
 
             records = data_frame.to_dict("records")
 
@@ -191,8 +157,8 @@ class DataExportResource(Resource):
             return excel.make_response_from_records(
                 records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
             )
-        except Exception as ex:
-            logger.exception(f"An error occurred: {ex}")
+        except Exception as e:
+            logger.exception(f"An error occurred: {e}")
             return (
                 AirQoRequests.create_response(
                     f"An Error occurred while processing your request. Please contact support.",
@@ -201,201 +167,102 @@ class DataExportResource(Resource):
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def _get_validated_filter(self, json_data):
-        """
-        Validates that exactly one of 'airqlouds', 'sites', or 'devices' is provided in the request,
-        and applies filtering if necessary.
 
-        Args:
-            json_data (dict): JSON payload from the request.
+@rest_api_v2.route("/raw-data")
+class RawDataExportResource(Resource):
+    @rest_api_v2.expect(raw_data_model)
+    def post(self):
+        try:
+            json_data = RawDataSchema().load(request.json)
+        except ValidationError as err:
+            return {"errors": err.messages}, 400
 
-        Returns:
-            tuple: The name of the filter ("sites", "devices", or "airqlouds") and its validated value if valid.
-
-        Raises:
-            ValueError: If more than one or none of the filters are provided.
-        """
-        filter_type: str = None
-        validated_data: List[str] = None
-        error_message: str = ""
-
-        # TODO Lias with device registry to cleanup this makeshift implementation
-        devices = ["devices", "device_ids", "device_names"]
-        sites = ["sites", "site_names", "site_ids"]
-
-        valid_filters = [
-            "sites",
-            "site_names",
-            "site_ids",
-            "devices",
-            "device_ids",
-            "airqlouds",
-            "device_names",
-        ]
-        provided_filters = [key for key in valid_filters if json_data.get(key)]
-        if len(provided_filters) != 1:
-            from utils.messages import FILTER_MSG
-
-            return filter_type, validated_data, FILTER_MSG
-
-        filter_type = provided_filters[0]
-        filter_value = json_data.get(filter_type)
-
-        if filter_type in sites:
-            validated_value = filter_non_private_sites_devices(
-                filter_type, filter_value
-            )
-        elif filter_type in devices:
-            validated_value = filter_non_private_sites_devices(
-                filter_type, filter_value
-            )
-        else:
-            return filter_type, filter_value, None
-
-        if validated_value and validated_value.get("status") == "success":
-            validated_data = validated_value.get("data", [])
-        else:
-            error_message = validated_value.get(
-                "message", "Data filter validation failed"
+        network = json_data.get("network")
+        device_names = json_data.get("device_names")
+        device_category = json_data.get("device_category")
+        startDateTime = json_data.get("startDateTime")
+        endDateTime = json_data.get("endDateTime")
+        frequency = json_data.get("frequency")
+        frequency = Frequency[frequency.upper()]
+        device_category = DeviceCategory[device_category.upper()]
+        network = DeviceNetwork[network.upper()]
+        data_filter = {"device_id": device_names}
+        try:
+            data_frame = DataUtils.extract_data_from_bigquery(
+                datatype=DataType.RAW,
+                start_date_time=startDateTime,
+                end_date_time=endDateTime,
+                frequency=frequency,
+                device_category=device_category,
+                device_network=network,
+                data_filter=data_filter,
+                use_cache=True,
             )
 
-        return filter_type, validated_data, error_message
+            if data_frame.empty:
+                return (
+                    AirQoRequests.create_response("No data found", data=[]),
+                    AirQoRequests.Status.HTTP_404_NOT_FOUND,
+                )
 
-    def _get_valid_option(self, option, valid_options, option_name):
-        """
-        Returns a validated option, raising an error with valid options if invalid.
+            records = data_frame.to_dict("records")
 
-        Args:
-            option (str): Option provided in the request.
-            valid_options (list): List of valid options.
-            option_name (str): The name of the option being validated.
-
-        Returns:
-            str: A validated option from the list.
-
-        Raises:
-            ValueError: If the provided option is invalid.
-        """
-        if option and option.lower() in valid_options:
-            return option.lower()
-        if option:
-            raise ValueError(
-                f"Invalid {option_name}. Valid values are: {', '.join(valid_options)}."
+            return excel.make_response_from_records(
+                records,
+                "csv",
+                file_name=f"{frequency.value}-air-quality-data-{startDateTime}",
+            )
+        except Exception as ex:
+            logger.exception(f"An error occurred: {ex}")
+            return (
+                AirQoRequests.create_response(
+                    f"An Error occurred while processing your request. Please contact support. {ex}",
+                    success=False,
+                ),
+                AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
 @rest_api_v2.route("/data-export")
 class DataExportV2Resource(Resource):
-    @validate_request_json(
-        "startDateTime|required:datetime",
-        "endDateTime|required:datetime",
-        "userId|required:str",
-        "frequency|optional:str",
-        "exportFormat|optional:str",
-        "outputFormat|optional:str",
-        "pollutants|optional:list",
-        "sites|optional:list",
-        "devices|optional:list",
-        "airqlouds|optional:list",
-        "meta_data|optional:dict",
-    )
+    @rest_api_v2.expect(data_export_model)
     def post(self):
-        valid_pollutants = ["pm2_5", "pm10", "no2"]
-        valid_export_formats = ["csv", "json"]
-        valid_output_formats = ["airqo-standard", "aqcsv"]
-        valid_frequencies = ["hourly", "daily", "raw"]
-
-        json_data = request.get_json()
+        try:
+            json_data = DataExportSchema().load(request.json)
+        except ValidationError as err:
+            return {"errors": err.messages}, 400
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
-        meta_data = json_data.get("meta_data", [])
-        sites = filter_non_private_sites_devices(
-            filter_type="sites", filter_value=json_data.get("sites", {})
-        ).get("data", [])
-        devices = filter_non_private_sites_devices(
-            filter_type="devices", filter_value=json_data.get("devices", {})
-        ).get("data", [])
-        airqlouds = json_data.get("airqlouds", [])
-        pollutants = json_data.get("pollutants", valid_pollutants)
-        user_id = json_data.get("userId")
-        frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
-        export_format = (
-            f"{json_data.get('exportFormat', valid_export_formats[0])}".lower()
-        )
-        output_format = (
-            f"{json_data.get('outputFormat', valid_output_formats[0])}".lower()
-        )
-
-        if len(airqlouds) != 0:
-            devices = []
-            sites = []
-        elif len(sites) != 0:
-            devices = []
-            airqlouds = []
-        elif len(devices) != 0:
-            airqlouds = []
-            sites = []
-        else:
-            return (
-                AirQoRequests.create_response(
-                    f"Specify either a list of airqlouds, sites or devices in the request body",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if frequency not in valid_frequencies:
-            return (
-                AirQoRequests.create_response(
-                    f"Invalid frequency {frequency}. Valid string values are any of {', '.join(valid_frequencies)}",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if export_format not in valid_export_formats:
-            return (
-                AirQoRequests.create_response(
-                    f"Invalid download type {export_format}. Valid string values are any of {', '.join(valid_export_formats)}",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if output_format not in valid_output_formats:
-            return (
-                AirQoRequests.create_response(
-                    f"Invalid output format {output_format}. Valid string values are any of {', '.join(valid_output_formats)}",
-                    success=False,
-                ),
-                AirQoRequests.Status.HTTP_400_BAD_REQUEST,
-            )
-
-        for pollutant in pollutants:
-            if pollutant not in valid_pollutants:
+        try:
+            filter_type, filter_value, error_message = get_validated_filter(json_data)
+            if error_message:
                 return (
-                    AirQoRequests.create_response(
-                        f"Invalid pollutant {pollutant}. Valid values are {', '.join(valid_pollutants)}",
-                        success=False,
-                    ),
+                    AirQoRequests.create_response(error_message, success=False),
                     AirQoRequests.Status.HTTP_400_BAD_REQUEST,
                 )
+        except Exception as e:
+            logger.exception(f"An error has occured; {e}")
+
+        meta_data = json_data.get("meta_data", [])
+        pollutants = json_data.get("pollutants")
+        user_id = json_data.get("userId")
+        frequency = json_data.get("frequency")
+        export_format = json_data.get("exportFormat")
 
         try:
             data_export_model = DataExportModel()
             data_export_request = DataExportRequest(
-                airqlouds=airqlouds,
                 start_date=str_to_date(start_date),
                 end_date=str_to_date(end_date),
-                sites=sites,
+                filter_type=filter_type,
+                filter_value=filter_value,
                 status=DataExportStatus.SCHEDULED,
                 data_links=[],
-                request_date=datetime.datetime.utcnow(),
+                request_date=datetime.now(timezone.utc),
                 user_id=user_id,
                 frequency=Frequency[frequency.upper()],
                 export_format=DataExportFormat[export_format.upper()],
-                devices=devices,
                 request_id="",
                 pollutants=pollutants,
                 retries=3,
@@ -414,8 +281,7 @@ class DataExportV2Resource(Resource):
             )
 
         except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+            logger.exception(f"An exception occured: {ex}")
             return (
                 AirQoRequests.create_response(
                     f"An Error occurred while processing your request. Please contact support",
@@ -443,9 +309,8 @@ class DataExportV2Resource(Resource):
                 AirQoRequests.Status.HTTP_200_OK,
             )
 
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+        except Exception as e:
+            logger.exception(f"An exception has occurred: {e}")
             return (
                 AirQoRequests.create_response(
                     f"An Error occurred while processing your request. Please contact support",
@@ -532,9 +397,8 @@ class DataSummaryResource(Resource):
                 AirQoRequests.Status.HTTP_200_OK,
             )
 
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+        except Exception as e:
+            logger.exception(f"An exception has occurred: {e}")
             return (
                 AirQoRequests.create_response(
                     "An Error occurred while processing your request. Please contact support",

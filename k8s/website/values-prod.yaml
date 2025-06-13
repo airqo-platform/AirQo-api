@@ -6,17 +6,30 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-website-api
-  tag: prod-e75227b4-1738858605
+  tag: prod-f76c382a-1747983200
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 100m
-    memory: 350Mi
+    memory: 600Mi
   requests:
     cpu: 10m
-    memory: 250Mi
+    memory: 300Mi
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - preference:
+          matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - control-plane
+        weight: 1
+nodeSelector:
+  role: control-plane
+priorityClassName: high-priority
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config

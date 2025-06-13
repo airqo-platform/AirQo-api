@@ -1,0 +1,33 @@
+import environ
+
+env = environ.Env()
+environ.Env.read_env()
+
+# Security & Flask settings
+SECRET_KEY = env("SUPERSET_SECRET_KEY")
+FLASK_ENV = env("FLASK_ENV")
+
+# Database Connection
+SQLALCHEMY_DATABASE_URI = f"{env('DATABASE_DIALECT')}://{env('DATABASE_USER')}:{env('DATABASE_PASSWORD')}@{env('DATABASE_HOST')}:{env('DATABASE_PORT')}/{env('DATABASE_DB')}"
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+# Web Server Settings
+ENABLE_PROXY_FIX = env("SUPERSET_WEBSERVER_ENABLE_PROXY_FIX") == "True"
+TALISMAN_ENABLED = False  # Less secure if not running behind a reverse proxy
+WEBSERVER_ADDRESS = env("SUPERSET_WEBSERVER_HOST")
+WEBSERVER_PORT = env("SUPERSET_WEBSERVER_PORT")
+SUPERSET_WEBSERVER_TIMEOUT = env("SUPERSET_WEBSERVER_TIMEOUT")
+
+# Public URL
+SUPERSET_PUBLIC_URL = env("SUPERSET_PUBLIC_URL")
+
+# Cache Dict
+CACHE_CONFIG = {
+    "CACHE_TYPE": env("CACHE_TYPE"),
+    "CACHE_DEFAULT_TIMEOUT": env("CACHE_DEFAULT_TIMEOUT"),
+    "CACHE_KEY_PREFIX": env("CACHE_KEY_PREFIX"),
+    "CACHE_REDIS_URL": env("CACHE_REDIS_URL"),
+}
+
+# Flask APP
+FLASK_APP = env("FLASK_APP")

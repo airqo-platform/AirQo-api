@@ -865,6 +865,17 @@ const createEvent = {
       let missingDataMessage = "";
       const { query } = request;
       let { limit, skip } = query;
+      limit = Number(limit);
+      skip = Number(skip);
+
+      if (Number.isNaN(limit) || limit < 0) {
+        limit = 30;
+      }
+
+      if (Number.isNaN(skip) || skip < 0) {
+        skip = 0;
+      }
+
       const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
@@ -906,6 +917,20 @@ const createEvent = {
         },
         next
       );
+
+      if (!responseFromListEvents) {
+        // Handle cases where responseFromListEvents is null or undefined
+        logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
+        return next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Error retrieving events from the database",
+            }
+          )
+        );
+      }
 
       if (
         language !== undefined &&
@@ -1578,6 +1603,118 @@ const createEvent = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  getWorstReadingForSites: async (req, res, next) => {
+    try {
+      const siteIds = req.body.siteIds; // Assuming you pass the siteIds in the request body
+
+      const result = await ReadingModel("airqo").getWorstPm2_5Reading({
+        siteIds,
+        next,
+      });
+
+      if (result.success) {
+        res.status(result.status).json(result);
+      } else {
+        // Handle errors based on result.message and result.errors
+        next(result);
+      }
+    } catch (error) {
+      // Handle unexpected errors
+      next(error);
+    }
+  },
+  getWorstReadingForDevices: async ({ deviceIds = [], next } = {}) => {
+    try {
+      if (isEmpty(deviceIds) || !Array.isArray(deviceIds)) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "deviceIds array is required",
+          })
+        );
+        return;
+      }
+      if (deviceIds.length === 0) {
+        return {
+          success: true,
+          message: "No device_ids were provided",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      // Validate deviceIds type
+      if (!deviceIds.every((id) => typeof id === "string")) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "deviceIds must be an array of strings",
+          })
+        );
+        return;
+      }
+
+      const formattedDeviceIds = deviceIds.map((id) => id.toString());
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      const pipeline = ReadingModel("airqo")
+        .aggregate([
+          {
+            $match: {
+              device_id: { $in: formattedDeviceIds },
+              time: { $gte: threeDaysAgo },
+              "pm2_5.value": { $exists: true }, // Ensure pm2_5.value exists
+            },
+          },
+          {
+            $sort: { "pm2_5.value": -1, time: -1 }, // Sort by pm2_5 descending, then by time
+          },
+          {
+            $limit: 1, // Take only the worst reading
+          },
+          {
+            $project: {
+              _id: 0, // Exclude the MongoDB-generated _id
+              device_id: 1,
+              time: 1,
+              pm2_5: 1,
+              device: 1,
+              siteDetails: 1,
+            },
+          },
+        ])
+        .allowDiskUse(true);
+
+      const worstReading = await pipeline.exec();
+
+      if (!isEmpty(worstReading)) {
+        return {
+          success: true,
+          message: "Successfully retrieved the worst pm2_5 reading.",
+          data: worstReading[0],
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message:
+            "No pm2_5 readings found for the specified device_ids in the last three days.",
+          data: {},
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
       return;
@@ -3400,6 +3537,256 @@ const createEvent = {
           { message: error.message }
         )
       );
+    }
+  },
+
+  // Add to event.util.js
+  getNearestReadings: async (request, next) => {
+    try {
+      const {
+        latitude,
+        longitude,
+        radius = 15,
+        limit = 5,
+        tenant = "airqo",
+      } = {
+        ...request.query,
+        ...request.params,
+      };
+
+      // Step 1: Find the nearest sites within the specified radius
+      const sites = await SiteModel(tenant)
+        .find({})
+        .lean();
+
+      // Calculate and filter sites by distance
+      const sitesWithDistance = sites
+        .map((site) => {
+          const distanceInKm = distance.distanceBtnTwoPoints(
+            {
+              latitude1: parseFloat(latitude),
+              longitude1: parseFloat(longitude),
+              latitude2: site.latitude,
+              longitude2: site.longitude,
+            },
+            next
+          );
+
+          return {
+            ...site,
+            distance: distanceInKm,
+          };
+        })
+        .filter((site) => site.distance <= radius)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, limit);
+
+      if (sitesWithDistance.length === 0) {
+        // Fallback: Find the nearest city using the Grid model
+        const nearestCityReading = await findNearestCityReading(
+          latitude,
+          longitude,
+          tenant,
+          next
+        );
+
+        if (nearestCityReading.success) {
+          return {
+            success: true,
+            message: `No sites found within ${radius}km radius. Showing readings from the nearest city.`,
+            data: nearestCityReading.data,
+            fromNearestCity: true,
+            nearestCityInfo: nearestCityReading.cityInfo,
+            status: httpStatus.OK,
+          };
+        } else {
+          return {
+            success: false,
+            message:
+              "No sites found within radius and no nearby city readings available",
+            errors: {
+              message: "No air quality data available for your location",
+            },
+            status: httpStatus.NOT_FOUND,
+          };
+        }
+      }
+
+      // Step 2: Get readings for these sites
+      const siteIds = sitesWithDistance.map((site) => site._id.toString());
+
+      const filter = {
+        site_id: { $in: siteIds },
+      };
+
+      const readings = await ReadingModel(tenant).recent(
+        { filter, limit: 100 },
+        next
+      );
+
+      if (!readings.success || isEmpty(readings.data)) {
+        return {
+          success: false,
+          message: "No recent readings found for nearby sites",
+          errors: { message: "No air quality data available for nearby sites" },
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Step 3: Match readings with site distances and sort
+      const readingsWithDistance = readings.data
+        .map((reading) => {
+          const site = sitesWithDistance.find(
+            (site) => site._id.toString() === reading.site_id.toString()
+          );
+
+          return {
+            ...reading,
+            distance: site ? site.distance : Infinity,
+          };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, limit);
+
+      return {
+        success: true,
+        message: "Successfully retrieved the nearest readings",
+        data: readingsWithDistance,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+
+  // Helper function to find the nearest city reading
+  findNearestCityReading: async (latitude, longitude, tenant, next) => {
+    try {
+      // Step 1: Find all grids with admin_level that would represent cities
+      // Typically admin_level could be 'city', 'town', 'district', depending on your system
+      const cityGrids = await GridModel(tenant)
+        .find({
+          admin_level: { $in: ["city", "town", "district", "division"] },
+        })
+        .lean();
+
+      if (isEmpty(cityGrids)) {
+        return {
+          success: false,
+          message: "No city grids found in the system",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Step 2: Find the nearest city grid
+      let nearestCity = null;
+      let minDistance = Infinity;
+
+      cityGrids.forEach((grid) => {
+        // For each grid, calculate distance to each center point
+        if (grid.centers && grid.centers.length > 0) {
+          grid.centers.forEach((center) => {
+            const distanceToCenter = distance.distanceBtnTwoPoints(
+              {
+                latitude1: parseFloat(latitude),
+                longitude1: parseFloat(longitude),
+                latitude2: center.latitude,
+                longitude2: center.longitude,
+              },
+              next
+            );
+
+            if (distanceToCenter < minDistance) {
+              minDistance = distanceToCenter;
+              nearestCity = {
+                ...grid,
+                distanceToUser: distanceToCenter,
+              };
+            }
+          });
+        }
+      });
+
+      if (!nearestCity) {
+        return {
+          success: false,
+          message: "No city found with valid center coordinates",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Step 3: Find sites within this city grid
+      const sitesInCity = await SiteModel(tenant)
+        .find({
+          grids: nearestCity._id,
+        })
+        .lean();
+
+      if (isEmpty(sitesInCity)) {
+        return {
+          success: false,
+          message: `No sites found in the nearest city (${nearestCity.name})`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Step 4: Get readings for these sites
+      const siteIds = sitesInCity.map((site) => site._id.toString());
+
+      const filter = {
+        site_id: { $in: siteIds },
+      };
+
+      const readings = await ReadingModel(tenant).recent(
+        { filter, limit: 5 },
+        next
+      );
+
+      if (!readings.success || isEmpty(readings.data)) {
+        return {
+          success: false,
+          message: `No recent readings found for sites in ${nearestCity.name}`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Add city information to each reading
+      readings.data = readings.data.map((reading) => ({
+        ...reading,
+        isNearestCity: true,
+        distanceToUser: minDistance,
+      }));
+
+      return {
+        success: true,
+        message: `Successfully retrieved readings from nearest city (${nearestCity.name})`,
+        data: readings.data,
+        cityInfo: {
+          name: nearestCity.name,
+          long_name: nearestCity.long_name,
+          distance: minDistance,
+          admin_level: nearestCity.admin_level,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve nearest city readings",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 };

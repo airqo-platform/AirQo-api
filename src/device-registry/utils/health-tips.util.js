@@ -61,6 +61,49 @@ const createHealthTips = {
       );
     }
   },
+  bulkUpdate: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const updates = body.updates;
+
+      const responseFromBulkModifyHealthTip = await HealthTipModel(
+        tenant
+      ).bulkModify(updates, next);
+
+      return responseFromBulkModifyHealthTip;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  removeInvalidTips: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const responseFromRemoveInvalidTips = await HealthTipModel(
+        tenant
+      ).removeInvalidTips(next);
+
+      return responseFromRemoveInvalidTips;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   delete: async (request, next) => {
     try {
       const { query, body } = request;
