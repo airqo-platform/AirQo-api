@@ -20,7 +20,19 @@ import requests
 import datetime
 
 
-
+ESA_CLASSES = {
+    10: "Tree cover",
+    20: "Shrubland",
+    30: "Grassland",
+    40: "Cropland",
+    50: "Built-up",
+    60: "Bare / sparse vegetation",
+    70: "Snow and ice",
+    80: "Permanent water bodies",
+    90: "Herbaceous wetland",
+    95: "Mangroves",
+    100: "Moss and lichen"
+}
 
 class GetEnvironmentProfile:
     @staticmethod
@@ -44,32 +56,11 @@ class GetEnvironmentProfile:
         start_date = ee.Date.fromYMD(today.year, today.month, today.day).advance(-months, 'month')
         end_date = ee.Date.fromYMD(today.year, today.month, today.day)
         point = ee.Geometry.Point(longitude, latitude)
-        #print(f'start date{start_date} point {point}')
-        """
-        def get_mean(collection, band):
-            try:
-                collection = collection.filterDate(start_date, end_date).filterBounds(point).select(band)
-                mean_value = collection.mean().reduceRegion(
-                    ee.Reducer.mean(),
-                    point.buffer(radius),
-                    scale=1000
-                ).get(band)
-                print(f"This is the mean value{mean_value}")
-
-                return mean_value.getInfo() if mean_value else None
-            except ee.EEException as e:
-                print(f"Error with Earth Engine API: {e}")
-                return None
-            except Exception as e:
-                print(f"An unexpected error occurred: {e}")
-                return None
-        """
         def get_mean(collection, band):
             try:
                 collection = collection.filterDate(start_date, end_date).filterBounds(point).select(band)
                 if collection.size().getInfo() == 0:
                     # Check for empty collection
-                    print(f"No data found for band {band} in the image collection.")
                     return None
                 mean_value = collection.mean().reduceRegion(
                     ee.Reducer.mean(),
@@ -78,17 +69,13 @@ class GetEnvironmentProfile:
                 ).get(band)
                 if mean_value is None: 
                     # Added None check
-                    print(f"No data returned by reduceRegion for band: {band}")
                     return None
                     
                 mean_value_info = mean_value.getInfo() if mean_value else None
-                print(f"Mean value for {band}: {mean_value_info}")  # Improved print statement for clarity
                 return mean_value_info
             except ee.EEException as e:
-                print(f"Error with Earth Engine API: {e}")
                 return None
             except Exception as e:
-                print(f"An unexpected error occurred: {e}")
                 return None
 
         return {
@@ -178,3 +165,43 @@ class GetLocationProfile:
             return {'error': f"Data format error: {e}"}
         except Exception as e:
             return {'error': f"Unexpected error: {e}"}
+
+class EnvironmentModel:
+    @staticmethod
+    def ensure_initialized():
+        if not ee.data._initialized:
+            ee.Initialize(
+                credentials=service_account.Credentials.from_service_account_file(
+                    Config.CREDENTIALS,
+                    scopes=["https://www.googleapis.com/auth/earthengine"],
+                ),
+                project=Config.GOOGLE_CLOUD_PROJECT_ID,
+            )
+    @staticmethod
+    def fetch_building_data(geometry, limit=500):
+        EnvironmentModel.ensure_initialized()
+        buildings = ee.FeatureCollection("GOOGLE/Research/open-buildings/v3/polygons") \
+            .filterBounds(geometry) \
+            .filter(ee.Filter.gte("confidence", 0.7)) \
+            .limit(limit)
+        return buildings.getInfo()["features"]
+
+    @staticmethod
+    def compute_landcover_summary(geometry):
+        EnvironmentModel.ensure_initialized()
+        landcover = ee.Image("ESA/WorldCover/v200/2021").clip(geometry)
+        counts = landcover.reduceRegion(
+            reducer=ee.Reducer.frequencyHistogram(),
+            geometry=geometry,
+            scale=10,
+            maxPixels=1e9
+        ).get("Map").getInfo()
+
+        total = sum(counts.values())
+        summary = {
+            ESA_CLASSES.get(int(k), f"Unknown ({k})"): {
+                "pixel_count": v,
+                "percentage": round((v / total) * 100, 2)
+            } for k, v in counts.items()
+        }
+        return summary

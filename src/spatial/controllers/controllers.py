@@ -118,3 +118,19 @@ def save_all_environment_data():
 @controller_bp.route('/get-all-environment_data', methods=['GET'])
 def get_all_environmet_data():
     return PollutantProfileApis.get_environment_profile_data()
+
+@controller_bp.route('/add-building-landcover', methods=['GET'])
+def add_building_landcover():
+    return PollutantProfileApis.add_building_landcover_profile_data()
+
+@controller_bp.route('/add-bulk-building-landcover', methods=['GET'])
+def add_bulk_building_landcover():
+    return PollutantProfileApis.add_bulk_building_landcover_profiles()
+
+@controller_bp.route('/get-building-landcover', methods=['GET'])
+def get_building_landcover():
+    return PollutantProfileApis.get_building_landcover_profile_data()
+
+@controller_bp.route('/get-building-location', methods=['GET'])
+def get_building_location():
+    return PollutantProfileApis.get_building_location_data()
