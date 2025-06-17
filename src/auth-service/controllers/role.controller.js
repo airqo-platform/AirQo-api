@@ -519,6 +519,13 @@ const roleController = {
         request,
         next
       );
+      if (!result) {
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: "Audit failed to return results",
+          errors: { message: "Internal server error during audit" },
+        });
+      }
       handleStandardResponse(res, result, { successKey: "audit_report" });
     } catch (error) {
       handleStandardError(error, next);

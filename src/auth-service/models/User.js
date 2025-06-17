@@ -49,6 +49,165 @@ function validateProfilePicture(profilePicture) {
   return true;
 }
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
+
+const networkRoleSchema = new Schema({
+  network: {
+    type: Schema.Types.ObjectId,
+    ref: "Network",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    enum: {
+      values: [
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+        "contributor",
+        "moderator",
+      ],
+      message: "{VALUE} is not a valid user type",
+    },
+    default: "guest",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const groupRoleSchema = new Schema({
+  group: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    enum: {
+      values: [
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+        "contributor",
+        "moderator",
+      ],
+      message: "{VALUE} is not a valid user type",
+    },
+    default: "guest",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+// Option 2: More flexible approach (recommended for evolving requirements)
+const flexibleNetworkRoleSchema = new Schema({
+  network: {
+    type: Schema.Types.ObjectId,
+    ref: "Network",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    validate: {
+      validator: function (value) {
+        // Allow any reasonable string value, but with some basic validation
+        return /^[a-z_]+$/.test(value) && value.length <= 20;
+      },
+      message:
+        "userType must be lowercase letters and underscores only, max 20 characters",
+    },
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const flexibleGroupRoleSchema = new Schema({
+  group: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    validate: {
+      validator: function (value) {
+        // Allow any reasonable string value, but with some basic validation
+        return /^[a-z_]+$/.test(value) && value.length <= 20;
+      },
+      message:
+        "userType must be lowercase letters and underscores only, max 20 characters",
+    },
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+// Option 3: Completely flexible (no validation) - for maximum future flexibility
+const openNetworkRoleSchema = new Schema({
+  network: {
+    type: Schema.Types.ObjectId,
+    ref: "Network",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    // No enum or validation - completely open
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const openGroupRoleSchema = new Schema({
+  group: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    // No enum or validation - completely open
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
 const UserSchema = new Schema(
   {
     due_date: { type: Date },
@@ -123,62 +282,8 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: false },
     loginCount: { type: Number, default: 0 },
     duration: { type: Date, default: oneMonthFromNow },
-    network_roles: {
-      type: [
-        {
-          network: {
-            type: ObjectId,
-            ref: "network",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-          },
-          userType: { type: String, default: "guest", enum: validUserTypes },
-          createdAt: { type: String, default: new Date() },
-          role: {
-            type: ObjectId,
-            ref: "role",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
-          },
-        },
-      ],
-      default: [],
-      _id: false,
-      validate: [
-        {
-          validator: function (value) {
-            return value.length <= ORGANISATIONS_LIMIT;
-          },
-          message: `Too many networks. Maximum limit: ${ORGANISATIONS_LIMIT}`,
-        },
-      ],
-    },
-    group_roles: {
-      type: [
-        {
-          group: {
-            type: ObjectId,
-            ref: "group",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
-          },
-          userType: { type: String, default: "guest", enum: validUserTypes },
-          createdAt: { type: String, default: new Date() },
-          role: {
-            type: ObjectId,
-            ref: "role",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
-          },
-        },
-      ],
-      default: [],
-      _id: false,
-      validate: [
-        {
-          validator: function (value) {
-            return value.length <= ORGANISATIONS_LIMIT;
-          },
-          message: `Too many groups. Maximum limit: ${ORGANISATIONS_LIMIT}`,
-        },
-      ],
-    },
+    network_roles: [networkRoleSchema], // or flexibleNetworkRoleSchema or openNetworkRoleSchema
+    group_roles: [groupRoleSchema], // or flexibleGroupRoleSchema or openGroupRoleSchema
 
     permissions: [
       {
@@ -1324,53 +1429,22 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
           total_users_with_deprecated_fields: { $sum: 1 },
           users_with_role_field: {
             $sum: {
-              $cond: [
-                { $and: [{ $exists: ["$role"] }, { $ne: ["$role", null] }] },
-                1,
-                0,
-              ],
+              $cond: [{ $ne: ["$role", null] }, 1, 0],
             },
           },
           users_with_privilege_field: {
             $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $exists: ["$privilege"] },
-                    { $ne: ["$privilege", null] },
-                  ],
-                },
-                1,
-                0,
-              ],
+              $cond: [{ $ne: ["$privilege", null] }, 1, 0],
             },
           },
           users_with_organization_field: {
             $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $exists: ["$organization"] },
-                    { $ne: ["$organization", null] },
-                  ],
-                },
-                1,
-                0,
-              ],
+              $cond: [{ $ne: ["$organization", null] }, 1, 0],
             },
           },
           users_with_long_organization_field: {
             $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $exists: ["$long_organization"] },
-                    { $ne: ["$long_organization", null] },
-                  ],
-                },
-                1,
-                0,
-              ],
+              $cond: [{ $ne: ["$long_organization", null] }, 1, 0],
             },
           },
         },

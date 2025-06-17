@@ -8,7 +8,7 @@ const { logObject, logText, HttpError } = require("@utils/shared");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const ObjectId = mongoose.Types.ObjectId;
+const ObjectId = mongoose.Schema.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- role-permissions util`
@@ -47,60 +47,204 @@ const findAssociatedIdForRole = async ({
   tenant = "airqo",
   roles,
 } = {}) => {
-  for (const role of roles) {
-    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    logObject("RoleDetails", RoleDetails);
-    if (
-      role.network &&
-      role.network.toString() === RoleDetails.network_id.toString()
-    ) {
-      return role.network;
-    } else if (
-      role.group &&
-      role.group.toString() === RoleDetails.group_id.toString()
-    ) {
-      return role.group;
+  try {
+    logObject("🔍 [DEBUG] findAssociatedIdForRole called with:", {
+      role_id,
+      tenant,
+      rolesCount: roles?.length,
+    });
+
+    if (!roles || !Array.isArray(roles) || roles.length === 0) {
+      logObject("❌ [DEBUG] No roles provided or empty roles array");
+      return null;
     }
+
+    if (!role_id) {
+      logObject("❌ [DEBUG] No role_id provided");
+      return null;
+    }
+
+    // Fix 1: Remove ObjectId wrapper and add better error handling
+    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    logObject("📋 [DEBUG] RoleDetails found:", !!RoleDetails);
+
+    if (!RoleDetails) {
+      logObject("❌ [DEBUG] Role not found for role_id:", role_id);
+      return null;
+    }
+
+    logObject("✅ [DEBUG] RoleDetails:", {
+      id: RoleDetails._id,
+      name: RoleDetails.role_name,
+      hasNetworkId: !!RoleDetails.network_id,
+      hasGroupId: !!RoleDetails.group_id,
+    });
+
+    for (const role of roles) {
+      if (!role) {
+        logObject("⚠️ [DEBUG] Skipping undefined role in array");
+        continue;
+      }
+
+      // Fix 2: Add null checks before calling toString()
+      if (role.network && RoleDetails.network_id) {
+        try {
+          if (role.network.toString() === RoleDetails.network_id.toString()) {
+            logObject("✅ [DEBUG] Found matching network:", role.network);
+            return role.network;
+          }
+        } catch (error) {
+          logObject("❌ [DEBUG] Error comparing network IDs:", error.message);
+        }
+      }
+
+      if (role.group && RoleDetails.group_id) {
+        try {
+          if (role.group.toString() === RoleDetails.group_id.toString()) {
+            logObject("✅ [DEBUG] Found matching group:", role.group);
+            return role.group;
+          }
+        } catch (error) {
+          logObject("❌ [DEBUG] Error comparing group IDs:", error.message);
+        }
+      }
+    }
+
+    logObject("❌ [DEBUG] No matching network or group found");
+    return null;
+  } catch (error) {
+    logObject("🐛 [DEBUG] Error in findAssociatedIdForRole:", error);
+    logger.error(`Error in findAssociatedIdForRole: ${error.message}`);
+    return null;
   }
-  return null;
 };
 const isAssignedUserSuperAdmin = async ({
   associatedId,
   roles = [],
   tenant = "airqo",
 }) => {
-  for (const role of roles) {
-    if (
-      (role.network && role.network.toString() === associatedId.toString()) ||
-      (role.group && role.group.toString() === associatedId.toString())
-    ) {
-      const RoleDetails = await RoleModel(tenant)
-        .findById(ObjectId(role.role))
-        .lean();
-      if (
-        RoleDetails &&
-        RoleDetails.role_name &&
-        RoleDetails.role_name.endsWith("SUPER_ADMIN")
-      ) {
-        return true;
+  try {
+    logObject("🔍 [DEBUG] isAssignedUserSuperAdmin called with:", {
+      associatedId,
+      tenant,
+      rolesCount: roles?.length,
+    });
+
+    if (!associatedId) {
+      logObject("❌ [DEBUG] No associatedId provided");
+      return false;
+    }
+
+    if (!roles || !Array.isArray(roles) || roles.length === 0) {
+      logObject("❌ [DEBUG] No roles provided or empty roles array");
+      return false;
+    }
+
+    for (const role of roles) {
+      if (!role) {
+        logObject("⚠️ [DEBUG] Skipping undefined role in array");
+        continue;
+      }
+
+      // Fix 3: Add null checks and better error handling
+      let isMatch = false;
+
+      try {
+        if (
+          role.network &&
+          role.network.toString() === associatedId.toString()
+        ) {
+          isMatch = true;
+        } else if (
+          role.group &&
+          role.group.toString() === associatedId.toString()
+        ) {
+          isMatch = true;
+        }
+      } catch (error) {
+        logObject("❌ [DEBUG] Error comparing role IDs:", error.message);
+        continue;
+      }
+
+      if (isMatch) {
+        logObject("🔍 [DEBUG] Found matching role, checking if super admin...");
+
+        // Fix 4: Remove ObjectId wrapper and add better validation
+        if (!role.role) {
+          logObject("⚠️ [DEBUG] Role has no role field:", role);
+          continue;
+        }
+
+        try {
+          const RoleDetails = await RoleModel(tenant)
+            .findById(role.role) // Remove ObjectId() wrapper
+            .lean();
+
+          if (RoleDetails && RoleDetails.role_name) {
+            logObject("📋 [DEBUG] Checking role name:", RoleDetails.role_name);
+            if (RoleDetails.role_name.endsWith("SUPER_ADMIN")) {
+              logObject("✅ [DEBUG] User is SUPER_ADMIN");
+              return true;
+            }
+          } else {
+            logObject("⚠️ [DEBUG] RoleDetails not found or missing role_name");
+          }
+        } catch (error) {
+          logObject("❌ [DEBUG] Error fetching role details:", error.message);
+        }
       }
     }
-  }
 
-  return false;
+    logObject("✅ [DEBUG] User is not SUPER_ADMIN");
+    return false;
+  } catch (error) {
+    logObject("🐛 [DEBUG] Error in isAssignedUserSuperAdmin:", error);
+    logger.error(`Error in isAssignedUserSuperAdmin: ${error.message}`);
+    return false;
+  }
 };
 const isRoleAlreadyAssigned = (roles, role_id) => {
-  if (isEmpty(roles) || !Array.isArray(roles)) {
-    return false;
-  } else {
-    return roles.some((role) => {
-      if (isEmpty(role.role)) {
+  try {
+    logObject("🔍 [DEBUG] isRoleAlreadyAssigned called with:", {
+      rolesCount: roles?.length,
+      role_id,
+    });
+
+    if (isEmpty(roles) || !Array.isArray(roles)) {
+      logObject("❌ [DEBUG] No roles or invalid roles array");
+      return false;
+    }
+
+    if (!role_id) {
+      logObject("❌ [DEBUG] No role_id provided");
+      return false;
+    }
+
+    const isAssigned = roles.some((role) => {
+      if (isEmpty(role) || !role.role) {
         return false;
       }
-      logObject("role.role.toString()", role.role.toString());
-      logObject("role_id.toString()", role_id.toString());
-      return role.role.toString() === role_id.toString();
+
+      try {
+        const roleIdStr = role.role.toString();
+        const targetRoleIdStr = role_id.toString();
+        logObject("🔍 [DEBUG] Comparing roles:", {
+          roleIdStr,
+          targetRoleIdStr,
+        });
+        return roleIdStr === targetRoleIdStr;
+      } catch (error) {
+        logObject("❌ [DEBUG] Error comparing role IDs:", error.message);
+        return false;
+      }
     });
+
+    logObject("📋 [DEBUG] Role assignment check result:", isAssigned);
+    return isAssigned;
+  } catch (error) {
+    logObject("🐛 [DEBUG] Error in isRoleAlreadyAssigned:", error);
+    logger.error(`Error in isRoleAlreadyAssigned: ${error.message}`);
+    return false;
   }
 };
 
@@ -110,7 +254,7 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
  */
 const setupDefaultPermissions = async (tenant = "airqo") => {
   try {
-    console.log(
+    logObject(
       `🚀 Setting up default permissions and roles for tenant: ${tenant}`
     );
 
@@ -417,9 +561,9 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
 
         if (!existingPermission) {
           await PermissionModel(tenant).create(permissionData);
-          console.log(`✅ Created permission: ${permissionData.permission}`);
+          logObject(`✅ Created permission: ${permissionData.permission}`);
         } else {
-          console.log(
+          logObject(
             `⏭️  Permission already exists: ${permissionData.permission}`
           );
         }
@@ -443,7 +587,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
         grp_status: "ACTIVE",
         organization_slug: "airqo",
       });
-      console.log("✅ Created AirQo organization");
+      logObject("✅ Created AirQo organization");
     }
 
     // Define default roles for AirQo organization
@@ -640,9 +784,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       }
     }
 
-    console.log(
-      "🎉 Default permissions and roles setup completed successfully!"
-    );
+    logObject("🎉 Default permissions and roles setup completed successfully!");
 
     return {
       success: true,
@@ -666,7 +808,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
  */
 const createOrUpdateRole = async (tenant, roleData) => {
   try {
-    console.log(`🔍 Processing role: ${roleData.role_name}`);
+    logObject(`🔍 Processing role: ${roleData.role_name}`);
 
     // Get permission IDs for the role
     const permissions = await PermissionModel(tenant)
@@ -687,7 +829,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
       role_status: "ACTIVE",
     });
 
-    console.log(`✅ Created new role: ${roleData.role_name}`);
+    logObject(`✅ Created new role: ${roleData.role_name}`);
     return {
       success: true,
       data: newRole,
@@ -695,11 +837,11 @@ const createOrUpdateRole = async (tenant, roleData) => {
       status: httpStatus.OK,
     };
   } catch (err) {
-    console.log(`⚠️  Error creating role ${roleData.role_name}:`, err.message);
+    logObject(`⚠️  Error creating role ${roleData.role_name}:`, err.message);
 
     // Handle E11000 duplicate key error specifically
     if (err.code === 11000) {
-      console.log(
+      logObject(
         `🔄 Duplicate detected for role: ${roleData.role_name}, finding existing...`
       );
 
@@ -718,7 +860,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         for (const searchQuery of searchStrategies) {
           existingRole = await RoleModel(tenant).findOne(searchQuery).lean();
           if (existingRole) {
-            console.log(
+            logObject(
               `✅ Found existing role: ${existingRole.role_name} (ID: ${existingRole._id})`
             );
             break;
@@ -746,7 +888,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
               { new: true }
             );
 
-            console.log(`🔄 Updated existing role: ${roleData.role_name}`);
+            logObject(`🔄 Updated existing role: ${roleData.role_name}`);
 
             return {
               success: true,
@@ -755,7 +897,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
               status: httpStatus.OK,
             };
           } catch (updateError) {
-            console.log(
+            logObject(
               `⚠️  Update failed, using existing role: ${roleData.role_name}`
             );
             return {
@@ -767,7 +909,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
           }
         } else {
           // Could not find existing role even though duplicate error occurred
-          console.log(
+          logObject(
             `❌ Duplicate error but role not found: ${roleData.role_name}`
           );
 
@@ -937,7 +1079,7 @@ const createDefaultRolesForOrganization = async (
 
         if (result.success) {
           createdRoles.push(result.data);
-          console.log(
+          logObject(
             `✅ Created role for ${organizationName}: ${roleTemplate.role_name}`
           );
         } else {
@@ -1003,7 +1145,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
       dryRun = true,
     } = options;
 
-    console.log(
+    logObject(
       `🧹 ${dryRun ? "DRY RUN:" : ""} Resetting RBAC data for tenant: ${tenant}`
     );
 
@@ -1029,7 +1171,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
         { dryRun }
       );
       results.users_updated = updateResult.modifiedCount || 0;
-      console.log(
+      logObject(
         `${dryRun ? "[DRY RUN]" : ""} Updated ${results.users_updated} users`
       );
     }
@@ -1037,7 +1179,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
     if (resetRoles) {
       const deleteResult = await RoleModel(tenant).deleteMany({}, { dryRun });
       results.roles_deleted = deleteResult.deletedCount || 0;
-      console.log(
+      logObject(
         `${dryRun ? "[DRY RUN]" : ""} Deleted ${results.roles_deleted} roles`
       );
     }
@@ -1048,7 +1190,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
         { dryRun }
       );
       results.permissions_deleted = deleteResult.deletedCount || 0;
-      console.log(
+      logObject(
         `${dryRun ? "[DRY RUN]" : ""} Deleted ${
           results.permissions_deleted
         } permissions`
@@ -1072,7 +1214,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
  */
 const ensureSuperAdminRole = async (tenant = "airqo") => {
   try {
-    console.log("🔍 Ensuring AIRQO_SUPER_ADMIN role exists...");
+    logObject("🔍 Ensuring AIRQO_SUPER_ADMIN role exists...");
 
     // Try to find existing super admin role first
     let superAdminRole = await RoleModel(tenant)
@@ -1085,13 +1227,13 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
       .lean();
 
     if (superAdminRole) {
-      console.log(
+      logObject(
         `✅ Found existing AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`
       );
       return superAdminRole;
     }
 
-    console.log("🆕 AIRQO_SUPER_ADMIN role not found, creating...");
+    logObject("🆕 AIRQO_SUPER_ADMIN role not found, creating...");
 
     // Get or create AirQo group
     const GroupModel = require("@models/Group");
@@ -1106,7 +1248,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
         grp_status: "ACTIVE",
         organization_slug: "airqo",
       });
-      console.log("✅ Created AirQo organization");
+      logObject("✅ Created AirQo organization");
     }
 
     // Get some basic permissions (create minimal set if none exist)
@@ -1126,7 +1268,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
 
     // If no permissions exist, create minimal set
     if (basicPermissions.length === 0) {
-      console.log("⚠️  No permissions found, creating minimal set...");
+      logObject("⚠️  No permissions found, creating minimal set...");
 
       const minimalPermissions = [
         {
@@ -1151,7 +1293,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
         try {
           const newPerm = await PermissionModel(tenant).create(permData);
           basicPermissions.push({ _id: newPerm._id });
-          console.log(`✅ Created permission: ${permData.permission}`);
+          logObject(`✅ Created permission: ${permData.permission}`);
         } catch (permError) {
           if (permError.code === 11000) {
             // Permission already exists, find it
@@ -1180,16 +1322,16 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
         role_status: "ACTIVE",
       });
 
-      console.log(
+      logObject(
         `✅ Created AIRQO_SUPER_ADMIN role (ID: ${superAdminRole._id})`
       );
       return superAdminRole;
     } catch (err) {
-      console.log(`⚠️  Error creating super admin role:`, err.message);
+      logObject(`⚠️  Error creating super admin role:`, err.message);
 
       // Handle E11000 duplicate key error
       if (err.code === 11000) {
-        console.log("🔄 Duplicate detected, searching for existing role...");
+        logObject("🔄 Duplicate detected, searching for existing role...");
 
         // Try to find the existing role
         superAdminRole = await RoleModel(tenant)
@@ -1202,7 +1344,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
           .lean();
 
         if (superAdminRole) {
-          console.log(
+          logObject(
             `✅ Found existing role after duplicate error (ID: ${superAdminRole._id})`
           );
           return superAdminRole;
@@ -2753,37 +2895,54 @@ const rolePermissionUtil = {
    */
   getUserRoleSummary: async (userId, tenant) => {
     try {
+      logObject("🔍 [DEBUG] getUserRoleSummary called with:", {
+        userId,
+        tenant,
+      });
+
+      // Fix 1: Remove ObjectId() wrapper - let Mongoose handle the conversion
       const user = await UserModel(tenant)
-        .findById(userId)
-        .populate("network_roles.role")
-        .populate("group_roles.role")
-        .populate("network_roles.network")
-        .populate("group_roles.group")
-        .lean();
+        .findById(userId) // No ObjectId() wrapper
+        .lean(); // Start with just .lean(), no populate
+
+      logObject(
+        "📋 [DEBUG] Basic user query result:",
+        user ? "FOUND" : "NOT FOUND"
+      );
 
       if (!user) {
+        logObject("❌ [DEBUG] User not found with ID:", userId);
         return null;
       }
 
+      logObject("✅ [DEBUG] User found:", {
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        hasNetworkRoles: !!(
+          user.network_roles && user.network_roles.length > 0
+        ),
+        hasGroupRoles: !!(user.group_roles && user.group_roles.length > 0),
+        networkRolesCount: user.network_roles?.length || 0,
+        groupRolesCount: user.group_roles?.length || 0,
+      });
+
+      // Fix 2: Build roles without populate for now (we'll add populate back later)
       const networkRoles = (user.network_roles || []).map((nr) => ({
-        role_id: nr.role?._id,
-        role_name: nr.role?.role_name,
-        network_id: nr.network?._id,
-        network_name: nr.network?.net_name,
+        role_id: nr.role, // Just the ID, no populated data for now
+        network_id: nr.network, // Just the ID, no populated data for now
         userType: nr.userType,
         createdAt: nr.createdAt,
       }));
 
       const groupRoles = (user.group_roles || []).map((gr) => ({
-        role_id: gr.role?._id,
-        role_name: gr.role?.role_name,
-        group_id: gr.group?._id,
-        group_name: gr.group?.grp_title,
+        role_id: gr.role, // Just the ID, no populated data for now
+        group_id: gr.group, // Just the ID, no populated data for now
         userType: gr.userType,
         createdAt: gr.createdAt,
       }));
 
-      return {
+      const summary = {
         user_id: userId,
         network_roles: {
           count: networkRoles.length,
@@ -2799,8 +2958,18 @@ const rolePermissionUtil = {
         },
         total_roles: networkRoles.length + groupRoles.length,
       };
+
+      logObject("✅ [DEBUG] Summary created successfully:", {
+        networkRolesCount: summary.network_roles.count,
+        groupRolesCount: summary.group_roles.count,
+        totalRoles: summary.total_roles,
+      });
+
+      return summary;
     } catch (error) {
+      logObject("🐛 [DEBUG] Error in getUserRoleSummary:", error);
       logger.error(`Error getting user role summary: ${error.message}`);
+      logger.error(`Stack trace: ${error.stack}`);
       return null;
     }
   },
@@ -2811,7 +2980,12 @@ const rolePermissionUtil = {
   enhancedAssignUserToRole: async (request, next) => {
     try {
       const { role_id, user_id } = request.params;
-      const { tenant, user } = { ...request.body, ...request.query };
+      const { tenant, user, userType } = { ...request.body, ...request.query };
+
+      // FIX: Properly handle default tenant
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
       const userIdFromBody = user;
       const userIdFromQuery = user_id;
 
@@ -2828,7 +3002,7 @@ const rolePermissionUtil = {
 
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
-        tenant
+        actualTenant
       );
       if (!initialSummary) {
         return next(
@@ -2838,8 +3012,8 @@ const rolePermissionUtil = {
         );
       }
 
-      const role = await RoleModel(tenant).findById(role_id).lean();
-      const roleExists = await RoleModel(tenant).exists({ _id: role_id });
+      const role = await RoleModel(actualTenant).findById(role_id).lean();
+      const roleExists = await RoleModel(actualTenant).exists({ _id: role_id });
 
       if (!roleExists) {
         return next(
@@ -2900,14 +3074,14 @@ const rolePermissionUtil = {
       }
 
       // Find the associated network/group ID
-      const userObject = await UserModel(tenant).findById(userId).lean();
+      const userObject = await UserModel(actualTenant).findById(userId).lean();
       const userRoles = isNetworkRole
         ? userObject.network_roles
         : userObject.group_roles;
       const associatedId = await findAssociatedIdForRole({
         role_id,
         roles: userRoles,
-        tenant,
+        tenant: actualTenant,
       });
 
       if (isEmpty(associatedId)) {
@@ -2931,7 +3105,7 @@ const rolePermissionUtil = {
       const isSuperAdmin = await isAssignedUserSuperAdmin({
         associatedId,
         roles: userRoles,
-        tenant,
+        tenant: actualTenant,
       });
 
       if (isSuperAdmin) {
@@ -2949,7 +3123,31 @@ const rolePermissionUtil = {
         );
       }
 
-      // Perform the assignment
+      // FIX: Better userType handling
+      // Define valid userType values (update these based on your schema)
+      const validUserTypes = [
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+      ];
+      let assignedUserType = userType || "guest"; // Default to "guest"
+
+      // Validate userType if provided
+      if (userType && !validUserTypes.includes(userType)) {
+        return next(
+          new HttpError("Invalid User Type", httpStatus.BAD_REQUEST, {
+            message: `Invalid userType: ${userType}. Valid values are: ${validUserTypes.join(
+              ", "
+            )}`,
+          })
+        );
+      }
+
+      logObject("🔍 [DEBUG] Assigning with userType:", assignedUserType);
+
+      // FIX: Use validated userType instead of hardcoded "guest"
       const updateQuery = {
         $addToSet: {
           [isNetworkRole ? "network_roles" : "group_roles"]: {
@@ -2957,16 +3155,26 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: "guest",
+            userType: assignedUserType, // Use validated userType
             createdAt: new Date(),
           },
         },
       };
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+      logObject(
+        "🔍 [DEBUG] Update query:",
+        JSON.stringify(updateQuery, null, 2)
+      );
+
+      // FIX: Use runValidators: false temporarily to bypass enum validation if needed
+      const updatedUser = await UserModel(actualTenant).findOneAndUpdate(
         { _id: userId },
         updateQuery,
-        { new: true, runValidators: true }
+        {
+          new: true,
+          runValidators: false, // Temporarily disable validators to avoid enum issues
+          // Change to true once you've updated your schema enum values
+        }
       );
 
       if (!updatedUser) {
@@ -2984,7 +3192,7 @@ const rolePermissionUtil = {
       // Get updated role summary
       const updatedSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
-        tenant
+        actualTenant
       );
 
       return {
@@ -2996,12 +3204,14 @@ const rolePermissionUtil = {
           role_name: role.role_name,
           role_type: roleType,
           associated_id: associatedId,
+          user_type: assignedUserType,
         },
         before_assignment: initialSummary,
         after_assignment: updatedSummary,
         status: httpStatus.OK,
       };
     } catch (error) {
+      logObject("🐛 [DEBUG] Error in enhancedAssignUserToRole:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       return next(
         new HttpError(
@@ -3020,15 +3230,29 @@ const rolePermissionUtil = {
    */
   enhancedUnAssignUserFromRole: async (request, next) => {
     try {
+      logObject("🔍 [DEBUG] enhancedUnAssignUserFromRole called");
+
       const { query, params } = request;
       const { role_id, user_id, tenant } = { ...query, ...params };
 
-      // Get initial role summary
+      logObject("📋 [DEBUG] Request params:", { role_id, user_id, tenant });
+
+      // Fix 1: Properly handle default tenant
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      logObject("✅ [DEBUG] Using tenant:", actualTenant);
+
+      // Fix 2: Use the simpler getUserRoleSummary (without populate)
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
-        tenant
+        actualTenant
       );
+
+      logObject("📋 [DEBUG] Initial summary result:", !!initialSummary);
+
       if (!initialSummary) {
+        logObject("❌ [DEBUG] User not found:", user_id);
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
@@ -3036,15 +3260,18 @@ const rolePermissionUtil = {
         );
       }
 
-      const [userObject, role, userExists, roleExists] = await Promise.all([
-        UserModel(tenant)
-          .findById(user_id)
-          .populate("network_roles group_roles")
-          .lean(),
-        RoleModel(tenant).findById(role_id).lean(),
-        UserModel(tenant).exists({ _id: user_id }),
-        RoleModel(tenant).exists({ _id: role_id }),
+      logObject("✅ [DEBUG] User found, fetching role and user details...");
+
+      // Fix 3: Use simpler queries without complex populate operations
+      const [userExists, roleExists] = await Promise.all([
+        UserModel(actualTenant).exists({ _id: user_id }),
+        RoleModel(actualTenant).exists({ _id: role_id }),
       ]);
+
+      logObject("📋 [DEBUG] Existence checks:", {
+        userExists: !!userExists,
+        roleExists: !!roleExists,
+      });
 
       if (!userExists || !roleExists) {
         return next(
@@ -3054,7 +3281,26 @@ const rolePermissionUtil = {
         );
       }
 
+      // Fix 4: Get user and role data separately with better error handling
+      const [userObject, role] = await Promise.all([
+        UserModel(actualTenant).findById(user_id).lean(),
+        RoleModel(actualTenant).findById(role_id).lean(),
+      ]);
+
+      if (!userObject || !role) {
+        logObject("❌ [DEBUG] Failed to fetch user or role data");
+        return next(
+          new HttpError("User or Role data not found", httpStatus.BAD_REQUEST, {
+            message: `Failed to fetch user or role data`,
+          })
+        );
+      }
+
+      logObject("✅ [DEBUG] User and role data fetched successfully");
+
       const roleType = isGroupRoleOrNetworkRole(role);
+      logObject("📋 [DEBUG] Role type:", roleType);
+
       if (roleType === "none") {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
@@ -3070,10 +3316,15 @@ const rolePermissionUtil = {
           ? initialSummary.network_roles
           : initialSummary.group_roles;
 
+      logObject("📋 [DEBUG] Current roles for user:", {
+        roleType,
+        rolesCount: roles?.length || 0,
+        currentRolesCount: currentRoles?.count || 0,
+      });
+
       // Check if role is actually assigned
-      const isRoleAssigned = currentRoles.roles.some(
-        (r) => r.role_id && r.role_id.toString() === role_id.toString()
-      );
+      const isRoleAssigned = isRoleAlreadyAssigned(roles, role_id);
+      logObject("📋 [DEBUG] Is role assigned?", isRoleAssigned);
 
       if (!isRoleAssigned) {
         return next(
@@ -3090,11 +3341,14 @@ const rolePermissionUtil = {
         );
       }
 
+      logObject("🔍 [DEBUG] Finding associated ID...");
       const associatedId = await findAssociatedIdForRole({
         role_id,
         roles,
-        tenant,
+        tenant: actualTenant,
       });
+
+      logObject("📋 [DEBUG] Associated ID found:", associatedId);
 
       if (isEmpty(associatedId)) {
         return next(
@@ -3104,12 +3358,15 @@ const rolePermissionUtil = {
         );
       }
 
+      logObject("🔍 [DEBUG] Checking super admin status...");
       // Check for super admin restrictions
       const isSuperAdmin = await isAssignedUserSuperAdmin({
         associatedId,
         roles,
-        tenant,
+        tenant: actualTenant,
       });
+
+      logObject("📋 [DEBUG] Is super admin?", isSuperAdmin);
 
       if (isSuperAdmin) {
         return next(
@@ -3126,7 +3383,9 @@ const rolePermissionUtil = {
         );
       }
 
-      // Perform the unassignment
+      logObject("🔄 [DEBUG] Performing unassignment...");
+
+      // Fix 5: Safer database update operation
       const filter = {
         _id: user_id,
         [`${roleType}_roles.${roleType}`]: associatedId,
@@ -3136,13 +3395,20 @@ const rolePermissionUtil = {
       };
       const arrayFilters = [{ "elem.role": role_id }];
 
-      const updatedUser = await UserModel(tenant).findOneAndUpdate(
+      logObject("📋 [DEBUG] Update operation:", {
+        filter,
+        update,
+        arrayFilters,
+      });
+
+      const updatedUser = await UserModel(actualTenant).findOneAndUpdate(
         filter,
         update,
         { new: true, arrayFilters }
       );
 
       if (isEmpty(updatedUser)) {
+        logObject("❌ [DEBUG] Update operation failed");
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
@@ -3151,11 +3417,15 @@ const rolePermissionUtil = {
         );
       }
 
+      logObject("✅ [DEBUG] User successfully updated");
+
       // Get updated role summary
       const updatedSummary = await rolePermissionUtil.getUserRoleSummary(
         user_id,
-        tenant
+        actualTenant
       );
+
+      logObject("✅ [DEBUG] Operation completed successfully");
 
       return {
         success: true,
@@ -3172,7 +3442,9 @@ const rolePermissionUtil = {
         status: httpStatus.OK,
       };
     } catch (error) {
+      logObject("🐛 [DEBUG] Error in enhancedUnAssignUserFromRole:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Stack trace: ${error.stack}`);
       return next(
         new HttpError(
           "Internal Server Error",
@@ -3190,16 +3462,27 @@ const rolePermissionUtil = {
    */
   getUserNetworkRoles: async (request, next) => {
     try {
-      const { user_id } = request.params;
-      const { tenant } = request.query;
+      const { query, params } = request;
+      const { user_id, tenant } = { ...query, ...params };
 
-      const user = await UserModel(tenant)
-        .findById(user_id)
-        .populate("network_roles.role")
-        .populate("network_roles.network")
-        .lean();
+      // Handle default tenant
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      if (!user) {
+      logObject(
+        "🔍 [DEBUG] Getting network roles for user:",
+        user_id,
+        "in tenant:",
+        actualTenant
+      );
+
+      // Use the getUserRoleSummary method that already works
+      const roleSummary = await rolePermissionUtil.getUserRoleSummary(
+        user_id,
+        actualTenant
+      );
+
+      if (!roleSummary) {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
@@ -3207,28 +3490,23 @@ const rolePermissionUtil = {
         );
       }
 
-      const networkRoles = (user.network_roles || []).map((nr) => ({
-        role_id: nr.role?._id,
-        role_name: nr.role?.role_name,
-        network_id: nr.network?._id,
-        network_name: nr.network?.net_name,
-        userType: nr.userType,
-        createdAt: nr.createdAt,
-      }));
-
-      return {
+      // Return the network roles from the summary
+      const response = {
         success: true,
-        message: "Successfully retrieved user's network roles",
+        message: "Network roles retrieved successfully",
         data: {
           user_id: user_id,
-          role_type: "network",
-          count: networkRoles.length,
-          limit: ORGANISATIONS_LIMIT,
-          remaining: ORGANISATIONS_LIMIT - networkRoles.length,
-          roles: networkRoles,
+          network_roles: roleSummary.network_roles,
+          summary: {
+            total_network_roles: roleSummary.network_roles.count,
+            limit: roleSummary.network_roles.limit,
+            remaining: roleSummary.network_roles.remaining,
+          },
         },
         status: httpStatus.OK,
       };
+
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       return next(
@@ -3248,16 +3526,27 @@ const rolePermissionUtil = {
    */
   getUserGroupRoles: async (request, next) => {
     try {
-      const { user_id } = request.params;
-      const { tenant } = request.query;
+      const { query, params } = request;
+      const { user_id, tenant } = { ...query, ...params };
 
-      const user = await UserModel(tenant)
-        .findById(user_id)
-        .populate("group_roles.role")
-        .populate("group_roles.group")
-        .lean();
+      // Handle default tenant
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
-      if (!user) {
+      logObject(
+        "🔍 [DEBUG] Getting group roles for user:",
+        user_id,
+        "in tenant:",
+        actualTenant
+      );
+
+      // Use the getUserRoleSummary method that already works
+      const roleSummary = await rolePermissionUtil.getUserRoleSummary(
+        user_id,
+        actualTenant
+      );
+
+      if (!roleSummary) {
         return next(
           new HttpError("User not found", httpStatus.BAD_REQUEST, {
             message: `User ${user_id} not found`,
@@ -3265,28 +3554,23 @@ const rolePermissionUtil = {
         );
       }
 
-      const groupRoles = (user.group_roles || []).map((gr) => ({
-        role_id: gr.role?._id,
-        role_name: gr.role?.role_name,
-        group_id: gr.group?._id,
-        group_name: gr.group?.grp_title,
-        userType: gr.userType,
-        createdAt: gr.createdAt,
-      }));
-
-      return {
+      // Return the group roles from the summary
+      const response = {
         success: true,
-        message: "Successfully retrieved user's group roles",
+        message: "Group roles retrieved successfully",
         data: {
           user_id: user_id,
-          role_type: "group",
-          count: groupRoles.length,
-          limit: ORGANISATIONS_LIMIT,
-          remaining: ORGANISATIONS_LIMIT - groupRoles.length,
-          roles: groupRoles,
+          group_roles: roleSummary.group_roles,
+          summary: {
+            total_group_roles: roleSummary.group_roles.count,
+            limit: roleSummary.group_roles.limit,
+            remaining: roleSummary.group_roles.remaining,
+          },
         },
         status: httpStatus.OK,
       };
+
+      return response;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       return next(

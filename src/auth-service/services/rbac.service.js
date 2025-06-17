@@ -1588,6 +1588,87 @@ class RBACService {
       return { error: error.message };
     }
   }
+
+  async getUserGroupRoles(userId) {
+    try {
+      const user = await UserModel(this.tenant)
+        .findById(userId)
+        .populate("group_roles.group")
+        .populate("group_roles.role")
+        .lean();
+
+      if (!user) return [];
+
+      return user.group_roles || [];
+    } catch (error) {
+      logger.error(`Error getting user group roles: ${error.message}`);
+      return [];
+    }
+  }
+
+  async getUserNetworkRoles(userId) {
+    try {
+      const user = await UserModel(this.tenant)
+        .findById(userId)
+        .populate("network_roles.network")
+        .populate("network_roles.role")
+        .lean();
+
+      if (!user) return [];
+
+      return user.network_roles || [];
+    } catch (error) {
+      logger.error(`Error getting user network roles: ${error.message}`);
+      return [];
+    }
+  }
+
+  // Get simplified permission structure for JWT
+  async getUserAccessSummary(userId) {
+    try {
+      const [groupRoles, networkRoles] = await Promise.all([
+        this.getUserGroupRoles(userId),
+        this.getUserNetworkRoles(userId),
+      ]);
+
+      const summary = {
+        groups: {},
+        networks: {},
+        isSuperAdmin: false,
+      };
+
+      // Process groups
+      for (const gr of groupRoles) {
+        if (gr.group && gr.role) {
+          summary.groups[gr.group._id] = {
+            name: gr.group.grp_title,
+            roleCode: gr.role.role_code,
+            roleName: gr.role.role_name,
+          };
+
+          if (gr.role.role_code?.includes("SUPER_ADMIN")) {
+            summary.isSuperAdmin = true;
+          }
+        }
+      }
+
+      // Process networks
+      for (const nr of networkRoles) {
+        if (nr.network && nr.role) {
+          summary.networks[nr.network._id] = {
+            name: nr.network.net_name,
+            roleCode: nr.role.role_code,
+            roleName: nr.role.role_name,
+          };
+        }
+      }
+
+      return summary;
+    } catch (error) {
+      logger.error(`Error getting user access summary: ${error.message}`);
+      return { groups: {}, networks: {}, isSuperAdmin: false };
+    }
+  }
 }
 
 module.exports = RBACService;

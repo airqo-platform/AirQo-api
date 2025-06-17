@@ -539,6 +539,387 @@ const debugGroupNetworkAccess = () => {
   };
 };
 
+const requireOrganizationContext = (options = {}) => {
+  const {
+    paramName = "grp_id",
+    bodyParam = "groupId",
+    queryParam = "groupId",
+    required = true,
+    allowSuperAdmin = true,
+  } = options;
+
+  return (req, res, next) => {
+    try {
+      const token = req.user;
+
+      if (!token) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            message: "You must be logged in to access this resource",
+            debugCode: "ORG_AUTH_MISSING",
+            requestUrl: req.originalUrl,
+          })
+        );
+      }
+
+      const requestedOrgId =
+        req.params[paramName] || req.body[bodyParam] || req.query[queryParam];
+
+      if (required && !requestedOrgId) {
+        return next(
+          new HttpError(
+            "Organization context required",
+            httpStatus.BAD_REQUEST,
+            {
+              message: `Organization ID must be provided in URL parameter '${paramName}'`,
+              debugCode: "ORG_ID_MISSING",
+              details: {
+                expectedInUrl: paramName,
+                receivedParams: req.params,
+                suggestions: [
+                  `Ensure URL contains /:${paramName}/`,
+                  "Check that the route parameter matches the expected name",
+                ],
+              },
+            }
+          )
+        );
+      }
+
+      if (!requestedOrgId && !required) {
+        return next();
+      }
+
+      const userContext = {
+        hasCurrentContext: !!token.currentContext?.id,
+        currentContextId: token.currentContext?.id,
+        hasFullAccess: !!token.fullAccess?.groups,
+        availableGroups: Object.keys(token.fullAccess?.groups || {}),
+        isSuperAdmin:
+          token.isSuperAdmin || token.roles?.includes("SUPER_ADMIN"),
+      };
+
+      // Super admin bypass
+      if (allowSuperAdmin && userContext.isSuperAdmin) {
+        logger.info(
+          `[ORG_CONTEXT] Super admin ${token.email} accessing org ${requestedOrgId}`
+        );
+        req.organizationContext = requestedOrgId;
+        return next();
+      }
+
+      // Access checks
+      const hasCurrentContext = userContext.currentContextId === requestedOrgId;
+      const hasFullAccess = !!token.fullAccess?.groups?.[requestedOrgId];
+      const hasAnyAccess = hasCurrentContext || hasFullAccess;
+
+      if (!hasAnyAccess) {
+        // IMPROVED ERROR MESSAGES - more specific and clearer
+        let specificMessage;
+        let suggestions = [];
+        let debugCode = "ORG_ACCESS_DENIED";
+
+        if (!userContext.hasCurrentContext && !userContext.hasFullAccess) {
+          // User has no organization access at all
+          specificMessage = `Access denied: Your account is not assigned to organization '${requestedOrgId}' or any other organization`;
+          suggestions = [
+            "Contact your administrator to be added to this organization",
+            "Verify that your account has been properly set up with organization access",
+            "Try logging out and logging back in to refresh your permissions",
+          ];
+          debugCode = "NO_ORG_ACCESS";
+        } else if (
+          userContext.hasCurrentContext &&
+          userContext.currentContextId !== requestedOrgId
+        ) {
+          // User has access to other orgs but not this one
+          specificMessage = `Access denied: You're assigned to organization '${userContext.currentContextId}' but trying to access '${requestedOrgId}'`;
+          suggestions = [
+            "Switch to the correct organization context",
+            "Ask your administrator for access to this organization",
+            `Use your assigned organization: ${userContext.currentContextId}`,
+          ];
+          debugCode = "WRONG_ORG_CONTEXT";
+        } else if (userContext.hasFullAccess && !hasFullAccess) {
+          // User has access to some orgs but not this specific one
+          specificMessage = `Access denied: You don't have access to organization '${requestedOrgId}'`;
+          suggestions = [
+            `You have access to: ${userContext.availableGroups.join(", ")}`,
+            "Contact your administrator for access to this organization",
+            "Verify the organization ID is correct",
+          ];
+          debugCode = "ORG_NOT_ACCESSIBLE";
+        } else {
+          // Fallback
+          specificMessage = `Access denied: Cannot access organization '${requestedOrgId}'`;
+          suggestions = ["Contact your administrator for assistance"];
+        }
+
+        logger.warn(`[ORG_CONTEXT] ${debugCode} for user ${token.email}:`, {
+          requestedOrg: requestedOrgId,
+          userCurrentContext: userContext.currentContextId,
+          userAvailableOrgs: userContext.availableGroups,
+        });
+
+        return next(
+          new HttpError("Invalid organization context", httpStatus.FORBIDDEN, {
+            message: specificMessage,
+            debugCode: debugCode,
+            details: {
+              requestedOrganization: requestedOrgId,
+              userCurrentContext: userContext.currentContextId,
+              availableOrganizations: userContext.availableGroups,
+              suggestions: suggestions,
+              userId: token._id,
+              userEmail: token.email,
+            },
+          })
+        );
+      }
+
+      // Success
+      logger.info(
+        `[ORG_CONTEXT] Access granted: ${token.email} -> org ${requestedOrgId}`
+      );
+      req.organizationContext = requestedOrgId;
+      next();
+    } catch (error) {
+      logger.error(`[ORG_CONTEXT] Error: ${error.message}`);
+      next(
+        new HttpError(
+          "Organization context validation failed",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            debugCode: "ORG_CONTEXT_ERROR",
+            details: {
+              originalError: error.message,
+              userId: req.user?._id,
+              url: req.originalUrl,
+            },
+          }
+        )
+      );
+    }
+  };
+};
+
+const requireOrganizationContextEnhanced = (options = {}) => {
+  const {
+    paramName = "grp_id",
+    bodyParam = "groupId",
+    queryParam = "groupId",
+    required = true,
+    allowSuperAdmin = true,
+  } = options;
+
+  return (req, res, next) => {
+    try {
+      const token = req.user;
+
+      // Enhanced debugging info
+      const debugInfo = {
+        userId: token?._id,
+        userEmail: token?.email,
+        requestedUrl: req.originalUrl,
+        requestMethod: req.method,
+        params: req.params,
+        hasUser: !!token,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (!token) {
+        logger.warn("[ORG_CONTEXT] Authentication missing:", debugInfo);
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            message: "You must be logged in to access this resource",
+            debugCode: "ORG_AUTH_MISSING",
+            requestUrl: req.originalUrl,
+          })
+        );
+      }
+
+      // Get organization ID from various sources with detailed logging
+      const requestedOrgId =
+        req.params[paramName] || req.body[bodyParam] || req.query[queryParam];
+
+      debugInfo.requestedOrgId = requestedOrgId;
+      debugInfo.searchedInParams = paramName;
+      debugInfo.searchedInBody = bodyParam;
+      debugInfo.searchedInQuery = queryParam;
+
+      if (required && !requestedOrgId) {
+        logger.warn("[ORG_CONTEXT] Organization ID missing:", debugInfo);
+        return next(
+          new HttpError(
+            "Organization context required",
+            httpStatus.BAD_REQUEST,
+            {
+              message: `Organization ID must be provided in URL parameter '${paramName}', body parameter '${bodyParam}', or query parameter '${queryParam}'`,
+              debugCode: "ORG_ID_MISSING",
+              expectedSources: {
+                urlParam: paramName,
+                bodyParam: bodyParam,
+                queryParam: queryParam,
+              },
+              receivedParams: req.params,
+              receivedBody: Object.keys(req.body || {}),
+              receivedQuery: Object.keys(req.query || {}),
+            }
+          )
+        );
+      }
+
+      // Skip validation if no org ID and not required
+      if (!requestedOrgId && !required) {
+        return next();
+      }
+
+      // Enhanced user context analysis
+      const userContext = {
+        hasCurrentContext: !!token.currentContext?.id,
+        currentContextId: token.currentContext?.id,
+        hasFullAccess: !!token.fullAccess?.groups,
+        availableGroups: Object.keys(token.fullAccess?.groups || {}),
+        hasRoles: !!token.roles?.length,
+        userRoles: token.roles || [],
+        isSuperAdmin:
+          token.isSuperAdmin || token.roles?.includes("SUPER_ADMIN"),
+      };
+
+      debugInfo.userContext = userContext;
+
+      // Super admin bypass with logging
+      if (allowSuperAdmin && userContext.isSuperAdmin) {
+        logger.info("[ORG_CONTEXT] Super admin access granted:", {
+          ...debugInfo,
+          accessType: "super_admin_bypass",
+        });
+        req.organizationContext = requestedOrgId;
+        req.organizationAccess = {
+          hasAccess: true,
+          accessType: "super_admin",
+          organizationId: requestedOrgId,
+        };
+        return next();
+      }
+
+      // Detailed access checks
+      const accessChecks = {
+        hasCurrentContext: userContext.currentContextId === requestedOrgId,
+        hasFullAccess: !!token.fullAccess?.groups?.[requestedOrgId],
+        hasGeneralRoleAccess: userContext.userRoles.some((role) =>
+          ["SUPER_ADMIN", "GROUP_ADMIN", "SYSTEM_ADMIN"].includes(role)
+        ),
+      };
+
+      const hasAnyAccess = Object.values(accessChecks).some(Boolean);
+
+      debugInfo.accessChecks = accessChecks;
+      debugInfo.hasAnyAccess = hasAnyAccess;
+
+      if (!hasAnyAccess) {
+        // Detailed error message based on what's missing
+        let specificErrorMessage = "You don't have access to this organization";
+        let suggestions = [];
+
+        if (!userContext.hasCurrentContext && !userContext.hasFullAccess) {
+          specificErrorMessage =
+            "Your account doesn't have access to any organizations";
+          suggestions.push(
+            "Contact your administrator to be added to an organization"
+          );
+        } else if (
+          userContext.hasCurrentContext &&
+          userContext.currentContextId !== requestedOrgId
+        ) {
+          specificErrorMessage = `You're currently in organization '${userContext.currentContextId}' but trying to access '${requestedOrgId}'`;
+          suggestions.push("Switch to the correct organization context");
+          suggestions.push(
+            "Ensure you have access to the requested organization"
+          );
+        } else if (
+          userContext.hasFullAccess &&
+          !token.fullAccess.groups[requestedOrgId]
+        ) {
+          specificErrorMessage = `You don't have access to organization '${requestedOrgId}'`;
+          suggestions.push(
+            `Available organizations: ${
+              userContext.availableGroups.join(", ") || "none"
+            }`
+          );
+        }
+
+        logger.warn("[ORG_CONTEXT] Access denied:", {
+          ...debugInfo,
+          specificErrorMessage,
+          suggestions,
+        });
+
+        return next(
+          new HttpError("Invalid organization context", httpStatus.FORBIDDEN, {
+            message: specificErrorMessage,
+            debugCode: "ORG_ACCESS_DENIED",
+            organizationId: requestedOrgId,
+            userCurrentContext: userContext.currentContextId,
+            availableOrganizations: userContext.availableGroups,
+            suggestions: suggestions,
+            accessChecks: accessChecks,
+            // Include detailed info for development
+            ...(process.env.NODE_ENV !== "production" && {
+              debugInfo: debugInfo,
+            }),
+          })
+        );
+      }
+
+      // Success - determine access type and log
+      let accessType = "unknown";
+      if (accessChecks.hasCurrentContext) accessType = "current_context";
+      else if (accessChecks.hasFullAccess) accessType = "full_access";
+      else if (accessChecks.hasGeneralRoleAccess) accessType = "role_based";
+
+      logger.info("[ORG_CONTEXT] Access granted:", {
+        userId: token._id,
+        email: token.email,
+        organizationId: requestedOrgId,
+        accessType: accessType,
+        url: req.originalUrl,
+      });
+
+      // Set enhanced context for downstream middleware/controllers
+      req.organizationContext = requestedOrgId;
+      req.organizationAccess = {
+        hasAccess: true,
+        accessType: accessType,
+        organizationId: requestedOrgId,
+        permissions:
+          token.fullAccess?.groups?.[requestedOrgId]?.permissions || [],
+        userContext: userContext,
+      };
+
+      next();
+    } catch (error) {
+      logger.error(`[ORG_CONTEXT] Middleware error: ${error.message}`, {
+        userId: req.user?._id,
+        url: req.originalUrl,
+        stack: error.stack,
+      });
+      next(
+        new HttpError(
+          "Organization context validation failed",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+            debugCode: "ORG_CONTEXT_ERROR",
+            originalError:
+              process.env.NODE_ENV !== "production" ? error.stack : undefined,
+          }
+        )
+      );
+    }
+  };
+};
+
 module.exports = {
   requireGroupManagerAccess,
   requireGroupAdminAccess,
@@ -548,4 +929,6 @@ module.exports = {
   isVerifiedGroupMember,
   isVerifiedNetworkMember,
   debugGroupNetworkAccess,
+  requireOrganizationContext,
+  requireOrganizationContextEnhanced,
 };
