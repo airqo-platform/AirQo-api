@@ -8,7 +8,7 @@ const mongoose = require("mongoose").set("debug", true);
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const SLUG_MAX_LENGTH = 20;
+const SLUG_MAX_LENGTH = parseInt(constants.SLUG_MAX_LENGTH ?? 60, 10);
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
@@ -449,7 +449,10 @@ const groupUtil = {
         slug = `${baseSlug}-${Date.now()}`;
         break;
       }
-      slug = `${baseSlug}-${counter}`;
+      slug =
+        `${baseSlug}`.slice(0, SLUG_MAX_LENGTH - `-${counter}`.length) +
+        `-${counter}`;
+
       counter++;
     }
 
