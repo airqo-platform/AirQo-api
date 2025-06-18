@@ -8,6 +8,7 @@ const mongoose = require("mongoose").set("debug", true);
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const SLUG_MAX_LENGTH = 20;
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
@@ -408,7 +409,7 @@ const groupUtil = {
         message: "Unable to generate a valid slug from title",
       });
     }
-    slug = slug.slice(0, 20);
+    slug = slug.slice(0, SLUG_MAX_LENGTH);
 
     return slug;
   },
@@ -590,7 +591,9 @@ const groupUtil = {
     try {
       const { tenant } = request.query;
       const { grp_id } = request.params;
-      const { slug, regenerate = false } = request.body;
+      let { slug, regenerate = false } = request.body;
+      // normalise regenerate to boolean
+      regenerate = ["true", "1", true].includes(regenerate);
 
       // Find the group
       const group = await GroupModel(tenant).findById(grp_id).lean();
@@ -623,7 +626,7 @@ const groupUtil = {
       if (slug) {
         // Validate provided slug
         const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-        if (!slugRegex.test(slug)) {
+        if (!slugRegex.test(slug) || slug.length > SLUG_MAX_LENGTH) {
           return {
             success: false,
             message:
