@@ -36,7 +36,7 @@
 ## Contacts
 
 - **Security Contact:** security@airqo.net
-- **Maintainers:** See [CODEOWNERS](./CODEOWNERS) or repository admins.
+- **Maintainers:** See [CODEOWNERS](./CODEOWNERS.md) or repository admins.
 
 ## Additional Resources
 
