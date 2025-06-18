@@ -186,6 +186,8 @@ GroupSchema.methods = {
     return {
       _id: this._id,
       grp_title: this.grp_title,
+      organization_slug: this.organization_slug,
+      theme: this.theme,
       grp_status: this.grp_status,
       grp_tasks: this.grp_tasks,
       grp_description: this.grp_description,
@@ -332,6 +334,7 @@ GroupSchema.statics = {
         projection: {
           _id: 1,
           grp_title: 1,
+          organization_slug: 1,
           grp_status: 1,
           grp_description: 1,
           createdAt: 1,
