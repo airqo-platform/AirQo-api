@@ -403,6 +403,13 @@ const groupUtil = {
       .replace(/^-+/, "") // Trim hyphens from start
       .replace(/-+$/, ""); // Trim hyphens from end
 
+    if (!slug) {
+      throw new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+        message: "Unable to generate a valid slug from title",
+      });
+    }
+    slug = slug.slice(0, 20);
+
     return slug;
   },
 
@@ -456,7 +463,8 @@ const groupUtil = {
    */
   populateSlugs: async (request, next) => {
     try {
-      const { tenant, dryRun = false, limit = 100 } = request.query;
+      const { tenant, limit = 100 } = request.query;
+      const dryRun = ["true", "1", true].includes(request.query.dryRun);
 
       // Find all groups without organization_slug
       const groupsWithoutSlug = await GroupModel(tenant)

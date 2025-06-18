@@ -387,6 +387,12 @@ const updateSlug = [
   validateTenant,
   validateGroupIdParam,
   [
+    body().custom((value, { req }) => {
+      if (!req.body.slug && !req.body.regenerate) {
+        throw new Error("Either slug or regenerate flag must be provided");
+      }
+      return true;
+    }),
     body("slug")
       .optional()
       .notEmpty()
