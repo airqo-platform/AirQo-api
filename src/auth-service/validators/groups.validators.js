@@ -202,6 +202,18 @@ const create = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    body("organization_slug")
+      .optional()
+      .notEmpty()
+      .withMessage("organization_slug should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .withMessage("Slug must be lowercase alphanumeric with hyphens only")
+      .bail()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Slug must be between 2 and 100 characters"),
     body("grp_description")
       .exists()
       .withMessage("the grp_description is required")
@@ -351,6 +363,53 @@ const getGroupById = [
   ],
 ];
 
+const populateSlugs = [
+  validateTenant,
+  [
+    query("dryRun")
+      .optional()
+      .isBoolean()
+      .withMessage("dryRun must be a boolean value")
+      .bail()
+      .customSanitizer((value) => {
+        return value === "true" || value === true;
+      }),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 1000 })
+      .withMessage("limit must be an integer between 1 and 1000")
+      .bail()
+      .toInt(),
+  ],
+];
+
+const updateSlug = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body("slug")
+      .optional()
+      .notEmpty()
+      .withMessage("slug should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .withMessage("Slug must be lowercase alphanumeric with hyphens only")
+      .bail()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Slug must be between 2 and 100 characters"),
+    body("regenerate")
+      .optional()
+      .isBoolean()
+      .withMessage("regenerate must be a boolean value")
+      .bail()
+      .customSanitizer((value) => {
+        return value === "true" || value === true;
+      }),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -370,4 +429,6 @@ module.exports = {
   unAssignManyUsers,
   listRolesForGroup,
   getGroupById,
+  populateSlugs,
+  updateSlug,
 };

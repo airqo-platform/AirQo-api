@@ -31,6 +31,23 @@ router.put("/:grp_id", groupValidations.update, groupController.update);
 router.get("/", groupValidations.list, groupController.list);
 
 router.post(
+  "/populate-slugs",
+  setJWTAuth,
+  authJWT,
+  groupValidations.populateSlugs,
+  groupController.populateSlugs
+);
+
+// Update/add slug for a specific group (manual)
+router.put(
+  "/:grp_id/slug",
+  setJWTAuth,
+  authJWT,
+  groupValidations.updateSlug,
+  groupController.updateSlug
+);
+
+router.post(
   "/",
   groupValidations.create,
   setJWTAuth,
