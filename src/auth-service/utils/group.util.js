@@ -8,6 +8,7 @@ const mongoose = require("mongoose").set("debug", true);
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const SLUG_MAX_LENGTH = parseInt(constants.SLUG_MAX_LENGTH ?? 60, 10);
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-group-util`
@@ -376,6 +377,323 @@ const groupUtil = {
       );
     }
   },
+  /**
+   * Generate a slug from a group title
+   * @param {string} title - The group title
+   * @returns {string} - The generated slug
+   */
+  generateSlugFromTitle: (title) => {
+    if (!title) return "";
+
+    // Convert to lowercase and replace spaces/underscores with hyphens
+    let slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/[\s_]+/g, "-") // Replace spaces and underscores with hyphens
+      .replace(/[^\w\-]+/g, "") // Remove all non-word chars except hyphens
+      .replace(/\-\-+/g, "-") // Replace multiple hyphens with single hyphen
+      .replace(/^-+/, "") // Trim hyphens from start
+      .replace(/-+$/, ""); // Trim hyphens from end
+
+    if (!slug) {
+      throw new HttpError("Bad Request", httpStatus.BAD_REQUEST, {
+        message: "Unable to generate a valid slug from title",
+      });
+    }
+    slug = slug.slice(0, SLUG_MAX_LENGTH);
+
+    return slug;
+  },
+
+  /**
+   * Check if a slug already exists in the database
+   * @param {string} tenant - The tenant
+   * @param {string} slug - The slug to check
+   * @param {string} excludeId - Group ID to exclude from check (for updates)
+   * @returns {Promise<boolean>} - True if slug exists
+   */
+  checkSlugExists: async (tenant, slug, excludeId = null) => {
+    const filter = { organization_slug: slug };
+    if (excludeId) {
+      filter._id = { $ne: excludeId };
+    }
+
+    const existingGroup = await GroupModel(tenant).findOne(filter).lean();
+    return !!existingGroup;
+  },
+
+  /**
+   * Generate a unique slug by appending numbers if necessary
+   * @param {string} tenant - The tenant
+   * @param {string} baseSlug - The base slug
+   * @param {string} excludeId - Group ID to exclude from check
+   * @returns {Promise<string>} - The unique slug
+   */
+  generateUniqueSlug: async (tenant, baseSlug, excludeId = null) => {
+    let slug = baseSlug;
+    let counter = 1;
+    const maxAttempts = 100;
+
+    while (await groupUtil.checkSlugExists(tenant, slug, excludeId)) {
+      if (counter > maxAttempts) {
+        // Use timestamp as last resort
+        slug = `${baseSlug}-${Date.now()}`;
+        break;
+      }
+      slug =
+        `${baseSlug}`.slice(0, SLUG_MAX_LENGTH - `-${counter}`.length) +
+        `-${counter}`;
+
+      counter++;
+    }
+
+    return slug;
+  },
+
+  /**
+   * Populate slugs for all groups that don't have one
+   * @param {Object} request - The request object
+   * @param {Function} next - The next middleware function
+   * @returns {Promise<Object>} - The response object
+   */
+  populateSlugs: async (request, next) => {
+    try {
+      const { tenant, limit = 100 } = request.query;
+      const dryRun = ["true", "1", true].includes(request.query.dryRun);
+
+      // Find all groups without organization_slug
+      const groupsWithoutSlug = await GroupModel(tenant)
+        .find({
+          $or: [
+            { organization_slug: { $exists: false } },
+            { organization_slug: null },
+            { organization_slug: "" },
+          ],
+        })
+        .limit(parseInt(limit))
+        .lean();
+
+      if (groupsWithoutSlug.length === 0) {
+        return {
+          success: true,
+          message: "All groups already have organization slugs",
+          data: {
+            totalProcessed: 0,
+            updated: 0,
+            skipped: 0,
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      const results = {
+        totalProcessed: groupsWithoutSlug.length,
+        updated: 0,
+        skipped: 0,
+        errors: [],
+        updatedGroups: [],
+      };
+
+      // Process each group
+      for (const group of groupsWithoutSlug) {
+        try {
+          // Skip if group has no title
+          if (!group.grp_title) {
+            results.skipped++;
+            results.errors.push({
+              groupId: group._id,
+              error: "Group has no title",
+            });
+            continue;
+          }
+
+          // Generate slug from title
+          const baseSlug = groupUtil.generateSlugFromTitle(group.grp_title);
+          const uniqueSlug = await groupUtil.generateUniqueSlug(
+            tenant,
+            baseSlug
+          );
+
+          if (!dryRun) {
+            // Update the group with the new slug
+            const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+              group._id,
+              { organization_slug: uniqueSlug },
+              { new: true, select: "_id grp_title organization_slug" }
+            );
+
+            if (updatedGroup) {
+              results.updated++;
+              results.updatedGroups.push({
+                _id: updatedGroup._id,
+                grp_title: updatedGroup.grp_title,
+                organization_slug: updatedGroup.organization_slug,
+              });
+            } else {
+              results.skipped++;
+              results.errors.push({
+                groupId: group._id,
+                error: "Failed to update group",
+              });
+            }
+          } else {
+            // Dry run - just show what would be updated
+            results.updatedGroups.push({
+              _id: group._id,
+              grp_title: group.grp_title,
+              proposed_slug: uniqueSlug,
+            });
+          }
+        } catch (error) {
+          results.skipped++;
+          results.errors.push({
+            groupId: group._id,
+            error: error.message,
+          });
+        }
+      }
+
+      const message = dryRun
+        ? `Dry run completed. ${results.totalProcessed} groups would be updated.`
+        : `Slug population completed. ${results.updated} groups updated, ${results.skipped} skipped.`;
+
+      return {
+        success: true,
+        message,
+        data: results,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Update slug for a specific group
+   * @param {Object} request - The request object
+   * @param {Function} next - The next middleware function
+   * @returns {Promise<Object>} - The response object
+   */
+  updateSlug: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { grp_id } = request.params;
+      let { slug, regenerate = false } = request.body;
+      // normalise regenerate to boolean
+      regenerate = ["true", "1", true].includes(regenerate);
+
+      // Find the group
+      const group = await GroupModel(tenant).findById(grp_id).lean();
+
+      if (!group) {
+        return {
+          success: false,
+          message: `Group with ID ${grp_id} not found`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Check if group already has a slug and we're not forcing regeneration
+      if (group.organization_slug && !regenerate) {
+        return {
+          success: true,
+          message: "Group already has an organization slug",
+          data: {
+            _id: group._id,
+            grp_title: group.grp_title,
+            organization_slug: group.organization_slug,
+            skipped: true,
+          },
+          status: httpStatus.OK,
+        };
+      }
+
+      let finalSlug;
+
+      if (slug) {
+        // Validate provided slug
+        const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+        if (!slugRegex.test(slug) || slug.length > SLUG_MAX_LENGTH) {
+          return {
+            success: false,
+            message:
+              "Invalid slug format. Slug must be lowercase alphanumeric with hyphens only",
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        // Check if provided slug is already taken
+        const slugExists = await groupUtil.checkSlugExists(
+          tenant,
+          slug,
+          grp_id
+        );
+        if (slugExists) {
+          return {
+            success: false,
+            message: `Slug '${slug}' is already taken by another group`,
+            status: httpStatus.CONFLICT,
+          };
+        }
+
+        finalSlug = slug;
+      } else {
+        // Generate slug from title
+        if (!group.grp_title) {
+          return {
+            success: false,
+            message: "Cannot generate slug: Group has no title",
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        const baseSlug = groupUtil.generateSlugFromTitle(group.grp_title);
+        finalSlug = await groupUtil.generateUniqueSlug(
+          tenant,
+          baseSlug,
+          grp_id
+        );
+      }
+
+      // Update the group
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { organization_slug: finalSlug },
+        { new: true, select: "_id grp_title organization_slug" }
+      );
+
+      if (!updatedGroup) {
+        return {
+          success: false,
+          message: "Failed to update group",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Group slug updated successfully",
+        data: updatedGroup,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   removeUniqueConstraint: async (request, next) => {
     try {
       const { tenant } = request.query;
@@ -442,12 +760,22 @@ const groupUtil = {
         );
       }
 
+      // Generate organization_slug if not provided
+      let organizationSlug = body.organization_slug;
+
+      if (!organizationSlug && body.grp_title) {
+        // Generate slug from title
+        const baseSlug = groupUtil.generateSlugFromTitle(body.grp_title);
+        organizationSlug = await groupUtil.generateUniqueSlug(tenant, baseSlug);
+      }
+
       const modifiedBody = {
         ...body,
         grp_manager: ObjectId(user._id),
         grp_manager_username: user.email,
         grp_manager_firstname: user.firstName,
         grp_manager_lastname: user.lastName,
+        organization_slug: organizationSlug,
       };
 
       logObject("the user making the request", user);
@@ -558,6 +886,15 @@ const groupUtil = {
       const { body, query, params } = request;
       const { grp_id, tenant } = { ...query, ...params };
       const update = Object.assign({}, body);
+
+      // Prevent updating organization_slug through regular update
+      if (update.organization_slug) {
+        delete update.organization_slug;
+        logger.warn(
+          `Attempt to update organization_slug for group ${grp_id} was blocked. Use the dedicated slug endpoint instead.`
+        );
+      }
+
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
 
       if (!groupExists) {

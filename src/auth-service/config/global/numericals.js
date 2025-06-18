@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const numericals = {
   SALT_ROUNDS: 10,
   BCRYPT_SALT_ROUNDS: 12,
+  SLUG_MAX_LENGTH: 20,
   TOKEN_LENGTH: 16,
   EMAIL_VERIFICATION_HOURS: 1,
   EMAIL_VERIFICATION_MIN: 0,

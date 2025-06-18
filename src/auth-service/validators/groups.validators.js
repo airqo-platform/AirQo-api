@@ -202,6 +202,18 @@ const create = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    body("organization_slug")
+      .optional()
+      .notEmpty()
+      .withMessage("organization_slug should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .withMessage("Slug must be lowercase alphanumeric with hyphens only")
+      .bail()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Slug must be between 2 and 100 characters"),
     body("grp_description")
       .exists()
       .withMessage("the grp_description is required")
@@ -780,6 +792,24 @@ const getActivityLog = [
       .toInt(),
   ],
 ];
+const populateSlugs = [
+  validateTenant,
+  [
+    query("dryRun")
+      .optional()
+      .isBoolean()
+      .withMessage("dryRun must be a boolean value")
+      .bail()
+      .customSanitizer((value) => {
+        return value === "true" || value === true;
+      }),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 1000 })
+      .withMessage("limit must be an integer between 1 and 1000")
+      .bail(),
+  ],
+];
 
 const searchGroupMembers = [
   validateTenant,
@@ -936,6 +966,38 @@ const exportGroupData = [
       .withMessage("email_recipient must be a valid email address"),
   ],
 ];
+const updateSlug = [
+  validateTenant,
+  validateGroupIdParam,
+  [
+    body().custom((value, { req }) => {
+      if (!req.body.slug && !req.body.regenerate) {
+        throw new Error("Either slug or regenerate flag must be provided");
+      }
+      return true;
+    }),
+    body("slug")
+      .optional()
+      .notEmpty()
+      .withMessage("slug should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .withMessage("Slug must be lowercase alphanumeric with hyphens only")
+      .bail()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Slug must be between 2 and 100 characters"),
+    body("regenerate")
+      .optional()
+      .isBoolean()
+      .withMessage("regenerate must be a boolean value")
+      .bail()
+      .customSanitizer((value) => {
+        return value === "true" || value === true;
+      }),
+  ],
+];
 
 module.exports = {
   tenant: validateTenant,
@@ -966,4 +1028,6 @@ module.exports = {
   getActivityLog,
   searchGroupMembers,
   exportGroupData,
+  populateSlugs,
+  updateSlug,
 };

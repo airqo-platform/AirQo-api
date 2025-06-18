@@ -1,66 +1,66 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: staging-netmanager-virtual-server
-  namespace: staging
+  name: vertex-virtual-server
+  namespace: production
 spec:
-  host: staging-netmanager.airqo.net
+  host: vertex.airqo.net
   upstreams:
-    - name: platform-ui
-      service: airqo-stage-platform-frontend-svc
-      port: 80  
+    - name: vertex-ui
+      service: airqo-vertex-svc
+      port: 3000
     - name: auth-service
-      service: airqo-stage-auth-api-svc
+      service: airqo-auth-api-svc
       port: 3000
     - name: device-registry
-      service: airqo-stage-device-registry-api-svc
+      service: airqo-device-registry-api-svc
       port: 3000
     - name: data-mgt
-      service: airqo-stage-data-mgt-api-svc
+      service: airqo-data-mgt-api-svc
       port: 3000
     - name: data-proxy
-      service: airqo-stage-data-proxy-api-svc
+      service: airqo-data-proxy-api-svc
       port: 3000
     - name: locate
-      service: airqo-stage-locate-api-svc
+      service: airqo-locate-api-svc
       port: 4001
-    - name: analytics-api
-      service: airqo-stage-analytics-api-svc
+    - name: analytics
+      service: airqo-analytics-api-svc
       port: 5000
     - name: predict
-      service: airqo-stage-prediction-api-svc
+      service: airqo-prediction-api-svc
       port: 5000
     - name: monitor
-      service: airqo-stage-device-monitor-api-svc
+      service: airqo-device-monitor-api-svc
       port: 4001
     - name: calibrate
-      service: airqo-stage-calibrate-api-svc
+      service: airqo-calibrate-api-svc
       port: 4001
     - name: incentives
-      service: airqo-stage-incentives-api-svc
+      service: airqo-incentives-api-svc
       port: 3000
     - name: meta-data
-      service: airqo-stage-meta-data-api-svc
+      service: airqo-meta-data-api-svc
       port: 4001
     - name: view
-      service: airqo-stage-view-api-svc
+      service: airqo-view-api-svc
       port: 8080
     - name: network-uptime
-      service: airqo-stage-network-uptime-api-svc
+      service: airqo-network-uptime-api-svc
       port: 8501
     - name: fault-detection
-      service: stage-fault-detection-api-svc
+      service: prod-fault-detection-api-svc
       port: 4001
     - name: notifications
-      service: airqo-stage-notification-api-svc
+      service: airqo-notification-api-svc
       port: 8080  
     - name: spatial
-      service: airqo-stage-spatial-api-svc
-      port: 5000                
+      service: airqo-spatial-api-svc
+      port: 5000  
   routes:
     - path: /
       action:
-        pass: platform-ui
+        pass: vertex-ui
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -104,11 +104,15 @@ spec:
     - path: ~ /api\/v[1-2]\/analytics
       action:
         proxy:
-          upstream: analytics-api
+          upstream: analytics
           responseHeaders:
             add:
               - name: Content-Type
                 value: application/json
+              - name: Access-Control-Allow-Methods
+                value: "GET, POST, OPTIONS, PUT, DELETE"
+              - name: Access-Control-Allow-Headers
+                value: "Content-Type, Authorization, X-Requested-With, X-Auth-Token"
     - path: ~ /api\/v[1-2]\/predict
       action:
         proxy:
@@ -188,5 +192,4 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json 
-               
+                value: application/json       

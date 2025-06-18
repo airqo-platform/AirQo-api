@@ -45,6 +45,23 @@ if (process.env.NODE_ENV !== "production") {
   router.use(debugPermissions());
 }
 
+router.post(
+  "/populate-slugs",
+  setJWTAuth,
+  authJWT,
+  groupValidations.populateSlugs,
+  groupController.populateSlugs
+);
+
+// Update/add slug for a specific group (manual)
+router.put(
+  "/:grp_id/slug",
+  setJWTAuth,
+  authJWT,
+  groupValidations.updateSlug,
+  groupController.updateSlug
+);
+
 // Public/minimal access endpoints
 router.get(
   "/",
