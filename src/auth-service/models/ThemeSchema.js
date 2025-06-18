@@ -24,12 +24,12 @@ const ThemeSchema = new mongoose.Schema(
     interfaceStyle: {
       type: String,
       enum: ["default", "bordered"],
-      default: "default",
+      default: "bordered",
     },
     contentLayout: {
       type: String,
       enum: ["compact", "wide"],
-      default: "wide",
+      default: "compact",
     },
   },
   { _id: false }
