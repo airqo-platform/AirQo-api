@@ -13,6 +13,7 @@ import xarray as xr
 from google.oauth2 import service_account
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.data_sources import DataSourcesApis
 import logging
 
 logger = logging.getLogger("airflow.task")
@@ -289,6 +290,37 @@ class SatelliteUtils:
                 )
                 raise
 
+    @staticmethod
+    def clean_netcdf_data(data: List[pd.DataFrame]) -> pd.DataFrame:
+        """
+        Cleans and merges two NetCDF-derived pandas DataFrames by performing the following steps:
+
+        Parameters:
+            data(List[pd.DataFrame]): A list containing exactly two pandas DataFrames to be merged and cleaned.
+
+        Returns:
+            pd.DataFrame: A cleaned, merged DataFrame with averaged values grouped by time and location.
+        """
+        if len(data) != 2:
+            raise ValueError("Expected a list of two DataFrames.")
+
+        df1, df2 = data
+        merged_df = pd.merge(df1, df2, on=["time", "latitude", "longitude"])
+
+        merged_df[["latitude", "longitude"]] = merged_df[
+            ["latitude", "longitude"]
+        ].round(6)
+        existing_cols = list(set(merged_df.columns) & {"pm10", "pm2p5"})
+
+        if existing_cols:
+            merged_df[existing_cols] = merged_df[existing_cols].round(4)
+
+        merged_df.rename(columns={"pm2p5": "pm2_5", "time": "timestamp"}, inplace=True)
+
+        return merged_df.groupby(
+            ["timestamp", "latitude", "longitude"], as_index=False
+        ).mean()
+
     def _read_netcdf_variables(
         file_path: Path, variable_short_name: str
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -359,3 +391,63 @@ class SatelliteUtils:
                 )
 
         return longitude, latitude, valid_time, variable_data
+
+    @staticmethod
+    def process_nomads_data_files(file: str) -> pd.DataFrame:
+        """
+        Processes a GRIB2 file downloaded from the NOMADS server and extracts wind speed and direction, adjusting longitude range to -180:180.
+
+        Workflow:
+        - Loads the file using xarray and cfgrib engine.
+        - Normalizes longitudes from 0-360 to -180-180.
+        - Calculates wind speed and direction from U and V components.
+        - Converts to a DataFrame, rounds values, and groups by timestamp and location.
+
+        Args:
+            file(str): Path to the local GRIB2 file.
+
+        Returns:
+            pd.DataFrame: Processed and grouped DataFrame with columns: [`timestamp`, `latitude`, `longitude`, `wind_speed`, `wind_direction`]
+        """
+        logger.info(f"Processing GRIB2 file: {file}")
+        try:
+            # Open the GRIB2 file with xarray
+            ds = xr.open_dataset(file, engine="cfgrib")
+
+            # Shift longitudes from 0:360 to -180:180
+            ds = ds.assign_coords(longitude=(((ds.longitude + 180) % 360) - 180))
+            ds = ds.sortby("longitude")  # Ensure ascending order
+
+            # Compute wind speed and direction
+            u10, v10 = ds["u10"], ds["v10"]
+            wind_speed = np.sqrt(u10**2 + v10**2)
+            wind_direction = (270 - np.rad2deg(np.arctan2(v10, u10))) % 360
+
+            # Add computed variables to dataset
+            ds["wind_speed"] = wind_speed
+            ds["wind_direction"] = wind_direction
+
+            # Convert to DataFrame and reset index
+            df = ds[["wind_speed", "wind_direction"]].to_dataframe().reset_index()
+
+            # Keep only relevant columns
+            df = df[["time", "latitude", "longitude", "wind_speed", "wind_direction"]]
+            df.rename(columns={"time": "timestamp"}, inplace=True)
+
+            # Round numerical values for consistency
+            df[["latitude", "longitude"]] = df[["latitude", "longitude"]].round(6)
+            df[["wind_speed", "wind_direction"]] = df[
+                ["wind_speed", "wind_direction"]
+            ].round(4)
+
+            df = df.groupby(
+                ["timestamp", "latitude", "longitude"], as_index=False
+            ).mean()
+
+            logger.info(
+                f"Processed {len(df)} records from GRIB2 file. Preview:\n{df.head()}"
+            )
+            return df
+        except Exception as e:
+            logger.error(f"Error processing GRIB2 file: {e}")
+            raise
