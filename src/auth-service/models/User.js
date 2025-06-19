@@ -930,6 +930,9 @@ UserSchema.statics = {
               organization_slug: {
                 $arrayElemAt: ["$group.organization_slug", 0],
               },
+              grp_profile_picture: {
+                $arrayElemAt: ["$group.grp_profile_picture", 0],
+              },
               _id: { $arrayElemAt: ["$group._id", 0] },
               createdAt: { $arrayElemAt: ["$group.createdAt", 0] },
               status: { $arrayElemAt: ["$group.grp_status", 0] },
