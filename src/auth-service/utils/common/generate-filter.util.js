@@ -22,7 +22,7 @@ const {
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
-} = require("./date");
+} = require("./date.util");
 
 const filter = {
   users: (req, next) => {

@@ -1,5 +1,5 @@
-const mailer = require("./mailer");
-const stringify = require("./stringify");
+const mailer = require("./mailer.util");
+const stringify = require("./stringify.util");
 const {
   generateDateFormat,
   threeMonthsFromNow,
@@ -16,16 +16,17 @@ const {
   formatDate,
   addHours,
   monthsFromNow,
-} = require("./date");
-const msgs = require("./email.msgs");
-const emailTemplates = require("./email.templates");
-const generateFilter = require("./generate-filter");
-const winstonLogger = require("./log-winston");
-const handleResponse = require("./responseHandler");
+} = require("./date.util");
+const msgs = require("./email.msgs.util");
+const emailTemplates = require("./email.templates.util");
+const generateFilter = require("./generate-filter.util");
+const winstonLogger = require("./log-winston.util");
 const slugUtils = require("./slug.util");
+const { deduplicator } = require("./slack-dedup-utility");
 
 module.exports = {
   slugUtils,
+  deduplicator,
   winstonLogger,
   mailer,
   stringify,
@@ -47,5 +48,4 @@ module.exports = {
   msgs,
   emailTemplates,
   generateFilter,
-  handleResponse,
 };

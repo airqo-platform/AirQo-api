@@ -24,8 +24,9 @@ const createLimiter = (options) => {
     } else {
       // Fallback to memory store if Redis is not connected
       logger.warn(
-        `Redis not connected. Using memory store for rate limiting (${options.prefix})`
+        `⚠️ Redis not connected. Using memory store for rate limiting (${options.prefix})`
       );
+
       return rateLimit({
         windowMs: options.windowMs,
         max: options.max,

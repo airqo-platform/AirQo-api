@@ -18,6 +18,9 @@ const NodeCache = require("node-cache");
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
+const JOB_NAME = "store-readings-job";
+const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
 
@@ -330,12 +333,39 @@ async function fetchAndStoreDataIntoReadingsModel() {
   }
 }
 
-// Schedules job to run once every hour at minute 30
-const schedule = "30 * * * *";
-cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(
+    JOB_SCHEDULE,
+    fetchAndStoreDataIntoReadingsModel,
+    {
+      scheduled: true,
+      timezone: TIMEZONE,
+    }
+  );
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
+      delete global.cronJobs[JOB_NAME];
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+startJob();
 
 // Export for testing purposes
 module.exports = {

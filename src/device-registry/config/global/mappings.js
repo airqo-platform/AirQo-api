@@ -26,14 +26,6 @@ function generateDateFormatWithoutHrs(ISODate) {
 }
 
 const mappings = {
-  AQI_INDEX: {
-    good: { min: 0, max: 9.1 },
-    moderate: { min: 9.101, max: 35.49 },
-    u4sg: { min: 35.491, max: 55.49 },
-    unhealthy: { min: 55.491, max: 125.49 },
-    very_unhealthy: { min: 125.491, max: 225.49 },
-    hazardous: { min: 225.491, max: null },
-  },
   PREDEFINED_FILTER_VALUES: {
     NETWORKS: ["metone", "usembassy"],
     COMBINATIONS: {

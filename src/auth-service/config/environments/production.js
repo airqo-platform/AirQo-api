@@ -44,5 +44,8 @@ const prodConfig = {
   PADDLE_SECRET_KEY: process.env.PROD_PADDLE_SECRET_KEY,
   PADDLE_ENVIRONMENT: process.env.PROD_PADDLE_ENVIRONMENT,
   PADDLE_API_KEY: process.env.PROD_PADDLE_API_KEY,
+  ONBOARDING_BASE_URL:
+    process.env.PROD_ONBOARDING_BASE_URL ||
+    "https://analytics.airqo.net/onboarding",
 };
 module.exports = prodConfig;

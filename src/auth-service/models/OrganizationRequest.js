@@ -2,13 +2,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const validator = require("validator");
-const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
-} = require("@utils/shared");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -17,6 +10,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- organization-request-model`
 );
+const {
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
+} = require("@utils/shared");
 
 const OrganizationRequestSchema = new Schema(
   {
@@ -85,9 +84,41 @@ const OrganizationRequestSchema = new Schema(
     },
     rejected_at: Date,
     branding_settings: {
-      logo_url: String,
+      logo_url: {
+        type: String,
+        validate: {
+          validator: function (v) {
+            if (!v) return true; // Allow empty values
+            return (
+              validator.isURL(v, {
+                protocols: ["http", "https"],
+                require_protocol: true,
+              }) && v.length <= 200
+            );
+          },
+          message: "Logo URL must be a valid URL and not exceed 200 characters",
+        },
+      },
       primary_color: String,
       secondary_color: String,
+    },
+    onboarding_token: {
+      type: String,
+      index: true,
+      sparse: true,
+      //the JWT token for onboarding flow
+    },
+    onboarding_completed: {
+      type: Boolean,
+      default: false,
+    },
+    onboarding_completed_at: {
+      type: Date,
+    },
+    onboarding_method: {
+      type: String,
+      enum: ["traditional", "secure_setup"],
+      default: "traditional",
     },
   },
   {
@@ -95,33 +126,38 @@ const OrganizationRequestSchema = new Schema(
   }
 );
 
+OrganizationRequestSchema.index({ onboarding_token: 1 }, { sparse: true });
+OrganizationRequestSchema.index({ onboarding_completed: 1, createdAt: 1 });
+
 OrganizationRequestSchema.statics = {
   async register(args, next) {
     try {
       const data = await this.create(args);
+
       if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
+        return createSuccessResponse("create", data, "organization request", {
           message: "Organization request created successfully",
-          status: httpStatus.OK,
-        };
+        });
+      } else {
+        return createEmptySuccessResponse("organization request");
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+
+      // Handle specific duplicate slug error
       if (error.code === 11000) {
-        next(
-          new HttpError("Conflict", httpStatus.CONFLICT, {
-            message: "Organization slug already exists",
-          })
-        );
+        return {
+          success: false,
+          message: "Organization slug already exists",
+          status: httpStatus.CONFLICT,
+          errors: { message: "Organization slug already exists" },
+        };
       } else {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: error.message }
-          )
+        return createErrorResponse(
+          error,
+          "create",
+          logger,
+          "organization request"
         );
       }
     }
@@ -135,21 +171,11 @@ OrganizationRequestSchema.statics = {
         .skip(skip)
         .limit(limit);
 
-      return {
-        success: true,
-        data,
+      return createSuccessResponse("list", data, "organization request", {
         message: "Successfully retrieved organization requests",
-        status: httpStatus.OK,
-      };
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "organization request");
     }
   },
 
@@ -163,27 +189,24 @@ OrganizationRequestSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedRequest)) {
-        return {
-          success: true,
-          message: "Successfully modified the organization request",
-          data: updatedRequest._doc,
-          status: httpStatus.OK,
-        };
+        return createSuccessResponse(
+          "update",
+          updatedRequest._doc,
+          "organization request"
+        );
       } else {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Organization request does not exist",
-          })
+        return createNotFoundResponse(
+          "organization request",
+          "update",
+          "Organization request does not exist"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      return createErrorResponse(
+        error,
+        "update",
+        logger,
+        "organization request"
       );
     }
   },

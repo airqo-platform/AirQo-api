@@ -4,7 +4,7 @@ const { logElement } = require("@utils/shared");
 
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
-logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));
+// logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));
 
 const redis = Redis.createClient({
   host: REDIS_SERVER,

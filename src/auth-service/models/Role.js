@@ -7,12 +7,13 @@ const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- role-model`
 );
+const { logObject, logText } = require("@utils/shared");
+
 const {
-  logObject,
-  logText,
-  logElement,
-  HttpError,
-  extractErrorsFromRequest,
+  createSuccessResponse,
+  createErrorResponse,
+  createNotFoundResponse,
+  createEmptySuccessResponse,
 } = require("@utils/shared");
 
 const RoleSchema = new mongoose.Schema(
@@ -80,25 +81,26 @@ RoleSchema.statics = {
       const newRole = await this.create({
         ...args,
       });
+
       if (!isEmpty(newRole)) {
-        return {
-          success: true,
-          data: newRole._doc,
+        return createSuccessResponse("create", newRole._doc, "role", {
           message: "Role created",
-        };
-      } else if (isEmpty(newRole)) {
-        return {
-          success: true,
-          data: [],
-          message: "operation successful but Role NOT successfully created",
-        };
+        });
+      } else {
+        return createEmptySuccessResponse(
+          "role",
+          "operation successful but Role NOT successfully created"
+        );
       }
     } catch (err) {
       logger.error(`internal server error -- ${JSON.stringify(err)}`);
       logObject("the error", err);
+      logger.error(`🐛🐛 Internal Server Error -- ${err.message}`);
+
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
+
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -117,8 +119,12 @@ RoleSchema.statics = {
           "the role_name and role_code must be unique for every role";
       }
 
-      logger.error(`🐛🐛 Internal Server Error -- ${message}`);
-      next(new HttpError(message, status, response));
+      return {
+        success: false,
+        message,
+        status,
+        errors: response,
+      };
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
@@ -175,30 +181,12 @@ RoleSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      if (!isEmpty(roles)) {
-        return {
-          success: true,
-          data: roles,
-          message: "successfully listed the roles",
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(roles)) {
-        return {
-          success: true,
-          message: "roles not found for this operation",
-          data: [],
-          status: httpStatus.OK,
-        };
-      }
+      return createSuccessResponse("list", roles, "role", {
+        message: "successfully listed the roles",
+        emptyMessage: "roles not found for this operation",
+      });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "list", logger, "role");
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -207,18 +195,22 @@ RoleSchema.statics = {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
+      // Handle role_permissions with $addToSet
       if (modifiedUpdate.role_permissions) {
         modifiedUpdate["$addToSet"]["role_permissions"] = {};
         modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
           modifiedUpdate.role_permissions;
         delete modifiedUpdate.role_permissions;
       }
+
+      // Remove fields that shouldn't be updated
       if (modifiedUpdate.role_name) {
         delete modifiedUpdate.role_name;
       }
       if (modifiedUpdate.role_code) {
         delete modifiedUpdate.role_code;
       }
+
       const updatedRole = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -226,62 +218,39 @@ RoleSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedRole)) {
-        return {
-          success: true,
-          message: "successfully modified the Role",
-          data: updatedRole._doc,
-          status: httpStatus.OK,
-        };
-      } else if (isEmpty(updatedRole)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "role not foun, please crosscheck",
-          })
+        return createSuccessResponse("update", updatedRole._doc, "role");
+      } else {
+        return createNotFoundResponse(
+          "role",
+          "update",
+          "role not found, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "update", logger, "role");
     }
   },
   async remove({ filter = {} } = {}, next) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, role_name: 1, role_code: 1, role_status: 1 },
       };
-      let removedRole = await this.findOneAndRemove(filter, options).exec();
+
+      const removedRole = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedRole)) {
         logObject("removed roleee", removedRole);
-        let data = removedRole._doc;
-        return {
-          success: true,
-          message: "successfully removed the Role",
-          data,
-          status: httpStatus.OK,
-        };
+        const data = removedRole._doc;
+        return createSuccessResponse("delete", data, "role");
       } else {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Role does not exist, please crosscheck",
-          })
+        return createNotFoundResponse(
+          "role",
+          "delete",
+          "Role does not exist, please crosscheck"
         );
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return createErrorResponse(error, "delete", logger, "role");
     }
   },
 };
