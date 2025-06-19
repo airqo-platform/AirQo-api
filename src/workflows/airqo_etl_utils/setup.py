@@ -39,6 +39,7 @@ setup(
         "earthengine-api",
         "netCDF4",
         "cdsapi>=0.7.4",
+        "cfgrib",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

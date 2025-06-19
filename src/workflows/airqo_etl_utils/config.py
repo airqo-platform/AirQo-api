@@ -473,6 +473,7 @@ class Config:
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
         BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
+        BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE: "satelite_airquality_data_copernicus_temp.json",
         "all": None,
     }
     DataSource = {
@@ -481,7 +482,7 @@ class Config:
                 Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
             },
             DeviceCategory.SATELLITE: {
-                Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
+                Frequency.RAW: BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE,
             },
             DeviceCategory.MOBILE: {
                 Frequency.RAW: BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE,
