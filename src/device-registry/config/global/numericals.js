@@ -12,5 +12,6 @@ const numericals = {
   TOKEN_EXP_MINS: 360,
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
+  CACHE_TIMEOUT_PERIOD: 10000,
 };
 module.exports = numericals;
