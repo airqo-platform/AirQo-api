@@ -1525,31 +1525,15 @@ const createEvent = {
 
       if (!readingsResponse) {
         logger.error(
-          `🐛🐛 Database operation returned undefined - possible connection issue`
+          `🐛🐛 ReadingModel.recent returned null/undefined for tenant: ${tenant}`
         );
         return {
           success: false,
-          message: "Database connection error",
+          message: "Database model returned null response",
           errors: {
-            message: "Database operation failed - connection may be closed",
+            message: "Model method returned null/undefined",
+            tenant: tenant,
           },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          isCache: false,
-        };
-      }
-
-      if (
-        typeof readingsResponse !== "object" ||
-        !readingsResponse.hasOwnProperty("success")
-      ) {
-        logger.error(
-          `🐛🐛 Database operation returned unexpected format:`,
-          readingsResponse
-        );
-        return {
-          success: false,
-          message: "Database response format error",
-          errors: { message: "Invalid response format from database" },
           status: httpStatus.INTERNAL_SERVER_ERROR,
           isCache: false,
         };
