@@ -1523,6 +1523,22 @@ const createEvent = {
         next
       );
 
+      if (!readingsResponse) {
+        logger.error(
+          `🐛🐛 ReadingModel.recent returned null/undefined for tenant: ${tenant}`
+        );
+        return {
+          success: false,
+          message: "Database model returned null response",
+          errors: {
+            message: "Model method returned null/undefined",
+            tenant: tenant,
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+
       if (
         language !== undefined &&
         !isEmpty(readingsResponse) &&
