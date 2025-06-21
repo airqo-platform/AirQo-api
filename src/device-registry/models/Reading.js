@@ -257,12 +257,16 @@ ReadingsSchema.statics.list = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.latest = async function(
@@ -307,12 +311,16 @@ ReadingsSchema.statics.latest = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.recent = async function(
@@ -358,12 +366,17 @@ ReadingsSchema.statics.recent = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.getBestAirQualityLocations = async function(
@@ -420,12 +433,16 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
@@ -758,12 +775,16 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
     return response;
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 
@@ -849,12 +870,16 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 

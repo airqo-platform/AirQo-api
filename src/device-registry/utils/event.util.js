@@ -1523,6 +1523,38 @@ const createEvent = {
         next
       );
 
+      if (!readingsResponse) {
+        logger.error(
+          `🐛🐛 Database operation returned undefined - possible connection issue`
+        );
+        return {
+          success: false,
+          message: "Database connection error",
+          errors: {
+            message: "Database operation failed - connection may be closed",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+
+      if (
+        typeof readingsResponse !== "object" ||
+        !readingsResponse.hasOwnProperty("success")
+      ) {
+        logger.error(
+          `🐛🐛 Database operation returned unexpected format:`,
+          readingsResponse
+        );
+        return {
+          success: false,
+          message: "Database response format error",
+          errors: { message: "Invalid response format from database" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+
       if (
         language !== undefined &&
         !isEmpty(readingsResponse) &&
