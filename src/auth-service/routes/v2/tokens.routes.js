@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const createTokenController = require("@controllers/token.controller");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const rateLimitMiddleware = require("@middleware/rate-limit");
 const {
   validateTenant,
   validateAirqoTenantOnly,
