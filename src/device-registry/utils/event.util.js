@@ -37,7 +37,7 @@ const redisGetAsync = util.promisify(redis.get).bind(redis);
 const redisSetAsync = util.promisify(redis.set).bind(redis);
 const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const asyncRetry = require("async-retry");
-
+const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
 const listDevices = async (request, next) => {
   try {
     const { tenant, limit, skip } = request.query;
@@ -1497,31 +1497,57 @@ const createEvent = {
         query: { tenant, language, limit, skip },
       } = request;
       const filter = generateFilter.telemetry(request);
+
       try {
         const cacheResult = await Promise.race([
           createEvent.getCache(request, next),
           new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
+            setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
               success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
+              message: "Cache timeout",
+              isCacheTimeout: true,
+              status: httpStatus.OK,
             })
           ),
         ]);
 
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
+
+        if (cacheResult.isCacheTimeout) {
+          logger.warn(
+            `⏰ Cache get timeout after ${CACHE_TIMEOUT_PERIOD}ms - proceeding without cache`
+          );
+        } else {
+          logger.warn(`🔍 Cache miss - proceeding to database query`);
+        }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`🚨 Cache get operation failed: ${stringify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).recent(
-        { filter, skip, limit },
-        next
-      );
+      const readingsResponse = await ReadingModel(tenant).recent({
+        filter,
+        skip,
+        limit,
+      });
+
+      if (!readingsResponse) {
+        logger.error(
+          `🐛🐛 ReadingModel.recent returned null/undefined for tenant: ${tenant}`
+        );
+        return {
+          success: false,
+          message: "Database model returned null response",
+          errors: {
+            message: "Model method returned null/undefined",
+            tenant: tenant,
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
 
       if (
         language !== undefined &&
@@ -1550,26 +1576,32 @@ const createEvent = {
           const resultOfCacheOperation = await Promise.race([
             createEvent.setCache(readingsResponse, request, next),
             new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
+              setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
                 success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
+                message: "Cache set timeout",
+                isCacheTimeout: true,
+                status: httpStatus.OK,
               })
             ),
           ]);
+
           if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
+            if (resultOfCacheOperation.isCacheTimeout) {
+              logger.warn(
+                `⏰ Cache set timeout after ${CACHE_TIMEOUT_PERIOD}ms - response still successful`
+              );
+            } else {
+              const errors = resultOfCacheOperation.errors || {
+                message: "Unknown cache error",
+              };
+              logger.warn(`💾 Cache set failed: ${stringify(errors)}`);
+            }
           }
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`🚨 Cache set operation exception: ${stringify(error)}`);
         }
 
-        logText("Cache set.");
+        logText("Cache operation completed.");
 
         return {
           success: true,
@@ -1579,7 +1611,7 @@ const createEvent = {
             ? "no measurements for this search"
             : readingsResponse.message,
           data,
-          status: readingsResponse.status || "",
+          status: readingsResponse.status || httpStatus.OK,
           isCache: false,
         };
       } else {
@@ -1590,8 +1622,10 @@ const createEvent = {
         return {
           success: false,
           message: readingsResponse.message,
-          errors: readingsResponse.errors || { message: "" },
-          status: readingsResponse.status || "",
+          errors: readingsResponse.errors || {
+            message: "Database operation failed",
+          },
+          status: readingsResponse.status || httpStatus.INTERNAL_SERVER_ERROR,
           isCache: false,
         };
       }
@@ -1610,7 +1644,7 @@ const createEvent = {
   },
   getWorstReadingForSites: async (req, res, next) => {
     try {
-      const siteIds = req.body.siteIds; // Assuming you pass the siteIds in the request body
+      const siteIds = req.body.siteIds;
 
       const result = await ReadingModel("airqo").getWorstPm2_5Reading({
         siteIds,
