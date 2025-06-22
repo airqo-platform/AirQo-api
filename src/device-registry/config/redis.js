@@ -202,28 +202,6 @@ const redisUtils = {
     commandQueueLength: client.command_queue ? client.command_queue.length : 0,
     offlineQueueLength: client.offline_queue ? client.offline_queue.length : 0,
   }),
-
-  // Force disconnect and reconnect
-  reconnect: () => {
-    return new Promise((resolve, reject) => {
-      client.quit((err) => {
-        if (err) {
-          logger.warn(`Error during quit: ${err.message}`);
-        }
-
-        // Create a new client with the same config
-        const newClient = redis.createClient(redisConfig);
-
-        newClient.on("ready", () => {
-          resolve(true);
-        });
-
-        newClient.on("error", (error) => {
-          reject(error);
-        });
-      });
-    });
-  },
 };
 
 // Safe cache operations
