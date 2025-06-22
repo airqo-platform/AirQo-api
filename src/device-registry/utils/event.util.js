@@ -1498,8 +1498,10 @@ const createEvent = {
       } = request;
       const filter = generateFilter.telemetry(request);
 
+      // Attempt to get from cache with improved error handling
+      let cacheResult = null;
       try {
-        const cacheResult = await Promise.race([
+        cacheResult = await Promise.race([
           createEvent.getCache(request, next),
           new Promise((resolve) =>
             setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
@@ -1511,22 +1513,27 @@ const createEvent = {
           ),
         ]);
 
-        if (cacheResult.success === true) {
+        // Only use cache if it was successful AND has valid data structure
+        if (cacheResult && cacheResult.success === true && cacheResult.data) {
           logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
 
-        if (cacheResult.isCacheTimeout) {
+        if (cacheResult && cacheResult.isCacheTimeout) {
           logger.warn(
             `⏰ Cache get timeout after ${CACHE_TIMEOUT_PERIOD}ms - proceeding without cache`
           );
         } else {
-          logger.warn(`🔍 Cache miss - proceeding to database query`);
+          logger.warn(
+            `🔍 Cache miss or invalid - proceeding to database query`
+          );
         }
       } catch (error) {
         logger.warn(`🚨 Cache get operation failed: ${stringify(error)}`);
+        // Continue execution - don't let cache failure stop the operation
       }
 
+      // Proceed with database query
       const readingsResponse = await ReadingModel(tenant).recent({
         filter,
         skip,
@@ -1549,6 +1556,7 @@ const createEvent = {
         };
       }
 
+      // Handle language translation if needed
       if (
         language !== undefined &&
         !isEmpty(readingsResponse) &&
@@ -1557,12 +1565,17 @@ const createEvent = {
       ) {
         const data = readingsResponse.data;
         for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
+          try {
+            const translatedHealthTips = await translate.translateTips(
+              { healthTips: event.health_tips, targetLanguage: language },
+              next
+            );
+            if (translatedHealthTips.success === true) {
+              event.health_tips = translatedHealthTips.data;
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+            // Continue without translation rather than failing
           }
         }
       }
@@ -1570,8 +1583,8 @@ const createEvent = {
       if (readingsResponse.success === true) {
         const data = readingsResponse.data;
 
-        logText("Setting cache...");
-
+        // Attempt to set cache but don't let failure affect the response
+        logText("Attempting to set cache...");
         try {
           const resultOfCacheOperation = await Promise.race([
             createEvent.setCache(readingsResponse, request, next),
@@ -1585,7 +1598,7 @@ const createEvent = {
             ),
           ]);
 
-          if (resultOfCacheOperation.success === false) {
+          if (resultOfCacheOperation && !resultOfCacheOperation.success) {
             if (resultOfCacheOperation.isCacheTimeout) {
               logger.warn(
                 `⏰ Cache set timeout after ${CACHE_TIMEOUT_PERIOD}ms - response still successful`
@@ -1599,9 +1612,10 @@ const createEvent = {
           }
         } catch (error) {
           logger.warn(`🚨 Cache set operation exception: ${stringify(error)}`);
+          // Don't let cache set failure affect the main response
         }
 
-        logText("Cache operation completed.");
+        logText("Cache operation completed (success or failure ignored).");
 
         return {
           success: true,
@@ -2764,20 +2778,62 @@ const createEvent = {
   },
   setCache: async (data, request, next) => {
     try {
+      // Check if Redis is available
+      if (!redis || !redis.connected) {
+        logger.warn("Redis connection not available, skipping cache set");
+        return {
+          success: false,
+          message: "Cache unavailable - Redis not connected",
+          status: httpStatus.OK,
+        };
+      }
+
       const cacheID = createEvent.generateCacheID(request, next);
-      await redisSetAsync(
-        cacheID,
-        stringify({
-          isCache: true,
-          success: true,
-          message: "Successfully retrieved the measurements",
-          data,
-        })
-      );
-      await redisExpireAsync(
-        cacheID,
-        parseInt(constants.EVENTS_CACHE_LIMIT) || 0
-      );
+
+      if (!cacheID) {
+        logger.warn("Failed to generate cache ID");
+        return {
+          success: false,
+          message: "Cache ID generation failed",
+          status: httpStatus.OK,
+        };
+      }
+
+      const cacheData = {
+        isCache: true,
+        success: true,
+        message: "Successfully retrieved the measurements",
+        data,
+      };
+
+      let serializedData;
+      try {
+        serializedData = stringify(cacheData);
+      } catch (serializeError) {
+        logger.warn(`Cache serialization error: ${serializeError.message}`);
+        return {
+          success: false,
+          message: "Cache serialization failed",
+          status: httpStatus.OK,
+        };
+      }
+
+      // Set cache with timeout protection
+      await Promise.race([
+        redisSetAsync(cacheID, serializedData),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Cache set timeout")), 5000)
+        ),
+      ]);
+
+      // Set expiration with timeout protection
+      const expirationTime = parseInt(constants.EVENTS_CACHE_LIMIT) || 300; // 5 minute default
+      await Promise.race([
+        redisExpireAsync(cacheID, expirationTime),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Cache expiration timeout")), 3000)
+        ),
+      ]);
 
       return {
         success: true,
@@ -2785,47 +2841,82 @@ const createEvent = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      // Log the error but don't throw - cache failure shouldn't break the response
+      logger.warn(`🚨 Cache set operation failed: ${error.message}`);
+      return {
+        success: false,
+        message: "Cache set operation failed",
+        errors: { message: error.message },
+        status: httpStatus.OK,
+      };
     }
   },
   getCache: async (request, next) => {
     try {
       const cacheID = createEvent.generateCacheID(request, next);
-      const result = await redisGetAsync(cacheID); // Use the promise-based version
 
-      const resultJSON = JSON.parse(result);
-
-      if (result) {
+      // Check if Redis is available
+      if (!redis || !redis.connected) {
+        logger.warn("Redis connection not available, skipping cache");
         return {
-          success: true,
-          message: "Utilizing cache...",
-          data: resultJSON,
-          status: httpStatus.OK,
+          success: false,
+          message: "Cache unavailable",
+          errors: { message: "Redis connection not available" },
+          status: httpStatus.OK, // Changed from INTERNAL_SERVER_ERROR
         };
-      } else {
+      }
+
+      const result = await redisGetAsync(cacheID);
+
+      // Handle null/undefined result properly
+      if (!result) {
         return {
           success: false,
           message: "No cache present",
           errors: { message: "No cache present" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
+          status: httpStatus.OK, // Changed from INTERNAL_SERVER_ERROR
         };
       }
+
+      let resultJSON;
+      try {
+        resultJSON = JSON.parse(result);
+      } catch (parseError) {
+        logger.warn(`Cache parse error: ${parseError.message}`);
+        return {
+          success: false,
+          message: "Cache data corrupted",
+          errors: { message: "Failed to parse cached data" },
+          status: httpStatus.OK,
+        };
+      }
+
+      // Validate that resultJSON has the expected structure
+      if (!resultJSON || typeof resultJSON !== "object") {
+        logger.warn("Invalid cache data structure");
+        return {
+          success: false,
+          message: "Invalid cache data",
+          errors: { message: "Cache data structure invalid" },
+          status: httpStatus.OK,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Utilizing cache...",
+        data: resultJSON,
+        status: httpStatus.OK,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      // Log the error but don't throw - allow fallback to database
+      logger.warn(`🚨 Cache get operation failed: ${error.message}`);
+      return {
+        success: false,
+        message: "Cache operation failed",
+        errors: { message: error.message },
+        status: httpStatus.OK, // Don't return error status
+      };
     }
   },
   transformOneEvent: async (
