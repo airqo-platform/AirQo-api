@@ -1,5 +1,5 @@
 app:
-  name: airqo-redis-server
+  name: airqo-stage-redis-server
   namespace: staging
   port: 6389
 resources:
