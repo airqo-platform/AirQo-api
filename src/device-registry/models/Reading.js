@@ -192,16 +192,15 @@ ReadingsSchema.statics.register = async function(args, next) {
         status: httpStatus.OK,
       };
     } else {
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: "reading not created despite successful operation",
-          }
-        )
-      );
-      return;
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: "reading not created despite successful operation",
+        },
+        data: null,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   } catch (error) {
     logObject("error", error);
@@ -222,8 +221,7 @@ ReadingsSchema.statics.register = async function(args, next) {
     } else {
       response.errors = { message: error.message };
     }
-    next(new HttpError(response.message, response.status, response.errors));
-    return;
+    return response;
   }
 };
 ReadingsSchema.statics.list = async function(
@@ -257,12 +255,16 @@ ReadingsSchema.statics.list = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.latest = async function(
@@ -307,12 +309,16 @@ ReadingsSchema.statics.latest = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.recent = async function(
@@ -358,12 +364,17 @@ ReadingsSchema.statics.recent = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.getBestAirQualityLocations = async function(
@@ -373,14 +384,19 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
   try {
     const validPollutants = ["pm2_5", "pm10", "no2"];
     if (!validPollutants.includes(pollutant)) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: {
           message: `Invalid pollutant specified. Valid options are: ${validPollutants.join(
             ", "
           )}`,
-        })
-      );
-      return;
+          validOptions: validPollutants,
+          received: pollutant,
+        },
+        data: [],
+        status: httpStatus.BAD_REQUEST,
+      };
     }
 
     const matchCondition = {
@@ -420,24 +436,32 @@ ReadingsSchema.statics.getBestAirQualityLocations = async function(
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
   try {
     // Validate input
     if (!siteId) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: {
           message: "Site ID is required",
-        })
-      );
-      return;
+          field: "siteId",
+        },
+        data: {},
+        status: httpStatus.BAD_REQUEST,
+      };
     }
 
     // Get current date boundaries
@@ -758,12 +782,16 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
     return response;
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 
@@ -773,12 +801,15 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
 } = {}) {
   try {
     if (isEmpty(siteIds) || !Array.isArray(siteIds)) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "siteIds array is required",
-        })
-      );
-      return;
+      return {
+        success: false,
+        message: "siteIds array is required",
+        errors: {
+          message: "siteIds must be a non-empty array",
+        },
+        data: [],
+        status: httpStatus.BAD_REQUEST,
+      };
     }
     if (siteIds.length === 0) {
       return {
@@ -791,12 +822,15 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
 
     // Validate siteIds type
     if (!siteIds.every((id) => typeof id === "string")) {
-      next(
-        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-          message: "siteIds must be an array of strings",
-        })
-      );
-      return;
+      return {
+        success: false,
+        message: "siteIds must be an array of strings",
+        errors: {
+          message: "All site IDs must be strings",
+        },
+        data: [],
+        status: httpStatus.BAD_REQUEST,
+      };
     }
 
     const formattedSiteIds = siteIds.map((id) => id.toString());
@@ -849,12 +883,16 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
-    next(
-      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: {
         message: error.message,
-      })
-    );
-    return;
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 
