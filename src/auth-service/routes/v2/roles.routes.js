@@ -211,7 +211,6 @@ router.get(
   createRoleController.getUserRoleSummary
 );
 
-// need to move this to the admin routes
 router.get(
   "/admin/deprecated-field-audit",
   roleValidations.auditDeprecatedFields,
@@ -220,7 +219,6 @@ router.get(
   createRoleController.auditDeprecatedFields
 );
 
-// Enhanced user details with role information
 router.get(
   "/users/:user_id/enhanced-details",
   roleValidations.getEnhancedUserDetails,
@@ -229,7 +227,59 @@ router.get(
   createRoleController.getEnhancedUserDetails
 );
 
-// System role health check
+router.get(
+  "/users/:user_id/detailed-roles-permissions",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserRolesAndPermissionsDetailed
+);
+
+router.get(
+  "/users/:user_id/rbac-analysis",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserRolesAndPermissionsViaRBAC
+);
+
+router.get(
+  "/users/:user_id/roles-simplified",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserRolesSimplified
+);
+
+router.get(
+  "/me/detailed-roles-permissions",
+  setJWTAuth,
+  authJWT,
+  createRoleController.getCurrentUserRolesAndPermissions
+);
+
+router.get(
+  "/me/rbac-analysis",
+  setJWTAuth,
+  authJWT,
+  (req, res, next) => {
+    req.params.user_id = req.user._id;
+    next();
+  },
+  createRoleController.getUserRolesAndPermissionsViaRBAC
+);
+
+router.get(
+  "/me/roles-simplified",
+  setJWTAuth,
+  authJWT,
+  (req, res, next) => {
+    req.params.user_id = req.user._id;
+    next();
+  },
+  createRoleController.getUserRolesSimplified
+);
+
 router.get(
   "/system/health",
   roleValidations.getSystemHealth,
@@ -238,7 +288,6 @@ router.get(
   createRoleController.getSystemRoleHealth
 );
 
-// Bulk role operations
 router.post(
   "/bulk-operations",
   roleValidations.bulkRoleOperations,

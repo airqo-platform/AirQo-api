@@ -673,6 +673,82 @@ const roleController = {
       handleStandardError(error, next);
     }
   },
+  getUserRolesAndPermissionsDetailed: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result =
+        await rolePermissionsUtil.getUserRolesAndPermissionsDetailed(
+          request,
+          next
+        );
+      handleStandardResponse(res, result, {
+        successKey: "user_roles_and_permissions",
+        successMessage:
+          "Successfully retrieved detailed user roles and permissions",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  getUserRolesAndPermissionsViaRBAC: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result =
+        await rolePermissionsUtil.getUserRolesAndPermissionsViaRBAC(
+          request,
+          next
+        );
+      handleStandardResponse(res, result, {
+        successKey: "user_roles_and_permissions",
+        successMessage:
+          "Successfully retrieved detailed user roles and permissions via RBAC",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  getUserRolesSimplified: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.getUserRolesSimplified(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "user_roles",
+        successMessage: "Successfully retrieved simplified user roles",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  getCurrentUserRolesAndPermissions: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result =
+        await rolePermissionsUtil.getCurrentUserRolesAndPermissions(
+          request,
+          next
+        );
+      handleStandardResponse(res, result, {
+        successKey: "my_roles_and_permissions",
+        successMessage: "Successfully retrieved your roles and permissions",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
 };
 
 module.exports = roleController;
