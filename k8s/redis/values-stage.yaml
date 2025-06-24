@@ -1,7 +1,7 @@
 app:
   name: airqo-redis-server
   namespace: staging
-  port: 6389
+  port: 6379
 resources:
   requests:
     cpu: "100m"
