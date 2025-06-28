@@ -27,7 +27,17 @@ module.exports = {
       PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     } else if (slug) {
-      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/org/${slug}/forgotPwd/reset`;
+      // Validate and sanitize slug to prevent URL manipulation
+      const sanitizedSlug = slug.replace(/[^a-zA-Z0-9\-_]/g, "");
+      if (!sanitizedSlug) {
+        // Fallback to version-based logic if slug is invalid
+        PASSWORD_RESET_URL =
+          version && parseInt(version) === 3
+            ? `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`
+            : constants.PWD_RESET;
+      } else {
+        PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/org/${sanitizedSlug}/forgotPwd/reset`;
+      }
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     }
     const content = ` <tr>
