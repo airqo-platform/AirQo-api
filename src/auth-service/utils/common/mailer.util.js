@@ -721,14 +721,15 @@ const mailer = {
         entity_title: params.entity_title,
       })
   ),
-  forgot: createMailerFunction("forgot", "CORE_CRITICAL", (params) =>
-    msgs.recovery_email({
+  forgot: createMailerFunction("forgot", "CORE_CRITICAL", (params) => {
+    return msgs.recovery_email({
       token: params.token,
       tenant: params.tenant,
       email: params.email,
       version: params.version,
-    })
-  ),
+      slug: params.slug,
+    });
+  }),
   sendPasswordResetEmail: createMailerFunction(
     "sendPasswordResetEmail",
     "CORE_CRITICAL",
