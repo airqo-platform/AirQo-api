@@ -20,11 +20,14 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: ({ token, email, version = 3 }) => {
+  recovery_email: ({ token, email, version = 3, slug = "" }) => {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     let instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
-    if (version && parseInt(version) === 3) {
+    if (version && parseInt(version) === 3 && !slug) {
       PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
+      instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
+    } else if (slug) {
+      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/org/${slug}/forgotPwd/reset`;
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     }
     const content = ` <tr>
