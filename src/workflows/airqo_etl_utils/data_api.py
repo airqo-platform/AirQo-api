@@ -1,15 +1,18 @@
+import os
+from typing import List, Dict, Any, Generator, Tuple, Optional
+
+import pandas as pd
+
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential
-import time
-import pandas as pd
+
 from urllib.parse import urlencode
-import requests
 from http.client import HTTPResponse
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry
-from typing import List, Dict, Any, Generator, Tuple, Optional
 
+from .utils import Utils
 from .config import configuration
 from .constants import DeviceCategory, DeviceNetwork
 
@@ -1053,6 +1056,7 @@ class DataApi:
             base_url = integration.get("url", "").rstrip("/")
 
         auth = integration.get("auth", None)
+
         if auth and network:
             if network == DeviceNetwork.AIRQO:
                 headers, params = self.__add_auth_headers(
@@ -1094,7 +1098,7 @@ class DataApi:
                 logger.exception("Method not supported")
                 return None
 
-            return self.parse_api_response(response, url)
+            return Utils.parse_api_response(response, url)
 
         except urllib3.exceptions.HTTPError as http_err:
             logger.exception(f"Client error: {http_err}")
@@ -1103,32 +1107,4 @@ class DataApi:
         except Exception as e:
             logger.exception(f"Unexpected error: {e}")
 
-        return None
-
-    def parse_api_response(self, response: HTTPResponse, url: str) -> Optional[Any]:
-        """
-        Parses an HTTP API response.
-
-        Returns the parsed JSON object if the response is a successful 2xx status code
-        and contains valid JSON. If the response is empty, invalid, or not in the 2xx range,
-        returns None.
-
-        Args:
-            response (HTTPResponse): The response object returned from an HTTP client.
-
-        Returns:
-            Optional[Any]: Parsed JSON content if present and valid; otherwise, None.
-        """
-        if 200 <= response.status < 300:
-            if not response.data:
-                logger.warning(f"No response data returned from request: {url}")
-                return True  # TODO Might have to change this for better handling.
-            try:
-                return simplejson.loads(response.data)
-            except simplejson.JSONDecodeError:
-                # This might make the log grow quite fast. Check for better approach
-                logger.exception(
-                    f"Response can't be parsed. {response.data.decode('utf-8', errors='ignore')}"
-                )
-                return None
         return None

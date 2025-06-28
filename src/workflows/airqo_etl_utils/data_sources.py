@@ -1,11 +1,16 @@
-import json
+import os
+from datetime import datetime
 
-import pandas as pd
+from typing import Any, Dict, List, Union, Tuple, Optional
+
+import json
 import requests
 
+import pandas as pd
+
+from .utils import Utils
 from .config import configuration
 import logging
-from typing import Any, Dict, List, Union, Tuple, Optional
 
 logger = logging.getLogger("airflow.task")
 
@@ -136,3 +141,53 @@ class DataSourcesApis:
         except Exception as ex:
             logger.exception(f"An unexpected error occurred: {ex}")
         return data
+
+    def nomads(self) -> str:
+        """
+        Downloads a GRIB2 data file from the NOMADS server using a constructed URL,
+        and logs the success of the operation.
+
+        Returns:
+            Optional[str]: The path to the downloaded file if successful, otherwise None.
+        """
+        base_url, endpoint, file_name = self.__nomads_url_util()
+        url = f"{base_url}{endpoint}"
+        response = requests.get(url, timeout=10)
+        downloaded_file = Utils.parse_api_response(
+            response, base_url, file_name=file_name
+        )
+        if downloaded_file:
+            logger.info(f"GRIB2 file downloaded successfully: {downloaded_file}")
+        else:
+            logger.warning("Failed to download GRIB2 file from NOMADS.")
+            return None
+
+        return downloaded_file
+
+    def __nomads_url_util(
+        self, grib_filename: str = "gdas.t00z.pgrb2.0p25.f000"
+    ) -> str:
+        """
+        Constructs a URL to download filtered GDAS 0.25-degree GRIB2 data from the NOMADS (NOAA Operational Model Archive and Distribution System) server.
+
+        The URL includes:
+        - A default or user-specified GRIB2 file name.
+        - Automatically resolved date using today's date in YYYYMMDD format.
+        - Parameters for UGRD and VGRD (wind components) at 10 meters above ground.
+
+        Parameters:
+            grib_filename(str): The GRIB2 file name to fetch. Defaults to GDAS 00z forecast step 0.
+
+        Returns:
+            str: Fully formed NOMADS data request URL.
+        """
+        today_str = datetime.today().strftime("%Y%m%d")
+        base_url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gdas_0p25.pl"
+        endpoint = (
+            f"?dir=%2Fgdas.{today_str}%2F00%2Fatmos"
+            f"&file={grib_filename}"
+            f"&var_UGRD=on&var_VGRD=on"
+            f"&lev_10_m_above_ground=on"
+        )
+
+        return base_url, endpoint, grib_filename
