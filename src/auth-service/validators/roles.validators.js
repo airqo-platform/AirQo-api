@@ -408,6 +408,120 @@ const unAssignPermissionFromRole = [
 
 const getRoleById = [validateTenant, validateRoleIdParam];
 
+const getUserRoles = [
+  validateTenant,
+  [
+    param("user_id")
+      .exists()
+      .withMessage("the user ID param is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+];
+
+const auditDeprecatedFields = [
+  validateTenant,
+  query("include_user_details")
+    .optional()
+    .isBoolean()
+    .withMessage("include_user_details must be a boolean")
+    .toBoolean(),
+  query("export_format")
+    .optional()
+    .isIn(["json", "csv"])
+    .withMessage("export_format must be either 'json' or 'csv'")
+    .toLowerCase(),
+];
+
+const getEnhancedUserDetails = [
+  validateTenant,
+  [
+    param("user_id")
+      .exists()
+      .withMessage("the user ID param is missing in the request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the user ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+  query("include_deprecated")
+    .optional()
+    .isBoolean()
+    .withMessage("include_deprecated must be a boolean")
+    .toBoolean(),
+];
+
+const getSystemHealth = [validateTenant];
+
+const bulkRoleOperations = [
+  validateTenant,
+  [
+    body("operation")
+      .exists()
+      .withMessage("operation is missing in the request body")
+      .bail()
+      .notEmpty()
+      .withMessage("operation should not be empty")
+      .bail()
+      .isIn(["assign", "unassign", "reassign"])
+      .withMessage("operation must be one of: assign, unassign, reassign"),
+
+    body("user_ids")
+      .exists()
+      .withMessage("user_ids are missing in the request body")
+      .bail()
+      .notEmpty()
+      .withMessage("user_ids should not be empty")
+      .bail()
+      .custom((value) => {
+        return Array.isArray(value);
+      })
+      .withMessage("user_ids should be an array"),
+
+    body("user_ids.*")
+      .isMongoId()
+      .withMessage("each user_id must be an object ID"),
+
+    body("role_id")
+      .exists()
+      .withMessage("role_id is missing in the request body")
+      .bail()
+      .notEmpty()
+      .withMessage("role_id should not be empty")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("role_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+
+    body("group_id")
+      .optional()
+      .notEmpty()
+      .withMessage("group_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("group_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -430,4 +544,9 @@ module.exports = {
   updateRolePermissions,
   unAssignPermissionFromRole,
   getRoleById,
+  getUserRoles,
+  auditDeprecatedFields,
+  getEnhancedUserDetails,
+  getSystemHealth,
+  bulkRoleOperations,
 };

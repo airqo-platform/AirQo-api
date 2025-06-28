@@ -111,6 +111,7 @@ const envs = {
     process.env.DEFAULT_USE_ONBOARDING_FLOW,
     false
   ),
+  ORGANISATIONS_LIMIT: parseNumber(process.env.ORGANISATIONS_LIMIT, 10),
 };
 
 module.exports = envs;

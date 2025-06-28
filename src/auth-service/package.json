@@ -46,7 +46,9 @@
     "@scripts": "scripts",
     "@routes": "routes",
     "@bin": "bin",
-    "@validators": "validators"
+    "@validators": "validators",
+    "@services": "services",
+    "@migrations": "migrations"
   },
   "dependencies": {
     "@google-cloud/datastore": "^5.1.0",
