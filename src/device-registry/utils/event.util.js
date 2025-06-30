@@ -2778,8 +2778,8 @@ const createEvent = {
   },
   setCache: async (data, request, next) => {
     try {
-      // Check if Redis is available
-      if (!redis || !redis.connected) {
+      // Simple Redis availability check
+      if (!redis || !redis.connected || !redis.ready) {
         logger.warn("Redis connection not available, skipping cache set");
         return {
           success: false,
@@ -2789,7 +2789,6 @@ const createEvent = {
       }
 
       const cacheID = createEvent.generateCacheID(request, next);
-
       if (!cacheID) {
         logger.warn("Failed to generate cache ID");
         return {
@@ -2818,31 +2817,39 @@ const createEvent = {
         };
       }
 
-      // Set cache with timeout protection
-      await Promise.race([
-        redisSetAsync(cacheID, serializedData),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Cache set timeout")), 5000)
-        ),
-      ]);
+      // Simple timeout for cache operations
+      const cacheTimeout = 5000; // 5 seconds
+      const expirationTime = parseInt(constants.EVENTS_CACHE_LIMIT) || 300;
 
-      // Set expiration with timeout protection
-      const expirationTime = parseInt(constants.EVENTS_CACHE_LIMIT) || 300; // 5 minute default
-      await Promise.race([
-        redisExpireAsync(cacheID, expirationTime),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Cache expiration timeout")), 3000)
-        ),
-      ]);
+      try {
+        await Promise.race([
+          (async () => {
+            await redisSetAsync(cacheID, serializedData);
+            await redisExpireAsync(cacheID, expirationTime);
+          })(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Cache operation timeout")),
+              cacheTimeout
+            )
+          ),
+        ]);
 
-      return {
-        success: true,
-        message: "Response stored in cache",
-        status: httpStatus.OK,
-      };
+        return {
+          success: true,
+          message: "Response stored in cache",
+          status: httpStatus.OK,
+        };
+      } catch (timeoutError) {
+        logger.warn(`Cache set timeout: ${timeoutError.message}`);
+        return {
+          success: false,
+          message: "Cache set timeout",
+          status: httpStatus.OK,
+        };
+      }
     } catch (error) {
-      // Log the error but don't throw - cache failure shouldn't break the response
-      logger.warn(`🚨 Cache set operation failed: ${error.message}`);
+      logger.warn(`Cache set operation failed: ${error.message}`);
       return {
         success: false,
         message: "Cache set operation failed",
@@ -2853,28 +2860,56 @@ const createEvent = {
   },
   getCache: async (request, next) => {
     try {
-      const cacheID = createEvent.generateCacheID(request, next);
-
-      // Check if Redis is available
-      if (!redis || !redis.connected) {
+      // Simple Redis availability check
+      if (!redis || !redis.connected || !redis.ready) {
         logger.warn("Redis connection not available, skipping cache");
         return {
           success: false,
           message: "Cache unavailable",
           errors: { message: "Redis connection not available" },
-          status: httpStatus.OK, // Changed from INTERNAL_SERVER_ERROR
+          status: httpStatus.OK,
         };
       }
 
-      const result = await redisGetAsync(cacheID);
+      const cacheID = createEvent.generateCacheID(request, next);
+      if (!cacheID) {
+        return {
+          success: false,
+          message: "Cache ID generation failed",
+          status: httpStatus.OK,
+        };
+      }
 
-      // Handle null/undefined result properly
+      // Simple timeout for cache get
+      const cacheTimeout = 3000; // 3 seconds
+
+      let result;
+      try {
+        result = await Promise.race([
+          redisGetAsync(cacheID),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Cache get timeout")),
+              cacheTimeout
+            )
+          ),
+        ]);
+      } catch (timeoutError) {
+        logger.warn(`Cache get timeout: ${timeoutError.message}`);
+        return {
+          success: false,
+          message: "Cache get timeout",
+          status: httpStatus.OK,
+        };
+      }
+
+      // Handle null/undefined result
       if (!result) {
         return {
           success: false,
           message: "No cache present",
           errors: { message: "No cache present" },
-          status: httpStatus.OK, // Changed from INTERNAL_SERVER_ERROR
+          status: httpStatus.OK,
         };
       }
 
@@ -2891,7 +2926,7 @@ const createEvent = {
         };
       }
 
-      // Validate that resultJSON has the expected structure
+      // Simple validation
       if (!resultJSON || typeof resultJSON !== "object") {
         logger.warn("Invalid cache data structure");
         return {
@@ -2909,13 +2944,12 @@ const createEvent = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      // Log the error but don't throw - allow fallback to database
-      logger.warn(`🚨 Cache get operation failed: ${error.message}`);
+      logger.warn(`Cache get operation failed: ${error.message}`);
       return {
         success: false,
         message: "Cache operation failed",
         errors: { message: error.message },
-        status: httpStatus.OK, // Don't return error status
+        status: httpStatus.OK,
       };
     }
   },
