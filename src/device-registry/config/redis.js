@@ -1,3 +1,4 @@
+// config/redis.js
 const redis = require("redis");
 const constants = require("./constants");
 const { logObject, logText, logElement } = require("@utils/shared");
@@ -5,6 +6,7 @@ const { promisify } = require("util");
 
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
+
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- redis-config`
 );
@@ -17,35 +19,38 @@ let isReady = false;
 let connectionAttempts = 0;
 let lastError = null;
 
-// Enhanced Redis configuration for v3.x
+// Simplified Redis configuration - only server and port
 const redisConfig = {
   host: REDIS_SERVER,
   port: REDIS_PORT,
 
-  // Connection timeout settings
+  // Basic timeout settings
   connect_timeout: 10000, // 10 seconds
   command_timeout: 5000, // 5 seconds
 
-  // Retry strategy with exponential backoff
+  // Simplified retry strategy
   retry_strategy: (options) => {
     connectionAttempts++;
 
     if (options.error && options.error.code === "ECONNREFUSED") {
-      logger.error("Redis server refused the connection");
+      logger.error(
+        `Redis server refused connection to ${REDIS_SERVER}:${REDIS_PORT}`
+      );
     }
 
-    if (options.total_retry_time > 1000 * 60 * 60) {
+    if (options.total_retry_time > 1000 * 60 * 2) {
+      // 2 minutes max
       logger.error("Redis retry time exhausted");
       return new Error("Retry time exhausted");
     }
 
-    if (options.attempt > 10) {
+    if (options.attempt > 3) {
+      // Max 3 attempts
       logger.error("Redis maximum retry attempts reached");
-      return undefined; // Stop retrying
+      return new Error("Max retry attempts exceeded");
     }
 
-    // Exponential backoff: min 1s, max 30s
-    const delay = Math.min(options.attempt * 1000, 30000);
+    const delay = Math.min(options.attempt * 1000, 5000); // Max 5s delay
     logger.warn(`Redis retry attempt ${options.attempt} in ${delay}ms`);
     return delay;
   },
@@ -53,31 +58,24 @@ const redisConfig = {
   // Disable offline queue to prevent memory issues
   enable_offline_queue: false,
 
-  // Database selection
-  db: constants.REDIS_DB || 0,
-
-  // Password if configured
-  ...(constants.REDIS_PASSWORD && { password: constants.REDIS_PASSWORD }),
-
-  // Additional reliability options
+  // Basic connection options
   detect_dead_servers: true,
   socket_keepalive: true,
-  socket_initialdelay: 0,
 };
 
-// Create Redis client
+// Create Redis client with simplified config
 const client = redis.createClient(redisConfig);
 
-// Enhanced event handlers
+// event handlers
 client.on("connect", () => {
   isConnected = true;
-  logger.info(`Redis connected successfully (attempt ${connectionAttempts})`);
+  logger.info(`Redis connected to ${REDIS_SERVER}:${REDIS_PORT}`);
 });
 
 client.on("ready", () => {
   isReady = true;
   lastError = null;
-  logger.info("Redis connection ready for commands");
+  logger.info("Redis connection ready");
 });
 
 client.on("error", (error) => {
@@ -85,19 +83,18 @@ client.on("error", (error) => {
   isConnected = false;
   isReady = false;
 
-  // Log different types of errors appropriately
+  // Simple error logging
   if (error.code === "ECONNREFUSED") {
-    logger.warn(`Redis connection refused: ${error.message}`);
+    logger.warn(
+      `Redis connection refused. Is Redis running on ${REDIS_SERVER}:${REDIS_PORT}?`
+    );
   } else if (error.code === "ETIMEDOUT") {
-    logger.warn(`Redis connection timeout: ${error.message}`);
+    logger.warn(`Redis connection timeout to ${REDIS_SERVER}:${REDIS_PORT}`);
   } else if (error.code === "ENOTFOUND") {
-    logger.error(`Redis host not found: ${error.message}`);
+    logger.error(`Redis host not found: ${REDIS_SERVER}`);
   } else {
     logger.error(`Redis error: ${error.message}`);
   }
-
-  // Don't crash the application on Redis errors
-  console.error(`Redis Error: ${error.message}`);
 });
 
 client.on("end", () => {
@@ -112,34 +109,40 @@ client.on("reconnecting", (delay, attempt) => {
   logger.info(`Redis reconnecting... Attempt ${attempt}, delay: ${delay}ms`);
 });
 
-client.on("warning", (warning) => {
-  logger.warn(`Redis warning: ${warning}`);
-});
-
-// Create safe promisified versions of Redis commands
-const createSafeAsyncCommand = (command) => {
-  const asyncCommand = promisify(client[command]).bind(client);
-
-  return async (...args) => {
-    try {
-      if (!isReady) {
-        throw new Error("Redis not ready");
-      }
-      return await asyncCommand(...args);
-    } catch (error) {
-      logger.warn(`Redis ${command} command failed: ${error.message}`);
-      throw error;
-    }
-  };
+// Create safe promisified versions with better error handling
+const redisGetAsync = async (key) => {
+  if (!isReady) {
+    throw new Error("Redis not ready");
+  }
+  const asyncGet = promisify(client.get).bind(client);
+  return await asyncGet(key);
 };
 
-// Safe async commands
-const redisGetAsync = createSafeAsyncCommand("get");
-const redisSetAsync = createSafeAsyncCommand("set");
-const redisExpireAsync = createSafeAsyncCommand("expire");
-const redisDelAsync = createSafeAsyncCommand("del");
+const redisSetAsync = async (key, value) => {
+  if (!isReady) {
+    throw new Error("Redis not ready");
+  }
+  const asyncSet = promisify(client.set).bind(client);
+  return await asyncSet(key, value);
+};
 
-// Special handling for ping command
+const redisExpireAsync = async (key, seconds) => {
+  if (!isReady) {
+    throw new Error("Redis not ready");
+  }
+  const asyncExpire = promisify(client.expire).bind(client);
+  return await asyncExpire(key, seconds);
+};
+
+const redisDelAsync = async (key) => {
+  if (!isReady) {
+    throw new Error("Redis not ready");
+  }
+  const asyncDel = promisify(client.del).bind(client);
+  return await asyncDel(key);
+};
+
+// Simple ping function
 const redisPingAsync = async (timeout = 3000) => {
   if (!isReady) {
     throw new Error("Redis not ready");
@@ -161,21 +164,18 @@ const redisPingAsync = async (timeout = 3000) => {
   });
 };
 
-// Utility functions
+// Simple utility functions
 const redisUtils = {
-  // Check if Redis is available and ready
   isAvailable: () => isConnected && isReady,
 
-  // Get connection status
   getStatus: () => ({
     connected: isConnected,
     ready: isReady,
     attempts: connectionAttempts,
     lastError: lastError?.message || null,
-    serverInfo: client.server_info || null,
+    server: `${REDIS_SERVER}:${REDIS_PORT}`,
   }),
 
-  // Safe ping with timeout
   ping: async (timeout = 3000) => {
     if (!isReady) {
       return false;
@@ -191,83 +191,6 @@ const redisUtils = {
       return result === "PONG";
     } catch (error) {
       logger.warn(`Redis ping failed: ${error.message}`);
-      return false;
-    }
-  },
-
-  // Get connection info
-  getInfo: () => ({
-    connected: client.connected,
-    ready: client.ready,
-    commandQueueLength: client.command_queue ? client.command_queue.length : 0,
-    offlineQueueLength: client.offline_queue ? client.offline_queue.length : 0,
-  }),
-};
-
-// Safe cache operations
-const safeCacheOperations = {
-  async safeGet(key, timeout = 3000) {
-    if (!redisUtils.isAvailable()) {
-      return null;
-    }
-
-    try {
-      return await Promise.race([
-        redisGetAsync(key),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Get timeout")), timeout)
-        ),
-      ]);
-    } catch (error) {
-      logger.warn(`Safe cache get failed for key ${key}: ${error.message}`);
-      return null;
-    }
-  },
-
-  async safeSet(key, value, expiration = 300, timeout = 3000) {
-    if (!redisUtils.isAvailable()) {
-      return false;
-    }
-
-    try {
-      await Promise.race([
-        redisSetAsync(key, value),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Set timeout")), timeout)
-        ),
-      ]);
-
-      if (expiration > 0) {
-        await Promise.race([
-          redisExpireAsync(key, expiration),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Expire timeout")), timeout)
-          ),
-        ]);
-      }
-
-      return true;
-    } catch (error) {
-      logger.warn(`Safe cache set failed for key ${key}: ${error.message}`);
-      return false;
-    }
-  },
-
-  async safeDel(key, timeout = 3000) {
-    if (!redisUtils.isAvailable()) {
-      return false;
-    }
-
-    try {
-      await Promise.race([
-        redisDelAsync(key),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Delete timeout")), timeout)
-        ),
-      ]);
-      return true;
-    } catch (error) {
-      logger.warn(`Safe cache delete failed for key ${key}: ${error.message}`);
       return false;
     }
   },
@@ -292,27 +215,6 @@ process.on("SIGTERM", gracefulShutdown);
 process.on("SIGINT", gracefulShutdown);
 process.on("beforeExit", gracefulShutdown);
 
-// Periodic health check (optional)
-const startHealthCheck = (intervalMs = 60000) => {
-  setInterval(async () => {
-    try {
-      const isHealthy = await redisUtils.ping();
-      if (!isHealthy && isConnected) {
-        logger.warn(
-          "Redis health check failed despite connection being active"
-        );
-      }
-    } catch (error) {
-      logger.warn(`Redis health check error: ${error.message}`);
-    }
-  }, intervalMs);
-};
-
-// Start health monitoring
-if (process.env.NODE_ENV === "production") {
-  startHealthCheck();
-}
-
 // Export everything
 module.exports = client;
 module.exports.redisGetAsync = redisGetAsync;
@@ -321,7 +223,6 @@ module.exports.redisExpireAsync = redisExpireAsync;
 module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;
 module.exports.redisUtils = redisUtils;
-module.exports.safeCacheOperations = safeCacheOperations;
 module.exports.gracefulShutdown = gracefulShutdown;
 module.exports.connected = () => client.connected;
 module.exports.ready = () => client.ready;
