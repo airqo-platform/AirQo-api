@@ -47,7 +47,7 @@ const redisConfig = {
     if (options.attempt > 3) {
       // Max 3 attempts
       logger.error("Redis maximum retry attempts reached");
-      return undefined;
+      return new Error("Max retry attempts exceeded");
     }
 
     const delay = Math.min(options.attempt * 1000, 5000); // Max 5s delay
