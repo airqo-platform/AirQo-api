@@ -2278,7 +2278,7 @@ const createUserModule = {
   forgotPassword: async (request, next) => {
     try {
       const { query, body } = request;
-      const { version } = body;
+      const { version, slug } = body;
       const { tenant } = query;
 
       const filter = generateFilter.users(request, next);
@@ -2322,6 +2322,7 @@ const createUserModule = {
               token,
               tenant,
               version,
+              slug,
             },
             next
           );

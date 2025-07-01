@@ -27,7 +27,7 @@ spec:
         io.kompose.service: {{ .Values.app.name }}
     spec:
       nodeSelector:
-        role: high-cpu
+        role: moderate-usage
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -36,7 +36,7 @@ spec:
                 - key: role
                   operator: In
                   values:
-                  - high-cpu
+                  - moderate-usage
               weight: 1
       containers:
         - env:

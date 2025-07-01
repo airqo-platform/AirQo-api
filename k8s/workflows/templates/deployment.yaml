@@ -40,6 +40,13 @@ spec:
         - name: '{{ .Values.app.name }}-xcom'
           image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: {{ .Values.resources.initContainer.limits.cpu }}
+              memory: {{ .Values.resources.initContainer.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.initContainer.requests.cpu }}
+              memory: {{ .Values.resources.initContainer.requests.memory }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configmap }} 

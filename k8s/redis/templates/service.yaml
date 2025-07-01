@@ -5,12 +5,11 @@ metadata:
     kompose.cmd: kompose convert
   labels:
     io.kompose.service: {{ .Values.app.name }}
-  name: {{ .Values.app.name }}
+  name: "{{ .Values.app.name }}-svc"
   namespace: {{ .Values.app.namespace }}
 spec:
   ports:
-    - name: {{ .Values.app.name }}
-      port: {{ .Values.app.port }}
+    - port: {{ .Values.app.port }}
       targetPort: {{ .Values.app.port }}
   selector:
     io.kompose.service: {{ .Values.app.name }}
