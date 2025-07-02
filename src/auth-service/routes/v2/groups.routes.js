@@ -101,6 +101,15 @@ router.get(
   groupController.list
 );
 
+router.get(
+  "/:grp_id/summary",
+  groupValidations.getGroupById,
+  setJWTAuth,
+  authJWT,
+  requireGroupAccess(["GROUP_VIEW"]),
+  groupController.list
+);
+
 // Group update - requires admin access to the specific group
 router.put(
   "/:grp_id",
