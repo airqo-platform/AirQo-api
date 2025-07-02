@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     containers: eu.gcr.io/airqo-250220/airqo-stage-workflows
-  tag: stage-4dfbc143-1751270795
+  tag: stage-e2f404cc-1751449065
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
