@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const prodConfig = {
+  ADMIN_SETUP_SECRET: process.env.PROD_ADMIN_SETUP_SECRET,
   BYPASS_CAPTCHA: process.env.PROD_BYPASS_CAPTCHA === "true" || false,
   RECAPTCHA_SITE_KEY: process.env.PROD_RECAPTCHA_SITE_KEY,
   RECAPTCHA_SECRET_KEY: process.env.PROD_RECAPTCHA_SECRET_KEY,

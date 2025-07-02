@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const stageConfig = {
+  ADMIN_SETUP_SECRET: process.env.STAGE_ADMIN_SETUP_SECRET,
   BYPASS_CAPTCHA: process.env.STAGE_BYPASS_CAPTCHA === "true" || false,
   RECAPTCHA_SITE_KEY: process.env.STAGE_RECAPTCHA_SITE_KEY,
   RECAPTCHA_SECRET_KEY: process.env.STAGE_RECAPTCHA_SECRET_KEY,

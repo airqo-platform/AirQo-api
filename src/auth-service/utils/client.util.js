@@ -312,6 +312,15 @@ const client = {
     try {
       const { tenant, limit, skip } = { ...request.query };
       const filter = generateFilter.clients(request, next);
+
+      // CRITICAL: Warn about potentially dangerous operations
+      if (Object.keys(filter).length === 0 && !request.allowBulkOperations) {
+        logger.warn("Potentially unintended bulk operation detected", {
+          endpoint: request.route?.path,
+          query: request.query,
+          params: request.params,
+        });
+      }
       const responseFromListClient = await ClientModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter }, next);
@@ -325,6 +334,74 @@ const client = {
           { message: error.message }
         )
       );
+    }
+  },
+  getClientById: async (request, next) => {
+    try {
+      const { client_id } = request.params;
+      const { tenant } = request.query;
+
+      if (!client_id) {
+        return {
+          success: false,
+          message: "client_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "client_id parameter is required" },
+        };
+      }
+
+      let validObjectId;
+      try {
+        validObjectId = ObjectId(client_id);
+      } catch (error) {
+        return {
+          success: false,
+          message: "Invalid client_id format",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "client_id must be a valid ObjectId" },
+        };
+      }
+
+      const filter = { _id: validObjectId };
+      const responseFromListClient = await ClientModel(
+        tenant.toLowerCase()
+      ).list({ skip: 0, limit: 1, filter }, next);
+
+      if (responseFromListClient.success === true) {
+        // Even if found, the list method might return empty array if no match
+        if (
+          !responseFromListClient.data ||
+          responseFromListClient.data.length === 0
+        ) {
+          return {
+            success: false,
+            message: "Client not found",
+            status: httpStatus.NOT_FOUND,
+            errors: { message: `Client with ID ${client_id} not found` },
+          };
+        }
+
+        return {
+          success: true,
+          message: "successfully retrieved the client details",
+          status: httpStatus.OK,
+          data: responseFromListClient.data, // This will be an array with one item
+        };
+      } else {
+        return responseFromListClient;
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in getClientById: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   createClient: async (request, next) => {
