@@ -1,177 +1,81 @@
-//controllers/admin.controller.js
-const httpStatus = require("http-status");
+// admin.controller.js
 const adminUtil = require("@utils/admin.util");
 const {
   logObject,
   logText,
+  logElement,
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
-const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-controller`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-admin-controller`
+);
 
-// Helper function for standard request validation and setup
-const validateAndSetupRequest = (req, next) => {
-  const errors = extractErrorsFromRequest(req);
-  if (errors) {
-    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
-    return null;
-  }
-
-  const request = req;
-  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-  request.query.tenant = isEmpty(req.query.tenant)
-    ? defaultTenant
-    : req.query.tenant;
-
-  return request;
-};
-
-// Helper function for standard response handling
-const handleStandardResponse = (res, result, responseConfig = {}) => {
-  if (isEmpty(result) || res.headersSent) {
-    return;
-  }
-
-  const {
-    successKey = "data",
-    successMessage = result.message,
-    errorMessage = result.message,
-    errorKey = "errors",
-  } = responseConfig;
-
-  if (result.success === true) {
-    const status = result.status ? result.status : httpStatus.OK;
-    res.status(status).json({
-      success: true,
-      message: successMessage,
-      [successKey]: result.data,
-    });
-  } else if (result.success === false) {
-    const status = result.status
-      ? result.status
-      : httpStatus.INTERNAL_SERVER_ERROR;
-    res.status(status).json({
-      success: false,
-      message: errorMessage,
-      [errorKey]: result.errors ? result.errors : { message: "" },
-    });
-  }
-};
-
-// Helper function for standard error handling
-const handleStandardError = (error, next) => {
-  logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-  next(
-    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-      message: error.message,
-    })
-  );
-};
-
-// Helper function for parameter validation
-const validateParameterError = (condition, message, next) => {
-  if (condition) {
-    next(
-      new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-        message: message,
-      })
-    );
-    return true;
-  }
-  return false;
-};
-
-const adminController = {
+const createAdmin = {
   setupSuperAdmin: async (req, res, next) => {
     try {
-      logText("setupSuperAdmin...");
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const result = await adminUtil.setupSuperAdmin(request, next);
-      handleStandardResponse(res, result, { successKey: "super_admin_setup" });
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          super_admin_setup: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
     } catch (error) {
-      handleStandardError(error, next);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 
-  checkRBACHealth: async (req, res, next) => {
-    try {
-      logText("checkRBACHealth...");
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
-
-      const result = await adminUtil.checkRBACHealth(request, next);
-      handleStandardResponse(res, result, {
-        successKey: "health_status",
-        successMessage: "RBAC health check completed successfully",
-      });
-    } catch (error) {
-      handleStandardError(error, next);
-    }
-  },
-
-  resetRBACSystem: async (req, res, next) => {
-    try {
-      logText("resetRBACSystem...");
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
-
-      const result = await adminUtil.resetRBACSystem(request, next);
-      handleStandardResponse(res, result, {
-        successKey: "reset_results",
-        successMessage: "RBAC reset completed successfully",
-      });
-    } catch (error) {
-      handleStandardError(error, next);
-    }
-  },
-
-  initializeRBAC: async (req, res, next) => {
-    try {
-      logText("initializeRBAC...");
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
-
-      const result = await adminUtil.initializeRBAC(request, next);
-      handleStandardResponse(res, result, {
-        successKey: "initialization_status",
-        successMessage: "RBAC initialization completed successfully",
-      });
-    } catch (error) {
-      handleStandardError(error, next);
-    }
-  },
-
-  getRBACStatus: async (req, res, next) => {
-    try {
-      logText("getRBACStatus...");
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
-
-      const result = await adminUtil.getRBACStatus(request, next);
-      handleStandardResponse(res, result, {
-        successKey: "rbac_status",
-        successMessage: "RBAC status retrieved successfully",
-      });
-    } catch (error) {
-      handleStandardError(error, next);
-    }
-  },
-
-  // Enhanced setup with validation and detailed feedback
   enhancedSetupSuperAdmin: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        return next(
+        next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -188,11 +92,11 @@ const adminController = {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: result.message,
-          operation: result.operation,
-          setup_details: result.setup_details,
-          before_setup: result.before_setup,
-          after_setup: result.after_setup,
+          message: result.message ? result.message : "",
+          operation: result.operation ? result.operation : "",
+          setup_details: result.setup_details ? result.setup_details : {},
+          before_setup: result.before_setup ? result.before_setup : {},
+          after_setup: result.after_setup ? result.after_setup : {},
         });
       } else if (result.success === false) {
         const status = result.status
@@ -200,43 +104,287 @@ const adminController = {
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "INTERNAL SERVER ERROR" },
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
         });
       }
     } catch (error) {
-      handleStandardError(error, next);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 
-  // System diagnostic endpoint
+  checkRBACHealth: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.checkRBACHealth(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          health_status: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  resetRBACSystem: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.resetRBACSystem(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          reset_results: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  initializeRBAC: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.initializeRBAC(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          initialization_status: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  getRBACStatus: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.getRBACStatus(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          rbac_status: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
   getSystemDiagnostics: async (req, res, next) => {
     try {
-      const request = validateAndSetupRequest(req, next);
-      if (!request) return;
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
 
       const result = await adminUtil.getSystemDiagnostics(request, next);
-      handleStandardResponse(res, result, {
-        successKey: "diagnostics",
-        successMessage: "System diagnostics completed successfully",
-      });
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          diagnostics: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
     } catch (error) {
-      handleStandardError(error, next);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 
-  // Bulk admin operations
   bulkAdminOperations: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
-        return next(
+        next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
+        return;
       }
-
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
@@ -249,19 +397,470 @@ const adminController = {
         return;
       }
 
-      const status = result.success
-        ? httpStatus.OK
-        : httpStatus.PARTIAL_CONTENT;
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          bulk_operation_results: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
 
-      res.status(status).json({
-        success: result.success,
-        message: result.message,
-        bulk_operation_results: result.data,
+  auditUsers: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.auditUsers(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          audit_results: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  auditRoles: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.auditRoles(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          audit_results: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  auditPermissions: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.auditPermissions(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          audit_results: result.data ? result.data : [],
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  clearCache: async (req, res, next) => {
+    try {
+      logText("clearCache...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.clearCache(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          cache_clear_results: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  databaseCleanup: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.databaseCleanup(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          cleanup_results: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  getDeprecatedFieldsStatus: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.getDeprecatedFieldsStatus(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          migration_status: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  migrateDeprecatedFields: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.migrateDeprecatedFields(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          migration_results: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  getCurrentConfig: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await adminUtil.getCurrentConfig(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          configuration: result.data ? result.data : {},
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  getDocs: async (req, res, next) => {
+    try {
+      const result = await adminUtil.getDocs(req, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      return res.status(httpStatus.OK).json({
+        success: true,
+        message: "Admin service documentation retrieved",
+        documentation: result.data ? result.data : {},
       });
     } catch (error) {
-      handleStandardError(error, next);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
 };
 
-module.exports = adminController;
+module.exports = createAdmin;

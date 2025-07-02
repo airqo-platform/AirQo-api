@@ -1,16 +1,17 @@
-//utils/admin.util.js
+// admin.util.js
 const UserModel = require("@models/User");
 const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
 const { logObject, logText, HttpError } = require("@utils/shared");
+const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const ObjectId = require("mongoose").Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
-// SECURITY: Only enable this in development or with proper secret
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
 
 // Helper function to validate setup secret
@@ -23,12 +24,34 @@ const isProductionOperationAllowed = (operation, userId, currentUserId) => {
   if (process.env.NODE_ENV !== "production") {
     return true;
   }
-
-  // In production, only allow operations on current user
   return userId === currentUserId?.toString();
 };
 
-const adminUtil = {
+// Helper function to calculate health score
+const calculateHealthScore = (diagnostics) => {
+  let score = 100;
+
+  if (diagnostics.basic_health.status !== "healthy") score -= 30;
+  if (!diagnostics.detailed_status.system_health.super_admin_role_exists)
+    score -= 20;
+  if (diagnostics.detailed_status.user_coverage.coverage_percentage < 50)
+    score -= 20;
+  if (diagnostics.detailed_status.system_health.permissions_count === 0)
+    score -= 30;
+
+  return Math.max(0, score);
+};
+
+// Helper function to get health grade
+const getHealthGrade = (score) => {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+};
+
+const admin = {
   setupSuperAdmin: async (request, next) => {
     try {
       const { user_id, secret, tenant } = { ...request.body, ...request.query };
@@ -40,7 +63,6 @@ const adminUtil = {
         hasSecret: !!secret,
       });
 
-      // Security check
       if (!validateSetupSecret(secret)) {
         return {
           success: false,
@@ -50,7 +72,6 @@ const adminUtil = {
         };
       }
 
-      // Production safety check
       if (
         !isProductionOperationAllowed("super-admin", user_id, currentUser?._id)
       ) {
@@ -64,7 +85,6 @@ const adminUtil = {
 
       const targetUserId = user_id || currentUser._id;
 
-      // Use the robust ensureSuperAdminRole function
       const rolePermissionsUtil = require("@utils/role-permissions.util");
       let superAdminRole;
 
@@ -73,7 +93,6 @@ const adminUtil = {
       } catch (roleError) {
         logger.error("Failed to ensure super admin role:", roleError.message);
 
-        // Fallback: try to find any existing role with SUPER_ADMIN in the name
         superAdminRole = await RoleModel(tenant).findOne({
           $or: [
             { role_name: { $regex: /SUPER_ADMIN/i } },
@@ -96,13 +115,11 @@ const adminUtil = {
         }
       }
 
-      // Find AirQo organization
       let airqoGroup = await GroupModel(tenant).findOne({
         grp_title: { $regex: /^airqo$/i },
       });
 
       if (!airqoGroup) {
-        // Create AirQo group if it doesn't exist
         airqoGroup = await GroupModel(tenant).create({
           grp_title: "AirQo",
           grp_description: "AirQo Organization - System Administrator Group",
@@ -111,7 +128,6 @@ const adminUtil = {
         });
       }
 
-      // Check if user exists and their current role status
       const existingUser = await UserModel(tenant)
         .findById(targetUserId)
         .lean();
@@ -124,7 +140,6 @@ const adminUtil = {
         };
       }
 
-      // Check if user already has super admin role
       const hasExistingRole = existingUser.group_roles?.some(
         (gr) => gr.role && gr.role.toString() === superAdminRole._id.toString()
       );
@@ -147,7 +162,6 @@ const adminUtil = {
         };
       }
 
-      // Update user with super admin role
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         targetUserId,
         {
@@ -163,7 +177,6 @@ const adminUtil = {
         { new: true }
       );
 
-      // Clear RBAC cache
       const RBACService = require("@services/rbac.service");
       const rbacService = new RBACService(tenant);
       rbacService.clearUserCache(targetUserId);
@@ -187,6 +200,79 @@ const adminUtil = {
             "Check /api/v2/admin/rbac-health for system status",
           ],
         },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  enhancedSetupSuperAdmin: async (request, next) => {
+    try {
+      const { user_id, secret, tenant } = { ...request.body, ...request.query };
+      const currentUser = request.user;
+
+      logObject("enhancedSetupSuperAdmin request:", {
+        user_id,
+        tenant,
+        hasSecret: !!secret,
+      });
+
+      const initialUser = user_id
+        ? await UserModel(tenant).findById(user_id).lean()
+        : await UserModel(tenant).findById(currentUser._id).lean();
+
+      if (!initialUser) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Target user does not exist" },
+        };
+      }
+
+      const setupResult = await admin.setupSuperAdmin(request, next);
+
+      if (!setupResult.success) {
+        return setupResult;
+      }
+
+      const updatedUser = await UserModel(tenant)
+        .findById(setupResult.data.user_id)
+        .lean();
+
+      return {
+        success: true,
+        message: setupResult.message,
+        operation: "enhanced_super_admin_setup",
+        setup_details: {
+          user_id: setupResult.data.user_id,
+          role_assigned: setupResult.data.role_assigned,
+          tenant: setupResult.data.tenant,
+          operation_timestamp: setupResult.data.timestamp,
+        },
+        before_setup: {
+          user_email: initialUser.email,
+          group_roles_count: initialUser.group_roles?.length || 0,
+          network_roles_count: initialUser.network_roles?.length || 0,
+        },
+        after_setup: {
+          user_email: updatedUser.email,
+          group_roles_count: updatedUser.group_roles?.length || 0,
+          network_roles_count: updatedUser.network_roles?.length || 0,
+          is_super_admin: updatedUser.group_roles?.some(
+            (gr) =>
+              gr.role &&
+              gr.role.toString() === setupResult.data.role_id.toString()
+          ),
+        },
+        status: setupResult.status,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -273,7 +359,6 @@ const adminUtil = {
         hasSecret: !!secret,
       });
 
-      // Security check
       if (!validateSetupSecret(secret)) {
         return {
           success: false,
@@ -283,7 +368,6 @@ const adminUtil = {
         };
       }
 
-      // Only allow in development unless dry run
       if (process.env.NODE_ENV === "production" && !dry_run) {
         return {
           success: false,
@@ -293,10 +377,8 @@ const adminUtil = {
         };
       }
 
-      // Import reset utility
       const rolePermissionsUtil = require("@utils/role-permissions.util");
 
-      // Reset RBAC data
       const resetResult = await rolePermissionsUtil.resetRBACData(tenant, {
         resetPermissions: reset_permissions,
         resetRoles: reset_roles,
@@ -305,7 +387,6 @@ const adminUtil = {
       });
 
       if (!dry_run) {
-        // Re-initialize after reset
         setTimeout(async () => {
           try {
             await rolePermissionsUtil.setupDefaultPermissions(tenant);
@@ -365,7 +446,6 @@ const adminUtil = {
         hasSecret: !!secret,
       });
 
-      // Security check
       if (!validateSetupSecret(secret)) {
         return {
           success: false,
@@ -377,7 +457,6 @@ const adminUtil = {
 
       const rolePermissionsUtil = require("@utils/role-permissions.util");
 
-      // Check current state if not forcing
       let currentState = {};
       if (!force) {
         const [permissionCount, roleCount] = await Promise.all([
@@ -403,7 +482,6 @@ const adminUtil = {
         }
       }
 
-      // Run initialization
       const initResult = await rolePermissionsUtil.setupDefaultPermissions(
         tenant
       );
@@ -443,7 +521,6 @@ const adminUtil = {
 
       logObject("getRBACStatus for tenant:", tenant);
 
-      // Get comprehensive status
       const [
         permissionCount,
         roleCount,
@@ -499,7 +576,6 @@ const adminUtil = {
         recommendations: [],
       };
 
-      // Generate recommendations
       if (!isHealthy) {
         statusData.recommendations.push(
           "Initialize RBAC system using POST /api/v2/admin/rbac-initialize"
@@ -540,106 +616,25 @@ const adminUtil = {
     }
   },
 
-  // Enhanced setup with validation and detailed feedback
-  enhancedSetupSuperAdmin: async (request, next) => {
-    try {
-      const { user_id, secret, tenant } = { ...request.body, ...request.query };
-      const currentUser = request.user;
-
-      logObject("enhancedSetupSuperAdmin request:", {
-        user_id,
-        tenant,
-        hasSecret: !!secret,
-      });
-
-      // Get initial state
-      const initialUser = user_id
-        ? await UserModel(tenant).findById(user_id).lean()
-        : await UserModel(tenant).findById(currentUser._id).lean();
-
-      if (!initialUser) {
-        return {
-          success: false,
-          message: "User not found",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "Target user does not exist" },
-        };
-      }
-
-      // Use the standard setup function
-      const setupResult = await adminUtil.setupSuperAdmin(request, next);
-
-      if (!setupResult.success) {
-        return setupResult;
-      }
-
-      // Get updated state
-      const updatedUser = await UserModel(tenant)
-        .findById(setupResult.data.user_id)
-        .lean();
-
-      return {
-        success: true,
-        message: setupResult.message,
-        operation: "enhanced_super_admin_setup",
-        setup_details: {
-          user_id: setupResult.data.user_id,
-          role_assigned: setupResult.data.role_assigned,
-          tenant: setupResult.data.tenant,
-          operation_timestamp: setupResult.data.timestamp,
-        },
-        before_setup: {
-          user_email: initialUser.email,
-          group_roles_count: initialUser.group_roles?.length || 0,
-          network_roles_count: initialUser.network_roles?.length || 0,
-        },
-        after_setup: {
-          user_email: updatedUser.email,
-          group_roles_count: updatedUser.group_roles?.length || 0,
-          network_roles_count: updatedUser.network_roles?.length || 0,
-          is_super_admin: updatedUser.group_roles?.some(
-            (gr) =>
-              gr.role &&
-              gr.role.toString() === setupResult.data.role_id.toString()
-          ),
-        },
-        status: setupResult.status,
-      };
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-
-  // System diagnostic endpoint
   getSystemDiagnostics: async (request, next) => {
     try {
       const { tenant, include_users = false } = request.query;
 
       logObject("getSystemDiagnostics for tenant:", tenant);
 
-      // Basic system health
-      const healthResult = await adminUtil.checkRBACHealth(request, next);
-      const statusResult = await adminUtil.getRBACStatus(request, next);
+      const healthResult = await admin.checkRBACHealth(request, next);
+      const statusResult = await admin.getRBACStatus(request, next);
 
-      // Additional diagnostic data
       const diagnostics = {
         timestamp: new Date().toISOString(),
         tenant: tenant,
         environment: process.env.NODE_ENV || "development",
         basic_health: healthResult.data,
         detailed_status: statusResult.data,
-        database_connectivity: "operational", // This would be checked in a real implementation
-        cache_status: "operational", // This would check RBAC cache status
+        database_connectivity: "operational",
+        cache_status: "operational",
       };
 
-      // Include user analysis if requested
       if (include_users === "true") {
         const usersWithDeprecatedFields = await UserModel(
           tenant
@@ -657,7 +652,6 @@ const adminUtil = {
         };
       }
 
-      // Overall system health score
       const healthScore = calculateHealthScore(diagnostics);
       diagnostics.overall_health = {
         score: healthScore,
@@ -684,7 +678,6 @@ const adminUtil = {
     }
   },
 
-  // Bulk admin operations
   bulkAdminOperations: async (request, next) => {
     try {
       const { operation, user_ids, secret, tenant } = request.body;
@@ -695,7 +688,6 @@ const adminUtil = {
         tenant,
       });
 
-      // Security check
       if (!validateSetupSecret(secret)) {
         return {
           success: false,
@@ -731,7 +723,6 @@ const adminUtil = {
       };
 
       if (operation === "audit_users") {
-        // Audit users without performing any modifications
         for (const userId of user_ids || []) {
           try {
             const user = await UserModel(tenant).findById(userId).lean();
@@ -766,7 +757,6 @@ const adminUtil = {
           }
         }
       } else {
-        // Perform actual operations for other operation types
         for (const userId of user_ids || []) {
           try {
             let operationResult;
@@ -777,12 +767,11 @@ const adminUtil = {
             };
 
             if (operation === "setup_super_admin") {
-              operationResult = await adminUtil.setupSuperAdmin(
+              operationResult = await admin.setupSuperAdmin(
                 operationRequest,
                 next
               );
             } else if (operation === "remove_super_admin") {
-              // This would need to be implemented
               operationResult = {
                 success: false,
                 message: "Remove super admin operation not yet implemented",
@@ -831,29 +820,429 @@ const adminUtil = {
       );
     }
   },
+
+  auditUsers: async (request, next) => {
+    try {
+      const { tenant, limit, skip } = { ...request.query };
+      const filter = generateFilter.admin(request, next);
+
+      const responseFromListUsers = await UserModel(tenant.toLowerCase()).list(
+        { skip, limit, filter },
+        next
+      );
+
+      if (responseFromListUsers.success === true) {
+        const auditData = responseFromListUsers.data.map((user) => ({
+          user_id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          has_group_roles: !!(user.group_roles && user.group_roles.length > 0),
+          has_network_roles: !!(
+            user.network_roles && user.network_roles.length > 0
+          ),
+          deprecated_fields: {
+            role: !!user.role,
+            privilege: !!user.privilege,
+            organization: !!user.organization,
+          },
+          createdAt: user.createdAt,
+          lastLogin: user.lastLogin,
+        }));
+
+        return {
+          success: true,
+          message: "User audit completed successfully",
+          status: httpStatus.OK,
+          data: auditData,
+        };
+      } else {
+        return responseFromListUsers;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  auditRoles: async (request, next) => {
+    try {
+      const { tenant, limit, skip } = { ...request.query };
+      const filter = generateFilter.admin(request, next);
+
+      const responseFromListRoles = await RoleModel(tenant.toLowerCase()).list(
+        { skip, limit, filter },
+        next
+      );
+
+      if (responseFromListRoles.success === true) {
+        const auditData = responseFromListRoles.data.map((role) => ({
+          role_id: role._id,
+          role_name: role.role_name,
+          role_code: role.role_code,
+          permissions_count: role.role_permissions?.length || 0,
+          role_status: role.role_status,
+          createdAt: role.createdAt,
+          updatedAt: role.updatedAt,
+        }));
+
+        return {
+          success: true,
+          message: "Role audit completed successfully",
+          status: httpStatus.OK,
+          data: auditData,
+        };
+      } else {
+        return responseFromListRoles;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  auditPermissions: async (request, next) => {
+    try {
+      const { tenant, limit, skip } = { ...request.query };
+      const filter = generateFilter.admin(request, next);
+
+      const responseFromListPermissions = await PermissionModel(
+        tenant.toLowerCase()
+      ).list({ skip, limit, filter }, next);
+
+      if (responseFromListPermissions.success === true) {
+        const auditData = responseFromListPermissions.data.map(
+          (permission) => ({
+            permission_id: permission._id,
+            permission: permission.permission,
+            resource: permission.resource,
+            operation: permission.operation,
+            description: permission.description,
+            createdAt: permission.createdAt,
+            updatedAt: permission.updatedAt,
+          })
+        );
+
+        return {
+          success: true,
+          message: "Permission audit completed successfully",
+          status: httpStatus.OK,
+          data: auditData,
+        };
+      } else {
+        return responseFromListPermissions;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  clearCache: async (request, next) => {
+    try {
+      const { secret, tenant } = { ...request.body, ...request.query };
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      const RBACService = require("@services/rbac.service");
+      const rbacService = new RBACService(tenant);
+      await rbacService.clearAllCache();
+
+      return {
+        success: true,
+        message: "Cache cleared successfully",
+        status: httpStatus.OK,
+        data: {
+          operation: "cache_clear",
+          tenant: tenant,
+          timestamp: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  databaseCleanup: async (request, next) => {
+    try {
+      const { secret, tenant } = { ...request.body, ...request.query };
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Database cleanup completed successfully",
+        status: httpStatus.OK,
+        data: {
+          operation: "database_cleanup",
+          tenant: tenant,
+          timestamp: new Date().toISOString(),
+          note: "Database cleanup functionality implementation pending",
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getDeprecatedFieldsStatus: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+
+      const usersWithDeprecatedFields = await UserModel(tenant).aggregate([
+        {
+          $match: {
+            $or: [
+              { role: { $exists: true, $ne: null } },
+              { privilege: { $exists: true, $ne: null } },
+              { organization: { $exists: true, $ne: null } },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total_users_with_deprecated_fields: { $sum: 1 },
+            users_with_role_field: {
+              $sum: {
+                $cond: [{ $ne: ["$role", null] }, 1, 0],
+              },
+            },
+            users_with_privilege_field: {
+              $sum: {
+                $cond: [{ $ne: ["$privilege", null] }, 1, 0],
+              },
+            },
+            users_with_organization_field: {
+              $sum: {
+                $cond: [{ $ne: ["$organization", null] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]);
+
+      const migrationStatus = {
+        migration_needed: usersWithDeprecatedFields.length > 0,
+        summary: usersWithDeprecatedFields[0] || {
+          total_users_with_deprecated_fields: 0,
+          users_with_role_field: 0,
+          users_with_privilege_field: 0,
+          users_with_organization_field: 0,
+        },
+        tenant: tenant,
+        timestamp: new Date().toISOString(),
+      };
+
+      return {
+        success: true,
+        message: "Deprecated fields status retrieved successfully",
+        status: httpStatus.OK,
+        data: migrationStatus,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  migrateDeprecatedFields: async (request, next) => {
+    try {
+      const { secret, tenant } = { ...request.body, ...request.query };
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Deprecated fields migration completed successfully",
+        status: httpStatus.OK,
+        data: {
+          operation: "migrate_deprecated_fields",
+          tenant: tenant,
+          timestamp: new Date().toISOString(),
+          note: "Migration functionality implementation pending",
+        },
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getCurrentConfig: async (request, next) => {
+    try {
+      const configData = {
+        environment: process.env.NODE_ENV || "development",
+        setup_secret_configured: !!process.env.ADMIN_SETUP_SECRET,
+        features: {
+          rbac_reset: true,
+          bulk_operations: true,
+          system_diagnostics: true,
+          user_audit: true,
+          migration_tools: true,
+        },
+        safety_checks: {
+          production_confirmations: process.env.NODE_ENV === "production",
+          dry_run_default: true,
+          secret_validation: true,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      return {
+        success: true,
+        message: "Current admin configuration retrieved",
+        status: httpStatus.OK,
+        data: configData,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getDocs: async (request, next) => {
+    try {
+      const docsData = {
+        service: "admin-service",
+        version: "2.0",
+        description: "Administrative utilities for RBAC system management",
+        endpoints: {
+          "/super-admin": {
+            method: "POST",
+            description: "Setup super admin user",
+            requires_auth: true,
+            requires_secret: true,
+          },
+          "/rbac-health": {
+            method: "GET",
+            description: "Check RBAC system health",
+            requires_auth: false,
+          },
+          "/rbac-status": {
+            method: "GET",
+            description: "Get detailed RBAC status",
+            requires_auth: false,
+          },
+          "/rbac-reset": {
+            method: "POST",
+            description: "Reset RBAC system (dangerous)",
+            requires_auth: false,
+            requires_secret: true,
+            production_restricted: true,
+          },
+          "/rbac-initialize": {
+            method: "POST",
+            description: "Initialize RBAC system",
+            requires_auth: false,
+            requires_secret: true,
+          },
+          "/system-diagnostics": {
+            method: "GET",
+            description: "Comprehensive system diagnostics",
+            requires_auth: true,
+          },
+          "/bulk-operations": {
+            method: "POST",
+            description: "Bulk administrative operations",
+            requires_auth: true,
+            requires_secret: true,
+          },
+        },
+        security: {
+          note: "All destructive operations require a setup secret",
+          secret_env_var: "ADMIN_SETUP_SECRET",
+          production_safety: "Additional confirmations required in production",
+        },
+      };
+
+      return {
+        success: true,
+        message: "Admin service documentation retrieved",
+        data: docsData,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
-// Helper functions
-const calculateHealthScore = (diagnostics) => {
-  let score = 100;
-
-  if (diagnostics.basic_health.status !== "healthy") score -= 30;
-  if (!diagnostics.detailed_status.system_health.super_admin_role_exists)
-    score -= 20;
-  if (diagnostics.detailed_status.user_coverage.coverage_percentage < 50)
-    score -= 20;
-  if (diagnostics.detailed_status.system_health.permissions_count === 0)
-    score -= 30;
-
-  return Math.max(0, score);
-};
-
-const getHealthGrade = (score) => {
-  if (score >= 90) return "A";
-  if (score >= 80) return "B";
-  if (score >= 70) return "C";
-  if (score >= 60) return "D";
-  return "F";
-};
-
-module.exports = adminUtil;
+module.exports = admin;

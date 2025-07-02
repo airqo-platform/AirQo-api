@@ -1,9 +1,9 @@
-//validators/admin.validators.js
-const { body, query, param, oneOf } = require("express-validator");
+// admin.validators.js
+const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const constants = require("@config/constants");
 
-// Tenant validation following the exact pattern from roles.validators.js
 const validateTenant = oneOf([
   query("tenant")
     .optional()
@@ -16,7 +16,6 @@ const validateTenant = oneOf([
     .withMessage("the tenant value is not among the expected ones"),
 ]);
 
-// Pagination middleware following the exact pattern from roles.validators.js
 const pagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
@@ -25,7 +24,6 @@ const pagination = (req, res, next) => {
   next();
 };
 
-// User ID parameter validation following roles.validators.js pattern
 const validateUserIdParam = oneOf([
   param("user_id")
     .exists()
@@ -40,19 +38,20 @@ const validateUserIdParam = oneOf([
     }),
 ]);
 
-// Setup super admin validation
+const validateSecretField = body("secret")
+  .exists()
+  .withMessage("Setup secret is required")
+  .bail()
+  .notEmpty()
+  .withMessage("Secret must not be empty")
+  .bail()
+  .isString()
+  .withMessage("Secret must be a string");
+
 const setupSuperAdmin = [
   validateTenant,
   [
-    body("secret")
-      .exists()
-      .withMessage("Setup secret is required")
-      .bail()
-      .notEmpty()
-      .withMessage("Secret must not be empty")
-      .bail()
-      .isString()
-      .withMessage("Secret must be a string"),
+    validateSecretField,
     body("user_id")
       .optional()
       .notEmpty()
@@ -68,29 +67,21 @@ const setupSuperAdmin = [
   ],
 ];
 
-// RBAC health check validation
 const checkRBACHealth = [
   validateTenant,
-  query("include_details")
-    .optional()
-    .isBoolean()
-    .withMessage("include_details must be a boolean")
-    .toBoolean(),
+  [
+    query("include_details")
+      .optional()
+      .isBoolean()
+      .withMessage("include_details must be a boolean")
+      .toBoolean(),
+  ],
 ];
 
-// RBAC reset validation
 const resetRBACSystem = [
   validateTenant,
   [
-    body("secret")
-      .exists()
-      .withMessage("Setup secret is required")
-      .bail()
-      .notEmpty()
-      .withMessage("Secret must not be empty")
-      .bail()
-      .isString()
-      .withMessage("Secret must be a string"),
+    validateSecretField,
     body("dry_run")
       .optional()
       .isBoolean()
@@ -114,19 +105,10 @@ const resetRBACSystem = [
   ],
 ];
 
-// RBAC initialize validation
 const initializeRBAC = [
   validateTenant,
   [
-    body("secret")
-      .exists()
-      .withMessage("Setup secret is required")
-      .bail()
-      .notEmpty()
-      .withMessage("Secret must not be empty")
-      .bail()
-      .isString()
-      .withMessage("Secret must be a string"),
+    validateSecretField,
     body("force")
       .optional()
       .isBoolean()
@@ -135,34 +117,26 @@ const initializeRBAC = [
   ],
 ];
 
-// RBAC status validation
 const getRBACStatus = [
   validateTenant,
-  query("include_user_details")
-    .optional()
-    .isBoolean()
-    .withMessage("include_user_details must be a boolean")
-    .toBoolean(),
-  query("include_role_details")
-    .optional()
-    .isBoolean()
-    .withMessage("include_role_details must be a boolean")
-    .toBoolean(),
+  [
+    query("include_user_details")
+      .optional()
+      .isBoolean()
+      .withMessage("include_user_details must be a boolean")
+      .toBoolean(),
+    query("include_role_details")
+      .optional()
+      .isBoolean()
+      .withMessage("include_role_details must be a boolean")
+      .toBoolean(),
+  ],
 ];
 
-// Enhanced setup super admin validation
 const enhancedSetupSuperAdmin = [
   validateTenant,
   [
-    body("secret")
-      .exists()
-      .withMessage("Setup secret is required")
-      .bail()
-      .notEmpty()
-      .withMessage("Secret must not be empty")
-      .bail()
-      .isString()
-      .withMessage("Secret must be a string"),
+    validateSecretField,
     body("user_id")
       .optional()
       .notEmpty()
@@ -183,39 +157,31 @@ const enhancedSetupSuperAdmin = [
   ],
 ];
 
-// System diagnostics validation
 const getSystemDiagnostics = [
   validateTenant,
-  query("include_users")
-    .optional()
-    .isBoolean()
-    .withMessage("include_users must be a boolean")
-    .toBoolean(),
-  query("include_cache_stats")
-    .optional()
-    .isBoolean()
-    .withMessage("include_cache_stats must be a boolean")
-    .toBoolean(),
-  query("include_performance_metrics")
-    .optional()
-    .isBoolean()
-    .withMessage("include_performance_metrics must be a boolean")
-    .toBoolean(),
+  [
+    query("include_users")
+      .optional()
+      .isBoolean()
+      .withMessage("include_users must be a boolean")
+      .toBoolean(),
+    query("include_cache_stats")
+      .optional()
+      .isBoolean()
+      .withMessage("include_cache_stats must be a boolean")
+      .toBoolean(),
+    query("include_performance_metrics")
+      .optional()
+      .isBoolean()
+      .withMessage("include_performance_metrics must be a boolean")
+      .toBoolean(),
+  ],
 ];
 
-// Bulk admin operations validation
 const bulkAdminOperations = [
   validateTenant,
   [
-    body("secret")
-      .exists()
-      .withMessage("Setup secret is required")
-      .bail()
-      .notEmpty()
-      .withMessage("Secret must not be empty")
-      .bail()
-      .isString()
-      .withMessage("Secret must be a string"),
+    validateSecretField,
     body("operation")
       .exists()
       .withMessage("operation is missing in the request body")
@@ -229,9 +195,7 @@ const bulkAdminOperations = [
       ),
     body("user_ids")
       .optional()
-      .custom((value) => {
-        return Array.isArray(value);
-      })
+      .custom((value) => Array.isArray(value))
       .withMessage("user_ids must be an array"),
     body("user_ids.*")
       .isMongoId()
@@ -244,7 +208,6 @@ const bulkAdminOperations = [
   ],
 ];
 
-// Production safety validation
 const validateProductionSafety = [
   body("confirm_production")
     .if(() => process.env.NODE_ENV === "production")
@@ -259,30 +222,30 @@ const validateProductionSafety = [
     .withMessage("dry_run is recommended for production operations"),
 ];
 
-// Validation for audit operations
 const auditValidation = [
   validateTenant,
-  query("include_user_details")
-    .optional()
-    .isBoolean()
-    .withMessage("include_user_details must be a boolean")
-    .toBoolean(),
-  query("export_format")
-    .optional()
-    .isIn(["json", "csv", "xlsx"])
-    .withMessage("export_format must be one of: json, csv, xlsx")
-    .toLowerCase(),
-  query("date_from")
-    .optional()
-    .isISO8601()
-    .withMessage("date_from must be a valid ISO 8601 date"),
-  query("date_to")
-    .optional()
-    .isISO8601()
-    .withMessage("date_to must be a valid ISO 8601 date"),
+  [
+    query("include_user_details")
+      .optional()
+      .isBoolean()
+      .withMessage("include_user_details must be a boolean")
+      .toBoolean(),
+    query("export_format")
+      .optional()
+      .isIn(["json", "csv", "xlsx"])
+      .withMessage("export_format must be one of: json, csv, xlsx")
+      .toLowerCase(),
+    query("date_from")
+      .optional()
+      .isISO8601()
+      .withMessage("date_from must be a valid ISO 8601 date"),
+    query("date_to")
+      .optional()
+      .isISO8601()
+      .withMessage("date_to must be a valid ISO 8601 date"),
+  ],
 ];
 
-// Validation for user search and filtering
 const userSearchValidation = [
   query("search")
     .optional()
@@ -312,7 +275,6 @@ const userSearchValidation = [
     .withMessage("sort_order must be either 'asc' or 'desc'"),
 ];
 
-// Validation for batch operations with size limits
 const batchOperationValidation = [
   body("batch_size")
     .optional()
@@ -330,13 +292,16 @@ const batchOperationValidation = [
     .toBoolean(),
 ];
 
+const cacheManagement = [validateTenant, [validateSecretField]];
+
+const databaseCleanup = [validateTenant, [validateSecretField]];
+
+const migrateDeprecatedFields = [validateTenant, [validateSecretField]];
+
 module.exports = {
-  // Common validations
   tenant: validateTenant,
   pagination,
   validateUserIdParam,
-
-  // Main validation functions
   setupSuperAdmin,
   checkRBACHealth,
   resetRBACSystem,
@@ -349,4 +314,7 @@ module.exports = {
   auditValidation,
   userSearchValidation,
   batchOperationValidation,
+  cacheManagement,
+  databaseCleanup,
+  migrateDeprecatedFields,
 };
