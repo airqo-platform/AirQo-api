@@ -224,7 +224,7 @@ const requireSuperAdminAccess = async (req, res, next) => {
     const hasSuperAdminPermissions = await rbacService.hasPermission(
       user._id,
       ["SUPER_ADMIN", "SYSTEM_ADMIN", "FULL_ACCESS"],
-      true // require ALL permissions
+      false // require ANY permission
     );
 
     if (!hasSuperAdminRole && !hasSuperAdminPermissions) {
