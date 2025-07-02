@@ -6,49 +6,95 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- rate-limiter`);
 
-// Create a more robust limiter that falls back to memory store if Redis fails
-const createLimiter = (options) => {
+// Cache for limiters to avoid recreating them constantly
+const limiterCache = new Map();
+
+// Simple function to check if Redis is available
+const isRedisAvailable = () => {
   try {
-    // Check if Redis is connected
-    if (redis && redis.connected) {
-      return rateLimit({
-        store: new RedisStore({
-          client: redis,
-          prefix: `rate_limit:${options.prefix}:`,
-        }),
-        standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-        legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-        skipFailedRequests: false, // Don't skip failed requests
-        ...options,
-      });
-    } else {
-      // Fallback to memory store if Redis is not connected
-      logger.warn(
-        `⚠️ Redis not connected. Using memory store for rate limiting (${options.prefix})`
+    return redis && redis.connected && redis.ready;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Create a dynamic limiter that checks Redis at runtime
+const createDynamicLimiter = (options) => {
+  const cacheKey = `${options.prefix}_${options.windowMs}_${options.max}`;
+
+  return (req, res, next) => {
+    try {
+      // Check Redis availability at runtime using built-in properties
+      const useRedis = isRedisAvailable();
+
+      if (useRedis) {
+        // Use Redis store
+        const redisKey = `redis_${cacheKey}`;
+
+        if (!limiterCache.has(redisKey)) {
+          const redisLimiter = rateLimit({
+            store: new RedisStore({
+              client: redis,
+              prefix: `rate_limit:${options.prefix}:`,
+            }),
+            standardHeaders: true,
+            legacyHeaders: false,
+            skipFailedRequests: false,
+            windowMs: options.windowMs,
+            max: options.max,
+            message: options.message,
+          });
+
+          limiterCache.set(redisKey, redisLimiter);
+        }
+
+        return limiterCache.get(redisKey)(req, res, next);
+      } else {
+        // Use memory store fallback
+        logger.warn(
+          `⚠️ Redis not connected. Using memory store for rate limiting (${options.prefix})`
+        );
+
+        const memoryKey = `memory_${cacheKey}`;
+
+        if (!limiterCache.has(memoryKey)) {
+          const memoryLimiter = rateLimit({
+            windowMs: options.windowMs,
+            max: options.max,
+            message: options.message,
+            standardHeaders: true,
+            legacyHeaders: false,
+            skipFailedRequests: false,
+          });
+
+          limiterCache.set(memoryKey, memoryLimiter);
+        }
+
+        return limiterCache.get(memoryKey)(req, res, next);
+      }
+    } catch (error) {
+      // Log error and fallback to memory store
+      logger.error(
+        `Rate limiter error: ${error.message}. Using memory store fallback.`
       );
 
-      return rateLimit({
-        windowMs: options.windowMs,
-        max: options.max,
-        message: options.message,
-        standardHeaders: true,
-        legacyHeaders: false,
-        skipFailedRequests: false,
-      });
+      const fallbackKey = `fallback_${cacheKey}`;
+
+      if (!limiterCache.has(fallbackKey)) {
+        const fallbackLimiter = rateLimit({
+          windowMs: options.windowMs,
+          max: options.max,
+          message: options.message,
+          standardHeaders: true,
+          legacyHeaders: false,
+        });
+
+        limiterCache.set(fallbackKey, fallbackLimiter);
+      }
+
+      return limiterCache.get(fallbackKey)(req, res, next);
     }
-  } catch (error) {
-    // Log the error and fallback to memory store
-    logger.error(
-      `Rate limiter error: ${error.message}. Using memory store fallback.`
-    );
-    return rateLimit({
-      windowMs: options.windowMs,
-      max: options.max,
-      message: options.message,
-      standardHeaders: true,
-      legacyHeaders: false,
-    });
-  }
+  };
 };
 
 // Option to bypass rate limiting in development environments
@@ -70,15 +116,15 @@ const conditionalRateLimiter = (limiter) => {
   };
 };
 
-// Create the actual limiters with fallback options
-const brandedLoginLimiter = createLimiter({
+// Create the actual limiters - now they check Redis at runtime
+const brandedLoginLimiter = createDynamicLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 requests per windowMs
   prefix: "branded_login",
   message: "Too many login attempts, please try again later",
 });
 
-const registrationLimiter = createLimiter({
+const registrationLimiter = createDynamicLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 registrations per hour
   prefix: "registration",

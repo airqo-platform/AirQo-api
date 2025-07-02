@@ -9,6 +9,11 @@ const log4js = require("log4js");
 const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- preferences-util`);
 const { logObject, logText, HttpError } = require("@utils/shared");
+const {
+  getDefaultTheme,
+  hasValidTheme,
+  mergeWithDefaults,
+} = require("@utils/common");
 
 const handleError = (next, title, statusCode, message) => {
   next(new HttpError(title, statusCode, { message }));
@@ -1252,12 +1257,13 @@ const preferences = {
   getEffectiveTheme: async (request, next) => {
     try {
       const { user_id } = request.params;
-      const { tenant } = request.query;
+      const { tenant, group_id } = request.query;
 
       // Get user with their group roles
       const user = await UserModel(tenant)
         .findById(user_id)
-        .select("theme group_roles");
+        .select("theme group_roles")
+        .lean();
 
       if (!user) {
         return next(
@@ -1267,47 +1273,110 @@ const preferences = {
         );
       }
 
-      // If user has a theme set, return it
-      if (user.theme && Object.keys(user.theme).length > 0) {
+      // If user has a theme set, return it (user theme always takes precedence)
+      if (hasValidTheme(user.theme)) {
         return {
           success: true,
-          data: user.theme,
+          data: mergeWithDefaults(user.theme),
           source: "user",
           message: "User theme retrieved successfully",
           status: httpStatus.OK,
         };
       }
 
-      // Otherwise, check for organization theme
-      if (user.group_roles && user.group_roles.length > 0) {
-        // Get the primary organization (first one or marked as primary)
-        const primaryGroupRole = user.group_roles[0];
-        const group = await GroupModel(tenant)
-          .findById(primaryGroupRole.group)
-          .select("theme");
+      // Handle organization theme based on group_id parameter
+      if (group_id) {
+        // When group_id is explicitly provided, we need to be strict about validation
 
-        if (group && group.theme && Object.keys(group.theme).length > 0) {
+        // First, check if the group exists in the database
+        const groupExists = await GroupModel(tenant)
+          .findById(group_id)
+          .select("_id grp_title theme")
+          .lean();
+
+        if (!groupExists) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: `Group with ID ${group_id} does not exist`,
+            })
+          );
+        }
+
+        // Check if user belongs to this specific group
+        const userBelongsToGroup = user.group_roles.some(
+          (role) => role.group.toString() === group_id.toString()
+        );
+
+        if (!userBelongsToGroup) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: `User does not belong to group: ${groupExists.grp_title} (${group_id})`,
+            })
+          );
+        }
+
+        // User belongs to the group, get the group's theme
+        if (hasValidTheme(groupExists.theme)) {
           return {
             success: true,
-            data: group.theme,
+            data: mergeWithDefaults(groupExists.theme),
             source: "organization",
-            message: "Organization theme retrieved successfully",
+            groupId: groupExists._id,
+            groupTitle: groupExists.grp_title,
+            message: `Organization theme retrieved successfully for group: ${groupExists.grp_title}`,
+            status: httpStatus.OK,
+          };
+        } else {
+          // Group exists, user belongs to it, but group has no theme set
+          return {
+            success: true,
+            data: getDefaultTheme(),
+            source: "default",
+            reason: "group_has_no_theme",
+            groupId: groupExists._id,
+            groupTitle: groupExists.grp_title,
+            message: `Group '${groupExists.grp_title}' has no theme configured. Using default theme.`,
             status: httpStatus.OK,
           };
         }
       }
 
-      // Return default theme
+      // No group_id provided - use existing logic for primary group
+      if (user.group_roles && user.group_roles.length > 0) {
+        // Get the primary organization (first one)
+        const primaryGroupRole = user.group_roles[0];
+        const group = await GroupModel(tenant)
+          .findById(primaryGroupRole.group)
+          .select("theme grp_title")
+          .lean();
+
+        if (group && hasValidTheme(group.theme)) {
+          return {
+            success: true,
+            data: mergeWithDefaults(group.theme),
+            source: "organization",
+            groupId: group._id,
+            groupTitle: group.grp_title,
+            message:
+              "Organization theme retrieved successfully from primary group",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      // Return default theme - only when no group_id specified and no primary group theme
       return {
         success: true,
-        data: {
-          primaryColor: "#1976d2",
-          mode: "light",
-          interfaceStyle: "default",
-          contentLayout: "wide",
-        },
+        data: getDefaultTheme(),
         source: "default",
-        message: "Default theme returned",
+        reason:
+          user.group_roles && user.group_roles.length > 0
+            ? "no_group_theme"
+            : "no_groups",
+        message:
+          user.group_roles && user.group_roles.length > 0
+            ? "No organization theme configured. Using default theme."
+            : "User not assigned to any groups. Using default theme.",
         status: httpStatus.OK,
       };
     } catch (error) {

@@ -24,5 +24,14 @@ const mappings = {
       excludeSimilarCharacters: true,
     };
   },
+  TOKEN_EXPIRATION: {
+    DEFAULT: "24h",
+    ADMIN: "4h",
+    REMEMBER_ME: "7d",
+    TEMPORARY: "1h",
+    REFRESH: "30d",
+    PASSWORD_RESET: "1h",
+    EMAIL_VERIFICATION: "24h",
+  },
 };
 module.exports = mappings;

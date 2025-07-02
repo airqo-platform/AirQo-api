@@ -65,6 +65,61 @@ const createClient = {
       return;
     }
   },
+  getById: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      // Prepare request object with tenant handling (consistent with other methods)
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Use the dedicated util method
+      const result = await clientUtil.getClientById(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message ? result.message : "",
+          clients: result.data ? result.data : null,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message ? result.message : "",
+          errors: result.errors
+            ? result.errors
+            : { message: "Client not found" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
   list: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -74,6 +129,10 @@ const createClient = {
         );
         return;
       }
+      if (req.params.client_id) {
+        return await createClient.getById(req, res, next);
+      }
+
       const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)

@@ -8,7 +8,7 @@ const {
   createErrorResponse,
   createNotFoundResponse,
   createEmptySuccessResponse,
-} = require("@utils/common");
+} = require("@utils/shared");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const { getModelByTenant } = require("@config/database");

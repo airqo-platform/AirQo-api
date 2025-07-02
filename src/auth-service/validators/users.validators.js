@@ -518,6 +518,11 @@ const forgotPassword = [
       .bail()
       .isNumeric()
       .withMessage("the provided version should be a number"),
+    body("slug")
+      .optional()
+      .trim()
+      .notEmpty()
+      .withMessage("Invalid slug parameter. Must be a non-empty string."),
   ],
 ];
 
