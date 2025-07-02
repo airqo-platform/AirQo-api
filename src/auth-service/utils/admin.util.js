@@ -11,7 +11,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 // SECURITY: Only enable this in development or with proper secret
-const SETUP_SECRET = process.env.ADMIN_SETUP_SECRET || "your-secret-key-here";
+const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
 
 // Helper function to validate setup secret
 const validateSetupSecret = (secret) => {

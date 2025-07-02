@@ -117,11 +117,9 @@ router.get(
   setJWTAuth,
   authJWT,
   (req, res, next) => {
-    // This would call a user audit function in the admin controller
-    // For now, return a placeholder response
-    res.json({
-      success: true,
-      message: "User audit endpoint - implementation pending",
+    res.status(httpStatus.NOT_IMPLEMENTED).json({
+      success: false,
+      message: "User audit functionality not yet implemented",
       data: {
         note: "This endpoint will provide comprehensive user audit functionality",
         available_filters: [

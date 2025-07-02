@@ -2,23 +2,35 @@
 const express = require("express");
 const router = express.Router();
 const migrationController = require("@controllers/migration.controller");
-const { setJWTAuth, authJWT } = require("@middleware/passport"); // Adjust to your auth middleware
+const migrationValidations = require("@validators/migration.validators");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
 
-// Apply authentication middleware (adjust as needed for your app)
 router.use(setJWTAuth);
 router.use(authJWT);
 
 // GET endpoints (safe to run anytime)
 router.get(
   "/audit-deprecated-fields",
+  migrationValidations.auditDeprecatedFields,
   migrationController.auditDeprecatedFields
 );
-router.get("/migration-status", migrationController.getMigrationStatus);
-router.get("/migration-plan", migrationController.getMigrationPlan);
+
+router.get(
+  "/migration-status",
+  migrationValidations.getMigrationStatus,
+  migrationController.getMigrationStatus
+);
+
+router.get(
+  "/migration-plan",
+  migrationValidations.getMigrationPlan,
+  migrationController.getMigrationPlan
+);
 
 // POST endpoint (requires confirmation and likely admin privileges)
 router.post(
   "/migrate-deprecated-fields",
+  migrationValidations.migrateDeprecatedFields,
   migrationController.migrateDeprecatedFields
 );
 

@@ -43,11 +43,11 @@ const migrationController = {
       const { tenant, confirm } = req.query;
 
       // Safety check - require explicit confirmation
-      if (confirm !== "YES_MIGRATE_DEPRECATED_FIELDS") {
+      if (confirm !== constants.ADMIN_SETUP_SECRET) {
         return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           message:
-            "Migration requires explicit confirmation. Add ?confirm=YES_MIGRATE_DEPRECATED_FIELDS to proceed.",
+            "Migration requires explicit confirmation. Use the correct value of the confirmation secret.",
           status: httpStatus.BAD_REQUEST,
         });
       }

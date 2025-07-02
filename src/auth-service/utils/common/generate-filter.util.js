@@ -45,7 +45,7 @@ class ObjectIdValidationStrategy extends ValidationStrategy {
 
     if (mongoose.Types.ObjectId.isValid(value)) {
       try {
-        return new ObjectId(value);
+        return value instanceof ObjectId ? value : new ObjectId(value);
       } catch (error) {
         logger.warn(
           `Failed to create ObjectId for ${fieldName}: ${value} - ${error.message}`

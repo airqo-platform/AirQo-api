@@ -509,10 +509,10 @@ const debugGroupNetworkAccess = () => {
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 
         logger.info(`[DEBUG] Group/Network access for ${user.email}:`, {
-          groupRoles: debugInfo.groupRoles?.length || 0,
-          networkRoles: debugInfo.networkRoles?.length || 0,
-          totalPermissions: debugInfo.allPermissions?.length || 0,
-          isSuperAdmin: debugInfo.isSuperAdmin,
+          groupRoles: debugInfo.role_assignments?.groupRoles?.length || 0,
+          networkRoles: debugInfo.role_assignments?.networkRoles?.length || 0,
+          totalPermissions: debugInfo.permissions?.allPermissions?.length || 0,
+          isSuperAdmin: debugInfo.admin_status?.isSystemSuperAdmin || false,
         });
 
         if (req.query.debug === "true") {

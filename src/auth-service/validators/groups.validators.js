@@ -465,6 +465,17 @@ const bulkMemberManagement = [
       .optional()
       .isMongoId()
       .withMessage("role_id must be a valid ObjectId if provided"),
+    body("actions.*").custom((action) => {
+      if (
+        ["assign_role", "update_permissions"].includes(action.action_type) &&
+        !action.role_id
+      ) {
+        throw new Error(
+          "role_id is required when action_type is assign_role or update_permissions"
+        );
+      }
+      return true;
+    }),
     body("actions.*.reason")
       .optional()
       .trim()
@@ -530,6 +541,13 @@ const manageAccessRequests = [
       .withMessage("decision is required for decision actions")
       .isIn(["approved", "rejected"])
       .withMessage("decision must be either 'approved' or 'rejected'"),
+    body("request_id")
+      .if(query("action").equals("single_decision"))
+      .exists()
+      .withMessage("request_id is required for single_decision")
+      .bail()
+      .isMongoId()
+      .withMessage("request_id must be a valid ObjectId"),
     body("reason")
       .optional()
       .trim()

@@ -2971,8 +2971,7 @@ const groupUtil = {
       if (activity_type) filter.activity_type = activity_type;
       if (user_id) filter.actor_id = user_id;
 
-      // For demo purposes, I'll create a simple activity structure
-      // In production, you'd have a dedicated ActivityLog model
+      // We will have a dedicated ActivityLog model
       const activities = await groupUtil.getActivityLogEntries(filter, {
         limit: parseInt(limit),
         skip: parseInt(skip),
