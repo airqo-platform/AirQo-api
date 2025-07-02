@@ -313,7 +313,7 @@ class BigQueryApi:
                       or if the `query_type` is not supported.
         """
         exclude_columns: List = []
-        table_name = Utils.table_name(table)
+        table_name = table
 
         where_fields = {} if where_fields is None else where_fields
 
