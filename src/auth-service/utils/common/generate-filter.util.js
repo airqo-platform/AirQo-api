@@ -164,6 +164,7 @@ class FieldRegistry {
         mongoField: "resetPasswordToken",
       },
       user: { validator: "objectId", mongoField: "_id" },
+      user_id: { validator: "objectId", mongoField: "_id" },
       login_count: { validator: "number", mongoField: "login_count" },
     },
 
