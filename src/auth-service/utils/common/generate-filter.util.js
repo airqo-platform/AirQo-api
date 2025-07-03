@@ -184,6 +184,7 @@ class FieldRegistry {
       net_id: { validator: "objectId", mongoField: "_id" },
       net_email: { validator: "string", mongoField: "net_email" },
       net_category: { validator: "string", mongoField: "net_category" },
+      category: { validator: "string", mongoField: "category" },
       net_tenant: { validator: "string", mongoField: "net_tenant" },
       net_status: { validator: "string", mongoField: "net_status" },
       net_phoneNumber: { validator: "string", mongoField: "net_phoneNumber" },
@@ -352,6 +353,13 @@ class FieldRegistry {
       dep_status: { validator: "string", mongoField: "net_status" },
       dep_network_id: { validator: "objectId", mongoField: "dep_network_id" },
       dep_children: { validator: "string", mongoField: "dep_children" },
+      user_id: { validator: "objectId", mongoField: "user_id" },
+      dep_email: { validator: "string", mongoField: "dep_email" },
+      dep_title: { validator: "string", mongoField: "dep_title" },
+      dep_parent: { validator: "objectId", mongoField: "dep_parent" },
+      dep_manager: { validator: "objectId", mongoField: "dep_manager" },
+      has_children: { validator: "boolean", mongoField: "has_children" },
+      dep_acronym: { validator: "string", mongoField: "dep_acronym" },
     },
 
     groups: {
