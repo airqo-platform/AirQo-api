@@ -5,9 +5,10 @@ from marshmallow import (
     ValidationError,
     validates_schema,
 )
+from typing import Dict, Any
 
 
-def validate_mutually_exclusive_sites_devices_fields(data):
+def validate_mutually_exclusive_sites_devices_fields(data: Dict[str, Any]) -> None:
     """
     Ensures that exactly one of 'sites', 'device_ids', or 'device_names' is provided in the input data.
 
@@ -32,7 +33,17 @@ def validate_mutually_exclusive_sites_devices_fields(data):
         )
 
 
-def validate_dates(data):
+def validate_dates(data: Dict[str, Any]) -> None:
+    """
+    Validates that the 'endDateTime' is not earlier than 'startDateTime'.
+
+    Args:
+        data (dict): A dictionary containing 'startDateTime' and 'endDateTime' keys,
+                     both of which should be datetime objects or comparable types.
+
+    Raises:
+        ValidationError: If 'endDateTime' is earlier than 'startDateTime'.
+    """
     if data["endDateTime"] < data["startDateTime"]:
         raise ValidationError(
             "endDateTime must not be earlier than startDateTime.", "endDateTime"
@@ -60,7 +71,19 @@ class RawDataSchema(Schema):
     )
 
     @validates_schema
-    def validate_request_dates(data, **kwargs):
+    def validate_request_dates(self, data, **kwargs) -> None:
+        """
+        Marshmallow schema-level validator to ensure date consistency.
+
+        This method is triggered during schema validation and checks that 'endDateTime' is not earlier than 'startDateTime'.
+
+        Args:
+            data (dict): The input data being validated.
+            **kwargs: Additional keyword arguments passed by Marshmallow.
+
+        Raises:
+            ValidationError: If 'endDateTime' is earlier than 'startDateTime'.
+        """
         validate_dates(data)
 
 
@@ -109,15 +132,39 @@ class DataDownloadSchema(Schema):
     minimum = ma_fields.Boolean()
 
     @validates_schema
-    def validate_data_filter(self, data, **kwargs):
+    def validate_data_filter(self, data, **kwargs) -> None:
+        """
+        Schema-level validator to enforce mutual exclusivity between site and device filters.
+
+        Ensures that the input data does not include both site-related and device-related filtering fields at the same time, as they are mutually exclusive.
+
+        Args:
+            data(dict): The input data being validated.
+            **kwargs: Additional keyword arguments passed by Marshmallow.
+
+        Raises:
+            ValidationError: If both site and device fields are present in the input.
+        """
         validate_mutually_exclusive_sites_devices_fields(data)
 
     @validates_schema
-    def validate_request_dates(self, data, **kwargs):
+    def validate_request_dates(self, data, **kwargs) -> None:
+        """
+        Marshmallow schema-level validator to ensure date consistency.
+
+        This method is triggered during schema validation and checks that 'endDateTime' is not earlier than 'startDateTime'.
+
+        Args:
+            data(dict): The input data being validated.
+            **kwargs: Additional keyword arguments passed by Marshmallow.
+
+        Raises:
+            ValidationError: If 'endDateTime' is earlier than 'startDateTime'.
+        """
         validate_dates(data)
 
     @validates_schema
-    def validate_calibrated_frequency(self, data, **kwargs):
+    def validate_calibrated_frequency(self, data, **kwargs) -> None:
         """
         Validates that the 'frequency' field has an acceptable value when 'datatype' is 'calibrated'.
 
@@ -126,7 +173,7 @@ class DataDownloadSchema(Schema):
         ValidationError is raised.
 
         Args:
-            data (dict): The input data containing 'datatype' and 'frequency' fields.
+            data(dict): The input data containing 'datatype' and 'frequency' fields.
 
         Raises:
             ValidationError: If 'datatype' is 'calibrated' and 'frequency' is not an allowed value.
@@ -170,9 +217,33 @@ class DataExportSchema(Schema):
     metadata = ma_fields.List(ma_fields.String())
 
     @validates_schema
-    def validate_data_filter(self, data, **kwargs):
+    def validate_data_filter(self, data, **kwargs) -> None:
+        """
+        Schema-level validator to enforce mutual exclusivity between site and device filters.
+
+        Ensures that the input data does not include both site-related and device-related filtering fields at the same time, as they are mutually exclusive.
+
+        Args:
+            data(dict): The input data being validated.
+            **kwargs: Additional keyword arguments passed by Marshmallow.
+
+        Raises:
+            ValidationError: If both site and device fields are present in the input.
+        """
         validate_mutually_exclusive_sites_devices_fields(data)
 
     @validates_schema
-    def validate_request_dates(self, data, **kwargs):
+    def validate_request_dates(self, data, **kwargs) -> None:
+        """
+        Marshmallow schema-level validator to ensure date consistency.
+
+        This method is triggered during schema validation and checks that 'endDateTime' is not earlier than 'startDateTime'.
+
+        Args:
+            data(dict): The input data being validated.
+            **kwargs: Additional keyword arguments passed by Marshmallow.
+
+        Raises:
+            ValidationError: If 'endDateTime' is earlier than 'startDateTime'.
+        """
         validate_dates(data)

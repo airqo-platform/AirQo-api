@@ -1168,8 +1168,17 @@ const preferenceValidations = {
     param("user_id")
       .exists()
       .withMessage("User ID is required")
+      .bail()
       .isMongoId()
       .withMessage("Invalid User ID"),
+    query("group_id")
+      .optional()
+      .isMongoId()
+      .withMessage("Group ID must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ],
 };
 
