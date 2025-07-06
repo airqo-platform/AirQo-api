@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logText, HttpError } = require("@utils/shared");
