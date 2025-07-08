@@ -1,3 +1,5 @@
+//utils/common/generate-filter.util.js
+
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
@@ -137,6 +139,17 @@ class ValidatorFactory {
 
 // ====================== FIELD DEFINITION REGISTRY ======================
 class FieldRegistry {
+  // Common fields that should be ignored in filter processing (pagination, etc.)
+  static ignoredFields = new Set([
+    "limit",
+    "skip",
+    "page",
+    "sort",
+    "order",
+    "fields",
+    "populate",
+  ]);
+
   static fieldDefinitions = {
     // Common fields used across multiple entities
     id: { validator: "objectId", mongoField: "_id" },
@@ -146,6 +159,7 @@ class FieldRegistry {
     email: { validator: "string", mongoField: "email" },
     category: { validator: "string", mongoField: "category" },
     status: { validator: "string", mongoField: "status" },
+    tenant: { validator: "string", mongoField: "tenant" },
 
     // Entity-specific field mappings
     users: {
@@ -328,6 +342,10 @@ class FieldRegistry {
         mongoField: "expiredEmailSent",
         transform: (value) => value.toLowerCase() === "yes",
       },
+      tenant: { validator: "string", mongoField: "tenant" },
+      user_id: { validator: "objectId", mongoField: "user_id" },
+      network_id: { validator: "objectId", mongoField: "network_id" },
+      group_id: { validator: "objectId", mongoField: "group_id" },
     },
 
     ips: {
@@ -384,7 +402,16 @@ class FieldRegistry {
     },
   };
 
+  static isIgnoredField(fieldName) {
+    return this.ignoredFields.has(fieldName);
+  }
+
   static getFieldDefinition(entity, field) {
+    // Check if field should be ignored
+    if (this.isIgnoredField(field)) {
+      return null;
+    }
+
     // Check entity-specific definitions first
     if (this.fieldDefinitions[entity] && this.fieldDefinitions[entity][field]) {
       return this.fieldDefinitions[entity][field];
@@ -407,14 +434,22 @@ class BaseFilterBuilder {
       return this;
     }
 
+    // Skip ignored fields (pagination parameters)
+    if (FieldRegistry.isIgnoredField(fieldName)) {
+      return this;
+    }
+
     const fieldDef = FieldRegistry.getFieldDefinition(
       this.entityType,
       fieldName
     );
     if (!fieldDef) {
-      logger.warn(
-        `No field definition found for ${this.entityType}.${fieldName}`
-      );
+      // Only log warning if field is not in ignored list and not a common pagination field
+      if (!FieldRegistry.isIgnoredField(fieldName)) {
+        logger.warn(
+          `No field definition found for ${this.entityType}.${fieldName}`
+        );
+      }
       return this;
     }
 
