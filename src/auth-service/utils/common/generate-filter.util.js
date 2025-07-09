@@ -159,7 +159,6 @@ class FieldRegistry {
     email: { validator: "string", mongoField: "email" },
     category: { validator: "string", mongoField: "category" },
     status: { validator: "string", mongoField: "status" },
-    tenant: { validator: "string", mongoField: "tenant" },
 
     // Entity-specific field mappings
     users: {
@@ -342,10 +341,14 @@ class FieldRegistry {
         mongoField: "expiredEmailSent",
         transform: (value) => value.toLowerCase() === "yes",
       },
+    },
+
+    activities: {
       tenant: { validator: "string", mongoField: "tenant" },
-      user_id: { validator: "objectId", mongoField: "user_id" },
-      network_id: { validator: "objectId", mongoField: "network_id" },
-      group_id: { validator: "objectId", mongoField: "group_id" },
+      service: { validator: "string", mongoField: "service" },
+      startTime: { validator: "string", mongoField: "startTime" },
+      endTime: { validator: "string", mongoField: "endTime" },
+      email: { validator: "string", mongoField: "email" },
     },
 
     ips: {
