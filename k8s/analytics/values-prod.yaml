@@ -1,12 +1,13 @@
 namespace: production
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+    redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
   tag: prod-cc87b8a1-1747324969
 api:
@@ -16,12 +17,20 @@ api:
   replicaCount: 3
   podAnnotations: {}
   resources:
-    limits:
-      cpu: 250m
-      memory: 1000Mi
-    requests:
-      cpu: 10m
-      memory: 250Mi
+    analyticsapi:
+      limits:
+        cpu: 250m
+        memory: 1000Mi
+      requests:
+        cpu: 10m
+        memory: 250Mi
+    redis:
+      requests:
+        cpu: 50m
+        memory: 10Mi
+      limits:
+        cpu: 300m
+        memory: 50Mi
   affinity:
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -49,10 +58,17 @@ volumes:
       name: prod-analytics-config-files
 service:
   type: NodePort
-  port: 5000
-  protocol: TCP
-  targetPort: 5000
-  nodePort: 30003
+  ports:
+    - name: analytics-api
+      port: 5000
+      protocol: TCP
+      targetPort: 5000
+      nodePort: 30003
+    - name: redis-server
+      port: 6379
+      targetPort: 6379
+      nodePort: 30079
+      protocol: TCP
 ingress:
   enabled: false
 autoscaling:
