@@ -1,5 +1,3 @@
-app:
-  name: api
 namespace: staging
 nameOverride: ""
 fullnameOverride: ""
@@ -9,6 +7,7 @@ images:
     celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
+    redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
   tag: stage-79bf27a0-1746280013
 api:
@@ -18,7 +17,7 @@ api:
   replicaCount: 2
   podAnnotations: {}
   resources:
-    analyticsapi:
+    common:
       limits:
         cpu: 200m
         memory: 1000Mi

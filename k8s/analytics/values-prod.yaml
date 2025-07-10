@@ -17,7 +17,7 @@ api:
   replicaCount: 3
   podAnnotations: {}
   resources:
-    analyticsapi:
+    common:
       limits:
         cpu: 250m
         memory: 1000Mi
