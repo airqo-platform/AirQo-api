@@ -143,7 +143,7 @@ class EnvOnlyValidator {
     const report = this.reporter.generateMinimalReport(results);
 
     if (this.environment === "development" && report.hasIssues) {
-      this._showActualEnvIssues(results);
+      //this._showActualEnvIssues(results);
     }
 
     // Handle critical validation failures

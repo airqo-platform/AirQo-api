@@ -78,7 +78,7 @@ router.get(
   clientValidations.getClientById,
   setJWTAuth,
   authJWT,
-  createClientController.list
+  createClientController.getById
 );
 
 module.exports = router;

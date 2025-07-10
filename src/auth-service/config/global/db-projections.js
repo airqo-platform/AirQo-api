@@ -644,6 +644,7 @@ const dbProjections = {
   GROUPS_INCLUSION_PROJECTION: {
     _id: 1,
     grp_title: 1,
+    organization_slug: 1,
     grp_status: 1,
     grp_tasks: 1,
     grp_description: 1,

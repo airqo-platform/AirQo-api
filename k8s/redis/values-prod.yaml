@@ -1,7 +1,7 @@
 app:
   name: airqo-redis-server
   namespace: production
-  port: 6389
+  port: 6379
 resources:
   requests:
     cpu: "100m"
@@ -15,4 +15,4 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
-  # targetMemoryUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
