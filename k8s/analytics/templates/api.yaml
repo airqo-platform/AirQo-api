@@ -38,42 +38,85 @@ spec:
         - name: {{ .Values.api.label }}
           image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag}}"
           imagePullPolicy: IfNotPresent
+          {{- $apiPort := include "getTargetPortByName" (list . "analytics-api") }}
           ports:
-            - containerPort: {{ .Values.service.targetPort }}
+            - containerPort: {{ $apiPort }}
               name: {{ .Values.api.label }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.configmap }}          
+                name: {{ .Values.api.configmap }}
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            limits:
+              cpu: {{ .Values.api.resources.common.limits.cpu }}
+              memory: {{ .Values.api.resources.common.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.common.requests.cpu }}
+              memory: {{ .Values.api.resources.common.requests.memory }}
+        - name: '{{ .Values.app.name }}-redis'
+          image: "{{ .Values.images.repositories.redisContainer }}:latest"
+          imagePullPolicy: IfNotPresent
+          {{- $redisPort := include "getTargetPortByName" (list . "redis-server") }}
+          ports:
+            - containerPort: {{ $redisPort}}
+              name: redis
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.api.configmap }}
+          command: ["redis-server"]
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            limits:
+              cpu: {{ .Values.api.resources.redis.limits.cpu }}
+              memory: {{ .Values.api.resources.redis.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.redis.requests.cpu }}
+              memory: {{ .Values.api.resources.redis.requests.memory }}
+          readinessProbe:
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            tcpSocket:
+              port: {{ $redisPort }}
         - name: celery-beat
           image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag}}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.configmap }} 
+                name: {{ .Values.api.configmap }}
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            limits:
+              cpu: {{ .Values.api.resources.common.limits.cpu }}
+              memory: {{ .Values.api.resources.common.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.common.requests.cpu }}
+              memory: {{ .Values.api.resources.common.requests.memory }}
         - name: celery-worker
           image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag}}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.configmap }} 
+                name: {{ .Values.api.configmap }}
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            limits:
+              cpu: {{ .Values.api.resources.common.limits.cpu }}
+              memory: {{ .Values.api.resources.common.limits.memory }}
+            requests:
+              cpu: {{ .Values.api.resources.common.requests.cpu }}
+              memory: {{ .Values.api.resources.common.requests.memory }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
