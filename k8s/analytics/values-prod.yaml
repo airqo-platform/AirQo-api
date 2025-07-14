@@ -67,7 +67,7 @@ service:
     - name: redis-server
       port: 6379
       targetPort: 6379
-      nodePort: 30079
+      nodePort: 30114
       protocol: TCP
 ingress:
   enabled: false

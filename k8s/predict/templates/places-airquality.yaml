@@ -1,18 +1,19 @@
+{{- with .Values.jobs }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Values.jobs.predictPlaces.name }}
-  namespace: {{ .Values.namespace }}
+  name: {{ .predictPlaces.name }}
+  namespace: {{ $.Values.namespace }}
 spec:
   suspend: True
   concurrencyPolicy: Replace
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2
   startingDeadlineSeconds: 1200
-  schedule: '{{ .Values.jobs.predictPlaces.schedule }}'
+  schedule: '{{ .predictPlaces.schedule }}'
   jobTemplate:
     metadata:
-      name: {{ .Values.jobs.predictPlaces.name }}
+      name: {{ .predictPlaces.name }}
     spec:
       ttlSecondsAfterFinished: 100
       template:
@@ -36,19 +37,20 @@ spec:
               value: "cronjobs"
               effect: "NoExecute"
           containers:
-            - name: {{ .Values.jobs.predictPlaces.name }}
-              image: "{{ .Values.images.repositories.predictPlaces }}:{{ .Values.images.tag }}"
+            - name: {{ .predictPlaces.name}}
+              image: "{{ $.Values.images.repositories.predictPlaces }}:{{ $.Values.images.tag }}"
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
-                    name: {{ .Values.jobs.predictPlaces.configmap }} 
-              {{- with .Values.volumeMounts }}
+                    name: {{ .predictPlaces.configmap }}
+              {{- with $.Values.volumeMounts }}
               volumeMounts:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
               resources:
-                {{- toYaml .Values.jobs.predictPlaces.resources | nindent 16 }}
-          {{- with .Values.volumes }}
+                {{- toYaml .predictPlaces.resources | nindent 16 }}
+          {{- with $.Values.volumes }}
           volumes:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+{{- end }}
