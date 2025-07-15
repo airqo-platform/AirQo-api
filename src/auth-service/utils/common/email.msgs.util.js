@@ -24,7 +24,7 @@ module.exports = {
     let PASSWORD_RESET_URL = constants.PWD_RESET;
     let instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     if (version && parseInt(version) === 3 && !slug) {
-      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`;
+      PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd/reset`;
       instructions = `Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it: ${PASSWORD_RESET_URL}?token=${token}`;
     } else if (slug) {
       // Validate and sanitize slug to prevent URL manipulation
@@ -33,7 +33,7 @@ module.exports = {
         // Fallback to version-based logic if slug is invalid
         PASSWORD_RESET_URL =
           version && parseInt(version) === 3
-            ? `${constants.ANALYTICS_BASE_URL}/account/forgotPwd/reset`
+            ? `${constants.ANALYTICS_BASE_URL}/user/forgotPwd/reset`
             : constants.PWD_RESET;
       } else {
         PASSWORD_RESET_URL = `${constants.ANALYTICS_BASE_URL}/org/${sanitizedSlug}/forgotPwd/reset`;
@@ -654,7 +654,7 @@ module.exports = {
   },
   existing_user: ({ firstName = "", lastName = "", email = "" } = {}) => {
     const name = firstName + " " + lastName;
-    const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/account/forgotPwd`;
+    const FORGOT_PAGE = `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`;
     const content = `
     <tr>
      <td style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
