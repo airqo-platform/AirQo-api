@@ -249,6 +249,309 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
   }
 };
 
+const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
+  try {
+    logObject(`🔍 Processing role with permission sync: ${roleData.role_name}`);
+
+    // Get permission IDs for the role
+    const permissions = await PermissionModel(tenant)
+      .find({ permission: { $in: roleData.permissions } })
+      .select("_id permission")
+      .lean();
+
+    const permissionIds = permissions.map((p) => p._id);
+    const foundPermissions = permissions.map((p) => p.permission);
+    const missingPermissions = roleData.permissions.filter(
+      (p) => !foundPermissions.includes(p)
+    );
+
+    if (missingPermissions.length > 0) {
+      console.warn(
+        `⚠️  Missing permissions for role ${roleData.role_name}:`,
+        missingPermissions
+      );
+    }
+
+    // Check if role already exists
+    const existingRole = await RoleModel(tenant)
+      .findOne({
+        $or: [
+          { role_code: roleData.role_code || roleData.role_name },
+          { role_name: roleData.role_name },
+        ],
+      })
+      .lean();
+
+    if (existingRole) {
+      // **IMPROVEMENT: Update existing role with new permissions**
+      logObject(`🔄 Updating existing role: ${roleData.role_name}`);
+
+      // Get current permissions
+      const currentRole = await RoleModel(tenant)
+        .findById(existingRole._id)
+        .populate("role_permissions", "permission")
+        .lean();
+
+      const currentPermissions =
+        currentRole.role_permissions?.map((p) => p.permission) || [];
+      const newPermissions = roleData.permissions.filter(
+        (p) => !currentPermissions.includes(p)
+      );
+
+      if (newPermissions.length > 0) {
+        logObject(
+          `📝 Adding ${newPermissions.length} new permissions to role ${roleData.role_name}:`,
+          newPermissions
+        );
+
+        const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
+          existingRole._id,
+          {
+            role_description: roleData.role_description,
+            role_permissions: permissionIds, // Update with all permissions
+            role_status: "ACTIVE",
+            updatedAt: new Date(),
+          },
+          { new: true }
+        );
+
+        return {
+          success: true,
+          data: updatedRole,
+          message: `Role ${roleData.role_name} updated with new permissions`,
+          status: httpStatus.OK,
+          role_name: roleData.role_name,
+          permissions_added: newPermissions,
+        };
+      } else {
+        logObject(
+          `✅ Role ${roleData.role_name} already has all required permissions`
+        );
+        return {
+          success: true,
+          data: existingRole,
+          message: `Role ${roleData.role_name} already up to date`,
+          status: httpStatus.OK,
+          role_name: roleData.role_name,
+        };
+      }
+    } else {
+      // Create new role
+      const newRole = await RoleModel(tenant).create({
+        role_name: roleData.role_name,
+        role_code: roleData.role_code || roleData.role_name,
+        role_description: roleData.role_description,
+        group_id: roleData.group_id,
+        network_id: roleData.network_id,
+        role_permissions: permissionIds,
+        role_status: "ACTIVE",
+      });
+
+      logObject(`✅ Created new role: ${roleData.role_name}`);
+      return {
+        success: true,
+        data: newRole,
+        message: `Role ${roleData.role_name} created successfully`,
+        status: httpStatus.OK,
+        role_name: roleData.role_name,
+      };
+    }
+  } catch (err) {
+    console.error(
+      `❌ Error creating/updating role ${roleData.role_name}: ${err.message}`
+    );
+    return {
+      success: false,
+      message: "Error creating/updating role",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      role_name: roleData.role_name,
+      errors: { message: err.message },
+    };
+  }
+};
+
+const auditAndSyncExistingRoles = async (tenant) => {
+  try {
+    logObject("🔍 Auditing and syncing existing organization roles...");
+
+    // Get all existing organization roles (non-AirQo roles)
+    const existingRoles = await RoleModel(tenant)
+      .find({
+        role_name: { $not: { $regex: /^AIRQO_/ } },
+      })
+      .populate("role_permissions", "permission")
+      .lean();
+
+    logObject(`📊 Found ${existingRoles.length} organization roles to audit`);
+
+    // Define standard permissions for each role type
+    const rolePermissionTemplates = {
+      SUPER_ADMIN: [
+        "GROUP_MANAGEMENT",
+        "USER_MANAGEMENT",
+        "ROLE_ASSIGNMENT",
+        "SETTINGS_EDIT",
+        "ANALYTICS_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_DEPLOY",
+        "DEVICE_MAINTAIN",
+        "SITE_VIEW",
+        "SITE_CREATE",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+        "MEMBER_VIEW",
+        "MEMBER_INVITE",
+        "MEMBER_REMOVE",
+        "API_ACCESS",
+        "TOKEN_GENERATE",
+      ],
+      ADMIN: [
+        "GROUP_VIEW",
+        "GROUP_EDIT",
+        "USER_MANAGEMENT",
+        "MEMBER_VIEW",
+        "MEMBER_INVITE",
+        "MEMBER_REMOVE",
+        "ROLE_VIEW",
+        "SETTINGS_VIEW",
+        "ANALYTICS_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_DEPLOY",
+        "DEVICE_MAINTAIN",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+      ],
+      TECHNICIAN: [
+        "GROUP_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_DEPLOY",
+        "DEVICE_MAINTAIN",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "MEMBER_VIEW",
+      ],
+      ANALYST: [
+        "GROUP_VIEW",
+        "ANALYTICS_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+        "DATA_COMPARE",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+        "MEMBER_VIEW",
+      ],
+      DEVELOPER: [
+        "GROUP_VIEW",
+        "API_ACCESS",
+        "TOKEN_GENERATE",
+        "TOKEN_MANAGE",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+      ],
+      VIEWER: [
+        "GROUP_VIEW",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "MEMBER_VIEW",
+      ],
+      DEFAULT_MEMBER: [
+        "GROUP_VIEW",
+        "MEMBER_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+      ],
+    };
+
+    let rolesUpdated = 0;
+    let permissionsAdded = 0;
+
+    for (const role of existingRoles) {
+      try {
+        // Determine role type from role name
+        let roleType = null;
+        for (const [type, permissions] of Object.entries(
+          rolePermissionTemplates
+        )) {
+          if (role.role_name.includes(type)) {
+            roleType = type;
+            break;
+          }
+        }
+
+        if (!roleType) {
+          logObject(`⚠️  Unknown role type for: ${role.role_name}, skipping`);
+          continue;
+        }
+
+        const expectedPermissions = rolePermissionTemplates[roleType];
+        const currentPermissions =
+          role.role_permissions?.map((p) => p.permission) || [];
+        const missingPermissions = expectedPermissions.filter(
+          (p) => !currentPermissions.includes(p)
+        );
+
+        if (missingPermissions.length > 0) {
+          logObject(
+            `📝 Adding ${missingPermissions.length} missing permissions to ${role.role_name}:`,
+            missingPermissions
+          );
+
+          // Get permission IDs for missing permissions
+          const missingPermissionDocs = await PermissionModel(tenant)
+            .find({ permission: { $in: missingPermissions } })
+            .select("_id")
+            .lean();
+
+          if (missingPermissionDocs.length > 0) {
+            const currentPermissionIds =
+              role.role_permissions?.map((p) => p._id) || [];
+            const newPermissionIds = missingPermissionDocs.map((p) => p._id);
+            const allPermissionIds = [
+              ...currentPermissionIds,
+              ...newPermissionIds,
+            ];
+
+            await RoleModel(tenant).findByIdAndUpdate(role._id, {
+              role_permissions: allPermissionIds,
+              updatedAt: new Date(),
+            });
+
+            rolesUpdated++;
+            permissionsAdded += missingPermissionDocs.length;
+            logObject(
+              `✅ Updated role ${role.role_name} with ${missingPermissionDocs.length} new permissions`
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          `❌ Error updating role ${role.role_name}: ${error.message}`
+        );
+      }
+    }
+
+    logObject(
+      `🎉 Role audit complete: ${rolesUpdated} roles updated, ${permissionsAdded} permissions added`
+    );
+    return { rolesUpdated, permissionsAdded };
+  } catch (error) {
+    console.error(`❌ Error during role audit: ${error.message}`);
+    return { rolesUpdated: 0, permissionsAdded: 0 };
+  }
+};
+
 /**
  * Setup default permissions and roles for the system
  * Called at application startup
@@ -553,7 +856,9 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       },
     ];
 
-    // Create default permissions
+    const createdPermissions = [];
+    const existingPermissions = [];
+
     for (const permissionData of defaultPermissions) {
       try {
         const existingPermission = await PermissionModel(tenant)
@@ -561,12 +866,23 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
           .lean();
 
         if (!existingPermission) {
-          await PermissionModel(tenant).create(permissionData);
+          const newPermission = await PermissionModel(tenant).create(
+            permissionData
+          );
+          createdPermissions.push(newPermission);
           logObject(`✅ Created permission: ${permissionData.permission}`);
         } else {
-          logObject(
-            `⏭️  Permission already exists: ${permissionData.permission}`
-          );
+          existingPermissions.push(existingPermission);
+          // **IMPROVEMENT: Update description if changed**
+          if (existingPermission.description !== permissionData.description) {
+            await PermissionModel(tenant).findByIdAndUpdate(
+              existingPermission._id,
+              { description: permissionData.description }
+            );
+            logObject(
+              `🔄 Updated permission description: ${permissionData.permission}`
+            );
+          }
         }
       } catch (error) {
         console.error(
@@ -591,7 +907,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       logObject("✅ Created AirQo organization");
     }
 
-    // Define default roles for AirQo organization
+    // **IMPROVEMENT 2: Enhanced role creation/update with permission sync**
     const defaultRoles = [
       {
         role_name: "AIRQO_SUPER_ADMIN",
@@ -662,128 +978,42 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       },
     ];
 
-    // Create system-wide default role templates
-    const organizationRoleTemplates = [
-      {
-        role_name: "{ORG}_SUPER_ADMIN",
-        role_description: "Super Administrator for {ORG}",
-        permissions: [
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-        ],
-      },
-      {
-        role_name: "{ORG}_ADMIN",
-        role_description: "Administrator for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "ROLE_VIEW",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-        ],
-      },
-      {
-        role_name: "{ORG}_TECHNICIAN",
-        role_description: "Field Technician for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "MEMBER_VIEW",
-        ],
-      },
-      {
-        role_name: "{ORG}_ANALYST",
-        role_description: "Data Analyst for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "ANALYTICS_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "DATA_COMPARE",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-          "MEMBER_VIEW",
-        ],
-      },
-      {
-        role_name: "{ORG}_DEVELOPER",
-        role_description: "Developer for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-          "TOKEN_MANAGE",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-        ],
-      },
-      {
-        role_name: "{ORG}_VIEWER",
-        role_description: "Read-only Viewer for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "MEMBER_VIEW",
-        ],
-      },
-    ];
-
-    // Create AirQo-specific roles
     const roleCreationResults = [];
+    let airqoSuperAdminExists = false;
+    let airqoSuperAdminRoleId = null;
+
     for (const roleData of defaultRoles) {
       try {
-        const result = await createOrUpdateRole(tenant, roleData);
+        const result = await createOrUpdateRoleWithPermissionSync(
+          tenant,
+          roleData
+        );
         if (result) {
           roleCreationResults.push(result);
+
+          if (
+            roleData.role_name === "AIRQO_SUPER_ADMIN" ||
+            roleData.role_code === "AIRQO_SUPER_ADMIN"
+          ) {
+            airqoSuperAdminExists = true;
+            airqoSuperAdminRoleId = result.data._id;
+            logObject("✅ AIRQO_SUPER_ADMIN role confirmed:", {
+              id: airqoSuperAdminRoleId,
+              status: result.success ? "success" : "warning",
+            });
+          }
         }
       } catch (error) {
         console.error(
-          `❌ Failed to create role ${roleData.role_name}: ${error.message}`
+          `❌ Failed to create/update role ${roleData.role_name}: ${error.message}`
         );
-        // Continue with other roles even if one fails
+        // Continue with other roles
         continue;
       }
     }
+
+    // **IMPROVEMENT 3: Audit and sync ALL existing organization roles**
+    await auditAndSyncExistingRoles(tenant);
 
     logObject("🎉 Default permissions and roles setup completed successfully!");
 
@@ -791,10 +1021,21 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       success: true,
       message: "Default permissions and roles setup complete",
       data: {
-        permissions_created: defaultPermissions.length,
+        permissions_created: createdPermissions.length,
+        permissions_existing: existingPermissions.length,
+        permissions_total: defaultPermissions.length,
         roles_processed: defaultRoles.length,
-        roles_created: roleCreationResults.length,
+        roles_successful: roleCreationResults.filter((r) => r.success).length,
+        roles_failed: roleCreationResults.filter((r) => !r.success).length,
+        role_errors: roleCreationResults
+          .filter((r) => !r.success)
+          .map((r) => ({
+            role_name: r.role_name || "unknown",
+            error: r.message || "unknown error",
+          })),
         organization: airqoGroup.grp_title,
+        airqo_super_admin_exists: airqoSuperAdminExists,
+        airqo_super_admin_role_id: airqoSuperAdminRoleId,
       },
     };
   } catch (error) {
@@ -825,7 +1066,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
       role_code: roleData.role_code || roleData.role_name,
       role_description: roleData.role_description,
       group_id: roleData.group_id,
-      network_id: roleData.network_id, // Include network_id if provided
+      network_id: roleData.network_id,
       role_permissions: permissionIds,
       role_status: "ACTIVE",
     });
@@ -836,6 +1077,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
       data: newRole,
       message: `Role ${roleData.role_name} created successfully`,
       status: httpStatus.OK,
+      role_name: roleData.role_name, // Add for better tracking
     };
   } catch (err) {
     logObject(`⚠️  Error creating role ${roleData.role_name}:`, err.message);
@@ -869,7 +1111,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         }
 
         if (existingRole) {
-          // Optionally update permissions on existing role
+          // Update permissions on existing role if needed
           try {
             const permissions = await PermissionModel(tenant)
               .find({ permission: { $in: roleData.permissions } })
@@ -896,6 +1138,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
               data: updatedRole || existingRole,
               message: `Role ${roleData.role_name} already exists and was updated`,
               status: httpStatus.OK,
+              role_name: roleData.role_name,
             };
           } catch (updateError) {
             logObject(
@@ -906,6 +1149,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
               data: existingRole,
               message: `Role ${roleData.role_name} already exists`,
               status: httpStatus.OK,
+              role_name: roleData.role_name,
             };
           }
         } else {
@@ -914,25 +1158,16 @@ const createOrUpdateRole = async (tenant, roleData) => {
             `❌ Duplicate error but role not found: ${roleData.role_name}`
           );
 
-          // Extract duplicate field info from error
-          let duplicateField = "role_code";
-          let duplicateValue = roleData.role_code || roleData.role_name;
-
-          if (err.keyValue) {
-            const [key, value] = Object.entries(err.keyValue)[0];
-            duplicateField = key;
-            duplicateValue = value;
-          }
-
           return {
             success: false,
             message:
               "Duplicate role detected but could not locate existing role",
             status: httpStatus.CONFLICT,
+            role_name: roleData.role_name,
             errors: {
-              [duplicateField]: `the ${duplicateField} must be unique`,
-              message: `Role with ${duplicateField} '${duplicateValue}' already exists`,
-              suggestion: "Try using a different role name or code",
+              message: `Role with name '${roleData.role_name}' appears to be duplicate but could not be located`,
+              suggestion:
+                "Try using a different role name or check database consistency",
             },
           };
         }
@@ -942,6 +1177,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
           success: false,
           message: "Duplicate role error and failed to find existing role",
           status: httpStatus.CONFLICT,
+          role_name: roleData.role_name,
           errors: {
             message: `Role ${roleData.role_name} appears to be duplicate but could not be located`,
             original_error: err.message,
@@ -949,32 +1185,6 @@ const createOrUpdateRole = async (tenant, roleData) => {
           },
         };
       }
-    } else if (err.keyValue) {
-      // Handle other duplicate field errors
-      let response = {};
-      Object.entries(err.keyValue).forEach(([key, value]) => {
-        response[key] = `the ${key} must be unique`;
-      });
-
-      return {
-        success: false,
-        message: "Validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-        errors: response,
-      };
-    } else if (err.errors) {
-      // Handle validation errors
-      let response = {};
-      Object.entries(err.errors).forEach(([key, value]) => {
-        response[key] = value.message;
-      });
-
-      return {
-        success: false,
-        message: "Validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-        errors: response,
-      };
     } else {
       // Handle other errors
       console.error(
@@ -984,6 +1194,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         success: false,
         message: "Error creating role",
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        role_name: roleData.role_name,
         errors: {
           message: err.message,
         },

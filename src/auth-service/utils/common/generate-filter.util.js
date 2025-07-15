@@ -1,3 +1,6 @@
+/**
+ * The developer's guide for this file is inside /docs/FILTER_GUIDE.md
+ */
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
@@ -105,38 +108,19 @@ class ValidatorFactory {
   }
 }
 
-// ====================== ADDING NEW FILTERS - MAINTENANCE GUIDE ======================
-/**
- * TO ADD A NEW FILTER ENTITY:
- *
- * 1. ADD FIELD DEFINITIONS: Add your entity's field mappings to FieldRegistry.fieldDefinitions
- *    - Use existing common fields (id, email, etc.) or add entity-specific ones
- *    - Specify validator type: 'objectId', 'string', 'boolean', 'number'
- *    - Define mongoField mapping and optional transform functions
- *
- * 2. CHOOSE BUILDER TYPE: Add your entity to FilterFactory.builderMap
- *    - BaseFilterBuilder: Standard field processing
- *    - DateRangeFilterBuilder: Entities with date filtering
- *    - ActivityFilterBuilder: Complex activity-based filtering
- *    - SearchFilterBuilder: Text search and array filtering
- *
- * 3. ADD PUBLIC API: Add your filter function to the main filter object
- *    Example: myEntity: (req, next) => FilterProcessor.processFilter('myEntity', req, next)
- *
- * 4. CUSTOM LOGIC (Optional): Create custom processor in CustomProcessors class if needed
- *    For complex business logic that doesn't fit standard field processing
- *
- * Example:
- * FieldRegistry.fieldDefinitions.products = {
- *   product_name: { validator: 'string', mongoField: 'name' },
- *   price: { validator: 'number', mongoField: 'price' }
- * };
- * FilterFactory.builderMap.products = BaseFilterBuilder;
- * filter.products = (req, next) => FilterProcessor.processFilter('products', req, next);
- */
-
 // ====================== FIELD DEFINITION REGISTRY ======================
 class FieldRegistry {
+  // Common fields that should be ignored in filter processing (pagination, etc.)
+  static ignoredFields = new Set([
+    "limit",
+    "skip",
+    "page",
+    "sort",
+    "order",
+    "fields",
+    "populate",
+  ]);
+
   static fieldDefinitions = {
     // Common fields used across multiple entities
     id: { validator: "objectId", mongoField: "_id" },
@@ -286,6 +270,7 @@ class FieldRegistry {
 
     maintenances: {
       product: { validator: "string", mongoField: "product" },
+      tenant: { validator: "string", mongoField: "tenant" },
     },
 
     selected_sites: {
@@ -323,11 +308,20 @@ class FieldRegistry {
       token: { validator: "string", mongoField: "token" },
       client_id: { validator: "objectId", mongoField: "client_id" },
       name: { validator: "string", mongoField: "name" },
+      tenant: { validator: "string", mongoField: "tenant" },
       emailed: {
         validator: "string",
         mongoField: "expiredEmailSent",
         transform: (value) => value.toLowerCase() === "yes",
       },
+    },
+
+    activities: {
+      tenant: { validator: "string", mongoField: "tenant" },
+      service: { validator: "string", mongoField: "service" },
+      startTime: { validator: "string", mongoField: "startTime" },
+      endTime: { validator: "string", mongoField: "endTime" },
+      email: { validator: "string", mongoField: "email" },
     },
 
     ips: {
@@ -384,6 +378,10 @@ class FieldRegistry {
     },
   };
 
+  static isIgnoredField(fieldName) {
+    return this.ignoredFields.has(fieldName);
+  }
+
   static getFieldDefinition(entity, field) {
     // Check entity-specific definitions first
     if (this.fieldDefinitions[entity] && this.fieldDefinitions[entity][field]) {
@@ -407,11 +405,17 @@ class BaseFilterBuilder {
       return this;
     }
 
+    // Skip ignored fields (pagination parameters) early
+    if (FieldRegistry.isIgnoredField(fieldName)) {
+      return this;
+    }
+
     const fieldDef = FieldRegistry.getFieldDefinition(
       this.entityType,
       fieldName
     );
     if (!fieldDef) {
+      // FIXED: Simplified warning logic - removed redundant check
       logger.warn(
         `No field definition found for ${this.entityType}.${fieldName}`
       );
