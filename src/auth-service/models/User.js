@@ -537,11 +537,12 @@ UserSchema.pre(
           }
           //validate again after truncating
           if (!validateProfilePicture(this.profilePicture)) {
-            return next(
+            next(
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message: "Invalid profile picture URL",
               })
             );
+            return;
           }
         }
 
@@ -553,11 +554,12 @@ UserSchema.pre(
           .lean();
 
         if (!tenantSettings) {
-          return next(
+          next(
             new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
               message: "Tenant Settings not found, please contact support",
             })
           );
+          return;
         }
 
         // Network roles handling - only for new documents
@@ -620,11 +622,12 @@ UserSchema.pre(
         // Profile picture validation for updates
         if (actualUpdates.profilePicture) {
           if (!validateProfilePicture(actualUpdates.profilePicture)) {
-            return next(
+            next(
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message: "Invalid profile picture URL",
               })
             );
+            return;
           }
         }
 
@@ -634,11 +637,12 @@ UserSchema.pre(
           if (field in actualUpdates) {
             const value = actualUpdates[field];
             if (value === undefined || value === null || value === "") {
-              return next(
+              next(
                 new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
                   message: `${field} cannot be empty, null, or undefined`,
                 })
               );
+              return;
             }
           }
         });
@@ -648,13 +652,14 @@ UserSchema.pre(
         immutableFields.forEach((field) => {
           if (updates[field]) delete updates[field];
           if (updates && updates.$set && updates.$set[field]) {
-            return next(
+            next(
               new HttpError(
                 "Modification Not Allowed",
                 httpStatus.BAD_REQUEST,
                 { message: `Cannot modify ${field} after creation` }
               )
             );
+            return;
           }
           if (updates && updates.$set) delete updates.$set[field];
           if (updates.$push) delete updates.$push[field];
@@ -663,22 +668,24 @@ UserSchema.pre(
         // Conditional network roles validation
         if (updates.network_roles) {
           if (updates.network_roles.length > ORGANISATIONS_LIMIT) {
-            return next(
+            next(
               new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
                 message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
               })
             );
+            return;
           }
         }
 
         // Conditional group roles validation
         if (updates.group_roles) {
           if (updates.group_roles.length > ORGANISATIONS_LIMIT) {
-            return next(
+            next(
               new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
                 message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
               })
             );
+            return;
           }
         }
 
@@ -895,13 +902,14 @@ UserSchema.statics = {
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
@@ -1122,13 +1130,14 @@ UserSchema.statics = {
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -1157,23 +1166,25 @@ UserSchema.statics = {
       }
 
       // User not found
-      return next(
+      next(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "user does not exist, please crosscheck",
         })
       );
+      return;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
   async remove({ filter = {} } = {}, next) {
@@ -1202,6 +1213,7 @@ UserSchema.statics = {
             message: "Provided User does not exist, please crosscheck",
           })
         );
+        return;
       }
     } catch (error) {
       logObject("the models error", error);
@@ -1209,13 +1221,14 @@ UserSchema.statics = {
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
 };
@@ -1407,11 +1420,12 @@ UserSchema.statics.getEnhancedUserDetails = async function (
     if (error instanceof HttpError) {
       return next(error);
     }
-    return next(
+    next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
       })
     );
+    return;
   }
 };
 
@@ -1493,11 +1507,12 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
     if (error instanceof HttpError) {
       return next(error);
     }
-    return next(
+    next(
       new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
         message: error.message,
       })
     );
+    return;
   }
 };
 

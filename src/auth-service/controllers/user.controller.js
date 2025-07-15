@@ -1135,9 +1135,11 @@ const createUser = {
 
       const result = await userUtil.create(request, next);
 
+      // Check if result exists and headers haven't been sent
       if (isEmpty(result) || res.headersSent) {
         return;
       }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -1154,7 +1156,7 @@ const createUser = {
           message: result.message,
           errors: result.errors
             ? result.errors
-            : { message: "Internal Server Errors" },
+            : [{ message: "Internal Server Errors" }],
         });
       }
     } catch (error) {
@@ -1163,7 +1165,7 @@ const createUser = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          [{ message: error.message }]
         )
       );
       return;
