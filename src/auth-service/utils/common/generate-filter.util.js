@@ -1,6 +1,3 @@
-/**
- * The developer's guide for this file is inside /docs/FILTER_GUIDE.md
- */
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
@@ -305,6 +302,7 @@ class FieldRegistry {
     },
 
     tokens: {
+      id: { validator: "objectId", mongoField: "_id" },
       token: { validator: "string", mongoField: "token" },
       client_id: { validator: "objectId", mongoField: "client_id" },
       name: { validator: "string", mongoField: "name" },
@@ -635,10 +633,21 @@ class FilterProcessor {
         logger.warn(
           `Filter errors for ${entityType}: ${builder.getErrors().join(", ")}`
         );
+        // For critical entities like tokens, log more details
+        if (entityType === "tokens") {
+          logger.error(
+            `🐛🐛 Critical filter errors for ${entityType}: ${builder
+              .getErrors()
+              .join(", ")}`
+          );
+        }
       }
 
       return filter;
     } catch (error) {
+      logger.error(
+        `🐛🐛 Filter processing error for ${entityType}: ${error.message}`
+      );
       this.createErrorHandler(next)(error);
       return {};
     }
