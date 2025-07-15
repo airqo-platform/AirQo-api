@@ -1,6 +1,7 @@
 import logging
 import traceback
 from datetime import timedelta
+from typing import List
 
 from celery.utils.log import get_task_logger
 from flask import Flask
@@ -64,7 +65,7 @@ def data_export_task():
     else:
         celery_logger.info(f"Commenced processing {len(pending_requests)} request(s)")
 
-    requests_for_processing: [DataExportRequest] = []
+    requests_for_processing: List[DataExportRequest] = []
 
     for request in pending_requests:
         request.status = DataExportStatus.PROCESSING
@@ -95,7 +96,9 @@ def data_export_task():
                 query=query, export_request=request
             )
             data_export_model.export_table_to_gcs(export_request=request)
-            data_links: [str] = data_export_model.get_data_links(export_request=request)
+            data_links: List[str] = data_export_model.get_data_links(
+                export_request=request
+            )
 
             request.data_links = data_links
             request.status = DataExportStatus.READY
