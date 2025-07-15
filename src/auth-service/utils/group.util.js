@@ -731,33 +731,31 @@ const groupUtil = {
     try {
       const { body, query } = request;
       const { tenant } = query;
+
       const { user_id } = body;
 
       let user;
+
+      // If user_id is provided, validate it exists
       if (user_id) {
         user = await UserModel(tenant).findById(user_id).lean();
+        if (!user) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: `User with ID ${user_id} not found in tenant ${tenant}`,
+            })
+          );
+        }
       } else {
+        // Use authenticated user from JWT (if available)
         user = request.user;
-      }
-
-      if (isEmpty(request.user) && isEmpty(user_id)) {
-        return next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "creator's account is not provided",
-          })
-        );
-      }
-
-      if (isEmpty(user)) {
-        return next(
-          new HttpError(
-            "Your account is not registered",
-            httpStatus.BAD_REQUEST,
-            {
-              message: `Your account is not registered`,
-            }
-          )
-        );
+        if (isEmpty(user)) {
+          return next(
+            new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
+              message: "Authentication required - no user provided",
+            })
+          );
+        }
       }
 
       // Generate organization_slug if not provided
