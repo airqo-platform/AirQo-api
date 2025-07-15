@@ -1165,7 +1165,7 @@ const createUser = {
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          [{ message: error.message }]
+          { message: error.message }
         )
       );
       return;
