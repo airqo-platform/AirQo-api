@@ -19,6 +19,10 @@ ENV FLASK_ENV=development
 
 CMD ["flask", "run", "--host=0.0.0.0"]
 
+FROM redis:7.2-bookworm as redis
+USER root
+CMD ["redis-server"]
+
 FROM base as staging
 ENV FLASK_ENV=staging
 CMD ["gunicorn", "--bind=0.0.0.0:5000", "manage:app"]
