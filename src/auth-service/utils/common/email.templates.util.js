@@ -110,7 +110,7 @@ module.exports = {
     inviterEmail,
     userExists = false,
   } = {}) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
+    const url = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
