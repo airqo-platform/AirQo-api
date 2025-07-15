@@ -246,7 +246,6 @@ const createUser = {
   },
   list: async (req, res, next) => {
     try {
-      logText("we are in LIVE!!!");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
