@@ -2087,11 +2087,18 @@ const createUserModule = {
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User is already part of the AirQo platform",
-          })
-        );
+        return {
+          success: false,
+          message: "User is already part of the AirQo platform",
+          status: httpStatus.BAD_REQUEST,
+          errors: [
+            {
+              param: "email",
+              message: "User is already part of the AirQo platform",
+              location: "body",
+            },
+          ],
+        };
       }
 
       const userBody = request.body;
@@ -2106,8 +2113,12 @@ const createUserModule = {
       );
 
       if (!responseFromCreateUser) {
-        // Handle the case where register threw an error via next()
-        return; // The error has already been passed to next()
+        return {
+          success: false,
+          message: "Failed to create user",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: [{ message: "User creation failed" }],
+        };
       }
 
       if (responseFromCreateUser.success === true) {
@@ -2116,7 +2127,6 @@ const createUserModule = {
         }
 
         const createdUser = await responseFromCreateUser.data;
-        logObject("created user in util", createdUser._doc);
         const user_id = createdUser._doc._id;
 
         const token = accessCodeGenerator
@@ -2129,6 +2139,7 @@ const createUserModule = {
           token,
           name: createdUser._doc.firstName,
         };
+
         const responseFromCreateToken = await VerifyTokenModel(
           tenant.toLowerCase()
         ).register(tokenCreationBody, next);
@@ -2148,7 +2159,6 @@ const createUserModule = {
           );
 
           if (responseFromSendEmail) {
-            logObject("responseFromSendEmail", responseFromSendEmail);
             if (responseFromSendEmail.success === true) {
               const userDetails = {
                 firstName: createdUser._doc.firstName,
@@ -2161,22 +2171,19 @@ const createUserModule = {
                 success: true,
                 message: "An Email sent to your account please verify",
                 data: userDetails,
-                status: responseFromSendEmail.status
-                  ? responseFromSendEmail.status
-                  : "",
+                status: responseFromSendEmail.status || httpStatus.OK,
               };
             } else if (responseFromSendEmail.success === false) {
               return responseFromSendEmail;
             }
           } else {
             logger.error("mailer.verifyEmail did not return a response");
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send verification email" }
-              )
-            );
+            return {
+              success: false,
+              message: "Failed to send verification email",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: [{ message: "Failed to send verification email" }],
+            };
           }
         }
       } else if (responseFromCreateUser.success === false) {
@@ -2184,13 +2191,12 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: [{ message: error.message }],
+      };
     }
   },
   register: async (request, next) => {
