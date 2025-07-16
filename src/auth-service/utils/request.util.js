@@ -279,16 +279,17 @@ const createAccessRequest = {
           ...request.params,
         };
 
-      const user = await UserModel(tenant).find({ email });
-      if (!isEmpty(user)) {
+      const existingUser = await UserModel(tenant).findOne({ email });
+      if (!isEmpty(existingUser)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "The User already exists in AirQo Analytics",
           })
         );
+        return;
       }
 
-      const accessRequest = await AccessRequestModel(tenant).find({
+      const accessRequest = await AccessRequestModel(tenant).findOne({
         targetId: target_id,
         email,
         status: "pending",
@@ -302,6 +303,7 @@ const createAccessRequest = {
               "Access Request not found, please crosscheck provided details",
           })
         );
+        return;
       }
 
       let newUser = {};
@@ -338,12 +340,13 @@ const createAccessRequest = {
           next
         );
 
-        const requestType = accessRequest[0].requestType;
+        const requestType = accessRequest.requestType;
 
         if (responseFromUpdateAccessRequest.success === true && requestType) {
           let entityKeyId;
           let organisationUtil;
           let entity_title;
+
           if (requestType === "group") {
             entityKeyId = "grp_id";
             organisationUtil = createGroupUtil;
@@ -359,15 +362,16 @@ const createAccessRequest = {
           }
 
           const { firstName, lastName, email } = newUser;
-          const request = {
+          const assignRequest = {
             params: {
               [entityKeyId]: target_id,
               user_id: newUser._id,
             },
             query: { tenant: tenant },
           };
+
           const responseFromAssignUserToOrganisation =
-            await organisationUtil.assignOneUser(request);
+            await organisationUtil.assignOneUser(assignRequest);
 
           logObject(
             "responseFromAssignUserToOrganisation",
@@ -384,6 +388,7 @@ const createAccessRequest = {
               },
               next
             );
+
             if (responseFromSendEmail.success === true) {
               return {
                 success: true,
@@ -415,6 +420,7 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
   requestAccessToNetwork: async (request, next) => {
