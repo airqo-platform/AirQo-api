@@ -2664,26 +2664,79 @@ const createUser = {
       }
 
       const UserModel = require("@models/User");
-      const user = await UserModel(tenant)
+
+      // First get the basic user data
+      const basicUser = await UserModel(tenant)
         .findById(userId)
         .select("-password -resetPasswordToken -resetPasswordExpires")
-        .populate({
-          path: "group_roles.group",
-          select: "grp_title grp_status organization_slug",
-        })
-        .populate({
-          path: "network_roles.network",
-          select: "net_name net_status net_acronym",
-        })
         .lean();
 
-      if (!user) {
+      if (!basicUser) {
         return next(
           new HttpError("User not found", httpStatus.NOT_FOUND, {
             user: "User profile not found",
           })
         );
       }
+
+      // Manually populate group_roles.group if they exist
+      let populatedUser = { ...basicUser };
+
+      if (basicUser.group_roles && basicUser.group_roles.length > 0) {
+        try {
+          const GroupModel = require("@models/Group");
+          const groupIds = basicUser.group_roles.map((gr) => gr.group);
+
+          const groups = await GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean();
+
+          // Map groups back to group_roles
+          populatedUser.group_roles = basicUser.group_roles.map(
+            (groupRole) => ({
+              ...groupRole,
+              group:
+                groups.find(
+                  (g) => g._id.toString() === groupRole.group.toString()
+                ) || groupRole.group,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate group roles: ${error.message}`);
+          populatedUser.group_roles = basicUser.group_roles;
+        }
+      }
+
+      // Manually populate network_roles.network if they exist
+      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
+        try {
+          const NetworkModel = require("@models/Network");
+          const networkIds = basicUser.network_roles.map((nr) => nr.network);
+
+          const networks = await NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean();
+
+          // Map networks back to network_roles
+          populatedUser.network_roles = basicUser.network_roles.map(
+            (networkRole) => ({
+              ...networkRole,
+              network:
+                networks.find(
+                  (n) => n._id.toString() === networkRole.network.toString()
+                ) || networkRole.network,
+            })
+          );
+        } catch (error) {
+          // If Network model doesn't exist or fails, keep original network_roles
+          logger.warn(`Could not populate network roles: ${error.message}`);
+          populatedUser.network_roles = basicUser.network_roles;
+        }
+      }
+
+      const user = populatedUser;
 
       const enhancedProfile = {
         // Basic user info

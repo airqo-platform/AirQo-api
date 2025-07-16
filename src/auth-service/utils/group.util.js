@@ -117,11 +117,7 @@ const groupUtil = {
       const { group, role } = userGroupContext;
       const { tenant } = request.query;
 
-      // Get group information
-      const groupDetails = await GroupModel(tenant)
-        .findById(group._id)
-        .populate("grp_manager", "firstName lastName email")
-        .lean();
+      const groupDetails = await GroupModel(tenant).findById(group._id).lean();
 
       if (!groupDetails) {
         return next(
@@ -129,6 +125,15 @@ const groupUtil = {
             message: `Group ${group._id} not found`,
           })
         );
+      }
+
+      // Manually fetch manager details if grp_manager exists
+      let manager = null;
+      if (groupDetails.grp_manager) {
+        manager = await UserModel(tenant)
+          .findById(groupDetails.grp_manager)
+          .select("firstName lastName email")
+          .lean();
       }
 
       // Get user count for the group
@@ -149,7 +154,7 @@ const groupUtil = {
         groupName: group.grp_title,
         groupDescription: group.grp_description,
         profilePicture: group.grp_profile_picture,
-        manager: groupDetails.grp_manager,
+        manager: manager,
         createdAt: group.createdAt,
         userCount,
         recentUsers,
@@ -267,11 +272,8 @@ const groupUtil = {
       const { group } = userGroupContext;
       const { tenant } = request.query;
 
-      // Get full group details
-      const groupDetails = await GroupModel(tenant)
-        .findById(group._id)
-        .populate("grp_manager", "firstName lastName email profilePicture")
-        .lean();
+      // Get full group details without populate
+      const groupDetails = await GroupModel(tenant).findById(group._id).lean();
 
       if (!groupDetails) {
         return next(
@@ -281,6 +283,14 @@ const groupUtil = {
         );
       }
 
+      let manager = null;
+      if (groupDetails.grp_manager) {
+        manager = await UserModel(tenant)
+          .findById(groupDetails.grp_manager)
+          .select("firstName lastName email profilePicture")
+          .lean();
+      }
+
       // Extract settings
       const settings = {
         name: groupDetails.grp_title,
@@ -288,7 +298,7 @@ const groupUtil = {
         description: groupDetails.grp_description,
         profilePicture: groupDetails.grp_profile_picture,
         website: groupDetails.grp_website,
-        manager: groupDetails.grp_manager,
+        manager: manager,
         createdAt: groupDetails.createdAt,
         updatedAt: groupDetails.updatedAt,
       };
@@ -2112,10 +2122,7 @@ const groupUtil = {
       const { tenant } = request.query;
       const { time_range = "30d" } = request.query;
 
-      const group = await GroupModel(tenant)
-        .findById(grp_id)
-        .populate("grp_manager", "firstName lastName email profilePicture")
-        .lean();
+      const group = await GroupModel(tenant).findById(grp_id).lean();
 
       if (!group) {
         return next(
@@ -2123,6 +2130,15 @@ const groupUtil = {
             message: `Group ${grp_id} not found`,
           })
         );
+      }
+
+      // Manually fetch manager details if grp_manager exists
+      let manager = null;
+      if (group.grp_manager) {
+        manager = await UserModel(tenant)
+          .findById(group.grp_manager)
+          .select("firstName lastName email profilePicture")
+          .lean();
       }
 
       // Get member statistics
@@ -2155,7 +2171,7 @@ const groupUtil = {
         group_info: {
           name: group.grp_title,
           description: group.grp_description,
-          manager: group.grp_manager,
+          manager: manager,
           created_at: group.createdAt,
           status: group.grp_status,
         },
@@ -2301,17 +2317,51 @@ const groupUtil = {
    */
   getPendingAccessRequests: async (grp_id, tenant) => {
     try {
-      // Assuming you have an AccessRequest model
-      const requests = await AccessRequestModel(tenant)
-        .find({
-          targetId: grp_id,
-          requestType: "group",
-          status: "pending",
-        })
-        .populate("user_id", "firstName lastName email profilePicture")
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean();
+      const requests = await AccessRequestModel(tenant).aggregate([
+        {
+          $match: {
+            targetId: grp_id,
+            requestType: "group",
+            status: "pending",
+          },
+        },
+        {
+          $lookup: {
+            from: "users", // Collection name for the user model
+            localField: "user_id",
+            foreignField: "_id",
+            as: "user_details",
+            pipeline: [
+              {
+                $project: {
+                  firstName: 1,
+                  lastName: 1,
+                  email: 1,
+                  profilePicture: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $addFields: {
+            user_id: {
+              $cond: {
+                if: { $gt: [{ $size: "$user_details" }, 0] },
+                then: { $arrayElemAt: ["$user_details", 0] },
+                else: null,
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            user_details: 0, // Remove the temporary field
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $limit: 10 },
+      ]);
 
       return requests.map((req) => ({
         request_id: req._id,
@@ -2807,14 +2857,60 @@ const groupUtil = {
         filter.status = status;
       }
 
-      const invitations = await AccessRequestModel(tenant)
-        .find(filter)
-        .populate("user_id", "firstName lastName email profilePicture")
-        .populate("inviter_id", "firstName lastName email")
-        .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip(parseInt(skip))
-        .lean();
+      // Use aggregation pipeline instead of populate
+      const invitations = await AccessRequestModel(tenant).aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: parseInt(skip) },
+        { $limit: parseInt(limit) },
+        {
+          $lookup: {
+            from: "users",
+            localField: "user_id",
+            foreignField: "_id",
+            as: "user_details",
+            pipeline: [
+              {
+                $project: {
+                  firstName: 1,
+                  lastName: 1,
+                  email: 1,
+                  profilePicture: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "inviter_id",
+            foreignField: "_id",
+            as: "inviter_details",
+            pipeline: [
+              {
+                $project: {
+                  firstName: 1,
+                  lastName: 1,
+                  email: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $addFields: {
+            user_id: { $arrayElemAt: ["$user_details", 0] },
+            inviter_id: { $arrayElemAt: ["$inviter_details", 0] },
+          },
+        },
+        {
+          $project: {
+            user_details: 0,
+            inviter_details: 0,
+          },
+        },
+      ]);
 
       const totalCount = await AccessRequestModel(tenant).countDocuments(
         filter
@@ -3181,10 +3277,8 @@ const groupUtil = {
         date_range = "all",
       } = request.query;
 
-      const group = await GroupModel(tenant)
-        .findById(grp_id)
-        .populate("grp_manager", "firstName lastName email")
-        .lean();
+      // Get group without populate
+      const group = await GroupModel(tenant).findById(grp_id).lean();
 
       if (!group) {
         return next(
@@ -3194,6 +3288,15 @@ const groupUtil = {
         );
       }
 
+      // Manually fetch manager details if grp_manager exists
+      let manager = null;
+      if (group.grp_manager) {
+        manager = await UserModel(tenant)
+          .findById(group.grp_manager)
+          .select("firstName lastName email")
+          .lean();
+      }
+
       const exportData = {
         group_info: {
           id: group._id,
@@ -3201,7 +3304,7 @@ const groupUtil = {
           description: group.grp_description,
           status: group.grp_status,
           created_at: group.createdAt,
-          manager: group.grp_manager,
+          manager: manager,
         },
         export_metadata: {
           exported_at: new Date(),
@@ -3250,10 +3353,36 @@ const groupUtil = {
 
       // Include roles if requested
       if (include_roles) {
-        const roles = await RoleModel(tenant)
-          .find({ group_id: grp_id })
-          .populate("role_permissions", "permission description")
-          .lean();
+        // Use aggregation instead of populate for roles
+        const roles = await RoleModel(tenant).aggregate([
+          { $match: { group_id: grp_id } },
+          {
+            $lookup: {
+              from: "permissions",
+              localField: "role_permissions",
+              foreignField: "_id",
+              as: "permissions_details",
+              pipeline: [
+                {
+                  $project: {
+                    permission: 1,
+                    description: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              role_name: 1,
+              role_code: 1,
+              role_description: 1,
+              role_status: 1,
+              role_permissions: "$permissions_details",
+            },
+          },
+        ]);
 
         exportData.roles = roles.map((role) => ({
           id: role._id,

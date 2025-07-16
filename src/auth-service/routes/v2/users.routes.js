@@ -198,31 +198,92 @@ router.get(
       const groupId = req.params.grp_id;
       const tenant = req.query.tenant || "airqo";
 
+      // Get basic user data without populate
       const users = await UserModel(tenant)
         .find({ "group_roles.group": groupId })
         .select("-password -resetPasswordToken -resetPasswordExpires")
-        .populate({
-          path: "group_roles.group",
-          select: "grp_title grp_status",
-        })
-        .populate({
-          path: "group_roles.role",
-          select: "role_name role_permissions",
-        })
         .lean();
+
+      if (users.length === 0) {
+        return res.json({
+          success: true,
+          message: "No group members found",
+          data: {
+            groupId,
+            members: [],
+            totalMembers: 0,
+          },
+        });
+      }
+
+      // Manually populate group_roles.group and group_roles.role
+      const processedUsers = [];
+
+      for (const user of users) {
+        const processedUser = { ...user };
+
+        if (user.group_roles && user.group_roles.length > 0) {
+          // Get unique group and role IDs for this user
+          const groupIds = [...new Set(user.group_roles.map((gr) => gr.group))];
+          const roleIds = [
+            ...new Set(user.group_roles.map((gr) => gr.role).filter(Boolean)),
+          ];
+
+          // Fetch groups
+          let groups = [];
+          try {
+            const GroupModel = require("@models/Group");
+            groups = await GroupModel(tenant)
+              .find({ _id: { $in: groupIds } })
+              .select("grp_title grp_status")
+              .lean();
+          } catch (error) {
+            console.warn(`Could not fetch groups: ${error.message}`);
+          }
+
+          // Fetch roles
+          let roles = [];
+          try {
+            const RoleModel = require("@models/Role");
+            roles = await RoleModel(tenant)
+              .find({ _id: { $in: roleIds } })
+              .select("role_name role_permissions")
+              .lean();
+          } catch (error) {
+            console.warn(`Could not fetch roles: ${error.message}`);
+          }
+
+          // Map populated data back to group_roles
+          processedUser.group_roles = user.group_roles.map((groupRole) => ({
+            ...groupRole,
+            group:
+              groups.find(
+                (g) => g._id.toString() === groupRole.group.toString()
+              ) || groupRole.group,
+            role:
+              roles.find(
+                (r) => r._id.toString() === groupRole.role?.toString()
+              ) || groupRole.role,
+          }));
+        }
+
+        processedUsers.push(processedUser);
+      }
 
       res.json({
         success: true,
         message: "Group members retrieved successfully",
         data: {
           groupId,
-          members: users.map((user) => ({
+          members: processedUsers.map((user) => ({
             ...user,
             groupRole: user.group_roles.find(
-              (gr) => gr.group._id.toString() === groupId
+              (gr) =>
+                gr.group._id?.toString() === groupId ||
+                gr.group.toString() === groupId
             ),
           })),
-          totalMembers: users.length,
+          totalMembers: processedUsers.length,
         },
       });
     } catch (error) {
@@ -270,31 +331,96 @@ router.get(
       const networkId = req.params.network_id;
       const tenant = req.query.tenant || "airqo";
 
+      // Get basic user data without populate
       const users = await UserModel(tenant)
         .find({ "network_roles.network": networkId })
         .select("-password -resetPasswordToken -resetPasswordExpires")
-        .populate({
-          path: "network_roles.network",
-          select: "net_name net_status",
-        })
-        .populate({
-          path: "network_roles.role",
-          select: "role_name role_permissions",
-        })
         .lean();
+
+      if (users.length === 0) {
+        return res.json({
+          success: true,
+          message: "No network members found",
+          data: {
+            networkId,
+            members: [],
+            totalMembers: 0,
+          },
+        });
+      }
+
+      // Manually populate network_roles.network and network_roles.role
+      const processedUsers = [];
+
+      for (const user of users) {
+        const processedUser = { ...user };
+
+        if (user.network_roles && user.network_roles.length > 0) {
+          // Get unique network and role IDs for this user
+          const networkIds = [
+            ...new Set(user.network_roles.map((nr) => nr.network)),
+          ];
+          const roleIds = [
+            ...new Set(user.network_roles.map((nr) => nr.role).filter(Boolean)),
+          ];
+
+          // Fetch networks
+          let networks = [];
+          try {
+            const NetworkModel = require("@models/Network");
+            networks = await NetworkModel(tenant)
+              .find({ _id: { $in: networkIds } })
+              .select("net_name net_status")
+              .lean();
+          } catch (error) {
+            console.warn(`Could not fetch networks: ${error.message}`);
+          }
+
+          // Fetch roles
+          let roles = [];
+          try {
+            const RoleModel = require("@models/Role");
+            roles = await RoleModel(tenant)
+              .find({ _id: { $in: roleIds } })
+              .select("role_name role_permissions")
+              .lean();
+          } catch (error) {
+            console.warn(`Could not fetch roles: ${error.message}`);
+          }
+
+          // Map populated data back to network_roles
+          processedUser.network_roles = user.network_roles.map(
+            (networkRole) => ({
+              ...networkRole,
+              network:
+                networks.find(
+                  (n) => n._id.toString() === networkRole.network.toString()
+                ) || networkRole.network,
+              role:
+                roles.find(
+                  (r) => r._id.toString() === networkRole.role?.toString()
+                ) || networkRole.role,
+            })
+          );
+        }
+
+        processedUsers.push(processedUser);
+      }
 
       res.json({
         success: true,
         message: "Network members retrieved successfully",
         data: {
           networkId,
-          members: users.map((user) => ({
+          members: processedUsers.map((user) => ({
             ...user,
             networkRole: user.network_roles.find(
-              (nr) => nr.network._id.toString() === networkId
+              (nr) =>
+                nr.network._id?.toString() === networkId ||
+                nr.network.toString() === networkId
             ),
           })),
-          totalMembers: users.length,
+          totalMembers: processedUsers.length,
         },
       });
     } catch (error) {

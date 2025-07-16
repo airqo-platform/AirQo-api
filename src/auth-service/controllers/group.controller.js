@@ -515,15 +515,50 @@ const groupController = {
 
       switch (action) {
         case "list":
-          const requests = await AccessRequestModel(actualTenant)
-            .find({
-              targetId: grp_id,
-              requestType: "group",
-              status: "pending",
-            })
-            .populate("user_id", "firstName lastName email profilePicture")
-            .sort({ createdAt: -1 })
-            .lean();
+          const requests = await AccessRequestModel(actualTenant).aggregate([
+            {
+              $match: {
+                targetId: grp_id,
+                requestType: "group",
+                status: "pending",
+              },
+            },
+            {
+              $lookup: {
+                from: "users", // Collection name for the user model
+                localField: "user_id",
+                foreignField: "_id",
+                as: "user_details",
+                pipeline: [
+                  {
+                    $project: {
+                      firstName: 1,
+                      lastName: 1,
+                      email: 1,
+                      profilePicture: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                user_id: {
+                  $cond: {
+                    if: { $gt: [{ $size: "$user_details" }, 0] },
+                    then: { $arrayElemAt: ["$user_details", 0] },
+                    else: null,
+                  },
+                },
+              },
+            },
+            {
+              $project: {
+                user_details: 0, // Remove the temporary field
+              },
+            },
+            { $sort: { createdAt: -1 } },
+          ]);
 
           result = {
             success: true,

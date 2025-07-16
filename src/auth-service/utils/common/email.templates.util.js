@@ -64,9 +64,9 @@ module.exports = {
     token,
     category,
   } = {}) => {
-    let url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/interest/${user_id}/${token}`;
+    let url = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/interest/${user_id}/${token}`;
     if (category && category === "organisation") {
-      url = `${constants.ANALYTICS_BASE_URL}/account/creation/organisation/verify/${user_id}/${token}`;
+      url = `${constants.ANALYTICS_BASE_URL}/user/creation/organisation/verify/${user_id}/${token}`;
     }
 
     const content = `<tr>
@@ -186,7 +186,7 @@ module.exports = {
                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                 <ul>
                     <li>YOUR USERNAME: ${username}</li>
-                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
+                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/user/login</li>
                 </ul>
                 <br />
                 <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>

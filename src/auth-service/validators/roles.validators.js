@@ -262,6 +262,23 @@ const assignUserToRole = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    body("user_type")
+      .optional()
+      .notEmpty()
+      .withMessage("user_type should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn([
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+        "contributor",
+        "moderator",
+      ])
+      .withMessage("the user_type value is not among the expected ones"),
   ],
 ];
 

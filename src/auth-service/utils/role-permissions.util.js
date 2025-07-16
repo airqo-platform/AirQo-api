@@ -16,6 +16,32 @@ const logger = log4js.getLogger(
 );
 const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 
+// ===== HELPER FUNCTIONS =====
+
+/**
+ * Manually populate role permissions to avoid schema registration issues
+ */
+const manuallyPopulateRolePermissions = async (role, tenant) => {
+  try {
+    if (!role || !role.role_permissions || role.role_permissions.length === 0) {
+      return { ...role, role_permissions: [] };
+    }
+
+    const permissions = await PermissionModel(tenant)
+      .find({ _id: { $in: role.role_permissions } })
+      .select("permission description")
+      .lean();
+
+    return {
+      ...role,
+      role_permissions: permissions,
+    };
+  } catch (error) {
+    logger.error(`Error populating role permissions: ${error.message}`);
+    return { ...role, role_permissions: [] };
+  }
+};
+
 const convertToUpperCaseWithUnderscore = (inputString, next) => {
   try {
     const uppercaseString = inputString.toUpperCase();
@@ -283,17 +309,20 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       .lean();
 
     if (existingRole) {
-      // **IMPROVEMENT: Update existing role with new permissions**
       logObject(`🔄 Updating existing role: ${roleData.role_name}`);
 
-      // Get current permissions
+      // Get current role and manually populate permissions
       const currentRole = await RoleModel(tenant)
         .findById(existingRole._id)
-        .populate("role_permissions", "permission")
         .lean();
 
+      const currentRoleWithPermissions = await manuallyPopulateRolePermissions(
+        currentRole,
+        tenant
+      );
       const currentPermissions =
-        currentRole.role_permissions?.map((p) => p.permission) || [];
+        currentRoleWithPermissions.role_permissions?.map((p) => p.permission) ||
+        [];
       const newPermissions = roleData.permissions.filter(
         (p) => !currentPermissions.includes(p)
       );
@@ -308,7 +337,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           existingRole._id,
           {
             role_description: roleData.role_description,
-            role_permissions: permissionIds, // Update with all permissions
+            role_permissions: permissionIds,
             role_status: "ACTIVE",
             updatedAt: new Date(),
           },
@@ -374,15 +403,21 @@ const auditAndSyncExistingRoles = async (tenant) => {
   try {
     logObject("🔍 Auditing and syncing existing organization roles...");
 
-    // Get all existing organization roles (non-AirQo roles)
+    // Get all existing organization roles (non-AirQo roles) without populate
     const existingRoles = await RoleModel(tenant)
       .find({
         role_name: { $not: { $regex: /^AIRQO_/ } },
       })
-      .populate("role_permissions", "permission")
       .lean();
 
     logObject(`📊 Found ${existingRoles.length} organization roles to audit`);
+
+    // Manually populate permissions for each role
+    const rolesWithPermissions = await Promise.all(
+      existingRoles.map(async (role) => {
+        return await manuallyPopulateRolePermissions(role, tenant);
+      })
+    );
 
     // Define standard permissions for each role type
     const rolePermissionTemplates = {
@@ -477,7 +512,7 @@ const auditAndSyncExistingRoles = async (tenant) => {
     let rolesUpdated = 0;
     let permissionsAdded = 0;
 
-    for (const role of existingRoles) {
+    for (const role of rolesWithPermissions) {
       try {
         // Determine role type from role name
         let roleType = null;
@@ -1599,17 +1634,28 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
             .lean()
         : null;
 
-      // Fetch role details with permissions
-      const role = groupRole.role
-        ? await RoleModel(tenant)
-            .findById(groupRole.role)
-            .populate("role_permissions", "permission", "description")
-            .lean()
-        : null;
+      // Fetch role details without populate first
+      let role = null;
+      let permissions = [];
 
-      const permissions = (role?.role_permissions || []).map(
-        (perm) => perm.permission
-      );
+      if (groupRole.role) {
+        try {
+          role = await RoleModel(tenant).findById(groupRole.role).lean();
+          if (role) {
+            // Manually populate permissions
+            const populatedRole = await manuallyPopulateRolePermissions(
+              role,
+              tenant
+            );
+            role = populatedRole;
+            permissions = (role.role_permissions || []).map(
+              (perm) => perm.permission
+            );
+          }
+        } catch (roleError) {
+          logger.error(`Error fetching role: ${roleError.message}`);
+        }
+      }
 
       groupRolesWithPermissions.push({
         group: group
@@ -1651,14 +1697,91 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     }
   }
 
-  // Similar logic for network roles...
+  // Similar logic for network roles
   const networkRolesWithPermissions = [];
-  // ... (network processing logic)
+  for (const networkRole of user.network_roles || []) {
+    try {
+      // For networks, we'll handle gracefully since NetworkModel might not exist
+      let network = null;
+      if (networkRole.network) {
+        try {
+          // Try to get network details if available
+          network = {
+            _id: networkRole.network,
+            name: "Network", // Placeholder
+            description: null,
+            status: "active",
+          };
+        } catch (networkError) {
+          logger.warn(
+            `Could not fetch network details: ${networkError.message}`
+          );
+        }
+      }
+
+      // Fetch role details without populate first
+      let role = null;
+      let permissions = [];
+
+      if (networkRole.role) {
+        try {
+          role = await RoleModel(tenant).findById(networkRole.role).lean();
+          if (role) {
+            // Manually populate permissions
+            const populatedRole = await manuallyPopulateRolePermissions(
+              role,
+              tenant
+            );
+            role = populatedRole;
+            permissions = (role.role_permissions || []).map(
+              (perm) => perm.permission
+            );
+          }
+        } catch (roleError) {
+          logger.error(`Error fetching network role: ${roleError.message}`);
+        }
+      }
+
+      networkRolesWithPermissions.push({
+        network: network || {
+          _id: networkRole.network,
+          name: "Unknown Network",
+          description: null,
+          status: "unknown",
+        },
+        role: role
+          ? {
+              _id: role._id,
+              name: role.role_name,
+              code: role.role_code,
+              description: role.role_description,
+            }
+          : {
+              _id: networkRole.role,
+              name: "Unknown Role",
+              code: null,
+              description: null,
+            },
+        permissions: permissions,
+        permissions_count: permissions.length,
+        user_type: networkRole.userType,
+        assigned_at: networkRole.createdAt,
+      });
+    } catch (error) {
+      logger.error(`Error processing network role: ${error.message}`);
+      continue;
+    }
+  }
 
   // Calculate summary statistics
   const allPermissions = new Set();
   groupRolesWithPermissions.forEach((groupRole) => {
     groupRole.permissions.forEach((permission) =>
+      allPermissions.add(permission)
+    );
+  });
+  networkRolesWithPermissions.forEach((networkRole) => {
+    networkRole.permissions.forEach((permission) =>
       allPermissions.add(permission)
     );
   });
@@ -1668,9 +1791,10 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     total_networks: networkRolesWithPermissions.length,
     total_unique_permissions: allPermissions.size,
     all_permissions: Array.from(allPermissions).sort(),
-    has_super_admin_role: groupRolesWithPermissions.some(
-      (gr) => gr.role.name && gr.role.name.includes("SUPER_ADMIN")
-    ),
+    has_super_admin_role: [
+      ...groupRolesWithPermissions,
+      ...networkRolesWithPermissions,
+    ].some((item) => item.role.name && item.role.name.includes("SUPER_ADMIN")),
   };
 
   return {
@@ -1983,7 +2107,7 @@ const rolePermissionUtil = {
   assignUserToRole: async (request, next) => {
     try {
       const { role_id, user_id } = request.params;
-      const { tenant, user } = { ...request.body, ...request.query };
+      const { tenant, user, user_type } = { ...request.body, ...request.query };
       const userIdFromBody = user;
       const userIdFromQuery = user_id;
 
@@ -2024,10 +2148,8 @@ const rolePermissionUtil = {
 
       const isNetworkRole = roleType === "network";
 
-      const userObject = await UserModel(tenant)
-        .findById(userId)
-        .populate(isNetworkRole ? "network_roles" : "group_roles")
-        .lean();
+      // Get user without populate, then manually check roles
+      const userObject = await UserModel(tenant).findById(userId).lean();
 
       const userRoles = isNetworkRole
         ? userObject.network_roles
@@ -2083,7 +2205,7 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: "guest", // Optional: adding default user type
+            userType: user_type || "guest",
             createdAt: new Date(),
           },
         },
@@ -2149,9 +2271,9 @@ const rolePermissionUtil = {
       const assignUserPromises = [];
       const isNetworkRole = roleType === "network";
 
+      // Get users without populate
       const users = await UserModel(tenant)
         .find({ _id: { $in: user_ids } })
-        .populate(isNetworkRole ? "network_roles" : "group_roles")
         .lean();
 
       for (const user of users) {
@@ -2350,11 +2472,9 @@ const rolePermissionUtil = {
       const { query, params } = request;
       const { role_id, user_id, tenant } = { ...query, ...params };
 
+      // Get user and role data without populate
       const [userObject, role, userExists, roleExists] = await Promise.all([
-        UserModel(tenant)
-          .findById(user_id)
-          .populate("network_roles group_roles")
-          .lean(),
+        UserModel(tenant).findById(user_id).lean(),
         RoleModel(tenant).findById(role_id).lean(),
         UserModel(tenant).exists({ _id: user_id }),
         RoleModel(tenant).exists({ _id: role_id }),
@@ -2497,10 +2617,8 @@ const rolePermissionUtil = {
       const unAssignUserPromises = [];
 
       for (const user_id of user_ids) {
-        const userObject = await UserModel(tenant)
-          .findById(user_id)
-          .populate("network_roles group_roles")
-          .lean();
+        // Get user without populate
+        const userObject = await UserModel(tenant).findById(user_id).lean();
 
         const { network_roles, group_roles } = userObject;
         logObject("roleObject", roleObject);
@@ -4488,22 +4606,34 @@ const rolePermissionUtil = {
                 .lean()
             : null;
 
-          // Fetch role details with permissions
-          const role = groupRole.role
-            ? await RoleModel(tenant)
-                .findById(groupRole.role)
-                .populate("role_permissions", "permission")
-                .lean()
-            : null;
+          // Fetch role details without populate, then manually populate permissions
+          let role = null;
+          let permissions = [];
+
+          if (groupRole.role) {
+            try {
+              role = await RoleModel(tenant).findById(groupRole.role).lean();
+              if (role) {
+                const populatedRole = await manuallyPopulateRolePermissions(
+                  role,
+                  tenant
+                );
+                role = populatedRole;
+                permissions = (role.role_permissions || []).map(
+                  (p) => p.permission
+                );
+              }
+            } catch (roleError) {
+              logger.error(`Error fetching role: ${roleError.message}`);
+            }
+          }
 
           groupRolesData.push({
             group_id: group?._id,
             group_name: group?.grp_title,
             role_id: role?._id,
             role_name: role?.role_name,
-            permissions: (role?.role_permissions || []).map(
-              (p) => p.permission
-            ),
+            permissions: permissions,
           });
         } catch (error) {
           logger.error(`Error processing group role: ${error.message}`);
@@ -4539,22 +4669,34 @@ const rolePermissionUtil = {
             }
           }
 
-          // Fetch role details with permissions
-          const role = networkRole.role
-            ? await RoleModel(tenant)
-                .findById(networkRole.role)
-                .populate("role_permissions", "permission")
-                .lean()
-            : null;
+          // Fetch role details without populate, then manually populate permissions
+          let role = null;
+          let permissions = [];
+
+          if (networkRole.role) {
+            try {
+              role = await RoleModel(tenant).findById(networkRole.role).lean();
+              if (role) {
+                const populatedRole = await manuallyPopulateRolePermissions(
+                  role,
+                  tenant
+                );
+                role = populatedRole;
+                permissions = (role.role_permissions || []).map(
+                  (p) => p.permission
+                );
+              }
+            } catch (roleError) {
+              logger.error(`Error fetching network role: ${roleError.message}`);
+            }
+          }
 
           networkRolesData.push({
             network_id: network?._id,
             network_name: network?.net_name,
             role_id: role?._id,
             role_name: role?.role_name,
-            permissions: (role?.role_permissions || []).map(
-              (p) => p.permission
-            ),
+            permissions: permissions,
           });
         } catch (error) {
           logger.error(`Error processing network role: ${error.message}`);
