@@ -1612,7 +1612,11 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
   }
 };
 
-const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
+const getDetailedUserRolesAndPermissions = async (
+  userId,
+  tenant,
+  filters = {}
+) => {
   // Get user data without populate to avoid schema registration issues
   const user = await UserModel(tenant).findById(userId).lean();
 
@@ -1620,9 +1624,22 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     return null;
   }
 
+  // Extract filter parameters
+  const { group_id, network_id, include_all_groups = false } = filters;
+
   // Manually fetch and organize group-based roles and permissions
   const groupRolesWithPermissions = [];
-  for (const groupRole of user.group_roles || []) {
+
+  // Filter group_roles based on group_id if provided
+  let filteredGroupRoles = user.group_roles || [];
+  if (group_id && !include_all_groups) {
+    filteredGroupRoles = filteredGroupRoles.filter(
+      (groupRole) =>
+        groupRole.group && groupRole.group.toString() === group_id.toString()
+    );
+  }
+
+  for (const groupRole of filteredGroupRoles) {
     try {
       // Fetch group details
       const group = groupRole.group
@@ -1697,9 +1714,20 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     }
   }
 
-  // Similar logic for network roles
+  // Similar logic for network roles with network_id filter
   const networkRolesWithPermissions = [];
-  for (const networkRole of user.network_roles || []) {
+
+  // Filter network_roles based on network_id if provided
+  let filteredNetworkRoles = user.network_roles || [];
+  if (network_id) {
+    filteredNetworkRoles = filteredNetworkRoles.filter(
+      (networkRole) =>
+        networkRole.network &&
+        networkRole.network.toString() === network_id.toString()
+    );
+  }
+
+  for (const networkRole of filteredNetworkRoles) {
     try {
       // For networks, we'll handle gracefully since NetworkModel might not exist
       let network = null;
@@ -1795,6 +1823,12 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
       ...groupRolesWithPermissions,
       ...networkRolesWithPermissions,
     ].some((item) => item.role.name && item.role.name.includes("SUPER_ADMIN")),
+    // Add filter metadata
+    filters_applied: {
+      group_id: group_id || null,
+      network_id: network_id || null,
+      include_all_groups,
+    },
   };
 
   return {
@@ -4397,7 +4431,8 @@ const rolePermissionUtil = {
   getUserRolesAndPermissionsDetailed: async (request, next) => {
     try {
       const { user_id } = request.params;
-      const { tenant } = request.query;
+      const { tenant, group_id, network_id, include_all_groups } =
+        request.query;
 
       if (!user_id) {
         return {
@@ -4408,7 +4443,23 @@ const rolePermissionUtil = {
         };
       }
 
-      const result = await getDetailedUserRolesAndPermissions(user_id, tenant);
+      // Prepare filters object
+      const filters = {};
+      if (group_id) {
+        filters.group_id = group_id;
+      }
+      if (network_id) {
+        filters.network_id = network_id;
+      }
+      if (include_all_groups !== undefined) {
+        filters.include_all_groups = include_all_groups === "true";
+      }
+
+      const result = await getDetailedUserRolesAndPermissions(
+        user_id,
+        tenant,
+        filters
+      );
 
       if (!result) {
         return {
@@ -4422,7 +4473,12 @@ const rolePermissionUtil = {
       return {
         success: true,
         message: "Successfully retrieved detailed user roles and permissions",
-        data: { ...result, tenant, generated_at: new Date().toISOString() },
+        data: {
+          ...result,
+          tenant,
+          generated_at: new Date().toISOString(),
+          filters_applied: filters,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -4432,6 +4488,461 @@ const rolePermissionUtil = {
       return {
         success: false,
         message: "Failed to retrieve user roles and permissions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get user permissions for a specific group (convenience method)
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object with group-specific permissions
+   */
+  getUserPermissionsForGroup: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+
+      // Support both URL param and query param for group_id
+      const group_id = request.params.group_id || request.query.group_id;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "user_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id parameter is required" },
+        };
+      }
+
+      if (!group_id) {
+        return {
+          success: false,
+          message: "group_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "group_id parameter is required" },
+        };
+      }
+
+      const filters = { group_id };
+      const result = await getDetailedUserRolesAndPermissions(
+        user_id,
+        tenant,
+        filters
+      );
+
+      if (!result) {
+        return {
+          success: false,
+          message: `User ${user_id} not found`,
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // Extract permissions for easy frontend consumption
+      const groupPermissions =
+        result.group_roles.length > 0 ? result.group_roles[0].permissions : [];
+      const hasEditPermission =
+        groupPermissions.includes("EDIT") ||
+        groupPermissions.includes("GROUP_EDIT");
+      const hasDeletePermission =
+        groupPermissions.includes("DELETE") ||
+        groupPermissions.includes("GROUP_DELETE");
+      const hasUpdatePermission =
+        groupPermissions.includes("UPDATE") ||
+        groupPermissions.includes("GROUP_UPDATE");
+
+      return {
+        success: true,
+        message: "Successfully retrieved user permissions for group",
+        data: {
+          user_id,
+          group_id,
+          group_info:
+            result.group_roles.length > 0 ? result.group_roles[0].group : null,
+          role_info:
+            result.group_roles.length > 0 ? result.group_roles[0].role : null,
+          permissions: groupPermissions,
+          access_control: {
+            can_edit: hasEditPermission,
+            can_delete: hasDeletePermission,
+            can_update: hasUpdatePermission,
+          },
+          tenant,
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`getUserPermissionsForGroup error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve user permissions for group",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Bulk permissions check for multiple groups
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  bulkPermissionsCheck: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { group_ids, permissions } = request.body;
+      const { tenant } = request.query;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "user_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id parameter is required" },
+        };
+      }
+
+      if (!group_ids || !Array.isArray(group_ids) || group_ids.length === 0) {
+        return {
+          success: false,
+          message: "group_ids array is required and cannot be empty",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "group_ids array is required and cannot be empty",
+          },
+        };
+      }
+
+      const results = [];
+
+      for (const group_id of group_ids) {
+        try {
+          // Create a temporary request object for each group
+          const tempReq = {
+            params: { user_id },
+            query: { tenant, group_id },
+          };
+
+          const groupResult =
+            await rolePermissionUtil.getUserPermissionsForGroup(tempReq, next);
+
+          if (groupResult.success) {
+            const groupData = groupResult.data;
+            let permissionChecks = {};
+
+            // If specific permissions were requested, check for them
+            if (permissions && permissions.length > 0) {
+              permissions.forEach((permission) => {
+                permissionChecks[permission] =
+                  groupData.permissions.includes(permission);
+              });
+            } else {
+              // Return all permissions
+              permissionChecks = groupData.access_control;
+            }
+
+            results.push({
+              group_id,
+              group_name: groupData.group_info?.name || "Unknown Group",
+              role_name: groupData.role_info?.name || "No Role",
+              permissions: groupData.permissions,
+              permission_checks: permissionChecks,
+              access_control: groupData.access_control,
+            });
+          } else {
+            // Include failed group checks
+            results.push({
+              group_id,
+              error: groupResult.message,
+              permissions: [],
+              permission_checks: {},
+              access_control: {
+                can_edit: false,
+                can_delete: false,
+                can_update: false,
+              },
+            });
+          }
+        } catch (error) {
+          results.push({
+            group_id,
+            error: error.message,
+            permissions: [],
+            permission_checks: {},
+            access_control: {
+              can_edit: false,
+              can_delete: false,
+              can_update: false,
+            },
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Successfully checked permissions for ${group_ids.length} groups`,
+        data: {
+          user_id,
+          groups_checked: group_ids.length,
+          results,
+          summary: {
+            total_groups: results.length,
+            groups_with_access: results.filter((r) => !r.error).length,
+            groups_with_errors: results.filter((r) => r.error).length,
+          },
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`bulkPermissionsCheck error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to complete bulk permissions check",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get simplified permissions for frontend components
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  getSimplifiedPermissionsForGroup: async (request, next) => {
+    try {
+      const result = await rolePermissionUtil.getUserPermissionsForGroup(
+        request,
+        next
+      );
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Return only the essential information for frontend
+      return {
+        success: true,
+        message: "Successfully retrieved simplified permissions",
+        data: {
+          user_id: result.data.user_id,
+          group_id: result.data.group_id,
+          permissions: result.data.permissions,
+          can_edit: result.data.access_control.can_edit,
+          can_delete: result.data.access_control.can_delete,
+          can_update: result.data.access_control.can_update,
+          role_name: result.data.role_info?.name,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`getSimplifiedPermissionsForGroup error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve simplified permissions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Check user permissions for specific actions
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  checkUserPermissionsForActions: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant, group_id } = request.query;
+      const { actions } = request.body;
+
+      if (!actions || !Array.isArray(actions)) {
+        return {
+          success: false,
+          message: "actions array is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "actions array is required" },
+        };
+      }
+
+      const result = await rolePermissionUtil.getUserPermissionsForGroup(
+        { params: { user_id }, query: { tenant, group_id } },
+        next
+      );
+
+      if (!result.success) {
+        return result;
+      }
+
+      const userPermissions = result.data.permissions;
+      const actionChecks = {};
+
+      actions.forEach((action) => {
+        actionChecks[action] = userPermissions.includes(action);
+      });
+
+      return {
+        success: true,
+        message: "Successfully checked user permissions for actions",
+        data: {
+          user_id,
+          group_id,
+          actions_checked: actions,
+          action_permissions: actionChecks,
+          all_actions_allowed: Object.values(actionChecks).every(
+            (allowed) => allowed
+          ),
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`checkUserPermissionsForActions error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to check user permissions for actions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get user roles filtered by group with enhanced details
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  getUserRolesByGroup: async (request, next) => {
+    try {
+      const result =
+        await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
+          request,
+          next
+        );
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Focus on group roles only
+      return {
+        success: true,
+        message: "Successfully retrieved user roles for group",
+        data: {
+          user: result.data.user,
+          group_roles: result.data.group_roles,
+          summary: {
+            total_group_roles: result.data.group_roles.length,
+            total_permissions: result.data.summary.total_unique_permissions,
+            permissions: result.data.summary.all_permissions,
+          },
+          filters_applied: result.data.filters_applied,
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`getUserRolesByGroup error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve user roles for group",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get all groups with user's permissions summary
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  getUserGroupsWithPermissionsSummary: async (request, next) => {
+    try {
+      // Get all groups for the user (no filtering)
+      const tempReq = {
+        ...request,
+        query: { ...request.query },
+      };
+
+      tempReq.query.group_id = undefined;
+      const result =
+        await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
+          tempReq,
+          next
+        );
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Create summary for each group
+      const groupsSummary = result.data.group_roles.map((groupRole) => ({
+        group: groupRole.group,
+        role: groupRole.role,
+        permissions_count: groupRole.permissions_count,
+        key_permissions: {
+          can_edit:
+            groupRole.permissions.includes("GROUP_EDIT") ||
+            groupRole.permissions.includes("EDIT"),
+          can_delete:
+            groupRole.permissions.includes("GROUP_DELETE") ||
+            groupRole.permissions.includes("DELETE"),
+          can_update:
+            groupRole.permissions.includes("GROUP_UPDATE") ||
+            groupRole.permissions.includes("UPDATE"),
+          can_manage_users: groupRole.permissions.includes("USER_MANAGEMENT"),
+          can_manage_members:
+            groupRole.permissions.includes("MEMBER_INVITE") ||
+            groupRole.permissions.includes("MEMBER_REMOVE"),
+        },
+        user_type: groupRole.user_type,
+        assigned_at: groupRole.assigned_at,
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved groups with permissions summary",
+        data: {
+          user: result.data.user,
+          groups_summary: groupsSummary,
+          overall_summary: {
+            total_groups: groupsSummary.length,
+            groups_with_edit_access: groupsSummary.filter(
+              (g) => g.key_permissions.can_edit
+            ).length,
+            groups_with_delete_access: groupsSummary.filter(
+              (g) => g.key_permissions.can_delete
+            ).length,
+            groups_with_user_management: groupsSummary.filter(
+              (g) => g.key_permissions.can_manage_users
+            ).length,
+            total_unique_permissions:
+              result.data.summary.total_unique_permissions,
+          },
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `getUserGroupsWithPermissionsSummary error: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Failed to retrieve groups with permissions summary",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
