@@ -329,7 +329,7 @@ def validate_dates(start: datetime, end: datetime) -> None:
         >>>     return error
     """
     if start == end:
-        return jsonify({"error": "Start time and end time cannot be the same."}), 400
+        raise ValueError("error: Start time and end time cannot be the same.")
 
     if (end - start).days > 365:
-        return jsonify({"error": "Time range exceeded 12 months"}), 400
+        raise ValueError("error Time range exceeded 12 months")
