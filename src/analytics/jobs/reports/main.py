@@ -1,7 +1,5 @@
-from google.cloud import storage
 from google.cloud import bigquery
 import pandas as pd
-import numpy as np
 import seaborn as sns
 
 sns.set_style("whitegrid")
@@ -12,19 +10,9 @@ import matplotlib.dates as mdates
 from docx import Document
 from docx.shared import Inches
 import io
-import ast
-import gcsfs
-from config import environment, configuration
-import os
-import joblib
-import datetime as dt
-from datetime import datetime, timedelta
+from .config import environment, configuration
 from utils import (
-    upload_trained_model_to_gcs,
-    date_to_str,
     str_to_date_2,
-    upload_csv_file_to_gcs,
-    previous_months_range,
 )
 import smtplib
 from email.mime.multipart import MIMEMultipart
