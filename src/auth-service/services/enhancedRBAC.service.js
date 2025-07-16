@@ -55,147 +55,22 @@ class EnhancedRBACService {
     try {
       const populatedUser = { ...user };
 
-      // Populate direct permissions
-      if (user.permissions && user.permissions.length > 0) {
-        try {
-          const permissions = await this.getPermissionModel()
-            .find({ _id: { $in: user.permissions } })
-            .select("permission description")
-            .lean();
-          populatedUser.permissions = permissions;
-        } catch (error) {
-          console.warn("Could not populate direct permissions:", error.message);
-          populatedUser.permissions = [];
-        }
-      }
+      // All population operations can run in parallel since they're independent
+      const [directPermissions, populatedGroupRoles, populatedNetworkRoles] =
+        await Promise.all([
+          this._populateDirectPermissions(user),
+          this._populateGroupRoles(user.group_roles),
+          this._populateNetworkRoles(user.network_roles),
+        ]);
 
-      // Populate group roles and their permissions
-      if (user.group_roles && user.group_roles.length > 0) {
-        populatedUser.group_roles = await Promise.all(
-          user.group_roles.map(async (groupRole) => {
-            const populatedGroupRole = { ...groupRole };
-
-            // Populate role data
-            if (groupRole.role) {
-              try {
-                const role = await this.getRoleModel()
-                  .findById(groupRole.role)
-                  .lean();
-
-                if (role) {
-                  populatedGroupRole.role = { ...role };
-
-                  // Populate role permissions
-                  if (
-                    role.role_permissions &&
-                    role.role_permissions.length > 0
-                  ) {
-                    try {
-                      const rolePermissions = await this.getPermissionModel()
-                        .find({ _id: { $in: role.role_permissions } })
-                        .select("permission description")
-                        .lean();
-                      populatedGroupRole.role.role_permissions =
-                        rolePermissions;
-                    } catch (error) {
-                      console.warn(
-                        "Could not populate group role permissions:",
-                        error.message
-                      );
-                      populatedGroupRole.role.role_permissions = [];
-                    }
-                  }
-                }
-              } catch (error) {
-                console.warn("Could not populate group role:", error.message);
-                populatedGroupRole.role = null;
-              }
-            }
-
-            // Populate group data
-            if (groupRole.group) {
-              try {
-                const group = await this.getGroupModel()
-                  .findById(groupRole.group)
-                  .select("grp_title grp_status organization_slug")
-                  .lean();
-                populatedGroupRole.group = group;
-              } catch (error) {
-                console.warn("Could not populate group data:", error.message);
-                populatedGroupRole.group = { _id: groupRole.group };
-              }
-            }
-
-            return populatedGroupRole;
-          })
-        );
-      }
-
-      // Populate network roles and their permissions
-      if (user.network_roles && user.network_roles.length > 0) {
-        populatedUser.network_roles = await Promise.all(
-          user.network_roles.map(async (networkRole) => {
-            const populatedNetworkRole = { ...networkRole };
-
-            // Populate role data
-            if (networkRole.role) {
-              try {
-                const role = await this.getRoleModel()
-                  .findById(networkRole.role)
-                  .lean();
-
-                if (role) {
-                  populatedNetworkRole.role = { ...role };
-
-                  // Populate role permissions
-                  if (
-                    role.role_permissions &&
-                    role.role_permissions.length > 0
-                  ) {
-                    try {
-                      const rolePermissions = await this.getPermissionModel()
-                        .find({ _id: { $in: role.role_permissions } })
-                        .select("permission description")
-                        .lean();
-                      populatedNetworkRole.role.role_permissions =
-                        rolePermissions;
-                    } catch (error) {
-                      console.warn(
-                        "Could not populate network role permissions:",
-                        error.message
-                      );
-                      populatedNetworkRole.role.role_permissions = [];
-                    }
-                  }
-                }
-              } catch (error) {
-                console.warn("Could not populate network role:", error.message);
-                populatedNetworkRole.role = null;
-              }
-            }
-
-            // Populate network data
-            if (networkRole.network) {
-              try {
-                const network = await this.getNetworkModel()
-                  .findById(networkRole.network)
-                  .select("net_name net_status net_acronym")
-                  .lean();
-                populatedNetworkRole.network = network;
-              } catch (error) {
-                console.warn("Could not populate network data:", error.message);
-                populatedNetworkRole.network = { _id: networkRole.network };
-              }
-            }
-
-            return populatedNetworkRole;
-          })
-        );
-      }
+      // Assign populated data
+      populatedUser.permissions = directPermissions;
+      populatedUser.group_roles = populatedGroupRoles;
+      populatedUser.network_roles = populatedNetworkRoles;
 
       return populatedUser;
     } catch (error) {
-      console.error("Error in manual population:", error);
+      console.error("Error in optimized manual population:", error);
       return user; // Return original user if population fails
     }
   }
@@ -867,6 +742,213 @@ class EnhancedRBACService {
     } catch (error) {
       logger.error(`Error checking user permission: ${error.message}`);
       return false;
+    }
+  }
+
+  /**
+   * Populate direct user permissions
+   */
+  async _populateDirectPermissions(user) {
+    if (!user.permissions || user.permissions.length === 0) return [];
+
+    try {
+      return await this.getPermissionModel()
+        .find({ _id: { $in: user.permissions } })
+        .select("permission description")
+        .lean();
+    } catch (error) {
+      console.warn("Could not populate direct permissions:", error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Batch populate role permissions for multiple roles
+   */
+  async _batchPopulateRolePermissions(roleIds) {
+    if (!roleIds || roleIds.length === 0) return new Map();
+
+    try {
+      // Remove duplicates and filter out nulls/undefined
+      const uniqueRoleIds = [...new Set(roleIds.filter(Boolean))];
+
+      if (uniqueRoleIds.length === 0) return new Map();
+
+      // Batch fetch all roles
+      const roles = await this.getRoleModel()
+        .find({ _id: { $in: uniqueRoleIds } })
+        .lean();
+
+      // Collect all permission IDs from all roles
+      const allPermissionIds = roles.flatMap(
+        (role) => role.role_permissions || []
+      );
+      const uniquePermissionIds = [
+        ...new Set(allPermissionIds.filter(Boolean)),
+      ];
+
+      // Batch fetch all permissions
+      const permissions =
+        uniquePermissionIds.length > 0
+          ? await this.getPermissionModel()
+              .find({ _id: { $in: uniquePermissionIds } })
+              .select("permission description")
+              .lean()
+          : [];
+
+      // Create permission lookup map
+      const permissionsMap = new Map(
+        permissions.map((p) => [p._id.toString(), p])
+      );
+
+      // Create roles map with populated permissions
+      const rolesMap = new Map();
+      roles.forEach((role) => {
+        const populatedRole = { ...role };
+        if (role.role_permissions && role.role_permissions.length > 0) {
+          populatedRole.role_permissions = role.role_permissions
+            .map((permId) => permissionsMap.get(permId.toString()))
+            .filter(Boolean);
+        }
+        rolesMap.set(role._id.toString(), populatedRole);
+      });
+
+      return rolesMap;
+    } catch (error) {
+      console.warn("Could not batch populate role permissions:", error.message);
+      return new Map();
+    }
+  }
+
+  /**
+   * Batch populate group data
+   */
+  async _batchPopulateGroups(groupIds) {
+    if (!groupIds || groupIds.length === 0) return new Map();
+
+    try {
+      const uniqueGroupIds = [...new Set(groupIds.filter(Boolean))];
+
+      if (uniqueGroupIds.length === 0) return new Map();
+
+      const groups = await this.getGroupModel()
+        .find({ _id: { $in: uniqueGroupIds } })
+        .select("grp_title grp_status organization_slug")
+        .lean();
+
+      return new Map(groups.map((g) => [g._id.toString(), g]));
+    } catch (error) {
+      console.warn("Could not batch populate groups:", error.message);
+      return new Map();
+    }
+  }
+
+  /**
+   * Batch populate network data
+   */
+  async _batchPopulateNetworks(networkIds) {
+    if (!networkIds || networkIds.length === 0) return new Map();
+
+    try {
+      const uniqueNetworkIds = [...new Set(networkIds.filter(Boolean))];
+
+      if (uniqueNetworkIds.length === 0) return new Map();
+
+      const networks = await this.getNetworkModel()
+        .find({ _id: { $in: uniqueNetworkIds } })
+        .select("net_name net_status net_acronym")
+        .lean();
+
+      return new Map(networks.map((n) => [n._id.toString(), n]));
+    } catch (error) {
+      console.warn("Could not batch populate networks:", error.message);
+      return new Map();
+    }
+  }
+
+  /**
+   * Populate group roles with optimized batch fetching
+   */
+  async _populateGroupRoles(groupRoles) {
+    if (!groupRoles || groupRoles.length === 0) return [];
+
+    try {
+      // Extract all role and group IDs
+      const roleIds = groupRoles.map((gr) => gr.role).filter(Boolean);
+      const groupIds = groupRoles.map((gr) => gr.group).filter(Boolean);
+
+      // Batch fetch all required data in parallel
+      const [rolesMap, groupsMap] = await Promise.all([
+        this._batchPopulateRolePermissions(roleIds),
+        this._batchPopulateGroups(groupIds),
+      ]);
+
+      // Map the data back to group roles
+      return groupRoles.map((groupRole) => {
+        const populatedGroupRole = { ...groupRole };
+
+        // Populate role data
+        if (groupRole.role) {
+          const roleId = groupRole.role.toString();
+          populatedGroupRole.role = rolesMap.get(roleId) || null;
+        }
+
+        // Populate group data
+        if (groupRole.group) {
+          const groupId = groupRole.group.toString();
+          populatedGroupRole.group = groupsMap.get(groupId) || {
+            _id: groupRole.group,
+          };
+        }
+
+        return populatedGroupRole;
+      });
+    } catch (error) {
+      console.warn("Could not populate group roles:", error.message);
+      return groupRoles;
+    }
+  }
+
+  /**
+   * Populate network roles with optimized batch fetching
+   */
+  async _populateNetworkRoles(networkRoles) {
+    if (!networkRoles || networkRoles.length === 0) return [];
+
+    try {
+      // Extract all role and network IDs
+      const roleIds = networkRoles.map((nr) => nr.role).filter(Boolean);
+      const networkIds = networkRoles.map((nr) => nr.network).filter(Boolean);
+
+      // Batch fetch all required data in parallel
+      const [rolesMap, networksMap] = await Promise.all([
+        this._batchPopulateRolePermissions(roleIds),
+        this._batchPopulateNetworks(networkIds),
+      ]);
+
+      // Map the data back to network roles
+      return networkRoles.map((networkRole) => {
+        const populatedNetworkRole = { ...networkRole };
+
+        // Populate role data
+        if (networkRole.role) {
+          const roleId = networkRole.role.toString();
+          populatedNetworkRole.role = rolesMap.get(roleId) || null;
+        }
+
+        // Populate network data
+        if (networkRole.network) {
+          const networkId = networkRole.network.toString();
+          populatedNetworkRole.network = networksMap.get(networkId) || {
+            _id: networkRole.network,
+          };
+        }
+
+        return populatedNetworkRole;
+      });
+    } catch (error) {
+      console.warn("Could not populate network roles:", error.message);
+      return networkRoles;
     }
   }
 
