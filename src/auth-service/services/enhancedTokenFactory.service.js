@@ -195,7 +195,7 @@ class LegacyTokenStrategy extends TokenStrategy {
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         algorithm: options.algorithm || "HS256",
-        issuer: options.issuer || constants.APP_NAME,
+        issuer: options.issuer || "AirQo",
         audience: options.audience || tenant,
         ...options.jwtOptions,
       };
@@ -262,7 +262,7 @@ class StandardTokenStrategy extends TokenStrategy {
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         algorithm: options.algorithm || "HS256",
-        issuer: options.issuer || constants.APP_NAME,
+        issuer: options.issuer || "AirQo",
         audience: options.audience || tenant,
         ...options.jwtOptions,
       };
@@ -412,7 +412,7 @@ class HashBasedTokenStrategy extends TokenStrategy {
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         algorithm: options.algorithm || "HS256",
-        issuer: options.issuer || constants.APP_NAME,
+        issuer: options.issuer || "AirQo",
         audience: options.audience || tenant,
         ...options.jwtOptions,
       };
@@ -513,7 +513,7 @@ class RoleOnlyTokenStrategy extends TokenStrategy {
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         algorithm: options.algorithm || "HS256",
-        issuer: options.issuer || constants.APP_NAME,
+        issuer: options.issuer || "AirQo",
         audience: options.audience || tenant,
         ...options.jwtOptions,
       };
@@ -632,7 +632,7 @@ class OptimizedHashTokenStrategy extends TokenStrategy {
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         algorithm: options.algorithm || "HS256",
-        issuer: options.issuer || constants.APP_NAME,
+        issuer: options.issuer || "AirQo",
         audience: options.audience || tenant,
         ...options.jwtOptions,
       };
@@ -713,7 +713,7 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         algorithm: options.algorithm || "HS256",
-        issuer: options.issuer || constants.APP_NAME,
+        issuer: options.issuer || "AirQo",
         audience: options.audience || tenant,
         ...options.jwtOptions,
       };

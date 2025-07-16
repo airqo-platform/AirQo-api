@@ -100,6 +100,7 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
     })
     .catch(reject);
 }
+
 const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
   try {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
@@ -3553,36 +3554,10 @@ const createUserModule = {
       // Initialize token factory
       const tokenFactory = new EnhancedTokenFactory(dbTenant);
 
-      // Prepare user data for token generation
-      const populatedUser = await UserModel(dbTenant)
-        .findById(user._id)
-        .populate({
-          path: "permissions",
-          select: "permission description",
-        })
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "group_roles.group",
-          select: "grp_title grp_status organization_slug",
-        })
-        .populate({
-          path: "network_roles.network",
-          select: "net_name net_status net_acronym",
-        })
-        .lean();
+      const populatedUser = await createUserModule._populateUserDataManually(
+        user,
+        dbTenant
+      );
 
       // Generate enhanced token
       const token = await tokenFactory.createToken(populatedUser, strategy, {
@@ -3702,7 +3677,7 @@ const createUserModule = {
                       100
                     ).toFixed(1) + "%"
                   : "0%",
-              cacheStatus: "fresh", // Could be enhanced to show actual cache status
+              cacheStatus: "fresh",
             },
           }),
       };
@@ -3737,10 +3712,217 @@ const createUserModule = {
     }
   },
 
+  _populateUserDataManually: async (user, tenant) => {
+    try {
+      const userObj = user.toObject ? user.toObject() : user;
+
+      // Initialize models
+      const PermissionModel = require("@models/Permission");
+      const GroupModel = require("@models/Group");
+      const NetworkModel = require("@models/Network");
+
+      // Try to get Role model, fallback if not available
+      let RoleModel = null;
+      try {
+        RoleModel = require("@models/Role");
+      } catch (roleError) {
+        console.warn("⚠️ Role model not available, skipping role population");
+      }
+
+      // 1. Populate permissions
+      if (userObj.permissions && userObj.permissions.length > 0) {
+        try {
+          const permissions = await PermissionModel(tenant)
+            .find({ _id: { $in: userObj.permissions } })
+            .select("permission description")
+            .lean();
+          userObj.permissions = permissions;
+        } catch (permError) {
+          console.warn("⚠️ Failed to populate permissions:", permError.message);
+          userObj.permissions = userObj.permissions || [];
+        }
+      } else {
+        userObj.permissions = [];
+      }
+
+      // 2. Populate group roles
+      if (userObj.group_roles && userObj.group_roles.length > 0) {
+        const groupIds = userObj.group_roles
+          .map((gr) => gr.group)
+          .filter(Boolean);
+        const roleIds = userObj.group_roles
+          .map((gr) => gr.role)
+          .filter(Boolean);
+
+        // Get groups
+        let groups = [];
+        if (groupIds.length > 0) {
+          try {
+            groups = await GroupModel(tenant)
+              .find({ _id: { $in: groupIds } })
+              .select("grp_title grp_status organization_slug")
+              .lean();
+          } catch (groupError) {
+            console.warn("⚠️ Failed to populate groups:", groupError.message);
+          }
+        }
+
+        // Get roles and their permissions
+        let roles = [];
+        let rolePermissions = [];
+        if (RoleModel && roleIds.length > 0) {
+          try {
+            roles = await RoleModel(tenant)
+              .find({ _id: { $in: roleIds } })
+              .select("role_name role_permissions")
+              .lean();
+
+            // Get all role permission IDs
+            const allRolePermissionIds = roles
+              .flatMap((role) => role.role_permissions || [])
+              .filter(Boolean);
+
+            if (allRolePermissionIds.length > 0) {
+              rolePermissions = await PermissionModel(tenant)
+                .find({ _id: { $in: allRolePermissionIds } })
+                .select("permission description")
+                .lean();
+            }
+          } catch (roleError) {
+            console.warn("⚠️ Failed to populate roles:", roleError.message);
+          }
+        }
+
+        // Map the populated data back to group_roles
+        userObj.group_roles = userObj.group_roles.map((groupRole) => ({
+          ...groupRole,
+          group:
+            groups.find(
+              (g) => g._id.toString() === groupRole.group.toString()
+            ) || groupRole.group,
+          role: RoleModel
+            ? (() => {
+                const role = roles.find(
+                  (r) => r._id.toString() === groupRole.role.toString()
+                );
+                if (role) {
+                  return {
+                    ...role,
+                    role_permissions: rolePermissions.filter(
+                      (rp) =>
+                        role.role_permissions &&
+                        role.role_permissions.some(
+                          (rpId) => rpId.toString() === rp._id.toString()
+                        )
+                    ),
+                  };
+                }
+                return groupRole.role;
+              })()
+            : groupRole.role,
+        }));
+      }
+
+      // 3. Populate network roles
+      if (userObj.network_roles && userObj.network_roles.length > 0) {
+        const networkIds = userObj.network_roles
+          .map((nr) => nr.network)
+          .filter(Boolean);
+        const roleIds = userObj.network_roles
+          .map((nr) => nr.role)
+          .filter(Boolean);
+
+        // Get networks
+        let networks = [];
+        if (networkIds.length > 0) {
+          try {
+            networks = await NetworkModel(tenant)
+              .find({ _id: { $in: networkIds } })
+              .select("net_name net_status net_acronym")
+              .lean();
+          } catch (networkError) {
+            console.warn(
+              "⚠️ Failed to populate networks:",
+              networkError.message
+            );
+          }
+        }
+
+        // Get roles and their permissions (reuse logic from group roles)
+        let roles = [];
+        let rolePermissions = [];
+        if (RoleModel && roleIds.length > 0) {
+          try {
+            roles = await RoleModel(tenant)
+              .find({ _id: { $in: roleIds } })
+              .select("role_name role_permissions")
+              .lean();
+
+            const allRolePermissionIds = roles
+              .flatMap((role) => role.role_permissions || [])
+              .filter(Boolean);
+
+            if (allRolePermissionIds.length > 0) {
+              rolePermissions = await PermissionModel(tenant)
+                .find({ _id: { $in: allRolePermissionIds } })
+                .select("permission description")
+                .lean();
+            }
+          } catch (roleError) {
+            console.warn(
+              "⚠️ Failed to populate network roles:",
+              roleError.message
+            );
+          }
+        }
+
+        // Map the populated data back to network_roles
+        userObj.network_roles = userObj.network_roles.map((networkRole) => ({
+          ...networkRole,
+          network:
+            networks.find(
+              (n) => n._id.toString() === networkRole.network.toString()
+            ) || networkRole.network,
+          role: RoleModel
+            ? (() => {
+                const role = roles.find(
+                  (r) => r._id.toString() === networkRole.role.toString()
+                );
+                if (role) {
+                  return {
+                    ...role,
+                    role_permissions: rolePermissions.filter(
+                      (rp) =>
+                        role.role_permissions &&
+                        role.role_permissions.some(
+                          (rpId) => rpId.toString() === rp._id.toString()
+                        )
+                    ),
+                  };
+                }
+                return networkRole.role;
+              })()
+            : networkRole.role,
+        }));
+      }
+
+      return userObj;
+    } catch (error) {
+      console.error("❌ Error in manual population:", error);
+      // Return user with basic structure if population fails
+      return {
+        ...(user.toObject ? user.toObject() : user),
+        permissions: user.permissions || [],
+        group_roles: user.group_roles || [],
+        network_roles: user.network_roles || [],
+      };
+    }
+  },
+
   /**
    * Generate optimized token for existing user session
    */
-  generateOptimizedToken: async (request, next) => {
+  enerateOptimizedToken: async (request, next) => {
     try {
       const { userId, tenant, strategy, options } = {
         ...request.body,
@@ -3759,27 +3941,7 @@ const createUserModule = {
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
       const tokenStrategy = strategy || TOKEN_STRATEGIES.STANDARD;
 
-      const user = await UserModel(dbTenant)
-        .findById(userId)
-        .populate({
-          path: "permissions",
-          select: "permission description",
-        })
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .lean();
+      const user = await UserModel(dbTenant).findById(userId).lean();
 
       if (!user) {
         return {
@@ -3789,9 +3951,15 @@ const createUserModule = {
         };
       }
 
+      // Use manual population instead of mongoose populate
+      const populatedUser = await createUserModule._populateUserDataManually(
+        user,
+        dbTenant
+      );
+
       const tokenFactory = new EnhancedTokenFactory(dbTenant);
       const token = await tokenFactory.createToken(
-        user,
+        populatedUser,
         tokenStrategy,
         options
       );
@@ -3855,31 +4023,16 @@ const createUserModule = {
       let tokenInfo = null;
 
       if (strategy) {
-        const user = await UserModel(dbTenant)
-          .findById(userId)
-          .populate({
-            path: "permissions",
-            select: "permission description",
-          })
-          .populate({
-            path: "group_roles.role",
-            populate: {
-              path: "role_permissions",
-              select: "permission description",
-            },
-          })
-          .populate({
-            path: "network_roles.role",
-            populate: {
-              path: "role_permissions",
-              select: "permission description",
-            },
-          })
-          .lean();
+        // Get user without populate
+        const user = await UserModel(dbTenant).findById(userId).lean();
 
         if (user) {
+          // Use manual population instead of mongoose populate
+          const populatedUser =
+            await createUserModule._populateUserDataManually(user, dbTenant);
+
           const tokenFactory = new EnhancedTokenFactory(dbTenant);
-          newToken = await tokenFactory.createToken(user, strategy);
+          newToken = await tokenFactory.createToken(populatedUser, strategy);
           tokenInfo = {
             token: `JWT ${newToken}`,
             strategy: strategy,
@@ -3931,27 +4084,7 @@ const createUserModule = {
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
 
-      const user = await UserModel(dbTenant)
-        .findById(userId)
-        .populate({
-          path: "permissions",
-          select: "permission description",
-        })
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .lean();
+      const user = await UserModel(dbTenant).findById(userId).lean();
 
       if (!user) {
         return {
@@ -3961,6 +4094,12 @@ const createUserModule = {
         };
       }
 
+      // Use manual population instead of mongoose populate
+      const populatedUser = await createUserModule._populateUserDataManually(
+        user,
+        dbTenant
+      );
+
       const tokenFactory = new EnhancedTokenFactory(dbTenant);
       const strategies = Object.values(TOKEN_STRATEGIES);
       const results = {};
@@ -3968,7 +4107,7 @@ const createUserModule = {
 
       for (const strategy of strategies) {
         try {
-          const token = await tokenFactory.createToken(user, strategy);
+          const token = await tokenFactory.createToken(populatedUser, strategy);
           const size = Buffer.byteLength(token, "utf8");
 
           if (strategy === TOKEN_STRATEGIES.LEGACY) {
@@ -4004,7 +4143,8 @@ const createUserModule = {
           userId,
           baseline: baselineSize,
           strategies: results,
-          recommendation: enhancedUser._getTokenStrategyRecommendation(results),
+          recommendation:
+            createUserModule._getTokenStrategyRecommendation(results),
         },
         status: httpStatus.OK,
       };
