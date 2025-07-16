@@ -1114,6 +1114,7 @@ const groupUtil = {
         ...request.query,
         ...request.params,
       };
+
       const userExists = await UserModel(tenant).exists({ _id: user_id });
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
 
@@ -1123,6 +1124,7 @@ const groupUtil = {
             message: "User or Group not found",
           })
         );
+        return;
       }
 
       const user = await UserModel(tenant).findById(user_id).lean();
@@ -1132,18 +1134,38 @@ const groupUtil = {
       const isAlreadyAssigned = isUserAssignedToGroup(user, grp_id);
 
       if (isAlreadyAssigned) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Group already assigned to User",
           })
         );
       }
+
+      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+        tenant,
+        grp_id
+      );
+
+      if (!defaultGroupRole || !defaultGroupRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for group ID ${grp_id}`,
+          })
+        );
+        return;
+      }
+
+      const defaultRoleId = defaultGroupRole._id;
+
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
         {
           $addToSet: {
             group_roles: {
               group: grp_id,
+              role: defaultRoleId,
+              userType: "user",
+              createdAt: new Date(),
             },
           },
         },
@@ -1160,7 +1182,7 @@ const groupUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
