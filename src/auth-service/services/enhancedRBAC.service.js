@@ -43,6 +43,163 @@ class EnhancedRBACService {
     return RoleModel(this.tenant);
   }
 
+  getPermissionModel() {
+    const PermissionModel = require("@models/Permission");
+    return PermissionModel(this.tenant);
+  }
+
+  /**
+   * Manually populate user role and permission data to avoid schema registration issues
+   */
+  async _populateUserRoleData(user) {
+    try {
+      const populatedUser = { ...user };
+
+      // Populate direct permissions
+      if (user.permissions && user.permissions.length > 0) {
+        try {
+          const permissions = await this.getPermissionModel()
+            .find({ _id: { $in: user.permissions } })
+            .select("permission description")
+            .lean();
+          populatedUser.permissions = permissions;
+        } catch (error) {
+          console.warn("Could not populate direct permissions:", error.message);
+          populatedUser.permissions = [];
+        }
+      }
+
+      // Populate group roles and their permissions
+      if (user.group_roles && user.group_roles.length > 0) {
+        populatedUser.group_roles = await Promise.all(
+          user.group_roles.map(async (groupRole) => {
+            const populatedGroupRole = { ...groupRole };
+
+            // Populate role data
+            if (groupRole.role) {
+              try {
+                const role = await this.getRoleModel()
+                  .findById(groupRole.role)
+                  .lean();
+
+                if (role) {
+                  populatedGroupRole.role = { ...role };
+
+                  // Populate role permissions
+                  if (
+                    role.role_permissions &&
+                    role.role_permissions.length > 0
+                  ) {
+                    try {
+                      const rolePermissions = await this.getPermissionModel()
+                        .find({ _id: { $in: role.role_permissions } })
+                        .select("permission description")
+                        .lean();
+                      populatedGroupRole.role.role_permissions =
+                        rolePermissions;
+                    } catch (error) {
+                      console.warn(
+                        "Could not populate group role permissions:",
+                        error.message
+                      );
+                      populatedGroupRole.role.role_permissions = [];
+                    }
+                  }
+                }
+              } catch (error) {
+                console.warn("Could not populate group role:", error.message);
+                populatedGroupRole.role = null;
+              }
+            }
+
+            // Populate group data
+            if (groupRole.group) {
+              try {
+                const group = await this.getGroupModel()
+                  .findById(groupRole.group)
+                  .select("grp_title grp_status organization_slug")
+                  .lean();
+                populatedGroupRole.group = group;
+              } catch (error) {
+                console.warn("Could not populate group data:", error.message);
+                populatedGroupRole.group = { _id: groupRole.group };
+              }
+            }
+
+            return populatedGroupRole;
+          })
+        );
+      }
+
+      // Populate network roles and their permissions
+      if (user.network_roles && user.network_roles.length > 0) {
+        populatedUser.network_roles = await Promise.all(
+          user.network_roles.map(async (networkRole) => {
+            const populatedNetworkRole = { ...networkRole };
+
+            // Populate role data
+            if (networkRole.role) {
+              try {
+                const role = await this.getRoleModel()
+                  .findById(networkRole.role)
+                  .lean();
+
+                if (role) {
+                  populatedNetworkRole.role = { ...role };
+
+                  // Populate role permissions
+                  if (
+                    role.role_permissions &&
+                    role.role_permissions.length > 0
+                  ) {
+                    try {
+                      const rolePermissions = await this.getPermissionModel()
+                        .find({ _id: { $in: role.role_permissions } })
+                        .select("permission description")
+                        .lean();
+                      populatedNetworkRole.role.role_permissions =
+                        rolePermissions;
+                    } catch (error) {
+                      console.warn(
+                        "Could not populate network role permissions:",
+                        error.message
+                      );
+                      populatedNetworkRole.role.role_permissions = [];
+                    }
+                  }
+                }
+              } catch (error) {
+                console.warn("Could not populate network role:", error.message);
+                populatedNetworkRole.role = null;
+              }
+            }
+
+            // Populate network data
+            if (networkRole.network) {
+              try {
+                const network = await this.getNetworkModel()
+                  .findById(networkRole.network)
+                  .select("net_name net_status net_acronym")
+                  .lean();
+                populatedNetworkRole.network = network;
+              } catch (error) {
+                console.warn("Could not populate network data:", error.message);
+                populatedNetworkRole.network = { _id: networkRole.network };
+              }
+            }
+
+            return populatedNetworkRole;
+          })
+        );
+      }
+
+      return populatedUser;
+    } catch (error) {
+      console.error("Error in manual population:", error);
+      return user; // Return original user if population fails
+    }
+  }
+
   async getUserPermissions(userId) {
     try {
       const cacheKey = userId.toString();
@@ -62,45 +219,28 @@ class EnhancedRBACService {
 
       console.log("🔍 Enhanced RBAC: Getting permissions for user:", userId);
 
-      const user = await this.getUserModel()
-        .findById(userId)
-        .populate({
-          path: "permissions",
-          select: "permission description",
-        })
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .lean();
+      // Get user without populate first
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         console.log("❌ Enhanced RBAC: User not found:", userId);
         return [];
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       const allPermissions = new Set();
 
-      // Add default permissions based on user type
-      const defaultPermissions = this.getDefaultPermissionsByUserType(
-        user.userType
-      );
+      // Add default permissions based on user type (with fallback)
+      const userType = populatedUser.userType || "user"; // Fallback to "user" if undefined
+      const defaultPermissions = this.getDefaultPermissionsByUserType(userType);
       defaultPermissions.forEach((permission) =>
         allPermissions.add(permission)
       );
 
       // Check if super admin
-      const isSuperAdmin = this.isSuperAdmin(user);
+      const isSuperAdmin = this.isSuperAdmin(populatedUser);
       if (isSuperAdmin) {
         console.log(
           "👑 Enhanced RBAC: User is super admin - adding ALL permissions"
@@ -111,11 +251,11 @@ class EnhancedRBACService {
         );
       } else {
         // Add direct user permissions
-        if (user.permissions && user.permissions.length > 0) {
+        if (populatedUser.permissions && populatedUser.permissions.length > 0) {
           console.log(
-            `📋 Enhanced RBAC: Processing ${user.permissions.length} direct permissions`
+            `📋 Enhanced RBAC: Processing ${populatedUser.permissions.length} direct permissions`
           );
-          user.permissions.forEach((permObj) => {
+          populatedUser.permissions.forEach((permObj) => {
             if (permObj && permObj.permission) {
               allPermissions.add(permObj.permission);
             }
@@ -123,12 +263,12 @@ class EnhancedRBACService {
         }
 
         // Add group-based permissions
-        if (user.group_roles && user.group_roles.length > 0) {
+        if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
           console.log(
-            `🏢 Enhanced RBAC: Processing ${user.group_roles.length} group roles`
+            `🏢 Enhanced RBAC: Processing ${populatedUser.group_roles.length} group roles`
           );
           const groupPermissions = await this.getGroupPermissions(
-            user.group_roles
+            populatedUser.group_roles
           );
           groupPermissions.forEach((permission) =>
             allPermissions.add(permission)
@@ -136,12 +276,15 @@ class EnhancedRBACService {
         }
 
         // Add network-based permissions
-        if (user.network_roles && user.network_roles.length > 0) {
+        if (
+          populatedUser.network_roles &&
+          populatedUser.network_roles.length > 0
+        ) {
           console.log(
-            `🌐 Enhanced RBAC: Processing ${user.network_roles.length} network roles`
+            `🌐 Enhanced RBAC: Processing ${populatedUser.network_roles.length} network roles`
           );
           const networkPermissions = await this.getNetworkPermissions(
-            user.network_roles
+            populatedUser.network_roles
           );
           networkPermissions.forEach((permission) =>
             allPermissions.add(permission)
@@ -175,35 +318,8 @@ class EnhancedRBACService {
         userId
       );
 
-      const user = await this.getUserModel()
-        .findById(userId)
-        .populate({
-          path: "permissions",
-          select: "permission description",
-        })
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "group_roles.group",
-          select: "grp_title grp_status organization_slug",
-        })
-        .populate({
-          path: "network_roles.network",
-          select: "net_name net_status net_acronym",
-        })
-        .lean();
+      // Get user without populate first
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         console.log("❌ Enhanced RBAC Context: User not found:", userId);
@@ -217,25 +333,27 @@ class EnhancedRBACService {
         };
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       // System-level permissions
       const systemPermissions = new Set();
-      const defaultPermissions = this.getDefaultPermissionsByUserType(
-        user.userType
-      );
+      const userType = populatedUser.userType || "user"; // Fallback to "user" if undefined
+      const defaultPermissions = this.getDefaultPermissionsByUserType(userType);
       defaultPermissions.forEach((permission) =>
         systemPermissions.add(permission)
       );
 
       // Add direct user permissions to system permissions
-      if (user.permissions && user.permissions.length > 0) {
-        user.permissions.forEach((permObj) => {
+      if (populatedUser.permissions && populatedUser.permissions.length > 0) {
+        populatedUser.permissions.forEach((permObj) => {
           if (permObj && permObj.permission) {
             systemPermissions.add(permObj.permission);
           }
         });
       }
 
-      const isSuperAdmin = this.isSuperAdmin(user);
+      const isSuperAdmin = this.isSuperAdmin(populatedUser);
       if (isSuperAdmin) {
         console.log(
           "👑 Enhanced RBAC Context: Super admin - adding all system permissions"
@@ -249,20 +367,31 @@ class EnhancedRBACService {
       // Group-specific permissions
       const groupPermissions = {};
       const groupMemberships = [];
-      if (user.group_roles && user.group_roles.length > 0) {
-        for (const groupRole of user.group_roles) {
-          const groupId = groupRole.group._id || groupRole.group;
-          const groupData = groupRole.group._id ? groupRole.group : null;
+      if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
+        for (const groupRole of populatedUser.group_roles) {
+          const groupId = groupRole.group?._id || groupRole.group;
+          const groupData = groupRole.group?._id ? groupRole.group : null;
 
-          if (!groupPermissions[groupId]) {
-            groupPermissions[groupId] = [];
+          // Skip if groupId is null or undefined
+          if (!groupId) {
+            console.warn(
+              "Skipping group role with null/undefined groupId:",
+              groupRole
+            );
+            continue;
+          }
+
+          const groupIdStr = groupId.toString();
+
+          if (!groupPermissions[groupIdStr]) {
+            groupPermissions[groupIdStr] = [];
           }
 
           // Add role-based permissions for this group
           if (groupRole.role && groupRole.role.role_permissions) {
             groupRole.role.role_permissions.forEach((permObj) => {
               if (permObj && permObj.permission) {
-                groupPermissions[groupId].push(permObj.permission);
+                groupPermissions[groupIdStr].push(permObj.permission);
               }
             });
           }
@@ -270,15 +399,15 @@ class EnhancedRBACService {
           // Add group membership info
           groupMemberships.push({
             group: {
-              id: groupId.toString(),
+              id: groupIdStr,
               title: groupData?.grp_title || "Unknown Group",
               status: groupData?.grp_status || "unknown",
               organizationSlug: groupData?.organization_slug || null,
             },
             role: groupRole.role
               ? {
-                  id: groupRole.role._id,
-                  name: groupRole.role.role_name,
+                  id: groupRole.role._id ? groupRole.role._id.toString() : null,
+                  name: groupRole.role.role_name || "Unknown Role",
                   permissions:
                     groupRole.role.role_permissions?.map((p) => p.permission) ||
                     [],
@@ -286,7 +415,7 @@ class EnhancedRBACService {
               : null,
             userType: groupRole.userType || "guest",
             joinedAt: groupRole.createdAt,
-            permissions: groupPermissions[groupId],
+            permissions: groupPermissions[groupIdStr],
           });
         }
       }
@@ -294,22 +423,36 @@ class EnhancedRBACService {
       // Network-specific permissions
       const networkPermissions = {};
       const networkMemberships = [];
-      if (user.network_roles && user.network_roles.length > 0) {
-        for (const networkRole of user.network_roles) {
-          const networkId = networkRole.network._id || networkRole.network;
-          const networkData = networkRole.network._id
+      if (
+        populatedUser.network_roles &&
+        populatedUser.network_roles.length > 0
+      ) {
+        for (const networkRole of populatedUser.network_roles) {
+          const networkId = networkRole.network?._id || networkRole.network;
+          const networkData = networkRole.network?._id
             ? networkRole.network
             : null;
 
-          if (!networkPermissions[networkId]) {
-            networkPermissions[networkId] = [];
+          // Skip if networkId is null or undefined
+          if (!networkId) {
+            console.warn(
+              "Skipping network role with null/undefined networkId:",
+              networkRole
+            );
+            continue;
+          }
+
+          const networkIdStr = networkId.toString();
+
+          if (!networkPermissions[networkIdStr]) {
+            networkPermissions[networkIdStr] = [];
           }
 
           // Add role-based permissions for this network
           if (networkRole.role && networkRole.role.role_permissions) {
             networkRole.role.role_permissions.forEach((permObj) => {
               if (permObj && permObj.permission) {
-                networkPermissions[networkId].push(permObj.permission);
+                networkPermissions[networkIdStr].push(permObj.permission);
               }
             });
           }
@@ -317,15 +460,17 @@ class EnhancedRBACService {
           // Add network membership info
           networkMemberships.push({
             network: {
-              id: networkId.toString(),
+              id: networkIdStr,
               name: networkData?.net_name || "Unknown Network",
               status: networkData?.net_status || "unknown",
               acronym: networkData?.net_acronym || null,
             },
             role: networkRole.role
               ? {
-                  id: networkRole.role._id,
-                  name: networkRole.role.role_name,
+                  id: networkRole.role._id
+                    ? networkRole.role._id.toString()
+                    : null,
+                  name: networkRole.role.role_name || "Unknown Role",
                   permissions:
                     networkRole.role.role_permissions?.map(
                       (p) => p.permission
@@ -334,7 +479,7 @@ class EnhancedRBACService {
               : null,
             userType: networkRole.userType || "guest",
             joinedAt: networkRole.createdAt,
-            permissions: networkPermissions[networkId],
+            permissions: networkPermissions[networkIdStr],
           });
         }
       }
@@ -491,13 +636,46 @@ class EnhancedRBACService {
 
     // Check if user has super admin role in groups or networks
     if (user.group_roles && user.group_roles.length > 0) {
-      const hasSuperAdminGroupRole = user.group_roles.some(
-        (gr) =>
-          gr.userType === "super_admin" ||
-          (gr.role &&
-            gr.role.role_name &&
-            gr.role.role_name.toLowerCase().includes("super"))
+      console.log(
+        "🔍 Enhanced RBAC: Checking group roles for super admin:",
+        user.group_roles.length
       );
+      const hasSuperAdminGroupRole = user.group_roles.some((gr, index) => {
+        if (!gr) {
+          console.log(
+            `⚠️ Enhanced RBAC: Group role ${index} is null/undefined`
+          );
+          return false;
+        }
+
+        console.log(`🔍 Enhanced RBAC: Group role ${index}:`, {
+          userType: gr.userType,
+          role_name: gr.role?.role_name,
+          role_id: gr.role?._id,
+        });
+
+        // Check userType
+        if (gr.userType === "super_admin") {
+          console.log("✅ Enhanced RBAC: Super admin via group userType");
+          return true;
+        }
+
+        // Check role name
+        if (
+          gr.role &&
+          gr.role.role_name &&
+          typeof gr.role.role_name === "string" &&
+          gr.role.role_name.toLowerCase().includes("super")
+        ) {
+          console.log(
+            "✅ Enhanced RBAC: Super admin via group role name:",
+            gr.role.role_name
+          );
+          return true;
+        }
+
+        return false;
+      });
       if (hasSuperAdminGroupRole) {
         console.log("✅ Enhanced RBAC: Super admin via group role");
         return true;
@@ -505,13 +683,24 @@ class EnhancedRBACService {
     }
 
     if (user.network_roles && user.network_roles.length > 0) {
-      const hasSuperAdminNetworkRole = user.network_roles.some(
-        (nr) =>
-          nr.userType === "super_admin" ||
-          (nr.role &&
-            nr.role.role_name &&
-            nr.role.role_name.toLowerCase().includes("super"))
-      );
+      const hasSuperAdminNetworkRole = user.network_roles.some((nr) => {
+        if (!nr) return false;
+
+        // Check userType
+        if (nr.userType === "super_admin") return true;
+
+        // Check role name
+        if (
+          nr.role &&
+          nr.role.role_name &&
+          typeof nr.role.role_name === "string" &&
+          nr.role.role_name.toLowerCase().includes("super")
+        ) {
+          return true;
+        }
+
+        return false;
+      });
       if (hasSuperAdminNetworkRole) {
         console.log("✅ Enhanced RBAC: Super admin via network role");
         return true;
