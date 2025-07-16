@@ -3729,91 +3729,144 @@ const createUserModule = {
         console.warn("⚠️ Role model not available, skipping role population");
       }
 
-      // 1. Populate permissions
-      if (userObj.permissions && userObj.permissions.length > 0) {
-        try {
-          const permissions = await PermissionModel(tenant)
-            .find({ _id: { $in: userObj.permissions } })
+      // ✅ OPTIMIZATION 1: Collect all IDs upfront for batch queries
+      const permissionIds = userObj.permissions?.filter(Boolean) || [];
+      const groupIds =
+        userObj.group_roles?.map((gr) => gr.group).filter(Boolean) || [];
+      const networkIds =
+        userObj.network_roles?.map((nr) => nr.network).filter(Boolean) || [];
+      const groupRoleIds =
+        userObj.group_roles?.map((gr) => gr.role).filter(Boolean) || [];
+      const networkRoleIds =
+        userObj.network_roles?.map((nr) => nr.role).filter(Boolean) || [];
+      const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])]; // Remove duplicates
+
+      // ✅ OPTIMIZATION 2: Prepare all queries for parallel execution
+      const queryPromises = [];
+      const queryMap = {};
+
+      // 1. Permissions query
+      if (permissionIds.length > 0) {
+        queryPromises.push(
+          PermissionModel(tenant)
+            .find({ _id: { $in: permissionIds } })
             .select("permission description")
-            .lean();
-          userObj.permissions = permissions;
-        } catch (permError) {
-          console.warn("⚠️ Failed to populate permissions:", permError.message);
-          userObj.permissions = userObj.permissions || [];
-        }
-      } else {
-        userObj.permissions = [];
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate permissions:", error.message);
+              return [];
+            })
+        );
+        queryMap.permissions = queryPromises.length - 1;
       }
 
-      // 2. Populate group roles
-      if (userObj.group_roles && userObj.group_roles.length > 0) {
-        const groupIds = userObj.group_roles
-          .map((gr) => gr.group)
-          .filter(Boolean);
-        const roleIds = userObj.group_roles
-          .map((gr) => gr.role)
-          .filter(Boolean);
+      // 2. Groups query
+      if (groupIds.length > 0) {
+        queryPromises.push(
+          GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate groups:", error.message);
+              return [];
+            })
+        );
+        queryMap.groups = queryPromises.length - 1;
+      }
 
-        // Get groups
-        let groups = [];
-        if (groupIds.length > 0) {
+      // 3. Networks query
+      if (networkIds.length > 0) {
+        queryPromises.push(
+          NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate networks:", error.message);
+              return [];
+            })
+        );
+        queryMap.networks = queryPromises.length - 1;
+      }
+
+      // 4. Roles query
+      if (RoleModel && allRoleIds.length > 0) {
+        queryPromises.push(
+          RoleModel(tenant)
+            .find({ _id: { $in: allRoleIds } })
+            .select("role_name role_permissions")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate roles:", error.message);
+              return [];
+            })
+        );
+        queryMap.roles = queryPromises.length - 1;
+      }
+
+      // ✅ OPTIMIZATION 3: Execute all main queries in parallel
+      const results = await Promise.all(queryPromises);
+
+      // Extract results
+      const permissions =
+        queryMap.permissions !== undefined ? results[queryMap.permissions] : [];
+      const groups =
+        queryMap.groups !== undefined ? results[queryMap.groups] : [];
+      const networks =
+        queryMap.networks !== undefined ? results[queryMap.networks] : [];
+      const roles = queryMap.roles !== undefined ? results[queryMap.roles] : [];
+
+      // ✅ OPTIMIZATION 4: Batch role permissions query
+      let rolePermissions = [];
+      if (roles.length > 0) {
+        const allRolePermissionIds = [
+          ...new Set( // Remove duplicates
+            roles.flatMap((role) => role.role_permissions || []).filter(Boolean)
+          ),
+        ];
+
+        if (allRolePermissionIds.length > 0) {
           try {
-            groups = await GroupModel(tenant)
-              .find({ _id: { $in: groupIds } })
-              .select("grp_title grp_status organization_slug")
+            rolePermissions = await PermissionModel(tenant)
+              .find({ _id: { $in: allRolePermissionIds } })
+              .select("permission description")
               .lean();
-          } catch (groupError) {
-            console.warn("⚠️ Failed to populate groups:", groupError.message);
+          } catch (rolePermError) {
+            console.warn(
+              "⚠️ Failed to populate role permissions:",
+              rolePermError.message
+            );
           }
         }
+      }
 
-        // Get roles and their permissions
-        let roles = [];
-        let rolePermissions = [];
-        if (RoleModel && roleIds.length > 0) {
-          try {
-            roles = await RoleModel(tenant)
-              .find({ _id: { $in: roleIds } })
-              .select("role_name role_permissions")
-              .lean();
+      // ✅ OPTIMIZATION 5: Create lookup maps for O(1) access
+      const groupsMap = new Map(groups.map((g) => [g._id.toString(), g]));
+      const networksMap = new Map(networks.map((n) => [n._id.toString(), n]));
+      const rolesMap = new Map(roles.map((r) => [r._id.toString(), r]));
+      const rolePermissionsMap = new Map(
+        rolePermissions.map((rp) => [rp._id.toString(), rp])
+      );
 
-            // Get all role permission IDs
-            const allRolePermissionIds = roles
-              .flatMap((role) => role.role_permissions || [])
-              .filter(Boolean);
+      // Apply populated data to user object
+      userObj.permissions = permissions;
 
-            if (allRolePermissionIds.length > 0) {
-              rolePermissions = await PermissionModel(tenant)
-                .find({ _id: { $in: allRolePermissionIds } })
-                .select("permission description")
-                .lean();
-            }
-          } catch (roleError) {
-            console.warn("⚠️ Failed to populate roles:", roleError.message);
-          }
-        }
-
-        // Map the populated data back to group_roles
+      // ✅ OPTIMIZATION 6: Use optional chaining and map lookups
+      if (userObj.group_roles?.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
-          group:
-            groups.find(
-              (g) => g._id.toString() === groupRole.group.toString()
-            ) || groupRole.group,
+          group: groupsMap.get(groupRole.group.toString()) || groupRole.group,
           role: RoleModel
             ? (() => {
-                const role = roles.find(
-                  (r) => r._id.toString() === groupRole.role.toString()
-                );
+                const role = rolesMap.get(groupRole.role.toString());
                 if (role) {
                   return {
                     ...role,
-                    role_permissions: rolePermissions.filter(
-                      (rp) =>
-                        role.role_permissions &&
-                        role.role_permissions.some(
-                          (rpId) => rpId.toString() === rp._id.toString()
-                        )
+                    role_permissions: rolePermissions.filter((rp) =>
+                      role.role_permissions?.some(
+                        (rpId) => rpId.toString() === rp._id.toString()
+                      )
                     ),
                   };
                 }
@@ -3823,80 +3876,22 @@ const createUserModule = {
         }));
       }
 
-      // 3. Populate network roles
-      if (userObj.network_roles && userObj.network_roles.length > 0) {
-        const networkIds = userObj.network_roles
-          .map((nr) => nr.network)
-          .filter(Boolean);
-        const roleIds = userObj.network_roles
-          .map((nr) => nr.role)
-          .filter(Boolean);
-
-        // Get networks
-        let networks = [];
-        if (networkIds.length > 0) {
-          try {
-            networks = await NetworkModel(tenant)
-              .find({ _id: { $in: networkIds } })
-              .select("net_name net_status net_acronym")
-              .lean();
-          } catch (networkError) {
-            console.warn(
-              "⚠️ Failed to populate networks:",
-              networkError.message
-            );
-          }
-        }
-
-        // Get roles and their permissions (reuse logic from group roles)
-        let roles = [];
-        let rolePermissions = [];
-        if (RoleModel && roleIds.length > 0) {
-          try {
-            roles = await RoleModel(tenant)
-              .find({ _id: { $in: roleIds } })
-              .select("role_name role_permissions")
-              .lean();
-
-            const allRolePermissionIds = roles
-              .flatMap((role) => role.role_permissions || [])
-              .filter(Boolean);
-
-            if (allRolePermissionIds.length > 0) {
-              rolePermissions = await PermissionModel(tenant)
-                .find({ _id: { $in: allRolePermissionIds } })
-                .select("permission description")
-                .lean();
-            }
-          } catch (roleError) {
-            console.warn(
-              "⚠️ Failed to populate network roles:",
-              roleError.message
-            );
-          }
-        }
-
-        // Map the populated data back to network_roles
+      if (userObj.network_roles?.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
           network:
-            networks.find(
-              (n) => n._id.toString() === networkRole.network.toString()
-            ) || networkRole.network,
+            networksMap.get(networkRole.network.toString()) ||
+            networkRole.network,
           role: RoleModel
             ? (() => {
-                const role = roles.find(
-                  (r) => r._id.toString() === networkRole.role.toString()
-                );
+                const role = rolesMap.get(networkRole.role.toString());
                 if (role) {
                   return {
                     ...role,
-                    role_permissions: rolePermissions.filter(
-                      (rp) =>
-                        role.role_permissions &&
-                        role.role_permissions.some(
-                          (rpId) => rpId.toString() === rp._id.toString()
-                        )
+                    role_permissions: rolePermissions.filter((rp) =>
+                      role.role_permissions?.some(
+                        (rpId) => rpId.toString() === rp._id.toString()
+                      )
                     ),
                   };
                 }
@@ -3922,7 +3917,7 @@ const createUserModule = {
   /**
    * Generate optimized token for existing user session
    */
-  enerateOptimizedToken: async (request, next) => {
+  generateOptimizedToken: async (request, next) => {
     try {
       const { userId, tenant, strategy, options } = {
         ...request.body,
