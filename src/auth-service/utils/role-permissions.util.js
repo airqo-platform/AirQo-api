@@ -2107,7 +2107,7 @@ const rolePermissionUtil = {
   assignUserToRole: async (request, next) => {
     try {
       const { role_id, user_id } = request.params;
-      const { tenant, user } = { ...request.body, ...request.query };
+      const { tenant, user, user_type } = { ...request.body, ...request.query };
       const userIdFromBody = user;
       const userIdFromQuery = user_id;
 
@@ -2205,7 +2205,7 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: "guest",
+            userType: user_type || "guest",
             createdAt: new Date(),
           },
         },

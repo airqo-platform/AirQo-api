@@ -2683,22 +2683,29 @@ const createUser = {
       let populatedUser = { ...basicUser };
 
       if (basicUser.group_roles && basicUser.group_roles.length > 0) {
-        const GroupModel = require("@models/Group");
-        const groupIds = basicUser.group_roles.map((gr) => gr.group);
+        try {
+          const GroupModel = require("@models/Group");
+          const groupIds = basicUser.group_roles.map((gr) => gr.group);
 
-        const groups = await GroupModel(tenant)
-          .find({ _id: { $in: groupIds } })
-          .select("grp_title grp_status organization_slug")
-          .lean();
+          const groups = await GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean();
 
-        // Map groups back to group_roles
-        populatedUser.group_roles = basicUser.group_roles.map((groupRole) => ({
-          ...groupRole,
-          group:
-            groups.find(
-              (g) => g._id.toString() === groupRole.group.toString()
-            ) || groupRole.group,
-        }));
+          // Map groups back to group_roles
+          populatedUser.group_roles = basicUser.group_roles.map(
+            (groupRole) => ({
+              ...groupRole,
+              group:
+                groups.find(
+                  (g) => g._id.toString() === groupRole.group.toString()
+                ) || groupRole.group,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate group roles: ${error.message}`);
+          populatedUser.group_roles = basicUser.group_roles;
+        }
       }
 
       // Manually populate network_roles.network if they exist
