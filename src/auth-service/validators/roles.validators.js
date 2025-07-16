@@ -265,7 +265,7 @@ const assignUserToRole = [
     body("user_type")
       .optional()
       .notEmpty()
-      .withMessage("tenant should not be empty if provided")
+      .withMessage("user_type should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
