@@ -280,14 +280,6 @@ const createAccessRequest = {
         };
 
       const existingUser = await UserModel(tenant).findOne({ email });
-      if (!isEmpty(existingUser)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "The User already exists in AirQo Analytics",
-          })
-        );
-        return;
-      }
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
         targetId: target_id,
@@ -306,110 +298,244 @@ const createAccessRequest = {
         return;
       }
 
-      let newUser = {};
-      const bodyForCreatingNewUser = {
-        email,
-        password,
-        userName: email,
-        firstName,
-        lastName,
-      };
+      let user = null;
+      let isNewUser = false;
 
-      const responseFromCreateNewUser = await UserModel(tenant).register(
-        bodyForCreatingNewUser,
-        next
-      );
+      if (existingUser) {
+        const requestType = accessRequest.requestType;
 
-      if (
-        responseFromCreateNewUser.success === true &&
-        responseFromCreateNewUser.status === httpStatus.OK
-      ) {
-        newUser = responseFromCreateNewUser.data;
-        logObject("newUser", newUser);
+        if (requestType === "group") {
+          const isAlreadyAssigned = existingUser.group_roles?.some(
+            (gr) => gr.group.toString() === target_id.toString()
+          );
 
-        const update = { status: "approved" };
-        const filter = { email, targetId: target_id };
+          if (isAlreadyAssigned) {
+            next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "User is already a member of this organization",
+              })
+            );
+            return;
+          }
+        } else if (requestType === "network") {
+          const isAlreadyAssigned = existingUser.network_roles?.some(
+            (nr) => nr.network.toString() === target_id.toString()
+          );
 
-        const responseFromUpdateAccessRequest = await AccessRequestModel(
-          tenant
-        ).modify(
+          if (isAlreadyAssigned) {
+            next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message: "User is already a member of this organization",
+              })
+            );
+            return;
+          }
+        }
+
+        user = existingUser;
+        isNewUser = false;
+      } else {
+        const bodyForCreatingNewUser = {
+          email,
+          password,
+          userName: email,
+          firstName,
+          lastName,
+        };
+
+        const responseFromCreateNewUser = await UserModel(tenant).register(
+          bodyForCreatingNewUser,
+          next
+        );
+
+        if (
+          responseFromCreateNewUser.success !== true ||
+          responseFromCreateNewUser.status !== httpStatus.OK
+        ) {
+          return responseFromCreateNewUser;
+        }
+
+        user = responseFromCreateNewUser.data;
+        isNewUser = true;
+        logObject("newUser", user);
+      }
+
+      const update = { status: "approved" };
+      const filter = { email, targetId: target_id };
+
+      const responseFromUpdateAccessRequest = await AccessRequestModel(
+        tenant
+      ).modify({ filter, update }, next);
+
+      if (responseFromUpdateAccessRequest.success !== true) {
+        return responseFromUpdateAccessRequest;
+      }
+
+      const requestType = accessRequest.requestType;
+      let entity_title;
+      let assignmentResult;
+
+      if (requestType === "group") {
+        const group = await GroupModel(tenant).findById(target_id).lean();
+        if (!group) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Group not found",
+            })
+          );
+          return;
+        }
+
+        entity_title = group.grp_title;
+
+        const rolePermissionsUtil = require("@utils/role-permissions.util");
+        const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+          tenant,
+          target_id
+        );
+
+        if (!defaultGroupRole || !defaultGroupRole._id) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Unable to find or create default role for group ${target_id}`,
+              }
+            )
+          );
+          return;
+        }
+
+        const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+          user._id,
           {
-            filter,
-            update,
+            $addToSet: {
+              group_roles: {
+                group: target_id,
+                role: defaultGroupRole._id,
+                userType: "user",
+                createdAt: new Date(),
+              },
+            },
+          },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Failed to assign user to group",
+              }
+            )
+          );
+          return;
+        }
+
+        assignmentResult = { success: true, data: updatedUser };
+      } else if (requestType === "network") {
+        const network = await NetworkModel(tenant).findById(target_id).lean();
+        if (!network) {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Network not found",
+            })
+          );
+          return;
+        }
+
+        entity_title = network.net_name;
+
+        const rolePermissionsUtil = require("@utils/role-permissions.util");
+        const defaultNetworkRole =
+          await rolePermissionsUtil.getDefaultNetworkRole(tenant, target_id);
+
+        if (!defaultNetworkRole || !defaultNetworkRole._id) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Unable to find or create default role for network ${target_id}`,
+              }
+            )
+          );
+          return;
+        }
+
+        const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+          user._id,
+          {
+            $addToSet: {
+              network_roles: {
+                network: target_id,
+                role: defaultNetworkRole._id,
+                userType: "user",
+                createdAt: new Date(),
+              },
+            },
+          },
+          { new: true }
+        );
+
+        if (!updatedUser) {
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Failed to assign user to network",
+              }
+            )
+          );
+          return;
+        }
+
+        assignmentResult = { success: true, data: updatedUser };
+      }
+
+      if (assignmentResult && assignmentResult.success === true) {
+        const responseFromSendEmail = await mailer.afterAcceptingInvitation(
+          {
+            firstName: user.firstName,
+            username: user.email,
+            email: user.email,
+            entity_title,
+            isNewUser,
           },
           next
         );
 
-        const requestType = accessRequest.requestType;
-
-        if (responseFromUpdateAccessRequest.success === true && requestType) {
-          let entityKeyId;
-          let organisationUtil;
-          let entity_title;
-
-          if (requestType === "group") {
-            entityKeyId = "grp_id";
-            organisationUtil = createGroupUtil;
-            const group = await GroupModel(tenant).findById(target_id).lean();
-            entity_title = group.grp_title;
-          } else if (requestType === "network") {
-            entityKeyId = "net_id";
-            organisationUtil = createNetworkUtil;
-            const network = await NetworkModel(tenant)
-              .findById(target_id)
-              .lean();
-            entity_title = network.net_name;
-          }
-
-          const { firstName, lastName, email } = newUser;
-          const assignRequest = {
-            params: {
-              [entityKeyId]: target_id,
-              user_id: newUser._id,
-            },
-            query: { tenant: tenant },
-          };
-
-          const responseFromAssignUserToOrganisation =
-            await organisationUtil.assignOneUser(assignRequest);
-
-          logObject(
-            "responseFromAssignUserToOrganisation",
-            responseFromAssignUserToOrganisation
-          );
-
-          if (responseFromAssignUserToOrganisation.success === true) {
-            const responseFromSendEmail = await mailer.afterAcceptingInvitation(
-              {
-                firstName,
-                username: email,
-                email,
-                entity_title,
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: isNewUser
+              ? "Account created and organization invitation accepted successfully"
+              : "Organization invitation accepted successfully",
+            data: {
+              user: {
+                _id: user._id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
               },
-              next
-            );
-
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: "Organisation JOIN request accepted successfully",
-                status: httpStatus.OK,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
-          } else if (responseFromAssignUserToOrganisation.success === false) {
-            return responseFromAssignUserToOrganisation;
-          }
-        } else if (responseFromUpdateAccessRequest.success === false) {
-          if (isEmpty(requestType)) {
-            responseFromUpdateAccessRequest.errors.more =
-              "requestType is missing";
-          }
-          return responseFromUpdateAccessRequest;
+              organization: {
+                id: target_id,
+                name: entity_title,
+                type: requestType,
+              },
+              isNewUser,
+            },
+            status: httpStatus.OK,
+          };
+        } else {
+          return responseFromSendEmail;
         }
       } else {
-        return responseFromCreateNewUser;
+        return assignmentResult;
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
