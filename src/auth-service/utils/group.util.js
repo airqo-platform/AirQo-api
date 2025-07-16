@@ -1495,7 +1495,7 @@ const groupUtil = {
               as: "role",
             },
           },
-          { $unwind: "$role" },
+          { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
           {
             $lookup: {
               from: "permissions",
@@ -1519,24 +1519,14 @@ const groupUtil = {
                 $dateToString: { format: "%Y-%m-%d %H:%M:%S", date: "$_id" },
               },
               email: 1,
-              role_name: "$role.role_name",
-              role_id: "$role._id",
-              role_permissions: "$role_permissions",
-            },
-          },
-          {
-            $project: {
-              "role_permissions.network_id": 0,
-              "role_permissions.description": 0,
-              "role_permissions.createdAt": 0,
-              "role_permissions.updatedAt": 0,
-              "role_permissions.__v": 0,
+              role_name: { $ifNull: ["$role.role_name", "No Role Assigned"] },
+              role_id: { $ifNull: ["$role._id", null] },
+              role_permissions: { $ifNull: ["$role_permissions", []] },
+              userType: { $ifNull: ["$group_roles.userType", "guest"] },
             },
           },
         ])
         .exec();
-
-      logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
 
       return {
         success: true,
