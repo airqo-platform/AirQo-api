@@ -1,6 +1,6 @@
 namespace: staging
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
@@ -9,7 +9,7 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-79bf27a0-1746280013
+  tag: stage-25422eff-1752663250
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
