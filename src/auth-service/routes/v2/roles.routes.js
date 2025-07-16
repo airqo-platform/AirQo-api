@@ -17,6 +17,11 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(roleValidations.pagination);
 
+const injectCurrentUserId = (req, res, next) => {
+  req.params.user_id = req.user._id;
+  next();
+};
+
 router.get(
   "/",
   roleValidations.list,
@@ -255,10 +260,7 @@ router.get(
   "/me/groups/:group_id/permissions",
   setJWTAuth,
   authJWT,
-  (req, res, next) => {
-    req.params.user_id = req.user._id;
-    next();
-  },
+  injectCurrentUserId,
   roleValidations.getUserPermissionsForGroup,
   createRoleController.getCurrentUserPermissionsForGroup
 );
@@ -275,10 +277,7 @@ router.get(
   "/me/groups/:group_id/permissions/simplified",
   setJWTAuth,
   authJWT,
-  (req, res, next) => {
-    req.params.user_id = req.user._id;
-    next();
-  },
+  injectCurrentUserId,
   roleValidations.getUserPermissionsForGroup,
   createRoleController.getSimplifiedPermissionsForGroup
 );
@@ -295,10 +294,7 @@ router.post(
   "/me/permissions/bulk-check",
   setJWTAuth,
   authJWT,
-  (req, res, next) => {
-    req.params.user_id = req.user._id;
-    next();
-  },
+  injectCurrentUserId,
   roleValidations.bulkPermissionsCheck,
   createRoleController.bulkPermissionsCheck
 );
@@ -331,10 +327,7 @@ router.get(
   "/me/groups/permissions-summary",
   setJWTAuth,
   authJWT,
-  (req, res, next) => {
-    req.params.user_id = req.user._id;
-    next();
-  },
+  injectCurrentUserId,
   roleValidations.getUserRoles,
   createRoleController.getUserGroupsWithPermissionsSummary
 );
@@ -366,10 +359,7 @@ router.get(
   "/me/rbac-analysis",
   setJWTAuth,
   authJWT,
-  (req, res, next) => {
-    req.params.user_id = req.user._id;
-    next();
-  },
+  injectCurrentUserId,
   createRoleController.getUserRolesAndPermissionsViaRBAC
 );
 
@@ -377,10 +367,7 @@ router.get(
   "/me/roles-simplified",
   setJWTAuth,
   authJWT,
-  (req, res, next) => {
-    req.params.user_id = req.user._id;
-    next();
-  },
+  injectCurrentUserId,
   createRoleController.getUserRolesSimplified
 );
 

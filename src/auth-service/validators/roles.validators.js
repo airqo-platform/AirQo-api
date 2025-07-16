@@ -825,7 +825,4 @@ module.exports = {
   getUserPermissionsForGroup,
   bulkPermissionsCheck,
   checkUserPermissionsForActions,
-  getUserRoles,
-  getEnhancedUserDetails,
-  getSystemHealth,
 };

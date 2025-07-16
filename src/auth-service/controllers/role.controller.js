@@ -734,16 +734,6 @@ const roleController = {
       const request = validateAndSetupRequest(req, next);
       if (!request) return;
 
-      // Validate group_id is provided
-      if (
-        validateParameterError(
-          !request.query.group_id && !request.params.group_id,
-          "group_id is required either as URL parameter or query parameter",
-          next
-        )
-      )
-        return;
-
       const result = await rolePermissionsUtil.getSimplifiedPermissionsForGroup(
         request,
         next
@@ -816,9 +806,6 @@ const roleController = {
   // Enhanced method for current user permissions (convenience)
   getCurrentUserPermissionsForGroup: async (req, res, next) => {
     try {
-      // Set user_id from authenticated user
-      req.params.user_id = req.user._id;
-
       const request = validateAndSetupRequest(req, next);
       if (!request) return;
 

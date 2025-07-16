@@ -4876,8 +4876,8 @@ const rolePermissionUtil = {
         ...request,
         query: { ...request.query },
       };
-      delete tempReq.query.group_id; // Remove group filter to get all groups
 
+      tempReq.query.group_id = undefined;
       const result =
         await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
           tempReq,
