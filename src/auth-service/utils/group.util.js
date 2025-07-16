@@ -2122,10 +2122,7 @@ const groupUtil = {
       const { tenant } = request.query;
       const { time_range = "30d" } = request.query;
 
-      const group = await GroupModel(tenant)
-        .findById(grp_id)
-        .populate("grp_manager", "firstName lastName email profilePicture")
-        .lean();
+      const group = await GroupModel(tenant).findById(grp_id).lean();
 
       if (!group) {
         return next(
@@ -2133,6 +2130,15 @@ const groupUtil = {
             message: `Group ${grp_id} not found`,
           })
         );
+      }
+
+      // Manually fetch manager details if grp_manager exists
+      let manager = null;
+      if (group.grp_manager) {
+        manager = await UserModel(tenant)
+          .findById(group.grp_manager)
+          .select("firstName lastName email profilePicture")
+          .lean();
       }
 
       // Get member statistics
@@ -2165,7 +2171,7 @@ const groupUtil = {
         group_info: {
           name: group.grp_title,
           description: group.grp_description,
-          manager: group.grp_manager,
+          manager: manager,
           created_at: group.createdAt,
           status: group.grp_status,
         },
@@ -2311,17 +2317,51 @@ const groupUtil = {
    */
   getPendingAccessRequests: async (grp_id, tenant) => {
     try {
-      // Assuming you have an AccessRequest model
-      const requests = await AccessRequestModel(tenant)
-        .find({
-          targetId: grp_id,
-          requestType: "group",
-          status: "pending",
-        })
-        .populate("user_id", "firstName lastName email profilePicture")
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean();
+      const requests = await AccessRequestModel(tenant).aggregate([
+        {
+          $match: {
+            targetId: grp_id,
+            requestType: "group",
+            status: "pending",
+          },
+        },
+        {
+          $lookup: {
+            from: "users", // Collection name for the user model
+            localField: "user_id",
+            foreignField: "_id",
+            as: "user_details",
+            pipeline: [
+              {
+                $project: {
+                  firstName: 1,
+                  lastName: 1,
+                  email: 1,
+                  profilePicture: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $addFields: {
+            user_id: {
+              $cond: {
+                if: { $gt: [{ $size: "$user_details" }, 0] },
+                then: { $arrayElemAt: ["$user_details", 0] },
+                else: null,
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            user_details: 0, // Remove the temporary field
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $limit: 10 },
+      ]);
 
       return requests.map((req) => ({
         request_id: req._id,
