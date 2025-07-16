@@ -209,13 +209,17 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Congratulations! You have successfully joined ${processString(
-                                  entity_title
-                                )} organisation on AirQo.
+                              Congratulations! You have successfully joined ${
+                                entity_title
+                                  ? processString(entity_title)
+                                  : "the team"
+                              } organisation on AirQo.
                                 <br />
-                                We are pleased to inform you that you can now access ${processString(
+                                We are pleased to inform you that you can now access ${
                                   entity_title
-                                )} data, insights and visualisations on AirQo.
+                                    ? processString(entity_title)
+                                    : "the team"
+                                } data, insights and visualisations on AirQo.
                                 <br />
                                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
