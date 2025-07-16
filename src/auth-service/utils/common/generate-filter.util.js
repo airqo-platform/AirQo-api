@@ -683,9 +683,13 @@ const filter = {
         group_id,
         role_status,
         category,
+        permission_filter,
+        user_id,
+        include_permissions,
       } = { ...params, ...query };
 
       const filter = {};
+      const options = {};
 
       if (id || role_id) {
         filter["_id"] = ObjectId(id || role_id);
@@ -708,7 +712,23 @@ const filter = {
       if (role_status) {
         filter["role_status"] = role_status;
       }
-      return filter;
+
+      // New filtering options
+      if (permission_filter) {
+        options.permission_filter = Array.isArray(permission_filter)
+          ? permission_filter
+          : [permission_filter];
+      }
+
+      if (user_id) {
+        options.user_filter = ObjectId(user_id);
+      }
+
+      if (include_permissions !== undefined) {
+        options.include_permissions = include_permissions === "true";
+      }
+
+      return { filter, options };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1248,6 +1268,179 @@ const filter = {
       }
 
       return filter;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  userRoles: (req, next) => {
+    try {
+      const { query, params } = req;
+      const {
+        user_id,
+        group_id,
+        network_id,
+        role_id,
+        include_all_groups,
+        include_all_networks,
+        permission_filter,
+        role_status,
+      } = { ...query, ...params };
+
+      let filter = {};
+      let options = {};
+
+      // User ID filter
+      if (user_id) {
+        filter["_id"] = ObjectId(user_id);
+      }
+
+      // Group-specific filtering
+      if (group_id) {
+        options.group_filter = ObjectId(group_id);
+        if (!include_all_groups) {
+          // This will be used in the aggregation pipeline
+          options.group_only = true;
+        }
+      }
+
+      // Network-specific filtering
+      if (network_id) {
+        options.network_filter = ObjectId(network_id);
+        if (!include_all_networks) {
+          options.network_only = true;
+        }
+      }
+
+      // Role-specific filtering
+      if (role_id) {
+        options.role_filter = ObjectId(role_id);
+      }
+
+      // Permission-based filtering
+      if (permission_filter) {
+        options.permission_filter = Array.isArray(permission_filter)
+          ? permission_filter
+          : [permission_filter];
+      }
+
+      // Role status filtering
+      if (role_status) {
+        options.role_status_filter = role_status;
+      }
+
+      // Include boolean options
+      if (include_all_groups !== undefined) {
+        options.include_all_groups = include_all_groups === "true";
+      }
+
+      if (include_all_networks !== undefined) {
+        options.include_all_networks = include_all_networks === "true";
+      }
+
+      return { filter, options };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  userPermissions: (req, next) => {
+    try {
+      const { query, params } = req;
+      const {
+        user_id,
+        group_id,
+        network_id,
+        permission_names,
+        check_specific_permissions,
+      } = { ...query, ...params };
+
+      let filter = {};
+      let options = {};
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+
+      if (group_id) {
+        options.group_filter = ObjectId(group_id);
+      }
+
+      if (network_id) {
+        options.network_filter = ObjectId(network_id);
+      }
+
+      // Specific permission names to check
+      if (permission_names) {
+        options.permission_names = Array.isArray(permission_names)
+          ? permission_names
+          : permission_names.split(",").map((p) => p.trim());
+      }
+
+      // Whether to perform specific permission checks
+      if (check_specific_permissions !== undefined) {
+        options.check_specific_permissions =
+          check_specific_permissions === "true";
+      }
+
+      return { filter, options };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  bulkPermissions: (req, next) => {
+    try {
+      const { body, params, query } = req;
+      const { user_id } = params;
+      const { tenant } = query;
+      const { group_ids, network_ids, permissions } = body;
+
+      let filter = {};
+      let options = {};
+
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+
+      if (tenant) {
+        options.tenant = tenant;
+      }
+
+      // Multiple group IDs for bulk checking
+      if (group_ids && Array.isArray(group_ids)) {
+        options.group_ids = group_ids.map((id) => ObjectId(id));
+      }
+
+      // Multiple network IDs for bulk checking
+      if (network_ids && Array.isArray(network_ids)) {
+        options.network_ids = network_ids.map((id) => ObjectId(id));
+      }
+
+      // Specific permissions to check
+      if (permissions && Array.isArray(permissions)) {
+        options.permissions_to_check = permissions;
+      }
+
+      return { filter, options };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(

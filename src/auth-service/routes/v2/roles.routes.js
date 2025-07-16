@@ -229,10 +229,114 @@ router.get(
 
 router.get(
   "/users/:user_id/detailed-roles-permissions",
-  roleValidations.getUserRoles,
+  roleValidations.getUserRolesWithFilters,
   setJWTAuth,
   authJWT,
   createRoleController.getUserRolesAndPermissionsDetailed
+);
+
+router.get(
+  "/users/:user_id/groups/:group_id/permissions",
+  roleValidations.getUserPermissionsForGroup,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserPermissionsForGroup
+);
+
+router.get(
+  "/users/:user_id/permissions/by-group",
+  roleValidations.getUserPermissionsForGroup,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserPermissionsForGroup
+);
+
+router.get(
+  "/me/groups/:group_id/permissions",
+  setJWTAuth,
+  authJWT,
+  (req, res, next) => {
+    req.params.user_id = req.user._id;
+    next();
+  },
+  roleValidations.getUserPermissionsForGroup,
+  createRoleController.getCurrentUserPermissionsForGroup
+);
+
+router.get(
+  "/users/:user_id/groups/:group_id/permissions/simplified",
+  roleValidations.getUserPermissionsForGroup,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getSimplifiedPermissionsForGroup
+);
+
+router.get(
+  "/me/groups/:group_id/permissions/simplified",
+  setJWTAuth,
+  authJWT,
+  (req, res, next) => {
+    req.params.user_id = req.user._id;
+    next();
+  },
+  roleValidations.getUserPermissionsForGroup,
+  createRoleController.getSimplifiedPermissionsForGroup
+);
+
+router.post(
+  "/users/:user_id/permissions/bulk-check",
+  roleValidations.bulkPermissionsCheck,
+  setJWTAuth,
+  authJWT,
+  createRoleController.bulkPermissionsCheck
+);
+
+router.post(
+  "/me/permissions/bulk-check",
+  setJWTAuth,
+  authJWT,
+  (req, res, next) => {
+    req.params.user_id = req.user._id;
+    next();
+  },
+  roleValidations.bulkPermissionsCheck,
+  createRoleController.bulkPermissionsCheck
+);
+
+router.post(
+  "/users/:user_id/permissions/check-actions",
+  roleValidations.checkUserPermissionsForActions,
+  setJWTAuth,
+  authJWT,
+  createRoleController.checkUserPermissionsForActions
+);
+
+router.get(
+  "/users/:user_id/roles/by-group",
+  roleValidations.getUserRolesWithFilters,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserRolesByGroup
+);
+
+router.get(
+  "/users/:user_id/groups/permissions-summary",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  createRoleController.getUserGroupsWithPermissionsSummary
+);
+
+router.get(
+  "/me/groups/permissions-summary",
+  setJWTAuth,
+  authJWT,
+  (req, res, next) => {
+    req.params.user_id = req.user._id;
+    next();
+  },
+  roleValidations.getUserRoles,
+  createRoleController.getUserGroupsWithPermissionsSummary
 );
 
 router.get(
