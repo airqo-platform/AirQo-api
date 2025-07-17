@@ -18,6 +18,7 @@ from dag_docs import (
     airqo_historical_raw_low_cost_measurements_doc,
     stream_old_data_doc,
     re_calibrate_missing_calibrated_data_doc,
+    daily_data_checks_doc,
 )
 from task_docs import (
     extract_raw_airqo_data_doc,
@@ -182,7 +183,7 @@ def airqo_historical_raw_measurements():
     @task()
     def clean_data_raw_data(data: pd.DataFrame):
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOWCOST
+            data=data, device_category=DeviceCategory.LOWCOST, data_type=DataType.RAW
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
@@ -350,7 +351,10 @@ def airqo_realtime_measurements():
     @task()
     def clean_data_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOWCOST
+            data=data,
+            device_category=DeviceCategory.LOWCOST,
+            data_type=DataType.RAW,
+            frequency=Frequency.HOURLY,
         )
 
     @task()
@@ -534,7 +538,7 @@ def airqo_raw_data_measurements():
     )
     def clean_data_raw_data(data: pd.DataFrame):
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.LOWCOST
+            data=data, device_category=DeviceCategory.LOWCOST, data_type=DataType.RAW
         )
 
     @task(
@@ -591,7 +595,7 @@ def airqo_gaseous_realtime_measurements():
     )
     def clean_data_raw_data(data: pd.DataFrame):
         return DataUtils.clean_low_cost_sensor_data(
-            data=data, device_category=DeviceCategory.GAS
+            data=data, device_category=DeviceCategory.GAS, data_type=DataType.RAW
         )
 
     @task(
@@ -728,6 +732,25 @@ def calibrate_missing_measurements():
     send_hourly_measurements_to_api(calibrated_data)
 
 
+@dag(
+    "Run-daily-data-checks",
+    schedule="10 0 * * *",
+    catchup=False,
+    doc_md=daily_data_checks_doc,
+    tags=["2025", "hourly-data", "bigquery"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def run_daily_data_quality_checks():
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def run_checks(**kwargs) -> None:
+        DataUtils.execute_data_quality_checks(
+            DeviceCategory.LOWCOST, DataType.AVERAGED, frequency=Frequency.HOURLY
+        )
+
+    run_checks()
+
+
+run_daily_data_quality_checks()
 airqo_historical_hourly_measurements()
 airqo_realtime_measurements()
 airqo_historical_raw_measurements()
