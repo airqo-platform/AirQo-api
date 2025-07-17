@@ -1,18 +1,21 @@
+from typing import Dict, Any, List
+import os
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
 import great_expectations as gx
 from great_expectations.exceptions import DataContextError
 from great_expectations.data_context.types.base import DataContextConfig
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
-import os
-from pathlib import Path
-import numpy as np
-import pandas as pd
-
 from .airqo_gx_metrics import AirQoGxExpectations
 from .config import configuration
 
-from typing import Dict, Any, List
+import logging
+
+logger = logging.getLogger("airflow.task")
 
 
 class AirQoGx:
@@ -64,6 +67,8 @@ class AirQoGx:
 
         This method builds the data source, retrieves or creates the expectation suite,
         and adds or updates the expectations. It also creates or updates the checkpoint.
+        Notes:
+            - Overide project id from config/env
         """
 
         self.datasource_name = datasource_name
@@ -147,12 +152,16 @@ class AirQoGx:
             expectation_suite = self.context.get_expectation_suite(
                 self.expectation_suite_name
             )
-            print(f"Expectation suite '{self.expectation_suite_name}' already exists.")
+            logger.warning(
+                f"Expectation suite '{self.expectation_suite_name}' already exists."
+            )
         except DataContextError:
             expectation_suite = self.context.add_expectation_suite(
                 self.expectation_suite_name
             )
-            print(f"Created new expectation suite '{self.expectation_suite_name}'.")
+            logger.warning(
+                f"Created new expectation suite '{self.expectation_suite_name}'."
+            )
 
         self.context.save_expectation_suite(expectation_suite=expectation_suite)
 
@@ -198,15 +207,33 @@ class AirQoGx:
 
                         suite.add_expectation(expectation_config)
                 except Exception as e:
-                    print(f"Error adding expectation for {expectation_type}: {e}")
+                    logger.exception(
+                        f"Error adding expectation for {expectation_type}: {e}"
+                    )
             else:
-                print(f"No method found for expectation type: {expectation_type}")
+                logger.warning(
+                    f"No method found for expectation type: {expectation_type}"
+                )
 
         self.context.add_or_update_expectation_suite(expectation_suite=suite)
 
     def build_data_source(self) -> None:
+        """
+        Configure and register the Great Expectations data source based on the
+        specified execution engine (SQL or Pandas).
+
+        Behavior:
+            - For SQL: Uses a BigQuery connection string in the format:
+            `"bigquery://<project_id>"`
+            and disables creation of temporary tables.
+            - For Pandas: Registers a simple in-memory data source.
+
+        Raises:
+            ValueError: If `execution_engine` is neither `"sql"` nor `"pandas"`.
+        """
         match self.execution_engine:
             case "sql":
+                # Seeded with poject id
                 self.data_source = self.context.sources.add_or_update_sql(
                     name=self.datasource_name,
                     connection_string="bigquery://" + self.project,
@@ -224,11 +251,19 @@ class AirQoGx:
         This method builds a batchrequest based on the execution engine (SQL or Pandas),
         and configures a checkpoint in the Great Expectations context.
 
+        Args:
+            data_store: This combines the project name, dataset name and table name. i.e project.dataset
+
         Raises:
             ValueError: If the execution engine is 'pandas' and no DataFrame is provided.
+
+        Notes:
+            When the engine is 'sql', gx extracts the data from biquery. Currently dynamically set to the day before.
         """
 
-        def build_sql_query(data_asset_name: str):
+        def build_sql_query(
+            data_asset_name: str, start_date: str = None, end_date: str = None
+        ):
             """
             Build a SQL query for the given project, dataset, and table. This is currently only configured for BigQuery
 
@@ -238,16 +273,19 @@ class AirQoGx:
             Returns:
                 str: The constructed SQL query.
             """
+            # TODO Make this more dynamic to allow filters
             return f"""
             SELECT *
             FROM `{data_asset_name}`
-            WHERE TIMESTAMP_TRUNC(timestamp, MONTH) = TIMESTAMP(DATE_TRUNC(CURRENT_DATE(), MONTH)) LIMIT 1000
+            WHERE timestamp >= TIMESTAMP(DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY), DAY)) AND timestamp < TIMESTAMP(CURRENT_DATE())
             """
 
         if self.execution_engine == "sql":
             query = build_sql_query(self.data_asset_name)
 
-            self.data_source.add_query_asset(name=self.data_asset_name, query=query)
+            self.data_source.add_query_asset(
+                name=self.data_asset_name, query=query, order_by=["timestamp"]
+            )
             data_asset = self.context.get_datasource(self.datasource_name).get_asset(
                 self.data_asset_name
             )
@@ -276,68 +314,145 @@ class AirQoGx:
         }
 
         self.context.add_or_update_checkpoint(**checkpoint_config)
-        print(f"Checkpoint '{self.checkpoint_name}' created or updated.")
+        logger.info(f"Checkpoint '{self.checkpoint_name}' created or updated.")
 
     def run(self):
         """
         Returns a dictionary of expectations, their results and meta data if any.
         """
         results = self.context.run_checkpoint(self.checkpoint_name)
-        # Uncomment in local environment to open docs.
-        self.context.build_data_docs(site_names=["local_site"])
-        self.context.open_data_docs()
+        # Uncomment in local environment to build data docs.
+        # self.context.build_data_docs(site_names=["local_site"])
+        # Uncomment in local environment to open data docs.
+        # self.context.open_data_docs()
         return results
 
     def store_results_in_bigquery(
         self, validation_results: List[Dict[str, Any]]
     ) -> None:
         """
-        Store the extracted validation results into BigQuery.
+        Store Great Expectations validation results into a BigQuery table.
+
+        This function ensures that the target BigQuery table exists (creates it if missing), and then inserts the given validation results as rows.
+
+        Each row represents the outcome of a single expectation within a validation run.
 
         Args:
             validation_results (list of dict): List of validation results to store.
-            table_id (str): The BigQuery table ID where results will be stored.
+            table_id (str): The BigQuery table ID where results will be stored. # Passed in constructor
+
+        Raises:
+            google.cloud.exceptions.GoogleCloudError: If BigQuery operations fail (e.g., missing permissions).
         """
         client = bigquery.Client()
         table_id = self.data_checks_table
         # Define the schema for the BigQuery table
         schema = [
-            bigquery.SchemaField("run_name", "STRING"),
-            bigquery.SchemaField("run_time", "TIMESTAMP"),
-            bigquery.SchemaField("run_result", "BOOLEAN"),
-            bigquery.SchemaField("data_source", "STRING"),
-            bigquery.SchemaField("data_asset", "STRING"),
-            bigquery.SchemaField("column_name", "STRING"),
-            bigquery.SchemaField("checkpoint_name", "STRING"),
-            bigquery.SchemaField("expectation_suite", "STRING"),
-            bigquery.SchemaField("expectation_type", "STRING"),
-            bigquery.SchemaField("expectation_result", "BOOLEAN"),
-            bigquery.SchemaField("raised_exception", "BOOLEAN"),
-            bigquery.SchemaField("sample_space", "FLOAT"),
-            bigquery.SchemaField("unexpected_count", "FLOAT"),
-            bigquery.SchemaField("unexpected_percentage", "FLOAT"),
-            bigquery.SchemaField("partial_unexpected_list", "STRING"),
-            bigquery.SchemaField("missing_count", "FLOAT"),
-            bigquery.SchemaField("missing_percent", "FLOAT"),
-            bigquery.SchemaField("unexpected_percent_total", "FLOAT"),
-            bigquery.SchemaField("unexpected_percent_nonmissing", "FLOAT"),
-            bigquery.SchemaField("partial_unexpected_counts", "STRING"),
+            bigquery.SchemaField(
+                "run_name", "STRING", description="Logical name of the validation run"
+            ),
+            bigquery.SchemaField(
+                "run_time",
+                "TIMESTAMP",
+                description="UTC timestamp of validation execution",
+            ),
+            bigquery.SchemaField(
+                "run_result", "BOOLEAN", description="Overall checkpoint success"
+            ),  # success = 100% else failure
+            bigquery.SchemaField(
+                "data_source",
+                "STRING",
+                description="Connection string / data source URI",
+            ),
+            bigquery.SchemaField(
+                "data_asset", "STRING", description="Target table/view for validation"
+            ),
+            bigquery.SchemaField(
+                "column_name", "STRING", description="Column validated (if applicable)"
+            ),
+            bigquery.SchemaField(
+                "checkpoint_name", "STRING", description="GX checkpoint name"
+            ),
+            bigquery.SchemaField(
+                "expectation_suite", "STRING", description="GX expectation suite name"
+            ),
+            bigquery.SchemaField(
+                "expectation_type", "STRING", description="GX expectation type"
+            ),
+            bigquery.SchemaField(
+                "expectation_result",
+                "BOOLEAN",
+                description="Pass/Fail for this expectation",
+            ),
+            bigquery.SchemaField(
+                "raised_exception",
+                "BOOLEAN",
+                description="Whether GX raised an exception",
+            ),
+            bigquery.SchemaField(
+                "sample_space",
+                "FLOAT",
+                description="Number of rows considered in validation",
+            ),
+            bigquery.SchemaField(
+                "unexpected_count",
+                "FLOAT",
+                description="Number of rows violating expectation",
+            ),
+            bigquery.SchemaField(
+                "unexpected_percentage",
+                "FLOAT",
+                description="Percentage of violating rows",
+            ),
+            bigquery.SchemaField(
+                "partial_unexpected_list",
+                "STRING",
+                description="Sample unexpected values",
+            ),
+            bigquery.SchemaField(
+                "missing_count", "FLOAT", description="Number of missing values"
+            ),
+            bigquery.SchemaField(
+                "missing_percent", "FLOAT", description="Percentage of missing values"
+            ),
+            bigquery.SchemaField(
+                "unexpected_percent_total",
+                "FLOAT",
+                description="Unexpected % of all rows",
+            ),
+            bigquery.SchemaField(
+                "unexpected_percent_nonmissing",
+                "FLOAT",
+                description="Unexpected % of non-null rows",
+            ),
+            bigquery.SchemaField(
+                "partial_unexpected_counts",
+                "STRING",
+                description="Sample unexpected values + counts",
+            ),
         ]
 
         try:
             client.get_table(table_id)
-            print(f"Table {table_id} already exists.")
+            logger.info(f"Table {table_id} already exists.")
         except NotFound:
-            print(f"Table {table_id} not found. Creating table.")
+            logger.exception(f"Table {table_id} not found. Creating table.")
             table = bigquery.Table(table_id, schema=schema)
             client.create_table(table)
-            print(f"Table {table_id} created.")
+            logger.info(f"Table didn't exist. Table with id {table_id} created.")
 
         errors = client.insert_rows_json(
             table_id, validation_results, row_ids=[None] * len(validation_results)
         )
+
         if errors:
-            print(f"Encountered errors while inserting rows: {errors}")
+            logger.error(
+                f"Encountered errors while inserting validation rows: {errors}"
+            )
+        else:
+            logger.info(
+                f"Successfully inserted {len(validation_results)} validation rows into {table_id}."
+            )
 
     def digest_validation_results(
         self, validation_result: Dict[str, Any]
