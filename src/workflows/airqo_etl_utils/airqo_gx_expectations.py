@@ -60,9 +60,13 @@ class AirQoGxExpectations:
             execution_engine="pandas",
         )
 
-    def gaseous_low_cost_sensor_raw_data_check(self, data: pandas.DataFrame) -> None:
+    def gaseous_low_cost_sensor_raw_data_check(
+        self,
+        data: pandas.DataFrame,
+        data_asset_name: str = "gaseous_low_cost_sensor_raw_data_gas",
+    ) -> None:
         """
-        Sets up expectations for the gaseous low cost sensors.
+        Sets up expectations for the gaseous low cost sensors raw data.
         """
         expectations = {
             "expect_column_values_to_not_be_null": [
@@ -85,40 +89,155 @@ class AirQoGxExpectations:
             ],
         }
         self.expectations = expectations
-        self.expectation_suite_name = "gaseous_low_cost_sensor_raw_data"
-        self.data_asset_name = "gaseous_low_cost_sensor_raw_data"
+        self.expectation_suite_name = "gaseous_low_cost_sensor_raw_data_gas"
+        self.data_asset_name = data_asset_name
+        self.checkpoint_name = "low_cost_raw_data_gas"
+        self.execution_engine = self.execution_engine
+        self.dataframe = data
+        self.run_checks()
+
+    def gaseous_low_cost_sensor_averaged_data_check(
+        self,
+        data: pandas.DataFrame,
+        data_asset_name: str = "gaseous_low_cost_sensor_averaged_data_gas",
+    ) -> None:
+        """
+        Sets up expectations for the gaseous low cost sensors averaged data.
+        """
+        expectations = {
+            "expect_column_values_to_not_be_null": [
+                "co2",
+                "hcho",
+                "tvoc",
+                "timestamp",
+                "battery",
+                "intakehumidity",
+                "intaketemperature",
+                "device_number",
+                "device_id",
+            ],
+            "expect_column_values_to_be_between": [
+                {"co2": {"min_value": 400, "max_value": 3000}},
+                {"tvoc": {"min_value": 0, "max_value": 10}},
+                {"hcho": {"min_value": 0, "max_value": 1500}},
+                {"intakehumidity": {"min_value": 0, "max_value": 99}},
+                {"intaketemperature": {"min_value": 0, "max_value": 45}},
+            ],
+        }
+        self.expectations = expectations
+        self.expectation_suite_name = "gaseous_low_cost_sensor_averaged_data_gas"
+        self.data_asset_name = data_asset_name
+        self.checkpoint_name = "low_cost_averaged_data_gas"
+        self.execution_engine = self.execution_engine
+        self.dataframe = data
+        self.run_checks()
+
+    def pm2_5_low_cost_sensor_raw_data(
+        self,
+        data: pandas.DataFrame,
+        data_asset_name: str = "pm2_5_low_cost_sensor_raw_data",
+    ) -> None:
+        """
+        Sets up expectations for the pm2.5 and pm10 low cost sensors raw data.
+        """
+        expectations = {
+            "expect_column_values_to_not_be_null": [
+                "s1_pm2_5",
+                "s2_pm2_5",
+                "s1_pm10",
+                "s2_pm10",
+                "timestamp",
+                "device_id",
+            ],
+            "expect_column_values_to_be_between": [
+                {"pm2_5": {"min_value": 0, "max_value": 1000}},
+                {"pm10": {"min_value": 0, "max_value": 1000}},
+            ],
+        }
+        self.expectations = expectations
+        self.expectation_suite_name = "pm2_5_low_cost_sensor_raw_data"
+        self.data_asset_name = data_asset_name
         self.checkpoint_name = "low_cost_raw_data"
         self.execution_engine = self.execution_engine
         self.dataframe = data
         self.run_checks()
 
-    def pm2_5_low_cost_sensor_raw_data(self, data: pandas.DataFrame) -> None:
+    def pm2_5_low_cost_sensor_average_data(
+        self,
+        data: pandas.DataFrame,
+        data_asset_name: str = "pm2_5_low_cost_sensor_averaged_data",
+    ) -> None:
         """
-        Sets up expectations for the pm2.5 low cost sensors.
+        Sets up expectations for the pm2.5 and pm10 low cost sensors averaged data.
         """
         expectations = {
             "expect_column_values_to_not_be_null": [
                 "pm2_5",
                 "pm10",
-                "temperature",
                 "timestamp",
-                "pressure",
-                "humidity",
-                "device_number",
                 "device_id",
             ],
             "expect_column_values_to_be_between": [
-                {"pm2_5": {"min_value": 1, "max_value": 1000}},
-                {"pm10": {"min_value": 1, "max_value": 1000}},
-                {"temperature": {"min_value": 0, "max_value": 45}},
-                {"pressure": {"min_value": 30, "max_value": 110}},
-                {"humidity": {"min_value": 0, "max_value": 99}},
+                {"pm2_5": {"min_value": 0, "max_value": 1000}},
+                {"pm10": {"min_value": 0, "max_value": 1000}},
             ],
         }
         self.expectations = expectations
-        self.expectation_suite_name = "pm2_5_low_cost_sensor_raw_data"
-        self.data_asset_name = "pm2_5_low_cost_sensor_raw_data"
-        self.checkpoint_name = "low_cost_raw_data"
+        self.expectation_suite_name = "pm2_5_low_cost_sensor_averaged_data"
+        self.data_asset_name = data_asset_name
+        self.checkpoint_name = "low_cost_averaged_data"
+        self.execution_engine = self.execution_engine
+        self.dataframe = data
+        self.run_checks()
+
+    def bam_sensors_raw_data(
+        self, data: pandas.DataFrame, data_asset_name: str = "bam_sensor_raw_data"
+    ) -> None:
+        """
+        Sets up expectations for the pm2.5 and pm10 bam sensors raw data.
+        """
+        expectations = {
+            "expect_column_values_to_not_be_null": [
+                "pm2_5",
+                "pm10",
+                "timestamp",
+                "device_id",
+            ],
+            "expect_column_values_to_be_between": [
+                {"pm2_5": {"min_value": 0, "max_value": 1000}},
+                {"pm10": {"min_value": 0, "max_value": 1000}},
+            ],
+        }
+        self.expectations = expectations
+        self.expectation_suite_name = "bam_sensor_raw_data"
+        self.data_asset_name = data_asset_name
+        self.checkpoint_name = "bam_raw_data"
+        self.execution_engine = self.execution_engine
+        self.dataframe = data
+        self.run_checks()
+
+    def bam_sensors_averaged_data(
+        self, data: pandas.DataFrame, data_asset_name: str = "bam_sensor_averaged_data"
+    ) -> None:
+        """
+        Sets up expectations for the pm2.5 and pm10 bam sensors averaged data.
+        """
+        expectations = {
+            "expect_column_values_to_not_be_null": [
+                "pm2_5",
+                "pm10",
+                "timestamp",
+                "device_id",
+            ],
+            "expect_column_values_to_be_between": [
+                {"pm2_5": {"min_value": 0, "max_value": 1000}},
+                {"pm10": {"min_value": 0, "max_value": 1000}},
+            ],
+        }
+        self.expectations = expectations
+        self.expectation_suite_name = "bam_sensor_averaged_data"
+        self.data_asset_name = data_asset_name
+        self.checkpoint_name = "bam_averaged_data"
         self.execution_engine = self.execution_engine
         self.dataframe = data
         self.run_checks()
