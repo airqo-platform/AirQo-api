@@ -6,19 +6,47 @@ const { isMongoId } = require("validator");
 
 const themeValidations = {
   theme: [
+    body("theme")
+      .exists()
+      .withMessage("Theme object is required")
+      .bail()
+      .isObject()
+      .withMessage("Theme must be an object")
+      .bail()
+      .custom((value) => {
+        // Validate theme object has at least one valid property
+        const validProperties = [
+          "primaryColor",
+          "mode",
+          "interfaceStyle",
+          "contentLayout",
+        ];
+        const hasValidProperty = validProperties.some((prop) =>
+          value.hasOwnProperty(prop)
+        );
+        if (!hasValidProperty) {
+          throw new Error(
+            "Theme must contain at least one valid property: primaryColor, mode, interfaceStyle, or contentLayout"
+          );
+        }
+        return true;
+      }),
     body("theme.primaryColor")
       .optional()
       .isString()
       .withMessage("Primary color must be a string")
+      .bail()
       .custom((value) => {
         const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
         const cssColorRegex =
           /^(red|blue|green|yellow|purple|orange|pink|cyan|magenta|black|white|gray|grey|brown)$/i;
-        return hexColorRegex.test(value) || cssColorRegex.test(value);
-      })
-      .withMessage(
-        "Invalid color format. Use hex (#RRGGBB) or CSS color names"
-      ),
+        if (!hexColorRegex.test(value) && !cssColorRegex.test(value)) {
+          throw new Error(
+            "Invalid color format. Use hex (#RRGGBB) or CSS color names"
+          );
+        }
+        return true;
+      }),
     body("theme.mode")
       .optional()
       .isIn(["light", "dark", "system"])
@@ -31,6 +59,65 @@ const themeValidations = {
       .optional()
       .isIn(["compact", "wide"])
       .withMessage("Content layout must be one of: compact, wide"),
+  ],
+};
+
+const enhancedIdValidations = {
+  userId: [
+    param("user_id")
+      .exists()
+      .withMessage("User ID is required")
+      .bail()
+      .isMongoId()
+      .withMessage("User ID must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+  groupId: [
+    param("group_id")
+      .exists()
+      .withMessage("Group ID is required")
+      .bail()
+      .isMongoId()
+      .withMessage("Group ID must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+  networkId: [
+    param("network_id")
+      .exists()
+      .withMessage("Network ID is required")
+      .bail()
+      .isMongoId()
+      .withMessage("Network ID must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+  optionalGroupId: [
+    query("group_id")
+      .optional()
+      .isMongoId()
+      .withMessage("Group ID must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+  optionalNetworkId: [
+    query("network_id")
+      .optional()
+      .isMongoId()
+      .withMessage("Network ID must be a valid MongoDB ObjectId")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ],
 };
 
@@ -1115,70 +1202,111 @@ const preferenceValidations = {
       .withMessage("Invalid Chart ID"),
   ],
 
-  getUserTheme: [
+  // ===========================================
+  // INDIVIDUAL USER THEME VALIDATIONS
+  // ===========================================
+
+  // Personal theme validations
+  getUserPersonalTheme: [
     ...commonValidations.tenant,
-    param("user_id")
-      .exists()
-      .withMessage("User ID is required")
-      .isMongoId()
-      .withMessage("Invalid User ID"),
+    ...enhancedIdValidations.userId,
   ],
 
-  updateUserTheme: [
+  updateUserPersonalTheme: [
     ...commonValidations.tenant,
-    param("user_id")
-      .exists()
-      .withMessage("User ID is required")
-      .isMongoId()
-      .withMessage("Invalid User ID"),
-    body("theme")
-      .exists()
-      .withMessage("Theme object is required")
-      .isObject()
-      .withMessage("Theme must be an object"),
+    ...enhancedIdValidations.userId,
     ...themeValidations.theme,
   ],
 
-  getOrganizationTheme: [
+  // User group theme validations
+  getUserGroupTheme: [
     ...commonValidations.tenant,
-    param("group_id")
-      .exists()
-      .withMessage("Group ID is required")
-      .isMongoId()
-      .withMessage("Invalid Group ID"),
+    ...enhancedIdValidations.userId,
+    ...enhancedIdValidations.groupId,
   ],
 
-  updateOrganizationTheme: [
+  updateUserGroupTheme: [
     ...commonValidations.tenant,
-    param("group_id")
-      .exists()
-      .withMessage("Group ID is required")
-      .isMongoId()
-      .withMessage("Invalid Group ID"),
-    body("theme")
-      .exists()
-      .withMessage("Theme object is required")
-      .isObject()
-      .withMessage("Theme must be an object"),
+    ...enhancedIdValidations.userId,
+    ...enhancedIdValidations.groupId,
     ...themeValidations.theme,
   ],
+
+  // User default group theme validations (no group_id param)
+  getUserDefaultGroupTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.userId,
+  ],
+
+  updateUserDefaultGroupTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.userId,
+    ...themeValidations.theme,
+  ],
+
+  // User network theme validations
+  getUserNetworkTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.userId,
+    ...enhancedIdValidations.networkId,
+  ],
+
+  updateUserNetworkTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.userId,
+    ...enhancedIdValidations.networkId,
+    ...themeValidations.theme,
+  ],
+
+  // User default network theme validations (no network_id param)
+  getUserDefaultNetworkTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.userId,
+  ],
+
+  updateUserDefaultNetworkTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.userId,
+    ...themeValidations.theme,
+  ],
+
+  // ===========================================
+  // ORGANIZATION THEME VALIDATIONS
+  // ===========================================
+
+  // Group theme validations
+  getGroupTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.groupId,
+  ],
+
+  updateGroupTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.groupId,
+    ...themeValidations.theme,
+  ],
+
+  // Network theme validations
+  getNetworkTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.networkId,
+  ],
+
+  updateNetworkTheme: [
+    ...commonValidations.tenant,
+    ...enhancedIdValidations.networkId,
+    ...themeValidations.theme,
+  ],
+
+  // ===========================================
+  // EFFECTIVE THEME VALIDATION
+  // ===========================================
 
   getEffectiveTheme: [
     ...commonValidations.tenant,
-    param("user_id")
-      .exists()
-      .withMessage("User ID is required")
-      .bail()
-      .isMongoId()
-      .withMessage("Invalid User ID"),
-    query("group_id")
-      .optional()
-      .isMongoId()
-      .withMessage("Group ID must be a valid MongoDB ObjectId")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    ...enhancedIdValidations.userId,
+    ...enhancedIdValidations.optionalGroupId,
+    ...enhancedIdValidations.optionalNetworkId,
   ],
 };
 
