@@ -56,7 +56,7 @@ def data_export_task():
     celery_logger.info("Data export periodic task running")
 
     data_export_model = DataExportModel()
-    events_model = EventsModel()
+    events_model = EventsModel("airqo")
     pending_requests = data_export_model.get_scheduled_and_failed_requests()
 
     if len(pending_requests) == 0:

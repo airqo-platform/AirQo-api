@@ -20,8 +20,8 @@ Data Destinations:
 stream_old_data_doc = """
 ### Stream-Old-Data ETL
 #### Purpose
-Streams old/historical measurements from biqquery to the events api. 
-This flow can be updated depending on type of data to stream. 
+Streams old/historical measurements from biqquery to the events api.
+This flow can be updated depending on type of data to stream.
 Ensure to manually apply start and end dates for the data required.
 #### Notes
 Data sources:
@@ -34,9 +34,9 @@ Data Destinations:
 re_calibrate_missing_calibrated_data_doc = """
 ### Calibrate-missing-calibrated-data ETL
 #### Purpose
-Re-calibrates old/historical measurements from biqquery. 
-1. This pipeline checks for missing calibrated data in the averaged data. 
-2. Checks if raw data is avalible 
+Re-calibrates old/historical measurements from biqquery.
+1. This pipeline checks for missing calibrated data in the averaged data.
+2. Checks if raw data is avalible
 #### Notes
 Data sources:
 - Bigquery(prod):averaged_data.merged_uncalibrated_data
@@ -174,5 +174,18 @@ Data sources:
 - BigQuery: daily_device_measurements
 Data Destinations:
 - BigQuery: daily_device_measurements
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""
+
+daily_data_checks_doc = """
+### AirQo daily data quality checks
+#### Purpose
+Run daily data checks and store data in bigquery
+#### Notes
+
+Data sources:
+- BigQuery: hourly device measurements
+Data Destinations:
+- BigQuery: data quality tables (staging/production)
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
