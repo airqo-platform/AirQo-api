@@ -22,7 +22,7 @@ const themeValidations = {
           "contentLayout",
         ];
         const hasValidProperty = validProperties.some((prop) =>
-          value.hasOwnProperty(prop)
+          Object.hasOwn(value, prop)
         );
         if (!hasValidProperty) {
           throw new Error(
