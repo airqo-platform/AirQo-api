@@ -399,8 +399,21 @@ class RBACMigrationUtility {
           { network_roles: { $exists: true, $ne: [] } },
         ],
       })
-      .populate("group_roles.group")
       .lean();
+
+    // Pre-fetch all groups and roles to reduce database queries
+    const allGroups = await GroupModel(this.tenant).find({}).lean();
+    const allRoles = await RoleModel(this.tenant).find({}).lean();
+
+    // Create lookup maps for better performance
+    const groupMap = new Map(allGroups.map((g) => [g._id.toString(), g]));
+    const roleMap = new Map();
+
+    // Create role lookup by group and role name
+    allRoles.forEach((role) => {
+      const key = `${role.group_id}_${role.role_name}`;
+      roleMap.set(key, role);
+    });
 
     for (const user of users) {
       try {
@@ -413,17 +426,30 @@ class RBACMigrationUtility {
 
           for (const groupRole of user.group_roles) {
             if (!groupRole.role || groupRole.role === null) {
-              // Assign default role
-              const defaultRole = await this.getDefaultGroupRole(
-                groupRole.group
-              );
-              if (defaultRole) {
-                updatedGroupRoles.push({
-                  ...groupRole,
-                  role: defaultRole._id,
-                  userType: groupRole.userType || "guest",
-                });
-                needsUpdate = true;
+              // Get group from our pre-fetched map
+              const group = groupMap.get(groupRole.group.toString());
+              if (group) {
+                const organizationName = group.grp_title.toUpperCase();
+                const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
+                const roleKey = `${groupRole.group}_${defaultRoleName}`;
+                const defaultRole = roleMap.get(roleKey);
+
+                if (defaultRole) {
+                  updatedGroupRoles.push({
+                    ...groupRole,
+                    role: defaultRole._id,
+                    userType: groupRole.userType || "guest",
+                  });
+                  needsUpdate = true;
+                } else {
+                  logger.warn(
+                    `Default role not found for group: ${group.grp_title}`
+                  );
+                  updatedGroupRoles.push(groupRole);
+                }
+              } else {
+                logger.warn(`Group not found for ID: ${groupRole.group}`);
+                updatedGroupRoles.push(groupRole);
               }
             } else {
               updatedGroupRoles.push(groupRole);
@@ -438,6 +464,8 @@ class RBACMigrationUtility {
         // Process network roles (similar logic for when NetworkModel is available)
         if (user.network_roles && user.network_roles.length > 0) {
           // Add network role migration logic here when NetworkModel is ready
+          // For now, we'll just preserve existing network roles
+          updates.network_roles = user.network_roles;
         }
 
         if (needsUpdate && !dryRun) {
@@ -464,22 +492,38 @@ class RBACMigrationUtility {
 
   /**
    * Get default role for a group
-   * @param {string} groupId - Group ID
+   * @param {string|ObjectId} groupId - Group ID
    * @returns {Promise<Object|null>} Default role or null
    */
   async getDefaultGroupRole(groupId) {
-    const group = await GroupModel(this.tenant).findById(groupId).lean();
-    if (!group) return null;
+    try {
+      const group = await GroupModel(this.tenant).findById(groupId).lean();
+      if (!group) {
+        logger.warn(`Group not found for ID: ${groupId}`);
+        return null;
+      }
 
-    const organizationName = group.grp_title.toUpperCase();
-    const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
+      const organizationName = group.grp_title.toUpperCase();
+      const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
 
-    return await RoleModel(this.tenant)
-      .findOne({
-        role_name: defaultRoleName,
-        group_id: groupId,
-      })
-      .lean();
+      const defaultRole = await RoleModel(this.tenant)
+        .findOne({
+          role_name: defaultRoleName,
+          group_id: groupId,
+        })
+        .lean();
+
+      if (!defaultRole) {
+        logger.warn(`Default role not found for group: ${group.grp_title}`);
+      }
+
+      return defaultRole;
+    } catch (error) {
+      logger.error(
+        `Error getting default group role for ${groupId}: ${error.message}`
+      );
+      return null;
+    }
   }
 
   /**

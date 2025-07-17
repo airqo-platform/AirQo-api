@@ -1,6 +1,7 @@
 const PreferenceModel = require("@models/Preference");
 const UserModel = require("@models/User");
 const GroupModel = require("@models/Group");
+const NetworkModel = require("@models/Network");
 const SelectedSiteModel = require("@models/SelectedSite");
 const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
@@ -1113,49 +1114,35 @@ const preferences = {
       };
     }
   },
-  getTheme: async (request, next) => {
+
+  // ===========================================
+  // INDIVIDUAL USER THEME UTILITIES
+  // ===========================================
+
+  // Personal theme (stored in User model)
+  getUserPersonalTheme: async (request, next) => {
     try {
-      const { user_id, group_id } = request.params;
+      const { user_id } = request.params;
       const { tenant } = request.query;
 
-      // First, try to get user's personal theme
-      if (user_id) {
-        const user = await UserModel(tenant).findById(user_id).select("theme");
-        if (user && user.theme) {
-          return {
-            success: true,
-            data: user.theme,
-            message: "User theme retrieved successfully",
-            status: httpStatus.OK,
-          };
-        }
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("theme firstName lastName email");
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
       }
 
-      // If no user theme or user_id not provided, check for organization theme
-      if (group_id) {
-        const group = await GroupModel(tenant)
-          .findById(group_id)
-          .select("theme");
-        if (group && group.theme) {
-          return {
-            success: true,
-            data: group.theme,
-            message: "Organization theme retrieved successfully",
-            status: httpStatus.OK,
-          };
-        }
-      }
-
-      // Return default theme if no theme found
       return {
         success: true,
-        data: {
-          primaryColor: "#1976d2",
-          mode: "light",
-          interfaceStyle: "default",
-          contentLayout: "wide",
-        },
-        message: "Default theme returned",
+        data: user.theme || getDefaultTheme(),
+        source: user.theme ? "user_personal" : "default",
+        message: user.theme
+          ? "Personal theme retrieved successfully"
+          : "No personal theme set, returning default",
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1170,7 +1157,7 @@ const preferences = {
     }
   },
 
-  updateUserTheme: async (request, next) => {
+  updateUserPersonalTheme: async (request, next) => {
     try {
       const { body, params, query } = request;
       const { user_id } = params;
@@ -1187,7 +1174,16 @@ const preferences = {
         );
       }
 
-      // Update user theme
+      // Validate theme object
+      if (!theme || typeof theme !== "object") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Valid theme object is required",
+          })
+        );
+      }
+
+      // Update user personal theme
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
         user_id,
         { theme },
@@ -1197,7 +1193,7 @@ const preferences = {
       return {
         success: true,
         data: updatedUser.theme,
-        message: "User theme updated successfully",
+        message: "Personal theme updated successfully",
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1212,24 +1208,383 @@ const preferences = {
     }
   },
 
-  updateOrganizationTheme: async (request, next) => {
+  // User theme within group context (stored in Preference model)
+  getUserGroupTheme: async (request, next) => {
+    try {
+      const { user_id, group_id } = request.params;
+      const { tenant } = request.query;
+
+      // Validate user exists and belongs to group
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("group_roles");
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if user belongs to the group
+      const userBelongsToGroup =
+        user.group_roles &&
+        user.group_roles.some(
+          (role) => role.group && role.group.toString() === group_id.toString()
+        );
+
+      if (!userBelongsToGroup) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "User does not belong to this group",
+          })
+        );
+      }
+
+      // Look for preference with this user_id and group_id
+      const preference = await PreferenceModel(tenant)
+        .findOne({
+          user_id: user_id,
+          group_id: group_id,
+        })
+        .select("theme");
+
+      return {
+        success: true,
+        data: preference?.theme || getDefaultTheme(),
+        source: preference?.theme ? "user_group_context" : "default",
+        message: preference?.theme
+          ? "Group-scoped theme retrieved successfully"
+          : "No group-scoped theme set, returning default",
+        groupId: group_id,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserGroupTheme: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { user_id, group_id } = params;
+      const { tenant } = query;
+      const { theme } = body;
+
+      // Validate user exists and belongs to group
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("group_roles");
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if user belongs to the group
+      const userBelongsToGroup =
+        user.group_roles &&
+        user.group_roles.some(
+          (role) => role.group && role.group.toString() === group_id.toString()
+        );
+
+      if (!userBelongsToGroup) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "User does not belong to this group",
+          })
+        );
+      }
+
+      // Validate theme object
+      if (!theme || typeof theme !== "object") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Valid theme object is required",
+          })
+        );
+      }
+
+      // Update or create preference with group-scoped theme
+      const preference = await PreferenceModel(tenant).findOneAndUpdate(
+        { user_id: user_id, group_id: group_id },
+        { theme, user_id, group_id },
+        { new: true, upsert: true, runValidators: true }
+      );
+
+      return {
+        success: true,
+        data: preference.theme,
+        message: "Group-scoped theme updated successfully",
+        groupId: group_id,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // User theme within network context
+  getUserNetworkTheme: async (request, next) => {
+    try {
+      const { user_id, network_id } = request.params;
+      const { tenant } = request.query;
+
+      // Validate user exists and belongs to network
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("network_roles");
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if user belongs to the network
+      const userBelongsToNetwork =
+        user.network_roles &&
+        user.network_roles.some(
+          (role) =>
+            role.network && role.network.toString() === network_id.toString()
+        );
+
+      if (!userBelongsToNetwork) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "User does not belong to this network",
+          })
+        );
+      }
+
+      // Look for preference with this user_id and network in network_ids
+      const preference = await PreferenceModel(tenant)
+        .findOne({
+          user_id: user_id,
+          network_ids: { $in: [network_id] },
+        })
+        .select("theme");
+
+      return {
+        success: true,
+        data: preference?.theme || getDefaultTheme(),
+        source: preference?.theme ? "user_network_context" : "default",
+        message: preference?.theme
+          ? "Network-scoped theme retrieved successfully"
+          : "No network-scoped theme set, returning default",
+        networkId: network_id,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserNetworkTheme: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { user_id, network_id } = params;
+      const { tenant } = query;
+      const { theme } = body;
+
+      // Validate user exists and belongs to network
+      const user = await UserModel(tenant)
+        .findById(user_id)
+        .select("network_roles");
+      if (!user) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+      }
+
+      // Check if user belongs to the network
+      const userBelongsToNetwork =
+        user.network_roles &&
+        user.network_roles.some(
+          (role) =>
+            role.network && role.network.toString() === network_id.toString()
+        );
+
+      if (!userBelongsToNetwork) {
+        return next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "User does not belong to this network",
+          })
+        );
+      }
+
+      // Validate theme object
+      if (!theme || typeof theme !== "object") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Valid theme object is required",
+          })
+        );
+      }
+
+      // Update or create preference with network-scoped theme
+      const preference = await PreferenceModel(tenant).findOneAndUpdate(
+        { user_id: user_id, network_ids: { $in: [network_id] } },
+        {
+          theme,
+          user_id,
+          $addToSet: { network_ids: network_id },
+        },
+        { new: true, upsert: true, runValidators: true }
+      );
+
+      return {
+        success: true,
+        data: preference.theme,
+        message: "Network-scoped theme updated successfully",
+        networkId: network_id,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // ===========================================
+  // ORGANIZATION THEME UTILITIES
+  // ===========================================
+
+  getGroupTheme: async (request, next) => {
+    try {
+      const { group_id } = request.params;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant)
+        .findById(group_id)
+        .select("theme grp_title");
+      if (!group) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Group not found",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        data: group.theme || getDefaultTheme(),
+        source: group.theme ? "group_organization" : "default",
+        message: group.theme
+          ? "Group theme retrieved successfully"
+          : "No group theme set, returning default",
+        groupId: group._id,
+        groupTitle: group.grp_title,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateGroupTheme: async (request, next) => {
     try {
       const { body, params, query } = request;
       const { group_id } = params;
       const { tenant } = query;
       const { theme } = body;
+      const userId = request.user ? request.user._id : null;
 
       // Validate group exists
       const group = await GroupModel(tenant).findById(group_id);
       if (!group) {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Organization not found",
+            message: "Group not found",
           })
         );
       }
 
-      // Update organization theme
+      // If user context is available, validate user belongs to the group and has appropriate permissions
+      if (userId) {
+        const user = await UserModel(tenant)
+          .findById(userId)
+          .select("group_roles");
+        if (user) {
+          const userGroupRole =
+            user.group_roles &&
+            user.group_roles.find(
+              (role) =>
+                role.group && role.group.toString() === group_id.toString()
+            );
+
+          if (!userGroupRole) {
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message:
+                  "User does not belong to this group and cannot update its theme",
+              })
+            );
+          }
+
+          // Check if user has admin privileges (optional additional check)
+          const isAdmin =
+            userGroupRole.userType === "admin" ||
+            userGroupRole.userType === "super_admin";
+          if (!isAdmin) {
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message: "Only group administrators can update group themes",
+              })
+            );
+          }
+        }
+      }
+
+      // Validate theme object
+      if (!theme || typeof theme !== "object") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Valid theme object is required",
+          })
+        );
+      }
+
+      // Update group theme
       const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
         group_id,
         { theme },
@@ -1239,7 +1594,9 @@ const preferences = {
       return {
         success: true,
         data: updatedGroup.theme,
-        message: "Organization theme updated successfully",
+        message: "Group theme updated successfully",
+        groupId: updatedGroup._id,
+        groupTitle: updatedGroup.grp_title,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1254,15 +1611,145 @@ const preferences = {
     }
   },
 
+  getNetworkTheme: async (request, next) => {
+    try {
+      const { network_id } = request.params;
+      const { tenant } = request.query;
+
+      const network = await NetworkModel(tenant)
+        .findById(network_id)
+        .select("theme net_name");
+      if (!network) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
+      }
+
+      return {
+        success: true,
+        data: network.theme || getDefaultTheme(),
+        source: network.theme ? "network_organization" : "default",
+        message: network.theme
+          ? "Network theme retrieved successfully"
+          : "No network theme set, returning default",
+        networkId: network._id,
+        networkName: network.net_name,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateNetworkTheme: async (request, next) => {
+    try {
+      const { body, params, query } = request;
+      const { network_id } = params;
+      const { tenant } = query;
+      const { theme } = body;
+      const userId = request.user ? request.user._id : null;
+
+      // Validate network exists
+      const network = await NetworkModel(tenant).findById(network_id);
+      if (!network) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
+      }
+
+      // If user context is available, validate user belongs to the network and has appropriate permissions
+      if (userId) {
+        const user = await UserModel(tenant)
+          .findById(userId)
+          .select("network_roles");
+        if (user) {
+          const userNetworkRole =
+            user.network_roles &&
+            user.network_roles.find(
+              (role) =>
+                role.network &&
+                role.network.toString() === network_id.toString()
+            );
+
+          if (!userNetworkRole) {
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message:
+                  "User does not belong to this network and cannot update its theme",
+              })
+            );
+          }
+
+          // Check if user has admin privileges (optional additional check)
+          const isAdmin =
+            userNetworkRole.userType === "admin" ||
+            userNetworkRole.userType === "super_admin";
+          if (!isAdmin) {
+            return next(
+              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+                message:
+                  "Only network administrators can update network themes",
+              })
+            );
+          }
+        }
+      }
+
+      // Validate theme object
+      if (!theme || typeof theme !== "object") {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Valid theme object is required",
+          })
+        );
+      }
+
+      // Update network theme
+      const updatedNetwork = await NetworkModel(tenant).findByIdAndUpdate(
+        network_id,
+        { theme },
+        { new: true, runValidators: true }
+      );
+
+      return {
+        success: true,
+        data: updatedNetwork.theme,
+        message: "Network theme updated successfully",
+        networkId: updatedNetwork._id,
+        networkName: updatedNetwork.net_name,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getEffectiveTheme: async (request, next) => {
     try {
       const { user_id } = request.params;
-      const { tenant, group_id } = request.query;
+      const { tenant, group_id, network_id } = request.query;
 
-      // Get user with their group roles
+      // Get user with their group roles and network associations
       const user = await UserModel(tenant)
         .findById(user_id)
-        .select("theme group_roles")
+        .select("theme group_roles network_roles")
         .lean();
 
       if (!user) {
@@ -1273,110 +1760,255 @@ const preferences = {
         );
       }
 
-      // If user has a theme set, return it (user theme always takes precedence)
+      // 1. User personal theme (highest priority)
       if (hasValidTheme(user.theme)) {
         return {
           success: true,
           data: mergeWithDefaults(user.theme),
-          source: "user",
-          message: "User theme retrieved successfully",
+          source: "user_personal",
+          message: "User personal theme retrieved successfully",
           status: httpStatus.OK,
         };
       }
 
-      // Handle organization theme based on group_id parameter
+      // 2. User group-scoped theme (if group_id provided and user belongs to group)
       if (group_id) {
-        // When group_id is explicitly provided, we need to be strict about validation
+        // Validate user belongs to the specified group
+        const userBelongsToGroup =
+          user.group_roles &&
+          user.group_roles.some(
+            (role) =>
+              role.group && role.group.toString() === group_id.toString()
+          );
 
-        // First, check if the group exists in the database
+        if (!userBelongsToGroup) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: "User does not belong to the specified group",
+            })
+          );
+        }
+
+        // Check for user's group-scoped theme
+        const userGroupPreference = await PreferenceModel(tenant)
+          .findOne({
+            user_id: user_id,
+            group_id: group_id,
+          })
+          .select("theme")
+          .lean();
+
+        if (userGroupPreference && hasValidTheme(userGroupPreference.theme)) {
+          return {
+            success: true,
+            data: mergeWithDefaults(userGroupPreference.theme),
+            source: "user_group_context",
+            groupId: group_id,
+            message: "User group-scoped theme retrieved successfully",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      // 3. User network-scoped theme (if network_id provided and user belongs to network)
+      if (network_id) {
+        // Validate user belongs to the specified network
+        const userBelongsToNetwork =
+          user.network_roles &&
+          user.network_roles.some(
+            (role) =>
+              role.network && role.network.toString() === network_id.toString()
+          );
+
+        if (!userBelongsToNetwork) {
+          return next(
+            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+              message: "User does not belong to the specified network",
+            })
+          );
+        }
+
+        // Check for user's network-scoped theme
+        const userNetworkPreference = await PreferenceModel(tenant)
+          .findOne({
+            user_id: user_id,
+            network_ids: { $in: [network_id] },
+          })
+          .select("theme")
+          .lean();
+
+        if (
+          userNetworkPreference &&
+          hasValidTheme(userNetworkPreference.theme)
+        ) {
+          return {
+            success: true,
+            data: mergeWithDefaults(userNetworkPreference.theme),
+            source: "user_network_context",
+            networkId: network_id,
+            message: "User network-scoped theme retrieved successfully",
+            status: httpStatus.OK,
+          };
+        }
+      }
+
+      // 4. Group organization theme (if group_id provided and user belongs to group)
+      if (group_id) {
         const groupExists = await GroupModel(tenant)
           .findById(group_id)
           .select("_id grp_title theme")
           .lean();
 
-        if (!groupExists) {
-          return next(
-            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-              message: `Group with ID ${group_id} does not exist`,
-            })
-          );
-        }
-
-        // Check if user belongs to this specific group
-        const userBelongsToGroup = user.group_roles.some(
-          (role) => role.group.toString() === group_id.toString()
-        );
-
-        if (!userBelongsToGroup) {
-          return next(
-            new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-              message: `User does not belong to group: ${groupExists.grp_title} (${group_id})`,
-            })
-          );
-        }
-
-        // User belongs to the group, get the group's theme
-        if (hasValidTheme(groupExists.theme)) {
+        if (groupExists && hasValidTheme(groupExists.theme)) {
           return {
             success: true,
             data: mergeWithDefaults(groupExists.theme),
-            source: "organization",
+            source: "group_organization",
             groupId: groupExists._id,
             groupTitle: groupExists.grp_title,
-            message: `Organization theme retrieved successfully for group: ${groupExists.grp_title}`,
-            status: httpStatus.OK,
-          };
-        } else {
-          // Group exists, user belongs to it, but group has no theme set
-          return {
-            success: true,
-            data: getDefaultTheme(),
-            source: "default",
-            reason: "group_has_no_theme",
-            groupId: groupExists._id,
-            groupTitle: groupExists.grp_title,
-            message: `Group '${groupExists.grp_title}' has no theme configured. Using default theme.`,
+            message: `Group organization theme retrieved successfully for group: ${groupExists.grp_title}`,
             status: httpStatus.OK,
           };
         }
       }
 
-      // No group_id provided - use existing logic for primary group
-      if (user.group_roles && user.group_roles.length > 0) {
-        // Get the primary organization (first one)
-        const primaryGroupRole = user.group_roles[0];
-        const group = await GroupModel(tenant)
-          .findById(primaryGroupRole.group)
-          .select("theme grp_title")
+      // 5. Network organization theme (if network_id provided and user belongs to network)
+      if (network_id) {
+        const networkExists = await NetworkModel(tenant)
+          .findById(network_id)
+          .select("_id net_name theme")
           .lean();
 
-        if (group && hasValidTheme(group.theme)) {
+        if (networkExists && hasValidTheme(networkExists.theme)) {
           return {
             success: true,
-            data: mergeWithDefaults(group.theme),
-            source: "organization",
-            groupId: group._id,
-            groupTitle: group.grp_title,
-            message:
-              "Organization theme retrieved successfully from primary group",
+            data: mergeWithDefaults(networkExists.theme),
+            source: "network_organization",
+            networkId: networkExists._id,
+            networkName: networkExists.net_name,
+            message: `Network organization theme retrieved successfully for network: ${networkExists.net_name}`,
             status: httpStatus.OK,
           };
         }
       }
 
-      // Return default theme - only when no group_id specified and no primary group theme
+      // 6. User's primary group theme (no specific group_id provided)
+      if (!group_id && user.group_roles && user.group_roles.length > 0) {
+        // Get the primary group (first one or default group)
+        let primaryGroupRole =
+          user.group_roles.find(
+            (role) =>
+              role.group && role.group.toString() === constants.DEFAULT_GROUP
+          ) || user.group_roles[0];
+
+        if (primaryGroupRole) {
+          // Check for user's primary group-scoped theme first
+          const userPrimaryGroupPreference = await PreferenceModel(tenant)
+            .findOne({
+              user_id: user_id,
+              group_id: primaryGroupRole.group,
+            })
+            .select("theme")
+            .lean();
+
+          if (
+            userPrimaryGroupPreference &&
+            hasValidTheme(userPrimaryGroupPreference.theme)
+          ) {
+            return {
+              success: true,
+              data: mergeWithDefaults(userPrimaryGroupPreference.theme),
+              source: "user_primary_group_context",
+              groupId: primaryGroupRole.group,
+              message: "User primary group-scoped theme retrieved successfully",
+              status: httpStatus.OK,
+            };
+          }
+
+          // Then check for primary group organization theme
+          const primaryGroup = await GroupModel(tenant)
+            .findById(primaryGroupRole.group)
+            .select("theme grp_title")
+            .lean();
+
+          if (primaryGroup && hasValidTheme(primaryGroup.theme)) {
+            return {
+              success: true,
+              data: mergeWithDefaults(primaryGroup.theme),
+              source: "primary_group_organization",
+              groupId: primaryGroup._id,
+              groupTitle: primaryGroup.grp_title,
+              message:
+                "Primary group organization theme retrieved successfully",
+              status: httpStatus.OK,
+            };
+          }
+        }
+      }
+
+      // 7. User's primary network theme (no specific network_id provided)
+      if (!network_id && user.network_roles && user.network_roles.length > 0) {
+        // Get the primary network (first one or default network)
+        let primaryNetworkRole =
+          user.network_roles.find(
+            (role) =>
+              role.network &&
+              role.network.toString() === constants.DEFAULT_NETWORK
+          ) || user.network_roles[0];
+
+        if (primaryNetworkRole) {
+          // Check for user's primary network-scoped theme first
+          const userPrimaryNetworkPreference = await PreferenceModel(tenant)
+            .findOne({
+              user_id: user_id,
+              network_ids: { $in: [primaryNetworkRole.network] },
+            })
+            .select("theme")
+            .lean();
+
+          if (
+            userPrimaryNetworkPreference &&
+            hasValidTheme(userPrimaryNetworkPreference.theme)
+          ) {
+            return {
+              success: true,
+              data: mergeWithDefaults(userPrimaryNetworkPreference.theme),
+              source: "user_primary_network_context",
+              networkId: primaryNetworkRole.network,
+              message:
+                "User primary network-scoped theme retrieved successfully",
+              status: httpStatus.OK,
+            };
+          }
+
+          // Then check for primary network organization theme
+          const primaryNetwork = await NetworkModel(tenant)
+            .findById(primaryNetworkRole.network)
+            .select("theme net_name")
+            .lean();
+
+          if (primaryNetwork && hasValidTheme(primaryNetwork.theme)) {
+            return {
+              success: true,
+              data: mergeWithDefaults(primaryNetwork.theme),
+              source: "primary_network_organization",
+              networkId: primaryNetwork._id,
+              networkName: primaryNetwork.net_name,
+              message:
+                "Primary network organization theme retrieved successfully",
+              status: httpStatus.OK,
+            };
+          }
+        }
+      }
+
+      // 8. Default theme (lowest priority)
       return {
         success: true,
         data: getDefaultTheme(),
         source: "default",
-        reason:
-          user.group_roles && user.group_roles.length > 0
-            ? "no_group_theme"
-            : "no_groups",
-        message:
-          user.group_roles && user.group_roles.length > 0
-            ? "No organization theme configured. Using default theme."
-            : "User not assigned to any groups. Using default theme.",
+        reason: "no_themes_configured",
+        message: "No themes configured at any level. Using default theme.",
         status: httpStatus.OK,
       };
     } catch (error) {

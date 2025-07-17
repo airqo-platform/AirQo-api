@@ -870,7 +870,13 @@ const preferences = {
       );
     }
   },
-  getTheme: async (req, res, next) => {
+
+  // ===========================================
+  // INDIVIDUAL USER THEME CONTROLLERS
+  // ===========================================
+
+  // Personal theme (stored in User model)
+  getUserPersonalTheme: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -886,11 +892,8 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await preferenceUtil.getTheme(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+      const result = await preferenceUtil.getUserPersonalTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
 
       const status = result.status || httpStatus.OK;
       res.status(status).json({
@@ -910,7 +913,7 @@ const preferences = {
     }
   },
 
-  updateUserTheme: async (req, res, next) => {
+  updateUserPersonalTheme: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
       if (errors) {
@@ -926,54 +929,11 @@ const preferences = {
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await preferenceUtil.updateUserTheme(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      const status = result.status || httpStatus.OK;
-      res.status(status).json({
-        success: result.success,
-        message: result.message,
-        data: result.data,
-      });
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-
-  updateOrganizationTheme: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await preferenceUtil.updateOrganizationTheme(
+      const result = await preferenceUtil.updateUserPersonalTheme(
         request,
         next
       );
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+      if (isEmpty(result) || res.headersSent) return;
 
       const status = result.status || httpStatus.OK;
       res.status(status).json({
@@ -993,6 +953,469 @@ const preferences = {
     }
   },
 
+  // User theme within group context
+  getUserGroupTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.getUserGroupTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserGroupTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.updateUserGroupTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // User theme with default group
+  getUserDefaultGroupTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Set default group ID
+      request.params.group_id = constants.DEFAULT_GROUP;
+
+      const result = await preferenceUtil.getUserGroupTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserDefaultGroupTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Set default group ID
+      request.params.group_id = constants.DEFAULT_GROUP;
+
+      const result = await preferenceUtil.updateUserGroupTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // User theme within network context
+  getUserNetworkTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.getUserNetworkTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserNetworkTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.updateUserNetworkTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // User theme with default network
+  getUserDefaultNetworkTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Set default network ID
+      request.params.network_id = constants.DEFAULT_NETWORK;
+
+      const result = await preferenceUtil.getUserNetworkTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateUserDefaultNetworkTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Set default network ID
+      request.params.network_id = constants.DEFAULT_NETWORK;
+
+      const result = await preferenceUtil.updateUserNetworkTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  // ===========================================
+  // ORGANIZATION THEME CONTROLLERS
+  // ===========================================
+
+  getGroupTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.getGroupTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateGroupTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.updateGroupTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getNetworkTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.getNetworkTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  updateNetworkTheme: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await preferenceUtil.updateNetworkTheme(request, next);
+      if (isEmpty(result) || res.headersSent) return;
+
+      const status = result.status || httpStatus.OK;
+      res.status(status).json({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   getEffectiveTheme: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -1010,10 +1433,7 @@ const preferences = {
         : req.query.tenant;
 
       const result = await preferenceUtil.getEffectiveTheme(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+      if (isEmpty(result) || res.headersSent) return;
 
       const status = result.status || httpStatus.OK;
       res.status(status).json({
@@ -1021,6 +1441,11 @@ const preferences = {
         message: result.message,
         data: result.data,
         source: result.source,
+        groupId: result.groupId,
+        networkId: result.networkId,
+        groupTitle: result.groupTitle,
+        networkName: result.networkName,
+        reason: result.reason,
       });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

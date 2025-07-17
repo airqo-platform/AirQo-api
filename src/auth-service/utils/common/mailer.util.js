@@ -428,7 +428,7 @@ const getEmailSubject = (functionName, params) => {
       params.entity_title || ""
     )} Team`,
     afterAcceptingInvitation: `Welcome to ${
-      params.entity_title || "the team"
+      params.entity_title ? processString(params.entity_title) : "the team"
     }!`,
     user: "Welcome to Your AirQo Account",
     assign: "Welcome to Your New Group/Network at Your AirQo Account",

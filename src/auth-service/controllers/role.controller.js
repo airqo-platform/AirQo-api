@@ -693,6 +693,135 @@ const roleController = {
     }
   },
 
+  getUserPermissionsForGroup: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.getUserPermissionsForGroup(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "group_permissions",
+        successMessage: "Successfully retrieved user permissions for group",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  bulkPermissionsCheck: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.bulkPermissionsCheck(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "bulk_permissions_check",
+        successMessage: "Successfully completed bulk permissions check",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  getSimplifiedPermissionsForGroup: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.getSimplifiedPermissionsForGroup(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "simplified_permissions",
+        successMessage: "Successfully retrieved simplified permissions",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  checkUserPermissionsForActions: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.checkUserPermissionsForActions(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "permission_checks",
+        successMessage: "Successfully checked user permissions for actions",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  getUserRolesByGroup: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.getUserRolesByGroup(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "filtered_user_roles",
+        successMessage: "Successfully retrieved user roles for group",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  getUserGroupsWithPermissionsSummary: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result =
+        await rolePermissionsUtil.getUserGroupsWithPermissionsSummary(
+          request,
+          next
+        );
+      handleStandardResponse(res, result, {
+        successKey: "groups_permissions_summary",
+        successMessage:
+          "Successfully retrieved groups with permissions summary",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
+  // Enhanced method for current user permissions (convenience)
+  getCurrentUserPermissionsForGroup: async (req, res, next) => {
+    try {
+      const request = validateAndSetupRequest(req, next);
+      if (!request) return;
+
+      const result = await rolePermissionsUtil.getUserPermissionsForGroup(
+        request,
+        next
+      );
+      handleStandardResponse(res, result, {
+        successKey: "my_group_permissions",
+        successMessage: "Successfully retrieved your permissions for group",
+      });
+    } catch (error) {
+      handleStandardError(error, next);
+    }
+  },
+
   getUserRolesAndPermissionsViaRBAC: async (req, res, next) => {
     try {
       const request = validateAndSetupRequest(req, next);

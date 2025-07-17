@@ -1,8 +1,8 @@
-// services/rbac.service.js - Complete Enhanced RBAC Service
 const RoleModel = require("@models/Role");
 const PermissionModel = require("@models/Permission");
 const UserModel = require("@models/User");
 const GroupModel = require("@models/Group");
+const NetworkModel = require("@models/Network");
 const constants = require("@config/constants");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- rbac-service`
@@ -40,6 +40,210 @@ class RBACService {
     logger.debug(`RBAC Service destroyed for tenant: ${this.tenant}`);
   }
 
+  // Helper methods for batch data fetching
+  getUserModel() {
+    return UserModel(this.tenant);
+  }
+
+  getGroupModel() {
+    return GroupModel(this.tenant);
+  }
+
+  getNetworkModel() {
+    return NetworkModel(this.tenant);
+  }
+
+  getRoleModel() {
+    return RoleModel(this.tenant);
+  }
+
+  getPermissionModel() {
+    return PermissionModel(this.tenant);
+  }
+
+  /**
+   * Batch populate role permissions for multiple roles
+   */
+  async _batchPopulateRolePermissions(roleIds) {
+    if (!roleIds || roleIds.length === 0) return new Map();
+
+    try {
+      const uniqueRoleIds = [...new Set(roleIds.filter(Boolean))];
+
+      if (uniqueRoleIds.length === 0) return new Map();
+
+      // Batch fetch all roles
+      const roles = await this.getRoleModel()
+        .find({ _id: { $in: uniqueRoleIds } })
+        .lean();
+
+      // Collect all permission IDs from all roles
+      const allPermissionIds = roles.flatMap(
+        (role) => role.role_permissions || []
+      );
+      const uniquePermissionIds = [
+        ...new Set(allPermissionIds.filter(Boolean)),
+      ];
+
+      // Batch fetch all permissions
+      const permissions =
+        uniquePermissionIds.length > 0
+          ? await this.getPermissionModel()
+              .find({ _id: { $in: uniquePermissionIds } })
+              .select("permission description")
+              .lean()
+          : [];
+
+      // Create permission lookup map
+      const permissionsMap = new Map(
+        permissions.map((p) => [p._id.toString(), p])
+      );
+
+      // Create roles map with populated permissions
+      const rolesMap = new Map();
+      roles.forEach((role) => {
+        const populatedRole = { ...role };
+        if (role.role_permissions && role.role_permissions.length > 0) {
+          populatedRole.role_permissions = role.role_permissions
+            .map((permId) => permissionsMap.get(permId.toString()))
+            .filter(Boolean);
+        }
+        rolesMap.set(role._id.toString(), populatedRole);
+      });
+
+      return rolesMap;
+    } catch (error) {
+      logger.error(`Error batch populating role permissions: ${error.message}`);
+      return new Map();
+    }
+  }
+
+  /**
+   * Batch populate group data
+   */
+  async _batchPopulateGroups(groupIds) {
+    if (!groupIds || groupIds.length === 0) return new Map();
+
+    try {
+      const uniqueGroupIds = [...new Set(groupIds.filter(Boolean))];
+
+      if (uniqueGroupIds.length === 0) return new Map();
+
+      const groups = await this.getGroupModel()
+        .find({ _id: { $in: uniqueGroupIds } })
+        .select("grp_title grp_status grp_manager organization_slug")
+        .lean();
+
+      return new Map(groups.map((g) => [g._id.toString(), g]));
+    } catch (error) {
+      logger.error(`Error batch populating groups: ${error.message}`);
+      return new Map();
+    }
+  }
+
+  /**
+   * Batch populate network data
+   */
+  async _batchPopulateNetworks(networkIds) {
+    if (!networkIds || networkIds.length === 0) return new Map();
+
+    try {
+      const uniqueNetworkIds = [...new Set(networkIds.filter(Boolean))];
+
+      if (uniqueNetworkIds.length === 0) return new Map();
+
+      const networks = await this.getNetworkModel()
+        .find({ _id: { $in: uniqueNetworkIds } })
+        .select("net_name net_status net_manager net_acronym")
+        .lean();
+
+      return new Map(networks.map((n) => [n._id.toString(), n]));
+    } catch (error) {
+      logger.error(`Error batch populating networks: ${error.message}`);
+      return new Map();
+    }
+  }
+
+  /**
+   * Populate user role data with optimized batch fetching
+   */
+  async _populateUserRoleData(user) {
+    if (!user) return user;
+
+    try {
+      const populatedUser = { ...user };
+
+      // Extract all IDs for batch querying
+      const groupRoleIds = (user.group_roles || [])
+        .map((gr) => gr.role)
+        .filter(Boolean);
+      const networkRoleIds = (user.network_roles || [])
+        .map((nr) => nr.role)
+        .filter(Boolean);
+      const groupIds = (user.group_roles || [])
+        .map((gr) => gr.group)
+        .filter(Boolean);
+      const networkIds = (user.network_roles || [])
+        .map((nr) => nr.network)
+        .filter(Boolean);
+
+      // Batch fetch all required data in parallel
+      const [rolesMap, groupsMap, networksMap] = await Promise.all([
+        this._batchPopulateRolePermissions([
+          ...groupRoleIds,
+          ...networkRoleIds,
+        ]),
+        this._batchPopulateGroups(groupIds),
+        this._batchPopulateNetworks(networkIds),
+      ]);
+
+      // Populate group roles
+      if (user.group_roles && user.group_roles.length > 0) {
+        populatedUser.group_roles = user.group_roles.map((groupRole) => {
+          const populatedGroupRole = { ...groupRole };
+
+          if (groupRole.role) {
+            populatedGroupRole.role =
+              rolesMap.get(groupRole.role.toString()) || null;
+          }
+
+          if (groupRole.group) {
+            populatedGroupRole.group = groupsMap.get(
+              groupRole.group.toString()
+            ) || { _id: groupRole.group };
+          }
+
+          return populatedGroupRole;
+        });
+      }
+
+      // Populate network roles
+      if (user.network_roles && user.network_roles.length > 0) {
+        populatedUser.network_roles = user.network_roles.map((networkRole) => {
+          const populatedNetworkRole = { ...networkRole };
+
+          if (networkRole.role) {
+            populatedNetworkRole.role =
+              rolesMap.get(networkRole.role.toString()) || null;
+          }
+
+          if (networkRole.network) {
+            populatedNetworkRole.network = networksMap.get(
+              networkRole.network.toString()
+            ) || { _id: networkRole.network };
+          }
+
+          return populatedNetworkRole;
+        });
+      }
+
+      return populatedUser;
+    } catch (error) {
+      logger.error(`Error populating user role data: ${error.message}`);
+      return user;
+    }
+  }
+
   /**
    * Check if user is a system-wide super admin (AirQo super admin)
    * These users can access ANY group/network regardless of membership
@@ -63,19 +267,19 @@ class RBACService {
         }
       }
 
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate("group_roles.role", "role_name role_code role_permissions")
-        .populate("network_roles.role", "role_name role_code role_permissions")
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         logger.warn(`User ${userId} not found for system super admin check`);
         return false;
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       // Check for AirQo super admin role specifically
-      const hasAirQoSuperAdmin = this.hasAirQoSuperAdminRole(user);
+      const hasAirQoSuperAdmin = this.hasAirQoSuperAdminRole(populatedUser);
       if (hasAirQoSuperAdmin) {
         logger.info(`User ${userId} has AirQo super admin role`);
         this.userCache.set(cacheKey, true);
@@ -115,12 +319,8 @@ class RBACService {
       const hasAirQoSuper = user.group_roles.some((groupRole) => {
         if (!groupRole.role) return false;
 
-        const roleName =
-          typeof groupRole.role === "object"
-            ? groupRole.role.role_name
-            : groupRole.role;
-        const roleCode =
-          typeof groupRole.role === "object" ? groupRole.role.role_code : null;
+        const roleName = groupRole.role.role_name;
+        const roleCode = groupRole.role.role_code;
 
         if (!roleName) return false;
 
@@ -149,14 +349,8 @@ class RBACService {
       const hasAirQoSuper = user.network_roles.some((networkRole) => {
         if (!networkRole.role) return false;
 
-        const roleName =
-          typeof networkRole.role === "object"
-            ? networkRole.role.role_name
-            : networkRole.role;
-        const roleCode =
-          typeof networkRole.role === "object"
-            ? networkRole.role.role_code
-            : null;
+        const roleName = networkRole.role.role_name;
+        const roleCode = networkRole.role.role_code;
 
         if (!roleName) return false;
 
@@ -240,34 +434,22 @@ class RBACService {
         }
       }
 
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         logger.warn(`User ${userId} not found`);
         return [];
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       const permissions = new Set();
 
       // Get permissions from group roles
-      if (user.group_roles && user.group_roles.length > 0) {
-        user.group_roles.forEach((groupRole) => {
+      if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
+        populatedUser.group_roles.forEach((groupRole) => {
           if (groupRole.role && groupRole.role.role_permissions) {
             groupRole.role.role_permissions.forEach((permission) => {
               if (permission.permission) {
@@ -279,8 +461,11 @@ class RBACService {
       }
 
       // Get permissions from network roles
-      if (user.network_roles && user.network_roles.length > 0) {
-        user.network_roles.forEach((networkRole) => {
+      if (
+        populatedUser.network_roles &&
+        populatedUser.network_roles.length > 0
+      ) {
+        populatedUser.network_roles.forEach((networkRole) => {
           if (networkRole.role && networkRole.role.role_permissions) {
             networkRole.role.role_permissions.forEach((permission) => {
               if (permission.permission) {
@@ -292,8 +477,8 @@ class RBACService {
       }
 
       // Check for super admin (has all permissions)
-      const isSuperAdmin = this.isSuperAdmin(user);
-      const isSystemSuperAdmin = this.hasAirQoSuperAdminRole(user);
+      const isSuperAdmin = this.isSuperAdmin(populatedUser);
+      const isSystemSuperAdmin = this.hasAirQoSuperAdminRole(populatedUser);
 
       if (isSuperAdmin || isSystemSuperAdmin) {
         const allPermissions = await this.getAllSystemPermissions();
@@ -355,32 +540,29 @@ class RBACService {
         return allPermissions;
       }
 
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate({
-          path: `${contextType}_roles.role`,
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         logger.warn(`User ${userId} not found for context permissions`);
         return [];
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       const permissions = new Set();
       const contextRoles =
-        contextType === "group" ? user.group_roles : user.network_roles;
+        contextType === "group"
+          ? populatedUser.group_roles
+          : populatedUser.network_roles;
 
       if (contextRoles && contextRoles.length > 0) {
         contextRoles.forEach((roleAssignment) => {
           const roleContextId =
             contextType === "group"
-              ? roleAssignment.group
-              : roleAssignment.network;
+              ? roleAssignment.group?._id || roleAssignment.group
+              : roleAssignment.network?._id || roleAssignment.network;
 
           if (
             roleContextId &&
@@ -527,27 +709,29 @@ class RBACService {
         return true;
       }
 
-      // Continue with normal role checking
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate(`${contextType}_roles.role`, "role_name role_code")
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         logger.warn(`User ${userId} not found for role check`);
         return false;
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       const userRoles = [];
       const contextRoles =
-        contextType === "group" ? user.group_roles : user.network_roles;
+        contextType === "group"
+          ? populatedUser.group_roles
+          : populatedUser.network_roles;
 
       if (contextRoles && contextRoles.length > 0) {
         contextRoles.forEach((roleAssignment) => {
           const roleContextId =
             contextType === "group"
-              ? roleAssignment.group
-              : roleAssignment.network;
+              ? roleAssignment.group?._id || roleAssignment.group
+              : roleAssignment.network?._id || roleAssignment.network;
 
           // If contextId is specified, only check roles in that context
           if (
@@ -610,7 +794,7 @@ class RBACService {
       }
 
       // Normal membership check
-      const user = await UserModel(this.tenant).findById(userId).lean();
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user || !user.group_roles) {
         logger.debug(`User ${userId} not found or has no group roles`);
@@ -652,7 +836,7 @@ class RBACService {
       }
 
       // Normal membership check
-      const user = await UserModel(this.tenant).findById(userId).lean();
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user || !user.network_roles) {
         logger.debug(`User ${userId} not found or has no network roles`);
@@ -694,7 +878,7 @@ class RBACService {
         return true;
       }
 
-      const group = await GroupModel(this.tenant).findById(groupId).lean();
+      const group = await this.getGroupModel().findById(groupId).lean();
 
       if (!group) {
         logger.warn(`Group ${groupId} not found for manager check`);
@@ -734,10 +918,7 @@ class RBACService {
     if (user.group_roles && user.group_roles.length > 0) {
       const hasGroupSuperAdminRole = user.group_roles.some((groupRole) => {
         if (!groupRole.role) return false;
-        const roleName =
-          typeof groupRole.role === "object"
-            ? groupRole.role.role_name
-            : groupRole.role;
+        const roleName = groupRole.role.role_name;
         return (
           roleName &&
           (roleName.includes("SUPER_ADMIN") ||
@@ -753,10 +934,7 @@ class RBACService {
       const hasNetworkSuperAdminRole = user.network_roles.some(
         (networkRole) => {
           if (!networkRole.role) return false;
-          const roleName =
-            typeof networkRole.role === "object"
-              ? networkRole.role.role_name
-              : networkRole.role;
+          const roleName = networkRole.role.role_name;
           return (
             roleName &&
             (roleName.includes("SUPER_ADMIN") ||
@@ -789,25 +967,28 @@ class RBACService {
         return true;
       }
 
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate(`${contextType}_roles.role`, "role_name role_code")
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         logger.warn(`User ${userId} not found for context super admin check`);
         return false;
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       const contextRoles =
-        contextType === "group" ? user.group_roles : user.network_roles;
+        contextType === "group"
+          ? populatedUser.group_roles
+          : populatedUser.network_roles;
 
       if (contextRoles && contextRoles.length > 0) {
         const isSuperInContext = contextRoles.some((roleAssignment) => {
           const roleContextId =
             contextType === "group"
-              ? roleAssignment.group
-              : roleAssignment.network;
+              ? roleAssignment.group?._id || roleAssignment.group
+              : roleAssignment.network?._id || roleAssignment.network;
 
           if (
             roleContextId &&
@@ -904,7 +1085,7 @@ class RBACService {
         return this.systemPermissionsCache.permissions;
       }
 
-      const permissions = await PermissionModel(this.tenant)
+      const permissions = await this.getPermissionModel()
         .find({})
         .select("permission")
         .lean();
@@ -934,25 +1115,28 @@ class RBACService {
    */
   async getUserRolesInContext(userId, contextId, contextType = "group") {
     try {
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate(`${contextType}_roles.role`)
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         return [];
       }
 
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
       const contextRoles =
-        contextType === "group" ? user.group_roles : user.network_roles;
+        contextType === "group"
+          ? populatedUser.group_roles
+          : populatedUser.network_roles;
       const rolesInContext = [];
 
       if (contextRoles && contextRoles.length > 0) {
         contextRoles.forEach((roleAssignment) => {
           const roleContextId =
             contextType === "group"
-              ? roleAssignment.group
-              : roleAssignment.network;
+              ? roleAssignment.group?._id || roleAssignment.group
+              : roleAssignment.network?._id || roleAssignment.network;
 
           if (
             roleContextId &&
@@ -1010,11 +1194,7 @@ class RBACService {
     try {
       const [globalPermissions, user] = await Promise.all([
         this.getUserPermissions(userId),
-        UserModel(this.tenant)
-          .findById(userId)
-          .populate("group_roles.role group_roles.group")
-          .populate("network_roles.role network_roles.network")
-          .lean(),
+        this.getUserModel().findById(userId).lean(),
       ]);
 
       const result = {
@@ -1025,9 +1205,12 @@ class RBACService {
       };
 
       if (user) {
+        // Manually populate the user data
+        const populatedUser = await this._populateUserRoleData(user);
+
         // Group permissions by context
-        if (user.group_roles) {
-          for (const groupRole of user.group_roles) {
+        if (populatedUser.group_roles) {
+          for (const groupRole of populatedUser.group_roles) {
             if (groupRole.group && groupRole.group._id) {
               const groupPerms = await this.getUserPermissionsInContext(
                 userId,
@@ -1049,8 +1232,8 @@ class RBACService {
         }
 
         // Network permissions by context
-        if (user.network_roles) {
-          for (const networkRole of user.network_roles) {
+        if (populatedUser.network_roles) {
+          for (const networkRole of populatedUser.network_roles) {
             if (networkRole.network && networkRole.network._id) {
               const networkPerms = await this.getUserPermissionsInContext(
                 userId,
@@ -1084,247 +1267,7 @@ class RBACService {
     }
   }
 
-  /**
-   * Clear all cache
-   */
-  clearCache() {
-    this.permissionCache.clear();
-    this.roleCache.clear();
-    this.userCache.clear();
-    this.cacheExpiry.clear();
-    this.systemPermissionsCache = null;
-    logger.info("RBAC cache cleared completely");
-  }
-
-  /**
-   * Clear cache for a specific user
-   * @param {string} userId - User ID to clear cache for
-   */
-  clearUserCache(userId) {
-    if (!userId) {
-      logger.warn("clearUserCache called without userId");
-      return;
-    }
-
-    const userIdStr = userId.toString();
-    let clearedCount = 0;
-
-    // Clear entries that match this user ID
-    for (const [key] of this.permissionCache) {
-      if (key.includes(userIdStr)) {
-        this.permissionCache.delete(key);
-        this.cacheExpiry.delete(key);
-        clearedCount++;
-      }
-    }
-
-    for (const [key] of this.roleCache) {
-      if (key.includes(userIdStr)) {
-        this.roleCache.delete(key);
-        this.cacheExpiry.delete(key);
-        clearedCount++;
-      }
-    }
-
-    for (const [key] of this.userCache) {
-      if (key.includes(userIdStr)) {
-        this.userCache.delete(key);
-        this.cacheExpiry.delete(key);
-        clearedCount++;
-      }
-    }
-
-    logger.info(
-      `RBAC cache cleared for user: ${userIdStr} (${clearedCount} entries)`
-    );
-  }
-
-  /**
-   * Clear cache for all users in a specific group
-   * @param {string} groupId - Group ID to clear cache for
-   */
-  async clearGroupCache(groupId) {
-    if (!groupId) {
-      logger.warn("clearGroupCache called without groupId");
-      return;
-    }
-
-    try {
-      // Get all users in the group
-      const groupUsers = await UserModel(this.tenant)
-        .find({ "group_roles.group": groupId })
-        .select("_id")
-        .lean();
-
-      // Clear cache for each user in the group
-      groupUsers.forEach((user) => {
-        this.clearUserCache(user._id);
-      });
-
-      logger.info(
-        `RBAC cache cleared for group: ${groupId} (${groupUsers.length} users affected)`
-      );
-    } catch (error) {
-      logger.error(
-        `Error clearing group cache for ${groupId}: ${error.message}`
-      );
-    }
-  }
-
-  /**
-   * Clear cache for all users in a specific network
-   * @param {string} networkId - Network ID to clear cache for
-   */
-  async clearNetworkCache(networkId) {
-    if (!networkId) {
-      logger.warn("clearNetworkCache called without networkId");
-      return;
-    }
-
-    try {
-      // Get all users in the network
-      const networkUsers = await UserModel(this.tenant)
-        .find({ "network_roles.network": networkId })
-        .select("_id")
-        .lean();
-
-      // Clear cache for each user in the network
-      networkUsers.forEach((user) => {
-        this.clearUserCache(user._id);
-      });
-
-      logger.info(
-        `RBAC cache cleared for network: ${networkId} (${networkUsers.length} users affected)`
-      );
-    } catch (error) {
-      logger.error(
-        `Error clearing network cache for ${networkId}: ${error.message}`
-      );
-    }
-  }
-
-  /**
-   * Clear cache for a specific permission
-   * @param {string} permission - Permission to clear cache for
-   */
-  clearPermissionCache(permission) {
-    if (!permission) {
-      logger.warn("clearPermissionCache called without permission");
-      return;
-    }
-
-    let clearedCount = 0;
-    const normalizedPermission = this.normalizePermission(permission);
-
-    // Clear all user permission caches since permission changed
-    for (const [key] of this.permissionCache) {
-      if (key.includes("user_perms_")) {
-        this.permissionCache.delete(key);
-        this.cacheExpiry.delete(key);
-        clearedCount++;
-      }
-    }
-
-    // Clear system permissions cache
-    this.systemPermissionsCache = null;
-
-    logger.info(
-      `Permission cache cleared for: ${normalizedPermission} (${clearedCount} entries)`
-    );
-  }
-
-  /**
-   * Clear cache for a specific role
-   * @param {string} roleId - Role ID to clear cache for
-   */
-  async clearRoleCache(roleId) {
-    if (!roleId) {
-      logger.warn("clearRoleCache called without roleId");
-      return;
-    }
-
-    try {
-      // Find all users with this role
-      const usersWithRole = await UserModel(this.tenant)
-        .find({
-          $or: [
-            { "group_roles.role": roleId },
-            { "network_roles.role": roleId },
-          ],
-        })
-        .select("_id")
-        .lean();
-
-      // Clear cache for each affected user
-      usersWithRole.forEach((user) => {
-        this.clearUserCache(user._id);
-      });
-
-      logger.info(
-        `Role cache cleared for role: ${roleId} (${usersWithRole.length} users affected)`
-      );
-    } catch (error) {
-      logger.error(`Error clearing role cache for ${roleId}: ${error.message}`);
-    }
-  }
-
-  /**
-   * Clean expired cache entries
-   */
-  cleanExpiredCache() {
-    const now = Date.now();
-    let cleanedCount = 0;
-
-    // Clean permission cache
-    for (const [key, expiry] of this.cacheExpiry) {
-      if (expiry && expiry < now) {
-        this.permissionCache.delete(key);
-        this.roleCache.delete(key);
-        this.userCache.delete(key);
-        this.cacheExpiry.delete(key);
-        cleanedCount++;
-      }
-    }
-
-    // Clean system permissions cache if expired
-    if (
-      this.systemPermissionsCache &&
-      this.systemPermissionsCache.expiry < now
-    ) {
-      this.systemPermissionsCache = null;
-      cleanedCount++;
-    }
-
-    if (cleanedCount > 0) {
-      logger.debug(`Cleaned ${cleanedCount} expired cache entries`);
-    }
-  }
-
-  /**
-   * Get cache statistics for monitoring
-   * @returns {Object} Cache statistics
-   */
-  getCacheStats() {
-    const now = Date.now();
-    let expiredCount = 0;
-
-    for (const [key, expiry] of this.cacheExpiry) {
-      if (expiry && expiry < now) {
-        expiredCount++;
-      }
-    }
-
-    return {
-      permission_cache_size: this.permissionCache.size,
-      role_cache_size: this.roleCache.size,
-      user_cache_size: this.userCache.size,
-      total_cache_entries: this.cacheExpiry.size,
-      expired_entries: expiredCount,
-      system_permissions_cached: !!this.systemPermissionsCache,
-      cache_ttl_minutes: this.CACHE_TTL / (60 * 1000),
-      system_cache_ttl_minutes: this.SYSTEM_CACHE_TTL / (60 * 1000),
-    };
-  }
+  // ... continuing with cache management and other methods ...
 
   /**
    * Enhanced debug user permissions for troubleshooting
@@ -1333,32 +1276,18 @@ class RBACService {
    */
   async debugUserPermissions(userId) {
     try {
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate({
-          path: "group_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate({
-          path: "network_roles.role",
-          populate: {
-            path: "role_permissions",
-            select: "permission description",
-          },
-        })
-        .populate("group_roles.group", "grp_title grp_status")
-        .populate("network_roles.network", "net_name")
-        .lean();
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
 
       if (!user) {
         return { error: "User not found", userId };
       }
 
-      const groupRoles = user.group_roles || [];
-      const networkRoles = user.network_roles || [];
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
+      const groupRoles = populatedUser.group_roles || [];
+      const networkRoles = populatedUser.network_roles || [];
 
       const groupPermissions = new Set();
       const networkPermissions = new Set();
@@ -1379,9 +1308,9 @@ class RBACService {
         }
       });
 
-      const isSuperAdmin = this.isSuperAdmin(user);
+      const isSuperAdmin = this.isSuperAdmin(populatedUser);
       const isSystemSuperAdmin = await this.isSystemSuperAdmin(userId);
-      const hasAirQoSuperAdmin = this.hasAirQoSuperAdminRole(user);
+      const hasAirQoSuperAdmin = this.hasAirQoSuperAdminRole(populatedUser);
 
       // Get effective permissions
       const effectivePermissions = await this.getUserEffectivePermissions(
@@ -1470,6 +1399,331 @@ class RBACService {
     }
   }
 
+  async getUserGroupRoles(userId) {
+    try {
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
+
+      if (!user) return [];
+
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
+      return populatedUser.group_roles || [];
+    } catch (error) {
+      logger.error(`Error getting user group roles: ${error.message}`);
+      return [];
+    }
+  }
+
+  async getUserNetworkRoles(userId) {
+    try {
+      // Get user without populate
+      const user = await this.getUserModel().findById(userId).lean();
+
+      if (!user) return [];
+
+      // Manually populate the user data
+      const populatedUser = await this._populateUserRoleData(user);
+
+      return populatedUser.network_roles || [];
+    } catch (error) {
+      logger.error(`Error getting user network roles: ${error.message}`);
+      return [];
+    }
+  }
+
+  // Get simplified permission structure for JWT
+  async getUserAccessSummary(userId) {
+    try {
+      const [groupRoles, networkRoles] = await Promise.all([
+        this.getUserGroupRoles(userId),
+        this.getUserNetworkRoles(userId),
+      ]);
+
+      const summary = {
+        groups: {},
+        networks: {},
+        isSuperAdmin: false,
+      };
+
+      // Process groups
+      for (const gr of groupRoles) {
+        if (gr.group && gr.role) {
+          summary.groups[gr.group._id] = {
+            name: gr.group.grp_title,
+            roleCode: gr.role.role_code,
+            roleName: gr.role.role_name,
+          };
+
+          if (gr.role.role_code?.includes("SUPER_ADMIN")) {
+            summary.isSuperAdmin = true;
+          }
+        }
+      }
+
+      // Process networks
+      for (const nr of networkRoles) {
+        if (nr.network && nr.role) {
+          summary.networks[nr.network._id] = {
+            name: nr.network.net_name,
+            roleCode: nr.role.role_code,
+            roleName: nr.role.role_name,
+          };
+        }
+      }
+
+      return summary;
+    } catch (error) {
+      logger.error(`Error getting user access summary: ${error.message}`);
+      return { groups: {}, networks: {}, isSuperAdmin: false };
+    }
+  }
+
+  // ... All other existing methods remain the same (cache management, etc.) ...
+
+  /**
+   * Clear all cache
+   */
+  clearCache() {
+    this.permissionCache.clear();
+    this.roleCache.clear();
+    this.userCache.clear();
+    this.cacheExpiry.clear();
+    this.systemPermissionsCache = null;
+    logger.info("RBAC cache cleared completely");
+  }
+
+  /**
+   * Clear cache for a specific user
+   * @param {string} userId - User ID to clear cache for
+   */
+  clearUserCache(userId) {
+    if (!userId) {
+      logger.warn("clearUserCache called without userId");
+      return;
+    }
+
+    const userIdStr = userId.toString();
+    let clearedCount = 0;
+
+    // Clear entries that match this user ID
+    for (const [key] of this.permissionCache) {
+      if (key.includes(userIdStr)) {
+        this.permissionCache.delete(key);
+        this.cacheExpiry.delete(key);
+        clearedCount++;
+      }
+    }
+
+    for (const [key] of this.roleCache) {
+      if (key.includes(userIdStr)) {
+        this.roleCache.delete(key);
+        this.cacheExpiry.delete(key);
+        clearedCount++;
+      }
+    }
+
+    for (const [key] of this.userCache) {
+      if (key.includes(userIdStr)) {
+        this.userCache.delete(key);
+        this.cacheExpiry.delete(key);
+        clearedCount++;
+      }
+    }
+
+    logger.info(
+      `RBAC cache cleared for user: ${userIdStr} (${clearedCount} entries)`
+    );
+  }
+
+  /**
+   * Clear cache for all users in a specific group
+   * @param {string} groupId - Group ID to clear cache for
+   */
+  async clearGroupCache(groupId) {
+    if (!groupId) {
+      logger.warn("clearGroupCache called without groupId");
+      return;
+    }
+
+    try {
+      // Get all users in the group
+      const groupUsers = await this.getUserModel()
+        .find({ "group_roles.group": groupId })
+        .select("_id")
+        .lean();
+
+      // Clear cache for each user in the group
+      groupUsers.forEach((user) => {
+        this.clearUserCache(user._id);
+      });
+
+      logger.info(
+        `RBAC cache cleared for group: ${groupId} (${groupUsers.length} users affected)`
+      );
+    } catch (error) {
+      logger.error(
+        `Error clearing group cache for ${groupId}: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Clear cache for all users in a specific network
+   * @param {string} networkId - Network ID to clear cache for
+   */
+  async clearNetworkCache(networkId) {
+    if (!networkId) {
+      logger.warn("clearNetworkCache called without networkId");
+      return;
+    }
+
+    try {
+      // Get all users in the network
+      const networkUsers = await this.getUserModel()
+        .find({ "network_roles.network": networkId })
+        .select("_id")
+        .lean();
+
+      // Clear cache for each user in the network
+      networkUsers.forEach((user) => {
+        this.clearUserCache(user._id);
+      });
+
+      logger.info(
+        `RBAC cache cleared for network: ${networkId} (${networkUsers.length} users affected)`
+      );
+    } catch (error) {
+      logger.error(
+        `Error clearing network cache for ${networkId}: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Clear cache for a specific permission
+   * @param {string} permission - Permission to clear cache for
+   */
+  clearPermissionCache(permission) {
+    if (!permission) {
+      logger.warn("clearPermissionCache called without permission");
+      return;
+    }
+
+    let clearedCount = 0;
+    const normalizedPermission = this.normalizePermission(permission);
+
+    // Clear all user permission caches since permission changed
+    for (const [key] of this.permissionCache) {
+      if (key.includes("user_perms_")) {
+        this.permissionCache.delete(key);
+        this.cacheExpiry.delete(key);
+        clearedCount++;
+      }
+    }
+
+    // Clear system permissions cache
+    this.systemPermissionsCache = null;
+
+    logger.info(
+      `Permission cache cleared for: ${normalizedPermission} (${clearedCount} entries)`
+    );
+  }
+
+  /**
+   * Clear cache for a specific role
+   * @param {string} roleId - Role ID to clear cache for
+   */
+  async clearRoleCache(roleId) {
+    if (!roleId) {
+      logger.warn("clearRoleCache called without roleId");
+      return;
+    }
+
+    try {
+      // Find all users with this role
+      const usersWithRole = await this.getUserModel()
+        .find({
+          $or: [
+            { "group_roles.role": roleId },
+            { "network_roles.role": roleId },
+          ],
+        })
+        .select("_id")
+        .lean();
+
+      // Clear cache for each affected user
+      usersWithRole.forEach((user) => {
+        this.clearUserCache(user._id);
+      });
+
+      logger.info(
+        `Role cache cleared for role: ${roleId} (${usersWithRole.length} users affected)`
+      );
+    } catch (error) {
+      logger.error(`Error clearing role cache for ${roleId}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Clean expired cache entries
+   */
+  cleanExpiredCache() {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    // Clean permission cache
+    for (const [key, expiry] of this.cacheExpiry) {
+      if (expiry && expiry < now) {
+        this.permissionCache.delete(key);
+        this.roleCache.delete(key);
+        this.userCache.delete(key);
+        this.cacheExpiry.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    // Clean system permissions cache if expired
+    if (
+      this.systemPermissionsCache &&
+      this.systemPermissionsCache.expiry < now
+    ) {
+      this.systemPermissionsCache = null;
+      cleanedCount++;
+    }
+
+    if (cleanedCount > 0) {
+      logger.debug(`Cleaned ${cleanedCount} expired cache entries`);
+    }
+  }
+
+  /**
+   * Get cache statistics for monitoring
+   * @returns {Object} Cache statistics
+   */
+  getCacheStats() {
+    const now = Date.now();
+    let expiredCount = 0;
+
+    for (const [key, expiry] of this.cacheExpiry) {
+      if (expiry && expiry < now) {
+        expiredCount++;
+      }
+    }
+
+    return {
+      permission_cache_size: this.permissionCache.size,
+      role_cache_size: this.roleCache.size,
+      user_cache_size: this.userCache.size,
+      total_cache_entries: this.cacheExpiry.size,
+      expired_entries: expiredCount,
+      system_permissions_cached: !!this.systemPermissionsCache,
+      cache_ttl_minutes: this.CACHE_TTL / (60 * 1000),
+      system_cache_ttl_minutes: this.SYSTEM_CACHE_TTL / (60 * 1000),
+    };
+  }
+
   /**
    * Validate user access to multiple resources at once
    * @param {string} userId - User ID
@@ -1549,7 +1803,7 @@ class RBACService {
   async getUserSummary(userId) {
     try {
       const [user, debugInfo] = await Promise.all([
-        UserModel(this.tenant).findById(userId).lean(),
+        this.getUserModel().findById(userId).lean(),
         this.debugUserPermissions(userId),
       ]);
 
@@ -1586,87 +1840,6 @@ class RBACService {
     } catch (error) {
       logger.error(`Error getting user summary: ${error.message}`);
       return { error: error.message };
-    }
-  }
-
-  async getUserGroupRoles(userId) {
-    try {
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate("group_roles.group")
-        .populate("group_roles.role")
-        .lean();
-
-      if (!user) return [];
-
-      return user.group_roles || [];
-    } catch (error) {
-      logger.error(`Error getting user group roles: ${error.message}`);
-      return [];
-    }
-  }
-
-  async getUserNetworkRoles(userId) {
-    try {
-      const user = await UserModel(this.tenant)
-        .findById(userId)
-        .populate("network_roles.network")
-        .populate("network_roles.role")
-        .lean();
-
-      if (!user) return [];
-
-      return user.network_roles || [];
-    } catch (error) {
-      logger.error(`Error getting user network roles: ${error.message}`);
-      return [];
-    }
-  }
-
-  // Get simplified permission structure for JWT
-  async getUserAccessSummary(userId) {
-    try {
-      const [groupRoles, networkRoles] = await Promise.all([
-        this.getUserGroupRoles(userId),
-        this.getUserNetworkRoles(userId),
-      ]);
-
-      const summary = {
-        groups: {},
-        networks: {},
-        isSuperAdmin: false,
-      };
-
-      // Process groups
-      for (const gr of groupRoles) {
-        if (gr.group && gr.role) {
-          summary.groups[gr.group._id] = {
-            name: gr.group.grp_title,
-            roleCode: gr.role.role_code,
-            roleName: gr.role.role_name,
-          };
-
-          if (gr.role.role_code?.includes("SUPER_ADMIN")) {
-            summary.isSuperAdmin = true;
-          }
-        }
-      }
-
-      // Process networks
-      for (const nr of networkRoles) {
-        if (nr.network && nr.role) {
-          summary.networks[nr.network._id] = {
-            name: nr.network.net_name,
-            roleCode: nr.role.role_code,
-            roleName: nr.role.role_name,
-          };
-        }
-      }
-
-      return summary;
-    } catch (error) {
-      logger.error(`Error getting user access summary: ${error.message}`);
-      return { groups: {}, networks: {}, isSuperAdmin: false };
     }
   }
 }

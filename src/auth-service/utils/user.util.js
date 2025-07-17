@@ -36,6 +36,12 @@ const {
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
 
+const EnhancedRBACService = require("@services/enhancedRBAC.service");
+const {
+  EnhancedTokenFactory,
+  TOKEN_STRATEGIES,
+} = require("@services/enhancedTokenFactory.service");
+
 function generateNumericToken(length) {
   const charset = "0123456789";
   let token = "";
@@ -94,6 +100,7 @@ function deleteQueryBatch({ db, query, batchSize, resolve, reject } = {}) {
     })
     .catch(reject);
 }
+
 const cascadeUserDeletion = async ({ userId, tenant } = {}, next) => {
   try {
     const user = await UserModel(tenant.toLowerCase()).findById(userId);
@@ -2081,11 +2088,18 @@ const createUserModule = {
 
       const user = await UserModel(tenant).findOne({ email });
       if (!isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User is already part of the AirQo platform",
-          })
-        );
+        return {
+          success: false,
+          message: "User is already part of the AirQo platform",
+          status: httpStatus.BAD_REQUEST,
+          errors: [
+            {
+              param: "email",
+              message: "User is already part of the AirQo platform",
+              location: "body",
+            },
+          ],
+        };
       }
 
       const userBody = request.body;
@@ -2100,8 +2114,12 @@ const createUserModule = {
       );
 
       if (!responseFromCreateUser) {
-        // Handle the case where register threw an error via next()
-        return; // The error has already been passed to next()
+        return {
+          success: false,
+          message: "Failed to create user",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: [{ message: "User creation failed" }],
+        };
       }
 
       if (responseFromCreateUser.success === true) {
@@ -2110,7 +2128,6 @@ const createUserModule = {
         }
 
         const createdUser = await responseFromCreateUser.data;
-        logObject("created user in util", createdUser._doc);
         const user_id = createdUser._doc._id;
 
         const token = accessCodeGenerator
@@ -2123,6 +2140,7 @@ const createUserModule = {
           token,
           name: createdUser._doc.firstName,
         };
+
         const responseFromCreateToken = await VerifyTokenModel(
           tenant.toLowerCase()
         ).register(tokenCreationBody, next);
@@ -2142,7 +2160,6 @@ const createUserModule = {
           );
 
           if (responseFromSendEmail) {
-            logObject("responseFromSendEmail", responseFromSendEmail);
             if (responseFromSendEmail.success === true) {
               const userDetails = {
                 firstName: createdUser._doc.firstName,
@@ -2155,22 +2172,19 @@ const createUserModule = {
                 success: true,
                 message: "An Email sent to your account please verify",
                 data: userDetails,
-                status: responseFromSendEmail.status
-                  ? responseFromSendEmail.status
-                  : "",
+                status: responseFromSendEmail.status || httpStatus.OK,
               };
             } else if (responseFromSendEmail.success === false) {
               return responseFromSendEmail;
             }
           } else {
             logger.error("mailer.verifyEmail did not return a response");
-            return next(
-              new HttpError(
-                "Internal Server Error",
-                httpStatus.INTERNAL_SERVER_ERROR,
-                { message: "Failed to send verification email" }
-              )
-            );
+            return {
+              success: false,
+              message: "Failed to send verification email",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: [{ message: "Failed to send verification email" }],
+            };
           }
         }
       } else if (responseFromCreateUser.success === false) {
@@ -2178,13 +2192,12 @@ const createUserModule = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: [{ message: error.message }],
+      };
     }
   },
   register: async (request, next) => {
@@ -3431,6 +3444,875 @@ const createUserModule = {
         )
       );
     }
+  },
+  /**
+   * Enhanced login with comprehensive role/permission data and optimized tokens
+   */
+  loginWithEnhancedTokens: async (request, next) => {
+    try {
+      const { email, password, tenant, preferredStrategy, includeDebugInfo } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      console.log("🔐 ENHANCED LOGIN:", {
+        email,
+        tenant,
+        preferredStrategy,
+        includeDebugInfo,
+      });
+
+      // Input validation
+      if (!email || !password) {
+        return {
+          success: false,
+          message: "Email and password are required",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            password: !password ? "Password is required" : undefined,
+          },
+        };
+      }
+
+      const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+
+      // Find user by email
+      const user = await UserModel(dbTenant).findOne({ email }).exec();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "Invalid credentials",
+          status: httpStatus.UNAUTHORIZED,
+          errors: {
+            email: "No account found with this email address",
+          },
+        };
+      }
+
+      // Verify password
+      const isPasswordValid = await user.authenticateUser(password);
+      if (!isPasswordValid) {
+        return {
+          success: false,
+          message: "Invalid credentials",
+          status: httpStatus.UNAUTHORIZED,
+          errors: {
+            password: "Incorrect password",
+          },
+        };
+      }
+
+      // Check verification status
+      if (!user.verified) {
+        return {
+          success: false,
+          message: "Please verify your email address first",
+          status: httpStatus.FORBIDDEN,
+          errors: {
+            verification: "Email not verified",
+          },
+        };
+      }
+
+      // Check account status
+      if (user.analyticsVersion === 3 && user.verified === false) {
+        return {
+          success: false,
+          message: "Account not verified, please check your email",
+          status: httpStatus.FORBIDDEN,
+        };
+      }
+
+      // Initialize RBAC service
+      const rbacService = new EnhancedRBACService(dbTenant);
+
+      // Get comprehensive permission data
+      console.log("🔍 Getting comprehensive permissions for user:", user._id);
+      const loginPermissions = await rbacService.getUserPermissionsForLogin(
+        user._id
+      );
+
+      console.log("✅ Permissions calculated:", {
+        allCount: loginPermissions.allPermissions?.length || 0,
+        systemCount: loginPermissions.systemPermissions?.length || 0,
+        groupCount: Object.keys(loginPermissions.groupPermissions).length,
+        networkCount: Object.keys(loginPermissions.networkPermissions).length,
+        isSuperAdmin: loginPermissions.isSuperAdmin,
+      });
+
+      // Determine token strategy
+      const strategy =
+        preferredStrategy ||
+        user.preferredTokenStrategy ||
+        TOKEN_STRATEGIES.STANDARD;
+
+      console.log("🎯 Using token strategy:", strategy);
+
+      // Initialize token factory
+      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+
+      const populatedUser = await createUserModule._populateUserDataManually(
+        user,
+        dbTenant
+      );
+
+      // Generate enhanced token
+      const token = await tokenFactory.createToken(populatedUser, strategy, {
+        expiresIn: "24h",
+        includePermissions: true,
+      });
+
+      if (!token) {
+        return {
+          success: false,
+          message: "Failed to generate authentication token",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      // Update login statistics
+      const currentDate = new Date();
+      try {
+        await UserModel(dbTenant).findOneAndUpdate(
+          { _id: user._id },
+          {
+            $set: { lastLogin: currentDate, isActive: true },
+            $inc: { loginCount: 1 },
+            ...(user.analyticsVersion !== 3 && user.verified === false
+              ? { $set: { verified: true } }
+              : {}),
+          },
+          {
+            new: true,
+            upsert: false,
+            runValidators: true,
+          }
+        );
+      } catch (updateError) {
+        logger.error(`Login stats update error: ${updateError.message}`);
+      }
+
+      // Build comprehensive auth response
+      const authResponse = {
+        // Basic user info
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        userType: user.userType,
+        verified: user.verified,
+        isActive: user.isActive,
+
+        // Legacy fields for backward compatibility
+        organization: user.organization,
+        long_organization: user.long_organization,
+        privilege: user.privilege,
+        country: user.country,
+        profilePicture: user.profilePicture,
+        phoneNumber: user.phoneNumber,
+
+        // Enhanced authentication
+        token: `JWT ${token}`,
+
+        // Comprehensive permissions
+        permissions: loginPermissions.allPermissions,
+        systemPermissions: loginPermissions.systemPermissions,
+        groupPermissions: loginPermissions.groupPermissions,
+        networkPermissions: loginPermissions.networkPermissions,
+
+        // Enhanced memberships with detailed info
+        groupMemberships: loginPermissions.groupMemberships,
+        networkMemberships: loginPermissions.networkMemberships,
+
+        // User flags
+        isSuperAdmin: loginPermissions.isSuperAdmin,
+        hasGroupAccess: loginPermissions.groupMemberships.length > 0,
+        hasNetworkAccess: loginPermissions.networkMemberships.length > 0,
+
+        // Context info
+        defaultGroup:
+          loginPermissions.groupMemberships.length > 0
+            ? loginPermissions.groupMemberships[0].group.id
+            : null,
+        defaultNetwork:
+          loginPermissions.networkMemberships.length > 0
+            ? loginPermissions.networkMemberships[0].network.id
+            : null,
+
+        // Login metadata
+        lastLogin: currentDate,
+        loginCount: (user.loginCount || 0) + 1,
+
+        // Token metadata
+        tokenStrategy: strategy,
+        tokenSize: Buffer.byteLength(token, "utf8"),
+
+        // Debug info (development only)
+        ...(includeDebugInfo &&
+          process.env.NODE_ENV === "development" && {
+            debugInfo: {
+              permissionSources: {
+                system: loginPermissions.systemPermissions.length,
+                groups: Object.keys(loginPermissions.groupPermissions).reduce(
+                  (sum, groupId) =>
+                    sum + loginPermissions.groupPermissions[groupId].length,
+                  0
+                ),
+                networks: Object.keys(
+                  loginPermissions.networkPermissions
+                ).reduce(
+                  (sum, networkId) =>
+                    sum + loginPermissions.networkPermissions[networkId].length,
+                  0
+                ),
+              },
+              tokenCompressionRatio:
+                strategy !== TOKEN_STRATEGIES.LEGACY
+                  ? (
+                      (1 - Buffer.byteLength(token, "utf8") / 2000) *
+                      100
+                    ).toFixed(1) + "%"
+                  : "0%",
+              cacheStatus: "fresh",
+            },
+          }),
+      };
+
+      console.log("🎉 Enhanced login successful:", {
+        userId: authResponse._id,
+        permissionsCount: authResponse.permissions.length,
+        groupMemberships: authResponse.groupMemberships.length,
+        networkMemberships: authResponse.networkMemberships.length,
+        tokenStrategy: strategy,
+        tokenSize: authResponse.tokenSize,
+      });
+
+      return {
+        success: true,
+        message: "Login successful",
+        data: authResponse,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛 Enhanced login error: ${error.message}`);
+      console.error("❌ ENHANCED LOGIN ERROR:", error);
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server: "An unexpected error occurred during login",
+        },
+      };
+    }
+  },
+
+  _populateUserDataManually: async (user, tenant) => {
+    try {
+      const userObj = user.toObject ? user.toObject() : user;
+
+      // Initialize models
+      const PermissionModel = require("@models/Permission");
+      const GroupModel = require("@models/Group");
+      const NetworkModel = require("@models/Network");
+
+      // Try to get Role model, fallback if not available
+      let RoleModel = null;
+      try {
+        RoleModel = require("@models/Role");
+      } catch (roleError) {
+        console.warn("⚠️ Role model not available, skipping role population");
+      }
+
+      // ✅ OPTIMIZATION 1: Collect all IDs upfront for batch queries
+      const permissionIds = userObj.permissions?.filter(Boolean) || [];
+      const groupIds =
+        userObj.group_roles?.map((gr) => gr.group).filter(Boolean) || [];
+      const networkIds =
+        userObj.network_roles?.map((nr) => nr.network).filter(Boolean) || [];
+      const groupRoleIds =
+        userObj.group_roles?.map((gr) => gr.role).filter(Boolean) || [];
+      const networkRoleIds =
+        userObj.network_roles?.map((nr) => nr.role).filter(Boolean) || [];
+      const allRoleIds = [...new Set([...groupRoleIds, ...networkRoleIds])]; // Remove duplicates
+
+      // ✅ OPTIMIZATION 2: Prepare all queries for parallel execution
+      const queryPromises = [];
+      const queryMap = {};
+
+      // 1. Permissions query
+      if (permissionIds.length > 0) {
+        queryPromises.push(
+          PermissionModel(tenant)
+            .find({ _id: { $in: permissionIds } })
+            .select("permission description")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate permissions:", error.message);
+              return [];
+            })
+        );
+        queryMap.permissions = queryPromises.length - 1;
+      }
+
+      // 2. Groups query
+      if (groupIds.length > 0) {
+        queryPromises.push(
+          GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate groups:", error.message);
+              return [];
+            })
+        );
+        queryMap.groups = queryPromises.length - 1;
+      }
+
+      // 3. Networks query
+      if (networkIds.length > 0) {
+        queryPromises.push(
+          NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate networks:", error.message);
+              return [];
+            })
+        );
+        queryMap.networks = queryPromises.length - 1;
+      }
+
+      // 4. Roles query
+      if (RoleModel && allRoleIds.length > 0) {
+        queryPromises.push(
+          RoleModel(tenant)
+            .find({ _id: { $in: allRoleIds } })
+            .select("role_name role_permissions")
+            .lean()
+            .catch((error) => {
+              console.warn("⚠️ Failed to populate roles:", error.message);
+              return [];
+            })
+        );
+        queryMap.roles = queryPromises.length - 1;
+      }
+
+      // ✅ OPTIMIZATION 3: Execute all main queries in parallel
+      const results = await Promise.all(queryPromises);
+
+      // Extract results
+      const permissions =
+        queryMap.permissions !== undefined ? results[queryMap.permissions] : [];
+      const groups =
+        queryMap.groups !== undefined ? results[queryMap.groups] : [];
+      const networks =
+        queryMap.networks !== undefined ? results[queryMap.networks] : [];
+      const roles = queryMap.roles !== undefined ? results[queryMap.roles] : [];
+
+      // ✅ OPTIMIZATION 4: Batch role permissions query
+      let rolePermissions = [];
+      if (roles.length > 0) {
+        const allRolePermissionIds = [
+          ...new Set( // Remove duplicates
+            roles.flatMap((role) => role.role_permissions || []).filter(Boolean)
+          ),
+        ];
+
+        if (allRolePermissionIds.length > 0) {
+          try {
+            rolePermissions = await PermissionModel(tenant)
+              .find({ _id: { $in: allRolePermissionIds } })
+              .select("permission description")
+              .lean();
+          } catch (rolePermError) {
+            console.warn(
+              "⚠️ Failed to populate role permissions:",
+              rolePermError.message
+            );
+          }
+        }
+      }
+
+      // ✅ OPTIMIZATION 5: Create lookup maps for O(1) access
+      const groupsMap = new Map(groups.map((g) => [g._id.toString(), g]));
+      const networksMap = new Map(networks.map((n) => [n._id.toString(), n]));
+      const rolesMap = new Map(roles.map((r) => [r._id.toString(), r]));
+      const rolePermissionsMap = new Map(
+        rolePermissions.map((rp) => [rp._id.toString(), rp])
+      );
+
+      // Apply populated data to user object
+      userObj.permissions = permissions;
+
+      // ✅ OPTIMIZATION 6: Use optional chaining and map lookups
+      if (userObj.group_roles?.length > 0) {
+        userObj.group_roles = userObj.group_roles.map((groupRole) => ({
+          ...groupRole,
+          group: groupsMap.get(groupRole.group.toString()) || groupRole.group,
+          role: RoleModel
+            ? (() => {
+                const role = rolesMap.get(groupRole.role.toString());
+                if (role) {
+                  return {
+                    ...role,
+                    role_permissions: rolePermissions.filter((rp) =>
+                      role.role_permissions?.some(
+                        (rpId) => rpId.toString() === rp._id.toString()
+                      )
+                    ),
+                  };
+                }
+                return groupRole.role;
+              })()
+            : groupRole.role,
+        }));
+      }
+
+      if (userObj.network_roles?.length > 0) {
+        userObj.network_roles = userObj.network_roles.map((networkRole) => ({
+          ...networkRole,
+          network:
+            networksMap.get(networkRole.network.toString()) ||
+            networkRole.network,
+          role: RoleModel
+            ? (() => {
+                const role = rolesMap.get(networkRole.role.toString());
+                if (role) {
+                  return {
+                    ...role,
+                    role_permissions: rolePermissions.filter((rp) =>
+                      role.role_permissions?.some(
+                        (rpId) => rpId.toString() === rp._id.toString()
+                      )
+                    ),
+                  };
+                }
+                return networkRole.role;
+              })()
+            : networkRole.role,
+        }));
+      }
+
+      return userObj;
+    } catch (error) {
+      console.error("❌ Error in manual population:", error);
+      // Return user with basic structure if population fails
+      return {
+        ...(user.toObject ? user.toObject() : user),
+        permissions: user.permissions || [],
+        group_roles: user.group_roles || [],
+        network_roles: user.network_roles || [],
+      };
+    }
+  },
+
+  /**
+   * Generate optimized token for existing user session
+   */
+  generateOptimizedToken: async (request, next) => {
+    try {
+      const { userId, tenant, strategy, options } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!userId) {
+        return {
+          success: false,
+          message: "User ID is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+      const tokenStrategy = strategy || TOKEN_STRATEGIES.STANDARD;
+
+      const user = await UserModel(dbTenant).findById(userId).lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Use manual population instead of mongoose populate
+      const populatedUser = await createUserModule._populateUserDataManually(
+        user,
+        dbTenant
+      );
+
+      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const token = await tokenFactory.createToken(
+        populatedUser,
+        tokenStrategy,
+        options
+      );
+
+      return {
+        success: true,
+        message: "Token generated successfully",
+        data: {
+          token: `JWT ${token}`,
+          strategy: tokenStrategy,
+          size: Buffer.byteLength(token, "utf8"),
+          expiresIn: options?.expiresIn || "24h",
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Token generation error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to generate token",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server: error.message,
+        },
+      };
+    }
+  },
+
+  /**
+   * Refresh user permissions and regenerate token
+   */
+  refreshUserPermissions: async (request, next) => {
+    try {
+      const { userId, tenant, strategy } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!userId) {
+        return {
+          success: false,
+          message: "User ID is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+
+      // Clear cache for this user
+      const rbacService = new EnhancedRBACService(dbTenant);
+      rbacService.clearUserCache(userId);
+
+      // Get fresh permissions
+      const loginPermissions = await rbacService.getUserPermissionsForLogin(
+        userId
+      );
+
+      // Generate new token if strategy specified
+      let newToken = null;
+      let tokenInfo = null;
+
+      if (strategy) {
+        // Get user without populate
+        const user = await UserModel(dbTenant).findById(userId).lean();
+
+        if (user) {
+          // Use manual population instead of mongoose populate
+          const populatedUser =
+            await createUserModule._populateUserDataManually(user, dbTenant);
+
+          const tokenFactory = new EnhancedTokenFactory(dbTenant);
+          newToken = await tokenFactory.createToken(populatedUser, strategy);
+          tokenInfo = {
+            token: `JWT ${newToken}`,
+            strategy: strategy,
+            size: Buffer.byteLength(newToken, "utf8"),
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: "Permissions refreshed successfully",
+        data: {
+          permissions: loginPermissions,
+          ...(tokenInfo && { tokenInfo }),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Permission refresh error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to refresh permissions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server: error.message,
+        },
+      };
+    }
+  },
+
+  /**
+   * Analyze token sizes across different strategies
+   */
+  analyzeTokenStrategies: async (request, next) => {
+    try {
+      const { userId, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!userId) {
+        return {
+          success: false,
+          message: "User ID is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+
+      const user = await UserModel(dbTenant).findById(userId).lean();
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      // Use manual population instead of mongoose populate
+      const populatedUser = await createUserModule._populateUserDataManually(
+        user,
+        dbTenant
+      );
+
+      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const strategies = Object.values(TOKEN_STRATEGIES);
+      const results = {};
+      let baselineSize = 0;
+
+      for (const strategy of strategies) {
+        try {
+          const token = await tokenFactory.createToken(populatedUser, strategy);
+          const size = Buffer.byteLength(token, "utf8");
+
+          if (strategy === TOKEN_STRATEGIES.LEGACY) {
+            baselineSize = size;
+          }
+
+          results[strategy] = {
+            size: size,
+            compression:
+              baselineSize > 0
+                ? (((baselineSize - size) / baselineSize) * 100).toFixed(1) +
+                  "%"
+                : "0%",
+            tokenPreview: token.substring(0, 50) + "...",
+          };
+
+          console.log(
+            `📊 ${strategy}: ${size} bytes (${results[strategy].compression} compression)`
+          );
+        } catch (error) {
+          results[strategy] = {
+            error: error.message,
+            size: 0,
+            compression: "N/A",
+          };
+        }
+      }
+
+      return {
+        success: true,
+        message: "Token analysis completed",
+        data: {
+          userId,
+          baseline: baselineSize,
+          strategies: results,
+          recommendation:
+            createUserModule._getTokenStrategyRecommendation(results),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Token analysis error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to analyze token strategies",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server: error.message,
+        },
+      };
+    }
+  },
+
+  /**
+   * Get user's current permissions and roles in a specific context
+   */
+  getUserContextPermissions: async (request, next) => {
+    try {
+      const { userId, contextId, contextType, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!userId) {
+        return {
+          success: false,
+          message: "User ID is required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+      const rbacService = new EnhancedRBACService(dbTenant);
+
+      let permissions;
+      if (contextId && contextType) {
+        permissions = await rbacService.getUserPermissionsInContext(
+          userId,
+          contextId,
+          contextType
+        );
+      } else {
+        const contextData = await rbacService.getUserPermissionsByContext(
+          userId
+        );
+        permissions = contextData;
+      }
+
+      return {
+        success: true,
+        message: "Context permissions retrieved successfully",
+        data: {
+          userId,
+          contextId,
+          contextType,
+          permissions,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Context permissions error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to get context permissions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server: error.message,
+        },
+      };
+    }
+  },
+
+  /**
+   * Update user's preferred token strategy
+   */
+  updateTokenStrategy: async (request, next) => {
+    try {
+      const { userId, strategy, tenant } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
+      };
+
+      if (!userId || !strategy) {
+        return {
+          success: false,
+          message: "User ID and strategy are required",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (!Object.values(TOKEN_STRATEGIES).includes(strategy)) {
+        return {
+          success: false,
+          message: "Invalid token strategy",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            strategy: `Must be one of: ${Object.values(TOKEN_STRATEGIES).join(
+              ", "
+            )}`,
+          },
+        };
+      }
+
+      const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
+
+      const user = await UserModel(dbTenant).findByIdAndUpdate(
+        userId,
+        { preferredTokenStrategy: strategy },
+        { new: true }
+      );
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Token strategy updated successfully",
+        data: {
+          userId,
+          preferredTokenStrategy: strategy,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Token strategy update error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to update token strategy",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server: error.message,
+        },
+      };
+    }
+  },
+
+  // Private helper methods
+  _getTokenStrategyRecommendation: (results) => {
+    const strategies = Object.entries(results)
+      .filter(([_, result]) => !result.error && result.size > 0)
+      .sort((a, b) => a[1].size - b[1].size);
+
+    if (strategies.length === 0) {
+      return "No valid strategies found";
+    }
+
+    const smallest = strategies[0];
+    const recommended =
+      strategies.find(
+        ([strategy, _]) =>
+          strategy === TOKEN_STRATEGIES.COMPRESSED ||
+          strategy === TOKEN_STRATEGIES.HASH_BASED
+      ) || smallest;
+
+    return {
+      recommended: recommended[0],
+      reason: `Best balance of compression (${recommended[1].compression}) and reliability`,
+      alternatives: strategies.slice(0, 3).map(([strategy, result]) => ({
+        strategy,
+        size: result.size,
+        compression: result.compression,
+      })),
+    };
   },
 };
 

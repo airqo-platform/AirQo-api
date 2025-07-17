@@ -1,5 +1,6 @@
 const CampaignModel = require("@models/Campaign");
 const TransactionModel = require("@models/Transaction");
+const UserModel = require("@models/User");
 const { generateFilter } = require("@utils/common");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
@@ -13,6 +14,194 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
+
+// ===== HELPER FUNCTIONS FOR MANUAL POPULATION =====
+
+/**
+ * Manually populate user data to avoid schema registration issues
+ * @param {Object|Array} userIds - Single user ID or array of user IDs
+ * @param {string} tenant - Tenant identifier
+ * @param {string} fields - Fields to select (default: "name email")
+ * @returns {Object|Array} User data
+ */
+const manuallyPopulateUsers = async (
+  userIds,
+  tenant,
+  fields = "name email"
+) => {
+  try {
+    if (!userIds) return null;
+
+    const isArray = Array.isArray(userIds);
+    const ids = isArray ? userIds : [userIds];
+
+    // Filter out null/undefined IDs
+    const validIds = ids.filter((id) => id != null);
+
+    if (validIds.length === 0) {
+      return isArray ? [] : null;
+    }
+
+    const users = await UserModel(tenant)
+      .find({ _id: { $in: validIds } })
+      .select(fields)
+      .lean();
+
+    if (!isArray) {
+      return (
+        users.find((user) => user._id.toString() === userIds.toString()) || null
+      );
+    }
+
+    // Return users in the same order as requested IDs
+    return validIds.map(
+      (id) =>
+        users.find((user) => user._id.toString() === id.toString()) || null
+    );
+  } catch (error) {
+    logger.error(`Error populating users: ${error.message}`);
+    return isArray ? [] : null;
+  }
+};
+
+/**
+ * Manually populate campaign created_by field
+ * @param {Object} campaign - Campaign object
+ * @param {string} tenant - Tenant identifier
+ * @returns {Object} Campaign with populated created_by
+ */
+const populateCampaignCreatedBy = async (campaign, tenant) => {
+  try {
+    if (!campaign || !campaign.created_by) {
+      return campaign;
+    }
+
+    const creator = await manuallyPopulateUsers(campaign.created_by, tenant);
+
+    return {
+      ...campaign,
+      created_by: creator || {
+        _id: campaign.created_by,
+        name: "Unknown User",
+        email: "unknown@email.com",
+      },
+    };
+  } catch (error) {
+    logger.error(`Error populating campaign creator: ${error.message}`);
+    return campaign;
+  }
+};
+
+/**
+ * Manually populate campaign updates created_by fields
+ * @param {Object} campaign - Campaign object with updates
+ * @param {string} tenant - Tenant identifier
+ * @returns {Object} Campaign with populated updates
+ */
+const populateCampaignUpdates = async (campaign, tenant) => {
+  try {
+    if (!campaign || !campaign.updates || campaign.updates.length === 0) {
+      return campaign;
+    }
+
+    // Get unique user IDs from updates
+    const userIds = [
+      ...new Set(
+        campaign.updates
+          .map((update) => update.created_by)
+          .filter((id) => id != null)
+      ),
+    ];
+
+    if (userIds.length === 0) {
+      return campaign;
+    }
+
+    // Fetch all users at once
+    const users = await manuallyPopulateUsers(userIds, tenant);
+    const userMap = {};
+
+    if (Array.isArray(users)) {
+      users.forEach((user) => {
+        if (user) {
+          userMap[user._id.toString()] = user;
+        }
+      });
+    }
+
+    // Populate updates with user data
+    const populatedUpdates = campaign.updates.map((update) => ({
+      ...update,
+      created_by: userMap[update.created_by?.toString()] || {
+        _id: update.created_by,
+        name: "Unknown User",
+        email: "unknown@email.com",
+      },
+    }));
+
+    return {
+      ...campaign,
+      updates: populatedUpdates,
+    };
+  } catch (error) {
+    logger.error(`Error populating campaign updates: ${error.message}`);
+    return campaign;
+  }
+};
+
+/**
+ * Manually populate transaction user_id fields
+ * @param {Array} transactions - Array of transaction objects
+ * @param {string} tenant - Tenant identifier
+ * @returns {Array} Transactions with populated user_id
+ */
+const populateTransactionUsers = async (transactions, tenant) => {
+  try {
+    if (!transactions || transactions.length === 0) {
+      return transactions;
+    }
+
+    // Get unique user IDs from transactions
+    const userIds = [
+      ...new Set(
+        transactions
+          .map((transaction) => transaction.user_id)
+          .filter((id) => id != null)
+      ),
+    ];
+
+    if (userIds.length === 0) {
+      return transactions;
+    }
+
+    // Fetch all users at once
+    const users = await manuallyPopulateUsers(userIds, tenant);
+    const userMap = {};
+
+    if (Array.isArray(users)) {
+      users.forEach((user) => {
+        if (user) {
+          userMap[user._id.toString()] = user;
+        }
+      });
+    }
+
+    // Populate transactions with user data
+    return transactions.map((transaction) => ({
+      ...transaction,
+      user_id: userMap[transaction.user_id?.toString()] || {
+        _id: transaction.user_id,
+        name: "Anonymous User",
+        email: "anonymous@email.com",
+      },
+    }));
+  } catch (error) {
+    logger.error(`Error populating transaction users: ${error.message}`);
+    return transactions;
+  }
+};
+
+// ===== REFACTORED CAMPAIGN FUNCTIONS =====
 
 const campaigns = {
   /**
@@ -84,9 +273,8 @@ const campaigns = {
       const { tenant } = request.query;
       const { id } = request.params;
 
-      const campaign = await CampaignModel(tenant)
-        .findById(id)
-        .populate("created_by", "name email");
+      // Get campaign without populate
+      const campaign = await CampaignModel(tenant).findById(id).lean();
 
       if (!campaign) {
         return {
@@ -96,10 +284,16 @@ const campaigns = {
         };
       }
 
+      // Manually populate created_by field
+      const populatedCampaign = await populateCampaignCreatedBy(
+        campaign,
+        tenant
+      );
+
       return {
         success: true,
         message: "Campaign retrieved successfully",
-        data: campaign,
+        data: populatedCampaign,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -253,9 +447,8 @@ const campaigns = {
       const { tenant } = request.query;
       const { id } = request.params;
 
-      const campaign = await CampaignModel(tenant)
-        .findById(id)
-        .populate("updates.created_by", "name email");
+      // Get campaign without populate
+      const campaign = await CampaignModel(tenant).findById(id).lean();
 
       if (!campaign) {
         return {
@@ -265,10 +458,13 @@ const campaigns = {
         };
       }
 
+      // Manually populate updates.created_by fields
+      const populatedCampaign = await populateCampaignUpdates(campaign, tenant);
+
       return {
         success: true,
         message: "Campaign updates retrieved successfully",
-        data: campaign.updates,
+        data: populatedCampaign.updates,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -405,6 +601,7 @@ const campaigns = {
       const { id } = request.params;
       const { limit = 20, skip = 0 } = request.query;
 
+      // Get donations without populate
       const donations = await TransactionModel(tenant)
         .find({
           donation_campaign_id: id,
@@ -413,18 +610,24 @@ const campaigns = {
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
         .skip(parseInt(skip))
-        .populate("user_id", "name email");
+        .lean();
 
       const total = await TransactionModel(tenant).countDocuments({
         donation_campaign_id: id,
         status: "completed",
       });
 
+      // Manually populate user_id fields
+      const populatedDonations = await populateTransactionUsers(
+        donations,
+        tenant
+      );
+
       return {
         success: true,
         message: "Campaign donations retrieved successfully",
         data: {
-          donations,
+          donations: populatedDonations,
           total,
           limit: parseInt(limit),
           skip: parseInt(skip),
@@ -460,9 +663,8 @@ const campaigns = {
         if (end_date) filter.createdAt.$lte = new Date(end_date);
       }
 
-      const campaigns = await CampaignModel(tenant)
-        .find(filter)
-        .populate("created_by", "name email");
+      // Get campaigns without populate
+      const campaigns = await CampaignModel(tenant).find(filter).lean();
 
       const donationsData = await TransactionModel(tenant).aggregate([
         {
@@ -482,6 +684,11 @@ const campaigns = {
         },
       ]);
 
+      // Manually populate created_by fields for all campaigns
+      const populatedCampaigns = await Promise.all(
+        campaigns.map((campaign) => populateCampaignCreatedBy(campaign, tenant))
+      );
+
       const report = {
         generated_at: new Date(),
         time_period: {
@@ -489,9 +696,10 @@ const campaigns = {
           end_date: end_date || "Current",
         },
         summary: {
-          total_campaigns: campaigns.length,
-          active_campaigns: campaigns.filter((c) => c.status === "active")
-            .length,
+          total_campaigns: populatedCampaigns.length,
+          active_campaigns: populatedCampaigns.filter(
+            (c) => c.status === "active"
+          ).length,
           total_raised: donationsData.reduce(
             (acc, curr) => acc + curr.total_amount,
             0
@@ -501,7 +709,7 @@ const campaigns = {
             0
           ),
         },
-        campaigns: campaigns.map((campaign) => ({
+        campaigns: populatedCampaigns.map((campaign) => ({
           id: campaign._id,
           title: campaign.title,
           status: campaign.status,
@@ -515,13 +723,6 @@ const campaigns = {
           created_at: campaign.createdAt,
           category: campaign.category,
         })),
-      };
-
-      return {
-        success: true,
-        message: "Campaign report generated successfully",
-        data: report,
-        // Continued from previous implementation...
         donations_summary: donationsData.map((donation) => ({
           campaign_id: donation._id,
           total_donations: donation.total_donations,
@@ -584,7 +785,7 @@ const campaigns = {
    * @param {Date} endDate - Campaign end date
    * @throws {HttpError} If dates are invalid
    */
-  validateCampaignDates: (startDate, endDate) => {
+  validateCampaignDates: (startDate, endDate, existingCampaign) => {
     const now = new Date();
     const start = new Date(startDate);
     const end = new Date(endDate);

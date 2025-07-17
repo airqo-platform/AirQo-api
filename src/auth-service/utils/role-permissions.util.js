@@ -16,6 +16,32 @@ const logger = log4js.getLogger(
 );
 const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 
+// ===== HELPER FUNCTIONS =====
+
+/**
+ * Manually populate role permissions to avoid schema registration issues
+ */
+const manuallyPopulateRolePermissions = async (role, tenant) => {
+  try {
+    if (!role || !role.role_permissions || role.role_permissions.length === 0) {
+      return { ...role, role_permissions: [] };
+    }
+
+    const permissions = await PermissionModel(tenant)
+      .find({ _id: { $in: role.role_permissions } })
+      .select("permission description")
+      .lean();
+
+    return {
+      ...role,
+      role_permissions: permissions,
+    };
+  } catch (error) {
+    logger.error(`Error populating role permissions: ${error.message}`);
+    return { ...role, role_permissions: [] };
+  }
+};
+
 const convertToUpperCaseWithUnderscore = (inputString, next) => {
   try {
     const uppercaseString = inputString.toUpperCase();
@@ -246,6 +272,318 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
     logObject("🐛 [DEBUG] Error in isRoleAlreadyAssigned:", error);
     logger.error(`Error in isRoleAlreadyAssigned: ${error.message}`);
     return false;
+  }
+};
+
+const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
+  try {
+    logObject(`🔍 Processing role with permission sync: ${roleData.role_name}`);
+
+    // Get permission IDs for the role
+    const permissions = await PermissionModel(tenant)
+      .find({ permission: { $in: roleData.permissions } })
+      .select("_id permission")
+      .lean();
+
+    const permissionIds = permissions.map((p) => p._id);
+    const foundPermissions = permissions.map((p) => p.permission);
+    const missingPermissions = roleData.permissions.filter(
+      (p) => !foundPermissions.includes(p)
+    );
+
+    if (missingPermissions.length > 0) {
+      console.warn(
+        `⚠️  Missing permissions for role ${roleData.role_name}:`,
+        missingPermissions
+      );
+    }
+
+    // Check if role already exists
+    const existingRole = await RoleModel(tenant)
+      .findOne({
+        $or: [
+          { role_code: roleData.role_code || roleData.role_name },
+          { role_name: roleData.role_name },
+        ],
+      })
+      .lean();
+
+    if (existingRole) {
+      logObject(`🔄 Updating existing role: ${roleData.role_name}`);
+
+      // Get current role and manually populate permissions
+      const currentRole = await RoleModel(tenant)
+        .findById(existingRole._id)
+        .lean();
+
+      const currentRoleWithPermissions = await manuallyPopulateRolePermissions(
+        currentRole,
+        tenant
+      );
+      const currentPermissions =
+        currentRoleWithPermissions.role_permissions?.map((p) => p.permission) ||
+        [];
+      const newPermissions = roleData.permissions.filter(
+        (p) => !currentPermissions.includes(p)
+      );
+
+      if (newPermissions.length > 0) {
+        logObject(
+          `📝 Adding ${newPermissions.length} new permissions to role ${roleData.role_name}:`,
+          newPermissions
+        );
+
+        const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
+          existingRole._id,
+          {
+            role_description: roleData.role_description,
+            role_permissions: permissionIds,
+            role_status: "ACTIVE",
+            updatedAt: new Date(),
+          },
+          { new: true }
+        );
+
+        return {
+          success: true,
+          data: updatedRole,
+          message: `Role ${roleData.role_name} updated with new permissions`,
+          status: httpStatus.OK,
+          role_name: roleData.role_name,
+          permissions_added: newPermissions,
+        };
+      } else {
+        logObject(
+          `✅ Role ${roleData.role_name} already has all required permissions`
+        );
+        return {
+          success: true,
+          data: existingRole,
+          message: `Role ${roleData.role_name} already up to date`,
+          status: httpStatus.OK,
+          role_name: roleData.role_name,
+        };
+      }
+    } else {
+      // Create new role
+      const newRole = await RoleModel(tenant).create({
+        role_name: roleData.role_name,
+        role_code: roleData.role_code || roleData.role_name,
+        role_description: roleData.role_description,
+        group_id: roleData.group_id,
+        network_id: roleData.network_id,
+        role_permissions: permissionIds,
+        role_status: "ACTIVE",
+      });
+
+      logObject(`✅ Created new role: ${roleData.role_name}`);
+      return {
+        success: true,
+        data: newRole,
+        message: `Role ${roleData.role_name} created successfully`,
+        status: httpStatus.OK,
+        role_name: roleData.role_name,
+      };
+    }
+  } catch (err) {
+    console.error(
+      `❌ Error creating/updating role ${roleData.role_name}: ${err.message}`
+    );
+    return {
+      success: false,
+      message: "Error creating/updating role",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      role_name: roleData.role_name,
+      errors: { message: err.message },
+    };
+  }
+};
+
+const auditAndSyncExistingRoles = async (tenant) => {
+  try {
+    logObject("🔍 Auditing and syncing existing organization roles...");
+
+    // Get all existing organization roles (non-AirQo roles) without populate
+    const existingRoles = await RoleModel(tenant)
+      .find({
+        role_name: { $not: { $regex: /^AIRQO_/ } },
+      })
+      .lean();
+
+    logObject(`📊 Found ${existingRoles.length} organization roles to audit`);
+
+    // Manually populate permissions for each role
+    const rolesWithPermissions = await Promise.all(
+      existingRoles.map(async (role) => {
+        return await manuallyPopulateRolePermissions(role, tenant);
+      })
+    );
+
+    // Define standard permissions for each role type
+    const rolePermissionTemplates = {
+      SUPER_ADMIN: [
+        "GROUP_MANAGEMENT",
+        "USER_MANAGEMENT",
+        "ROLE_ASSIGNMENT",
+        "SETTINGS_EDIT",
+        "ANALYTICS_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_DEPLOY",
+        "DEVICE_MAINTAIN",
+        "SITE_VIEW",
+        "SITE_CREATE",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+        "MEMBER_VIEW",
+        "MEMBER_INVITE",
+        "MEMBER_REMOVE",
+        "API_ACCESS",
+        "TOKEN_GENERATE",
+      ],
+      ADMIN: [
+        "GROUP_VIEW",
+        "GROUP_EDIT",
+        "USER_MANAGEMENT",
+        "MEMBER_VIEW",
+        "MEMBER_INVITE",
+        "MEMBER_REMOVE",
+        "ROLE_VIEW",
+        "SETTINGS_VIEW",
+        "ANALYTICS_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_DEPLOY",
+        "DEVICE_MAINTAIN",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+      ],
+      TECHNICIAN: [
+        "GROUP_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_DEPLOY",
+        "DEVICE_MAINTAIN",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "MEMBER_VIEW",
+      ],
+      ANALYST: [
+        "GROUP_VIEW",
+        "ANALYTICS_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+        "DATA_COMPARE",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+        "MEMBER_VIEW",
+      ],
+      DEVELOPER: [
+        "GROUP_VIEW",
+        "API_ACCESS",
+        "TOKEN_GENERATE",
+        "TOKEN_MANAGE",
+        "DATA_VIEW",
+        "DATA_EXPORT",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+      ],
+      VIEWER: [
+        "GROUP_VIEW",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "MEMBER_VIEW",
+      ],
+      DEFAULT_MEMBER: [
+        "GROUP_VIEW",
+        "MEMBER_VIEW",
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "DEVICE_VIEW",
+        "SITE_VIEW",
+      ],
+    };
+
+    let rolesUpdated = 0;
+    let permissionsAdded = 0;
+
+    for (const role of rolesWithPermissions) {
+      try {
+        // Determine role type from role name
+        let roleType = null;
+        for (const [type, permissions] of Object.entries(
+          rolePermissionTemplates
+        )) {
+          if (role.role_name.includes(type)) {
+            roleType = type;
+            break;
+          }
+        }
+
+        if (!roleType) {
+          logObject(`⚠️  Unknown role type for: ${role.role_name}, skipping`);
+          continue;
+        }
+
+        const expectedPermissions = rolePermissionTemplates[roleType];
+        const currentPermissions =
+          role.role_permissions?.map((p) => p.permission) || [];
+        const missingPermissions = expectedPermissions.filter(
+          (p) => !currentPermissions.includes(p)
+        );
+
+        if (missingPermissions.length > 0) {
+          logObject(
+            `📝 Adding ${missingPermissions.length} missing permissions to ${role.role_name}:`,
+            missingPermissions
+          );
+
+          // Get permission IDs for missing permissions
+          const missingPermissionDocs = await PermissionModel(tenant)
+            .find({ permission: { $in: missingPermissions } })
+            .select("_id")
+            .lean();
+
+          if (missingPermissionDocs.length > 0) {
+            const currentPermissionIds =
+              role.role_permissions?.map((p) => p._id) || [];
+            const newPermissionIds = missingPermissionDocs.map((p) => p._id);
+            const allPermissionIds = [
+              ...currentPermissionIds,
+              ...newPermissionIds,
+            ];
+
+            await RoleModel(tenant).findByIdAndUpdate(role._id, {
+              role_permissions: allPermissionIds,
+              updatedAt: new Date(),
+            });
+
+            rolesUpdated++;
+            permissionsAdded += missingPermissionDocs.length;
+            logObject(
+              `✅ Updated role ${role.role_name} with ${missingPermissionDocs.length} new permissions`
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          `❌ Error updating role ${role.role_name}: ${error.message}`
+        );
+      }
+    }
+
+    logObject(
+      `🎉 Role audit complete: ${rolesUpdated} roles updated, ${permissionsAdded} permissions added`
+    );
+    return { rolesUpdated, permissionsAdded };
+  } catch (error) {
+    console.error(`❌ Error during role audit: ${error.message}`);
+    return { rolesUpdated: 0, permissionsAdded: 0 };
   }
 };
 
@@ -553,7 +891,9 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       },
     ];
 
-    // Create default permissions
+    const createdPermissions = [];
+    const existingPermissions = [];
+
     for (const permissionData of defaultPermissions) {
       try {
         const existingPermission = await PermissionModel(tenant)
@@ -561,12 +901,23 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
           .lean();
 
         if (!existingPermission) {
-          await PermissionModel(tenant).create(permissionData);
+          const newPermission = await PermissionModel(tenant).create(
+            permissionData
+          );
+          createdPermissions.push(newPermission);
           logObject(`✅ Created permission: ${permissionData.permission}`);
         } else {
-          logObject(
-            `⏭️  Permission already exists: ${permissionData.permission}`
-          );
+          existingPermissions.push(existingPermission);
+          // **IMPROVEMENT: Update description if changed**
+          if (existingPermission.description !== permissionData.description) {
+            await PermissionModel(tenant).findByIdAndUpdate(
+              existingPermission._id,
+              { description: permissionData.description }
+            );
+            logObject(
+              `🔄 Updated permission description: ${permissionData.permission}`
+            );
+          }
         }
       } catch (error) {
         console.error(
@@ -591,7 +942,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       logObject("✅ Created AirQo organization");
     }
 
-    // Define default roles for AirQo organization
+    // **IMPROVEMENT 2: Enhanced role creation/update with permission sync**
     const defaultRoles = [
       {
         role_name: "AIRQO_SUPER_ADMIN",
@@ -662,128 +1013,42 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       },
     ];
 
-    // Create system-wide default role templates
-    const organizationRoleTemplates = [
-      {
-        role_name: "{ORG}_SUPER_ADMIN",
-        role_description: "Super Administrator for {ORG}",
-        permissions: [
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-        ],
-      },
-      {
-        role_name: "{ORG}_ADMIN",
-        role_description: "Administrator for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "ROLE_VIEW",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-        ],
-      },
-      {
-        role_name: "{ORG}_TECHNICIAN",
-        role_description: "Field Technician for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "MEMBER_VIEW",
-        ],
-      },
-      {
-        role_name: "{ORG}_ANALYST",
-        role_description: "Data Analyst for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "ANALYTICS_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "DATA_COMPARE",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-          "MEMBER_VIEW",
-        ],
-      },
-      {
-        role_name: "{ORG}_DEVELOPER",
-        role_description: "Developer for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-          "TOKEN_MANAGE",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-        ],
-      },
-      {
-        role_name: "{ORG}_VIEWER",
-        role_description: "Read-only Viewer for {ORG}",
-        permissions: [
-          "GROUP_VIEW",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "MEMBER_VIEW",
-        ],
-      },
-    ];
-
-    // Create AirQo-specific roles
     const roleCreationResults = [];
+    let airqoSuperAdminExists = false;
+    let airqoSuperAdminRoleId = null;
+
     for (const roleData of defaultRoles) {
       try {
-        const result = await createOrUpdateRole(tenant, roleData);
+        const result = await createOrUpdateRoleWithPermissionSync(
+          tenant,
+          roleData
+        );
         if (result) {
           roleCreationResults.push(result);
+
+          if (
+            roleData.role_name === "AIRQO_SUPER_ADMIN" ||
+            roleData.role_code === "AIRQO_SUPER_ADMIN"
+          ) {
+            airqoSuperAdminExists = true;
+            airqoSuperAdminRoleId = result.data._id;
+            logObject("✅ AIRQO_SUPER_ADMIN role confirmed:", {
+              id: airqoSuperAdminRoleId,
+              status: result.success ? "success" : "warning",
+            });
+          }
         }
       } catch (error) {
         console.error(
-          `❌ Failed to create role ${roleData.role_name}: ${error.message}`
+          `❌ Failed to create/update role ${roleData.role_name}: ${error.message}`
         );
-        // Continue with other roles even if one fails
+        // Continue with other roles
         continue;
       }
     }
+
+    // **IMPROVEMENT 3: Audit and sync ALL existing organization roles**
+    await auditAndSyncExistingRoles(tenant);
 
     logObject("🎉 Default permissions and roles setup completed successfully!");
 
@@ -791,10 +1056,21 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       success: true,
       message: "Default permissions and roles setup complete",
       data: {
-        permissions_created: defaultPermissions.length,
+        permissions_created: createdPermissions.length,
+        permissions_existing: existingPermissions.length,
+        permissions_total: defaultPermissions.length,
         roles_processed: defaultRoles.length,
-        roles_created: roleCreationResults.length,
+        roles_successful: roleCreationResults.filter((r) => r.success).length,
+        roles_failed: roleCreationResults.filter((r) => !r.success).length,
+        role_errors: roleCreationResults
+          .filter((r) => !r.success)
+          .map((r) => ({
+            role_name: r.role_name || "unknown",
+            error: r.message || "unknown error",
+          })),
         organization: airqoGroup.grp_title,
+        airqo_super_admin_exists: airqoSuperAdminExists,
+        airqo_super_admin_role_id: airqoSuperAdminRoleId,
       },
     };
   } catch (error) {
@@ -825,7 +1101,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
       role_code: roleData.role_code || roleData.role_name,
       role_description: roleData.role_description,
       group_id: roleData.group_id,
-      network_id: roleData.network_id, // Include network_id if provided
+      network_id: roleData.network_id,
       role_permissions: permissionIds,
       role_status: "ACTIVE",
     });
@@ -836,6 +1112,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
       data: newRole,
       message: `Role ${roleData.role_name} created successfully`,
       status: httpStatus.OK,
+      role_name: roleData.role_name, // Add for better tracking
     };
   } catch (err) {
     logObject(`⚠️  Error creating role ${roleData.role_name}:`, err.message);
@@ -869,7 +1146,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         }
 
         if (existingRole) {
-          // Optionally update permissions on existing role
+          // Update permissions on existing role if needed
           try {
             const permissions = await PermissionModel(tenant)
               .find({ permission: { $in: roleData.permissions } })
@@ -896,6 +1173,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
               data: updatedRole || existingRole,
               message: `Role ${roleData.role_name} already exists and was updated`,
               status: httpStatus.OK,
+              role_name: roleData.role_name,
             };
           } catch (updateError) {
             logObject(
@@ -906,6 +1184,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
               data: existingRole,
               message: `Role ${roleData.role_name} already exists`,
               status: httpStatus.OK,
+              role_name: roleData.role_name,
             };
           }
         } else {
@@ -914,25 +1193,16 @@ const createOrUpdateRole = async (tenant, roleData) => {
             `❌ Duplicate error but role not found: ${roleData.role_name}`
           );
 
-          // Extract duplicate field info from error
-          let duplicateField = "role_code";
-          let duplicateValue = roleData.role_code || roleData.role_name;
-
-          if (err.keyValue) {
-            const [key, value] = Object.entries(err.keyValue)[0];
-            duplicateField = key;
-            duplicateValue = value;
-          }
-
           return {
             success: false,
             message:
               "Duplicate role detected but could not locate existing role",
             status: httpStatus.CONFLICT,
+            role_name: roleData.role_name,
             errors: {
-              [duplicateField]: `the ${duplicateField} must be unique`,
-              message: `Role with ${duplicateField} '${duplicateValue}' already exists`,
-              suggestion: "Try using a different role name or code",
+              message: `Role with name '${roleData.role_name}' appears to be duplicate but could not be located`,
+              suggestion:
+                "Try using a different role name or check database consistency",
             },
           };
         }
@@ -942,6 +1212,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
           success: false,
           message: "Duplicate role error and failed to find existing role",
           status: httpStatus.CONFLICT,
+          role_name: roleData.role_name,
           errors: {
             message: `Role ${roleData.role_name} appears to be duplicate but could not be located`,
             original_error: err.message,
@@ -949,32 +1220,6 @@ const createOrUpdateRole = async (tenant, roleData) => {
           },
         };
       }
-    } else if (err.keyValue) {
-      // Handle other duplicate field errors
-      let response = {};
-      Object.entries(err.keyValue).forEach(([key, value]) => {
-        response[key] = `the ${key} must be unique`;
-      });
-
-      return {
-        success: false,
-        message: "Validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-        errors: response,
-      };
-    } else if (err.errors) {
-      // Handle validation errors
-      let response = {};
-      Object.entries(err.errors).forEach(([key, value]) => {
-        response[key] = value.message;
-      });
-
-      return {
-        success: false,
-        message: "Validation errors for some of the provided fields",
-        status: httpStatus.CONFLICT,
-        errors: response,
-      };
     } else {
       // Handle other errors
       console.error(
@@ -984,6 +1229,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
         success: false,
         message: "Error creating role",
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        role_name: roleData.role_name,
         errors: {
           message: err.message,
         },
@@ -1366,7 +1612,11 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
   }
 };
 
-const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
+const getDetailedUserRolesAndPermissions = async (
+  userId,
+  tenant,
+  filters = {}
+) => {
   // Get user data without populate to avoid schema registration issues
   const user = await UserModel(tenant).findById(userId).lean();
 
@@ -1374,9 +1624,22 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     return null;
   }
 
+  // Extract filter parameters
+  const { group_id, network_id, include_all_groups = false } = filters;
+
   // Manually fetch and organize group-based roles and permissions
   const groupRolesWithPermissions = [];
-  for (const groupRole of user.group_roles || []) {
+
+  // Filter group_roles based on group_id if provided
+  let filteredGroupRoles = user.group_roles || [];
+  if (group_id && !include_all_groups) {
+    filteredGroupRoles = filteredGroupRoles.filter(
+      (groupRole) =>
+        groupRole.group && groupRole.group.toString() === group_id.toString()
+    );
+  }
+
+  for (const groupRole of filteredGroupRoles) {
     try {
       // Fetch group details
       const group = groupRole.group
@@ -1388,17 +1651,28 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
             .lean()
         : null;
 
-      // Fetch role details with permissions
-      const role = groupRole.role
-        ? await RoleModel(tenant)
-            .findById(groupRole.role)
-            .populate("role_permissions", "permission", "description")
-            .lean()
-        : null;
+      // Fetch role details without populate first
+      let role = null;
+      let permissions = [];
 
-      const permissions = (role?.role_permissions || []).map(
-        (perm) => perm.permission
-      );
+      if (groupRole.role) {
+        try {
+          role = await RoleModel(tenant).findById(groupRole.role).lean();
+          if (role) {
+            // Manually populate permissions
+            const populatedRole = await manuallyPopulateRolePermissions(
+              role,
+              tenant
+            );
+            role = populatedRole;
+            permissions = (role.role_permissions || []).map(
+              (perm) => perm.permission
+            );
+          }
+        } catch (roleError) {
+          logger.error(`Error fetching role: ${roleError.message}`);
+        }
+      }
 
       groupRolesWithPermissions.push({
         group: group
@@ -1440,14 +1714,102 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     }
   }
 
-  // Similar logic for network roles...
+  // Similar logic for network roles with network_id filter
   const networkRolesWithPermissions = [];
-  // ... (network processing logic)
+
+  // Filter network_roles based on network_id if provided
+  let filteredNetworkRoles = user.network_roles || [];
+  if (network_id) {
+    filteredNetworkRoles = filteredNetworkRoles.filter(
+      (networkRole) =>
+        networkRole.network &&
+        networkRole.network.toString() === network_id.toString()
+    );
+  }
+
+  for (const networkRole of filteredNetworkRoles) {
+    try {
+      // For networks, we'll handle gracefully since NetworkModel might not exist
+      let network = null;
+      if (networkRole.network) {
+        try {
+          // Try to get network details if available
+          network = {
+            _id: networkRole.network,
+            name: "Network", // Placeholder
+            description: null,
+            status: "active",
+          };
+        } catch (networkError) {
+          logger.warn(
+            `Could not fetch network details: ${networkError.message}`
+          );
+        }
+      }
+
+      // Fetch role details without populate first
+      let role = null;
+      let permissions = [];
+
+      if (networkRole.role) {
+        try {
+          role = await RoleModel(tenant).findById(networkRole.role).lean();
+          if (role) {
+            // Manually populate permissions
+            const populatedRole = await manuallyPopulateRolePermissions(
+              role,
+              tenant
+            );
+            role = populatedRole;
+            permissions = (role.role_permissions || []).map(
+              (perm) => perm.permission
+            );
+          }
+        } catch (roleError) {
+          logger.error(`Error fetching network role: ${roleError.message}`);
+        }
+      }
+
+      networkRolesWithPermissions.push({
+        network: network || {
+          _id: networkRole.network,
+          name: "Unknown Network",
+          description: null,
+          status: "unknown",
+        },
+        role: role
+          ? {
+              _id: role._id,
+              name: role.role_name,
+              code: role.role_code,
+              description: role.role_description,
+            }
+          : {
+              _id: networkRole.role,
+              name: "Unknown Role",
+              code: null,
+              description: null,
+            },
+        permissions: permissions,
+        permissions_count: permissions.length,
+        user_type: networkRole.userType,
+        assigned_at: networkRole.createdAt,
+      });
+    } catch (error) {
+      logger.error(`Error processing network role: ${error.message}`);
+      continue;
+    }
+  }
 
   // Calculate summary statistics
   const allPermissions = new Set();
   groupRolesWithPermissions.forEach((groupRole) => {
     groupRole.permissions.forEach((permission) =>
+      allPermissions.add(permission)
+    );
+  });
+  networkRolesWithPermissions.forEach((networkRole) => {
+    networkRole.permissions.forEach((permission) =>
       allPermissions.add(permission)
     );
   });
@@ -1457,9 +1819,16 @@ const getDetailedUserRolesAndPermissions = async (userId, tenant) => {
     total_networks: networkRolesWithPermissions.length,
     total_unique_permissions: allPermissions.size,
     all_permissions: Array.from(allPermissions).sort(),
-    has_super_admin_role: groupRolesWithPermissions.some(
-      (gr) => gr.role.name && gr.role.name.includes("SUPER_ADMIN")
-    ),
+    has_super_admin_role: [
+      ...groupRolesWithPermissions,
+      ...networkRolesWithPermissions,
+    ].some((item) => item.role.name && item.role.name.includes("SUPER_ADMIN")),
+    // Add filter metadata
+    filters_applied: {
+      group_id: group_id || null,
+      network_id: network_id || null,
+      include_all_groups,
+    },
   };
 
   return {
@@ -1772,7 +2141,7 @@ const rolePermissionUtil = {
   assignUserToRole: async (request, next) => {
     try {
       const { role_id, user_id } = request.params;
-      const { tenant, user } = { ...request.body, ...request.query };
+      const { tenant, user, user_type } = { ...request.body, ...request.query };
       const userIdFromBody = user;
       const userIdFromQuery = user_id;
 
@@ -1813,10 +2182,8 @@ const rolePermissionUtil = {
 
       const isNetworkRole = roleType === "network";
 
-      const userObject = await UserModel(tenant)
-        .findById(userId)
-        .populate(isNetworkRole ? "network_roles" : "group_roles")
-        .lean();
+      // Get user without populate, then manually check roles
+      const userObject = await UserModel(tenant).findById(userId).lean();
 
       const userRoles = isNetworkRole
         ? userObject.network_roles
@@ -1872,7 +2239,7 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: "guest", // Optional: adding default user type
+            userType: user_type || "guest",
             createdAt: new Date(),
           },
         },
@@ -1938,9 +2305,9 @@ const rolePermissionUtil = {
       const assignUserPromises = [];
       const isNetworkRole = roleType === "network";
 
+      // Get users without populate
       const users = await UserModel(tenant)
         .find({ _id: { $in: user_ids } })
-        .populate(isNetworkRole ? "network_roles" : "group_roles")
         .lean();
 
       for (const user of users) {
@@ -2139,11 +2506,9 @@ const rolePermissionUtil = {
       const { query, params } = request;
       const { role_id, user_id, tenant } = { ...query, ...params };
 
+      // Get user and role data without populate
       const [userObject, role, userExists, roleExists] = await Promise.all([
-        UserModel(tenant)
-          .findById(user_id)
-          .populate("network_roles group_roles")
-          .lean(),
+        UserModel(tenant).findById(user_id).lean(),
         RoleModel(tenant).findById(role_id).lean(),
         UserModel(tenant).exists({ _id: user_id }),
         RoleModel(tenant).exists({ _id: role_id }),
@@ -2286,10 +2651,8 @@ const rolePermissionUtil = {
       const unAssignUserPromises = [];
 
       for (const user_id of user_ids) {
-        const userObject = await UserModel(tenant)
-          .findById(user_id)
-          .populate("network_roles group_roles")
-          .lean();
+        // Get user without populate
+        const userObject = await UserModel(tenant).findById(user_id).lean();
 
         const { network_roles, group_roles } = userObject;
         logObject("roleObject", roleObject);
@@ -2662,6 +3025,60 @@ const rolePermissionUtil = {
       return role;
     } catch (error) {
       logger.error("Error getting default group role:", error);
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
+  },
+
+  getDefaultNetworkRole: async (tenant, networkId) => {
+    try {
+      const NetworkModel = require("@models/Network");
+      const network = await NetworkModel(tenant).findById(networkId).lean();
+
+      if (!network) {
+        return null;
+      }
+
+      const organizationName = network.net_name.toUpperCase();
+      const defaultRoleCode = `${organizationName}_DEFAULT_MEMBER`;
+
+      let role = await RoleModel(tenant).findOne({
+        role_code: defaultRoleCode,
+      });
+
+      if (!role) {
+        const roleDocument = {
+          role_code: defaultRoleCode,
+          role_name: defaultRoleCode,
+          role_description: "Default role for new network members",
+          network_id: networkId,
+        };
+        role = await RoleModel(tenant).create(roleDocument);
+
+        // Assign default permissions
+        const defaultPermissions = await PermissionModel(tenant).find({
+          permission: {
+            $in: constants.DEFAULT_NETWORK_MEMBER_PERMISSIONS || [],
+          },
+        });
+
+        if (defaultPermissions.length > 0) {
+          await RoleModel(tenant).findByIdAndUpdate(role._id, {
+            $addToSet: {
+              role_permissions: {
+                $each: defaultPermissions.map((permission) => permission._id),
+              },
+            },
+          });
+        }
+      }
+
+      return role;
+    } catch (error) {
+      logger.error("Error getting default network role:", error);
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
@@ -4014,7 +4431,8 @@ const rolePermissionUtil = {
   getUserRolesAndPermissionsDetailed: async (request, next) => {
     try {
       const { user_id } = request.params;
-      const { tenant } = request.query;
+      const { tenant, group_id, network_id, include_all_groups } =
+        request.query;
 
       if (!user_id) {
         return {
@@ -4025,7 +4443,23 @@ const rolePermissionUtil = {
         };
       }
 
-      const result = await getDetailedUserRolesAndPermissions(user_id, tenant);
+      // Prepare filters object
+      const filters = {};
+      if (group_id) {
+        filters.group_id = group_id;
+      }
+      if (network_id) {
+        filters.network_id = network_id;
+      }
+      if (include_all_groups !== undefined) {
+        filters.include_all_groups = include_all_groups === "true";
+      }
+
+      const result = await getDetailedUserRolesAndPermissions(
+        user_id,
+        tenant,
+        filters
+      );
 
       if (!result) {
         return {
@@ -4039,7 +4473,12 @@ const rolePermissionUtil = {
       return {
         success: true,
         message: "Successfully retrieved detailed user roles and permissions",
-        data: { ...result, tenant, generated_at: new Date().toISOString() },
+        data: {
+          ...result,
+          tenant,
+          generated_at: new Date().toISOString(),
+          filters_applied: filters,
+        },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -4049,6 +4488,461 @@ const rolePermissionUtil = {
       return {
         success: false,
         message: "Failed to retrieve user roles and permissions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get user permissions for a specific group (convenience method)
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object with group-specific permissions
+   */
+  getUserPermissionsForGroup: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant } = request.query;
+
+      // Support both URL param and query param for group_id
+      const group_id = request.params.group_id || request.query.group_id;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "user_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id parameter is required" },
+        };
+      }
+
+      if (!group_id) {
+        return {
+          success: false,
+          message: "group_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "group_id parameter is required" },
+        };
+      }
+
+      const filters = { group_id };
+      const result = await getDetailedUserRolesAndPermissions(
+        user_id,
+        tenant,
+        filters
+      );
+
+      if (!result) {
+        return {
+          success: false,
+          message: `User ${user_id} not found`,
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // Extract permissions for easy frontend consumption
+      const groupPermissions =
+        result.group_roles.length > 0 ? result.group_roles[0].permissions : [];
+      const hasEditPermission =
+        groupPermissions.includes("EDIT") ||
+        groupPermissions.includes("GROUP_EDIT");
+      const hasDeletePermission =
+        groupPermissions.includes("DELETE") ||
+        groupPermissions.includes("GROUP_DELETE");
+      const hasUpdatePermission =
+        groupPermissions.includes("UPDATE") ||
+        groupPermissions.includes("GROUP_UPDATE");
+
+      return {
+        success: true,
+        message: "Successfully retrieved user permissions for group",
+        data: {
+          user_id,
+          group_id,
+          group_info:
+            result.group_roles.length > 0 ? result.group_roles[0].group : null,
+          role_info:
+            result.group_roles.length > 0 ? result.group_roles[0].role : null,
+          permissions: groupPermissions,
+          access_control: {
+            can_edit: hasEditPermission,
+            can_delete: hasDeletePermission,
+            can_update: hasUpdatePermission,
+          },
+          tenant,
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`getUserPermissionsForGroup error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve user permissions for group",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Bulk permissions check for multiple groups
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  bulkPermissionsCheck: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { group_ids, permissions } = request.body;
+      const { tenant } = request.query;
+
+      if (!user_id) {
+        return {
+          success: false,
+          message: "user_id parameter is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "user_id parameter is required" },
+        };
+      }
+
+      if (!group_ids || !Array.isArray(group_ids) || group_ids.length === 0) {
+        return {
+          success: false,
+          message: "group_ids array is required and cannot be empty",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "group_ids array is required and cannot be empty",
+          },
+        };
+      }
+
+      const results = [];
+
+      for (const group_id of group_ids) {
+        try {
+          // Create a temporary request object for each group
+          const tempReq = {
+            params: { user_id },
+            query: { tenant, group_id },
+          };
+
+          const groupResult =
+            await rolePermissionUtil.getUserPermissionsForGroup(tempReq, next);
+
+          if (groupResult.success) {
+            const groupData = groupResult.data;
+            let permissionChecks = {};
+
+            // If specific permissions were requested, check for them
+            if (permissions && permissions.length > 0) {
+              permissions.forEach((permission) => {
+                permissionChecks[permission] =
+                  groupData.permissions.includes(permission);
+              });
+            } else {
+              // Return all permissions
+              permissionChecks = groupData.access_control;
+            }
+
+            results.push({
+              group_id,
+              group_name: groupData.group_info?.name || "Unknown Group",
+              role_name: groupData.role_info?.name || "No Role",
+              permissions: groupData.permissions,
+              permission_checks: permissionChecks,
+              access_control: groupData.access_control,
+            });
+          } else {
+            // Include failed group checks
+            results.push({
+              group_id,
+              error: groupResult.message,
+              permissions: [],
+              permission_checks: {},
+              access_control: {
+                can_edit: false,
+                can_delete: false,
+                can_update: false,
+              },
+            });
+          }
+        } catch (error) {
+          results.push({
+            group_id,
+            error: error.message,
+            permissions: [],
+            permission_checks: {},
+            access_control: {
+              can_edit: false,
+              can_delete: false,
+              can_update: false,
+            },
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: `Successfully checked permissions for ${group_ids.length} groups`,
+        data: {
+          user_id,
+          groups_checked: group_ids.length,
+          results,
+          summary: {
+            total_groups: results.length,
+            groups_with_access: results.filter((r) => !r.error).length,
+            groups_with_errors: results.filter((r) => r.error).length,
+          },
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`bulkPermissionsCheck error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to complete bulk permissions check",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get simplified permissions for frontend components
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  getSimplifiedPermissionsForGroup: async (request, next) => {
+    try {
+      const result = await rolePermissionUtil.getUserPermissionsForGroup(
+        request,
+        next
+      );
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Return only the essential information for frontend
+      return {
+        success: true,
+        message: "Successfully retrieved simplified permissions",
+        data: {
+          user_id: result.data.user_id,
+          group_id: result.data.group_id,
+          permissions: result.data.permissions,
+          can_edit: result.data.access_control.can_edit,
+          can_delete: result.data.access_control.can_delete,
+          can_update: result.data.access_control.can_update,
+          role_name: result.data.role_info?.name,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`getSimplifiedPermissionsForGroup error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve simplified permissions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Check user permissions for specific actions
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  checkUserPermissionsForActions: async (request, next) => {
+    try {
+      const { user_id } = request.params;
+      const { tenant, group_id } = request.query;
+      const { actions } = request.body;
+
+      if (!actions || !Array.isArray(actions)) {
+        return {
+          success: false,
+          message: "actions array is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "actions array is required" },
+        };
+      }
+
+      const result = await rolePermissionUtil.getUserPermissionsForGroup(
+        { params: { user_id }, query: { tenant, group_id } },
+        next
+      );
+
+      if (!result.success) {
+        return result;
+      }
+
+      const userPermissions = result.data.permissions;
+      const actionChecks = {};
+
+      actions.forEach((action) => {
+        actionChecks[action] = userPermissions.includes(action);
+      });
+
+      return {
+        success: true,
+        message: "Successfully checked user permissions for actions",
+        data: {
+          user_id,
+          group_id,
+          actions_checked: actions,
+          action_permissions: actionChecks,
+          all_actions_allowed: Object.values(actionChecks).every(
+            (allowed) => allowed
+          ),
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`checkUserPermissionsForActions error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to check user permissions for actions",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get user roles filtered by group with enhanced details
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  getUserRolesByGroup: async (request, next) => {
+    try {
+      const result =
+        await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
+          request,
+          next
+        );
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Focus on group roles only
+      return {
+        success: true,
+        message: "Successfully retrieved user roles for group",
+        data: {
+          user: result.data.user,
+          group_roles: result.data.group_roles,
+          summary: {
+            total_group_roles: result.data.group_roles.length,
+            total_permissions: result.data.summary.total_unique_permissions,
+            permissions: result.data.summary.all_permissions,
+          },
+          filters_applied: result.data.filters_applied,
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`getUserRolesByGroup error: ${error.message}`);
+      return {
+        success: false,
+        message: "Failed to retrieve user roles for group",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /**
+   * Get all groups with user's permissions summary
+   * @param {Object} request - Express request object
+   * @param {Function} next - Express next function
+   * @returns {Promise<Object>} Standard response object
+   */
+  getUserGroupsWithPermissionsSummary: async (request, next) => {
+    try {
+      // Get all groups for the user (no filtering)
+      const tempReq = {
+        ...request,
+        query: { ...request.query },
+      };
+
+      tempReq.query.group_id = undefined;
+      const result =
+        await rolePermissionUtil.getUserRolesAndPermissionsDetailed(
+          tempReq,
+          next
+        );
+
+      if (!result.success) {
+        return result;
+      }
+
+      // Create summary for each group
+      const groupsSummary = result.data.group_roles.map((groupRole) => ({
+        group: groupRole.group,
+        role: groupRole.role,
+        permissions_count: groupRole.permissions_count,
+        key_permissions: {
+          can_edit:
+            groupRole.permissions.includes("GROUP_EDIT") ||
+            groupRole.permissions.includes("EDIT"),
+          can_delete:
+            groupRole.permissions.includes("GROUP_DELETE") ||
+            groupRole.permissions.includes("DELETE"),
+          can_update:
+            groupRole.permissions.includes("GROUP_UPDATE") ||
+            groupRole.permissions.includes("UPDATE"),
+          can_manage_users: groupRole.permissions.includes("USER_MANAGEMENT"),
+          can_manage_members:
+            groupRole.permissions.includes("MEMBER_INVITE") ||
+            groupRole.permissions.includes("MEMBER_REMOVE"),
+        },
+        user_type: groupRole.user_type,
+        assigned_at: groupRole.assigned_at,
+      }));
+
+      return {
+        success: true,
+        message: "Successfully retrieved groups with permissions summary",
+        data: {
+          user: result.data.user,
+          groups_summary: groupsSummary,
+          overall_summary: {
+            total_groups: groupsSummary.length,
+            groups_with_edit_access: groupsSummary.filter(
+              (g) => g.key_permissions.can_edit
+            ).length,
+            groups_with_delete_access: groupsSummary.filter(
+              (g) => g.key_permissions.can_delete
+            ).length,
+            groups_with_user_management: groupsSummary.filter(
+              (g) => g.key_permissions.can_manage_users
+            ).length,
+            total_unique_permissions:
+              result.data.summary.total_unique_permissions,
+          },
+          generated_at: new Date().toISOString(),
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `getUserGroupsWithPermissionsSummary error: ${error.message}`
+      );
+      return {
+        success: false,
+        message: "Failed to retrieve groups with permissions summary",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
@@ -4277,22 +5171,34 @@ const rolePermissionUtil = {
                 .lean()
             : null;
 
-          // Fetch role details with permissions
-          const role = groupRole.role
-            ? await RoleModel(tenant)
-                .findById(groupRole.role)
-                .populate("role_permissions", "permission")
-                .lean()
-            : null;
+          // Fetch role details without populate, then manually populate permissions
+          let role = null;
+          let permissions = [];
+
+          if (groupRole.role) {
+            try {
+              role = await RoleModel(tenant).findById(groupRole.role).lean();
+              if (role) {
+                const populatedRole = await manuallyPopulateRolePermissions(
+                  role,
+                  tenant
+                );
+                role = populatedRole;
+                permissions = (role.role_permissions || []).map(
+                  (p) => p.permission
+                );
+              }
+            } catch (roleError) {
+              logger.error(`Error fetching role: ${roleError.message}`);
+            }
+          }
 
           groupRolesData.push({
             group_id: group?._id,
             group_name: group?.grp_title,
             role_id: role?._id,
             role_name: role?.role_name,
-            permissions: (role?.role_permissions || []).map(
-              (p) => p.permission
-            ),
+            permissions: permissions,
           });
         } catch (error) {
           logger.error(`Error processing group role: ${error.message}`);
@@ -4328,22 +5234,34 @@ const rolePermissionUtil = {
             }
           }
 
-          // Fetch role details with permissions
-          const role = networkRole.role
-            ? await RoleModel(tenant)
-                .findById(networkRole.role)
-                .populate("role_permissions", "permission")
-                .lean()
-            : null;
+          // Fetch role details without populate, then manually populate permissions
+          let role = null;
+          let permissions = [];
+
+          if (networkRole.role) {
+            try {
+              role = await RoleModel(tenant).findById(networkRole.role).lean();
+              if (role) {
+                const populatedRole = await manuallyPopulateRolePermissions(
+                  role,
+                  tenant
+                );
+                role = populatedRole;
+                permissions = (role.role_permissions || []).map(
+                  (p) => p.permission
+                );
+              }
+            } catch (roleError) {
+              logger.error(`Error fetching network role: ${roleError.message}`);
+            }
+          }
 
           networkRolesData.push({
             network_id: network?._id,
             network_name: network?.net_name,
             role_id: role?._id,
             role_name: role?.role_name,
-            permissions: (role?.role_permissions || []).map(
-              (p) => p.permission
-            ),
+            permissions: permissions,
           });
         } catch (error) {
           logger.error(`Error processing network role: ${error.message}`);

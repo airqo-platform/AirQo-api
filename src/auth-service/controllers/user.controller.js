@@ -1135,9 +1135,11 @@ const createUser = {
 
       const result = await userUtil.create(request, next);
 
+      // Check if result exists and headers haven't been sent
       if (isEmpty(result) || res.headersSent) {
         return;
       }
+
       if (result.success === true) {
         const status = result.status ? result.status : httpStatus.OK;
         return res.status(status).json({
@@ -1154,7 +1156,7 @@ const createUser = {
           message: result.message,
           errors: result.errors
             ? result.errors
-            : { message: "Internal Server Errors" },
+            : [{ message: "Internal Server Errors" }],
         });
       }
     } catch (error) {
@@ -2274,6 +2276,578 @@ const createUser = {
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  /**
+   * Enhanced login endpoint with comprehensive role/permission data and optimized tokens
+   * @route POST /api/v2/users/loginEnhanced
+   */
+  loginEnhanced: async (req, res, next) => {
+    try {
+      logText("Enhanced login endpoint called");
+      logObject("Request body", req.body);
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Add debug info flag if in development
+      if (
+        process.env.NODE_ENV === "development" &&
+        !request.body.includeDebugInfo
+      ) {
+        request.body.includeDebugInfo = req.query.debug === "true";
+      }
+
+      console.log("🔐 Enhanced login controller processing:", {
+        email: request.body.email,
+        tenant: request.query.tenant,
+        strategy: request.body.preferredStrategy,
+        debug: request.body.includeDebugInfo,
+      });
+
+      const result = await userUtil.loginWithEnhancedTokens(request, next);
+
+      if (result.success) {
+        logText("Enhanced login successful");
+        console.log("✅ Enhanced login successful in controller");
+      } else {
+        logText("Enhanced login failed");
+        console.log("❌ Enhanced login failed in controller:", result.message);
+      }
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Enhanced login controller error: ${error.message}`);
+      logObject("Enhanced login error", error);
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Generate optimized token for existing session
+   * @route POST /api/v2/users/generateToken
+   */
+  generateOptimizedToken: async (req, res, next) => {
+    try {
+      logText("Generate optimized token endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      console.log("🔧 Token generation requested:", {
+        userId: request.body.userId,
+        strategy: request.body.strategy,
+        tenant: request.query.tenant,
+      });
+
+      const result = await userUtil.generateOptimizedToken(request, next);
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Token generation controller error: ${error.message}`);
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Refresh user permissions and optionally regenerate token
+   * @route POST /api/v2/users/refreshPermissions
+   */
+  refreshPermissions: async (req, res, next) => {
+    try {
+      logText("Refresh permissions endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      console.log("🔄 Permission refresh requested:", {
+        userId: request.body.userId || request.user?._id,
+        strategy: request.body.strategy,
+        tenant: request.query.tenant,
+      });
+
+      // Use userId from body or from authenticated user
+      if (!request.body.userId && request.user?._id) {
+        request.body.userId = request.user._id;
+      }
+
+      const result = await userUtil.refreshUserPermissions(request, next);
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Permission refresh controller error: ${error.message}`);
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Analyze token sizes across different strategies for a user
+   * @route GET /api/v2/users/analyzeTokens/:userId
+   */
+  analyzeTokenStrategies: async (req, res, next) => {
+    try {
+      logText("Token analysis endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Get userId from params
+      request.body.userId = req.params.userId || req.user?._id;
+
+      if (!request.body.userId) {
+        return next(
+          new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
+            userId: "User ID must be provided in URL params",
+          })
+        );
+      }
+
+      console.log("📊 Token analysis requested:", {
+        userId: request.body.userId,
+        tenant: request.query.tenant,
+      });
+
+      const result = await userUtil.analyzeTokenStrategies(request, next);
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Token analysis controller error: ${error.message}`);
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Get user permissions in a specific context (group/network)
+   * @route GET /api/v2/users/contextPermissions
+   */
+  getContextPermissions: async (req, res, next) => {
+    try {
+      logText("Context permissions endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Get parameters from various sources
+      request.body.userId =
+        req.query.userId || req.body.userId || req.user?._id;
+      request.body.contextId = req.query.contextId || req.body.contextId;
+      request.body.contextType = req.query.contextType || req.body.contextType;
+
+      if (!request.body.userId) {
+        return next(
+          new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
+            userId: "User ID must be provided",
+          })
+        );
+      }
+
+      console.log("🏢 Context permissions requested:", {
+        userId: request.body.userId,
+        contextId: request.body.contextId,
+        contextType: request.body.contextType,
+        tenant: request.query.tenant,
+      });
+
+      const result = await userUtil.getUserContextPermissions(request, next);
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Context permissions controller error: ${error.message}`);
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Update user's preferred token strategy
+   * @route PUT /api/v2/users/tokenStrategy
+   */
+  updateTokenStrategy: async (req, res, next) => {
+    try {
+      logText("Update token strategy endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Use userId from body or from authenticated user
+      if (!request.body.userId && request.user?._id) {
+        request.body.userId = request.user._id;
+      }
+
+      if (!request.body.userId) {
+        return next(
+          new HttpError("User ID is required", httpStatus.BAD_REQUEST, {
+            userId: "User ID must be provided",
+          })
+        );
+      }
+
+      if (!request.body.strategy) {
+        return next(
+          new HttpError("Strategy is required", httpStatus.BAD_REQUEST, {
+            strategy: "Token strategy must be provided",
+          })
+        );
+      }
+
+      console.log("🎯 Token strategy update requested:", {
+        userId: request.body.userId,
+        strategy: request.body.strategy,
+        tenant: request.query.tenant,
+      });
+
+      const result = await userUtil.updateTokenStrategy(request, next);
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(
+        `🐛 Token strategy update controller error: ${error.message}`
+      );
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Get comprehensive user profile with all permissions and roles
+   * @route GET /api/v2/users/profile/enhanced
+   */
+  getEnhancedProfile: async (req, res, next) => {
+    try {
+      logText("Enhanced profile endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const userId = req.user?._id;
+      if (!userId) {
+        return next(
+          new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
+            auth: "User must be authenticated",
+          })
+        );
+      }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      console.log("👤 Enhanced profile requested:", {
+        userId,
+        tenant,
+      });
+
+      // Get user permissions context
+      const request = {
+        body: { userId },
+        query: { tenant },
+      };
+
+      const permissionsResult = await userUtil.getUserContextPermissions(
+        request,
+        next
+      );
+
+      if (!permissionsResult.success) {
+        return handleResponse({ result: permissionsResult, res });
+      }
+
+      const UserModel = require("@models/User");
+
+      // First get the basic user data
+      const basicUser = await UserModel(tenant)
+        .findById(userId)
+        .select("-password -resetPasswordToken -resetPasswordExpires")
+        .lean();
+
+      if (!basicUser) {
+        return next(
+          new HttpError("User not found", httpStatus.NOT_FOUND, {
+            user: "User profile not found",
+          })
+        );
+      }
+
+      // Manually populate group_roles.group if they exist
+      let populatedUser = { ...basicUser };
+
+      if (basicUser.group_roles && basicUser.group_roles.length > 0) {
+        try {
+          const GroupModel = require("@models/Group");
+          const groupIds = basicUser.group_roles.map((gr) => gr.group);
+
+          const groups = await GroupModel(tenant)
+            .find({ _id: { $in: groupIds } })
+            .select("grp_title grp_status organization_slug")
+            .lean();
+
+          // Map groups back to group_roles
+          populatedUser.group_roles = basicUser.group_roles.map(
+            (groupRole) => ({
+              ...groupRole,
+              group:
+                groups.find(
+                  (g) => g._id.toString() === groupRole.group.toString()
+                ) || groupRole.group,
+            })
+          );
+        } catch (error) {
+          logger.warn(`Could not populate group roles: ${error.message}`);
+          populatedUser.group_roles = basicUser.group_roles;
+        }
+      }
+
+      // Manually populate network_roles.network if they exist
+      if (basicUser.network_roles && basicUser.network_roles.length > 0) {
+        try {
+          const NetworkModel = require("@models/Network");
+          const networkIds = basicUser.network_roles.map((nr) => nr.network);
+
+          const networks = await NetworkModel(tenant)
+            .find({ _id: { $in: networkIds } })
+            .select("net_name net_status net_acronym")
+            .lean();
+
+          // Map networks back to network_roles
+          populatedUser.network_roles = basicUser.network_roles.map(
+            (networkRole) => ({
+              ...networkRole,
+              network:
+                networks.find(
+                  (n) => n._id.toString() === networkRole.network.toString()
+                ) || networkRole.network,
+            })
+          );
+        } catch (error) {
+          // If Network model doesn't exist or fails, keep original network_roles
+          logger.warn(`Could not populate network roles: ${error.message}`);
+          populatedUser.network_roles = basicUser.network_roles;
+        }
+      }
+
+      const user = populatedUser;
+
+      const enhancedProfile = {
+        // Basic user info
+        ...user,
+
+        // Enhanced permissions and roles
+        ...permissionsResult.data.permissions,
+
+        // Profile metadata
+        profileLastUpdated: new Date().toISOString(),
+        hasEnhancedPermissions: true,
+
+        // Context summary
+        contextSummary: {
+          totalPermissions:
+            permissionsResult.data.permissions.allPermissions?.length || 0,
+          groupMemberships:
+            permissionsResult.data.permissions.groupMemberships?.length || 0,
+          networkMemberships:
+            permissionsResult.data.permissions.networkMemberships?.length || 0,
+          isSuperAdmin:
+            permissionsResult.data.permissions.isSuperAdmin || false,
+        },
+      };
+
+      const result = {
+        success: true,
+        message: "Enhanced profile retrieved successfully",
+        data: enhancedProfile,
+        status: httpStatus.OK,
+      };
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Enhanced profile controller error: ${error.message}`);
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  /**
+   * Legacy login compatibility endpoint
+   * @route POST /api/v2/users/login
+   */
+  loginLegacyCompatible: async (req, res, next) => {
+    try {
+      logText("Legacy compatible login endpoint called");
+
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      // Force legacy strategy for backward compatibility
+      request.body.preferredStrategy = "legacy";
+
+      console.log("🔄 Legacy compatible login requested:", {
+        email: request.body.email,
+        tenant: request.query.tenant,
+      });
+
+      const result = await userUtil.loginWithEnhancedTokens(request, next);
+
+      if (result.success) {
+        // Transform response to match legacy format while including enhanced data
+        const legacyResponse = {
+          _id: result.data._id,
+          userName: result.data.userName,
+          token: result.data.token,
+          email: result.data.email,
+          firstName: result.data.firstName,
+          lastName: result.data.lastName,
+          userType: result.data.userType,
+          organization: result.data.organization,
+          long_organization: result.data.long_organization,
+          privilege: result.data.privilege,
+
+          // Enhanced fields (optional for clients that can handle them)
+          permissions: result.data.permissions,
+          groupMemberships: result.data.groupMemberships,
+          networkMemberships: result.data.networkMemberships,
+          isSuperAdmin: result.data.isSuperAdmin,
+        };
+
+        const legacyResult = {
+          ...result,
+          data: legacyResponse,
+        };
+
+        return handleResponse({ result: legacyResult, res });
+      }
+
+      return handleResponse({ result, res });
+    } catch (error) {
+      logger.error(`🐛 Legacy login controller error: ${error.message}`);
+
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
