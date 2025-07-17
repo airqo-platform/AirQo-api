@@ -514,6 +514,7 @@ class Config:
     }
 
     AIRFLOW_XCOM_BUCKET = os.getenv("AIRFLOW_XCOM_BUCKET")
+    FIREBASE_STORAGE_BUCKET_NAME = os.getenv("FIREBASE_STORAGE_BUCKET_NAME")
 
     # -------------------------------------------------------
     # Satelite constants
