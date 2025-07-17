@@ -1,7 +1,6 @@
 from typing import Dict, Any, List
 import os
 from pathlib import Path
-import numpy as np
 import pandas as pd
 
 import great_expectations as gx

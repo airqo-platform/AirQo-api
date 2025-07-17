@@ -1,4 +1,3 @@
-from typing import Dict, Any
 from .airqo_gx_utils import AirQoGx
 import pandas
 
