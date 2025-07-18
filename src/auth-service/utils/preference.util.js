@@ -1560,18 +1560,6 @@ const preferences = {
               })
             );
           }
-
-          // Check if user has admin privileges (optional additional check)
-          const isAdmin =
-            userGroupRole.userType === "admin" ||
-            userGroupRole.userType === "super_admin";
-          if (!isAdmin) {
-            return next(
-              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-                message: "Only group administrators can update group themes",
-              })
-            );
-          }
         }
       }
 
