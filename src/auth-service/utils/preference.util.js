@@ -1678,19 +1678,6 @@ const preferences = {
               })
             );
           }
-
-          // Check if user has admin privileges (optional additional check)
-          const isAdmin =
-            userNetworkRole.userType === "admin" ||
-            userNetworkRole.userType === "super_admin";
-          if (!isAdmin) {
-            return next(
-              new HttpError("Forbidden", httpStatus.FORBIDDEN, {
-                message:
-                  "Only network administrators can update network themes",
-              })
-            );
-          }
         }
       }
 
