@@ -191,6 +191,12 @@ const authRoutes = [
     description: "System maintenance operations",
   },
   {
+    path: "/surveys",
+    route: "@routes/v2/surveys.routes",
+    name: "surveys",
+    description: "User surveys management",
+  },
+  {
     path: "/types",
     route: "@routes/v2/types.routes",
     name: "types",
@@ -360,7 +366,13 @@ function getCategoryForRoute(routeName) {
     management: ["networks", "departments", "groups", "tenant-settings"],
     user_data: ["preferences", "favorites", "locationHistory", "searchHistory"],
     system: ["analytics", "maintenances", "types", "defaults"],
-    requests: ["requests", "inquiries", "candidates", "org-requests"],
+    requests: [
+      "requests",
+      "inquiries",
+      "candidates",
+      "org-requests",
+      "surveys",
+    ],
     notifications: ["notification-preferences", "campaigns"],
     misc: ["checklist", "transactions", "guests"],
   };
