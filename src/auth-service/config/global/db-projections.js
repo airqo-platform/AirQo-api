@@ -1114,5 +1114,277 @@ const dbProjections = {
     }
     return projection;
   },
+
+  SURVEYS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    description: 1,
+    questions: 1,
+    trigger: 1,
+    timeToComplete: 1,
+    isActive: 1,
+    expiresAt: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
+    updatedAt: 1,
+    // Count total questions in survey
+    questionCount: {
+      $cond: {
+        if: { $isArray: "$questions" },
+        then: { $size: "$questions" },
+        else: 0,
+      },
+    },
+    // Count required questions
+    requiredQuestionCount: {
+      $size: {
+        $filter: {
+          input: "$questions",
+          as: "question",
+          cond: { $eq: ["$$question.isRequired", true] },
+        },
+      },
+    },
+    // Check if survey is expired
+    isExpired: {
+      $cond: {
+        if: {
+          $and: [
+            { $ne: ["$expiresAt", null] },
+            { $ne: ["$expiresAt", undefined] },
+          ],
+        },
+        then: { $lt: ["$expiresAt", new Date()] },
+        else: false,
+      },
+    },
+    // Survey status based on active and expiry
+    surveyStatus: {
+      $cond: {
+        if: { $eq: ["$isActive", false] },
+        then: "inactive",
+        else: {
+          $cond: {
+            if: {
+              $and: [
+                { $ne: ["$expiresAt", null] },
+                { $lt: ["$expiresAt", new Date()] },
+              ],
+            },
+            then: "expired",
+            else: "active",
+          },
+        },
+      },
+    },
+  },
+  SURVEYS_EXCLUSION_PROJECTION: function (category) {
+    const initialProjection = {
+      __v: 0,
+      // Exclude sensitive or internal question data when not needed
+      "questions._id": 0,
+      // Exclude internal trigger data for basic listings
+      "trigger._id": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+
+    if (category === "summary") {
+      projection = Object.assign({}, projection, {
+        description: 0,
+        questions: 0,
+        trigger: 0,
+        expiresAt: 0,
+        updatedAt: 0,
+        requiredQuestionCount: 0,
+        isExpired: 0,
+      });
+    } else if (category === "list") {
+      projection = Object.assign({}, projection, {
+        "questions.options": 0,
+        "questions.placeholder": 0,
+        "questions.minValue": 0,
+        "questions.maxValue": 0,
+        "trigger.conditions": 0,
+      });
+    } else if (category === "mobile") {
+      // Mobile-specific exclusions for lighter payloads
+      projection = Object.assign({}, projection, {
+        updatedAt: 0,
+        requiredQuestionCount: 0,
+        isExpired: 0,
+      });
+    }
+
+    return projection;
+  },
+  SURVEY_RESPONSES_INCLUSION_PROJECTION: {
+    _id: 1,
+    surveyId: 1,
+    userId: 1,
+    answers: 1,
+    status: 1,
+    startedAt: 1,
+    completedAt: 1,
+    contextData: 1,
+    timeToComplete: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
+    updatedAt: 1,
+    // Include survey info
+    survey: { $arrayElemAt: ["$survey", 0] },
+    // Include user info
+    user: { $arrayElemAt: ["$user", 0] },
+    // Calculate answer count
+    answerCount: {
+      $cond: {
+        if: { $isArray: "$answers" },
+        then: { $size: "$answers" },
+        else: 0,
+      },
+    },
+    // Calculate completion percentage based on time
+    completionEfficiency: {
+      $cond: {
+        if: {
+          $and: [
+            { $ne: ["$timeToComplete", null] },
+            { $gt: ["$timeToComplete", 0] },
+            { $ne: ["$survey.timeToComplete", null] },
+            { $gt: ["$survey.timeToComplete", 0] },
+          ],
+        },
+        then: {
+          $multiply: [
+            { $divide: ["$survey.timeToComplete", "$timeToComplete"] },
+            100,
+          ],
+        },
+        else: null,
+      },
+    },
+    // Response submission date formatted
+    submissionDate: {
+      $dateToString: {
+        format: "%Y-%m-%d",
+        date: "$completedAt",
+      },
+    },
+    // Check if response has location data
+    hasLocationData: {
+      $cond: {
+        if: {
+          $and: [
+            { $ne: ["$contextData.currentLocation", null] },
+            { $ne: ["$contextData.currentLocation.latitude", null] },
+            { $ne: ["$contextData.currentLocation.longitude", null] },
+          ],
+        },
+        then: true,
+        else: false,
+      },
+    },
+  },
+  SURVEY_RESPONSES_EXCLUSION_PROJECTION: function (category) {
+    const initialProjection = {
+      __v: 0,
+      // Exclude sensitive user data
+      "user.password": 0,
+      "user.resetPasswordToken": 0,
+      "user.resetPasswordExpires": 0,
+      "user.__v": 0,
+      "user.notifications": 0,
+      "user.emailConfirmed": 0,
+      "user.locationCount": 0,
+      "user.privilege": 0,
+      "user.organization": 0,
+      "user.long_organization": 0,
+      "user.duration": 0,
+      "user.networks": 0,
+      "user.groups": 0,
+      "user.network_roles": 0,
+      "user.group_roles": 0,
+      "user.permissions": 0,
+      "user.role": 0,
+      "user.verified": 0,
+      "user.analyticsVersion": 0,
+      "user.isActive": 0,
+      "user.loginCount": 0,
+      "user.lastLogin": 0,
+      "user.profilePicture": 0,
+      "user.phoneNumber": 0,
+      "user.website": 0,
+      "user.description": 0,
+      "user.category": 0,
+      "user.jobTitle": 0,
+      "user.country": 0,
+      "user.timezone": 0,
+      "user.userName": 0,
+      "user.rateLimit": 0,
+      // Exclude detailed survey data to reduce payload
+      "survey.__v": 0,
+      "survey.questions": 0,
+      "survey.trigger": 0,
+      "survey.updatedAt": 0,
+      // Exclude internal answer data
+      "answers._id": 0,
+    };
+
+    let projection = Object.assign({}, initialProjection);
+
+    if (category === "summary") {
+      projection = Object.assign({}, projection, {
+        answers: 0,
+        contextData: 0,
+        startedAt: 0,
+        updatedAt: 0,
+        answerCount: 0,
+        completionEfficiency: 0,
+        hasLocationData: 0,
+        user: 0,
+        survey: 0,
+      });
+    } else if (category === "analytics") {
+      // For analytics, keep response data but exclude personal info
+      projection = Object.assign({}, projection, {
+        "contextData.currentLocation": 0,
+        user: 0,
+        userId: 0,
+        id: 0,
+      });
+    } else if (category === "mobile") {
+      // Mobile-specific exclusions for lighter payloads
+      projection = Object.assign({}, projection, {
+        updatedAt: 0,
+        completionEfficiency: 0,
+        answerCount: 0,
+        "survey.description": 0,
+        "survey.createdAt": 0,
+        "user.email": 0,
+        "user.firstName": 0,
+        "user.lastName": 0,
+        "user.createdAt": 0,
+        "user.updatedAt": 0,
+      });
+    } else if (category === "export") {
+      // For data export, include more fields but exclude internal IDs
+      projection = Object.assign({}, projection, {
+        _id: 0,
+        "survey._id": 0,
+        "user._id": 0,
+        hasLocationData: 0,
+        completionEfficiency: 0,
+      });
+    }
+
+    return projection;
+  },
 };
 module.exports = dbProjections;

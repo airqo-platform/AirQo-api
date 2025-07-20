@@ -1,7 +1,7 @@
 // roles.routes.js
 const express = require("express");
 const router = express.Router();
-const createRoleController = require("@controllers/role.controller");
+const roleController = require("@controllers/role.controller");
 const roleValidations = require("@validators/roles.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 
@@ -22,20 +22,14 @@ const injectCurrentUserId = (req, res, next) => {
   next();
 };
 
-router.get(
-  "/",
-  roleValidations.list,
-  setJWTAuth,
-  authJWT,
-  createRoleController.list
-);
+router.get("/", roleValidations.list, setJWTAuth, authJWT, roleController.list);
 
 router.get(
   "/summary",
   roleValidations.listSummary,
   setJWTAuth,
   authJWT,
-  createRoleController.listSummary
+  roleController.listSummary
 );
 
 router.post(
@@ -43,7 +37,7 @@ router.post(
   roleValidations.create,
   setJWTAuth,
   authJWT,
-  createRoleController.create
+  roleController.create
 );
 
 router.put(
@@ -51,7 +45,7 @@ router.put(
   roleValidations.update,
   setJWTAuth,
   authJWT,
-  createRoleController.update
+  roleController.update
 );
 
 router.delete(
@@ -59,7 +53,7 @@ router.delete(
   roleValidations.deleteRole,
   setJWTAuth,
   authJWT,
-  createRoleController.delete
+  roleController.delete
 );
 
 router.get(
@@ -67,7 +61,7 @@ router.get(
   roleValidations.listUsersWithRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listUsersWithRole
+  roleController.listUsersWithRole
 );
 
 router.get(
@@ -75,7 +69,7 @@ router.get(
   roleValidations.listAvailableUsersForRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listAvailableUsersForRole
+  roleController.listAvailableUsersForRole
 );
 
 router.post(
@@ -83,7 +77,7 @@ router.post(
   roleValidations.assignManyUsersToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.assignManyUsersToRole
+  roleController.assignManyUsersToRole
 );
 
 router.post(
@@ -91,7 +85,7 @@ router.post(
   roleValidations.assignUserToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.assignUserToRole
+  roleController.assignUserToRole
 );
 
 router.put(
@@ -99,7 +93,7 @@ router.put(
   roleValidations.assignUserToRolePut,
   setJWTAuth,
   authJWT,
-  createRoleController.assignUserToRole
+  roleController.assignUserToRole
 );
 
 router.delete(
@@ -107,7 +101,7 @@ router.delete(
   roleValidations.unAssignManyUsersFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignManyUsersFromRole
+  roleController.unAssignManyUsersFromRole
 );
 
 router.delete(
@@ -115,7 +109,7 @@ router.delete(
   roleValidations.unAssignUserFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignUserFromRole
+  roleController.unAssignUserFromRole
 );
 
 router.get(
@@ -123,7 +117,7 @@ router.get(
   roleValidations.listPermissionsForRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listPermissionsForRole
+  roleController.listPermissionsForRole
 );
 
 router.get(
@@ -131,7 +125,7 @@ router.get(
   roleValidations.listAvailablePermissionsForRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listAvailablePermissionsForRole
+  roleController.listAvailablePermissionsForRole
 );
 
 router.post(
@@ -139,7 +133,7 @@ router.post(
   roleValidations.assignPermissionToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.assignPermissionToRole
+  roleController.assignPermissionToRole
 );
 
 router.delete(
@@ -147,7 +141,7 @@ router.delete(
   roleValidations.unAssignManyPermissionsFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignManyPermissionsFromRole
+  roleController.unAssignManyPermissionsFromRole
 );
 
 router.put(
@@ -155,7 +149,7 @@ router.put(
   roleValidations.updateRolePermissions,
   setJWTAuth,
   authJWT,
-  createRoleController.updateRolePermissions
+  roleController.updateRolePermissions
 );
 
 router.delete(
@@ -163,7 +157,7 @@ router.delete(
   roleValidations.unAssignPermissionFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignPermissionFromRole
+  roleController.unAssignPermissionFromRole
 );
 
 router.post(
@@ -171,7 +165,7 @@ router.post(
   roleValidations.assignUserToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.enhancedAssignUserToRole
+  roleController.enhancedAssignUserToRole
 );
 
 router.put(
@@ -179,7 +173,7 @@ router.put(
   roleValidations.assignUserToRolePut,
   setJWTAuth,
   authJWT,
-  createRoleController.enhancedAssignUserToRole
+  roleController.enhancedAssignUserToRole
 );
 
 // Enhanced role unassignment with detailed feedback
@@ -188,7 +182,7 @@ router.delete(
   roleValidations.unAssignUserFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.enhancedUnAssignUserFromRole
+  roleController.enhancedUnAssignUserFromRole
 );
 
 // New user-centric role management endpoints
@@ -197,7 +191,7 @@ router.get(
   roleValidations.getUserRoles,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserNetworkRoles
+  roleController.getUserNetworkRoles
 );
 
 router.get(
@@ -205,7 +199,7 @@ router.get(
   roleValidations.getUserRoles,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserGroupRoles
+  roleController.getUserGroupRoles
 );
 
 router.get(
@@ -213,7 +207,7 @@ router.get(
   roleValidations.getUserRoles,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserRoleSummary
+  roleController.getUserRoleSummary
 );
 
 router.get(
@@ -221,7 +215,7 @@ router.get(
   roleValidations.auditDeprecatedFields,
   setJWTAuth,
   authJWT,
-  createRoleController.auditDeprecatedFields
+  roleController.auditDeprecatedFields
 );
 
 router.get(
@@ -229,7 +223,7 @@ router.get(
   roleValidations.getEnhancedUserDetails,
   setJWTAuth,
   authJWT,
-  createRoleController.getEnhancedUserDetails
+  roleController.getEnhancedUserDetails
 );
 
 router.get(
@@ -237,7 +231,7 @@ router.get(
   roleValidations.getUserRolesWithFilters,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserRolesAndPermissionsDetailed
+  roleController.getUserRolesAndPermissionsDetailed
 );
 
 router.get(
@@ -245,7 +239,7 @@ router.get(
   roleValidations.getUserPermissionsForGroup,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserPermissionsForGroup
+  roleController.getUserPermissionsForGroup
 );
 
 router.get(
@@ -253,7 +247,7 @@ router.get(
   roleValidations.getUserPermissionsForGroup,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserPermissionsForGroup
+  roleController.getUserPermissionsForGroup
 );
 
 router.get(
@@ -262,7 +256,7 @@ router.get(
   authJWT,
   injectCurrentUserId,
   roleValidations.getUserPermissionsForGroup,
-  createRoleController.getCurrentUserPermissionsForGroup
+  roleController.getCurrentUserPermissionsForGroup
 );
 
 router.get(
@@ -270,7 +264,7 @@ router.get(
   roleValidations.getUserPermissionsForGroup,
   setJWTAuth,
   authJWT,
-  createRoleController.getSimplifiedPermissionsForGroup
+  roleController.getSimplifiedPermissionsForGroup
 );
 
 router.get(
@@ -279,7 +273,7 @@ router.get(
   authJWT,
   injectCurrentUserId,
   roleValidations.getUserPermissionsForGroup,
-  createRoleController.getSimplifiedPermissionsForGroup
+  roleController.getSimplifiedPermissionsForGroup
 );
 
 router.post(
@@ -287,7 +281,7 @@ router.post(
   roleValidations.bulkPermissionsCheck,
   setJWTAuth,
   authJWT,
-  createRoleController.bulkPermissionsCheck
+  roleController.bulkPermissionsCheck
 );
 
 router.post(
@@ -296,7 +290,7 @@ router.post(
   authJWT,
   injectCurrentUserId,
   roleValidations.bulkPermissionsCheck,
-  createRoleController.bulkPermissionsCheck
+  roleController.bulkPermissionsCheck
 );
 
 router.post(
@@ -304,7 +298,7 @@ router.post(
   roleValidations.checkUserPermissionsForActions,
   setJWTAuth,
   authJWT,
-  createRoleController.checkUserPermissionsForActions
+  roleController.checkUserPermissionsForActions
 );
 
 router.get(
@@ -312,7 +306,7 @@ router.get(
   roleValidations.getUserRolesWithFilters,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserRolesByGroup
+  roleController.getUserRolesByGroup
 );
 
 router.get(
@@ -320,7 +314,7 @@ router.get(
   roleValidations.getUserRoles,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserGroupsWithPermissionsSummary
+  roleController.getUserGroupsWithPermissionsSummary
 );
 
 router.get(
@@ -329,7 +323,7 @@ router.get(
   authJWT,
   injectCurrentUserId,
   roleValidations.getUserRoles,
-  createRoleController.getUserGroupsWithPermissionsSummary
+  roleController.getUserGroupsWithPermissionsSummary
 );
 
 router.get(
@@ -337,7 +331,7 @@ router.get(
   roleValidations.getUserRoles,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserRolesAndPermissionsViaRBAC
+  roleController.getUserRolesAndPermissionsViaRBAC
 );
 
 router.get(
@@ -345,14 +339,14 @@ router.get(
   roleValidations.getUserRoles,
   setJWTAuth,
   authJWT,
-  createRoleController.getUserRolesSimplified
+  roleController.getUserRolesSimplified
 );
 
 router.get(
   "/me/detailed-roles-permissions",
   setJWTAuth,
   authJWT,
-  createRoleController.getCurrentUserRolesAndPermissions
+  roleController.getCurrentUserRolesAndPermissions
 );
 
 router.get(
@@ -360,7 +354,7 @@ router.get(
   setJWTAuth,
   authJWT,
   injectCurrentUserId,
-  createRoleController.getUserRolesAndPermissionsViaRBAC
+  roleController.getUserRolesAndPermissionsViaRBAC
 );
 
 router.get(
@@ -368,7 +362,7 @@ router.get(
   setJWTAuth,
   authJWT,
   injectCurrentUserId,
-  createRoleController.getUserRolesSimplified
+  roleController.getUserRolesSimplified
 );
 
 router.get(
@@ -376,7 +370,7 @@ router.get(
   roleValidations.getSystemHealth,
   setJWTAuth,
   authJWT,
-  createRoleController.getSystemRoleHealth
+  roleController.getSystemRoleHealth
 );
 
 router.post(
@@ -384,7 +378,7 @@ router.post(
   roleValidations.bulkRoleOperations,
   setJWTAuth,
   authJWT,
-  createRoleController.bulkRoleOperations
+  roleController.bulkRoleOperations
 );
 
 router.get(
@@ -392,7 +386,7 @@ router.get(
   roleValidations.getRoleById,
   setJWTAuth,
   authJWT,
-  createRoleController.list
+  roleController.list
 );
 
 module.exports = router;
