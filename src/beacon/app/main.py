@@ -1,17 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks, Query
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse, Response
 
-from sqlalchemy import create_engine, text, func
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, Field, Extra
-
-from passlib.context import CryptContext
-from jose import JWTError, jwt
+from pydantic import BaseModel, Field, Extra
 
 from datetime import datetime, timedelta, timezone, date
 from dateutil import tz
@@ -27,30 +23,31 @@ from app.data_transmission_endpoint import router as data_transmission_router, r
 
 from . import database
 from . import models, schemas
-from app.superAdmin import create_super_admin
 
-app = FastAPI()
+app = FastAPI(
+    title="AirQo Device Monitoring API",
+    description="API for monitoring AirQo device performance and data",
+    version="1.0.0"
+)
 
-
-
+# Register endpoint routers
 register_with_app(app)
 register_site_endpoints(app)
 register_data_analytics(app)
-
 
 # Custom JSON encoder to handle special values
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Decimal):
-            # Convert Decimal to float
             try:
                 return float(obj)
             except:
-                return str(obj)  # Fallback to string if float conversion fails
+                return str(obj)
         elif isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
 
+# CORS configuration
 raw_origins = os.getenv("CORS_ORIGINS", "")
 allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
@@ -78,16 +75,12 @@ def get_db():
 
 # Helper function to convert values to JSON-serializable format
 def convert_to_json_serializable(item):
-    # Handle dictionary case
     if isinstance(item, dict):
         return {k: convert_to_json_serializable(v) for k, v in item.items()}
-    # Handle list case
     elif isinstance(item, list):
         return [convert_to_json_serializable(i) for i in item]
-    # Handle datetime
     elif isinstance(item, datetime):
         return item.isoformat()
-    # Handle Decimal
     elif isinstance(item, Decimal):
         try:
             float_val = float(item)
@@ -96,22 +89,17 @@ def convert_to_json_serializable(item):
             return float_val
         except (ValueError, OverflowError, TypeError):
             return str(item)
-    # Handle float
     elif isinstance(item, float):
         if math.isnan(item) or math.isinf(item):
             return str(item)
         return item
-    # Handle string 'NaN' values
     elif isinstance(item, str):
         if item.lower() == 'nan':
             return None
         return item
-    # Return any other type as is
     return item
-# Import for arbitrary type handling
-from pydantic import BaseModel, Field, Extra
 
-# Comprehensive Pydantic model matching the API response
+# Pydantic models
 class Device(BaseModel):
     device_key: Optional[int] = None
     device_id: str
@@ -150,10 +138,8 @@ class Device(BaseModel):
     cohorts: Optional[List[Any]] = None
     
     class Config:
-        orm_mode = True
-        # Allow extra fields to prevent validation errors
-        extra = Extra.ignore 
-        # Make it more flexible with arbitrary types
+        from_attributes = True
+        extra = Extra.ignore
         arbitrary_types_allowed = True
 
 class DeviceCount(BaseModel):
@@ -170,48 +156,46 @@ def create_json_response(content):
     json_content = json.dumps(content, cls=CustomJSONEncoder)
     return Response(content=json_content, media_type="application/json")
 
-# Endpoint to get all devices
+# API Endpoints
+@app.get("/")
+def read_root():
+    return {"message": "AirQo Device Health Monitoring API is running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 @app.get("/devices")
 def get_all_devices(db=Depends(get_db)):
     try:
-        # Query to select all fields from the database
         result = db.execute(text("SELECT * FROM dim_device"))
         devices = []
         
-        # Get column names for logging
         column_names = result.keys()
         print(f"Database columns: {column_names}")
         
         for idx, row in enumerate(result):
             try:
-                # Convert row to dictionary
                 device_dict = dict(row._mapping)
                 
-                # Print first row for debugging
                 if idx == 0:
                     print(f"Raw first row data: {device_dict}")
                 
-                # Process 'NaN' string values before conversion
                 for key, value in device_dict.items():
                     if isinstance(value, str) and value.lower() == 'nan':
                         device_dict[key] = None
                 
-                # Convert datetime objects and Decimal to JSON-serializable values
                 device_dict = convert_to_json_serializable(device_dict)
                 
-                # Filter out any keys that don't exist in the Device model
-                # to avoid validation errors with unexpected fields
                 device_model_fields = Device.__annotations__.keys()
                 filtered_dict = {k: v for k, v in device_dict.items() if k in device_model_fields}
                 
-                # Add minimum required fields if missing
                 if 'device_id' not in filtered_dict:
                     if 'device_key' in filtered_dict:
                         filtered_dict['device_id'] = f"device_{filtered_dict['device_key']}"
                     else:
                         filtered_dict['device_id'] = f"unknown_device_{idx}"
                 
-                # Add device to list
                 devices.append(filtered_dict)
                 
             except Exception as row_error:
@@ -224,11 +208,9 @@ def get_all_devices(db=Depends(get_db)):
         print(f"Critical error in get_all_devices: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch devices: {str(e)}")
 
-# Endpoint to get a specific device by ID
 @app.get("/devices/{device_id}")
 def get_device(device_id: str, db=Depends(get_db)):
     try:
-        # Query to select specific device with all fields
         result = db.execute(
             text("SELECT * FROM dim_device WHERE device_id = :device_id"), 
             {"device_id": device_id}
@@ -238,18 +220,14 @@ def get_device(device_id: str, db=Depends(get_db)):
         if not device:
             raise HTTPException(status_code=404, detail=f"Device with ID {device_id} not found")
         
-        # Convert row to dictionary
         device_dict = dict(device._mapping)
         
-        # Handle 'NaN' string values
         for key, value in device_dict.items():
             if isinstance(value, str) and value.lower() == 'nan':
                 device_dict[key] = None
         
-        # Convert datetime objects and decimal values to JSON-serializable format
         device_dict = convert_to_json_serializable(device_dict)
         
-        # Get location data for this device
         location_result = db.execute(
             text("SELECT * FROM dim_location WHERE device_key = :device_key"),
             {"device_key": device_dict['device_key']}
@@ -258,18 +236,15 @@ def get_device(device_id: str, db=Depends(get_db)):
         
         if location:
             location_dict = dict(location._mapping)
-            # Handle 'NaN' string values
             for key, value in location_dict.items():
                 if isinstance(value, str) and value.lower() == 'nan':
                     location_dict[key] = None
                     
-            # Convert datetime objects and decimal values
             location_dict = convert_to_json_serializable(location_dict)
             
             device_dict['latitude'] = location_dict.get('latitude')
             device_dict['longitude'] = location_dict.get('longitude')
             
-            # Create a site object
             site = {
                 "_id": location_dict.get('site_id'),
                 "name": location_dict.get('site_name'),
@@ -286,37 +261,30 @@ def get_device(device_id: str, db=Depends(get_db)):
         print(f"Error in get_device: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch device: {str(e)}")
 
-# Endpoint to get device counts for dashboard
 @app.get("/device-counts")
 def get_device_counts(db=Depends(get_db)):
     try:
-        # Get total devices
         total_result = db.execute(text("SELECT COUNT(*) FROM dim_device"))
         total_devices = total_result.scalar()
         
-        # Get active devices (is_active = true)
         active_result = db.execute(text("SELECT COUNT(*) FROM dim_device WHERE is_online = true"))
         active_devices = active_result.scalar()
         
-        # Get offline devices (is_online = false)
         offline_result = db.execute(text("SELECT COUNT(*) FROM dim_device WHERE is_online = false"))
         offline_devices = offline_result.scalar()
         
-        # Get deployed devices based on status column
         deployed_result = db.execute(text("""
             SELECT COUNT(*) FROM dim_device 
             WHERE status = 'deployed'
         """))
         deployed_devices = deployed_result.scalar()
         
-        # Not deployed devices based on status column
         not_deployed_result = db.execute(text("""
             SELECT COUNT(*) FROM dim_device 
             WHERE status = 'not deployed'
         """))
         not_deployed = not_deployed_result.scalar()
         
-        # Recalled devices based on status column
         recalled_result = db.execute(text("""
             SELECT COUNT(*) FROM dim_device 
             WHERE status = 'recalled'
@@ -335,7 +303,6 @@ def get_device_counts(db=Depends(get_db)):
         print(f"Error in device counts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch device counts: {str(e)}")
 
-# Additional endpoint to get device status statistics
 @app.get("/device-status")
 def get_device_status(db=Depends(get_db)):
     try:
@@ -350,15 +317,12 @@ def get_device_status(db=Depends(get_db)):
         status_counts = []
         for row in result:
             try:
-                # Convert row to dictionary first
                 status_dict = dict(row._mapping)
                 
-                # Handle 'NaN' string values explicitly before conversion
                 for key, value in status_dict.items():
                     if isinstance(value, str) and value.lower() == 'nan':
                         status_dict[key] = None
                 
-                # Convert any decimal values with proper error handling
                 for key, value in status_dict.items():
                     if isinstance(value, Decimal):
                         try:
@@ -378,11 +342,10 @@ def get_device_status(db=Depends(get_db)):
     except Exception as e:
         print(f"Error in device status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch device status: {str(e)}")
-# New endpoint to get device location data for mapping
+
 @app.get("/device-locations")
 def get_device_locations(db=Depends(get_db)):
     try:
-        # Use LEFT JOIN instead of JOIN to diagnose possible issues
         result = db.execute(text("""
             SELECT 
                 d.device_id,
@@ -404,16 +367,13 @@ def get_device_locations(db=Depends(get_db)):
             try:
                 location_dict = dict(row._mapping)
                 
-                # Handle 'NaN' string values
                 for key, value in location_dict.items():
                     if isinstance(value, str) and value.lower() == 'nan':
                         location_dict[key] = None
                 
-                # Convert datetime and decimal objects
                 location_dict = convert_to_json_serializable(location_dict)
                 all_devices.append(location_dict)
                 
-                # Check if this device has location data
                 if location_dict.get('latitude') is not None and location_dict.get('longitude') is not None:
                     devices_with_location.append(location_dict)
                 else:
@@ -422,7 +382,6 @@ def get_device_locations(db=Depends(get_db)):
                 print(f"Error processing location row: {str(row_error)}")
                 continue
         
-        # Print diagnostics
         print(f"Total devices: {len(all_devices)}")
         print(f"Devices with location: {len(devices_with_location)}")
         print(f"Devices missing location: {len(missing_location)}")
@@ -434,7 +393,6 @@ def get_device_locations(db=Depends(get_db)):
         print(f"Error in device-locations endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch device locations: {str(e)}")
 
-# New endpoint to get deployment history
 @app.get("/deployment-history")
 def get_deployment_history(days: int = 30, db=Depends(get_db)):
     try:
@@ -461,7 +419,6 @@ def get_deployment_history(days: int = 30, db=Depends(get_db)):
         history = []
         for row in result:
             history_dict = dict(row._mapping)
-            # Convert datetime objects and decimal values
             history_dict = convert_to_json_serializable(history_dict)
             history.append(history_dict)
             
@@ -470,11 +427,9 @@ def get_deployment_history(days: int = 30, db=Depends(get_db)):
         print(f"Error in deployment history: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch deployment history: {str(e)}")
 
-# New endpoint to get maintenance metrics
 @app.get("/maintenance-metrics")
 def get_maintenance_metrics(db=Depends(get_db)):
     try:
-        # Get devices due for maintenance in the next 7 days
         upcoming_result = db.execute(text("""
             SELECT COUNT(*) 
             FROM dim_device 
@@ -482,7 +437,6 @@ def get_maintenance_metrics(db=Depends(get_db)):
         """))
         upcoming_maintenance = upcoming_result.scalar() or 0
         
-        # Get devices with overdue maintenance
         overdue_result = db.execute(text("""
             SELECT COUNT(*) 
             FROM dim_device 
@@ -490,7 +444,6 @@ def get_maintenance_metrics(db=Depends(get_db)):
         """))
         overdue_maintenance = overdue_result.scalar() or 0
         
-        # Calculate average days between maintenance
         avg_cycle_result = db.execute(text("""
             SELECT AVG(EXTRACT(EPOCH FROM (next_maintenance - last_updated)) / 86400)
             FROM dim_device
@@ -498,7 +451,6 @@ def get_maintenance_metrics(db=Depends(get_db)):
         """))
         avg_cycle = avg_cycle_result.scalar()
         
-        # Convert Decimal to float if needed
         avg_maintenance_cycle = float(avg_cycle) if avg_cycle is not None else 0
         
         return {
@@ -510,12 +462,6 @@ def get_maintenance_metrics(db=Depends(get_db)):
         print(f"Error in maintenance metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch maintenance metrics: {str(e)}")
 
-# Simple endpoint for testing
-@app.get("/")
-def read_root():
-    return {"message": "AirQo Device Health Monitoring API is running"}
-
-# Simple devices endpoint that returns minimal data
 @app.get("/devices-simple")
 def get_devices_simple(db=Depends(get_db)):
     try:
@@ -539,10 +485,10 @@ def get_devices_simple(db=Depends(get_db)):
     except Exception as e:
         print(f"Error in simple devices endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch simple devices: {str(e)}")
+
 @app.get("/valid-device-locations")
 def get_valid_device_locations(db=Depends(get_db)):
     try:
-        # Query remains the same
         result = db.execute(text("""
             WITH latest_readings AS (
                 SELECT DISTINCT ON (device_key) 
@@ -593,21 +539,17 @@ def get_valid_device_locations(db=Depends(get_db)):
         device_locations = []
         for row in result:
             try:
-                # Create a simple dictionary from the row
                 row_dict = {}
                 for column, value in row._mapping.items():
                     row_dict[column] = value
                 
-                # Process the data manually with explicit type checks
                 device_id = str(row_dict.get("device_id", "")) if row_dict.get("device_id") is not None else ""
                 device_name = str(row_dict.get("device_name", "")) if row_dict.get("device_name") is not None else ""
                 status = row_dict.get("status")
                 is_online = row_dict.get("is_online")
                 
-                # Handle numeric values that could be NaN
                 try:
                     latitude = float(row_dict.get("latitude"))
-                    # Check if value is NaN and convert to null
                     if math.isnan(latitude):
                         latitude = None
                 except (TypeError, ValueError):
@@ -615,20 +557,16 @@ def get_valid_device_locations(db=Depends(get_db)):
                     
                 try:
                     longitude = float(row_dict.get("longitude"))
-                    # Check if value is NaN and convert to null
                     if math.isnan(longitude):
                         longitude = None
                 except (TypeError, ValueError):
                     longitude = None
                 
-                # Only include rows with valid coordinates
                 if latitude is None or longitude is None:
                     continue
                 
-                # Process PM values
                 try:
                     pm2_5 = float(row_dict.get("pm2_5"))
-                    # Check if value is NaN
                     if math.isnan(pm2_5):
                         pm2_5 = None
                 except (TypeError, ValueError):
@@ -636,13 +574,11 @@ def get_valid_device_locations(db=Depends(get_db)):
                     
                 try:
                     pm10 = float(row_dict.get("pm10"))
-                    # Check if value is NaN
                     if math.isnan(pm10):
                         pm10 = None
                 except (TypeError, ValueError):
                     pm10 = None
                 
-                # Handle timestamp
                 reading_timestamp = None
                 if row_dict.get("reading_timestamp") is not None:
                     if hasattr(row_dict["reading_timestamp"], "isoformat"):
@@ -650,7 +586,6 @@ def get_valid_device_locations(db=Depends(get_db)):
                     else:
                         reading_timestamp = str(row_dict["reading_timestamp"])
                 
-                # Build location object with careful null handling
                 location_name = row_dict.get("location_name")
                 if location_name is not None and isinstance(location_name, str) and location_name.lower() == 'nan':
                     location_name = None
@@ -663,7 +598,6 @@ def get_valid_device_locations(db=Depends(get_db)):
                 if city is not None and isinstance(city, str) and city.lower() == 'nan':
                     city = None
                 
-                # Use the first non-null value
                 display_name = location_name
                 if display_name is None:
                     display_name = admin_level_division
@@ -672,7 +606,6 @@ def get_valid_device_locations(db=Depends(get_db)):
                 if display_name is None:
                     display_name = "Unknown Location"
                 
-                # Similarly handle country and city
                 admin_country = row_dict.get("admin_level_country")
                 if admin_country is not None and isinstance(admin_country, str) and admin_country.lower() == 'nan':
                     admin_country = None
@@ -689,7 +622,6 @@ def get_valid_device_locations(db=Depends(get_db)):
                 
                 display_city = admin_city if admin_city is not None else city
                 
-                # Create the location object
                 formatted_location = {
                     "id": device_id,
                     "name": device_name,
@@ -712,7 +644,6 @@ def get_valid_device_locations(db=Depends(get_db)):
                     }
                 }
                 
-                # Ensure no NaN values are in the JSON
                 for key, value in formatted_location["location"].items():
                     if isinstance(value, float) and math.isnan(value):
                         formatted_location["location"][key] = None
@@ -725,10 +656,8 @@ def get_valid_device_locations(db=Depends(get_db)):
                 print(f"Error processing location row: {str(row_error)}")
                 continue
         
-        # Print diagnostics
         print(f"Retrieved {len(device_locations)} active and deployed device locations with valid coordinates")
             
-        # Create a JSON response, being very careful to handle any unexpected values
         def json_encoder(obj):
             if isinstance(obj, (datetime, date)):
                 return obj.isoformat()
@@ -738,151 +667,16 @@ def get_valid_device_locations(db=Depends(get_db)):
                 return None
             return str(obj)
         
-        # Use the custom encoder to ensure valid JSON
         json_content = json.dumps(device_locations, default=json_encoder)
         return Response(content=json_content, media_type="application/json")
     
     except Exception as e:
         print(f"Error in valid-device-locations endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch valid device locations: {str(e)}")
-     
-     
-     
-     
-     
-     # my code that has my routes
-# Create tables if they don't exist
-models.Base.metadata.create_all(bind=database.engine)
-
-# JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("JWT_SECRET_KEY environment variable must be set")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# OAuth2 setup
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-# Ensure Super Admin exists during app startup
-@app.on_event("startup")
-async def on_startup():
-    create_super_admin()  # No need to pass db since it's created inside the function
-
-# Password verification and hashing functions
-def verify_password(plain_password: str, hashed_password: str):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# Get current user from the JWT token
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if user is None:
-        raise credentials_exception
-    return user
-
-# User login route
-@app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "role": user.role,
-            "status": user.status
-        }
-    }
-
-# User management routes (Super Admin can create other users)
-@app.post("/users/", response_model=schemas.User)
-def create_user(
-    user: schemas.UserCreate,
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """Create a new user (Only Super Admin can access this endpoint)"""
-    if current_user.role != "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmin can create new users"
-        )
-    
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = get_password_hash(user.password)
-    db_user = models.User(
-        email=user.email,
-        password_hash=hashed_password,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        role=user.role,
-        status=user.status,
-        phone=user.phone,
-        location=user.location,
-        created_at=datetime.datetime.utcnow(),
-        updated_at=datetime.datetime.utcnow()
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-    
-@app.get("/users/", response_model=List[schemas.User])
-def get_users(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    users = db.query(models.User).all()
-    return users
 
 @app.get("/device-detail/{device_id}")
 def get_device_detail(device_id: str, db=Depends(get_db)):
     try:
-        # Complex query joining multiple tables to get comprehensive device information
         query = text("""
             WITH latest_readings AS (
                 SELECT DISTINCT ON (device_key) 
@@ -908,7 +702,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                 ORDER BY device_key, timestamp DESC
             )
             SELECT 
-                -- Device basic information
                 d.device_key,
                 d.device_id,
                 d.device_name,
@@ -923,7 +716,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                 d.first_seen,
                 d.last_updated,
                 
-                -- Location information
                 l.location_key,
                 l.latitude,
                 l.longitude,
@@ -938,7 +730,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                 l.site_name,
                 l.deployment_date,
                 
-                -- Latest readings
                 r.pm2_5,
                 r.pm10,
                 r.no2,
@@ -947,12 +738,10 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                 r.aqi_color,
                 r.aqi_color_name,
                 
-                -- Latest status
                 st.is_online as current_is_online,
                 st.device_status as current_device_status,
                 st.timestamp as status_timestamp,
                 
-                -- Site information
                 s.site_name as full_site_name,
                 s.location_name as full_location_name,
                 s.search_name as full_search_name,
@@ -978,56 +767,43 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
         if not device_row:
             raise HTTPException(status_code=404, detail=f"Device with ID {device_id} not found")
         
-       
-        
-        # Get the EAT timezone
         eat_timezone = tz.gettz('Africa/Kampala')
         
-        # Function to convert timestamps to EAT
         def convert_to_eat(timestamp):
             if timestamp is None:
                 return None
                 
-            # If timestamp has no timezone info, assume it's UTC
             if timestamp.tzinfo is None:
                 timestamp = timestamp.replace(tzinfo=timezone.utc)
                 
-            # Convert to EAT timezone
             eat_time = timestamp.astimezone(eat_timezone)
             return eat_time.isoformat()
         
-        # Convert row to dictionary with timezone conversion
         raw_device_dict = {}
         for column, value in device_row._mapping.items():
             raw_device_dict[column] = value
             
-        # Process data with timezone conversion
         device_dict = {}
         for key, value in raw_device_dict.items():
             if value is None:
                 device_dict[key] = None
                 continue
                 
-            # Handle different types
             try:
-                # Try to convert to float
                 float_val = float(value)
-                if float_val != float_val:  # NaN check
+                if float_val != float_val:
                     device_dict[key] = None
                 else:
                     device_dict[key] = float_val
             except (TypeError, ValueError):
-                # If conversion to float fails, check for datetime
                 try:
                     if hasattr(value, 'isoformat'):
-                        # Convert datetime to EAT
                         device_dict[key] = convert_to_eat(value)
                     else:
                         device_dict[key] = str(value)
                 except:
                     device_dict[key] = str(value)
         
-        # Get maintenance history
         maintenance_history_query = text("""
             WITH maintenance_entries AS (
                 SELECT 
@@ -1080,7 +856,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                 except (TypeError, ValueError):
                     try:
                         if hasattr(value, 'isoformat'):
-                            # Convert datetime to EAT
                             history_dict[key] = convert_to_eat(value)
                         else:
                             history_dict[key] = str(value)
@@ -1089,7 +864,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                         
             maintenance_history.append(history_dict)
         
-        # Get all readings history (no LIMIT)
         readings_history_query = text("""
             SELECT 
                 timestamp,
@@ -1125,7 +899,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                 except (TypeError, ValueError):
                     try:
                         if hasattr(value, 'isoformat'):
-                            # Convert datetime to EAT
                             reading_dict[key] = convert_to_eat(value)
                         else:
                             reading_dict[key] = str(value)
@@ -1134,7 +907,6 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
                         
             readings_history.append(reading_dict)
         
-        # Structure the response with null checks
         response = {
             "device": {
                 "id": str(device_dict.get("device_id", "")) if device_dict.get("device_id") is not None else None,
@@ -1183,10 +955,9 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
             },
             "maintenance_history": maintenance_history,
             "readings_history": readings_history,
-            "timezone": "Africa/Kampala (EAT)"  # Added to indicate timezone used
+            "timezone": "Africa/Kampala (EAT)"
         }
         
-        # Custom JSON encoder for any remaining datetime objects
         def safe_json_encoder(obj):
             try:
                 json.dumps(obj)
@@ -1194,13 +965,11 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
             except:
                 try:
                     if hasattr(obj, 'isoformat'):
-                        # Convert datetime to EAT
                         return convert_to_eat(obj)
                     return str(obj)
                 except:
                     return None
         
-        # Convert to JSON with custom encoder
         json_str = json.dumps(response, default=safe_json_encoder)
         safe_response = json.loads(json_str)
         
@@ -1210,12 +979,11 @@ def get_device_detail(device_id: str, db=Depends(get_db)):
         raise
     except Exception as e:
         print(f"Error in get_device_detail: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch device details: {str(e)}")    
+        raise HTTPException(status_code=500, detail=f"Failed to fetch device details: {str(e)}")
 
 @app.get("/health-tips/device/{device_id}")
 def get_health_tips_by_device(device_id: str, db=Depends(get_db)):
     try:
-        # First get the device_key from the device_id
         device_query = text("""
             SELECT device_key FROM dim_device 
             WHERE device_id = :device_id
@@ -1229,7 +997,6 @@ def get_health_tips_by_device(device_id: str, db=Depends(get_db)):
         
         device_key = device_row[0]
         
-        # Get the latest reading_key for this device
         reading_query = text("""
             SELECT reading_key, aqi_category
             FROM fact_device_readings
@@ -1247,7 +1014,6 @@ def get_health_tips_by_device(device_id: str, db=Depends(get_db)):
         reading_key = reading_row[0]
         aqi_category = reading_row[1]
         
-        # Get health tips associated with this reading
         tips_query = text("""
             SELECT 
                 tip_key,
@@ -1263,29 +1029,23 @@ def get_health_tips_by_device(device_id: str, db=Depends(get_db)):
         tips = []
         
         for row in tips_result:
-            # Direct conversion without using convert_to_json_serializable
             raw_tip_dict = {}
             for column, value in row._mapping.items():
                 raw_tip_dict[column] = value
             
-            # Process the tip data safely
             tip_dict = {}
             for key, value in raw_tip_dict.items():
                 if value is None:
                     tip_dict[key] = None
                     continue
                 
-                # Handle different types without using isinstance
                 try:
-                    # Try to convert to float (for numeric types)
                     float_val = float(value)
-                    # Check if NaN
-                    if float_val != float_val:  # Simple NaN check
+                    if float_val != float_val:
                         tip_dict[key] = None
                     else:
                         tip_dict[key] = float_val
                 except (TypeError, ValueError):
-                    # For non-numeric types (strings, dates, etc.)
                     try:
                         if hasattr(value, 'isoformat'):
                             tip_dict[key] = value.isoformat()
@@ -1297,8 +1057,6 @@ def get_health_tips_by_device(device_id: str, db=Depends(get_db)):
             tips.append(tip_dict)
         
         if not tips:
-            # No tips found for this specific reading_key
-            # Return a default set of health tips based on AQI category
             default_tips = get_default_health_tips(aqi_category)
             return {"tips": default_tips, "aqi_category": aqi_category}
         
@@ -1310,9 +1068,8 @@ def get_health_tips_by_device(device_id: str, db=Depends(get_db)):
         print(f"Error fetching health tips by device: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch health tips: {str(e)}")
 
-# Helper function to get default health tips based on AQI category
 def get_default_health_tips(aqi_category):
-    # Provide default health tips based on AQI category
+    """Provide default health tips based on AQI category"""
     if not aqi_category or aqi_category == "Unknown":
         return [
             {
@@ -1350,7 +1107,6 @@ def get_default_health_tips(aqi_category):
             }
         ]
     
-    # For Unhealthy categories
     return [
         {
             "tip_id": "unhealthy-1",
