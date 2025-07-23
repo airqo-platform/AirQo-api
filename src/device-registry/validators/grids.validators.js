@@ -142,8 +142,25 @@ const commonValidations = {
       .notEmpty()
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
-      .toLowerCase()
-      .custom(validateAdminLevels)
+      .customSanitizer((value) => {
+        // Split comma-separated values and trim whitespace
+        if (typeof value === "string" && value.includes(",")) {
+          return value.split(",").map((level) => level.trim().toLowerCase());
+        }
+        return typeof value === "string" ? value.trim().toLowerCase() : value;
+      })
+      .custom((value) => {
+        // Handle both single values and arrays
+        const adminLevels = Array.isArray(value) ? value : [value];
+
+        // Validate each admin level
+        for (const level of adminLevels) {
+          if (!validateAdminLevels(level)) {
+            throw new Error(`Invalid admin_level: ${level}`);
+          }
+        }
+        return true;
+      })
       .withMessage(
         "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
       ),
