@@ -1,20 +1,24 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+# app/database.py
 import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 
+load_dotenv()
 
-# Get environment variables or use defaults
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://airflow:airflow@postgres:5432/airflow")
+def get_database_url():
+    """Get database URL from environment"""
+    return os.getenv(
+        "DATABASE_URL", 
+        "postgresql://airqo_user:airqo_password@localhost:5432/airqo_db"
+    )
 
-engine = create_engine(DATABASE_URL)
+# Create database engine
+engine = create_engine(get_database_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
-
-
-
 def get_db():
+    """Database dependency for FastAPI"""
     db = SessionLocal()
     try:
         yield db
