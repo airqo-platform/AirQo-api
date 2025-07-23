@@ -84,8 +84,8 @@ class DateRangeCalculator:
                 end_dt = timezone.localize(end_dt.replace(hour=23, minute=59, second=59))
                 
                 return start_dt, end_dt
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD") from e
         
         # Standard time ranges
         time_deltas = {
@@ -556,7 +556,7 @@ def get_comprehensive_transmission_analytics(
         
     except Exception as e:
         print(f"Error in comprehensive transmission analytics: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch comprehensive analytics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch comprehensive analytics: {str(e)}") from e
 
 @router.get("/advanced-device-failures")
 def get_advanced_device_failure_analysis(

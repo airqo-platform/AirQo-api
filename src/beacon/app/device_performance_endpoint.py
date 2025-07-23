@@ -151,7 +151,7 @@ def get_comprehensive_device_performance(
         raise
     except Exception as e:
         print(f"Error in get_comprehensive_device_performance: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch performance metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch performance metrics: {str(e)}") from e
 
 def get_complete_device_info(device_id: str, db: Session) -> Dict[str, Any]:
     """Get complete device information utilizing ALL device table columns"""
@@ -316,8 +316,8 @@ def calculate_date_range(timeRange: str, startDate: Optional[str], endDate: Opti
         try:
             start_date = datetime.strptime(startDate, "%Y-%m-%d")
             end_date = datetime.strptime(endDate, "%Y-%m-%d")
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        except ValueError as e:
+         raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD") from e
     else:
         start_date = end_date - timedelta(days=30)  # Default to 30 days
     
