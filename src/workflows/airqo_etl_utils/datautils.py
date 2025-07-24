@@ -147,19 +147,41 @@ class DataUtils:
 
         # If cache is empty, fetch from API
         if sites.empty:
-            data_api = DataApi()
-            try:
-                sites_data = data_api.get_sites()
-                sites = pd.DataFrame(sites_data)
-            except Exception as e:
-                logger.exception(f"Failed to load sites data from api. {e}")
+            sites = DataUtils.fetch_sites_from_api()
+
+        if network:
+            sites = sites.loc[sites.network == network.str]
 
         if sites.empty:
             raise RuntimeError("Failed to retrieve cached/api sites data.")
 
-        if network:
-            sites = sites.loc[sites.network == network.str]
         return sites
+
+    @staticmethod
+    def fetch_sites_from_api():
+        """
+        Fetch all site metadata from the external API.
+
+        This function:
+            - Calls the `DataApi.get_sites()` endpoint to retrieve site information.
+            - Converts the API response into a pandas DataFrame.
+            - Logs an exception and returns an empty DataFrame if the API call fails.
+
+        Returns:
+            pd.DataFrame
+                A DataFrame containing site metadata fetched from the API.
+                Returns an empty DataFrame if the API request fails or no data is available.
+
+        Raises:
+            Logs exceptions internally and does not propagate errors.
+        """
+        data_api = DataApi()
+        try:
+            sites_data = data_api.get_sites()
+            return pd.DataFrame(sites_data)
+        except Exception as e:
+            logger.exception(f"Failed to load sites data from api. {e}")
+        return pd.DataFrame()
 
     @staticmethod
     def extract_devices_data(
@@ -253,7 +275,31 @@ class DataUtils:
         device_network: Optional[DeviceNetwork] = None,
         device_category: Optional[DeviceCategory] = None,
     ) -> Tuple[pd.DataFrame, Dict[int, str]]:
-        """Fetch devices from the API if the cached file is empty."""
+        """Fetch devices from the external device registry API, optionally filtered by network and category.
+
+        This method:
+        - Retrieves a list of devices from the API using the provided `device_network` and `device_category`.
+        - Converts the response into a pandas DataFrame.
+        - Ensures that any missing `device_number` values are filled with `-1`.
+        - Filters devices belonging to a specific network (e.g., `DeviceNetwork.AIRQO`).
+        - Fetches associated read keys for the filtered devices.
+        - Returns both the complete devices DataFrame and a dictionary of read keys.
+
+        If the API request or processing fails, it logs the exception and returns an empty DataFrame and an empty dictionary.
+
+        Args:
+            device_network(Optional[DeviceNetwork], default=None): Network filter to restrict the API request to a specific device network. If None, retrieves devices from all networks.
+            device_category(Optional[DeviceCategory], default=None): Category filter to restrict the API request to a specific device category. If None, retrieves devices from all categories.
+
+        Returns:
+            Tuple[pd.DataFrame, Dict[int, str]]
+                - **devices** : pandas DataFrame containing device metadata.
+                Always includes a `device_number` column with missing values filled as `-1`.
+                - **keys** : dictionary mapping device IDs (int) to their corresponding read keys.
+
+        Raises:
+            Logs exceptions internally and returns empty outputs rather than propagating errors.
+        """
         data_api = DataApi()
 
         try:
@@ -279,7 +325,47 @@ class DataUtils:
         keys: dict,
         resolution: Frequency,
     ) -> pd.DataFrame:
-        """Extract and map API data for a single device."""
+        """
+        Extract and normalize API data for a single device based on its network type.
+
+        This function:
+        - Determines the device's network and retrieves time-series data accordingly.
+        - For `DeviceNetwork.AIRQO`, it iterates through a list of date ranges, fetches raw data using the appropriate read key, and aggregates all available API responses.
+        - For `DeviceNetwork.IQAIR`, it fetches data using the IQAir API endpoint for the given resolution.
+        - Maps the raw API response into a standardized DataFrame format using network-specific mappings.
+
+        Args:
+            device(pd.Series): A pandas Series containing device metadata (e.g., `device_number`, `network`, `key`).
+            dates(List[Tuple[str, str]]): A list of (start_date, end_date) tuples specifying the time ranges for data extraction.
+            config(dict): Configuration dictionary containing:
+                        - `mapping`: a mapping of network names to their data field mapping rules.
+            keys(dict): A dictionary mapping device numbers to read keys (used for authorized API calls).
+            resolution(Frequency): Data resolution (e.g., hourly, daily) used when querying certain networks (like `DeviceNetwork.IQAIR`).
+
+        Returns:
+            Tuple[pd.DataFrame, dict]
+                - **data**: A pandas DataFrame containing mapped and normalized API data.
+                Returns an empty DataFrame if no data is found.
+                - **meta_data**: A dictionary containing metadata returned by the API (may be empty for some networks).
+
+        Workflow:
+            1. If the device belongs to `DeviceNetwork.AIRQO`:
+                - Iterate through each date range, fetch API data, and aggregate results.
+                - If data is available, apply the mapping rules from `config["mapping"][network]`.
+            2. If the device belongs to `DeviceNetwork.IQAIR`:
+                - Fetch data via `data_source_api.iqair()`, then apply mapping rules.
+            3. If neither condition is met or an error occurs:
+                - Return `(empty DataFrame, empty dict)`.
+
+        Raises:
+            Logs exceptions internally (does not raise).
+            - If an API request fails, logs an exception with the device name and returns empty results.
+
+        Notes:
+            - Requires a valid `device_number` (non-null, non-NaN) for `DeviceNetwork.AIRQO`.
+            - Uses either `device["key"]` or a fallback key from the `keys` dictionary.
+            - Mapping logic depends on the `config["mapping"]` structure.
+        """
         device_number = device.get("device_number")
         key = device.get("key")
         network = device.get("network")
@@ -320,7 +406,34 @@ class DataUtils:
     def _process_and_append_device_data(
         device: pd.Series, data: pd.DataFrame, meta_data: dict, config: dict
     ) -> pd.DataFrame:
-        """Process API data, fill missing columns, and append device details."""
+        """
+        Process incoming API data, ensure required columns exist, and enrich it with device metadata.
+
+        This function:
+        - Ensures all required columns are present in the DataFrame by filling missing ones.
+        - Appends device details (category, ID, site, network).
+        - Replaces latitude/longitude values of `0.0` or NaN with fallback values from the device metadata or global `meta_data`.
+
+        Args
+            device(pd.Series): A pandas Series containing device-specific metadata (e.g., device_id, site_id, latitude).
+            data(pd.DataFrame): The raw API data for the device. Can be empty.
+            meta_data(dict): Global metadata dictionary providing fallback latitude/longitude if the device data is incomplete.
+            config(dict): Configuration dictionary with expected columns:
+                        - `field_8_cols` : list of extra required field names.
+                        - `other_fields_cols` : list of additional required field names.
+
+        Returns
+            pd.DataFrame
+                A DataFrame with:
+                - Required columns ensured.
+                - Device metadata appended.
+                - Latitude/longitude corrected (0.0 or NaN replaced by fallback values).
+                Returns `None` if the input DataFrame is empty.
+
+        Notes
+            - Latitude/longitude will NOT be overwritten if valid (non-zero, non-null) values exist.
+            - If no valid fallback latitude/longitude is found in `device` or `meta_data`, the 0.0 values remain unchanged.
+        """
         if data.empty:
             logger.warning(f"No data received from {device.get('name')}")
             return
@@ -340,14 +453,22 @@ class DataUtils:
             )
         )
 
+        lat_fallback = device.get("latitude") or meta_data.get("latitude")
+        lon_fallback = device.get("longitude") or meta_data.get("longitude")
+
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")
         data["device_number"] = device.get("device_number")
         data["device_id"] = device.get("name")
         data["site_id"] = device.get("site_id")
         data["network"] = device.get("network")
-        data["latitude"] = device.get("latitude") or meta_data.get("latitude")
-        data["longitude"] = device.get("longitude") or meta_data.get("longitude")
+        # Does not update for mobile devices unless sent data is equal to 0
+        data["latitude"] = (
+            data["latitude"].replace(0.0, lat_fallback).fillna(lat_fallback)
+        )
+        data["longitude"] = (
+            data["longitude"].replace(0.0, lon_fallback).fillna(lon_fallback)
+        )
 
         return data
 
