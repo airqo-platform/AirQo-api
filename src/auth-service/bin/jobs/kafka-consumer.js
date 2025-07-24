@@ -237,16 +237,23 @@ const emailsForDeployedDevices = async (messageData) => {
 
   const { createdActivity, updatedDevice, user_id } = parsedData;
 
-  // Validate input data
-  if (!createdActivity || !updatedDevice || !user_id) {
+  if (!createdActivity || !updatedDevice) {
     logger.error(
-      `🤦🤦 Invalid input data: Missing required fields -- parsedData: ${stringify(
+      `🤦🤦 Invalid input data: Missing required fields (createdActivity or updatedDevice) -- parsedData: ${stringify(
         parsedData
       )}`
     );
     return;
   }
 
+  if (user_id === null || user_id === undefined) {
+    logger.info(
+      `📧 Skipping email notification - no user_id provided for deployment of device: ${createdActivity.device}`
+    );
+    return; // Exit gracefully without error
+  }
+
+  // FIXED: Additional validation for user_id format (only if provided)
   if (!ObjectId.isValid(user_id)) {
     logger.error(`🤦🤦 Invalid user_id format: ${user_id}`);
     return;
@@ -275,6 +282,10 @@ const emailsForDeployedDevices = async (messageData) => {
     // Handle email response
     if (emailResponse && emailResponse.success === false) {
       logger.error(`🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`);
+    } else {
+      logger.info(
+        `📧 Successfully sent deployment email for device: ${createdActivity.device}`
+      );
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
@@ -282,7 +293,6 @@ const emailsForDeployedDevices = async (messageData) => {
 };
 
 const emailsForRecalledDevices = async (messageData) => {
-  // Parse the message and validate input data
   let parsedData;
   try {
     parsedData = JSON.parse(messageData);
@@ -293,8 +303,19 @@ const emailsForRecalledDevices = async (messageData) => {
 
   const { createdActivity, updatedDevice, user_id } = parsedData;
 
-  if (!createdActivity || !updatedDevice || !user_id) {
-    logger.error("🤦🤦 Invalid input data: Missing required fields.");
+  if (!createdActivity || !updatedDevice) {
+    logger.error(
+      `🤦🤦 Invalid input data: Missing required fields (createdActivity or updatedDevice) -- parsedData: ${stringify(
+        parsedData
+      )}`
+    );
+    return;
+  }
+
+  if (user_id === null || user_id === undefined) {
+    logger.info(
+      `📧 Skipping email notification - no user_id provided for recall of device: ${createdActivity.device}`
+    );
     return;
   }
 
@@ -326,12 +347,15 @@ const emailsForRecalledDevices = async (messageData) => {
     // Handle email response
     if (emailResponse && emailResponse.success === false) {
       logger.error(`🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`);
+    } else {
+      logger.info(
+        `📧 Successfully sent recall email for device: ${createdActivity.device}`
+      );
     }
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
   }
 };
-
 const operationForSiteCreated = async (messageData) => {
   try {
     const event = JSON.parse(messageData);
