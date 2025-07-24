@@ -46,7 +46,7 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
-// Helper function to handle deployment logic
+// Enhanced helper function to handle deployment logic with support for both static and mobile deployments
 const handleDeployment = async (
   req,
   res,
@@ -68,6 +68,11 @@ const handleDeployment = async (
       ? defaultTenant
       : req.query.tenant;
 
+    // Determine deployment type from request body
+    const { deployment_type, site_id, grid_id } = request.body;
+    const actualDeploymentType =
+      deployment_type || (site_id ? "static" : grid_id ? "mobile" : "static");
+
     const result = await deployFunction(request, next);
 
     if (isEmpty(result) || res.headersSent) {
@@ -82,10 +87,11 @@ const handleDeployment = async (
         createdActivity: result.data.createdActivity,
         updatedDevice: result.data.updatedDevice,
         user_id: result.data.user_id,
+        deployment_type: actualDeploymentType,
       };
 
       if (deploymentType) {
-        response.deployment_type = deploymentType;
+        response.deployment_method = deploymentType;
       }
 
       return res.status(status).json(response);
@@ -128,6 +134,7 @@ const activity = {
     );
   },
 
+  // Enhanced batch deployment with support for mixed deployment types
   batchDeployWithCoordinates: async (req, res, next) => {
     try {
       logText("we are deploying....");
@@ -161,6 +168,16 @@ const activity = {
           message: result.message,
           successful_deployments: result.successful_deployments,
           failed_deployments: result.failed_deployments,
+          deployment_summary: result.deployment_summary || {
+            static_deployments: result.successful_deployments.filter(
+              (d) => d.deployment_type === "static" || !d.deployment_type
+            ).length,
+            mobile_deployments: result.successful_deployments.filter(
+              (d) => d.deployment_type === "mobile"
+            ).length,
+            total_successful: result.successful_deployments.length,
+            total_failed: result.failed_deployments.length,
+          },
         });
       } else if (result.success === false) {
         const status = result.status
@@ -184,6 +201,7 @@ const activity = {
       return;
     }
   },
+
   recall: async (req, res, next) => {
     try {
       logText("we are recalling....");
@@ -237,6 +255,7 @@ const activity = {
       return;
     }
   },
+
   maintain: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -290,6 +309,7 @@ const activity = {
       return;
     }
   },
+
   bulkAdd: async (req, res, next) => {
     try {
       return res.status(httpStatus.NOT_IMPLEMENTED).json({
@@ -323,6 +343,7 @@ const activity = {
       return;
     }
   },
+
   bulkUpdate: async (req, res, next) => {
     try {
       return res.status(httpStatus.NOT_IMPLEMENTED).json({
@@ -356,6 +377,7 @@ const activity = {
       return;
     }
   },
+
   update: async (req, res, next) => {
     try {
       logText("updating activity................");
@@ -409,6 +431,7 @@ const activity = {
       return;
     }
   },
+
   delete: async (req, res, next) => {
     try {
       logText(".................................................");
@@ -462,6 +485,7 @@ const activity = {
       return;
     }
   },
+
   list: async (req, res, next) => {
     try {
       logText(".....................................");
@@ -510,6 +534,213 @@ const activity = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+  getDeploymentStats: async (req, res, next) => {
+    try {
+      logText("retrieving deployment statistics...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createActivityUtil.getDeploymentStatistics(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Get Deployment Stats Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+  getDevicesByDeploymentType: async (req, res, next) => {
+    try {
+      logText("retrieving devices by deployment type...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await createActivityUtil.getDevicesByDeploymentType(
+        request,
+        next
+      );
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          data: result.data,
+          deployment_type: result.deployment_type,
+          total_count: result.total_count,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Get Devices By Type Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+  deployStatic: async (req, res, next) => {
+    try {
+      // Enforce deployment type
+      req.body.deployment_type = "static";
+
+      // Validate that site_id is provided
+      if (!req.body.site_id) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "site_id is required for static deployments",
+          errors: { message: "site_id is required for static deployments" },
+        });
+      }
+
+      // Remove grid_id if accidentally provided
+      if (req.body.grid_id) {
+        delete req.body.grid_id;
+      }
+
+      // Call the standard deploy function
+      return handleDeployment(
+        req,
+        res,
+        next,
+        createActivityUtil.deploy,
+        "static"
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Deploy Static Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+      return;
+    }
+  },
+  deployMobile: async (req, res, next) => {
+    try {
+      // Enforce deployment type
+      req.body.deployment_type = "mobile";
+
+      // Validate that grid_id is provided
+      if (!req.body.grid_id) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "grid_id is required for mobile deployments",
+          errors: { message: "grid_id is required for mobile deployments" },
+        });
+      }
+
+      // Remove site_id if accidentally provided
+      if (req.body.site_id) {
+        delete req.body.site_id;
+      }
+
+      // Set mobile-friendly defaults if not provided
+      if (!req.body.mountType) {
+        req.body.mountType = "vehicle";
+      }
+
+      if (!req.body.powerType) {
+        req.body.powerType = "alternator";
+      }
+
+      // Call the standard deploy function
+      return handleDeployment(
+        req,
+        res,
+        next,
+        createActivityUtil.deploy,
+        "mobile"
+      );
+    } catch (error) {
+      logger.error(`🐛🐛 Deploy Mobile Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
       return;

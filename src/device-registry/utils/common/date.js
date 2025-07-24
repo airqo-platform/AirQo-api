@@ -1,4 +1,4 @@
-const { logObject, logText, logElement, HttpErro } = require("@utils/shared");
+const { logObject, logText, logElement, HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 module.exports = {
   generateDateFormatWithoutHrs,
@@ -69,24 +69,47 @@ function generateDateFormat(ISODate, next) {
 }
 
 function isTimeEmpty(dateTime) {
-  let date = new Date(dateTime);
-  let hrs = date.getUTCHours();
-  let mins = date.getUTCMinutes();
-  let secs = date.getUTCSeconds();
-  let millisecs = date.getUTCMilliseconds();
-  logElement("hrs", hrs);
-  logElement("mins", mins);
-  logElement("secs", secs);
-  logElement("millisecs", millisecs);
-  if (
-    Number.isInteger(hrs) &&
-    Number.isInteger(mins) &&
-    Number.isInteger(secs) &&
-    Number.isInteger(millisecs)
-  ) {
-    return false;
+  try {
+    // FIXED: Handle invalid input dates
+    if (
+      !dateTime ||
+      dateTime === false ||
+      dateTime === null ||
+      dateTime === undefined
+    ) {
+      return true; // Treat invalid inputs as "empty time"
+    }
+
+    let date = new Date(dateTime);
+
+    // FIXED: Check if date is valid before extracting time components
+    if (isNaN(date.getTime())) {
+      return true; // Treat invalid dates as "empty time"
+    }
+
+    let hrs = date.getUTCHours();
+    let mins = date.getUTCMinutes();
+    let secs = date.getUTCSeconds();
+    let millisecs = date.getUTCMilliseconds();
+
+    logElement("hrs", hrs);
+    logElement("mins", mins);
+    logElement("secs", secs);
+    logElement("millisecs", millisecs);
+
+    if (
+      Number.isInteger(hrs) &&
+      Number.isInteger(mins) &&
+      Number.isInteger(secs) &&
+      Number.isInteger(millisecs)
+    ) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    logger.error(`isTimeEmpty error: ${error.message}`);
+    return true;
   }
-  return true;
 }
 
 function formatDate(dateTime) {
@@ -127,7 +150,19 @@ function generateDateFormatWithoutHrs(ISODate, next) {
 
 function addMonthsToProvidedDate(date, number, next) {
   try {
-    const originalDate = new Date(date);
+    // FIXED: Add input validation
+    let workingDate;
+
+    if (!date || date === false || date === null || date === undefined) {
+      workingDate = new Date();
+    } else {
+      workingDate = new Date(date);
+      if (isNaN(workingDate.getTime())) {
+        workingDate = new Date();
+      }
+    }
+
+    const originalDate = new Date(workingDate);
     const year = originalDate.getFullYear();
     const month = originalDate.getMonth();
     const day = originalDate.getDate();
@@ -135,12 +170,12 @@ function addMonthsToProvidedDate(date, number, next) {
     const newDate = new Date(year, month + number, day);
 
     const newYear = newDate.getFullYear();
-    const newMonth = newDate.getMonth() + 1; // Adding 1 because getMonth() returns a zero-based index
+    const newMonth = newDate.getMonth() + 1;
     const newDay = newDate.getDate();
 
-    // Ensure month and day are formatted with leading zeros if necessary
     const formattedMonth = newMonth < 10 ? `0${newMonth}` : newMonth;
     const formattedDay = newDay < 10 ? `0${newDay}` : newDay;
+
     logObject(
       "date returned by function",
       `${newYear}-${formattedMonth}-${formattedDay}`
@@ -148,13 +183,39 @@ function addMonthsToProvidedDate(date, number, next) {
     return `${newYear}-${formattedMonth}-${formattedDay}`;
   } catch (error) {
     logger.error(`🐛🐛 Internal server error -- ${error.message}`);
+    // Return current date formatted as fallback
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1 + number;
+    const day = now.getDate();
+    return `${year}-${month < 10 ? "0" + month : month}-${
+      day < 10 ? "0" + day : day
+    }`;
   }
 }
 
 function addMonthsToProvideDateTime(dateTime, number, next) {
   try {
+    // FIXED: Handle invalid input dates at the start
+    let workingDate;
+
+    if (
+      !dateTime ||
+      dateTime === false ||
+      dateTime === null ||
+      dateTime === undefined
+    ) {
+      workingDate = new Date(); // Use current date for invalid inputs
+    } else {
+      workingDate = new Date(dateTime);
+      // Check if the created date is valid
+      if (isNaN(workingDate.getTime())) {
+        workingDate = new Date(); // Use current date for invalid dates
+      }
+    }
+
     if (isTimeEmpty(dateTime) === false) {
-      const originalDate = new Date(dateTime);
+      const originalDate = new Date(workingDate);
       const year = originalDate.getFullYear();
       const month = originalDate.getMonth();
       const day = originalDate.getDate();
@@ -164,17 +225,26 @@ function addMonthsToProvideDateTime(dateTime, number, next) {
         "date returned by function addMonthsToProvideDateTime() 1",
         newDate
       );
-      return newDate;
+      return newDate; // Return Date object
     } else {
-      const newDate = addMonthsToProvidedDate(dateTime, number);
+      // FIXED: Ensure we still return a Date object even in this branch
+      const originalDate = new Date(workingDate);
+      const year = originalDate.getFullYear();
+      const month = originalDate.getMonth();
+      const day = originalDate.getDate();
+
+      const newDate = new Date(year, month + number, day);
       logObject(
         "date returned by function addMonthsToProvideDateTime() 2",
         newDate
       );
-      return newDate;
+      return newDate; // Return Date object instead of calling addMonthsToProvidedDate
     }
   } catch (error) {
-    logger.error(`🐛🐛 Internal server error -- ${error.message}`);
+    logger.error(`🐛🐛 addMonthsToProvideDateTime error -- ${error.message}`);
+    const fallbackDate = new Date();
+    fallbackDate.setMonth(fallbackDate.getMonth() + number);
+    return fallbackDate;
   }
 }
 
