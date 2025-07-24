@@ -40,3 +40,4 @@ tenacity==8.2.3
 netCDF4
 cdsapi>=0.7.4
 cfgrib
+xarray
