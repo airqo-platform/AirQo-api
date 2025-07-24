@@ -12,12 +12,14 @@ from .conftest import (
     WEATHER_DATA,
     LC_NO_DATA,
     DEVICES,
+    SITES,
     mock_bigquery_api,
     mock_data_validation_utils,
     mock_data_utils,
-    mock_load_cached_data,
+    mock_load_devices_or_sites_cached_data,
     mock_fetch_devices_from_api,
     airqo_device_keys,
+    mock_fetch_sites_from_api,
 )
 from airqo_etl_utils.constants import (
     DataType,
@@ -29,12 +31,15 @@ from airqo_etl_utils.config import configuration as Config
 
 
 class TestsDevices:
-    def test_successful_load_from_cache(
-        self, mock_load_cached_data, mock_fetch_devices_from_api, airqo_device_keys
+    def test_successful_load_of_devices_from_cache(
+        self,
+        mock_load_devices_or_sites_cached_data,
+        mock_fetch_devices_from_api,
+        airqo_device_keys,
     ):
-        mock_load_cached_data.return_value = DEVICES
+        mock_load_devices_or_sites_cached_data.return_value = DEVICES
         devices, _ = DataUtils.get_devices()
-        expected_df = DEVICES
+        expected_df = DEVICES.copy()
         expected_df["device_number"] = (
             expected_df["device_number"].fillna(-1).astype(int)
         )
@@ -42,29 +47,64 @@ class TestsDevices:
         mock_fetch_devices_from_api.assert_not_called()
 
     def test_successful_fetch_from_api(
-        self, mock_load_cached_data, mock_fetch_devices_from_api, airqo_device_keys
+        self,
+        mock_load_devices_or_sites_cached_data,
+        mock_fetch_devices_from_api,
+        airqo_device_keys,
     ):
-        mock_load_cached_data.return_value = pd.DataFrame()
+        mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
         mock_fetch_devices_from_api.return_value = (DEVICES, airqo_device_keys)
         devices, keys = DataUtils.get_devices()
-        expected_df = DEVICES
+        expected_df = DEVICES.copy()
         expected_df["device_number"] = (
             expected_df["device_number"].fillna(-1).astype(int)
         )
         pd.testing.assert_frame_equal(devices, expected_df)
         assert keys == airqo_device_keys
-        mock_load_cached_data.assert_called_once()
+        mock_load_devices_or_sites_cached_data.assert_called_once()
 
     def test_failure_to_retrieve_from_api(
-        self, mock_load_cached_data, mock_fetch_devices_from_api
+        self, mock_load_devices_or_sites_cached_data, mock_fetch_devices_from_api
     ):
-        mock_load_cached_data.return_value = pd.DataFrame()
+        mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
         mock_fetch_devices_from_api.return_value = (pd.DataFrame(), {})
         with pytest.raises(
             RuntimeError,
             match="Failed to retrieve devices data from both cache and API.",
         ):
             DataUtils.get_devices()
+
+
+class TestSites:
+    def test_successful_load_of_sites_from_cache(
+        self, mock_load_devices_or_sites_cached_data, mock_fetch_sites_from_api
+    ):
+        mock_load_devices_or_sites_cached_data.return_value = SITES
+        sites = DataUtils.get_sites()
+        expected_df = SITES
+        pd.testing.assert_frame_equal(sites, expected_df)
+        mock_fetch_sites_from_api.assert_not_called()
+
+    def test_successful_fetch_of_sites_from_api(
+        self, mock_load_devices_or_sites_cached_data, mock_fetch_sites_from_api
+    ):
+        mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
+        mock_fetch_sites_from_api.return_value = SITES
+        sites = DataUtils.get_sites()
+        expected_df = SITES
+        pd.testing.assert_frame_equal(sites, expected_df)
+        mock_load_devices_or_sites_cached_data.assert_called_once()
+
+    def test_failure_to_retrieve_sites_from_api(
+        self, mock_load_devices_or_sites_cached_data, mock_fetch_sites_from_api
+    ):
+        mock_load_devices_or_sites_cached_data.return_value = pd.DataFrame()
+        mock_fetch_sites_from_api.return_value = pd.DataFrame()
+        with pytest.raises(
+            RuntimeError,
+            match="Failed to retrieve cached/api sites data.",
+        ):
+            DataUtils.get_sites()
 
 
 class Test_BigQuery:

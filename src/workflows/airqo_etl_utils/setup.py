@@ -40,6 +40,7 @@ setup(
         "netCDF4",
         "cdsapi>=0.7.4",
         "cfgrib",
+        "xarray==2025.6.0",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",
