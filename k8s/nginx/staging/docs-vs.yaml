@@ -1,10 +1,29 @@
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: internal-docs
+  namespace: staging
+spec:
+  host: staging-docs.airqo.net
+  upstreams:
+    - name: internal-docs
+      service: airqo-stage-internal-docs-svc
+      port: 80
+  subroutes:
+    - path: /internal-docs
+      action:
+        pass: internal-docs      
+
+---
+
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: staging-docs-virtual-server
   namespace: staging
 spec:
-  host: staging-wiki.airqo.net
+  host: staging-docs.airqo.net
   upstreams:
     - name: docs
       service: airqo-stage-docs-svc
@@ -13,3 +32,7 @@ spec:
     - path: /
       action:
         pass: docs
+
+    - path: /internal-docs
+      route: staging/internal-docs
+
