@@ -7,8 +7,9 @@ images:
     celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
+    redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-79bf27a0-1746280013
+  tag: stage-926d4bb2-1753091711
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
@@ -16,12 +17,20 @@ api:
   replicaCount: 2
   podAnnotations: {}
   resources:
-    limits:
-      cpu: 200m
-      memory: 1000Mi
-    requests:
-      cpu: 10m
-      memory: 250Mi
+    common:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 10m
+        memory: 250Mi
+    redis:
+      requests:
+        cpu: 50m
+        memory: 10Mi
+      limits:
+        cpu: 300m
+        memory: 50Mi
   nodeSelector:
     role: moderate-usage
   affinity:
@@ -51,10 +60,17 @@ volumes:
       name: stage-analytics-config-files
 service:
   type: NodePort
-  port: 5000
-  protocol: TCP
-  targetPort: 5000
-  nodePort: 31003
+  ports:
+    - name: analytics-api
+      port: 5000
+      protocol: TCP
+      targetPort: 5000
+      nodePort: 31003
+    - name: redis-server
+      port: 6379
+      targetPort: 6379
+      nodePort: 31114
+      protocol: TCP
 ingress:
   enabled: false
 autoscaling:

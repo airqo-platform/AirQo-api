@@ -64,9 +64,9 @@ module.exports = {
     token,
     category,
   } = {}) => {
-    let url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/interest/${user_id}/${token}`;
+    let url = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/interest/${user_id}/${token}`;
     if (category && category === "organisation") {
-      url = `${constants.ANALYTICS_BASE_URL}/account/creation/organisation/verify/${user_id}/${token}`;
+      url = `${constants.ANALYTICS_BASE_URL}/user/creation/organisation/verify/${user_id}/${token}`;
     }
 
     const content = `<tr>
@@ -110,7 +110,7 @@ module.exports = {
     inviterEmail,
     userExists = false,
   } = {}) => {
-    const url = `${constants.ANALYTICS_BASE_URL}/account/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
+    const url = `${constants.ANALYTICS_BASE_URL}/user/creation/individual/register?userEmail=${email}&target_id=${targetId}&userExists=${userExists}`;
     const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
@@ -186,7 +186,7 @@ module.exports = {
                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                 <ul>
                     <li>YOUR USERNAME: ${username}</li>
-                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/account/login</li>
+                    <li>ACCESS LINK: ${constants.ANALYTICS_BASE_URL}/user/login</li>
                 </ul>
                 <br />
                 <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team at support@airqo.net. We are here to help.</p>
@@ -209,14 +209,24 @@ module.exports = {
     const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
-                                Congratulations! You have successfully joined ${entity_title} organisation on AirQo.
+                              Congratulations! You have successfully joined ${
+                                entity_title
+                                  ? processString(entity_title)
+                                  : "the team"
+                              } organisation on AirQo.
                                 <br />
-                                We are pleased to inform you that you can now access ${entity_title} data, insights and visualisations on AirQo.
+                                We are pleased to inform you that you can now access ${
+                                  entity_title
+                                    ? processString(entity_title)
+                                    : "the team"
+                                } data, insights and visualisations on AirQo.
                                 <br />
                                 <p>If you are using the AirQo web platform, you can access your account using the details below:</p>
                                 <ul>
                                     <li>YOUR USERAME: ${username}</li>
-                                    <li>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login</li>
+                                    <li>ACCESS LINK: ${
+                                      constants.PLATFORM_BASE_URL
+                                    }/login</li>
                                 </ul>
                                     <br />
                                 If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support

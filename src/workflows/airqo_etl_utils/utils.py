@@ -4,9 +4,11 @@ import asyncio
 from threading import Thread
 from datetime import timedelta
 import pandas as pd
+from http.client import HTTPResponse
+import simplejson
+
 import requests
-from requests import Response
-from typing import Any, Dict, Tuple, Coroutine
+from typing import Any, Dict, Tuple, Coroutine, Optional
 
 from .constants import (
     Pollutant,
@@ -282,3 +284,50 @@ class Utils:
                 loop.close()
 
         Thread(target=_run, daemon=True).start()
+
+    @staticmethod
+    def parse_api_response(
+        response: HTTPResponse, url: str, file_name: Optional[str] = None
+    ) -> Optional[Any]:
+        """
+        Parses an HTTP API response and handles two types of expected responses:
+
+        1. If the response contains JSON and is within the 2xx range, it attempts to parse and return the JSON content.
+        2. If the response is binary (non-JSON), it saves the file to `/tmp/{file_name}`.
+
+        Args:
+            response(HTTPResponse): The response object returned from an HTTP client.
+            url(str): The URL used to make the request (for logging/debugging purposes).
+            file_name(Optional[str]): The file name (without path) to use when saving binary responses.
+
+        Returns:
+            Optional[Any]:
+                - Parsed JSON object if response is valid JSON.
+                - True if binary file is saved successfully.
+                - None if parsing or saving fails.
+        """
+        status = getattr(response, "status_code", getattr(response, "status", None))
+        content = getattr(response, "content", getattr(response, "data", None))
+
+        if status is None:
+            logger.error(f"Unable to determine response status from {url}")
+
+        if 200 <= status < 300:
+            if not content:
+                logger.warning(f"No response data returned from request: {url}")
+                return None
+            try:
+                return simplejson.loads(content)
+            except simplejson.JSONDecodeError:
+                logger.exception("Response can't be parsed")
+            except UnicodeDecodeError:
+                logger.exception("Response can't be parsed. Might be a file")
+                try:
+                    filepath = os.path.join("/tmp", file_name)
+                    with open(filepath, "wb") as f:
+                        f.write(content)
+                    logger.info(f"Binary response saved to: {filepath}")
+                    return filepath
+                except Exception as e:
+                    logger.exception(f"Failed to parse or save binary response: {e}")
+        return None

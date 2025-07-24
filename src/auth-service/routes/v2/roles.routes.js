@@ -1,7 +1,7 @@
 // roles.routes.js
 const express = require("express");
 const router = express.Router();
-const createRoleController = require("@controllers/role.controller");
+const roleController = require("@controllers/role.controller");
 const roleValidations = require("@validators/roles.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 
@@ -17,20 +17,19 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(roleValidations.pagination);
 
-router.get(
-  "/",
-  roleValidations.list,
-  setJWTAuth,
-  authJWT,
-  createRoleController.list
-);
+const injectCurrentUserId = (req, res, next) => {
+  req.params.user_id = req.user._id;
+  next();
+};
+
+router.get("/", roleValidations.list, setJWTAuth, authJWT, roleController.list);
 
 router.get(
   "/summary",
   roleValidations.listSummary,
   setJWTAuth,
   authJWT,
-  createRoleController.listSummary
+  roleController.listSummary
 );
 
 router.post(
@@ -38,7 +37,7 @@ router.post(
   roleValidations.create,
   setJWTAuth,
   authJWT,
-  createRoleController.create
+  roleController.create
 );
 
 router.put(
@@ -46,7 +45,7 @@ router.put(
   roleValidations.update,
   setJWTAuth,
   authJWT,
-  createRoleController.update
+  roleController.update
 );
 
 router.delete(
@@ -54,7 +53,7 @@ router.delete(
   roleValidations.deleteRole,
   setJWTAuth,
   authJWT,
-  createRoleController.delete
+  roleController.delete
 );
 
 router.get(
@@ -62,7 +61,7 @@ router.get(
   roleValidations.listUsersWithRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listUsersWithRole
+  roleController.listUsersWithRole
 );
 
 router.get(
@@ -70,7 +69,7 @@ router.get(
   roleValidations.listAvailableUsersForRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listAvailableUsersForRole
+  roleController.listAvailableUsersForRole
 );
 
 router.post(
@@ -78,7 +77,7 @@ router.post(
   roleValidations.assignManyUsersToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.assignManyUsersToRole
+  roleController.assignManyUsersToRole
 );
 
 router.post(
@@ -86,7 +85,7 @@ router.post(
   roleValidations.assignUserToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.assignUserToRole
+  roleController.assignUserToRole
 );
 
 router.put(
@@ -94,7 +93,7 @@ router.put(
   roleValidations.assignUserToRolePut,
   setJWTAuth,
   authJWT,
-  createRoleController.assignUserToRole
+  roleController.assignUserToRole
 );
 
 router.delete(
@@ -102,7 +101,7 @@ router.delete(
   roleValidations.unAssignManyUsersFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignManyUsersFromRole
+  roleController.unAssignManyUsersFromRole
 );
 
 router.delete(
@@ -110,7 +109,7 @@ router.delete(
   roleValidations.unAssignUserFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignUserFromRole
+  roleController.unAssignUserFromRole
 );
 
 router.get(
@@ -118,7 +117,7 @@ router.get(
   roleValidations.listPermissionsForRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listPermissionsForRole
+  roleController.listPermissionsForRole
 );
 
 router.get(
@@ -126,7 +125,7 @@ router.get(
   roleValidations.listAvailablePermissionsForRole,
   setJWTAuth,
   authJWT,
-  createRoleController.listAvailablePermissionsForRole
+  roleController.listAvailablePermissionsForRole
 );
 
 router.post(
@@ -134,7 +133,7 @@ router.post(
   roleValidations.assignPermissionToRole,
   setJWTAuth,
   authJWT,
-  createRoleController.assignPermissionToRole
+  roleController.assignPermissionToRole
 );
 
 router.delete(
@@ -142,7 +141,7 @@ router.delete(
   roleValidations.unAssignManyPermissionsFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignManyPermissionsFromRole
+  roleController.unAssignManyPermissionsFromRole
 );
 
 router.put(
@@ -150,7 +149,7 @@ router.put(
   roleValidations.updateRolePermissions,
   setJWTAuth,
   authJWT,
-  createRoleController.updateRolePermissions
+  roleController.updateRolePermissions
 );
 
 router.delete(
@@ -158,7 +157,228 @@ router.delete(
   roleValidations.unAssignPermissionFromRole,
   setJWTAuth,
   authJWT,
-  createRoleController.unAssignPermissionFromRole
+  roleController.unAssignPermissionFromRole
+);
+
+router.post(
+  "/:role_id/user/enhanced",
+  roleValidations.assignUserToRole,
+  setJWTAuth,
+  authJWT,
+  roleController.enhancedAssignUserToRole
+);
+
+router.put(
+  "/:role_id/user/:user_id/enhanced",
+  roleValidations.assignUserToRolePut,
+  setJWTAuth,
+  authJWT,
+  roleController.enhancedAssignUserToRole
+);
+
+// Enhanced role unassignment with detailed feedback
+router.delete(
+  "/:role_id/user/:user_id/enhanced",
+  roleValidations.unAssignUserFromRole,
+  setJWTAuth,
+  authJWT,
+  roleController.enhancedUnAssignUserFromRole
+);
+
+// New user-centric role management endpoints
+router.get(
+  "/users/:user_id/network-roles",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserNetworkRoles
+);
+
+router.get(
+  "/users/:user_id/group-roles",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserGroupRoles
+);
+
+router.get(
+  "/users/:user_id/role-summary",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserRoleSummary
+);
+
+router.get(
+  "/admin/deprecated-field-audit",
+  roleValidations.auditDeprecatedFields,
+  setJWTAuth,
+  authJWT,
+  roleController.auditDeprecatedFields
+);
+
+router.get(
+  "/users/:user_id/enhanced-details",
+  roleValidations.getEnhancedUserDetails,
+  setJWTAuth,
+  authJWT,
+  roleController.getEnhancedUserDetails
+);
+
+router.get(
+  "/users/:user_id/detailed-roles-permissions",
+  roleValidations.getUserRolesWithFilters,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserRolesAndPermissionsDetailed
+);
+
+router.get(
+  "/users/:user_id/groups/:group_id/permissions",
+  roleValidations.getUserPermissionsForGroup,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserPermissionsForGroup
+);
+
+router.get(
+  "/users/:user_id/permissions/by-group",
+  roleValidations.getUserPermissionsForGroup,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserPermissionsForGroup
+);
+
+router.get(
+  "/me/groups/:group_id/permissions",
+  setJWTAuth,
+  authJWT,
+  injectCurrentUserId,
+  roleValidations.getUserPermissionsForGroup,
+  roleController.getCurrentUserPermissionsForGroup
+);
+
+router.get(
+  "/users/:user_id/groups/:group_id/permissions/simplified",
+  roleValidations.getUserPermissionsForGroup,
+  setJWTAuth,
+  authJWT,
+  roleController.getSimplifiedPermissionsForGroup
+);
+
+router.get(
+  "/me/groups/:group_id/permissions/simplified",
+  setJWTAuth,
+  authJWT,
+  injectCurrentUserId,
+  roleValidations.getUserPermissionsForGroup,
+  roleController.getSimplifiedPermissionsForGroup
+);
+
+router.post(
+  "/users/:user_id/permissions/bulk-check",
+  roleValidations.bulkPermissionsCheck,
+  setJWTAuth,
+  authJWT,
+  roleController.bulkPermissionsCheck
+);
+
+router.post(
+  "/me/permissions/bulk-check",
+  setJWTAuth,
+  authJWT,
+  injectCurrentUserId,
+  roleValidations.bulkPermissionsCheck,
+  roleController.bulkPermissionsCheck
+);
+
+router.post(
+  "/users/:user_id/permissions/check-actions",
+  roleValidations.checkUserPermissionsForActions,
+  setJWTAuth,
+  authJWT,
+  roleController.checkUserPermissionsForActions
+);
+
+router.get(
+  "/users/:user_id/roles/by-group",
+  roleValidations.getUserRolesWithFilters,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserRolesByGroup
+);
+
+router.get(
+  "/users/:user_id/groups/permissions-summary",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserGroupsWithPermissionsSummary
+);
+
+router.get(
+  "/me/groups/permissions-summary",
+  setJWTAuth,
+  authJWT,
+  injectCurrentUserId,
+  roleValidations.getUserRoles,
+  roleController.getUserGroupsWithPermissionsSummary
+);
+
+router.get(
+  "/users/:user_id/rbac-analysis",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserRolesAndPermissionsViaRBAC
+);
+
+router.get(
+  "/users/:user_id/roles-simplified",
+  roleValidations.getUserRoles,
+  setJWTAuth,
+  authJWT,
+  roleController.getUserRolesSimplified
+);
+
+router.get(
+  "/me/detailed-roles-permissions",
+  setJWTAuth,
+  authJWT,
+  roleController.getCurrentUserRolesAndPermissions
+);
+
+router.get(
+  "/me/rbac-analysis",
+  setJWTAuth,
+  authJWT,
+  injectCurrentUserId,
+  roleController.getUserRolesAndPermissionsViaRBAC
+);
+
+router.get(
+  "/me/roles-simplified",
+  setJWTAuth,
+  authJWT,
+  injectCurrentUserId,
+  roleController.getUserRolesSimplified
+);
+
+router.get(
+  "/system/health",
+  roleValidations.getSystemHealth,
+  setJWTAuth,
+  authJWT,
+  roleController.getSystemRoleHealth
+);
+
+router.post(
+  "/bulk-operations",
+  roleValidations.bulkRoleOperations,
+  setJWTAuth,
+  authJWT,
+  roleController.bulkRoleOperations
 );
 
 router.get(
@@ -166,7 +386,7 @@ router.get(
   roleValidations.getRoleById,
   setJWTAuth,
   authJWT,
-  createRoleController.list
+  roleController.list
 );
 
 module.exports = router;

@@ -21,7 +21,7 @@ class Config:
     TENANT = os.getenv("TENANT", "airqo")
     MONTHS_OF_DATA = os.getenv("MONTHS_OF_DATA", 3)
     EXPECTED_DAYS = os.getenv("EXPECTED_DAYS")
-    BIGQUERY_SITES = os.getenv("BIGQUERY_SITES")
+    BIGQUERY_SITES = os.getenv("BIGQUERY_SITES_SITES")
 
 
 class ProductionConfig(Config):

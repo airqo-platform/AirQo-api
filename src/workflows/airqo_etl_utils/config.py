@@ -67,6 +67,9 @@ class Config:
     # Raw data
     BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE = os.getenv("BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE")
     BIGQUERY_RAW_EVENTS_TABLE = os.getenv("BIGQUERY_RAW_EVENTS_TABLE")
+    BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE = os.getenv(
+        "BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE"
+    )
     BIGQUERY_LATEST_EVENTS_TABLE = os.getenv("BIGQUERY_LATEST_EVENTS_TABLE")
     BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE = os.getenv(
         "BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE"
@@ -470,12 +473,16 @@ class Config:
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
         BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
+        BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE: "satelite_airquality_data_copernicus_temp.json",
         "all": None,
     }
     DataSource = {
         DataType.RAW: {
             DeviceCategory.GENERAL: {
                 Frequency.RAW: BIGQUERY_RAW_EVENTS_TABLE,
+            },
+            DeviceCategory.SATELLITE: {
+                Frequency.RAW: BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE,
             },
             DeviceCategory.MOBILE: {
                 Frequency.RAW: BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE,
@@ -507,6 +514,7 @@ class Config:
     }
 
     AIRFLOW_XCOM_BUCKET = os.getenv("AIRFLOW_XCOM_BUCKET")
+    FIREBASE_STORAGE_BUCKET_NAME = os.getenv("FIREBASE_STORAGE_BUCKET_NAME")
 
     # -------------------------------------------------------
     # Satelite constants

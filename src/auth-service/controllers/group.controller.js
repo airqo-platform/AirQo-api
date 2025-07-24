@@ -1,3 +1,4 @@
+//src/auth-service/controllers/group.controller.js
 const httpStatus = require("http-status");
 const {
   logObject,
@@ -14,23 +15,25 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-group-controller`
 );
 const rolePermissionsUtil = require("@utils/role-permissions.util");
+const UserModel = require("@models/User");
+const AccessRequestModel = require("@models/AccessRequest");
 
-// Helper function to handle common controller logic
+// Helper function to handle common controller logic without RBAC
 const executeGroupAction = async (req, res, next, utilFunction) => {
   try {
-    // Set userGroupContext in the request for utility function
-    const request = req;
-    request.userGroupContext = req.userGroupContext;
+    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+    const tenant = isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
 
-    // For updateSettings, ensure request.body is set (optional, if needed)
+    // Set up request with tenant
+    const request = req;
+    request.query.tenant = tenant;
+    logObject("req.user", req.user);
+    logObject("request.user", request.user);
+
+    // For updateSettings, ensure request.body is set
     if (utilFunction === groupUtil.updateSettings) {
       request.body = req.body;
     }
-
-    const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-    request.query.tenant = isEmpty(req.query.tenant)
-      ? defaultTenant
-      : req.query.tenant;
 
     const result = await utilFunction(request, next);
 
@@ -66,65 +69,46 @@ const executeGroupAction = async (req, res, next, utilFunction) => {
 };
 
 const groupController = {
-  getDashboard: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.getDashboard),
-
-  getMembers: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.getMembers),
-
-  getSettings: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.getSettings),
-
-  updateSettings: (req, res, next) =>
-    executeGroupAction(req, res, next, groupUtil.updateSettings),
-  removeUniqueConstraint: async (req, res, next) => {
+  // Dashboard
+  getDashboard: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      const tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      const result = await groupUtil.removeUniqueConstraint(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+      // Set up request
+      req.query.tenant = tenant;
 
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "successfully removed all the respective unique constraints",
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      return executeGroupAction(req, res, next, groupUtil.getDashboard);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Error getting dashboard: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
-      return;
     }
   },
+
+  // View members
+  getMembers: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.getMembers),
+
+  // View settings
+  getSettings: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.getSettings),
+
+  // Update settings
+  updateSettings: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateSettings),
+
+  removeUniqueConstraint: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.removeUniqueConstraint),
 
   list: async (req, res, next) => {
     try {
@@ -141,6 +125,7 @@ const groupController = {
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+
       const result = await groupUtil.list(request, next);
       if (isEmpty(result) || res.headersSent) {
         return;
@@ -179,9 +164,9 @@ const groupController = {
       return;
     }
   },
+
   listRolesForGroup: async (req, res, next) => {
     try {
-      logText("unAssignPermissionFromRole....");
       const errors = extractErrorsFromRequest(req);
       if (errors) {
         next(
@@ -189,11 +174,14 @@ const groupController = {
         );
         return;
       }
-      const request = req;
+
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      const tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
+
+      const request = req;
+      request.query.tenant = tenant;
 
       const result = await rolePermissionsUtil.listRolesForGroup(request, next);
 
@@ -231,54 +219,25 @@ const groupController = {
       return;
     }
   },
+
   create: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      const result = await groupUtil.create(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          created_group: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      return executeGroupAction(req, res, next, groupUtil.create);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Error creating group: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
       return;
     }
   },
+
   populateSlugs: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
@@ -378,505 +337,93 @@ const groupController = {
       return;
     }
   },
-  update: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      const result = await groupUtil.update(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          updated_group: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
+
+  update: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.update),
+
   delete: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      const result = await groupUtil.delete(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          deleted_group: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      return executeGroupAction(req, res, next, groupUtil.delete);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Error deleting group: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
-      return;
     }
   },
-  assignUsers: async (req, res, next) => {
-    try {
-      logText("assign many users....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
-      const result = await groupUtil.assignUsersHybrid(request, next);
+  assignUsers: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.assignUsersHybrid),
 
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
   assignOneUser: async (req, res, next) => {
     try {
-      logText("assign one user....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await groupUtil.assignOneUser(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      return executeGroupAction(req, res, next, groupUtil.assignOneUser);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Error assigning user: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
-      return;
     }
   },
+
   unAssignUser: async (req, res, next) => {
     try {
-      logText("unAssign user....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await groupUtil.unAssignUser(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          message: "user successully unassigned",
-          updated_records: result.data,
-          success: true,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
+      return executeGroupAction(req, res, next, groupUtil.unAssignUser);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Error unassigning user: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
-      return;
     }
   },
+
   unAssignManyUsers: async (req, res, next) => {
     try {
-      logText("unAssign user....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await groupUtil.unAssignManyUsers(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          updated_records: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
+      return executeGroupAction(req, res, next, groupUtil.unAssignManyUsers);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`Error unassigning many users: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
-      return;
     }
   },
-  setManager: async (req, res, next) => {
-    try {
-      logText("set the manager....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
 
-      const result = await groupUtil.setManager(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+  setManager: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.setManager),
 
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "Group manager successffuly set",
-          updated_group: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  listAssignedUsers: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+  listAssignedUsers: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.listAssignedUsers),
 
-      const result = await groupUtil.listAssignedUsers(request, next);
+  listAvailableUsers: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.listAvailableUsers),
 
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
+  listAllGroupUsers: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.listAllGroupUsers),
 
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          group_members: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  listAvailableUsers: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-      const result = await groupUtil.listAvailableUsers(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          available_users_for_group: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
-  listAllGroupUsers: async (req, res, next) => {
-    try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
-      const result = await groupUtil.listAllGroupUsers(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "",
-          group_members: result.data ? result.data : [],
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "",
-          errors: result.errors ? result.errors : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
-    }
-  },
   listSummary: async (req, res, next) => {
     try {
       logText("listing summary of group....");
@@ -928,6 +475,316 @@ const groupController = {
       return;
     }
   },
+
+  // Enhanced set manager with automatic role assignment
+  enhancedSetManager: (req, res, next) => {
+    logText("enhancedSetManager called");
+    executeGroupAction(req, res, next, groupUtil.enhancedSetManager);
+  },
+
+  // Enhanced manager dashboard with analytics
+  getManagerDashboard: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.getManagerDashboard),
+
+  // Bulk member management for group managers
+  bulkMemberManagement: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.bulkMemberManagement),
+
+  // Get group analytics for managers
+  getGroupAnalytics: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.getGroupAnalytics),
+
+  // Manage access requests for group managers
+  manageAccessRequests: async (req, res, next) => {
+    try {
+      const { user } = req;
+      const { grp_id } = req.params;
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const { tenant, action = "list" } = req.query;
+      const { request_ids, decision, reason, default_role } = req.body;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const actualTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      let result = {};
+
+      switch (action) {
+        case "list":
+          const requests = await AccessRequestModel(actualTenant).aggregate([
+            {
+              $match: {
+                targetId: grp_id,
+                requestType: "group",
+                status: "pending",
+              },
+            },
+            {
+              $lookup: {
+                from: "users", // Collection name for the user model
+                localField: "user_id",
+                foreignField: "_id",
+                as: "user_details",
+                pipeline: [
+                  {
+                    $project: {
+                      firstName: 1,
+                      lastName: 1,
+                      email: 1,
+                      profilePicture: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                user_id: {
+                  $cond: {
+                    if: { $gt: [{ $size: "$user_details" }, 0] },
+                    then: { $arrayElemAt: ["$user_details", 0] },
+                    else: null,
+                  },
+                },
+              },
+            },
+            {
+              $project: {
+                user_details: 0, // Remove the temporary field
+              },
+            },
+            { $sort: { createdAt: -1 } },
+          ]);
+
+          result = {
+            success: true,
+            message: "Access requests retrieved successfully",
+            data: requests,
+          };
+          break;
+
+        case "bulk_decision":
+          if (!request_ids || !decision) {
+            return next(
+              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+                message:
+                  "request_ids and decision are required for bulk decisions",
+              })
+            );
+          }
+
+          const updateResult = await AccessRequestModel(
+            actualTenant
+          ).updateMany(
+            {
+              _id: { $in: request_ids },
+              targetId: grp_id,
+              requestType: "group",
+            },
+            {
+              status: decision,
+              processedAt: new Date(),
+              processorReason: reason,
+              processedBy: user._id,
+            }
+          );
+
+          // If approved, add users to group
+          if (decision === "approved" && default_role) {
+            const approvedRequests = await AccessRequestModel(actualTenant)
+              .find({
+                _id: { $in: request_ids },
+                status: "approved",
+              })
+              .lean();
+
+            for (const request of approvedRequests) {
+              await UserModel(actualTenant).findByIdAndUpdate(request.user_id, {
+                $addToSet: {
+                  group_roles: {
+                    group: grp_id,
+                    role: default_role,
+                    userType: "user",
+                    createdAt: new Date(),
+                  },
+                },
+              });
+            }
+          }
+
+          // Log the action
+          logger.info(
+            `User ${user.email} processed ${updateResult.nModified} access requests with decision: ${decision}`,
+            { grp_id, decision, reason }
+          );
+
+          result = {
+            success: true,
+            message: `${updateResult.nModified} access requests ${decision}`,
+            data: {
+              processed_count: updateResult.nModified,
+              decision,
+              auto_assigned_role:
+                decision === "approved" ? !!default_role : false,
+            },
+          };
+          break;
+
+        default:
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid action specified",
+            })
+          );
+      }
+
+      return res.status(httpStatus.OK).json(result);
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  assignMemberRole: async (req, res, next) => {
+    try {
+      const { user_id, role_id } = req.body;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      return executeGroupAction(req, res, next, groupUtil.assignMemberRole);
+    } catch (error) {
+      logger.error(`Error assigning member role: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  sendGroupInvitations: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.sendGroupInvitations),
+
+  listGroupInvitations: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.listGroupInvitations),
+
+  updateGroupStatus: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.updateGroupStatus),
+
+  getGroupActivityLog: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.getGroupActivityLog),
+
+  searchGroupMembers: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.searchGroupMembers),
+
+  exportGroupData: async (req, res, next) => {
+    try {
+      const { user } = req;
+      const { grp_id } = req.params;
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+      }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const request = req;
+      request.query.tenant = tenant;
+
+      const result = await groupUtil.exportGroupData(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+
+        // Log export action
+        logger.info(`User ${user.email} exported data for group ${grp_id}`, {
+          format: req.query.format || "json",
+        });
+
+        // Set appropriate headers for file download
+        const format = req.query.format || "json";
+        const filename = `group_${grp_id}_export.${format}`;
+
+        if (format === "json") {
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${filename}"`
+          );
+          return res.status(status).json(result.data);
+        } else if (format === "csv") {
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${filename}"`
+          );
+          return res.status(status).send(result.data);
+        } else if (format === "xlsx") {
+          res.setHeader(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          );
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${filename}"`
+          );
+          return res.status(status).send(result.data);
+        }
+
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          export_data: result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result.message,
+          errors: result.errors ? result.errors : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getGroupHealth: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.getGroupHealth),
 };
 
 module.exports = groupController;

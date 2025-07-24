@@ -165,11 +165,47 @@ OrganizationRequestSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
-      const data = await this.find(filter)
-        .populate("approved_by", "firstName lastName email")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "users", // Collection name for the user model
+            localField: "approved_by",
+            foreignField: "_id",
+            as: "approved_by_details",
+            pipeline: [
+              {
+                $project: {
+                  firstName: 1,
+                  lastName: 1,
+                  email: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $addFields: {
+            approved_by: {
+              $cond: {
+                if: { $gt: [{ $size: "$approved_by_details" }, 0] },
+                then: { $arrayElemAt: ["$approved_by_details", 0] },
+                else: null,
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            approved_by_details: 0, // Remove the temporary field
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: parseInt(skip) },
+        { $limit: parseInt(limit) },
+      ];
+
+      const data = await this.aggregate(pipeline);
 
       return createSuccessResponse("list", data, "organization request", {
         message: "Successfully retrieved organization requests",

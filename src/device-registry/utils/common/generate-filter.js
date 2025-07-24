@@ -1439,7 +1439,14 @@ const generateFilter = {
     }
 
     if (admin_level) {
-      filter["admin_level"] = admin_level;
+      // Handle both single value and array of values
+      if (Array.isArray(admin_level)) {
+        // Multiple admin levels - use $in operator
+        filter["admin_level"] = { $in: admin_level };
+      } else {
+        // Single admin level - direct assignment
+        filter["admin_level"] = admin_level;
+      }
     }
 
     if (grid_codes) {

@@ -1,5 +1,11 @@
 // roles.validators.js
-const { query, body, param, oneOf } = require("express-validator");
+const {
+  query,
+  body,
+  param,
+  oneOf,
+  validationResult,
+} = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -262,6 +268,23 @@ const assignUserToRole = [
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    body("user_type")
+      .optional()
+      .notEmpty()
+      .withMessage("user_type should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn([
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+        "contributor",
+        "moderator",
+      ])
+      .withMessage("the user_type value is not among the expected ones"),
   ],
 ];
 
@@ -347,6 +370,228 @@ const assignPermissionToRole = [
   ],
 ];
 
+const getUserRolesWithFilters = [
+  param("user_id")
+    .exists()
+    .withMessage("user_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  query("tenant").optional().isString().withMessage("tenant must be a string"),
+
+  query("group_id")
+    .optional()
+    .isMongoId()
+    .withMessage("group_id must be a valid MongoDB ObjectId"),
+
+  query("network_id")
+    .optional()
+    .isMongoId()
+    .withMessage("network_id must be a valid MongoDB ObjectId"),
+
+  query("include_all_groups")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("include_all_groups must be 'true' or 'false'"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
+const getUserPermissionsForGroup = [
+  param("user_id")
+    .exists()
+    .withMessage("user_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  // Support both param and query for group_id for flexibility
+  param("group_id")
+    .optional()
+    .isMongoId()
+    .withMessage("group_id in URL must be a valid MongoDB ObjectId"),
+
+  query("group_id")
+    .optional()
+    .isMongoId()
+    .withMessage("group_id in query must be a valid MongoDB ObjectId"),
+
+  query("tenant").optional().isString().withMessage("tenant must be a string"),
+
+  // Custom validation to ensure group_id is provided either as param or query
+  (req, res, next) => {
+    const groupIdFromParam = req.params.group_id;
+    const groupIdFromQuery = req.query.group_id;
+
+    if (!groupIdFromParam && !groupIdFromQuery) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "group_id is required either as URL parameter or query parameter",
+        errors: [{ msg: "group_id is required", param: "group_id" }],
+      });
+    }
+
+    // Normalize to query for consistent processing
+    if (groupIdFromParam && !groupIdFromQuery) {
+      req.query.group_id = groupIdFromParam;
+    }
+
+    next();
+  },
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
+const bulkPermissionsCheck = [
+  param("user_id")
+    .exists()
+    .withMessage("user_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  body("group_ids")
+    .exists()
+    .withMessage("group_ids array is required")
+    .bail()
+    .isArray()
+    .withMessage("group_ids must be an array")
+    .bail()
+    .custom((value) => {
+      if (value.length === 0) {
+        throw new Error("group_ids array cannot be empty");
+      }
+      if (value.length > 50) {
+        throw new Error("group_ids array cannot contain more than 50 items");
+      }
+      // Validate each group_id is a valid MongoDB ObjectId
+      const invalidIds = value.filter(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      );
+      if (invalidIds.length > 0) {
+        throw new Error(`Invalid MongoDB ObjectIds: ${invalidIds.join(", ")}`);
+      }
+      return true;
+    }),
+
+  body("permissions")
+    .optional()
+    .isArray()
+    .withMessage("permissions must be an array")
+    .bail()
+    .custom((value) => {
+      if (value.length > 100) {
+        throw new Error("permissions array cannot contain more than 100 items");
+      }
+      // Validate permission names format
+      const invalidPermissions = value.filter(
+        (perm) =>
+          typeof perm !== "string" || perm.length === 0 || perm.length > 100
+      );
+      if (invalidPermissions.length > 0) {
+        throw new Error(
+          "All permissions must be non-empty strings with max 100 characters"
+        );
+      }
+      return true;
+    }),
+
+  query("tenant").optional().isString().withMessage("tenant must be a string"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
+const checkUserPermissionsForActions = [
+  param("user_id")
+    .exists()
+    .withMessage("user_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  query("group_id")
+    .exists()
+    .withMessage("group_id query parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("group_id must be a valid MongoDB ObjectId"),
+
+  body("actions")
+    .exists()
+    .withMessage("actions array is required")
+    .bail()
+    .isArray()
+    .withMessage("actions must be an array")
+    .bail()
+    .custom((value) => {
+      if (value.length === 0) {
+        throw new Error("actions array cannot be empty");
+      }
+      if (value.length > 50) {
+        throw new Error("actions array cannot contain more than 50 items");
+      }
+      // Validate action names format
+      const invalidActions = value.filter(
+        (action) =>
+          typeof action !== "string" ||
+          action.length === 0 ||
+          action.length > 100
+      );
+      if (invalidActions.length > 0) {
+        throw new Error(
+          "All actions must be non-empty strings with max 100 characters"
+        );
+      }
+      return true;
+    }),
+
+  query("tenant").optional().isString().withMessage("tenant must be a string"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
 const unAssignManyPermissionsFromRole = [
   validateTenant,
   validateRoleIdParam,
@@ -408,6 +653,147 @@ const unAssignPermissionFromRole = [
 
 const getRoleById = [validateTenant, validateRoleIdParam];
 
+const getUserRoles = [
+  param("user_id")
+    .exists()
+    .withMessage("user_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  query("tenant").optional().isString().withMessage("tenant must be a string"),
+
+  query("group_id")
+    .optional()
+    .isMongoId()
+    .withMessage("group_id must be a valid MongoDB ObjectId"),
+
+  query("network_id")
+    .optional()
+    .isMongoId()
+    .withMessage("network_id must be a valid MongoDB ObjectId"),
+
+  query("include_deprecated")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("include_deprecated must be 'true' or 'false'"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
+const auditDeprecatedFields = [
+  validateTenant,
+  query("include_user_details")
+    .optional()
+    .isBoolean()
+    .withMessage("include_user_details must be a boolean")
+    .toBoolean(),
+  query("export_format")
+    .optional()
+    .isIn(["json", "csv"])
+    .withMessage("export_format must be either 'json' or 'csv'")
+    .toLowerCase(),
+];
+
+const getEnhancedUserDetails = [
+  param("user_id")
+    .exists()
+    .withMessage("user_id parameter is required")
+    .bail()
+    .isMongoId()
+    .withMessage("user_id must be a valid MongoDB ObjectId"),
+
+  query("tenant").optional().isString().withMessage("tenant must be a string"),
+
+  query("include_deprecated")
+    .optional()
+    .isIn(["true", "false"])
+    .withMessage("include_deprecated must be 'true' or 'false'"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors",
+        errors: errors.array(),
+      });
+    }
+    next();
+  },
+];
+
+const getSystemHealth = [validateTenant];
+
+const bulkRoleOperations = [
+  validateTenant,
+  [
+    body("operation")
+      .exists()
+      .withMessage("operation is missing in the request body")
+      .bail()
+      .notEmpty()
+      .withMessage("operation should not be empty")
+      .bail()
+      .isIn(["assign", "unassign", "reassign"])
+      .withMessage("operation must be one of: assign, unassign, reassign"),
+
+    body("user_ids")
+      .exists()
+      .withMessage("user_ids are missing in the request body")
+      .bail()
+      .notEmpty()
+      .withMessage("user_ids should not be empty")
+      .bail()
+      .custom((value) => {
+        return Array.isArray(value);
+      })
+      .withMessage("user_ids should be an array"),
+
+    body("user_ids.*")
+      .isMongoId()
+      .withMessage("each user_id must be an object ID"),
+
+    body("role_id")
+      .exists()
+      .withMessage("role_id is missing in the request body")
+      .bail()
+      .notEmpty()
+      .withMessage("role_id should not be empty")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("role_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+
+    body("group_id")
+      .optional()
+      .notEmpty()
+      .withMessage("group_id must not be empty if provided")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("group_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   pagination,
@@ -430,4 +816,13 @@ module.exports = {
   updateRolePermissions,
   unAssignPermissionFromRole,
   getRoleById,
+  getUserRoles,
+  auditDeprecatedFields,
+  getEnhancedUserDetails,
+  getSystemHealth,
+  bulkRoleOperations,
+  getUserRolesWithFilters,
+  getUserPermissionsForGroup,
+  bulkPermissionsCheck,
+  checkUserPermissionsForActions,
 };

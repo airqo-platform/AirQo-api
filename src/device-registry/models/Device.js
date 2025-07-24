@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.Types.ObjectId;
 const { getModelByTenant } = require("@config/database");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logText, HttpError } = require("@utils/shared");
@@ -205,6 +205,20 @@ const deviceSchema = new mongoose.Schema(
     site_id: {
       type: ObjectId,
     },
+
+    // ENHANCED: Add support for grid-based deployments
+    grid_id: {
+      type: ObjectId,
+      ref: "grid",
+    },
+    deployment_type: {
+      type: String,
+      enum: ["static", "mobile"],
+      default: "static",
+      trim: true,
+      lowercase: true,
+    },
+
     isPrimaryInLocation: {
       type: Boolean,
       default: false,
@@ -271,6 +285,16 @@ const deviceSchema = new mongoose.Schema(
     organization_assigned_at: {
       type: Date,
     },
+
+    // ENHANCED: Add mobility-specific metadata
+    mobility_metadata: {
+      route_id: { type: String, trim: true },
+      coverage_area: { type: String, trim: true },
+      operational_hours: { type: String, trim: true },
+      movement_pattern: { type: String, trim: true },
+      max_speed: { type: Number },
+      typical_locations: [{ type: String, trim: true }],
+    },
   },
   {
     timestamps: true,
@@ -295,6 +319,7 @@ const checkDuplicates = (arr, fieldName) => {
   return null;
 };
 
+// ENHANCED: Add validation for deployment type consistency
 deviceSchema.pre(
   [
     "update",
@@ -309,6 +334,64 @@ deviceSchema.pre(
       // Determine if this is a new document or an update
       const isNew = this.isNew;
       const updateData = this.getUpdate ? this.getUpdate() : this;
+
+      // ENHANCED: Validate deployment type consistency
+      if (isNew) {
+        // For new documents, set deployment_type based on provided data
+        if (!this.deployment_type) {
+          if (this.grid_id) {
+            this.deployment_type = "mobile";
+            this.mobility = true; // Set mobility flag for mobile devices
+          } else if (this.site_id) {
+            this.deployment_type = "static";
+            this.mobility = false;
+          } else {
+            this.deployment_type = "static"; // default
+            this.mobility = false;
+          }
+        }
+
+        // Validate deployment type consistency
+        if (this.deployment_type === "mobile") {
+          if (this.site_id && !this.grid_id) {
+            return next(
+              new Error(
+                "Mobile devices should be associated with grids, not sites"
+              )
+            );
+          }
+          this.mobility = true;
+        } else if (this.deployment_type === "static") {
+          if (this.grid_id && !this.site_id) {
+            return next(
+              new Error(
+                "Static devices should be associated with sites, not grids"
+              )
+            );
+          }
+          this.mobility = false;
+        }
+      } else {
+        // For updates, validate deployment type changes
+        if ("deployment_type" in updateData) {
+          if (updateData.deployment_type === "mobile") {
+            updateData.mobility = true;
+          } else if (updateData.deployment_type === "static") {
+            updateData.mobility = false;
+          }
+        }
+
+        // Validate location reference changes
+        if ("grid_id" in updateData && "site_id" in updateData) {
+          if (updateData.grid_id && updateData.site_id) {
+            return next(
+              new Error(
+                "Device cannot be associated with both site and grid simultaneously"
+              )
+            );
+          }
+        }
+      }
 
       // Handle category field for both new documents and updates
       if (isNew) {
@@ -483,6 +566,7 @@ deviceSchema.pre(
     }
   }
 );
+
 deviceSchema.methods = {
   _encryptKey(key) {
     let encryptedKey = cryptoJS.AES.encrypt(
@@ -541,6 +625,10 @@ deviceSchema.methods = {
       claimed_at: this.claimed_at,
       assigned_organization_id: this.assigned_organization_id,
       organization_assigned_at: this.organization_assigned_at,
+      // ENHANCED: Include new fields
+      grid_id: this.grid_id,
+      deployment_type: this.deployment_type,
+      mobility_metadata: this.mobility_metadata,
     };
   },
 };
@@ -617,6 +705,7 @@ deviceSchema.statics = {
       return next(new HttpError(message, httpStatus.CONFLICT, response));
     }
   },
+
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}, next) {
     try {
       const inclusionProjection = constants.DEVICES_INCLUSION_PROJECTION;
@@ -634,6 +723,8 @@ deviceSchema.statics = {
       if (!isEmpty(filter.summary)) {
         delete filter.summary;
       }
+
+      // ENHANCED: Add lookup for grid information
       const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
@@ -665,6 +756,13 @@ deviceSchema.statics = {
           localField: "site.grids",
           foreignField: "_id",
           as: "grids",
+        })
+        // ENHANCED: Add grid lookup for mobile devices
+        .lookup({
+          from: "grids",
+          localField: "grid_id",
+          foreignField: "_id",
+          as: "assigned_grid",
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
@@ -701,6 +799,8 @@ deviceSchema.statics = {
       );
     }
   },
+
+  // ... (rest of the static methods remain the same with minimal changes)
   async modify({ filter = {}, update = {}, opts = {} } = {}, next) {
     try {
       logText("we are now inside the modify function for devices....");
@@ -753,6 +853,8 @@ deviceSchema.statics = {
       );
     }
   },
+
+  // ... (other methods remain the same)
   async bulkModify({ filter = {}, update = {}, opts = {} }, next) {
     try {
       // Sanitize update object
@@ -818,6 +920,8 @@ deviceSchema.statics = {
       );
     }
   },
+
+  // ... (rest of the methods remain largely the same)
   async encryptKeys({ filter = {}, update = {} } = {}, next) {
     try {
       logObject("the filter", filter);
@@ -875,6 +979,7 @@ deviceSchema.statics = {
       );
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {

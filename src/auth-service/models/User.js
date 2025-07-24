@@ -49,6 +49,165 @@ function validateProfilePicture(profilePicture) {
   return true;
 }
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/;
+
+const networkRoleSchema = new Schema({
+  network: {
+    type: Schema.Types.ObjectId,
+    ref: "Network",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    enum: {
+      values: [
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+        "contributor",
+        "moderator",
+      ],
+      message: "{VALUE} is not a valid user type",
+    },
+    default: "guest",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const groupRoleSchema = new Schema({
+  group: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    enum: {
+      values: [
+        "guest",
+        "member",
+        "admin",
+        "super_admin",
+        "viewer",
+        "contributor",
+        "moderator",
+      ],
+      message: "{VALUE} is not a valid user type",
+    },
+    default: "guest",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+// Option 2: More flexible approach (recommended for evolving requirements)
+const flexibleNetworkRoleSchema = new Schema({
+  network: {
+    type: Schema.Types.ObjectId,
+    ref: "Network",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    validate: {
+      validator: function (value) {
+        // Allow any reasonable string value, but with some basic validation
+        return /^[a-z_]+$/.test(value) && value.length <= 20;
+      },
+      message:
+        "userType must be lowercase letters and underscores only, max 20 characters",
+    },
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const flexibleGroupRoleSchema = new Schema({
+  group: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    validate: {
+      validator: function (value) {
+        // Allow any reasonable string value, but with some basic validation
+        return /^[a-z_]+$/.test(value) && value.length <= 20;
+      },
+      message:
+        "userType must be lowercase letters and underscores only, max 20 characters",
+    },
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+// Option 3: Completely flexible (no validation) - for maximum future flexibility
+const openNetworkRoleSchema = new Schema({
+  network: {
+    type: Schema.Types.ObjectId,
+    ref: "Network",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    // No enum or validation - completely open
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const openGroupRoleSchema = new Schema({
+  group: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+  },
+  role: {
+    type: Schema.Types.ObjectId,
+    ref: "Role",
+  },
+  userType: {
+    type: String,
+    default: "guest",
+    // No enum or validation - completely open
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
 const UserSchema = new Schema(
   {
     due_date: { type: Date },
@@ -123,62 +282,8 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: false },
     loginCount: { type: Number, default: 0 },
     duration: { type: Date, default: oneMonthFromNow },
-    network_roles: {
-      type: [
-        {
-          network: {
-            type: ObjectId,
-            ref: "network",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK),
-          },
-          userType: { type: String, default: "guest", enum: validUserTypes },
-          createdAt: { type: String, default: new Date() },
-          role: {
-            type: ObjectId,
-            ref: "role",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_NETWORK_ROLE),
-          },
-        },
-      ],
-      default: [],
-      _id: false,
-      validate: [
-        {
-          validator: function (value) {
-            return value.length <= ORGANISATIONS_LIMIT;
-          },
-          message: `Too many networks. Maximum limit: ${ORGANISATIONS_LIMIT}`,
-        },
-      ],
-    },
-    group_roles: {
-      type: [
-        {
-          group: {
-            type: ObjectId,
-            ref: "group",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP),
-          },
-          userType: { type: String, default: "guest", enum: validUserTypes },
-          createdAt: { type: String, default: new Date() },
-          role: {
-            type: ObjectId,
-            ref: "role",
-            default: mongoose.Types.ObjectId(constants.DEFAULT_GROUP_ROLE),
-          },
-        },
-      ],
-      default: [],
-      _id: false,
-      validate: [
-        {
-          validator: function (value) {
-            return value.length <= ORGANISATIONS_LIMIT;
-          },
-          message: `Too many groups. Maximum limit: ${ORGANISATIONS_LIMIT}`,
-        },
-      ],
-    },
+    network_roles: [networkRoleSchema], // or flexibleNetworkRoleSchema or openNetworkRoleSchema
+    group_roles: [groupRoleSchema], // or flexibleGroupRoleSchema or openGroupRoleSchema
 
     permissions: [
       {
@@ -432,11 +537,12 @@ UserSchema.pre(
           }
           //validate again after truncating
           if (!validateProfilePicture(this.profilePicture)) {
-            return next(
+            next(
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message: "Invalid profile picture URL",
               })
             );
+            return;
           }
         }
 
@@ -448,11 +554,12 @@ UserSchema.pre(
           .lean();
 
         if (!tenantSettings) {
-          return next(
+          next(
             new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
               message: "Tenant Settings not found, please contact support",
             })
           );
+          return;
         }
 
         // Network roles handling - only for new documents
@@ -515,11 +622,12 @@ UserSchema.pre(
         // Profile picture validation for updates
         if (actualUpdates.profilePicture) {
           if (!validateProfilePicture(actualUpdates.profilePicture)) {
-            return next(
+            next(
               new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
                 message: "Invalid profile picture URL",
               })
             );
+            return;
           }
         }
 
@@ -529,11 +637,12 @@ UserSchema.pre(
           if (field in actualUpdates) {
             const value = actualUpdates[field];
             if (value === undefined || value === null || value === "") {
-              return next(
+              next(
                 new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
                   message: `${field} cannot be empty, null, or undefined`,
                 })
               );
+              return;
             }
           }
         });
@@ -543,13 +652,14 @@ UserSchema.pre(
         immutableFields.forEach((field) => {
           if (updates[field]) delete updates[field];
           if (updates && updates.$set && updates.$set[field]) {
-            return next(
+            next(
               new HttpError(
                 "Modification Not Allowed",
                 httpStatus.BAD_REQUEST,
                 { message: `Cannot modify ${field} after creation` }
               )
             );
+            return;
           }
           if (updates && updates.$set) delete updates.$set[field];
           if (updates.$push) delete updates.$push[field];
@@ -558,22 +668,24 @@ UserSchema.pre(
         // Conditional network roles validation
         if (updates.network_roles) {
           if (updates.network_roles.length > ORGANISATIONS_LIMIT) {
-            return next(
+            next(
               new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
                 message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
               })
             );
+            return;
           }
         }
 
         // Conditional group roles validation
         if (updates.group_roles) {
           if (updates.group_roles.length > ORGANISATIONS_LIMIT) {
-            return next(
+            next(
               new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
                 message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
               })
             );
+            return;
           }
         }
 
@@ -790,13 +902,14 @@ UserSchema.statics = {
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
@@ -1017,13 +1130,14 @@ UserSchema.statics = {
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
   async modify({ filter = {}, update = {} } = {}, next) {
@@ -1052,23 +1166,25 @@ UserSchema.statics = {
       }
 
       // User not found
-      return next(
+      next(
         new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
           message: "user does not exist, please crosscheck",
         })
       );
+      return;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
   async remove({ filter = {} } = {}, next) {
@@ -1097,6 +1213,7 @@ UserSchema.statics = {
             message: "Provided User does not exist, please crosscheck",
           })
         );
+        return;
       }
     } catch (error) {
       logObject("the models error", error);
@@ -1104,15 +1221,299 @@ UserSchema.statics = {
       if (error instanceof HttpError) {
         return next(error);
       }
-      return next(
+      next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
         )
       );
+      return;
     }
   },
+};
+
+// Enhanced user details with role clarity
+UserSchema.statics.getEnhancedUserDetails = async function (
+  { filter = {}, includeDeprecated = false } = {},
+  next
+) {
+  try {
+    const users = await this.aggregate()
+      .match(filter)
+      .lookup({
+        from: "permissions",
+        localField: "permissions",
+        foreignField: "_id",
+        as: "permissions",
+      })
+      .lookup({
+        from: "roles",
+        localField: "network_roles.role",
+        foreignField: "_id",
+        as: "network_role_details",
+      })
+      .lookup({
+        from: "roles",
+        localField: "group_roles.role",
+        foreignField: "_id",
+        as: "group_role_details",
+      })
+      .lookup({
+        from: "networks",
+        localField: "network_roles.network",
+        foreignField: "_id",
+        as: "network_details",
+      })
+      .lookup({
+        from: "groups",
+        localField: "group_roles.group",
+        foreignField: "_id",
+        as: "group_details",
+      })
+      .addFields({
+        // Enhanced role information with clear separation
+        enhanced_network_roles: {
+          $map: {
+            input: "$network_roles",
+            as: "nr",
+            in: {
+              network: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$network_details",
+                      cond: { $eq: ["$$this._id", "$$nr.network"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              role: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$network_role_details",
+                      cond: { $eq: ["$$this._id", "$$nr.role"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              userType: "$$nr.userType",
+              createdAt: "$$nr.createdAt",
+            },
+          },
+        },
+        enhanced_group_roles: {
+          $map: {
+            input: "$group_roles",
+            as: "gr",
+            in: {
+              group: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$group_details",
+                      cond: { $eq: ["$$this._id", "$$gr.group"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              role: {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$group_role_details",
+                      cond: { $eq: ["$$this._id", "$$gr.role"] },
+                    },
+                  },
+                  0,
+                ],
+              },
+              userType: "$$gr.userType",
+              createdAt: "$$gr.createdAt",
+            },
+          },
+        },
+        // Role summary statistics for clear understanding
+        role_summary: {
+          network_roles_count: { $size: { $ifNull: ["$network_roles", []] } },
+          group_roles_count: { $size: { $ifNull: ["$group_roles", []] } },
+          network_roles_limit: ORGANISATIONS_LIMIT,
+          group_roles_limit: ORGANISATIONS_LIMIT,
+          network_roles_remaining: {
+            $subtract: [
+              ORGANISATIONS_LIMIT,
+              { $size: { $ifNull: ["$network_roles", []] } },
+            ],
+          },
+          group_roles_remaining: {
+            $subtract: [
+              ORGANISATIONS_LIMIT,
+              { $size: { $ifNull: ["$group_roles", []] } },
+            ],
+          },
+          total_roles: {
+            $add: [
+              { $size: { $ifNull: ["$network_roles", []] } },
+              { $size: { $ifNull: ["$group_roles", []] } },
+            ],
+          },
+        },
+      })
+      .project({
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        userName: 1,
+        verified: 1,
+        isActive: 1,
+        country: 1,
+        website: 1,
+        category: 1,
+        jobTitle: 1,
+        description: 1,
+        profilePicture: 1,
+        phoneNumber: 1,
+        timezone: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        permissions: 1,
+
+        // Enhanced role information with clear separation
+        enhanced_network_roles: 1,
+        enhanced_group_roles: 1,
+        role_summary: 1,
+
+        // Include deprecated fields only if requested for backward compatibility
+        ...(includeDeprecated && {
+          role: 1,
+          privilege: 1,
+          organization: 1,
+          long_organization: 1,
+          network_roles: 1,
+          group_roles: 1,
+        }),
+      })
+      .allowDiskUse(true);
+
+    if (!isEmpty(users)) {
+      return {
+        success: true,
+        message: "Successfully retrieved enhanced user details",
+        data: users,
+        status: httpStatus.OK,
+      };
+    } else {
+      return {
+        success: true,
+        message: "No users found",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    if (error instanceof HttpError) {
+      return next(error);
+    }
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
+};
+
+// Method to audit deprecated field usage for migration planning
+UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
+  try {
+    const usersWithDeprecatedFields = await this.aggregate([
+      {
+        $match: {
+          $or: [
+            { role: { $exists: true, $ne: null } },
+            { privilege: { $exists: true, $ne: null } },
+            { organization: { $exists: true, $ne: null } },
+            { long_organization: { $exists: true, $ne: null } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total_users_with_deprecated_fields: { $sum: 1 },
+          users_with_role_field: {
+            $sum: {
+              $cond: [{ $ne: ["$role", null] }, 1, 0],
+            },
+          },
+          users_with_privilege_field: {
+            $sum: {
+              $cond: [{ $ne: ["$privilege", null] }, 1, 0],
+            },
+          },
+          users_with_organization_field: {
+            $sum: {
+              $cond: [{ $ne: ["$organization", null] }, 1, 0],
+            },
+          },
+          users_with_long_organization_field: {
+            $sum: {
+              $cond: [{ $ne: ["$long_organization", null] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const totalUsers = await this.countDocuments();
+
+    return {
+      success: true,
+      message: "Deprecated field usage audit completed",
+      data: {
+        total_users: totalUsers,
+        deprecated_field_usage: usersWithDeprecatedFields[0] || {
+          total_users_with_deprecated_fields: 0,
+          users_with_role_field: 0,
+          users_with_privilege_field: 0,
+          users_with_organization_field: 0,
+          users_with_long_organization_field: 0,
+        },
+        migration_readiness: {
+          percentage_using_deprecated_fields:
+            totalUsers > 0
+              ? Math.round(
+                  ((usersWithDeprecatedFields[0]
+                    ?.total_users_with_deprecated_fields || 0) /
+                    totalUsers) *
+                    100
+                )
+              : 0,
+          safe_to_migrate:
+            (usersWithDeprecatedFields[0]?.total_users_with_deprecated_fields ||
+              0) === 0,
+        },
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    if (error instanceof HttpError) {
+      return next(error);
+    }
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+    return;
+  }
 };
 
 UserSchema.methods = {

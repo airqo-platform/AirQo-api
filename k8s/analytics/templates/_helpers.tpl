@@ -60,3 +60,20 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Added to get specific service ports
+*/}}
+
+{{/*
+Get targetPort(8080) by name.
+*/}}
+{{- define "getTargetPortByName" -}}
+{{- $context := index . 0 -}}
+{{- $targetPortName := index . 1 -}}
+{{- range $context.Values.service.ports -}}
+  {{- if eq .name $targetPortName -}}
+    {{- .targetPort -}}
+  {{- end -}}
+{{- end -}}
+{{- end }}

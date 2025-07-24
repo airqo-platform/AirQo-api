@@ -20,13 +20,22 @@ const logElement = (message, body) => {
   return;
 };
 
+// Fixed hybrid logObject function
 const logObject = (message, object) => {
   if (
     constants.ENVIRONMENT &&
     constants.ENVIRONMENT !== "PRODUCTION ENVIRONMENT"
   ) {
-    console.log(message + ": ");
-    console.dir(object);
+    // Check if we have only one meaningful parameter
+    // (either 1 argument OR 2 arguments but second is undefined/null)
+    if (arguments.length === 1 || object == null) {
+      console.log(message);
+    }
+    // If two parameters provided AND second parameter has a meaningful value
+    else {
+      console.log(message + ": ");
+      console.dir(object);
+    }
   }
   return;
 };

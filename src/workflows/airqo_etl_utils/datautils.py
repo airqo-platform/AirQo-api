@@ -945,6 +945,8 @@ class DataUtils:
     def clean_low_cost_sensor_data(
         data: pd.DataFrame,
         device_category: DeviceCategory,
+        data_type: DataType,
+        frequency: Frequency = None,
         remove_outliers: Optional[bool] = True,
     ) -> pd.DataFrame:
         """
@@ -961,6 +963,7 @@ class DataUtils:
         Args:
             data(pd.DataFrame): The input data to be cleaned.
             device_category(DeviceCategory): The category of the device, as defined in the DeviceCategory enum.
+            frequency(Frequency): This is the frequency of the dag that executed this method.
             remove_outliers(bool, optional): Determines whether outliers should be removed. Defaults to True.
 
         Returns:
@@ -968,6 +971,9 @@ class DataUtils:
 
         Raises:
             KeyError: If there are issues with the 'timestamp' column during processing.
+
+        Notes:
+            #TODO Find a better way to extract frequency of dag that is executing the method. #
         """
         # It's assumed that if a row has no site_id, it could be from an undeployed device.
         data.dropna(subset=["site_id"], how="any", inplace=True)
@@ -976,11 +982,12 @@ class DataUtils:
             data = DataValidationUtils.remove_outliers_fix_types(data)
 
         # Perform data quality checks on separate thread.
-        Utils.execute_and_forget_async_task(
-            lambda: DataUtils.__perform_data_quality_checks(
-                device_category, data.copy()
+        if frequency and frequency == Frequency.HOURLY:
+            data_ = data[data["network"] == DeviceNetwork.AIRQO.str]
+            # Pass copy as pandas does not guarantee returned data to be a view or copy
+            DataUtils.execute_data_quality_checks(
+                device_category, data_type, data_.copy(), frequency
             )
-        )
 
         try:
             networks = set(data.network.unique())
@@ -1529,8 +1536,29 @@ class DataUtils:
             )
         return None, []
 
+    @staticmethod
+    def execute_data_quality_checks(
+        device_category: DeviceCategory,
+        data_type: DataType,
+        data: pd.DataFrame = None,
+        frequency: Frequency = None,
+    ) -> None:
+        """
+        Execute data quality checks.
+
+        Notes: If running locally, you might want to run this without async if you want to see the results
+        """
+        Utils.execute_and_forget_async_task(
+            lambda: DataUtils.__perform_data_quality_checks(
+                device_category, data_type, data=data, frequency=frequency
+            )
+        )
+
     def __perform_data_quality_checks(
-        device_category: DeviceCategory, data: pd.DataFrame
+        device_category: DeviceCategory,
+        data_type: DataType,
+        data: pd.DataFrame = None,
+        frequency: Frequency = Frequency.HOURLY,
     ) -> None:
         """
         Perform data quality checks on the provided DataFrame based on the device category.
@@ -1538,19 +1566,41 @@ class DataUtils:
         This function routes the data quality check to the appropriate Great Expectations validation suite depending on the type of device. It does not modify the original DataFrame or return any results. Intended to run as a fire-and-forget task.
 
         Args:
-            device_category(DeviceCategory): The category of the device (e.g., GAS, LOWCOST).
+            device_category(DeviceCategory): The category of the device(e.g., GAS, LOWCOST).
             data(pd.DataFrame): The raw sensor data to be validated.
+            data_type(DataType): The type of data to work with(e.g., RAW, AVERAGE).
         """
+        data_asset_name: str = None
+        RAW_METHODS = {
+            DeviceCategory.GAS: "gaseous_low_cost_sensor_raw_data_check",
+            DeviceCategory.LOWCOST: "pm2_5_low_cost_sensor_raw_data",
+            DeviceCategory.BAM: "bam_sensors_raw_data",
+        }
+        SQL_METHODS = {
+            DeviceCategory.GAS: "gaseous_low_cost_sensor_averaged_data_check",
+            DeviceCategory.LOWCOST: "pm2_5_low_cost_sensor_average_data",
+            DeviceCategory.BAM: "bam_sensors_averaged_data",
+        }
+        if data_type == DataType.RAW:
+            # RAW → Pandas-based validation
+            source = AirQoGxExpectations.from_pandas()
+            method_name = RAW_METHODS.get(device_category)
+        elif data_type in (DataType.AVERAGED, DataType.CONSOLIDATED):
+            # SQL → override data_asset_name with project + table name
+            source = AirQoGxExpectations.from_sql()
+            method_name = SQL_METHODS.get(device_category)
+            # TODO SQL using the general tables for now - This needs to be more dynamic
+            data_asset_name, _ = DataUtils._get_table(
+                data_type, DeviceCategory.GENERAL, frequency
+            )
+        else:
+            raise ValueError(f"Unsupported data_type: {data_type}")
 
-        # TODO Find a more structured and robust way to implement raw data quality checks.
-        """
-            - Future improvements could include structured validation logging, metrics collection,
-                and exception handling for failures.
-        """
-        match device_category:
-            case DeviceCategory.GAS:
-                AirQoGxExpectations.from_pandas().gaseous_low_cost_sensor_raw_data_check(
-                    data
-                )
-            case DeviceCategory.LOWCOST:
-                AirQoGxExpectations.from_pandas().pm2_5_low_cost_sensor_raw_data(data)
+        if not method_name:
+            raise ValueError(f"Unsupported device_category: {device_category}")
+        func = getattr(source, method_name)
+
+        if data_asset_name:
+            func(data_asset_name)
+        else:
+            func(data)

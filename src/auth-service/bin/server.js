@@ -11,6 +11,279 @@ const mongoose = require("mongoose");
 const { connectToMongoDB } = require("@config/database");
 connectToMongoDB();
 require("@config/firebase-admin");
+const rolePermissionsUtil = require("@utils/role-permissions.util");
+
+// Initialize default permissions and roles at startup
+(async () => {
+  try {
+    console.log("🚀 Initializing default permissions and roles...");
+
+    // Enhanced wait time for deployed environments
+    const isProduction = process.env.NODE_ENV === "production";
+    const isStaging = process.env.NODE_ENV === "staging";
+    const waitTime = isProduction || isStaging ? 10000 : 5000; // 10s for production/staging, 5s for others
+
+    console.log(
+      `⏱️  Waiting ${
+        waitTime / 1000
+      } seconds for database connection to stabilize (${
+        process.env.NODE_ENV || "development"
+      } environment)...`
+    );
+
+    setTimeout(async () => {
+      try {
+        // Enhanced database connection check
+        const connectionState = mongoose.connection.readyState;
+        console.log(
+          `📊 Database connection state: ${connectionState} (0=disconnected, 1=connected, 2=connecting, 3=disconnecting)`
+        );
+
+        if (connectionState !== 1) {
+          console.warn(
+            "⚠️  Database not fully connected, waiting additional 5 seconds..."
+          );
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+
+        // Check if initialization has already been done
+        const PermissionModel = require("@models/Permission");
+        const RoleModel = require("@models/Role");
+
+        const [existingPermissionsCount, existingRolesCount] =
+          await Promise.all([
+            PermissionModel("airqo").countDocuments(),
+            RoleModel("airqo").countDocuments({
+              role_name: { $regex: /^AIRQO_/ },
+            }),
+          ]);
+
+        // Enhanced super admin check
+        let superAdminExists = false;
+        let superAdminRole = null;
+
+        try {
+          superAdminRole = await RoleModel("airqo")
+            .findOne({
+              $or: [
+                { role_code: "AIRQO_SUPER_ADMIN" },
+                { role_name: "AIRQO_SUPER_ADMIN" },
+              ],
+            })
+            .lean();
+
+          superAdminExists = !!superAdminRole;
+          console.log(
+            `🔍 Super admin role check: ${
+              superAdminExists ? "EXISTS" : "NOT FOUND"
+            }`
+          );
+          if (superAdminRole) {
+            console.log(`✅ Found super admin role: ${superAdminRole._id}`);
+          }
+        } catch (superAdminCheckError) {
+          console.error(
+            "❌ Error checking super admin role:",
+            superAdminCheckError.message
+          );
+        }
+
+        if (existingPermissionsCount > 0 || existingRolesCount > 0) {
+          console.log(
+            `⏭️  RBAC system already initialized (${existingPermissionsCount} permissions, ${existingRolesCount} AirQo roles found)`
+          );
+
+          if (!superAdminExists) {
+            console.log("⚠️  Super admin role missing, ensuring it exists...");
+            try {
+              await rolePermissionsUtil.ensureSuperAdminRole("airqo");
+              console.log("✅ Super admin role ensured");
+              superAdminExists = true;
+            } catch (ensureError) {
+              console.error(
+                "❌ Failed to ensure super admin role:",
+                ensureError.message
+              );
+            }
+          } else {
+            console.log("✅ Super admin role verified");
+          }
+
+          console.log(
+            "🔄 Running incremental RBAC setup to add any new permissions/roles..."
+          );
+        }
+
+        const result = await rolePermissionsUtil.setupDefaultPermissions(
+          "airqo"
+        );
+
+        if (result.success) {
+          console.log("✅ RBAC initialization completed successfully");
+          console.log(`📊 Setup summary:`, {
+            permissions_created: result.data.permissions_created || 0,
+            permissions_total: result.data.permissions_total || 0,
+            roles_processed: result.data.roles_processed || 0,
+            roles_successful: result.data.roles_successful || 0,
+            roles_failed: result.data.roles_failed || 0,
+            super_admin_exists: result.data.airqo_super_admin_exists,
+            super_admin_role_id: result.data.airqo_super_admin_role_id,
+          });
+
+          // Log any role errors for debugging
+          if (result.data.role_errors && result.data.role_errors.length > 0) {
+            console.warn("⚠️  Some role creation issues occurred:");
+            result.data.role_errors.forEach((error) => {
+              console.warn(`   - ${error.role_name}: ${error.error}`);
+            });
+          }
+
+          // Final verification with better error handling
+          if (!result.data.airqo_super_admin_exists) {
+            console.warn(
+              "⚠️  Warning: Super admin role verification failed, attempting manual ensure..."
+            );
+            try {
+              const ensuredRole =
+                await rolePermissionsUtil.ensureSuperAdminRole("airqo");
+              if (ensuredRole) {
+                console.log("✅ Manual super admin role ensure succeeded");
+                result.data.airqo_super_admin_exists = true;
+                result.data.airqo_super_admin_role_id = ensuredRole._id;
+              }
+            } catch (manualError) {
+              console.error(
+                "❌ Manual super admin ensure failed:",
+                manualError.message
+              );
+            }
+          }
+        } else {
+          console.warn(
+            "⚠️  RBAC setup completed with warnings:",
+            result.message
+          );
+        }
+
+        // Enhanced logging for deployment troubleshooting
+        if (global.dedupLogger) {
+          global.dedupLogger.info("RBAC system initialized", {
+            permissions: result.data.permissions_created || 0,
+            roles_successful: result.data.roles_successful || 0,
+            roles_failed: result.data.roles_failed || 0,
+            organization: result.data.organization,
+            success: result.success,
+            super_admin_exists: result.data.airqo_super_admin_exists,
+            super_admin_role_id: result.data.airqo_super_admin_role_id,
+            environment: process.env.NODE_ENV || "development",
+            database_state: mongoose.connection.readyState,
+          });
+        }
+      } catch (error) {
+        console.error(
+          "❌ Error initializing default permissions and roles:",
+          error.message
+        );
+        console.error("❌ Error stack:", error.stack);
+
+        // Enhanced error classification
+        const isE11000Error =
+          error.message.includes("E11000") ||
+          error.message.includes("duplicate key");
+        const isConnectionError =
+          error.message.includes("connection") ||
+          error.message.includes("timeout");
+        const isTimeoutError =
+          error.message.includes("timeout") ||
+          error.message.includes("ETIMEDOUT");
+
+        if (isE11000Error) {
+          console.log(
+            "🔄 Duplicate key error detected, this may be normal during startup..."
+          );
+        }
+
+        if (isConnectionError || isTimeoutError) {
+          console.log(
+            "🔄 Connection/timeout error detected, will retry RBAC initialization in 30 seconds..."
+          );
+
+          setTimeout(async () => {
+            try {
+              console.log("🔄 Retrying RBAC initialization...");
+              await rolePermissionsUtil.setupDefaultPermissions("airqo");
+              console.log("✅ RBAC initialization successful on retry");
+            } catch (retryError) {
+              console.error(
+                "❌ RBAC initialization failed on retry:",
+                retryError.message
+              );
+
+              // Last resort: try just the super admin role
+              try {
+                await rolePermissionsUtil.ensureSuperAdminRole("airqo");
+                console.log(
+                  "✅ Last resort: Super admin role created on retry"
+                );
+              } catch (lastResortError) {
+                console.error(
+                  "❌ Last resort failed:",
+                  lastResortError.message
+                );
+              }
+            }
+          }, 30000);
+        }
+
+        // Try fallback approach for super admin role
+        console.log("🆘 Attempting fallback RBAC setup...");
+        try {
+          await rolePermissionsUtil.ensureSuperAdminRole("airqo");
+          console.log("✅ Fallback: Super admin role ensured");
+
+          if (global.dedupLogger) {
+            global.dedupLogger.warn("RBAC initialization used fallback", {
+              error: error.message,
+              error_type: isE11000Error
+                ? "duplicate_key"
+                : isConnectionError
+                ? "connection"
+                : "unknown",
+              fallback_success: true,
+              environment: process.env.NODE_ENV || "development",
+            });
+          }
+        } catch (fallbackError) {
+          console.error(
+            "❌ Fallback RBAC setup also failed:",
+            fallbackError.message
+          );
+
+          // Log critical error but don't crash the application
+          if (global.dedupLogger) {
+            global.dedupLogger.error("RBAC initialization failed completely", {
+              error: error.message,
+              fallback_error: fallbackError.message,
+              error_type: isE11000Error
+                ? "duplicate_key"
+                : isConnectionError
+                ? "connection"
+                : "unknown",
+              stack: error.stack,
+              phase: "startup",
+              environment: process.env.NODE_ENV || "development",
+            });
+          }
+        }
+      }
+    }, waitTime); // Use environment-specific wait time
+  } catch (error) {
+    console.error(
+      "❌ Critical error during RBAC initialization setup:",
+      error.message
+    );
+  }
+})();
 const morgan = require("morgan");
 const compression = require("compression");
 const helmet = require("helmet");

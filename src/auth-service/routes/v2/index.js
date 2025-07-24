@@ -119,6 +119,18 @@ const authRoutes = [
     description: "Role-based access control",
   },
   {
+    path: "/admin",
+    route: "@routes/v2/admin.routes",
+    name: "admin",
+    description: "Admin setup utilities (development)",
+  },
+  {
+    path: "/migrations",
+    route: "@routes/v2/migration.routes",
+    name: "migrations",
+    description: "Migration utilities for deprecated fields",
+  },
+  {
     path: "/inquiries",
     route: "@routes/v2/inquiries.routes",
     name: "inquiries",
@@ -177,6 +189,12 @@ const authRoutes = [
     route: "@routes/v2/maintenance.routes",
     name: "maintenances",
     description: "System maintenance operations",
+  },
+  {
+    path: "/surveys",
+    route: "@routes/v2/surveys.routes",
+    name: "surveys",
+    description: "User surveys management",
   },
   {
     path: "/types",
@@ -348,7 +366,13 @@ function getCategoryForRoute(routeName) {
     management: ["networks", "departments", "groups", "tenant-settings"],
     user_data: ["preferences", "favorites", "locationHistory", "searchHistory"],
     system: ["analytics", "maintenances", "types", "defaults"],
-    requests: ["requests", "inquiries", "candidates", "org-requests"],
+    requests: [
+      "requests",
+      "inquiries",
+      "candidates",
+      "org-requests",
+      "surveys",
+    ],
     notifications: ["notification-preferences", "campaigns"],
     misc: ["checklist", "transactions", "guests"],
   };
