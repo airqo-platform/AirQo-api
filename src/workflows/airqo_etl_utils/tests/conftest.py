@@ -46,6 +46,7 @@ BAM_AVERAGED_DATA = load_test_data("test_bam_averaged_data_v1.csv")
 CONSOLIDATE_DATA = load_test_data("test_consolidated_data_v1.csv")
 WEATHER_DATA = load_test_data("test_weather_data_v1.csv")
 DEVICES = load_test_data("test_device_data_v1.csv")
+SITES = load_test_data("test_sites_data_v1.csv")
 
 # -------------------------------------
 # Fixtures
@@ -210,7 +211,7 @@ class FaultDetectionFixtures:
 # Tests for querying devices and sites data from device registry.
 # ----------------------------------------------------------------
 @pytest.fixture
-def mock_load_cached_data(monkeypatch):
+def mock_load_devices_or_sites_cached_data(monkeypatch):
     """Fixture to mock the load_cached_data method."""
     mock_load_cached_data = MagicMock()
     monkeypatch.setattr(
@@ -230,8 +231,9 @@ def mock_fetch_devices_from_api(monkeypatch):
     return mock_fetch_devices_from_api
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def airqo_device_keys():
+    """Fixture to mock the device keys."""
     keys = {
         "airqo_0123lw": "Rc7zM4r8ZD5n3XdUjsQKVk",
         "airqo_9876lw": "XQ9hvMYw7RqSe4cG8PWfBm",
@@ -240,13 +242,13 @@ def airqo_device_keys():
 
 
 @pytest.fixture
-def cached_sites_df():
-    pass
-
-
-@pytest.fixture
-def api_sites_df():
-    pass
+def mock_fetch_sites_from_api(monkeypatch):
+    """Fixture to mock the get_sites method."""
+    mock_load_sites = MagicMock()
+    monkeypatch.setattr(
+        "airqo_etl_utils.datautils.DataUtils.fetch_sites_from_api", mock_load_sites
+    )
+    return mock_load_sites
 
 
 # ----------------------------------------------------------------
