@@ -183,14 +183,16 @@ function addMonthsToProvidedDate(date, number, next) {
     return `${newYear}-${formattedMonth}-${formattedDay}`;
   } catch (error) {
     logger.error(`🐛🐛 Internal server error -- ${error.message}`);
-    // Return current date formatted as fallback
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1 + number;
-    const day = now.getDate();
-    return `${year}-${month < 10 ? "0" + month : month}-${
-      day < 10 ? "0" + day : day
-    }`;
+
+    try {
+      const fallbackDate = new Date();
+      fallbackDate.setMonth(fallbackDate.getMonth() + number);
+      return generateDateFormatWithoutHrs(fallbackDate, next);
+    } catch (fallbackError) {
+      // Ultimate fallback - return today's date formatted
+      logger.error(`🐛🐛 Fallback error handling -- ${fallbackError.message}`);
+      return generateDateFormatWithoutHrs(new Date(), next);
+    }
   }
 }
 
