@@ -20,25 +20,92 @@ const validateDateRange = (date) => {
   return true;
 };
 
+// Enhanced deployment type validation
+const validateDeploymentType = (value) => {
+  const validTypes = ["static", "mobile"];
+  if (!validTypes.includes(value.toLowerCase())) {
+    throw new Error(`deployment_type must be one of: ${validTypes.join(", ")}`);
+  }
+  return true;
+};
+
+// Custom validator to ensure either site_id OR grid_id is provided
+const validateLocationReference = (value, { req }) => {
+  const { site_id, grid_id, deployment_type } = req.body;
+
+  // For mobile deployments, grid_id is required
+  if (deployment_type === "mobile") {
+    if (!grid_id) {
+      throw new Error("grid_id is required for mobile deployments");
+    }
+    if (site_id) {
+      throw new Error("site_id should not be provided for mobile deployments");
+    }
+  }
+
+  // For static deployments, site_id is required
+  if (deployment_type === "static" || !deployment_type) {
+    if (!site_id) {
+      throw new Error("site_id is required for static deployments");
+    }
+    if (grid_id) {
+      throw new Error("grid_id should not be provided for static deployments");
+    }
+  }
+
+  return true;
+};
+
 // Define reusable validation components for deploy operations
 const commonDeployValidations = {
+  // Enhanced location validation supporting both site_id and grid_id
   site_id: body("site_id")
-    .exists()
-    .withMessage("site_id is required")
-    .bail()
+    .optional()
     .trim()
     .notEmpty()
-    .withMessage("site_id cannot be empty")
+    .withMessage("site_id cannot be empty if provided")
     .bail()
     .custom((value) => {
-      if (!isValidObjectId(value)) {
+      if (value && !isValidObjectId(value)) {
         throw new Error(
           "site_id must be a valid MongoDB ObjectId (24 hex characters)"
         );
       }
       return true;
     })
-    .customSanitizer((value) => ObjectId(value)),
+    .customSanitizer((value) => {
+      return value ? ObjectId(value) : value;
+    }),
+
+  grid_id: body("grid_id")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("grid_id cannot be empty if provided")
+    .bail()
+    .custom((value) => {
+      if (value && !isValidObjectId(value)) {
+        throw new Error(
+          "grid_id must be a valid MongoDB ObjectId (24 hex characters)"
+        );
+      }
+      return true;
+    })
+    .customSanitizer((value) => {
+      return value ? ObjectId(value) : value;
+    }),
+
+  deployment_type: body("deployment_type")
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage("deployment_type cannot be empty if provided")
+    .bail()
+    .customSanitizer((value) => (value ? value.toLowerCase() : "static"))
+    .custom(validateDeploymentType),
+
+  // Location reference validation (either site_id OR grid_id based on deployment_type)
+  location_reference: body("site_id").custom(validateLocationReference),
 
   height: body("height")
     .exists()
@@ -69,9 +136,9 @@ const commonDeployValidations = {
     .withMessage("mountType cannot be empty")
     .bail()
     .customSanitizer((value) => value.toLowerCase())
-    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
     .withMessage(
-      "mountType must be one of: pole, wall, faceboard, rooftop, suspended"
+      "mountType must be one of: pole, wall, faceboard, rooftop, suspended, vehicle"
     ),
 
   isPrimaryInLocation: body("isPrimaryInLocation")
@@ -607,6 +674,11 @@ const activitiesValidations = {
       .exists()
       .withMessage("deviceName is required")
       .trim(),
+    body("*.deployment_type")
+      .optional()
+      .trim()
+      .customSanitizer((value) => (value ? value.toLowerCase() : "static"))
+      .custom(validateDeploymentType),
     body("*.height")
       .exists()
       .withMessage("height is required")
@@ -625,7 +697,7 @@ const activitiesValidations = {
       .withMessage("mountType is required")
       .trim()
       .toLowerCase()
-      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+      .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
       .withMessage("Invalid mountType"),
     body("*.isPrimaryInLocation")
       .exists()
@@ -633,20 +705,29 @@ const activitiesValidations = {
       .isBoolean()
       .withMessage("isPrimaryInLocation must be Boolean")
       .trim(),
+    // For batch operations, we can have mixed deployment types
     body("*.latitude")
-      .exists()
-      .withMessage("latitude is required")
+      .optional()
       .isFloat()
       .withMessage("latitude must be a float"),
     body("*.longitude")
-      .exists()
-      .withMessage("longitude is required")
+      .optional()
       .isFloat()
       .withMessage("longitude must be a float"),
     body("*.site_name")
-      .exists()
-      .withMessage("site_name is required")
+      .optional()
       .trim(),
+    body("*.grid_id")
+      .optional()
+      .custom((value) => {
+        if (value && !isValidObjectId(value)) {
+          throw new Error("grid_id must be a valid MongoDB ObjectId");
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        return value && isValidObjectId(value) ? ObjectId(value) : value;
+      }),
     body("*.network")
       .exists()
       .withMessage("network is required")
@@ -655,6 +736,25 @@ const activitiesValidations = {
     ...commonValidations.eachDate,
     commonValidations.objectId("*.user_id", body),
     commonValidations.objectId("*.host_id", body),
+    // Custom validation for batch deployment location requirements
+    body("*").custom((item) => {
+      const { deployment_type, latitude, longitude, site_name, grid_id } = item;
+      const type = deployment_type || "static";
+
+      if (type === "static") {
+        if (!latitude || !longitude || !site_name) {
+          throw new Error(
+            "latitude, longitude, and site_name are required for static deployments"
+          );
+        }
+      } else if (type === "mobile") {
+        if (!grid_id) {
+          throw new Error("grid_id is required for mobile deployments");
+        }
+      }
+
+      return true;
+    }),
   ],
 
   listActivities: [
@@ -688,6 +788,40 @@ const activitiesValidations = {
   deleteActivity: [
     ...commonValidations.tenant,
     commonValidations.objectId("id"),
+  ],
+
+  enhancedDeployActivity: [
+    ...commonValidations.tenant,
+    ...commonValidations.deviceName,
+    commonDeployValidations.deployment_type,
+    commonDeployValidations.site_id,
+    commonDeployValidations.grid_id,
+    commonDeployValidations.location_reference,
+    commonDeployValidations.height,
+    commonDeployValidations.powerType,
+    commonDeployValidations.mountType,
+    commonDeployValidations.isPrimaryInLocation,
+    commonDeployValidations.date,
+    commonDeployValidations.network,
+    commonDeployValidations.user_id_optional,
+    commonDeployValidations.host_id,
+  ],
+
+  validateDeployOwnedDevice: [
+    ...commonValidations.tenant,
+    ...commonValidations.deviceName,
+    commonDeployValidations.deployment_type,
+    commonDeployValidations.site_id,
+    commonDeployValidations.grid_id,
+    commonDeployValidations.location_reference,
+    commonDeployValidations.user_id_required,
+    commonDeployValidations.height,
+    commonDeployValidations.powerType,
+    commonDeployValidations.mountType,
+    commonDeployValidations.isPrimaryInLocation,
+    commonDeployValidations.date,
+    commonDeployValidations.network,
+    commonDeployValidations.host_id,
   ],
 };
 
@@ -737,47 +871,12 @@ const validateTenantQuery = [
     .withMessage("the tenant value is not among the expected ones"),
 ];
 
-// Enhanced validator for owned device deployment (requires user_id)
-const validateEnhancedDeploy = [
-  commonDeployValidations.user_id_required,
-  commonDeployValidations.site_id,
-  commonDeployValidations.height,
-  commonDeployValidations.powerType,
-  commonDeployValidations.mountType,
-  commonDeployValidations.isPrimaryInLocation,
-  commonDeployValidations.date,
-  commonDeployValidations.network,
-  commonDeployValidations.host_id,
-];
-
-// Enhanced validator for regular deployment (user_id optional)
-const enhancedDeployActivity = [
-  ...validateTenantQuery,
-  ...validateDeviceNameQuery,
-  commonDeployValidations.site_id,
-  commonDeployValidations.height,
-  commonDeployValidations.powerType,
-  commonDeployValidations.mountType,
-  commonDeployValidations.isPrimaryInLocation,
-  commonDeployValidations.date,
-  commonDeployValidations.network,
-  commonDeployValidations.user_id_optional,
-  commonDeployValidations.host_id,
-];
-
-// Combined validation for deploy-owned endpoint
-const validateDeployOwnedDevice = [
-  ...validateTenantQuery,
-  ...validateDeviceNameQuery,
-  ...validateEnhancedDeploy,
-];
-
 module.exports = {
   ...activitiesValidations,
   pagination: commonValidations.pagination,
   validateUniqueDeviceNames,
-  validateEnhancedDeploy,
   validateDeviceNameQuery,
-  validateDeployOwnedDevice,
-  enhancedDeployActivity,
+  validateTenantQuery,
+  enhancedDeployActivity: activitiesValidations.enhancedDeployActivity,
+  validateDeployOwnedDevice: activitiesValidations.validateDeployOwnedDevice,
 };

@@ -39,6 +39,20 @@ const activitySchema = new Schema(
     device_id: { type: ObjectId },
     host_id: { type: ObjectId },
     user_id: { type: ObjectId },
+
+    // ENHANCED: Add support for grid-based deployments
+    grid_id: {
+      type: ObjectId,
+      ref: "grid",
+    },
+    deployment_type: {
+      type: String,
+      enum: ["static", "mobile"],
+      default: "static",
+      trim: true,
+      lowercase: true,
+    },
+
     date: { type: Date },
     description: { type: String, trim: true },
     network: {
@@ -63,11 +77,50 @@ const activitySchema = new Schema(
     createdAt: {
       type: Date,
     },
+
+    // ENHANCED: Add metadata for mobile deployments
+    mobility_metadata: {
+      route_id: { type: String, trim: true },
+      coverage_area: { type: String, trim: true },
+      operational_hours: { type: String, trim: true },
+      movement_pattern: { type: String, trim: true },
+    },
   },
   {
     timestamps: true,
   }
 );
+
+activitySchema.pre("save", function(next) {
+  // Only validate deployment-specific requirements for deployment activities
+  if (this.activityType === "deployment") {
+    // Validation: For static deployments, site_id should be provided
+    if (this.deployment_type === "static" && !this.site_id) {
+      return next(new Error("site_id is required for static deployments"));
+    }
+
+    // Validation: For mobile deployments, grid_id should be provided
+    if (this.deployment_type === "mobile" && !this.grid_id) {
+      return next(new Error("grid_id is required for mobile deployments"));
+    }
+
+    // Validation: Prevent conflicting location references
+    if (this.deployment_type === "static" && this.grid_id) {
+      return next(
+        new Error("grid_id should not be provided for static deployments")
+      );
+    }
+
+    if (this.deployment_type === "mobile" && this.site_id) {
+      return next(
+        new Error("site_id should not be provided for mobile deployments")
+      );
+    }
+  }
+
+  // For non-deployment activities (recall, maintenance, etc.), skip deployment validation
+  next();
+});
 
 activitySchema.methods = {
   toJSON() {
@@ -89,6 +142,10 @@ activitySchema.methods = {
       site_id: this.site_id,
       host_id: this.host_id,
       user_id: this.user_id,
+      // ENHANCED: Include new fields
+      grid_id: this.grid_id,
+      deployment_type: this.deployment_type,
+      mobility_metadata: this.mobility_metadata,
       firstName: this.firstName,
       lastName: this.lastName,
       userName: this.userName,
@@ -101,6 +158,19 @@ activitySchema.statics = {
   async register(args, next) {
     try {
       let modifiedArgs = args;
+
+      if (modifiedArgs.activityType === "deployment") {
+        if (!modifiedArgs.deployment_type) {
+          if (modifiedArgs.grid_id) {
+            modifiedArgs.deployment_type = "mobile";
+          } else if (modifiedArgs.site_id) {
+            modifiedArgs.deployment_type = "static";
+          } else {
+            modifiedArgs.deployment_type = "static"; // default for deployments
+          }
+        }
+      }
+
       let createdActivity = await this.create({
         ...modifiedArgs,
       });
@@ -129,15 +199,21 @@ activitySchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
-      Object.entries(error.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
+
+      if (error.errors) {
+        Object.entries(error.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
+        });
+      } else {
+        response.message = error.message;
+      }
 
       next(new HttpError(message, status, response));
     }
   },
+
   async list({ skip = 0, limit = 100, filter = {} } = {}, next) {
     try {
       const inclusionProjection =
@@ -154,14 +230,35 @@ activitySchema.statics = {
       if (!isEmpty(filter.summary)) {
         delete filter.summary;
       }
-      const response = await this.aggregate()
-        .match(filter)
-        .sort({ createdAt: -1 })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
-        .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
-        .allowDiskUse(true);
+
+      // ENHANCED: Add lookup for grid information in mobile deployments
+      const pipeline = [
+        { $match: filter },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "grid",
+          },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $project: inclusionProjection },
+        { $project: exclusionProjection },
+        { $skip: skip ? skip : 0 },
+        { $limit: limit ? limit : 100 },
+        { $allowDiskUse: true },
+      ];
+
+      const response = await this.aggregate(pipeline);
 
       if (!isEmpty(response)) {
         return {
@@ -198,6 +295,7 @@ activitySchema.statics = {
       );
     }
   },
+
   async modify({ filter = {}, update = {} } = {}, next) {
     try {
       let options = { new: true, useFindAndModify: false, upsert: false };
@@ -213,6 +311,7 @@ activitySchema.statics = {
           modifiedUpdateBody.tags;
         delete modifiedUpdateBody["tags"];
       }
+
       const updatedActivity = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
@@ -247,6 +346,7 @@ activitySchema.statics = {
       );
     }
   },
+
   async remove({ filter = {} } = {}, next) {
     try {
       let options = {
@@ -256,6 +356,8 @@ activitySchema.statics = {
           site_id: 1,
           host_id: 1,
           user_id: 1,
+          grid_id: 1, // ENHANCED: Include grid_id
+          deployment_type: 1, // ENHANCED: Include deployment_type
           network: 1,
           date: 1,
           description: 1,
