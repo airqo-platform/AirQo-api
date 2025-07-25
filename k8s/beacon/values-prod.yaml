@@ -1,14 +1,14 @@
 app:
-  name: airqo-spatial-api
-  label: spatial-api
+  name: airqo-beacon-api
+  label: beacon-api
   namespace: production
-  configmap: prod-spatial-api-config
+  configmap: env-beacon-production
 replicaCount: 3
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-spatial-api
+  repository: eu.gcr.io/airqo-250220/airqo-beacon-api
   tag: prod-0322d146-1753370560
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
@@ -16,9 +16,9 @@ resources:
     memory: 500Mi
   requests:
     cpu: 10m
-    memory: 250Mi
+    memory: 200Mi
 nodeSelector:
-  role: high-cpu
+  role: moderate-usage
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
@@ -27,23 +27,17 @@ affinity:
             - key: role
               operator: In
               values:
-                - high-cpu
+                - moderate-usage
         weight: 1
-volumeMounts:
-  - name: config-volume
-    mountPath: /etc/config
-volumes:
-  - name: config-volume
-    configMap:
-      name: prod-spatial-api-config-files
+
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 5000
+  port: 8000
   protocol: TCP
-  targetPort: 5000
-  nodePort: 30019
+  targetPort: 8000
+  nodePort: 30111
 autoscaling:
   minReplicas: 1
   maxReplicas: 3

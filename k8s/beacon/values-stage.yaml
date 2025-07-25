@@ -1,14 +1,14 @@
 app:
-  name: airqo-stage-device-registry-api
-  label: sta-device-reg
+  name: airqo-stage-beacon-api
+  label: sta-beacon-api
   namespace: staging
-  configmap: env-device-registry-staging
+  configmap: env-beacon-staging
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api
-  tag: stage-0de017ee-1753429773
-nameOverride: ''
-fullnameOverride: ''
+  repository: eu.gcr.io/airqo-250220/airqo-stage-beacon-api
+  tag: stage-6b4733f9-1753347818
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
@@ -29,22 +29,14 @@ affinity:
               values:
                 - moderate-usage
         weight: 1
-priorityClassName: high-priority
-volumeMounts:
-  - name: config-volume
-    mountPath: /etc/config
-volumes:
-  - name: config-volume
-    configMap:
-      name: device-registry-config-files
 ingress:
   enabled: false
 service:
   type: NodePort
-  port: 3000
+  port: 8000
   protocol: TCP
-  targetPort: 3000
-  nodePort: 31002
+  targetPort: 8000
+  nodePort: 31111
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
