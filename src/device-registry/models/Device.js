@@ -724,7 +724,6 @@ deviceSchema.statics = {
         delete filter.summary;
       }
 
-      // ENHANCED: Add lookup for grid information
       const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
@@ -757,7 +756,6 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "grids",
         })
-        // ENHANCED: Add grid lookup for mobile devices
         .lookup({
           from: "grids",
           localField: "grid_id",
