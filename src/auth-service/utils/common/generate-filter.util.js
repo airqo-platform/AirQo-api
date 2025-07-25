@@ -728,7 +728,7 @@ const filter = {
         options.include_permissions = include_permissions === "true";
       }
 
-      return { filter, options };
+      return filter;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
