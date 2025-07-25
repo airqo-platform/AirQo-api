@@ -711,7 +711,11 @@ const validateDeviceContext = [
   query("device_id")
     .optional()
     .isMongoId()
-    .withMessage("device_id must be a valid MongoDB ObjectId"),
+    .withMessage("device_id must be a valid MongoDB ObjectId")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
   query("device")
     .optional()
     .isString()

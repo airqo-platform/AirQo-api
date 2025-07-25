@@ -3977,6 +3977,12 @@ const createEvent = {
       const actualDeploymentType =
         deployment_type || deviceRecord.deployment_type || "static";
 
+      if (!actualDeploymentType) {
+        throw new HttpError("Missing deployment type", httpStatus.BAD_REQUEST, {
+          message: "Device deployment_type must be specified",
+        });
+      }
+
       // Validate deployment consistency
       if (actualDeploymentType === "static") {
         if (!site_id && !deviceRecord.site_id) {
@@ -4001,6 +4007,9 @@ const createEvent = {
           !measurement.location?.latitude?.value ||
           !measurement.location?.longitude?.value
         ) {
+          logger.error(
+            `Mobile device measurement missing location data: ${deviceRecord.name}`
+          );
           logObject(
             "Warning: Mobile device measurement without location data",
             {
@@ -4039,7 +4048,6 @@ const createEvent = {
           let time = measurement.time;
           const day = generateDateFormatWithoutHrs(time);
 
-          // ENHANCED: Resolve deployment context for each measurement
           const deploymentContext = await resolveDeviceDeploymentContext(
             measurement,
             measurement.tenant || "airqo",
@@ -4097,7 +4105,7 @@ const createEvent = {
       const results = await Promise.all(promises);
 
       // Filter out failed transformations
-      const successful = results.filter((result) => !result.success === false);
+      const successful = results.filter((result) => result.success !== false);
       const failed = results.filter((result) => result.success === false);
 
       if (failed.length > 0) {
