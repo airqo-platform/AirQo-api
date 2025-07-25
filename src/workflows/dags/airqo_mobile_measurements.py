@@ -1,6 +1,79 @@
 from airflow.decorators import dag, task
+from datetime import timedelta, datetime
+import pandas as pd
 
+from airqo_etl_utils.constants import (
+    DeviceCategory,
+    Frequency,
+    DataType,
+)
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.data_api import DataApi
+from airqo_etl_utils.datautils import DataUtils
+from airqo_etl_utils.date import date_to_str_hours
 from airqo_etl_utils.workflows_custom_utils import AirflowUtils
+from task_docs import (
+    clean_data_raw_data_doc,
+)
+
+
+@dag(
+    "AirQo-Raw-Data-Low-Cost-Measurements-Mobile",
+    schedule="*/5 * * * *",
+    catchup=False,
+    tags=["airqo", "raw", "low cost"],
+    default_args=AirflowUtils.dag_default_configs(),
+)
+def airqo_raw_data_measurements_mobile():
+    @task(
+        provide_context=True,
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
+    def extract_raw_data(**kwargs):
+        execution_time = kwargs["dag_run"].execution_date
+        hour_of_day = execution_time - timedelta(minutes=5)
+
+        start_date_time = date_to_str_hours(hour_of_day)
+        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+
+        return DataUtils.extract_devices_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.MOBILE,
+        )
+
+    @task(
+        doc_md=clean_data_raw_data_doc,
+    )
+    def clean_data_raw_data(data: pd.DataFrame):
+        return DataUtils.clean_low_cost_sensor_data(
+            data=data, device_category=DeviceCategory.MOBILE, data_type=DataType.RAW
+        )
+
+    @task(retries=3, retry_delay=timedelta(minutes=5))
+    def send_hourly_measurements_to_api(data: pd.DataFrame):
+        data = DataUtils.process_data_for_api(data, frequency=Frequency.RAW)
+
+        data_api = DataApi()
+        data_api.save_events(measurements=data)
+
+    @task(
+        retries=3,
+        retry_delay=timedelta(minutes=5),
+    )
+    def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
+
+        data, table = DataUtils.format_data_for_bigquery(
+            airqo_data, DataType.RAW, DeviceCategory.MOBILE, Frequency.RAW
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(data, table=table)
+
+    raw_data = extract_raw_data()
+    cleaned_data = clean_data_raw_data(raw_data)
+    send_hourly_measurements_to_api(cleaned_data)
+    send_raw_measurements_to_bigquery(cleaned_data)
 
 
 # TODO: Look into these unscheduled dags and see what's required and what's not.
