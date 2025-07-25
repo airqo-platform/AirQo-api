@@ -4048,7 +4048,7 @@ const createEvent = {
           let time = measurement.time;
           const day = generateDateFormatWithoutHrs(time);
 
-          const deploymentContext = await resolveDeviceDeploymentContext(
+          const deploymentContext = await createEvent.resolveDeviceDeploymentContext(
             measurement,
             measurement.tenant || "airqo",
             next
@@ -4142,7 +4142,7 @@ const createEvent = {
       let mobileDeviceCount = 0;
       let staticDeviceCount = 0;
 
-      const responseFromTransformMeasurements = await transformMeasurements_v3(
+      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v3(
         measurements,
         next
       );

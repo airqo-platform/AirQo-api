@@ -680,26 +680,42 @@ const addEventBodyEnhanced = [
       "the frequency value is not among the expected ones which include: raw, hourly and daily"
     ),
 
-  body("*.").custom(async (measurement, { req }) => {
-    const { device_id, site_id, grid_id, deployment_type } = measurement;
+  body().custom((measurements, { req }) => {
+    // Validate each measurement in the array
+    if (Array.isArray(measurements)) {
+      for (let i = 0; i < measurements.length; i++) {
+        const measurement = measurements[i];
 
-    // If deployment_type is explicitly provided, validate consistency
-    if (deployment_type) {
-      if (deployment_type === "static" && grid_id && !site_id) {
-        throw new Error("Static deployments should have site_id, not grid_id");
-      }
-      if (deployment_type === "mobile" && site_id && !grid_id) {
-        throw new Error("Mobile deployments should have grid_id, not site_id");
+        // Check if both site_id and grid_id are provided
+        if (measurement.site_id && measurement.grid_id) {
+          throw new Error(
+            `Measurement ${i}: Cannot specify both site_id and grid_id in the same measurement`
+          );
+        }
+
+        // Check deployment type consistency if provided
+        if (measurement.deployment_type) {
+          if (
+            measurement.deployment_type === "static" &&
+            measurement.grid_id &&
+            !measurement.site_id
+          ) {
+            throw new Error(
+              `Measurement ${i}: Static deployments should have site_id, not grid_id`
+            );
+          }
+          if (
+            measurement.deployment_type === "mobile" &&
+            measurement.site_id &&
+            !measurement.grid_id
+          ) {
+            throw new Error(
+              `Measurement ${i}: Mobile deployments should have grid_id, not site_id`
+            );
+          }
+        }
       }
     }
-
-    // If both site_id and grid_id are provided, that's invalid
-    if (site_id && grid_id) {
-      throw new Error(
-        "Cannot specify both site_id and grid_id in the same measurement"
-      );
-    }
-
     return true;
   }),
 
