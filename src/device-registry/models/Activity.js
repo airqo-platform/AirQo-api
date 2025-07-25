@@ -255,10 +255,9 @@ activitySchema.statics = {
         { $project: exclusionProjection },
         { $skip: skip ? skip : 0 },
         { $limit: limit ? limit : 100 },
-        { $allowDiskUse: true },
       ];
 
-      const response = await this.aggregate(pipeline);
+      const response = await this.aggregate(pipeline).allowDiskUse(true);
 
       if (!isEmpty(response)) {
         return {

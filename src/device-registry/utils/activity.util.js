@@ -1504,7 +1504,14 @@ const createActivity = {
             from: deploymentType === "static" ? "sites" : "grids",
             localField: deploymentType === "static" ? "site_id" : "grid_id",
             foreignField: "_id",
-            as: deploymentType === "static" ? "site" : "grid",
+            as: deploymentType === "static" ? "site_temp" : "grid_temp",
+          },
+        },
+        // Convert array to single object using $unwind (with preserveNullAndEmptyArrays to handle missing references)
+        {
+          $unwind: {
+            path: deploymentType === "static" ? "$site_temp" : "$grid_temp",
+            preserveNullAndEmptyArrays: true,
           },
         },
         {
@@ -1526,11 +1533,21 @@ const createActivity = {
             ...(deploymentType === "static"
               ? {
                   site_id: 1,
-                  site: 1,
+                  site: {
+                    _id: "$site_temp._id",
+                    name: "$site_temp.name",
+                    admin_level: "$site_temp.admin_level",
+                    long_name: "$site_temp.long_name",
+                  },
                 }
               : {
                   grid_id: 1,
-                  grid: 1,
+                  grid: {
+                    _id: "$grid_temp._id",
+                    name: "$grid_temp.name",
+                    admin_level: "$grid_temp.admin_level",
+                    long_name: "$grid_temp.long_name",
+                  },
                   mobility_metadata: 1,
                 }),
           },
