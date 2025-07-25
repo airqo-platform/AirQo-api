@@ -506,7 +506,371 @@ class AirQualityService {
   }
 }
 
+const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
+  try {
+    const airQloud = await AirQloudModel(tenant)
+      .findById(airqloud_id)
+      .lean();
+    logObject("airQloud", airQloud);
+
+    if (!airQloud) {
+      logger.error(
+        `🙅🏼🙅🏼 Bad Request Error, no distinct AirQloud found for ${airqloud_id.toString()} `
+      );
+      return {
+        success: false,
+        message: "Bad Request Error",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "AirQloud not found" },
+      };
+    }
+
+    const sites = airQloud.sites || [];
+    logObject("sites from the AirQloud", sites);
+
+    if (sites.length === 0) {
+      return {
+        success: true,
+        message:
+          "Unable to find any sites associated with the provided AirQloud ID",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+
+    const siteIds = sites.map((site) => site._id.toString());
+    logObject("siteIds", siteIds);
+    const commaSeparatedIds = siteIds.join(",");
+    logObject("commaSeparatedIds", commaSeparatedIds);
+
+    return {
+      success: true,
+      message: "Successfully retrieved the sites for this AirQloud",
+      data: commaSeparatedIds,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logObject("error", error);
+    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+};
+
+const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
+  try {
+    const request = {
+      query: {
+        grid_id,
+      },
+    };
+
+    const filter = generateFilter.grids(request);
+    const responseFromListGrid = await GridModel(tenant).list({ filter });
+
+    const gridDetails = responseFromListGrid.data[0];
+
+    if (responseFromListGrid.data.length > 1 || isEmpty(gridDetails)) {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        status: httpStatus.BAD_REQUEST,
+        errors: { message: "No distinct Grid found in this search" },
+      };
+    }
+
+    const sites = gridDetails.sites || [];
+
+    if (sites.length === 0) {
+      return {
+        success: true,
+        message:
+          "Unable to find any sites associated with the provided Grid ID",
+        data: [],
+        status: httpStatus.OK,
+      };
+    }
+
+    const siteIds = sites.map((site) => site._id.toString());
+    const commaSeparatedIds = siteIds.join(",");
+
+    return {
+      success: true,
+      message: "Successfully retrieved the sites for this Grid",
+      data: commaSeparatedIds,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logObject("error", error);
+    logger.error(`🐛🐛 internal server error -- ${JSON.stringify(error)}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+      errors: { message: error.message },
+    };
+  }
+};
+
+const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
+  try {
+    const request = {
+      query: {
+        cohort_id,
+      },
+    };
+    const filter = generateFilter.cohorts(request);
+
+    const responseFromListCohort = await CohortModel(tenant).list({ filter });
+    logObject("responseFromListCohort.data[0]", responseFromListCohort.data[0]);
+    const cohortDetails = responseFromListCohort.data[0];
+
+    if (responseFromListCohort.data.length > 1 || isEmpty(cohortDetails)) {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: { message: "No distinct Cohort found in this search" },
+        status: httpStatus.BAD_REQUEST,
+      };
+    }
+    const assignedDevices = cohortDetails.devices || [];
+    const deviceIds = assignedDevices.map((device) => device._id.toString());
+
+    const commaSeparatedIds = deviceIds.join(",");
+    logObject("commaSeparatedIds", commaSeparatedIds);
+
+    return {
+      success: true,
+      message: "Successfully retrieved device IDs from cohort",
+      data: commaSeparatedIds,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+const processGridIds = async (grid_ids, request) => {
+  const gridIdArray = Array.isArray(grid_ids)
+    ? grid_ids
+    : grid_ids.toString().split(",");
+  logObject("gridIdArray", gridIdArray);
+
+  const siteIdPromises = gridIdArray.map(async (grid_id) => {
+    if (!isEmpty(grid_id)) {
+      logObject("grid_id under processGridIds", grid_id);
+      const responseFromGetSitesOfGrid = await getSitesFromGrid({ grid_id });
+
+      logObject("responseFromGetSitesOfGrid", responseFromGetSitesOfGrid);
+
+      if (responseFromGetSitesOfGrid.success === false) {
+        logger.error(
+          `🐛🐛 Internal Server Error --- ${JSON.stringify(
+            responseFromGetSitesOfGrid
+          )}`
+        );
+        return responseFromGetSitesOfGrid;
+      } else if (isEmpty(responseFromGetSitesOfGrid.data)) {
+        logger.error(
+          `🐛🐛 The provided Grid ID ${grid_id} does not have any associated Site IDs`
+        );
+        return {
+          success: false,
+          message: `The provided Grid ID ${grid_id} does not have any associated Site IDs`,
+        };
+      }
+
+      logObject(
+        "responseFromGetSitesOfGrid.data",
+        responseFromGetSitesOfGrid.data
+      );
+
+      logObject(
+        "responseFromGetSitesOfGrid.data.split",
+        responseFromGetSitesOfGrid.data.split(",")
+      );
+
+      const arrayOfSites = responseFromGetSitesOfGrid.data.split(",");
+      return arrayOfSites;
+    }
+  });
+
+  const siteIdResults = await Promise.all(siteIdPromises);
+  logObject("siteIdResults", siteIdResults);
+
+  const invalidSiteIdResults = siteIdResults.filter(
+    (result) => result.success === false
+  );
+
+  if (!isEmpty(invalidSiteIdResults)) {
+    logger.error(
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+    );
+  }
+  logObject("invalidSiteIdResults", invalidSiteIdResults);
+
+  const validSiteIdResults = siteIdResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  logObject("validSiteIdResults", validSiteIdResults);
+
+  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
+    request.query.site_id = validSiteIdResults.join(",");
+  }
+};
+
+const processCohortIds = async (cohort_ids, request) => {
+  logObject("cohort_ids", cohort_ids);
+  const cohortIdArray = Array.isArray(cohort_ids)
+    ? cohort_ids
+    : cohort_ids.toString().split(",");
+
+  const deviceIdsPromises = cohortIdArray.map(async (cohort_id) => {
+    if (!isEmpty(cohort_id)) {
+      const responseFromGetDevicesOfCohort = await getDevicesFromCohort({
+        cohort_id,
+      });
+
+      logObject(
+        "responseFromGetDevicesOfCohort",
+        responseFromGetDevicesOfCohort
+      );
+
+      if (responseFromGetDevicesOfCohort.success === false) {
+        logger.error(
+          `🐛🐛 Internal Server Error --- ${JSON.stringify(
+            responseFromGetDevicesOfCohort
+          )}`
+        );
+        return responseFromGetDevicesOfCohort;
+      } else if (isEmpty(responseFromGetDevicesOfCohort.data)) {
+        logger.error(
+          `🐛🐛 The provided Cohort ID ${cohort_id} does not have any associated Device IDs`
+        );
+        return {
+          success: false,
+          message: `The provided Cohort ID ${cohort_id} does not have any associated Device IDs`,
+        };
+      }
+      const arrayOfDevices = responseFromGetDevicesOfCohort.data.split(",");
+      return arrayOfDevices;
+    }
+  });
+
+  const deviceIdsResults = await Promise.all(deviceIdsPromises);
+
+  const invalidDeviceIdResults = deviceIdsResults.filter(
+    (result) => result.success === false
+  );
+
+  if (!isEmpty(invalidDeviceIdResults)) {
+    logger.error(
+      `🙅🏼🙅🏼 Bad Request Errors --- ${JSON.stringify(invalidDeviceIdResults)}`
+    );
+  }
+
+  const validDeviceIdResults = deviceIdsResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  const flattened = [].concat(...validDeviceIdResults);
+
+  if (isEmpty(invalidDeviceIdResults) && validDeviceIdResults.length > 0) {
+    request.query.device_id = validDeviceIdResults.join(",");
+  }
+};
+
+const processAirQloudIds = async (airqloud_ids, request) => {
+  logObject("airqloud_ids", airqloud_ids);
+  const airqloudIdArray = Array.isArray(airqloud_ids)
+    ? airqloud_ids
+    : airqloud_ids.toString().split(",");
+  logObject("airqloudIdArray", airqloudIdArray);
+
+  const siteIdPromises = airqloudIdArray.map(async (airqloud_id) => {
+    if (!isEmpty(airqloud_id)) {
+      logObject("airqloud_id under processAirQloudIds", airqloud_id);
+      const responseFromGetSitesOfAirQloud = await getSitesFromAirQloud({
+        airqloud_id,
+      });
+
+      logObject(
+        "responseFromGetSitesOfAirQloud",
+        responseFromGetSitesOfAirQloud
+      );
+
+      if (responseFromGetSitesOfAirQloud.success === false) {
+        logger.error(
+          `🐛🐛 Internal Server Error --- ${JSON.stringify(
+            responseFromGetSitesOfAirQloud
+          )}`
+        );
+        return responseFromGetSitesOfAirQloud;
+      } else if (isEmpty(responseFromGetSitesOfAirQloud.data)) {
+        logger.error(
+          `🐛🐛 The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`
+        );
+        return {
+          success: false,
+          message: `The provided AirQloud ID ${airqloud_id} does not have any associated Site IDs`,
+        };
+      }
+
+      logObject(
+        "responseFromGetSitesOfAirQloud.data",
+        responseFromGetSitesOfAirQloud.data
+      );
+
+      logObject(
+        "responseFromGetSitesOfAirQloud.data.split",
+        responseFromGetSitesOfAirQloud.data.split(",")
+      );
+
+      const arrayOfSites = responseFromGetSitesOfAirQloud.data.split(",");
+      return arrayOfSites;
+    }
+  });
+
+  const siteIdResults = await Promise.all(siteIdPromises);
+  logObject("siteIdResults", siteIdResults);
+
+  const invalidSiteIdResults = siteIdResults.filter(
+    (result) => result.success === false
+  );
+
+  if (!isEmpty(invalidSiteIdResults)) {
+    logger.error(
+      `🙅🏼🙅🏼 Bad Request Error --- ${JSON.stringify(invalidSiteIdResults)}`
+    );
+  }
+  logObject("invalidSiteIdResults", invalidSiteIdResults);
+
+  const validSiteIdResults = siteIdResults.filter(
+    (result) => !(result.success === false)
+  );
+
+  logObject("validSiteIdResults", validSiteIdResults);
+
+  if (isEmpty(invalidSiteIdResults) && validSiteIdResults.length > 0) {
+    logObject("validSiteIdResults.join(,)", validSiteIdResults.join(","));
+    request.query.site_id = validSiteIdResults.join(",");
+  }
+};
+
 const createEvent = {
+  processGridIds,
+  processCohortIds,
+  processAirQloudIds,
   getMeasurementsFromBigQuery: async (req, next) => {
     try {
       const { query } = req;
