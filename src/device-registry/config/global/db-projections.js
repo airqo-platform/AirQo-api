@@ -967,11 +967,9 @@ class ProjectionFactory {
             writeKey: 0,
             recall_date: 0,
             maintenance_date: 0,
-            powerType: 0,
-            mountType: 0,
             access_code: 0,
             height: 0,
-            mobility: 0,
+
             host: 0,
           },
         },
