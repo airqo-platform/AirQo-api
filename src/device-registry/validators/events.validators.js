@@ -599,8 +599,172 @@ const deleteValuesOnPlatform = [
     .trim(),
 ];
 
+const addEventBodyEnhanced = [
+  body()
+    .isArray()
+    .withMessage("the request body should be an array"),
+
+  body("*.device_id")
+    .exists()
+    .trim()
+    .withMessage("device_id is missing")
+    .bail()
+    .isMongoId()
+    .withMessage("device_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
+
+  body("*.site_id")
+    .optional()
+    .notEmpty()
+    .trim()
+    .withMessage("site_id should not be empty if provided")
+    .bail()
+    .isMongoId()
+    .withMessage("site_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
+
+  body("*.grid_id")
+    .optional()
+    .notEmpty()
+    .trim()
+    .withMessage("grid_id should not be empty if provided")
+    .bail()
+    .isMongoId()
+    .withMessage("grid_id must be an object ID")
+    .bail()
+    .customSanitizer((value) => {
+      return ObjectId(value);
+    }),
+
+  body("*.deployment_type")
+    .optional()
+    .notEmpty()
+    .trim()
+    .isIn(["static", "mobile"])
+    .withMessage("deployment_type must be either 'static' or 'mobile'"),
+
+  // ENHANCED: Enhanced location validation for mobile devices
+  body("*.location.latitude.value")
+    .optional()
+    .isFloat({ min: -90, max: 90 })
+    .withMessage("latitude must be between -90 and 90"),
+
+  body("*.location.longitude.value")
+    .optional()
+    .isFloat({ min: -180, max: 180 })
+    .withMessage("longitude must be between -180 and 180"),
+
+  body("*.time")
+    .exists()
+    .trim()
+    .withMessage("time is missing")
+    .bail()
+    .toDate()
+    .isISO8601({ strict: true, strictSeparator: true })
+    .withMessage("time must be a valid datetime."),
+
+  body("*.frequency")
+    .exists()
+    .trim()
+    .toLowerCase()
+    .withMessage("frequency is missing")
+    .bail()
+    .isIn(["raw", "hourly", "daily"])
+    .withMessage(
+      "the frequency value is not among the expected ones which include: raw, hourly and daily"
+    ),
+
+  body("*.").custom(async (measurement, { req }) => {
+    const { device_id, site_id, grid_id, deployment_type } = measurement;
+
+    // If deployment_type is explicitly provided, validate consistency
+    if (deployment_type) {
+      if (deployment_type === "static" && grid_id && !site_id) {
+        throw new Error("Static deployments should have site_id, not grid_id");
+      }
+      if (deployment_type === "mobile" && site_id && !grid_id) {
+        throw new Error("Mobile deployments should have grid_id, not site_id");
+      }
+    }
+
+    // If both site_id and grid_id are provided, that's invalid
+    if (site_id && grid_id) {
+      throw new Error(
+        "Cannot specify both site_id and grid_id in the same measurement"
+      );
+    }
+
+    return true;
+  }),
+
+  handleValidationErrors,
+];
+
+const validateDeviceContext = [
+  ...commonValidations.tenant,
+  query("device_id")
+    .optional()
+    .isMongoId()
+    .withMessage("device_id must be a valid MongoDB ObjectId"),
+  query("device")
+    .optional()
+    .isString()
+    .trim()
+    .withMessage("device must be a string"),
+  query("device_number")
+    .optional()
+    .isInt()
+    .withMessage("device_number must be an integer"),
+  // At least one identifier must be provided
+  oneOf(
+    [
+      query("device_id").exists(),
+      query("device").exists(),
+      query("device_number").exists(),
+    ],
+    "At least one device identifier (device_id, device, or device_number) must be provided"
+  ),
+  handleValidationErrors,
+];
+
+const listByDeploymentType = [
+  ...commonValidations.tenant,
+  param("deploymentType")
+    .isIn(["static", "mobile"])
+    .withMessage("deploymentType must be either 'static' or 'mobile'"),
+  ...commonValidations.timeRange,
+  ...commonValidations.frequency,
+  ...commonValidations.external,
+  ...commonValidations.recent,
+  ...commonValidations.device,
+  ...commonValidations.deviceId,
+  ...commonValidations.deviceNumber,
+  ...commonValidations.site,
+  ...commonValidations.siteId,
+  ...commonValidations.airqloudId,
+  ...commonValidations.primary,
+  ...commonValidations.metadata,
+  ...commonValidations.test,
+  handleValidationErrors,
+];
+
+const getDeploymentStats = [
+  ...commonValidations.tenant,
+  handleValidationErrors,
+];
+
 module.exports = {
   ...eventsValidations,
   pagination: commonValidations.pagination,
   deleteValuesOnPlatform,
+  addEvents: addEventBodyEnhanced,
+  validateDeviceContext,
+  listByDeploymentType,
+  getDeploymentStats,
 };

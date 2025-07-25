@@ -3948,6 +3948,623 @@ const createEvent = {
       };
     }
   },
+  resolveDeviceDeploymentContext: async (measurement, tenant, next) => {
+    try {
+      const {
+        device_id,
+        device,
+        device_number,
+        deployment_type,
+        site_id,
+        grid_id,
+      } = measurement;
+
+      // First, get device information to determine deployment type
+      const deviceQuery = {};
+      if (device_id) deviceQuery._id = device_id;
+      else if (device) deviceQuery.name = device;
+      else if (device_number) deviceQuery.device_number = device_number;
+
+      const deviceRecord = await DeviceModel(tenant).findOne(deviceQuery);
+
+      if (!deviceRecord) {
+        throw new HttpError("Device not found", httpStatus.BAD_REQUEST, {
+          message: `Device not found: ${device_id || device || device_number}`,
+        });
+      }
+
+      // Determine actual deployment type
+      const actualDeploymentType =
+        deployment_type || deviceRecord.deployment_type || "static";
+
+      // Validate deployment consistency
+      if (actualDeploymentType === "static") {
+        if (!site_id && !deviceRecord.site_id) {
+          throw new HttpError(
+            "Missing site reference",
+            httpStatus.BAD_REQUEST,
+            { message: "Static devices require site_id for measurements" }
+          );
+        }
+        if (grid_id) {
+          throw new HttpError(
+            "Invalid location reference",
+            httpStatus.BAD_REQUEST,
+            {
+              message: "Static devices should not have grid_id in measurements",
+            }
+          );
+        }
+      } else if (actualDeploymentType === "mobile") {
+        // For mobile devices, location data becomes more critical
+        if (
+          !measurement.location?.latitude?.value ||
+          !measurement.location?.longitude?.value
+        ) {
+          logObject(
+            "Warning: Mobile device measurement without location data",
+            {
+              device: deviceRecord.name,
+              device_id: deviceRecord._id,
+              timestamp: measurement.time,
+            }
+          );
+        }
+      }
+
+      return {
+        deviceRecord,
+        actualDeploymentType,
+        resolvedSiteId: site_id || deviceRecord.site_id,
+        resolvedGridId: grid_id || deviceRecord.grid_id,
+      };
+    } catch (error) {
+      logObject("Error resolving device deployment context", error);
+      if (error instanceof HttpError) {
+        throw error;
+      }
+      throw new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
+      );
+    }
+  },
+  transformMeasurements_v3: async (measurements, next) => {
+    try {
+      logText("Transforming measurements v3 with mobile device support...");
+
+      let promises = measurements.map(async (measurement) => {
+        try {
+          let time = measurement.time;
+          const day = generateDateFormatWithoutHrs(time);
+
+          // ENHANCED: Resolve deployment context for each measurement
+          const deploymentContext = await resolveDeviceDeploymentContext(
+            measurement,
+            measurement.tenant || "airqo",
+            next
+          );
+
+          let transformedMeasurement = {
+            day: day,
+            ...measurement,
+            // ENHANCED: Include deployment metadata
+            deployment_type: deploymentContext.actualDeploymentType,
+            device_deployment_type:
+              deploymentContext.deviceRecord.deployment_type,
+          };
+
+          // ENHANCED: Handle location references based on deployment type
+          if (deploymentContext.actualDeploymentType === "static") {
+            transformedMeasurement.site_id = deploymentContext.resolvedSiteId;
+            // Ensure grid_id is not included for static devices
+            if (transformedMeasurement.grid_id) {
+              delete transformedMeasurement.grid_id;
+            }
+          } else if (deploymentContext.actualDeploymentType === "mobile") {
+            transformedMeasurement.grid_id = deploymentContext.resolvedGridId;
+
+            // For mobile devices, we can optionally include site_id if the device
+            // happens to be at a known site location, but it's not required
+            if (
+              transformedMeasurement.site_id &&
+              !deploymentContext.resolvedSiteId
+            ) {
+              // If site_id is provided in measurement but device isn't associated with a site
+              logObject("Mobile device measurement includes site_id", {
+                device: deploymentContext.deviceRecord.name,
+                provided_site_id: transformedMeasurement.site_id,
+              });
+            }
+          }
+
+          return transformedMeasurement;
+        } catch (e) {
+          logObject(
+            `Error transforming measurement: ${e.message}`,
+            measurement
+          );
+          return {
+            success: false,
+            message: "Server side error during transformation",
+            errors: { message: e.message },
+            original_measurement: measurement,
+          };
+        }
+      });
+
+      const results = await Promise.all(promises);
+
+      // Filter out failed transformations
+      const successful = results.filter((result) => !result.success === false);
+      const failed = results.filter((result) => result.success === false);
+
+      if (failed.length > 0) {
+        logObject("Failed measurement transformations", failed);
+      }
+
+      return {
+        success: true,
+        data: successful,
+        failed_transformations: failed,
+        total_processed: measurements.length,
+        successful_count: successful.length,
+        failed_count: failed.length,
+      };
+    } catch (error) {
+      logObject("Error in transformMeasurements_v3", error);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+  insertMeasurements_v3: async (tenant, measurements, next) => {
+    try {
+      let nAdded = 0;
+      let eventsAdded = [];
+      let eventsRejected = [];
+      let errors = [];
+      let mobileDeviceCount = 0;
+      let staticDeviceCount = 0;
+
+      const responseFromTransformMeasurements = await transformMeasurements_v3(
+        measurements,
+        next
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        logObject(
+          "Failed to transform measurements",
+          responseFromTransformMeasurements
+        );
+        return responseFromTransformMeasurements;
+      }
+
+      for (const measurement of responseFromTransformMeasurements.data) {
+        try {
+          // Track deployment types
+          if (measurement.deployment_type === "mobile") {
+            mobileDeviceCount++;
+          } else {
+            staticDeviceCount++;
+          }
+
+          // ENHANCED: Create filter based on deployment type
+          let eventsFilter = {
+            day: measurement.day,
+            device_id: measurement.device_id,
+            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+            $or: [
+              { "values.time": { $ne: measurement.time } },
+              { "values.device": { $ne: measurement.device } },
+              { "values.frequency": { $ne: measurement.frequency } },
+              { "values.device_id": { $ne: measurement.device_id } },
+              { day: { $ne: measurement.day } },
+            ],
+          };
+
+          // ENHANCED: Add location-specific filter based on deployment type
+          if (measurement.deployment_type === "static" && measurement.site_id) {
+            eventsFilter.site_id = measurement.site_id;
+            eventsFilter.$or.push({
+              "values.site_id": { $ne: measurement.site_id },
+            });
+          } else if (
+            measurement.deployment_type === "mobile" &&
+            measurement.grid_id
+          ) {
+            eventsFilter.grid_id = measurement.grid_id;
+            eventsFilter.$or.push({
+              "values.grid_id": { $ne: measurement.grid_id },
+            });
+          }
+
+          const eventsUpdate = {
+            $push: { values: measurement },
+            $min: { first: measurement.time },
+            $max: { last: measurement.time },
+            $inc: { nValues: 1 },
+          };
+
+          // ENHANCED: Set metadata based on deployment type
+          if (measurement.deployment_type === "static") {
+            eventsUpdate.$set = {
+              site_id: measurement.site_id,
+              device_id: measurement.device_id,
+              deployment_type: "static",
+            };
+          } else if (measurement.deployment_type === "mobile") {
+            eventsUpdate.$set = {
+              grid_id: measurement.grid_id,
+              device_id: measurement.device_id,
+              deployment_type: "mobile",
+            };
+            // Keep site_id if provided (mobile device at known location)
+            if (measurement.site_id) {
+              eventsUpdate.$set.site_id = measurement.site_id;
+            }
+          }
+
+          const addedEvents = await EventModel(tenant).updateOne(
+            eventsFilter,
+            eventsUpdate,
+            { upsert: true }
+          );
+
+          if (addedEvents) {
+            nAdded += 1;
+            eventsAdded.push(measurement);
+          } else {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "Unable to add the events",
+              deployment_type: measurement.deployment_type,
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+                ...(measurement.grid_id
+                  ? { grid_id: measurement.grid_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
+          }
+        } catch (e) {
+          eventsRejected.push(measurement);
+          let errMsg = {
+            msg:
+              "System conflict detected, most likely a cast error or duplicate record",
+            more: e.message,
+            deployment_type: measurement.deployment_type,
+            record: {
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+              ...(measurement.grid_id ? { grid_id: measurement.grid_id } : {}),
+            },
+          };
+          errors.push(errMsg);
+        }
+      } // ENHANCED: Include deployment statistics in response
+      const deploymentStats = {
+        total_measurements: measurements.length,
+        static_device_measurements: staticDeviceCount,
+        mobile_device_measurements: mobileDeviceCount,
+        successful_insertions: nAdded,
+        failed_insertions: eventsRejected.length,
+        transformation_failures: responseFromTransformMeasurements.failed_count,
+      };
+
+      if (errors.length > 0 && nAdded === 0) {
+        return {
+          success: false,
+          message: "Finished the operation with some errors",
+          errors,
+          deployment_stats: deploymentStats,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      } else {
+        return {
+          success: true,
+          message: "Successfully added the events",
+          deployment_stats: deploymentStats,
+          status: httpStatus.OK,
+          errors: errors.length > 0 ? errors : undefined,
+        };
+      }
+    } catch (error) {
+      logObject("Error in insertMeasurements_v3", error);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+  validateDeviceContext: async (
+    { device_id, device, device_number, tenant },
+    next
+  ) => {
+    try {
+      if (!device_id && !device && !device_number) {
+        return {
+          success: false,
+          message: "Device identifier required",
+          errors: {
+            message: "Provide device_id, device name, or device_number",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      try {
+        const context = await createEvent.resolveDeviceDeploymentContext(
+          { device_id, device, device_number },
+          tenant,
+          next
+        );
+
+        return {
+          success: true,
+          message: "Device deployment context retrieved successfully",
+          data: {
+            device_name: context.deviceRecord.name,
+            device_id: context.deviceRecord._id,
+            deployment_type: context.actualDeploymentType,
+            site_id: context.resolvedSiteId,
+            grid_id: context.resolvedGridId,
+            mobility: context.deviceRecord.mobility,
+            is_active: context.deviceRecord.isActive,
+            required_fields_for_measurements:
+              context.actualDeploymentType === "mobile"
+                ? [
+                    "device_id",
+                    "location.latitude.value",
+                    "location.longitude.value",
+                    "time",
+                    "frequency",
+                  ]
+                : ["device_id", "site_id", "time", "frequency"],
+          },
+          status: httpStatus.OK,
+        };
+      } catch (error) {
+        if (error instanceof HttpError) {
+          return {
+            success: false,
+            message: error.message,
+            errors: error.details,
+            status: error.statusCode,
+          };
+        }
+        throw error;
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Validate Device Context Util Error ${error.message}`);
+      throw error;
+    }
+  },
+
+  getDeploymentStats: async (tenant, next) => {
+    try {
+      // Get deployment statistics from events
+      const [staticEvents, mobileEvents, totalEvents] = await Promise.all([
+        EventModel(tenant).countDocuments({ deployment_type: "static" }),
+        EventModel(tenant).countDocuments({ deployment_type: "mobile" }),
+        EventModel(tenant).countDocuments({}),
+      ]);
+
+      const stats = {
+        total_events: totalEvents,
+        static_events: staticEvents,
+        mobile_events: mobileEvents,
+        static_percentage:
+          totalEvents > 0
+            ? ((staticEvents / totalEvents) * 100).toFixed(2)
+            : "0.00",
+        mobile_percentage:
+          totalEvents > 0
+            ? ((mobileEvents / totalEvents) * 100).toFixed(2)
+            : "0.00",
+        generated_at: new Date().toISOString(),
+      };
+
+      return {
+        success: true,
+        message: "Deployment statistics retrieved successfully",
+        data: stats,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Get Deployment Stats Util Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  addValuesWithStats: async (tenant, measurements, next) => {
+    try {
+      const result = await createEvent.insertMeasurements_v3(
+        tenant,
+        measurements,
+        next
+      );
+
+      if (!result.success) {
+        return {
+          success: false,
+          message: "Finished the operation with some errors",
+          errors: result.errors,
+          deployment_stats: result.deployment_stats,
+          status: httpStatus.BAD_REQUEST,
+        };
+      } else {
+        return {
+          success: true,
+          message: "Successfully added all the events",
+          deployment_stats: result.deployment_stats,
+          errors: result.errors,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  // Helper function to validate and process grid IDs (moved from controller logic)
+  processLocationIds: async (
+    { grid_ids, cohort_ids, airqloud_ids, type },
+    request,
+    next
+  ) => {
+    try {
+      let locationErrors = 0;
+
+      if (type === "grid" && grid_ids) {
+        await createEvent.processGridIds(grid_ids, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      } else if (type === "cohort" && cohort_ids) {
+        await createEvent.processCohortIds(cohort_ids, request);
+        if (isEmpty(request.query.device_id)) {
+          locationErrors++;
+        }
+      } else if (type === "airqloud" && airqloud_ids) {
+        await createEvent.processAirQloudIds(airqloud_ids, request);
+        if (isEmpty(request.query.site_id)) {
+          locationErrors++;
+        }
+      }
+
+      return {
+        success: locationErrors === 0,
+        locationErrors,
+        message:
+          locationErrors > 0
+            ? `Unable to process measurements for the provided ${type} IDs`
+            : "Successfully processed location IDs",
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Process Location IDs Error ${error.message}`);
+      return {
+        success: false,
+        locationErrors: 1,
+        message: "Error processing location IDs",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  // Business logic for handling common event listing patterns
+  prepareEventListingRequest: (req, options = {}) => {
+    try {
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const request = {
+        ...req,
+        query: {
+          ...req.query,
+          tenant: isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant,
+          recent: options.recent || "no",
+          metadata: options.metadata || "site_id",
+          brief: "yes",
+          ...options.additionalQuery,
+        },
+      };
+
+      return {
+        success: true,
+        data: request,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Prepare Event Listing Request Error ${error.message}`);
+      return {
+        success: false,
+        message: "Error preparing request",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  // Business logic for cache operations with better error handling
+  handleCacheOperation: async (operation, data, request, next) => {
+    try {
+      let cacheResult = { success: false };
+
+      if (operation === "get") {
+        try {
+          cacheResult = await Promise.race([
+            createEvent.getCache(request, next),
+            new Promise((resolve) =>
+              setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
+                success: false,
+                message: "Cache timeout",
+                isCacheTimeout: true,
+              })
+            ),
+          ]);
+        } catch (error) {
+          logger.warn(`Cache get operation failed: ${stringify(error)}`);
+        }
+      } else if (operation === "set" && data) {
+        try {
+          await Promise.race([
+            createEvent.setCache(data, request, next),
+            new Promise((resolve) =>
+              setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
+                success: false,
+                message: "Cache set timeout",
+              })
+            ),
+          ]);
+        } catch (error) {
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
+        }
+      }
+
+      return cacheResult;
+    } catch (error) {
+      logger.warn(`Cache operation ${operation} failed: ${error.message}`);
+      return { success: false, message: "Cache operation failed" };
+    }
+  },
 };
 
 module.exports = createEvent;

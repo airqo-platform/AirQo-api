@@ -39,8 +39,6 @@ const activitySchema = new Schema(
     device_id: { type: ObjectId },
     host_id: { type: ObjectId },
     user_id: { type: ObjectId },
-
-    // ENHANCED: Add support for grid-based deployments
     grid_id: {
       type: ObjectId,
       ref: "grid",
@@ -77,8 +75,6 @@ const activitySchema = new Schema(
     createdAt: {
       type: Date,
     },
-
-    // ENHANCED: Add metadata for mobile deployments
     mobility_metadata: {
       route_id: { type: String, trim: true },
       coverage_area: { type: String, trim: true },

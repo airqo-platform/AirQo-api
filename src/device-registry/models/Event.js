@@ -161,9 +161,21 @@ const valueSchema = new Schema({
     type: String,
     trim: true,
   },
+  grid_id: {
+    type: ObjectId,
+    ref: "grid",
+    required: false,
+  },
   is_device_primary: {
     type: Boolean,
     trim: true,
+  },
+  deployment_type: {
+    type: String,
+    enum: ["static", "mobile"],
+    default: "static",
+    trim: true,
+    lowercase: true,
   },
   device_id: {
     type: ObjectId,
@@ -179,6 +191,7 @@ const valueSchema = new Schema({
   },
   site_id: {
     type: ObjectId,
+    required: false,
   },
   /**** */
   pm1: {
@@ -285,13 +298,29 @@ const valueSchema = new Schema({
       value: {
         type: Number,
         default: null,
+        min: -90,
+        max: 90,
       },
     },
     longitude: {
       value: {
         type: Number,
         default: null,
+        min: -180,
+        max: 180,
       },
+    },
+    accuracy: {
+      type: Number,
+      default: null,
+    },
+    speed: {
+      type: Number,
+      default: null,
+    },
+    heading: {
+      type: Number,
+      default: null,
     },
   },
   altitude: {
@@ -483,6 +512,19 @@ const eventSchema = new Schema(
     },
     site_id: {
       type: ObjectId,
+      required: false,
+    },
+    grid_id: {
+      type: ObjectId,
+      ref: "grid",
+      required: false,
+    },
+    deployment_type: {
+      type: String,
+      enum: ["static", "mobile"],
+      default: "static",
+      trim: true,
+      lowercase: true,
     },
     first: {
       type: Date,
@@ -508,8 +550,10 @@ eventSchema.index(
     "values.time": 1,
     device_id: 1,
     site_id: 1,
+    grid_id: 1,
     "values.frequency": 1,
     day: 1,
+    deployment_type: 1,
   },
   {
     unique: true,
@@ -518,6 +562,21 @@ eventSchema.index(
     },
   }
 );
+
+//mobile device location queries
+eventSchema.index({
+  "values.location.latitude.value": 1,
+  "values.location.longitude.value": 1,
+  "values.time": 1,
+  deployment_type: 1,
+});
+
+//for grid-based queries
+eventSchema.index({
+  grid_id: 1,
+  "values.time": 1,
+  deployment_type: 1,
+});
 
 eventSchema.index(
   {
@@ -553,9 +612,23 @@ eventSchema.index(
 
 eventSchema.index({ "values.time": 1, "values.site_id": 1 });
 
-eventSchema.pre("save", function() {
-  const err = new Error("something went wrong");
-  next(err);
+eventSchema.pre("save", function(next) {
+  // Validate deployment type consistency
+  if (this.deployment_type === "static") {
+    if (!this.site_id) {
+      return next(new Error("Static deployments require site_id"));
+    }
+    if (this.grid_id) {
+      return next(new Error("Static deployments should not have grid_id"));
+    }
+  } else if (this.deployment_type === "mobile") {
+    if (!this.grid_id) {
+      return next(new Error("Mobile deployments require grid_id"));
+    }
+    // site_id is optional for mobile - device might be at a known site
+  }
+
+  next();
 });
 
 eventSchema.plugin(uniqueValidator, {
