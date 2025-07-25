@@ -271,9 +271,7 @@ async function processEvent(event, next) {
     dot.delete(["filter", "update", "options"], value);
 
     const validValues = event.values.filter((valItem) => {
-      // Directly access the values property
       let isValid = true;
-
       for (const key in constants.EVENT_MAPPINGS.item) {
         if (typeof valItem[key] === "number" && valItem[key] <= 0) {
           isValid = false;
@@ -324,7 +322,7 @@ async function processEvent(event, next) {
       };
     }
   } catch (e) {
-    eventsRejected.push(event);
+    // Removed reference to eventsRejected variable
     let errMsg = {
       message: "System conflict detected, most likely a duplicate record",
       more: e.message,

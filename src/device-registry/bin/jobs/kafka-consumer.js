@@ -42,7 +42,7 @@ const eventSchema = Joi.object({
   device_id: Joi.string()
     .empty("")
     .required(),
-  site_id: Joi.string().required(),
+  site_id: Joi.string().optional(),
   device_number: Joi.number().optional(),
   atmospheric_pressure: Joi.number().optional(),
   humidity: Joi.number().optional(),
@@ -63,6 +63,21 @@ const eventSchema = Joi.object({
   co2: Joi.number().optional(),
   intaketemperature: Joi.number().optional(),
   intakehumidity: Joi.number().optional(),
+  deployment_type: Joi.string()
+    .valid("static", "mobile")
+    .optional(),
+  grid_id: Joi.string().optional(),
+  location: Joi.object({
+    latitude: Joi.object({
+      value: Joi.number().required(),
+      quality: Joi.string().optional(),
+    }).optional(),
+    longitude: Joi.object({
+      value: Joi.number().required(),
+      quality: Joi.string().optional(),
+    }).optional(),
+  }).optional(),
+  tenant: Joi.string().optional(),
 }).unknown(true);
 
 // Forecast validation schemas
@@ -142,13 +157,36 @@ const consumeHourlyMeasurements = async (messageData) => {
       logger.error(`Validation errors: ${stringify(errorDetails)}`);
     }
 
+    // Add device context validation for each measurement
+    for (const measurement of cleanedMeasurements) {
+      if (measurement.device_id) {
+        try {
+          const deviceContext = await createEventUtil.validateDeviceContext({
+            device_id: measurement.device_id,
+            tenant: constants.DEFAULT_TENANT || "airqo",
+          });
+
+          if (!deviceContext.success) {
+            logger.warn(
+              `Device context validation failed: ${deviceContext.message}`
+            );
+          }
+        } catch (contextError) {
+          logger.warn(
+            `Device context validation error: ${contextError.message}`
+          );
+        }
+      }
+    }
+
     const request = {
       body: cleanedMeasurements,
+      query: {
+        tenant: constants.DEFAULT_TENANT || "airqo",
+      },
     };
 
-    const responseFromInsertMeasurements = await createEventUtil.create(
-      request
-    );
+    const responseFromInsertMeasurements = await createEventUtil.store(request);
 
     if (responseFromInsertMeasurements.success === false) {
       console.log("KAFKA: failed to store the measurements");
