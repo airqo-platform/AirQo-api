@@ -442,6 +442,21 @@ class Config:
                 "battery",
             ],
         },
+        "mobile": {
+            "field_8_cols": list(
+                AIRQO_LOW_COST_FIELD_MAPPING.get("field8", {}).values()
+            ),
+            "mapping": {
+                "airqo": AIRQO_LOW_COST_FIELD_MAPPING,
+            },
+            "other_fields_cols": [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ],
+        },
     }
 
     # Schema files mapping
@@ -496,6 +511,9 @@ class Config:
                 Frequency.RAW: BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE,
                 Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
                 Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
+            },
+            DeviceCategory.MOBILE: {
+                Frequency.HOURLY: BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE,
             },
             DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
             DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},
