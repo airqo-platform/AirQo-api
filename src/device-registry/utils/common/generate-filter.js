@@ -361,6 +361,7 @@ const generateFilter = {
       endTime,
       device_id,
       site_id,
+      grid_id,
       limit,
       skip,
       external,
@@ -627,18 +628,18 @@ const generateFilter = {
       filter["brief"] = brief;
     }
 
-    if (deployment_type === "static" && site_id) {
-      filter.site_id = site_id;
-    } else if (deployment_type === "mobile" && grid_id) {
-      filter.grid_id = grid_id;
-    } else {
-      // If no deployment type specified, include both
-      if (site_id) filter.site_id = site_id;
-      if (grid_id) filter.grid_id = grid_id;
-    }
-
+    // Handle deployment type filtering
     if (deployment_type) {
       filter.deployment_type = deployment_type;
+    }
+
+    // Handle grid_id for mobile deployments
+    if (grid_id) {
+      const gridIdArray = grid_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.grid_id"] = { $in: gridIdArray };
     }
 
     return filter;
