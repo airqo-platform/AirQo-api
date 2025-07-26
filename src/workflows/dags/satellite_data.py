@@ -58,8 +58,8 @@ def copernicus_hourly_measurements():
     )
     def extract_data(**kwargs) -> pd.DataFrame:
         data_to_download = {
-            "particulate_matter_10um": "tmp/pm10_download.zip",
-            "particulate_matter_2.5um": "tmp/pm25_download.zip",
+            "particulate_matter_10um": "/tmp/pm10_download.zip",
+            "particulate_matter_2.5um": "/tmp/pm25_download.zip",
         }
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             for variable, destination in data_to_download.items():

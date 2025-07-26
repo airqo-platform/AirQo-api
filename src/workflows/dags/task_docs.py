@@ -15,7 +15,7 @@ Extract gaseous low cost data from ThingSpeak
 
 clean_data_raw_data_doc = """
 ###Purpose
-Clean The raw data 
+Clean raw lowcost(LowCost, Mobile) sensor data.
 ####Notes
 
 """
