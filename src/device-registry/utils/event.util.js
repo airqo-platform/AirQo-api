@@ -6,7 +6,6 @@ const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
 const SiteModel = require("@models/Site");
-
 const {
   logObject,
   logText,
@@ -113,7 +112,6 @@ const decryptKey = async (encryptedKey, next) => {
     );
   }
 };
-
 async function transformOneReading(
   { data = {}, map = {}, context = {} } = {},
   next
@@ -341,7 +339,6 @@ async function processEvent(event, next) {
     };
   }
 }
-
 async function processEvents(events, next) {
   let nAdded = 0;
   let eventsAdded = [];
@@ -377,7 +374,6 @@ async function processEvents(events, next) {
 
   return determineResponse(nAdded, eventsAdded, eventsRejected, errors);
 }
-
 class AirQualityService {
   constructor(tenant) {
     this.EventModel = EventModel(tenant);
@@ -517,7 +513,6 @@ class AirQualityService {
     );
   }
 }
-
 const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
   try {
     const airQloud = await AirQloudModel(tenant)
@@ -572,7 +567,6 @@ const getSitesFromAirQloud = async ({ tenant = "airqo", airqloud_id } = {}) => {
     };
   }
 };
-
 const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
   try {
     const request = {
@@ -627,7 +621,6 @@ const getSitesFromGrid = async ({ tenant = "airqo", grid_id } = {}) => {
     };
   }
 };
-
 const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
   try {
     const request = {
@@ -670,7 +663,6 @@ const getDevicesFromCohort = async ({ tenant = "airqo", cohort_id } = {}) => {
     };
   }
 };
-
 const processGridIds = async (grid_ids, request) => {
   const gridIdArray = Array.isArray(grid_ids)
     ? grid_ids
@@ -740,7 +732,6 @@ const processGridIds = async (grid_ids, request) => {
     request.query.site_id = validSiteIdResults.join(",");
   }
 };
-
 const processCohortIds = async (cohort_ids, request) => {
   logObject("cohort_ids", cohort_ids);
   const cohortIdArray = Array.isArray(cohort_ids)
@@ -801,7 +792,6 @@ const processCohortIds = async (cohort_ids, request) => {
     request.query.device_id = validDeviceIdResults.join(",");
   }
 };
-
 const processAirQloudIds = async (airqloud_ids, request) => {
   logObject("airqloud_ids", airqloud_ids);
   const airqloudIdArray = Array.isArray(airqloud_ids)
@@ -878,7 +868,6 @@ const processAirQloudIds = async (airqloud_ids, request) => {
     request.query.site_id = validSiteIdResults.join(",");
   }
 };
-
 const createEvent = {
   processGridIds,
   processCohortIds,
@@ -1240,7 +1229,7 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const { query } = request;
-      let { limit, skip } = query;
+      let { limit, skip, recent } = query;
       limit = Number(limit);
       skip = Number(skip);
 
@@ -1255,29 +1244,28 @@ const createEvent = {
       const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
+
+      if (recent === "yes") {
+        logText("Routing recent query to optimized Readings collection");
+        return await createEvent.listFromReadings(request, next);
+      }
+
+      logText("Using Events collection for historical data");
       const filter = generateFilter.events(request, next);
 
       try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        logObject("Cache result", cacheResult);
-
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       if (page) {
@@ -1295,7 +1283,6 @@ const createEvent = {
       );
 
       if (!responseFromListEvents) {
-        // Handle cases where responseFromListEvents is null or undefined
         logger.error(`🐛🐛 responseFromListEvents is null or undefined`);
         return next(
           new HttpError(
@@ -1333,29 +1320,12 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(data, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
-        logText("Cache set.");
+        logText("Cache operation completed.");
 
         return {
           success: true,
@@ -1394,6 +1364,141 @@ const createEvent = {
       );
     }
   },
+  listFromReadings: async (request, next) => {
+    try {
+      let missingDataMessage = "";
+      const { query } = request;
+      let { limit, skip, tenant, language } = query;
+
+      limit = Number(limit) || 30;
+      skip = Number(skip) || 0;
+      let page = parseInt(query.page);
+
+      if (page) {
+        skip = parseInt((page - 1) * limit);
+      }
+
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
+        if (cacheResult.success === true) {
+          logText("Cache hit - returning cached result from readings");
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
+      }
+
+      // Generate filter for Readings collection
+      const filter = generateFilter.readings(request, next);
+
+      // Use ReadingModel for optimized queries
+      const responseFromListReadings = await ReadingModel(tenant).listRecent(
+        {
+          filter,
+          skip,
+          limit,
+          page,
+        },
+        next
+      );
+
+      if (!responseFromListReadings) {
+        logger.error(`🐛🐛 ReadingModel.listRecent returned null/undefined`);
+        return {
+          success: false,
+          message: "Database model returned null response",
+          errors: { message: "Model method returned null/undefined" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+
+      // Handle language translation if needed
+      if (
+        language !== undefined &&
+        responseFromListReadings.success === true &&
+        !isEmpty(responseFromListReadings.data)
+      ) {
+        const data = responseFromListReadings.data;
+        for (const event of data) {
+          try {
+            const translatedHealthTips = await translate.translateTips(
+              { healthTips: event.health_tips, targetLanguage: language },
+              next
+            );
+            if (translatedHealthTips.success === true) {
+              event.health_tips = translatedHealthTips.data;
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+          }
+        }
+      }
+
+      if (responseFromListReadings.success === true) {
+        const data = responseFromListReadings.data;
+
+        try {
+          await createEvent.handleCacheOperation(
+            "set",
+            responseFromListReadings,
+            request,
+            next
+          );
+        } catch (error) {
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
+        }
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data)
+            ? "no measurements for this search"
+            : responseFromListReadings.message,
+          data,
+          status: responseFromListReadings.status || httpStatus.OK,
+          isCache: false,
+          source: "readings",
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve readings --- ${stringify(
+            responseFromListReadings.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: responseFromListReadings.message,
+          errors: responseFromListReadings.errors || {
+            message: "Database operation failed",
+          },
+          status:
+            responseFromListReadings.status || httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in listFromReadings: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   listAveragesV1: async (request, next) => {
     try {
       let missingDataMessage = "";
@@ -1403,26 +1508,18 @@ const createEvent = {
       };
 
       try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
-        logObject("Cache result", cacheResult);
-
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       const responseFromListEvents = await EventModel(
@@ -1455,26 +1552,9 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(data, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
         logText("Cache set.");
@@ -1534,29 +1614,29 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language },
+        query: { tenant, language, recent },
       } = request;
+
+      if (recent === "yes") {
+        logText("Routing recent view query to optimized Readings collection");
+        return await createEvent.viewFromReadings(request, next);
+      }
+
       const filter = generateFilter.readings(request, next);
 
       try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached view result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       const viewEventsResponse = await EventModel(tenant).view(filter, next);
@@ -1580,36 +1660,18 @@ const createEvent = {
       }
 
       if (viewEventsResponse.success === true) {
-        // logObject("viewEventsResponse", viewEventsResponse);
         const data = viewEventsResponse.data;
         data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
 
         logText("Setting cache...");
 
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(data, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
-        logText("Cache set.");
+        logText("Cache operation completed.");
 
         return {
           success: true,
@@ -1648,6 +1710,117 @@ const createEvent = {
         )
       );
       return;
+    }
+  },
+  viewFromReadings: async (request, next) => {
+    try {
+      let missingDataMessage = "";
+      const {
+        query: { tenant, language },
+      } = request;
+      const filter = generateFilter.readings(request, next);
+
+      // Try cache first
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
+        if (cacheResult.success === true) {
+          logText("Cache hit - returning cached view result from readings");
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
+      }
+
+      const viewReadingsResponse = await ReadingModel(tenant).viewRecent(
+        filter,
+        next
+      );
+
+      // Handle language translation
+      if (
+        language !== undefined &&
+        viewReadingsResponse.success === true &&
+        !isEmpty(viewReadingsResponse.data[0].data)
+      ) {
+        const data = viewReadingsResponse.data[0].data;
+        for (const event of data) {
+          try {
+            const translatedHealthTips = await translate.translateTips(
+              { healthTips: event.health_tips, targetLanguage: language },
+              next
+            );
+            if (translatedHealthTips.success === true) {
+              event.health_tips = translatedHealthTips.data;
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+          }
+        }
+      }
+
+      if (viewReadingsResponse.success === true) {
+        const data = viewReadingsResponse.data;
+
+        // Set cache
+        try {
+          await createEvent.handleCacheOperation(
+            "set",
+            viewReadingsResponse,
+            request,
+            next
+          );
+        } catch (error) {
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
+        }
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data[0].data)
+            ? "no measurements for this search"
+            : viewReadingsResponse.message,
+          data,
+          status: viewReadingsResponse.status || httpStatus.OK,
+          isCache: false,
+          source: "readings",
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve readings view --- ${stringify(
+            viewReadingsResponse.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: viewReadingsResponse.message,
+          errors: viewReadingsResponse.errors || {
+            message: "Database operation failed",
+          },
+          status:
+            viewReadingsResponse.status || httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in viewFromReadings: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
   fetchAndStoreData: async (request, next) => {
@@ -1752,25 +1925,20 @@ const createEvent = {
       const {
         query: { tenant, language, limit, skip },
       } = request;
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
 
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       const readingsResponse = await ReadingModel(tenant).latest(
@@ -1805,28 +1973,15 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          await createEvent.handleCacheOperation(
+            "set",
+            responseData,
+            request,
+            next
+          );
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
-
         logText("Cache set.");
 
         return {
@@ -1874,39 +2029,19 @@ const createEvent = {
       } = request;
       const filter = generateFilter.telemetry(request);
 
-      // Attempt to get from cache with improved error handling
-      let cacheResult = null;
       try {
-        cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
-              success: false,
-              message: "Cache timeout",
-              isCacheTimeout: true,
-              status: httpStatus.OK,
-            })
-          ),
-        ]);
-
-        // Only use cache if it was successful AND has valid data structure
-        if (cacheResult && cacheResult.success === true && cacheResult.data) {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
+        if (cacheResult.success === true) {
           logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
-
-        if (cacheResult && cacheResult.isCacheTimeout) {
-          logger.warn(
-            `⏰ Cache get timeout after ${CACHE_TIMEOUT_PERIOD}ms - proceeding without cache`
-          );
-        } else {
-          logger.warn(
-            `🔍 Cache miss or invalid - proceeding to database query`
-          );
-        }
       } catch (error) {
-        logger.warn(`🚨 Cache get operation failed: ${stringify(error)}`);
-        // Continue execution - don't let cache failure stop the operation
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       // Proceed with database query
@@ -1962,33 +2097,14 @@ const createEvent = {
         // Attempt to set cache but don't let failure affect the response
         logText("Attempting to set cache...");
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
-                success: false,
-                message: "Cache set timeout",
-                isCacheTimeout: true,
-                status: httpStatus.OK,
-              })
-            ),
-          ]);
-
-          if (resultOfCacheOperation && !resultOfCacheOperation.success) {
-            if (resultOfCacheOperation.isCacheTimeout) {
-              logger.warn(
-                `⏰ Cache set timeout after ${CACHE_TIMEOUT_PERIOD}ms - response still successful`
-              );
-            } else {
-              const errors = resultOfCacheOperation.errors || {
-                message: "Unknown cache error",
-              };
-              logger.warn(`💾 Cache set failed: ${stringify(errors)}`);
-            }
-          }
+          await createEvent.handleCacheOperation(
+            "set",
+            responseData,
+            request,
+            next
+          );
         } catch (error) {
-          logger.warn(`🚨 Cache set operation exception: ${stringify(error)}`);
-          // Don't let cache set failure affect the main response
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
         logText("Cache operation completed (success or failure ignored).");
@@ -2151,25 +2267,20 @@ const createEvent = {
         ...request.query,
         ...request.params,
       };
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
 
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       const readingsResponse = await ReadingModel(
@@ -2200,26 +2311,14 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          await createEvent.handleCacheOperation(
+            "set",
+            responseData,
+            request,
+            next
+          );
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
         logText("Cache set.");
@@ -2268,24 +2367,18 @@ const createEvent = {
       } = request;
 
       try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       const readingsResponse = await ReadingModel(
@@ -2311,25 +2404,14 @@ const createEvent = {
       }
 
       try {
-        const resultOfCacheOperation = await Promise.race([
-          createEvent.setCache(readingsResponse, request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
-        if (resultOfCacheOperation.success === false) {
-          const errors = resultOfCacheOperation.errors || {
-            message: "Internal Server Error",
-          };
-          logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-        }
+        await createEvent.handleCacheOperation(
+          "set",
+          responseData,
+          request,
+          next
+        );
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache set operation failed: ${stringify(error)}`);
       }
 
       return {
@@ -2360,25 +2442,20 @@ const createEvent = {
       const {
         query: { tenant, language, limit, skip },
       } = request;
-      try {
-        const cacheResult = await Promise.race([
-          createEvent.getCache(request, next),
-          new Promise((resolve) =>
-            setTimeout(resolve, 60000, {
-              success: false,
-              message: "Internal Server Error",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: { message: "Cache timeout" },
-            })
-          ),
-        ]);
 
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
         if (cacheResult.success === true) {
-          logText(cacheResult.message);
+          logText("Cache hit - returning cached result");
           return cacheResult.data;
         }
       } catch (error) {
-        logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
       const readingsResponse = await SignalModel(tenant).latest(
@@ -2413,26 +2490,14 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          const resultOfCacheOperation = await Promise.race([
-            createEvent.setCache(readingsResponse, request, next),
-            new Promise((resolve) =>
-              setTimeout(resolve, 60000, {
-                success: false,
-                message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
-                errors: { message: "Cache timeout" },
-              })
-            ),
-          ]);
-          if (resultOfCacheOperation.success === false) {
-            const errors = resultOfCacheOperation.errors
-              ? resultOfCacheOperation.errors
-              : { message: "Internal Server Error" };
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(errors)}`);
-            // return resultOfCacheOperation;
-          }
+          await createEvent.handleCacheOperation(
+            "set",
+            responseData,
+            request,
+            next
+          );
         } catch (error) {
-          logger.error(`🐛🐛 Internal Server Errors -- ${stringify(error)}`);
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
 
         logText("Cache set.");
@@ -5001,6 +5066,119 @@ const createEvent = {
     } catch (error) {
       logger.warn(`Cache operation ${operation} failed: ${error.message}`);
       return { success: false, message: "Cache operation failed" };
+    }
+  },
+
+  listFromReadingsOptimized: async (request, next) => {
+    try {
+      const { query } = request;
+      let { limit, skip, tenant, language, recent } = query;
+
+      limit = Number(limit) || 30;
+      skip = Number(skip) || 0;
+      let page = parseInt(query.page);
+
+      if (page) {
+        skip = parseInt((page - 1) * limit);
+      }
+
+      // Try cache first
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
+        if (cacheResult.success === true) {
+          logText("Cache hit - returning ultra-optimized cached result");
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.warn(`Cache operation failed: ${stringify(error)}`);
+      }
+
+      // Generate simple filter for Readings
+      const filter = generateFilter.readings(request, next);
+
+      // **Use ultra-fast method with no aggregations**
+      const responseFromListReadings = await ReadingModel(
+        tenant
+      ).listRecentOptimized(
+        {
+          filter,
+          skip,
+          limit,
+          page,
+        },
+        next
+      );
+
+      if (!responseFromListReadings.success) {
+        return responseFromListReadings;
+      }
+
+      const data = responseFromListReadings.data;
+
+      // Handle language translation (only if needed)
+      if (
+        language !== undefined &&
+        !isEmpty(data) &&
+        data[0] &&
+        !isEmpty(data[0].data)
+      ) {
+        for (const event of data[0].data) {
+          try {
+            if (event.health_tips) {
+              const translatedHealthTips = await translate.translateTips(
+                { healthTips: event.health_tips, targetLanguage: language },
+                next
+              );
+              if (translatedHealthTips.success === true) {
+                event.health_tips = translatedHealthTips.data;
+              }
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+          }
+        }
+      }
+
+      // Set cache
+      try {
+        await createEvent.handleCacheOperation(
+          "set",
+          responseFromListReadings,
+          request,
+          next
+        );
+      } catch (error) {
+        logger.warn(`Cache set failed: ${stringify(error)}`);
+      }
+
+      return {
+        success: true,
+        message: isEmpty(data[0].data)
+          ? "no measurements for this search"
+          : "successfully returned the measurements",
+        data,
+        status: httpStatus.OK,
+        isCache: false,
+        source: "readings_ultra_optimized",
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Ultra-optimized listFromReadings error: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
 };
