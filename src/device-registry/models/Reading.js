@@ -69,6 +69,20 @@ const SiteDetailsSchema = new Schema(
   { _id: false }
 );
 
+const GridDetailsSchema = new Schema(
+  {
+    _id: Schema.Types.ObjectId,
+    name: String,
+    long_name: String,
+    admin_level: String,
+    shape_area: Number,
+    approximate_latitude: Number,
+    approximate_longitude: Number,
+    description: String,
+  },
+  { _id: false }
+);
+
 const AqiRangeSchema = new Schema(
   {
     good: {
@@ -119,13 +133,52 @@ const ReadingsSchema = new Schema(
     device_id: String,
     is_reading_primary: Boolean,
     health_tips: [HealthTipsSchema],
-    site_id: String,
+    site_id: {
+      type: String,
+      required: function() {
+        return this.deployment_type === "static";
+      },
+    },
+    grid_id: {
+      type: String,
+      required: function() {
+        return this.deployment_type === "mobile" && !this.location;
+      },
+    },
     time: Date,
     pm2_5: { value: Number },
     pm10: { value: Number },
     frequency: String,
+    deployment_type: {
+      type: String,
+      enum: ["static", "mobile"],
+      default: "static",
+      required: true,
+    },
+    location: {
+      latitude: {
+        value: {
+          type: Number,
+          min: -90,
+          max: 90,
+        },
+        quality: String,
+      },
+      longitude: {
+        value: {
+          type: Number,
+          min: -180,
+          max: 180,
+        },
+        quality: String,
+      },
+      accuracy: Number,
+      speed: Number,
+      heading: Number,
+    },
     no2: { value: Number },
     siteDetails: SiteDetailsSchema,
+    gridDetails: GridDetailsSchema,
     aqi_ranges: AqiRangeSchema,
     timeDifferenceHours: Number,
     aqi_color: String,
@@ -145,6 +198,29 @@ const ReadingsSchema = new Schema(
 );
 
 ReadingsSchema.pre("save", function(next) {
+  // Validate deployment type consistency
+  if (this.deployment_type === "static") {
+    if (!this.site_id) {
+      return next(new Error("Static readings require site_id"));
+    }
+    // Clear mobile-specific fields for static devices
+    if (this.grid_id) {
+      this.grid_id = undefined;
+    }
+  } else if (this.deployment_type === "mobile") {
+    if (
+      !this.grid_id &&
+      (!this.location?.latitude?.value || !this.location?.longitude?.value)
+    ) {
+      return next(
+        new Error(
+          "Mobile readings require either grid_id or location coordinates"
+        )
+      );
+    }
+    // site_id is optional for mobile devices (they might be at a known site)
+  }
+
   next();
 });
 
@@ -152,31 +228,89 @@ ReadingsSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
+ReadingsSchema.index(
+  { grid_id: 1, time: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { deployment_type: "mobile" },
+  }
+);
+ReadingsSchema.index(
+  { site_id: 1, time: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { deployment_type: "static" },
+  }
+);
 ReadingsSchema.index({ device_id: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ device: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ site_id: 1, time: 1 }, { unique: true });
+ReadingsSchema.index({ deployment_type: 1, time: -1 });
+ReadingsSchema.index({ deployment_type: 1, device_id: 1, time: -1 });
+ReadingsSchema.index(
+  {
+    "location.latitude.value": 1,
+    "location.longitude.value": 1,
+    time: -1,
+  },
+  {
+    partialFilterExpression: {
+      deployment_type: "mobile",
+      "location.latitude.value": { $exists: true },
+      "location.longitude.value": { $exists: true },
+    },
+  }
+);
+
+// Add after existing indexes
+ReadingsSchema.index(
+  { grid_id: 1, time: 1, deployment_type: 1 },
+  {
+    partialFilterExpression: {
+      deployment_type: "mobile",
+      grid_id: { $exists: true },
+    },
+  }
+);
+
+ReadingsSchema.index(
+  { device_id: 1, time: 1, deployment_type: 1 },
+  {
+    partialFilterExpression: {
+      deployment_type: "mobile",
+      "location.latitude.value": { $exists: true },
+    },
+  }
+);
 
 ReadingsSchema.methods = {
   toJSON() {
-    return {
+    const obj = {
       device: this.device,
       device_id: this.device_id,
-      is_reading_primary: this.is_reading_primary,
-      health_tips: this.health_tips,
-      site_id: this.site_id,
+      deployment_type: this.deployment_type,
       time: this.time,
       pm2_5: this.pm2_5,
       pm10: this.pm10,
       frequency: this.frequency,
       no2: this.no2,
-      siteDetails: this.siteDetails,
-      timeDifferenceHours: this.timeDifferenceHours,
-      aqi_ranges: this.aqi_ranges,
-      aqi_color: this.aqi_color,
-      aqi_category: this.aqi_category,
-      aqi_color_name: this.aqi_color_name,
-      averages: this.averages,
+      // ... other common fields
     };
+
+    // Include location-specific fields based on deployment type
+    if (this.deployment_type === "static") {
+      if (this.site_id) obj.site_id = this.site_id;
+      if (this.siteDetails) obj.siteDetails = this.siteDetails;
+    } else if (this.deployment_type === "mobile") {
+      if (this.grid_id) obj.grid_id = this.grid_id;
+      if (this.location) obj.location = this.location;
+      if (this.gridDetails) obj.gridDetails = this.gridDetails;
+      // Mobile devices can optionally be at known sites
+      if (this.site_id) obj.site_id = this.site_id;
+      if (this.siteDetails) obj.siteDetails = this.siteDetails;
+    }
+
+    return obj;
   },
 };
 

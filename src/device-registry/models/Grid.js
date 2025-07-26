@@ -43,6 +43,30 @@ const gridSchema = new Schema(
       trim: true,
       required: [true, "the network is required!"],
     },
+    lastActive: {
+      type: Date,
+      default: null,
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    mobileDeviceCount: {
+      type: Number,
+      default: 0,
+    },
+    activeMobileDevices: [
+      {
+        device_id: {
+          type: ObjectId,
+          ref: "devices",
+        },
+        lastSeen: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     groups: {
       type: [String],
       trim: true,
@@ -94,6 +118,14 @@ const gridSchema = new Schema(
   { timestamps: true }
 );
 
+gridSchema.index({ "activeMobileDevices.device_id": 1 });
+gridSchema.index({ lastActive: 1, isOnline: 1 });
+gridSchema.index({
+  shape: "2dsphere", // For geospatial queries
+  mobileDeviceCount: 1,
+});
+gridSchema.index({ admin_level: 1, isOnline: 1 });
+
 gridSchema.post("save", async function(doc) {});
 
 gridSchema.pre("save", function(next) {
@@ -130,6 +162,10 @@ gridSchema.methods.toJSON = function() {
     centers,
     shape,
     geoHash,
+    lastActive,
+    isOnline,
+    mobileDeviceCount,
+    activeMobileDevices,
   } = this;
   return {
     _id,
@@ -145,6 +181,10 @@ gridSchema.methods.toJSON = function() {
     centers,
     shape,
     geoHash,
+    lastActive,
+    isOnline,
+    mobileDeviceCount,
+    activeMobileDevices,
   };
 };
 
@@ -229,6 +269,7 @@ gridSchema.statics.list = async function(
     const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
       filter.path ? filter.path : "none"
     );
+
     if (!isEmpty(filter.path)) {
       delete filter.path;
     }
@@ -238,8 +279,10 @@ gridSchema.statics.list = async function(
     if (!isEmpty(filter.summary)) {
       delete filter.summary;
     }
+
     logObject("filter", filter);
     logObject("exclusionProjection", exclusionProjection);
+
     const pipeline = this.aggregate()
       .match(filter)
       .lookup({
@@ -248,7 +291,21 @@ gridSchema.statics.list = async function(
         foreignField: "grids",
         as: "sites",
       })
-      .project(inclusionProjection)
+      .lookup({
+        from: "devices",
+        localField: "activeMobileDevices.device_id",
+        foreignField: "_id",
+        as: "mobileDevices",
+      })
+      .project({
+        ...inclusionProjection,
+        // Include mobile device fields
+        lastActive: 1,
+        isOnline: 1,
+        mobileDeviceCount: 1,
+        activeMobileDevices: 1,
+        mobileDevices: 1,
+      })
       .project(exclusionProjection)
       .sort({ createdAt: -1 })
       .skip(skip ? skip : 0)
@@ -259,7 +316,7 @@ gridSchema.statics.list = async function(
     if (!isEmpty(data)) {
       return {
         success: true,
-        message: "Successfull Operation",
+        message: "Successful Operation",
         data,
         status: httpStatus.OK,
       };
@@ -367,6 +424,156 @@ gridSchema.statics.remove = async function({ filter = {} } = {}, next) {
         message: error.message,
       })
     );
+  }
+};
+
+// Add these static methods to the gridSchema
+
+gridSchema.statics.updateMobileDeviceActivity = async function(
+  gridId,
+  deviceId,
+  next
+) {
+  try {
+    const result = await this.findByIdAndUpdate(
+      gridId,
+      {
+        $set: {
+          lastActive: new Date(),
+          isOnline: true,
+          "activeMobileDevices.$[elem].lastSeen": new Date(),
+        },
+        $addToSet: {
+          activeMobileDevices: {
+            device_id: deviceId,
+            lastSeen: new Date(),
+          },
+        },
+      },
+      {
+        arrayFilters: [{ "elem.device_id": deviceId }],
+        new: true,
+        upsert: false,
+      }
+    );
+
+    // Update mobile device count
+    if (result) {
+      await this.findByIdAndUpdate(gridId, {
+        $set: { mobileDeviceCount: result.activeMobileDevices.length },
+      });
+    }
+
+    return {
+      success: true,
+      message: "Mobile device activity updated",
+      data: result,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Error updating mobile device activity: ${error.message}`
+    );
+    return {
+      success: false,
+      message: "Failed to update mobile device activity",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+gridSchema.statics.cleanupInactiveDevices = async function(
+  inactiveThresholdHours = 5,
+  next
+) {
+  try {
+    const thresholdTime = new Date(
+      Date.now() - inactiveThresholdHours * 60 * 60 * 1000
+    );
+
+    const result = await this.updateMany(
+      {},
+      {
+        $pull: {
+          activeMobileDevices: {
+            lastSeen: { $lt: thresholdTime },
+          },
+        },
+      }
+    );
+
+    // Update mobile device counts and online status
+    const gridsToUpdate = await this.find({}).select("_id activeMobileDevices");
+
+    for (const grid of gridsToUpdate) {
+      const isOnline = grid.activeMobileDevices.length > 0;
+      await this.findByIdAndUpdate(grid._id, {
+        $set: {
+          mobileDeviceCount: grid.activeMobileDevices.length,
+          isOnline: isOnline,
+          lastActive: isOnline ? new Date() : grid.lastActive,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message: "Inactive mobile devices cleaned up",
+      data: { modifiedCount: result.modifiedCount },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Error cleaning up inactive devices: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to cleanup inactive devices",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+gridSchema.statics.getMobileDeviceStats = async function(filter = {}, next) {
+  try {
+    const pipeline = [
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalGrids: { $sum: 1 },
+          gridsWithMobileDevices: {
+            $sum: { $cond: [{ $gt: ["$mobileDeviceCount", 0] }, 1, 0] },
+          },
+          totalMobileDevices: { $sum: "$mobileDeviceCount" },
+          onlineGrids: {
+            $sum: { $cond: ["$isOnline", 1, 0] },
+          },
+        },
+      },
+    ];
+
+    const stats = await this.aggregate(pipeline);
+
+    return {
+      success: true,
+      message: "Mobile device statistics retrieved",
+      data: stats[0] || {
+        totalGrids: 0,
+        gridsWithMobileDevices: 0,
+        totalMobileDevices: 0,
+        onlineGrids: 0,
+      },
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Error getting mobile device stats: ${error.message}`);
+    return {
+      success: false,
+      message: "Failed to get mobile device statistics",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
   }
 };
 
