@@ -8,6 +8,8 @@ const GridModel = require("@models/Grid");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
+const TipsModel = require("@models/HealthTips");
+const PhotoModel = require("@models/Photo");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
@@ -142,12 +144,6 @@ class BatchProcessor {
       // Wait for status updates
       await Promise.all(updatePromises);
 
-      // Handle averages calculation with caching
-      let averages = null;
-      if (doc.site_id) {
-        averages = await this.getOrQueueAverages(doc.site_id.toString());
-      }
-
       const enrichedDoc = await this.enrichDocument(doc, docTime);
       // Prepare and save reading
       // Build appropriate filter based on deployment type
@@ -163,9 +159,6 @@ class BatchProcessor {
       }
       const { _id, ...updateDoc } = enrichedDoc;
 
-      if (averages) {
-        updateDoc.averages = averages;
-      }
       await ReadingModel("airqo").updateOne(filter, updateDoc, {
         upsert: true,
       });
@@ -355,51 +348,76 @@ class BatchProcessor {
   }
 
   async getSiteImage(siteId) {
-    try {
-      // Use mongoose to query photos collection
-      const photo = await mongoose.connection.db
-        .collection("photos")
-        .findOne({ site_id: siteId });
-      return photo;
-    } catch (error) {
-      logger.warn(`Failed to get site image for ${siteId}: ${error.message}`);
-      return null;
-    }
-  }
+    const cacheKey = `site_image_${siteId}`;
+    let siteImage = this.siteCache.get(cacheKey);
 
+    if (!siteImage) {
+      try {
+        // Direct model query - more efficient than using .list()
+        const photo = await PhotoModel("airqo")
+          .findOne(
+            { site_id: siteId },
+            {
+              image_url: 1,
+              metadata: 1,
+              description: 1,
+              tags: 1,
+              _id: 1,
+            }
+          )
+          .lean();
+
+        if (photo) {
+          this.siteCache.set(cacheKey, photo);
+        }
+        siteImage = photo;
+      } catch (error) {
+        logger.warn(`Failed to get site image for ${siteId}: ${error.message}`);
+        siteImage = null;
+      }
+    }
+
+    return siteImage;
+  }
   async getHealthTips(pm25Value) {
     const cacheKey = `health_tips_${Math.floor(pm25Value)}`;
     let healthTips = this.healthTipsCache.get(cacheKey);
 
     if (!healthTips) {
       try {
-        const tips = await mongoose.connection.db
-          .collection("healthtips")
-          .find({
-            "aqi_category.min": { $lte: pm25Value },
-            "aqi_category.max": { $gte: pm25Value },
-          })
-          .toArray();
+        // Direct model query with proper projection
+        const tips = await TipsModel("airqo")
+          .find(
+            {
+              "aqi_category.min": { $lte: pm25Value },
+              "aqi_category.max": { $gte: pm25Value },
+            },
+            {
+              title: 1,
+              description: 1,
+              tag_line: 1,
+              image: 1,
+              _id: 0, // Exclude _id for cleaner response
+            }
+          )
+          .lean();
 
         if (tips && tips.length > 0) {
-          healthTips = tips.map((tip) => ({
-            title: tip.title,
-            description: tip.description,
-            tag_line: tip.tag_line,
-            image: tip.image,
-          }));
+          healthTips = tips;
           this.healthTipsCache.set(cacheKey, healthTips);
+        } else {
+          healthTips = null;
         }
       } catch (error) {
         logger.warn(
           `Failed to get health tips for PM2.5 ${pm25Value}: ${error.message}`
         );
+        healthTips = null;
       }
     }
 
     return healthTips;
   }
-
   calculateAQI(doc) {
     // Add AQI ranges
     doc.aqi_ranges = constants.AQI_RANGES;

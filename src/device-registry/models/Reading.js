@@ -9,6 +9,46 @@ const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- reading-model`);
 
+// Helper function for safe pollutant value conversion
+const createSafePollutantLookup = (
+  pollutantField,
+  collectionName = "healthtips"
+) => ({
+  $lookup: {
+    from: collectionName,
+    let: {
+      pollutantValue: {
+        $cond: {
+          if: {
+            $and: [
+              { $ne: [pollutantField, null] },
+              { $ne: [pollutantField, undefined] },
+              { $isNumber: pollutantField },
+              { $gte: [pollutantField, 0] },
+            ],
+          },
+          then: { $toInt: pollutantField },
+          else: null,
+        },
+      },
+    },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $ne: ["$$pollutantValue", null] },
+              { $lte: ["$aqi_category.min", "$$pollutantValue"] },
+              { $gte: ["$aqi_category.max", "$$pollutantValue"] },
+            ],
+          },
+        },
+      },
+    ],
+    as: "health_tips",
+  },
+});
+
 const HealthTipsSchema = new Schema(
   {
     title: String,
@@ -1144,29 +1184,7 @@ ReadingsSchema.statics.listRecent = async function(
           as: "gridDetails",
         },
       },
-
-      // Lookup health tips
-      {
-        $lookup: {
-          from: "healthtips",
-          let: { pollutantValue: { $toInt: "$pm2_5.value" } },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $lte: ["$aqi_category.min", "$$pollutantValue"] },
-                    { $gte: ["$aqi_category.max", "$$pollutantValue"] },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "health_tips",
-        },
-      },
-
-      // Project final shape
+      createSafePollutantLookup("$pm2_5.value"),
       {
         $project: {
           _id: 0,
@@ -1260,7 +1278,7 @@ ReadingsSchema.statics.viewRecent = async function(filter, next) {
           as: "siteDetails",
         },
       },
-
+      createSafePollutantLookup("$pm2_5.value"),
       {
         $project: {
           _id: 0,
