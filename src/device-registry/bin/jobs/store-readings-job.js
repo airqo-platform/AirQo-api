@@ -4,6 +4,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/v2.1-store-readings-job`
 );
 const EventModel = require("@models/Event");
+const GridModel = require("@models/Grid");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
@@ -112,6 +113,27 @@ class BatchProcessor {
         );
       }
 
+      if (doc.grid_id) {
+        updatePromises.push(
+          updateEntityStatus(
+            GridModel("airqo"),
+            { _id: doc.grid_id },
+            docTime.toDate(),
+            "Grid"
+          )
+        );
+      }
+
+      if (doc.grid_id && doc.device_id) {
+        updatePromises.push(
+          updateGridMobileDeviceActivity(
+            doc.grid_id,
+            doc.device_id,
+            docTime.toDate()
+          )
+        );
+      }
+
       // Wait for status updates
       await Promise.all(updatePromises);
 
@@ -122,7 +144,17 @@ class BatchProcessor {
       }
 
       // Prepare and save reading
-      const filter = { site_id: doc.site_id, time: docTime.toDate() };
+      // Build appropriate filter based on deployment type
+      let filter = { time: docTime.toDate() };
+
+      if (doc.deployment_type === "static") {
+        filter.site_id = doc.site_id;
+      } else if (doc.deployment_type === "mobile") {
+        if (doc.grid_id) {
+          filter.grid_id = doc.grid_id;
+        }
+        filter.device_id = doc.device_id;
+      }
       const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
 
       if (averages) {
@@ -234,6 +266,48 @@ async function updateOfflineSites(data) {
   }
 }
 
+// Helper function to update offline grids for mobile devices
+async function updateOfflineGrids(data) {
+  try {
+    const activeGridIds = new Set(
+      data
+        .filter((doc) => doc.deployment_type === "mobile" && doc.grid_id)
+        .map((doc) => doc.grid_id)
+        .filter(Boolean)
+    );
+
+    const thresholdTime = moment()
+      .subtract(INACTIVE_THRESHOLD, "milliseconds")
+      .toDate();
+
+    await GridModel("airqo").updateMany(
+      {
+        _id: { $nin: Array.from(activeGridIds) },
+        lastActive: { $lt: thresholdTime },
+      },
+      { isOnline: false }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
+    logger.error(`🐛🐛 Error updating offline grids: ${error.message}`);
+  }
+}
+
+async function updateGridMobileDeviceActivity(gridId, deviceId, time) {
+  try {
+    await GridModel("airqo").updateMobileDeviceActivity(gridId, deviceId);
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
+    logger.error(
+      `🐛🐛 Error updating grid mobile device activity: ${error.message}`
+    );
+  }
+}
+
 // Main function to fetch and store data
 async function fetchAndStoreDataIntoReadingsModel() {
   const batchProcessor = new BatchProcessor(50);
@@ -321,7 +395,23 @@ async function fetchAndStoreDataIntoReadingsModel() {
     }
 
     // Update offline devices and sites
-    await Promise.all([updateOfflineDevices(data), updateOfflineSites(data)]);
+    await Promise.all([
+      updateOfflineDevices(data),
+      updateOfflineSites(data),
+      updateOfflineGrids(data),
+    ]);
+
+    try {
+      await GridModel("airqo").cleanupInactiveDevices(
+        INACTIVE_THRESHOLD / (60 * 60 * 1000)
+      ); // Convert ms to hours
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) {
+        logger.error(
+          `🐛🐛 Error cleaning up inactive grid devices: ${error.message}`
+        );
+      }
+    }
 
     logText("All data inserted successfully and offline devices updated");
   } catch (error) {
@@ -372,8 +462,10 @@ module.exports = {
   fetchAndStoreDataIntoReadingsModel,
   BatchProcessor,
   updateEntityStatus,
+  updateGridMobileDeviceActivity,
+  updateOfflineGrids,
   isEntityActive,
   updateOfflineDevices,
   updateOfflineSites,
-  isDuplicateKeyError, // Export the utility function for testing
+  isDuplicateKeyError,
 };
