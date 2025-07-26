@@ -295,7 +295,6 @@ async function updateOfflineGrids(data) {
   }
 }
 
-// Helper function to update offline grids for mobile devices
 async function updateGridMobileDeviceActivity(gridId, deviceId, time) {
   try {
     await GridModel("airqo").updateMobileDeviceActivity(gridId, deviceId);
@@ -403,7 +402,9 @@ async function fetchAndStoreDataIntoReadingsModel() {
     ]);
 
     try {
-      await GridModel("airqo").cleanupInactiveDevices(5); // 5-hour threshold
+      await GridModel("airqo").cleanupInactiveDevices(
+        INACTIVE_THRESHOLD / (60 * 60 * 1000)
+      ); // Convert ms to hours
     } catch (error) {
       if (!isDuplicateKeyError(error)) {
         logger.error(

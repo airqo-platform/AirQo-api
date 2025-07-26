@@ -435,6 +435,9 @@ gridSchema.statics.updateMobileDeviceActivity = async function(
   next
 ) {
   try {
+    if (!gridId || !deviceId) {
+      throw new Error("Both gridId and deviceId are required");
+    }
     const result = await this.findByIdAndUpdate(
       gridId,
       {
@@ -502,19 +505,20 @@ gridSchema.statics.cleanupInactiveDevices = async function(
         },
       }
     );
-
-    // Update mobile device counts and online status
-    const gridsToUpdate = await this.find({}).select("_id activeMobileDevices");
-
-    for (const grid of gridsToUpdate) {
-      const isOnline = grid.activeMobileDevices.length > 0;
-      await this.findByIdAndUpdate(grid._id, {
-        $set: {
-          mobileDeviceCount: grid.activeMobileDevices.length,
-          isOnline: isOnline,
-          lastActive: isOnline ? new Date() : grid.lastActive,
+    try {
+      // Update counts and online status in bulk
+      await this.updateMany({}, [
+        {
+          $set: {
+            mobileDeviceCount: { $size: "$activeMobileDevices" },
+            isOnline: { $gt: [{ $size: "$activeMobileDevices" }, 0] },
+          },
         },
-      });
+      ]);
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Error updating counts and online status: ${error.message}`
+      );
     }
 
     return {

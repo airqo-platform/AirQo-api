@@ -244,7 +244,6 @@ ReadingsSchema.index(
 );
 ReadingsSchema.index({ device_id: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ device: 1, time: 1 }, { unique: true });
-ReadingsSchema.index({ site_id: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ deployment_type: 1, time: -1 });
 ReadingsSchema.index({ deployment_type: 1, device_id: 1, time: -1 });
 ReadingsSchema.index(
@@ -286,6 +285,14 @@ ReadingsSchema.index(
 ReadingsSchema.methods = {
   toJSON() {
     const obj = {
+      is_reading_primary: this.is_reading_primary,
+      health_tips: this.health_tips,
+      timeDifferenceHours: this.timeDifferenceHours,
+      aqi_ranges: this.aqi_ranges,
+      aqi_color: this.aqi_color,
+      aqi_category: this.aqi_category,
+      aqi_color_name: this.aqi_color_name,
+      averages: this.averages,
       device: this.device,
       device_id: this.device_id,
       deployment_type: this.deployment_type,
@@ -294,7 +301,6 @@ ReadingsSchema.methods = {
       pm10: this.pm10,
       frequency: this.frequency,
       no2: this.no2,
-      // ... other common fields
     };
 
     // Include location-specific fields based on deployment type
