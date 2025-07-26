@@ -153,8 +153,7 @@ const normalizeLocationData = (measurements) => {
       }
 
       // Remove the nested location object to avoid confusion downstream
-      // Keep it as a comment for potential future use
-      // delete measurement.location;
+      delete measurement.location;
     }
 
     return measurement;

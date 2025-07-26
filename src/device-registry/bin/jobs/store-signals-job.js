@@ -74,7 +74,30 @@ const fetchAndStoreDataIntoSignalsModel = async () => {
             async (bail) => {
               try {
                 // logObject("document", doc);
-                const filter = { site_id: doc.site_id, time: doc.time };
+                const buildDocumentFilter = (doc) => {
+                  const baseFilter = { time: doc.time };
+
+                  // For static devices, use site_id
+                  if (doc.site_id) {
+                    return { ...baseFilter, site_id: doc.site_id };
+                  }
+
+                  // For mobile devices, use grid_id
+                  if (doc.grid_id) {
+                    return { ...baseFilter, grid_id: doc.grid_id };
+                  }
+
+                  // Fallback to device_id if neither location is available
+                  if (doc.device_id) {
+                    return { ...baseFilter, device_id: doc.device_id };
+                  }
+
+                  throw new Error(
+                    "Document must have either site_id, grid_id, or device_id for filtering"
+                  );
+                };
+
+                const filter = buildDocumentFilter(doc);
                 const updateDoc = { ...doc };
                 delete updateDoc._id; // Remove the _id field
                 const res = await SignalModel("airqo").updateOne(
