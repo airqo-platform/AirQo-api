@@ -1240,7 +1240,7 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const { query } = request;
-      let { limit, skip } = query;
+      let { limit, skip, recent } = query;
       limit = Number(limit);
       skip = Number(skip);
 
@@ -1255,6 +1255,13 @@ const createEvent = {
       const { tenant } = query;
       let page = parseInt(query.page);
       const language = request.query.language;
+
+      if (recent === "yes") {
+        logText("Routing recent query to optimized Readings collection");
+        return await createEvent.listFromReadings(request, next);
+      }
+
+      logText("Using Events collection for historical data");
       const filter = generateFilter.events(request, next);
 
       try {
@@ -1390,6 +1397,151 @@ const createEvent = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+    }
+  },
+  listFromReadings: async (request, next) => {
+    try {
+      let missingDataMessage = "";
+      const { query } = request;
+      let { limit, skip, tenant, language } = query;
+
+      limit = Number(limit) || 30;
+      skip = Number(skip) || 0;
+      let page = parseInt(query.page);
+
+      if (page) {
+        skip = parseInt((page - 1) * limit);
+      }
+
+      // Try cache first
+      try {
+        const cacheResult = await Promise.race([
+          createEvent.getCache(request, next),
+          new Promise((resolve) =>
+            setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
+              success: false,
+              message: "Cache timeout",
+              isCacheTimeout: true,
+            })
+          ),
+        ]);
+
+        if (cacheResult && cacheResult.success === true && cacheResult.data) {
+          logText("Cache hit - returning cached result from readings");
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.warn(`🚨 Cache get operation failed: ${stringify(error)}`);
+      }
+
+      // Generate filter for Readings collection
+      const filter = generateFilter.readings(request, next);
+
+      // Use ReadingModel for optimized queries
+      const responseFromListReadings = await ReadingModel(tenant).listRecent(
+        {
+          filter,
+          skip,
+          limit,
+          page,
+        },
+        next
+      );
+
+      if (!responseFromListReadings) {
+        logger.error(`🐛🐛 ReadingModel.listRecent returned null/undefined`);
+        return {
+          success: false,
+          message: "Database model returned null response",
+          errors: { message: "Model method returned null/undefined" },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+
+      // Handle language translation if needed
+      if (
+        language !== undefined &&
+        responseFromListReadings.success === true &&
+        !isEmpty(responseFromListReadings.data)
+      ) {
+        const data = responseFromListReadings.data;
+        for (const event of data) {
+          try {
+            const translatedHealthTips = await translate.translateTips(
+              { healthTips: event.health_tips, targetLanguage: language },
+              next
+            );
+            if (translatedHealthTips.success === true) {
+              event.health_tips = translatedHealthTips.data;
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+          }
+        }
+      }
+
+      if (responseFromListReadings.success === true) {
+        const data = responseFromListReadings.data;
+
+        // Set cache
+        try {
+          await Promise.race([
+            createEvent.setCache(responseFromListReadings, request, next),
+            new Promise((resolve) =>
+              setTimeout(resolve, CACHE_TIMEOUT_PERIOD, {
+                success: false,
+                message: "Cache set timeout",
+              })
+            ),
+          ]);
+        } catch (error) {
+          logger.warn(`🚨 Cache set operation failed: ${stringify(error)}`);
+        }
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data)
+            ? "no measurements for this search"
+            : responseFromListReadings.message,
+          data,
+          status: responseFromListReadings.status || httpStatus.OK,
+          isCache: false,
+          source: "readings", // Indicate data source
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve readings --- ${stringify(
+            responseFromListReadings.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: responseFromListReadings.message,
+          errors: responseFromListReadings.errors || {
+            message: "Database operation failed",
+          },
+          status:
+            responseFromListReadings.status || httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in listFromReadings: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
     }
@@ -1534,8 +1686,14 @@ const createEvent = {
     try {
       let missingDataMessage = "";
       const {
-        query: { tenant, language },
+        query: { tenant, language, recent },
       } = request;
+
+      if (recent === "yes") {
+        logText("Routing recent view query to optimized Readings collection");
+        return await createEvent.viewFromReadings(request, next);
+      }
+
       const filter = generateFilter.readings(request, next);
 
       try {
@@ -1648,6 +1806,117 @@ const createEvent = {
         )
       );
       return;
+    }
+  },
+  viewFromReadings: async (request, next) => {
+    try {
+      let missingDataMessage = "";
+      const {
+        query: { tenant, language },
+      } = request;
+      const filter = generateFilter.readings(request, next);
+
+      // Try cache first
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
+        if (cacheResult.success === true) {
+          logText("Cache hit - returning cached view result from readings");
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.warn(`Cache get operation failed: ${stringify(error)}`);
+      }
+
+      const viewReadingsResponse = await ReadingModel(tenant).viewRecent(
+        filter,
+        next
+      );
+
+      // Handle language translation
+      if (
+        language !== undefined &&
+        viewReadingsResponse.success === true &&
+        !isEmpty(viewReadingsResponse.data[0].data)
+      ) {
+        const data = viewReadingsResponse.data[0].data;
+        for (const event of data) {
+          try {
+            const translatedHealthTips = await translate.translateTips(
+              { healthTips: event.health_tips, targetLanguage: language },
+              next
+            );
+            if (translatedHealthTips.success === true) {
+              event.health_tips = translatedHealthTips.data;
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+          }
+        }
+      }
+
+      if (viewReadingsResponse.success === true) {
+        const data = viewReadingsResponse.data;
+
+        // Set cache
+        try {
+          await createEvent.handleCacheOperation(
+            "set",
+            viewReadingsResponse,
+            request,
+            next
+          );
+        } catch (error) {
+          logger.warn(`Cache set operation failed: ${stringify(error)}`);
+        }
+
+        return {
+          success: true,
+          message: !isEmpty(missingDataMessage)
+            ? missingDataMessage
+            : isEmpty(data[0].data)
+            ? "no measurements for this search"
+            : viewReadingsResponse.message,
+          data,
+          status: viewReadingsResponse.status || httpStatus.OK,
+          isCache: false,
+          source: "readings",
+        };
+      } else {
+        logger.error(
+          `Unable to retrieve readings view --- ${stringify(
+            viewReadingsResponse.errors
+          )}`
+        );
+
+        return {
+          success: false,
+          message: viewReadingsResponse.message,
+          errors: viewReadingsResponse.errors || {
+            message: "Database operation failed",
+          },
+          status:
+            viewReadingsResponse.status || httpStatus.INTERNAL_SERVER_ERROR,
+          isCache: false,
+        };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in viewFromReadings: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
   fetchAndStoreData: async (request, next) => {
@@ -5001,6 +5270,114 @@ const createEvent = {
     } catch (error) {
       logger.warn(`Cache operation ${operation} failed: ${error.message}`);
       return { success: false, message: "Cache operation failed" };
+    }
+  },
+
+  listFromReadingsOptimized: async (request, next) => {
+    try {
+      const { query } = request;
+      let { limit, skip, tenant, language, recent } = query;
+
+      limit = Number(limit) || 30;
+      skip = Number(skip) || 0;
+      let page = parseInt(query.page);
+
+      if (page) {
+        skip = parseInt((page - 1) * limit);
+      }
+
+      // Try cache first
+      try {
+        const cacheResult = await createEvent.handleCacheOperation(
+          "get",
+          null,
+          request,
+          next
+        );
+        if (cacheResult.success === true) {
+          logText("Cache hit - returning ultra-optimized cached result");
+          return cacheResult.data;
+        }
+      } catch (error) {
+        logger.warn(`Cache operation failed: ${stringify(error)}`);
+      }
+
+      // Generate simple filter for Readings
+      const filter = generateFilter.readings(request, next);
+
+      // **Use ultra-fast method with no aggregations**
+      const responseFromListReadings = await ReadingModel(
+        tenant
+      ).listRecentOptimized(
+        {
+          filter,
+          skip,
+          limit,
+          page,
+        },
+        next
+      );
+
+      if (!responseFromListReadings.success) {
+        return responseFromListReadings;
+      }
+
+      const data = responseFromListReadings.data;
+
+      // Handle language translation (only if needed)
+      if (language !== undefined && !isEmpty(data[0].data)) {
+        for (const event of data[0].data) {
+          try {
+            if (event.health_tips) {
+              const translatedHealthTips = await translate.translateTips(
+                { healthTips: event.health_tips, targetLanguage: language },
+                next
+              );
+              if (translatedHealthTips.success === true) {
+                event.health_tips = translatedHealthTips.data;
+              }
+            }
+          } catch (translationError) {
+            logger.warn(`Translation failed: ${translationError.message}`);
+          }
+        }
+      }
+
+      // Set cache
+      try {
+        await createEvent.handleCacheOperation(
+          "set",
+          responseFromListReadings,
+          request,
+          next
+        );
+      } catch (error) {
+        logger.warn(`Cache set failed: ${stringify(error)}`);
+      }
+
+      return {
+        success: true,
+        message: isEmpty(data[0].data)
+          ? "no measurements for this search"
+          : "successfully returned the measurements",
+        data,
+        status: httpStatus.OK,
+        isCache: false,
+        source: "readings_ultra_optimized",
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Ultra-optimized listFromReadings error: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
     }
   },
 };

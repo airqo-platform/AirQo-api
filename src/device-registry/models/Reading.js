@@ -129,10 +129,10 @@ const averagesSchema = new Schema(
 
 const ReadingsSchema = new Schema(
   {
+    // **CORE IDENTIFICATION**
     device: String,
     device_id: String,
-    is_reading_primary: Boolean,
-    health_tips: [HealthTipsSchema],
+    site: String, // Site name
     site_id: {
       type: String,
       required: function() {
@@ -145,53 +145,122 @@ const ReadingsSchema = new Schema(
         return this.deployment_type === "mobile" && !this.location;
       },
     },
+    device_number: Number,
+
+    // **TIMING**
     time: Date,
-    pm2_5: { value: Number },
-    pm10: { value: Number },
     frequency: String,
+    timeDifferenceHours: Number,
+
+    // **DEPLOYMENT CONTEXT**
     deployment_type: {
       type: String,
       enum: ["static", "mobile"],
       default: "static",
       required: true,
     },
+    tenant: { type: String, default: "airqo" },
+    network: { type: String, default: "airqo" },
+
+    // **PRIMARY PM SENSORS**
+    pm1: { value: Number },
+    pm2_5: { value: Number },
+    pm10: { value: Number },
+    no2: { value: Number },
+
+    // **DUAL SENSOR PM VALUES**
+    s1_pm1: { value: Number },
+    s2_pm1: { value: Number },
+    s1_pm2_5: { value: Number },
+    s2_pm2_5: { value: Number },
+    s1_pm10: { value: Number },
+    s2_pm10: { value: Number },
+
+    // **AVERAGED VALUES**
+    average_pm2_5: { value: Number },
+    average_pm10: { value: Number },
+
+    // **ENVIRONMENTAL SENSORS**
+    tvoc: { value: Number },
+    co2: { value: Number },
+    hcho: { value: Number },
+    intaketemperature: { value: Number },
+    intakehumidity: { value: Number },
+    internalTemperature: { value: Number },
+    internalHumidity: { value: Number },
+    externalTemperature: { value: Number },
+    externalHumidity: { value: Number },
+    externalPressure: { value: Number },
+    externalAltitude: { value: Number },
+
+    // **LOCATION DATA**
     location: {
       latitude: {
-        value: {
-          type: Number,
-          min: -90,
-          max: 90,
-        },
+        value: { type: Number, min: -90, max: 90 },
         quality: String,
       },
       longitude: {
-        value: {
-          type: Number,
-          min: -180,
-          max: 180,
-        },
+        value: { type: Number, min: -180, max: 180 },
         quality: String,
       },
       accuracy: Number,
       speed: Number,
       heading: Number,
     },
-    no2: { value: Number },
+
+    // **GPS/NAVIGATION**
+    speed: { value: Number },
+    satellites: { value: Number },
+    hdop: { value: Number },
+    altitude: { value: Number },
+
+    // **POWER & TECHNICAL**
+    battery: { value: Number },
+    rtc_adc: { value: Number },
+    rtc_v: { value: Number },
+    rtc: { value: Number },
+    stc_adc: { value: Number },
+    stc_v: { value: Number },
+    stc: { value: Number },
+
+    // **STATUS & FLAGS**
+    is_test_data: { type: Boolean, default: false },
+    is_reading_primary: Boolean,
+    is_device_primary: { type: Boolean, default: false },
+
+    // **PRE-COMPUTED LOOKUP FIELDS**
     siteDetails: SiteDetailsSchema,
     gridDetails: GridDetailsSchema,
+    deviceDetails: {
+      _id: Schema.Types.ObjectId,
+      name: String,
+      device_number: Number,
+      isPrimaryInLocation: Boolean,
+      network: String,
+      deployment_type: String,
+      mobility: String,
+      isActive: Boolean,
+    },
+
+    // **PRE-COMPUTED UI FIELDS**
+    site_image: String,
+
+    // **PRE-COMPUTED AQI FIELDS**
     aqi_ranges: AqiRangeSchema,
-    timeDifferenceHours: Number,
     aqi_color: String,
     aqi_category: String,
     aqi_color_name: String,
-    averages: { type: averagesSchema },
+
+    // **PRE-COMPUTED HEALTH & ANALYTICS**
+    health_tips: [HealthTipsSchema],
+    averages: averagesSchema,
   },
   {
     timestamps: true,
     indexes: [
       {
         fields: { time: 1 },
-        expireAfterSeconds: 60 * 60 * 24 * 30, // 1 month in seconds
+        expireAfterSeconds: 60 * 60 * 24 * 14, // 2 weeks = 1,209,600 seconds
       },
     ],
   }
@@ -934,7 +1003,6 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
     };
   }
 };
-
 ReadingsSchema.statics.getWorstPm2_5Reading = async function({
   siteIds = [],
   next,
@@ -1031,6 +1099,301 @@ ReadingsSchema.statics.getWorstPm2_5Reading = async function({
         stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
       data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+ReadingsSchema.statics.listRecent = async function(
+  { filter = {}, limit = 1000, skip = 0, page = 1 } = {},
+  next
+) {
+  try {
+    logText("Using optimized Readings collection for recent data query");
+
+    // Build aggregation pipeline for Readings (much simpler than Events)
+    const pipeline = [
+      { $match: filter },
+      { $sort: { time: -1 } }, // Most recent first
+
+      // Lookup site details if needed
+      {
+        $lookup: {
+          from: "sites",
+          localField: "site_id",
+          foreignField: "_id",
+          as: "siteDetails",
+        },
+      },
+
+      // Lookup device details if needed
+      {
+        $lookup: {
+          from: "devices",
+          localField: "device_id",
+          foreignField: "_id",
+          as: "deviceDetails",
+        },
+      },
+
+      // Lookup grid details for mobile devices
+      {
+        $lookup: {
+          from: "grids",
+          localField: "grid_id",
+          foreignField: "_id",
+          as: "gridDetails",
+        },
+      },
+
+      // Lookup health tips
+      {
+        $lookup: {
+          from: "healthtips",
+          let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $lte: ["$aqi_category.min", "$$pollutantValue"] },
+                    { $gte: ["$aqi_category.max", "$$pollutantValue"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "health_tips",
+        },
+      },
+
+      // Project final shape
+      {
+        $project: {
+          _id: 0,
+          device: 1,
+          device_id: 1,
+          site_id: 1,
+          grid_id: 1,
+          deployment_type: 1,
+          time: 1,
+          pm2_5: 1,
+          pm10: 1,
+          no2: 1,
+          frequency: 1,
+          location: 1,
+          averages: 1,
+          timeDifferenceHours: 1,
+          aqi_color: 1,
+          aqi_category: 1,
+          aqi_color_name: 1,
+          aqi_ranges: 1,
+          health_tips: 1,
+          siteDetails: { $arrayElemAt: ["$siteDetails", 0] },
+          deviceDetails: { $arrayElemAt: ["$deviceDetails", 0] },
+          gridDetails: { $arrayElemAt: ["$gridDetails", 0] },
+        },
+      },
+
+      // Facet for pagination
+      {
+        $facet: {
+          total: [{ $count: "count" }],
+          data: [{ $skip: skip || 0 }, { $limit: limit || 1000 }],
+        },
+      },
+
+      // Final projection with metadata
+      {
+        $project: {
+          meta: {
+            total: { $arrayElemAt: ["$total.count", 0] },
+            skip: { $literal: skip },
+            limit: { $literal: limit },
+            page: { $literal: Math.floor(skip / limit) + 1 },
+            pages: {
+              $ceil: {
+                $divide: [{ $arrayElemAt: ["$total.count", 0] }, limit],
+              },
+            },
+          },
+          data: "$data",
+        },
+      },
+    ];
+
+    const result = await this.aggregate(pipeline).allowDiskUse(true);
+
+    const response = result[0] || { meta: { total: 0 }, data: [] };
+
+    return {
+      success: true,
+      message:
+        "Successfully retrieved recent measurements from optimized collection",
+      data: [response], // Wrap in array to match Events format
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error -- listRecent -- ${error.message}`
+    );
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+ReadingsSchema.statics.viewRecent = async function(filter, next) {
+  try {
+    logText("Using optimized Readings collection for recent view query");
+
+    const pipeline = [
+      { $match: filter },
+      { $sort: { time: -1 } },
+
+      // Simplified lookup and projection for view operations
+      {
+        $lookup: {
+          from: "sites",
+          localField: "site_id",
+          foreignField: "_id",
+          as: "siteDetails",
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          device: 1,
+          device_id: 1,
+          site_id: 1,
+          grid_id: 1,
+          deployment_type: 1,
+          time: 1,
+          pm2_5: 1,
+          pm10: 1,
+          no2: 1,
+          frequency: 1,
+          location: 1,
+          siteDetails: { $arrayElemAt: ["$siteDetails", 0] },
+        },
+      },
+
+      {
+        $facet: {
+          data: [{ $match: {} }],
+          meta: [
+            { $count: "total" },
+            {
+              $addFields: {
+                pm2_5Avg: { $avg: "$pm2_5.value" },
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const result = await this.aggregate(pipeline).allowDiskUse(true);
+
+    return {
+      success: true,
+      message: "Successfully retrieved recent measurements",
+      data: result,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error -- viewRecent -- ${error.message}`
+    );
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
+  }
+};
+ReadingsSchema.statics.listRecentOptimized = async function(
+  { filter = {}, limit = 1000, skip = 0, page = 1 } = {},
+  next
+) {
+  try {
+    logText(
+      "Using ultra-optimized Readings collection - no aggregations needed!"
+    );
+
+    // Simple find with projection - no lookups needed!
+    const totalCount = await this.countDocuments(filter);
+
+    const data = await this.find(filter)
+      .sort({ time: -1 })
+      .skip(skip || 0)
+      .limit(limit || 1000)
+      .lean(); // Use lean() for better performance
+
+    // Filter out null pm2_5 values
+    const filteredData = data.filter((record) => record.pm2_5?.value !== null);
+
+    // Build response matching Events format exactly
+    const response = {
+      meta: {
+        total: totalCount,
+        skip: skip || 0,
+        limit: limit || 1000,
+        page: Math.floor((skip || 0) / (limit || 1000)) + 1,
+        pages: Math.ceil(totalCount / (limit || 1000)),
+      },
+      data: filteredData,
+    };
+
+    return {
+      success: true,
+      message:
+        "Successfully retrieved recent measurements from ultra-optimized collection",
+      data: [response], // Wrap to match Events format
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Ultra-optimized query error: ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+ReadingsSchema.statics.getLatestByLocation = async function(
+  { deployment_type, location_ids, limit = 100 } = {},
+  next
+) {
+  try {
+    let filter = {};
+
+    if (deployment_type === "static" && location_ids) {
+      filter.site_id = { $in: location_ids };
+    } else if (deployment_type === "mobile" && location_ids) {
+      filter.grid_id = { $in: location_ids };
+    }
+
+    // Simple find - all data is pre-computed!
+    const data = await this.find(filter)
+      .sort({ time: -1 })
+      .limit(limit)
+      .lean();
+
+    return {
+      success: true,
+      message: "Successfully retrieved latest readings by location",
+      data: data.filter((record) => record.pm2_5?.value !== null),
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(`🐛🐛 Error getting latest by location: ${error.message}`);
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
   }

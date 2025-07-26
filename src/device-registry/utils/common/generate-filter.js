@@ -372,6 +372,7 @@ const generateFilter = {
       index,
       running,
       brief,
+      deployment_type,
     } = { ...query, ...params };
 
     // Constants for date calculations
@@ -624,6 +625,20 @@ const generateFilter = {
 
     if (brief) {
       filter["brief"] = brief;
+    }
+
+    if (deployment_type === "static" && site_id) {
+      filter.site_id = site_id;
+    } else if (deployment_type === "mobile" && grid_id) {
+      filter.grid_id = grid_id;
+    } else {
+      // If no deployment type specified, include both
+      if (site_id) filter.site_id = site_id;
+      if (grid_id) filter.grid_id = grid_id;
+    }
+
+    if (deployment_type) {
+      filter.deployment_type = deployment_type;
     }
 
     return filter;
