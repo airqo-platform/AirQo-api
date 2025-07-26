@@ -1973,12 +1973,7 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseData,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -2097,12 +2092,7 @@ const createEvent = {
         // Attempt to set cache but don't let failure affect the response
         logText("Attempting to set cache...");
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseData,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -2311,12 +2301,7 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseData,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -2384,6 +2369,7 @@ const createEvent = {
       const readingsResponse = await ReadingModel(
         tenant
       ).getBestAirQualityLocations({ threshold, pollutant, limit, skip }, next);
+      const data = readingsResponse.data;
 
       // Handle language translation for health tips if applicable
       if (
@@ -2391,7 +2377,6 @@ const createEvent = {
         readingsResponse.success === true &&
         !isEmpty(readingsResponse.data)
       ) {
-        const data = readingsResponse.data;
         for (const event of data) {
           const translatedHealthTips = await translate.translateTips(
             { healthTips: event.health_tips, targetLanguage: language },
@@ -2404,12 +2389,7 @@ const createEvent = {
       }
 
       try {
-        await createEvent.handleCacheOperation(
-          "set",
-          responseData,
-          request,
-          next
-        );
+        await createEvent.handleCacheOperation("set", data, request, next);
       } catch (error) {
         logger.warn(`Cache set operation failed: ${stringify(error)}`);
       }
@@ -2490,12 +2470,7 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseData,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
