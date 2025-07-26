@@ -18,6 +18,29 @@ router.delete(
   eventValidations.deleteValuesOnPlatform,
   eventController.delete
 );
+
+// Get deployment statistics
+router.get(
+  "/deployment-stats",
+  eventValidations.getDeploymentStats,
+  eventController.getDeploymentStats
+);
+
+// Validate device deployment context (useful for API consumers)
+router.get(
+  "/validate-device",
+  eventValidations.validateDeviceContext,
+  eventController.validateDeviceContext
+);
+
+// Get events by deployment type
+router.get(
+  "/deployment-type/:deploymentType",
+  eventValidations.listByDeploymentType,
+  pagination(),
+  eventController.listByDeploymentType
+);
+
 router.get(
   "/good",
   eventValidations.listGoodEvents,
