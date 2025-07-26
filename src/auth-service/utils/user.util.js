@@ -2108,9 +2108,11 @@ const createUserModule = {
         userBody
       );
 
+      // Pass the sendDuplicateEmail option to true for this specific flow
       const responseFromCreateUser = await UserModel(tenant).register(
         newRequest,
-        next
+        next,
+        { sendDuplicateEmail: true }
       );
 
       if (!responseFromCreateUser) {

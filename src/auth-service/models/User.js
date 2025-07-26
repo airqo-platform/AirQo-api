@@ -68,6 +68,7 @@ const networkRoleSchema = new Schema({
         "admin",
         "super_admin",
         "viewer",
+        "user",
         "contributor",
         "moderator",
       ],
@@ -99,6 +100,7 @@ const groupRoleSchema = new Schema({
         "admin",
         "super_admin",
         "viewer",
+        "user",
         "contributor",
         "moderator",
       ],
@@ -235,6 +237,7 @@ const UserSchema = new Schema(
       type: String,
       unique: true,
       required: [true, "Email is required"],
+      lowercase: true,
       trim: true,
       validate: {
         validator(email) {
@@ -739,7 +742,8 @@ UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
-  async register(args, next) {
+  async register(args, next, options = {}) {
+    const { sendDuplicateEmail = false } = options;
     try {
       const data = await this.create({
         ...args,
@@ -772,21 +776,23 @@ UserSchema.statics = {
         response["message"] =
           "the email and userName must be unique for every user";
 
-        try {
-          const email = args.email;
-          const firstName = args.firstName;
-          const lastName = args.lastName;
-          const emailResponse = await mailer.existingUserRegistrationRequest(
-            { email, firstName, lastName },
-            next
-          );
-          if (emailResponse && emailResponse.success === false) {
-            logger.error(
-              `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+        if (sendDuplicateEmail) {
+          try {
+            const email = args.email;
+            const firstName = args.firstName;
+            const lastName = args.lastName;
+            const emailResponse = await mailer.existingUserRegistrationRequest(
+              { email, firstName, lastName },
+              next
             );
+            if (emailResponse && emailResponse.success === false) {
+              logger.error(
+                `🐛🐛 Internal Server Error -- ${stringify(emailResponse)}`
+              );
+            }
+          } catch (error) {
+            logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
           }
-        } catch (error) {
-          logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
         }
       } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
