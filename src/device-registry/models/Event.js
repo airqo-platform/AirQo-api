@@ -300,6 +300,19 @@ const valueSchema = new Schema({
         default: null,
         min: -90,
         max: 90,
+        validate: {
+          validator: function(v) {
+            // For mobile devices, latitude is required
+            if (
+              this.parent().deployment_type === "mobile" &&
+              (v === null || v === undefined)
+            ) {
+              return false;
+            }
+            return true;
+          },
+          message: "Mobile devices require valid latitude coordinates",
+        },
       },
     },
     longitude: {
@@ -308,6 +321,19 @@ const valueSchema = new Schema({
         default: null,
         min: -180,
         max: 180,
+        validate: {
+          validator: function(v) {
+            // For mobile devices, longitude is required
+            if (
+              this.parent().deployment_type === "mobile" &&
+              (v === null || v === undefined)
+            ) {
+              return false;
+            }
+            return true;
+          },
+          message: "Mobile devices require valid longitude coordinates",
+        },
       },
     },
     accuracy: {
@@ -559,6 +585,10 @@ eventSchema.index(
     unique: true,
     partialFilterExpression: {
       nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+      $or: [
+        { deployment_type: "static", site_id: { $exists: true } },
+        { deployment_type: "mobile", grid_id: { $exists: true } },
+      ],
     },
   }
 );
@@ -612,14 +642,27 @@ eventSchema.index(
 
 eventSchema.index({ "values.time": 1, "values.site_id": 1 });
 
+eventSchema.index(
+  {
+    deployment_type: 1,
+    "values.location.latitude.value": 1,
+    "values.location.longitude.value": 1,
+    "values.time": -1,
+  },
+  {
+    partialFilterExpression: {
+      deployment_type: "mobile",
+      "values.location.latitude.value": { $exists: true, $ne: null },
+      "values.location.longitude.value": { $exists: true, $ne: null },
+    },
+  }
+);
+
 eventSchema.pre("save", function(next) {
   // Validate deployment type consistency
   if (this.deployment_type === "static") {
     if (!this.site_id) {
       return next(new Error("Static deployments require site_id"));
-    }
-    if (this.grid_id) {
-      return next(new Error("Static deployments should not have grid_id"));
     }
   } else if (this.deployment_type === "mobile") {
     if (!this.grid_id) {

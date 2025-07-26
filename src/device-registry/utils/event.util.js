@@ -5,6 +5,7 @@ const DeviceModel = require("@models/Device");
 const AirQloudModel = require("@models/Airqloud");
 const GridModel = require("@models/Grid");
 const CohortModel = require("@models/Cohort");
+const SiteModel = require("@models/Site");
 
 const {
   logObject,
@@ -359,7 +360,17 @@ async function processEvents(events, next) {
       }
     } catch (e) {
       eventsRejected.push(event);
-      let errMsg = createErrorMessage(event, e);
+      let errMsg = {
+        message: "System conflict detected, most likely a duplicate record",
+        more: e.message,
+        record: {
+          ...(event.device ? { device: event.device } : {}),
+          ...(event.frequency ? { frequency: event.frequency } : {}),
+          ...(event.time ? { time: event.time } : {}),
+          ...(event.device_id ? { device_id: event.device_id } : {}),
+          ...(event.site_id ? { site_id: event.site_id } : {}),
+        },
+      };
       errors.push(errMsg);
     }
   }
@@ -3597,7 +3608,7 @@ const createEvent = {
 
           update["$push"] = { values: value };
 
-          const addedEvents = await Model(tenant).updateOne(
+          const addedEvents = await EventModel(tenant).updateOne(
             modifiedFilter,
             update,
             options
@@ -4324,13 +4335,44 @@ const createEvent = {
         grid_id,
       } = measurement;
 
-      // First, get device information to determine deployment type
-      const deviceQuery = {};
-      if (device_id) deviceQuery._id = device_id;
-      else if (device) deviceQuery.name = device;
-      else if (device_number) deviceQuery.device_number = device_number;
+      // Validate that we have at least one device identifier
+      if (!device_id && !device && !device_number) {
+        throw new HttpError(
+          "Missing device identifier",
+          httpStatus.BAD_REQUEST,
+          {
+            message:
+              "Device identifier required: device_id, device name, or device_number",
+          }
+        );
+      }
 
-      const deviceRecord = await DeviceModel(tenant).findOne(deviceQuery);
+      // Build device query
+      const deviceQuery = {};
+      if (device_id) {
+        // Handle both ObjectId and string formats
+        deviceQuery._id = device_id;
+      } else if (device) {
+        deviceQuery.name = device;
+      } else if (device_number) {
+        deviceQuery.device_number = device_number;
+      }
+
+      let deviceRecord;
+      try {
+        deviceRecord = await DeviceModel(tenant)
+          .findOne(deviceQuery)
+          .lean();
+      } catch (dbError) {
+        logger.error(`Database error finding device: ${dbError.message}`);
+        throw new HttpError(
+          "Database error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: `Failed to query device: ${dbError.message}`,
+          }
+        );
+      }
 
       if (!deviceRecord) {
         throw new HttpError("Device not found", httpStatus.BAD_REQUEST, {
@@ -4338,32 +4380,20 @@ const createEvent = {
         });
       }
 
-      // Determine actual deployment type
+      // Determine actual deployment type with fallbacks
       const actualDeploymentType =
-        deployment_type || deviceRecord.deployment_type || "static";
+        deployment_type || deviceRecord.deployment_type || "static"; // Default fallback
 
-      if (!actualDeploymentType) {
-        throw new HttpError("Missing deployment type", httpStatus.BAD_REQUEST, {
-          message: "Device deployment_type must be specified",
-        });
-      }
-
-      // Validate deployment consistency
+      // Validate deployment consistency but be more lenient
       if (actualDeploymentType === "static") {
-        if (!site_id && !deviceRecord.site_id) {
-          throw new HttpError(
-            "Missing site reference",
-            httpStatus.BAD_REQUEST,
-            { message: "Static devices require site_id for measurements" }
-          );
+        const resolvedSiteId = site_id || deviceRecord.site_id;
+        if (!resolvedSiteId) {
+          logger.warn(`Static device ${deviceRecord.name} missing site_id`);
+          // Don't throw error, just warn and continue
         }
         if (grid_id) {
-          throw new HttpError(
-            "Invalid location reference",
-            httpStatus.BAD_REQUEST,
-            {
-              message: "Static devices should not have grid_id in measurements",
-            }
+          logger.warn(
+            `Static device ${deviceRecord.name} has grid_id, which may be unnecessary`
           );
         }
       } else if (actualDeploymentType === "mobile") {
@@ -4372,7 +4402,7 @@ const createEvent = {
           !measurement.location?.latitude?.value ||
           !measurement.location?.longitude?.value
         ) {
-          logger.error(
+          logger.warn(
             `Mobile device measurement missing location data: ${deviceRecord.name}`
           );
           logObject(
@@ -4394,9 +4424,13 @@ const createEvent = {
       };
     } catch (error) {
       logObject("Error resolving device deployment context", error);
+
+      // Re-throw HttpErrors as-is
       if (error instanceof HttpError) {
         throw error;
       }
+
+      // Wrap other errors
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
@@ -4413,42 +4447,73 @@ const createEvent = {
           let time = measurement.time;
           const day = generateDateFormatWithoutHrs(time);
 
-          const deploymentContext = await createEvent.resolveDeviceDeploymentContext(
-            measurement,
-            measurement.tenant || "airqo",
-            next
-          );
-
+          // Initialize transformedMeasurement early to avoid undefined errors
           let transformedMeasurement = {
             day: day,
             ...measurement,
-            // ENHANCED: Include deployment metadata
-            deployment_type: deploymentContext.actualDeploymentType,
-            device_deployment_type:
-              deploymentContext.deviceRecord.deployment_type,
+            // Default deployment type if not specified
+            deployment_type: measurement.deployment_type || "static",
           };
 
-          // ENHANCED: Handle location references based on deployment type
-          if (deploymentContext.actualDeploymentType === "static") {
-            transformedMeasurement.site_id = deploymentContext.resolvedSiteId;
-            // Ensure grid_id is not included for static devices
-            if (transformedMeasurement.grid_id) {
-              delete transformedMeasurement.grid_id;
-            }
-          } else if (deploymentContext.actualDeploymentType === "mobile") {
-            transformedMeasurement.grid_id = deploymentContext.resolvedGridId;
+          try {
+            const deploymentContext = await createEvent.resolveDeviceDeploymentContext(
+              measurement,
+              measurement.tenant || "airqo",
+              next
+            );
 
-            // For mobile devices, we can optionally include site_id if the device
-            // happens to be at a known site location, but it's not required
-            if (
-              transformedMeasurement.site_id &&
-              !deploymentContext.resolvedSiteId
-            ) {
-              // If site_id is provided in measurement but device isn't associated with a site
-              logObject("Mobile device measurement includes site_id", {
-                device: deploymentContext.deviceRecord.name,
-                provided_site_id: transformedMeasurement.site_id,
-              });
+            // Update with enhanced deployment metadata
+            transformedMeasurement.deployment_type =
+              deploymentContext.actualDeploymentType;
+            transformedMeasurement.device_deployment_type =
+              deploymentContext.deviceRecord.deployment_type;
+
+            // Handle location references based on deployment type
+            if (deploymentContext.actualDeploymentType === "static") {
+              transformedMeasurement.site_id = deploymentContext.resolvedSiteId;
+              // Ensure grid_id is not included for static devices
+              if (transformedMeasurement.grid_id) {
+                delete transformedMeasurement.grid_id;
+              }
+            } else if (deploymentContext.actualDeploymentType === "mobile") {
+              transformedMeasurement.grid_id = deploymentContext.resolvedGridId;
+
+              // For mobile devices, we can optionally include site_id if the device
+              // happens to be at a known site location, but it's not required
+              if (
+                transformedMeasurement.site_id &&
+                !deploymentContext.resolvedSiteId
+              ) {
+                // If site_id is provided in measurement but device isn't associated with a site
+                logObject("Mobile device measurement includes site_id", {
+                  device: deploymentContext.deviceRecord.name,
+                  provided_site_id: transformedMeasurement.site_id,
+                });
+              }
+            }
+          } catch (contextError) {
+            // If device context resolution fails, continue with basic transformation
+            logger.warn(
+              `Device context resolution failed for device ${measurement.device_id}: ${contextError.message}`
+            );
+
+            // Use measurement-provided deployment_type or default to static
+            transformedMeasurement.deployment_type =
+              measurement.deployment_type || "static";
+
+            // Ensure required fields are present based on deployment type
+            if (transformedMeasurement.deployment_type === "static") {
+              if (!transformedMeasurement.site_id) {
+                throw new Error(
+                  "Static devices require site_id for measurements"
+                );
+              }
+            } else if (transformedMeasurement.deployment_type === "mobile") {
+              if (!transformedMeasurement.grid_id && !measurement.grid_id) {
+                logger.warn(
+                  `Mobile device ${measurement.device_id} missing grid_id, attempting to use location data`
+                );
+              }
             }
           }
 
