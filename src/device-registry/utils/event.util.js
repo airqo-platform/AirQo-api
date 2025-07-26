@@ -1552,12 +1552,7 @@ const createEvent = {
         logText("Setting cache...");
 
         try {
-          await createEvent.handleCacheOperation(
-            "set",
-            responseData,
-            request,
-            next
-          );
+          await createEvent.handleCacheOperation("set", data, request, next);
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
@@ -5126,7 +5121,12 @@ const createEvent = {
       const data = responseFromListReadings.data;
 
       // Handle language translation (only if needed)
-      if (language !== undefined && !isEmpty(data[0].data)) {
+      if (
+        language !== undefined &&
+        !isEmpty(data) &&
+        data[0] &&
+        !isEmpty(data[0].data)
+      ) {
         for (const event of data[0].data) {
           try {
             if (event.health_tips) {
