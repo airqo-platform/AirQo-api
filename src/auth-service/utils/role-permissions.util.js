@@ -19,6 +19,143 @@ const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 // ===== HELPER FUNCTIONS =====
 
 /**
+ * Generate standardized role code from role name and organization
+ * @param {string} roleName - The base role name
+ * @param {string} organizationName - The organization name
+ * @param {string} existingRoleCode - Optional existing role code
+ * @returns {string} Generated role code
+ */
+const generateRoleCode = (
+  roleName,
+  organizationName = "",
+  existingRoleCode = null
+) => {
+  // If role_code is explicitly provided, use it
+  if (existingRoleCode && existingRoleCode.trim()) {
+    const transformedRoleCode =
+      convertToUpperCaseWithUnderscore(existingRoleCode);
+    return organizationName
+      ? `${organizationName}_${transformedRoleCode}`
+      : transformedRoleCode;
+  }
+
+  // Auto-generate from role_name
+  const transformedRoleName = convertToUpperCaseWithUnderscore(roleName);
+  return organizationName
+    ? `${organizationName}_${transformedRoleName}`
+    : transformedRoleName;
+};
+
+/**
+ * Check if role code exists and suggest alternatives
+ * @param {string} tenant - Tenant name
+ * @param {string} baseRoleCode - Base role code to check
+ * @param {string} groupId - Group ID for scoping
+ * @returns {Promise<Object>} Result with available code or suggestions
+ */
+const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
+  try {
+    // Check if base code is available
+    const existingRole = await RoleModel(tenant)
+      .findOne({
+        role_code: baseRoleCode,
+        ...(groupId && { group_id: groupId }),
+      })
+      .lean();
+
+    if (!existingRole) {
+      return {
+        available: true,
+        roleCode: baseRoleCode,
+        suggestions: [],
+      };
+    }
+
+    // Generate alternative suggestions
+    const suggestions = [];
+    for (let i = 1; i <= 5; i++) {
+      const alternativeCode = `${baseRoleCode}_${i}`;
+      const altExists = await RoleModel(tenant)
+        .findOne({
+          role_code: alternativeCode,
+          ...(groupId && { group_id: groupId }),
+        })
+        .lean();
+
+      if (!altExists) {
+        suggestions.push(alternativeCode);
+      }
+    }
+
+    // Try with timestamp suffix
+    const timestamp = Date.now().toString().slice(-4);
+    const timestampCode = `${baseRoleCode}_${timestamp}`;
+    const timestampExists = await RoleModel(tenant)
+      .findOne({
+        role_code: timestampCode,
+        ...(groupId && { group_id: groupId }),
+      })
+      .lean();
+
+    if (!timestampExists) {
+      suggestions.unshift(timestampCode); // Add to beginning
+    }
+
+    return {
+      available: false,
+      conflictingCode: baseRoleCode,
+      suggestions: suggestions.slice(0, 3), // Limit to 3 suggestions
+      existingRole: {
+        id: existingRole._id,
+        name: existingRole.role_name,
+        code: existingRole.role_code,
+      },
+    };
+  } catch (error) {
+    logObject("Error in findAvailableRoleCode:", error);
+    return {
+      available: false,
+      error: error.message,
+      suggestions: [],
+    };
+  }
+};
+
+/**
+ * Generate alternative role names when conflicts occur
+ * @param {string} baseName - Base role name that conflicts
+ * @param {string} tenant - Tenant name
+ * @param {string} groupId - Group ID for scoping
+ * @returns {Promise<Array>} Array of available alternative names
+ */
+const generateAlternativeRoleNames = async (
+  baseName,
+  tenant,
+  groupId = null
+) => {
+  const alternatives = [];
+  const suffixes = ["V2", "NEW", "ALT", Date.now().toString().slice(-4)];
+
+  for (const suffix of suffixes) {
+    const altName = `${baseName}_${suffix}`;
+    const exists = await RoleModel(tenant)
+      .findOne({
+        role_name: altName,
+        ...(groupId && { group_id: groupId }),
+      })
+      .lean();
+
+    if (!exists) {
+      alternatives.push(altName);
+    }
+
+    if (alternatives.length >= 3) break; // Limit suggestions
+  }
+
+  return alternatives;
+};
+
+/**
  * Manually populate role permissions to avoid schema registration issues
  */
 const manuallyPopulateRolePermissions = async (role, tenant) => {
@@ -1182,7 +1319,7 @@ const createOrUpdateRole = async (tenant, roleData) => {
     // Try to create the role directly
     const newRole = await RoleModel(tenant).create({
       role_name: roleData.role_name,
-      role_code: roleData.role_code || roleData.role_name,
+      role_code: generateRoleCode(roleData.role_name, "", roleData.role_code),
       role_description: roleData.role_description,
       group_id: roleData.group_id,
       network_id: roleData.network_id,
@@ -1403,7 +1540,7 @@ const createDefaultRolesForOrganization = async (
         const roleData = {
           ...roleTemplate,
           group_id: groupId,
-          role_code: roleTemplate.role_name,
+          role_code: generateRoleCode(roleTemplate.role_name),
         };
 
         const result = await createOrUpdateRole(tenant, roleData);
@@ -2114,15 +2251,17 @@ const rolePermissionUtil = {
       if (body.group_id) {
         const group = await GroupModel(tenant).findById(body.group_id);
         if (isEmpty(group)) {
-          next(
+          return next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: `Provided group ${body.group_id} is invalid, please crosscheck`,
             })
           );
         }
-        organizationName = group.grp_title.toUpperCase();
+        organizationName = group.grp_title
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_");
       } else {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "Either network_id or group_id must be provided",
           })
@@ -2132,27 +2271,120 @@ const rolePermissionUtil = {
       const transformedRoleName = convertToUpperCaseWithUnderscore(
         body.role_name
       );
-      const availableRoleCode = body.role_code
-        ? body.role_code
-        : body.role_name;
-      const transformedRoleCode =
-        convertToUpperCaseWithUnderscore(availableRoleCode);
+      const finalRoleName = `${organizationName}_${transformedRoleName}`;
 
-      newBody.role_name = `${organizationName}_${transformedRoleName}`;
-      newBody.role_code = `${organizationName}_${transformedRoleCode}`;
+      // PRE-VALIDATION: Check if role_name already exists
+      const existingRoleByName = await RoleModel(tenant)
+        .findOne({
+          role_name: finalRoleName,
+        })
+        .lean();
+
+      if (existingRoleByName) {
+        return next(
+          new HttpError("Role Name Conflict", httpStatus.CONFLICT, {
+            message: `Role with name "${finalRoleName}" already exists`,
+            conflicting_role: {
+              id: existingRoleByName._id,
+              name: existingRoleByName.role_name,
+              code: existingRoleByName.role_code,
+            },
+            suggestions: [
+              `${finalRoleName}_V2`,
+              `${finalRoleName}_NEW`,
+              `${finalRoleName}_${Date.now().toString().slice(-4)}`,
+            ],
+            error_type: "role_name_duplicate",
+          })
+        );
+      }
+
+      // Generate and validate role_code
+      const baseRoleCode = generateRoleCode(
+        body.role_name,
+        organizationName,
+        body.role_code
+      );
+      const roleCodeCheck = await findAvailableRoleCode(
+        tenant,
+        baseRoleCode,
+        body.group_id
+      );
+
+      if (!roleCodeCheck.available) {
+        if (roleCodeCheck.error) {
+          return next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: roleCodeCheck.error,
+              }
+            )
+          );
+        }
+
+        if (body.role_code) {
+          return next(
+            new HttpError("Role Code Conflict", httpStatus.CONFLICT, {
+              message: `Role code "${baseRoleCode}" already exists`,
+              conflicting_role: roleCodeCheck.existingRole,
+              suggestions: roleCodeCheck.suggestions,
+              error_type: "explicit_role_code_conflict",
+            })
+          );
+        }
+
+        if (roleCodeCheck.suggestions.length > 0) {
+          newBody.role_code = roleCodeCheck.suggestions[0];
+          logObject(`Using alternative role code: ${newBody.role_code}`);
+        } else {
+          return next(
+            new HttpError("Role Code Conflict", httpStatus.CONFLICT, {
+              message: `Cannot generate unique role code for "${body.role_name}"`,
+              conflicting_role: roleCodeCheck.existingRole,
+              error_type: "auto_generation_failed",
+              suggestion:
+                "Please provide a custom role_code or try a different role_name",
+            })
+          );
+        }
+      } else {
+        newBody.role_code = roleCodeCheck.roleCode;
+      }
+
+      newBody.role_name = finalRoleName;
+
+      // IMPORTANT: Ensure network_id is not set if we're using group_id
+      if (body.group_id && !body.network_id) {
+        newBody.network_id = undefined;
+        delete newBody.network_id;
+      }
 
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
       ).register(newBody, next);
 
+      if (responseFromCreateRole.success && responseFromCreateRole.data) {
+        responseFromCreateRole.role_code_info = {
+          requested_name: body.role_name,
+          final_role_name: finalRoleName,
+          generated_code: newBody.role_code,
+          was_auto_generated: !body.role_code,
+          organization: organizationName,
+        };
+      }
+
       return responseFromCreateRole;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: error.message,
+          }
         )
       );
     }
@@ -5586,4 +5818,5 @@ module.exports = {
   createOrUpdateRole,
   resetRBACData,
   ensureSuperAdminRole,
+  generateRoleCode,
 };

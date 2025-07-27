@@ -2284,6 +2284,45 @@ const createUser = {
       );
     }
   },
+  cleanup: async (req, res, next) => {
+    try {
+      logText("Performing user data cleanup...");
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const result = await userUtil.cleanup(req, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json(result);
+      } else {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json(result);
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   /**
    * Enhanced login endpoint with comprehensive role/permission data and optimized tokens
    * @route POST /api/v2/users/loginEnhanced
