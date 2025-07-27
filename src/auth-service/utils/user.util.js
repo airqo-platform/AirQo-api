@@ -4324,120 +4324,9 @@ const createUserModule = {
       const { cleanupType, dryRun = true } = request.body;
 
       switch (cleanupType) {
-        case "fix-missing-group-roles":
-          logText(
-            `--- Running cleanup: fix-missing-group-roles for tenant: ${tenant} ---`
-          );
-          logText(
-            dryRun
-              ? "DRY RUN: No changes will be saved."
-              : "LIVE RUN: Changes will be saved to the database."
-          );
-
-          const approvedRequests = await AccessRequestModel(tenant)
-            .find({
-              status: "approved",
-              requestType: "group",
-            })
-            .lean();
-
-          const summary = {
-            totalRequestsChecked: approvedRequests.length,
-            usersFixed: 0,
-            usersAlreadyMember: 0,
-            usersNotFound: 0,
-            groupsNotFound: 0,
-            rolesNotFound: 0,
-            errors: [],
-            fixedUserDetails: [],
-          };
-
-          for (const req of approvedRequests) {
-            const { email, targetId: groupId } = req;
-
-            if (!email || !groupId) {
-              summary.errors.push({
-                request_id: req._id,
-                error: "Missing email or groupId",
-              });
-              continue;
-            }
-
-            const user = await UserModel(tenant).findOne({
-              email: email.toLowerCase(),
-            });
-
-            if (!user) {
-              summary.usersNotFound++;
-              continue;
-            }
-
-            const isAlreadyMember = user.group_roles.some(
-              (role) =>
-                role.group && role.group.toString() === groupId.toString()
-            );
-
-            if (isAlreadyMember) {
-              summary.usersAlreadyMember++;
-              continue;
-            }
-
-            try {
-              const group = await GroupModel(tenant).findById(groupId).lean();
-              if (!group) {
-                summary.groupsNotFound++;
-                continue;
-              }
-
-              const orgName = group.grp_title
-                .toUpperCase()
-                .replace(/[^A-Z0-9]/g, "_");
-              const defaultRoleName = `${orgName}_DEFAULT_MEMBER`;
-
-              const defaultRole = await RoleModel(tenant)
-                .findOne({ role_name: defaultRoleName })
-                .lean();
-
-              if (!defaultRole) {
-                summary.rolesNotFound++;
-                summary.errors.push({
-                  email,
-                  groupId,
-                  error: `Default role "${defaultRoleName}" not found.`,
-                });
-                continue;
-              }
-
-              const newRoleAssignment = {
-                group: groupId,
-                role: defaultRole._id,
-                userType: "user",
-                createdAt: new Date(),
-              };
-
-              if (!dryRun) {
-                await UserModel(tenant).findByIdAndUpdate(user._id, {
-                  $addToSet: { group_roles: newRoleAssignment },
-                });
-              }
-
-              summary.usersFixed++;
-              summary.fixedUserDetails.push({
-                email,
-                groupId,
-                role: defaultRoleName,
-              });
-            } catch (error) {
-              summary.errors.push({ email, groupId, error: error.message });
-            }
-          }
-
-          return {
-            success: true,
-            message: "Cleanup process completed.",
-            data: summary,
-            status: httpStatus.OK,
-          };
+        case "fix-missing-group-roles": {
+          return await createUserModule._fixMissingGroupRoles(tenant, dryRun);
+        }
 
         default:
           return {
@@ -4457,6 +4346,127 @@ const createUserModule = {
           { message: error.message }
         )
       );
+    }
+  },
+  _fixMissingGroupRoles: async (tenant, dryRun) => {
+    try {
+      logText(
+        `--- Running cleanup: fix-missing-group-roles for tenant: ${tenant} ---`
+      );
+      logText(
+        dryRun
+          ? "DRY RUN: No changes will be saved."
+          : "LIVE RUN: Changes will be saved to the database."
+      );
+
+      const approvedRequests = await AccessRequestModel(tenant)
+        .find({
+          status: "approved",
+          requestType: "group",
+        })
+        .lean();
+
+      const summary = {
+        totalRequestsChecked: approvedRequests.length,
+        usersFixed: 0,
+        usersAlreadyMember: 0,
+        usersNotFound: 0,
+        groupsNotFound: 0,
+        rolesNotFound: 0,
+        errors: [],
+        fixedUserDetails: [],
+      };
+
+      for (const req of approvedRequests) {
+        const { email, targetId: groupId } = req;
+
+        if (!email || !groupId) {
+          summary.errors.push({
+            request_id: req._id,
+            error: "Missing email or groupId",
+          });
+          continue;
+        }
+
+        const user = await UserModel(tenant).findOne({
+          email: email.toLowerCase(),
+        });
+
+        if (!user) {
+          summary.usersNotFound++;
+          continue;
+        }
+
+        const isAlreadyMember = user.group_roles.some(
+          (role) => role.group && role.group.toString() === groupId.toString()
+        );
+
+        if (isAlreadyMember) {
+          summary.usersAlreadyMember++;
+          continue;
+        }
+
+        try {
+          const group = await GroupModel(tenant).findById(groupId).lean();
+          if (!group) {
+            summary.groupsNotFound++;
+            continue;
+          }
+
+          const orgName = group.grp_title
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "_");
+          const defaultRoleName = `${orgName}_DEFAULT_MEMBER`;
+
+          const defaultRole = await RoleModel(tenant)
+            .findOne({ role_name: defaultRoleName })
+            .lean();
+
+          if (!defaultRole) {
+            summary.rolesNotFound++;
+            summary.errors.push({
+              email,
+              groupId,
+              error: `Default role "${defaultRoleName}" not found.`,
+            });
+            continue;
+          }
+
+          const newRoleAssignment = {
+            group: groupId,
+            role: defaultRole._id,
+            userType: "user",
+            createdAt: new Date(),
+          };
+
+          if (!dryRun) {
+            await UserModel(tenant).findByIdAndUpdate(user._id, {
+              $addToSet: { group_roles: newRoleAssignment },
+            });
+          }
+
+          summary.usersFixed++;
+          summary.fixedUserDetails.push({
+            email,
+            groupId,
+            role: defaultRoleName,
+          });
+        } catch (error) {
+          summary.errors.push({ email, groupId, error: error.message });
+        }
+      }
+
+      return {
+        success: true,
+        message: "Cleanup process completed.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in _fixMissingGroupRoles: ${error.message}`
+      );
+      throw error; // Re-throw to be handled by the calling function
     }
   },
 };

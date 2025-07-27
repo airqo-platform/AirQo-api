@@ -2295,7 +2295,13 @@ const createUser = {
         return;
       }
 
-      const result = await userUtil.cleanup(req, next);
+      const request = req;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      request.query.tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      const result = await userUtil.cleanup(request, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;
