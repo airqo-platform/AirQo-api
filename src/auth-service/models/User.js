@@ -14,7 +14,16 @@ const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
-const validUserTypes = ["user", "guest"];
+const validUserTypes = [
+  "user",
+  "guest",
+  "member",
+  "admin",
+  "super_admin",
+  "viewer",
+  "contributor",
+  "moderator",
+];
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -390,353 +399,140 @@ UserSchema.path("group_roles.userType").validate(function (value) {
   return validUserTypes.includes(value);
 }, "Invalid userType value");
 
-UserSchema.pre(
-  ["updateOne", "findOneAndUpdate", "updateMany", "update", "save"],
-  async function (next) {
-    // Determine if this is a new document or an update
-    const isNew = this.isNew;
-
-    // Safely get updates object, accounting for different mongoose operations
-    let updates = {};
-    if (this.getUpdate) {
-      updates = this.getUpdate() || {};
-    } else if (!isNew) {
-      updates = this.toObject();
-    } else {
-      updates = this;
-    }
-
-    try {
-      // Helper function to handle role updates
-      const handleRoleUpdates = async (fieldName, idField) => {
-        const query = this.getQuery ? this.getQuery() : { _id: this._id };
-
-        // Get the correct tenant-specific model
-        const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
-        const User = getModelByTenant(tenant, "user", UserSchema);
-        const doc = await User.findOne(query);
-        if (!doc) return;
-
-        let newRoles = [];
-        const existingRoles = doc[fieldName] || [];
-
-        // Initialize update operators safely
-        updates.$set = updates.$set || {};
-        updates.$push = updates.$push || {};
-        updates.$addToSet = updates.$addToSet || {};
-
-        // Handle update operations in order of precedence
-        if (updates.$set && updates.$set[fieldName]) {
-          // $set takes precedence as it's a direct override
-          newRoles = updates.$set[fieldName];
-        } else if (updates.$push && updates.$push[fieldName]) {
-          // Safely handle $push with potential $each operator
-          const pushValue = updates.$push[fieldName];
-          if (pushValue) {
-            if (pushValue.$each && Array.isArray(pushValue.$each)) {
-              newRoles = [...existingRoles, ...pushValue.$each];
-            } else {
-              newRoles = [...existingRoles, pushValue];
-            }
-          }
-        } else if (updates.$addToSet && updates.$addToSet[fieldName]) {
-          // Safely handle $addToSet
-          const addToSetValue = updates.$addToSet[fieldName];
-          if (addToSetValue) {
-            if (addToSetValue.$each && Array.isArray(addToSetValue.$each)) {
-              newRoles = [...existingRoles, ...addToSetValue.$each];
-            } else {
-              newRoles = [...existingRoles, addToSetValue];
-            }
-          }
-        } else if (updates[fieldName]) {
-          // Direct field update
-          newRoles = updates[fieldName];
-        }
-
-        if (newRoles.length > 0) {
-          // Create a Map to store unique roles based on network/group
-          const uniqueRoles = new Map();
-
-          // Process existing roles first
-          existingRoles.forEach((role) => {
-            const id = role[idField] && role[idField].toString();
-            if (id) {
-              uniqueRoles.set(id, role);
-            }
-          });
-
-          // Process new roles, overwriting existing ones if same network/group
-          newRoles.forEach((role) => {
-            const id = role[idField] && role[idField].toString();
-            if (id) {
-              uniqueRoles.set(id, role);
-            }
-          });
-
-          // Convert Map values back to array
-          const finalRoles = Array.from(uniqueRoles.values());
-
-          // Set the final filtered array using $set and clean up other operators
-          updates.$set[fieldName] = finalRoles;
-          delete updates.$push[fieldName];
-          delete updates.$addToSet[fieldName];
-          delete updates[fieldName]; // Clean up direct field update if any
-        }
-      };
-
-      // Process both network_roles and group_roles
-      await handleRoleUpdates("network_roles", "network");
-      await handleRoleUpdates("group_roles", "group");
-
-      // Password hashing
-      if (
-        (isNew && this.password) ||
-        (updates &&
-          (updates.password || (updates.$set && updates.$set.password)))
-      ) {
-        const passwordToHash = isNew
-          ? this.password
-          : updates.password || (updates.$set && updates.$set.password);
-
-        if (isNew) {
-          this.password = bcrypt.hashSync(passwordToHash, saltRounds);
-        } else {
-          if (updates && updates.password) {
-            updates.password = bcrypt.hashSync(passwordToHash, saltRounds);
-          }
-          if (updates && updates.$set && updates.$set.password) {
-            updates.$set.password = bcrypt.hashSync(passwordToHash, saltRounds);
-          }
-        }
+UserSchema.pre("save", async function (next) {
+  try {
+    // Only run complex logic for NEW documents
+    if (this.isNew) {
+      // 1. Password hashing for new documents
+      if (this.password) {
+        this.password = bcrypt.hashSync(this.password, saltRounds);
       }
 
-      // Validation only for new documents
-      if (isNew) {
-        // Validate contact information - only for new documents
-        if (!this.email && !this.phoneNumber) {
-          return next(new Error("Phone number or email is required!"));
+      // 2. Basic validation for new documents
+      if (!this.email && !this.phoneNumber) {
+        return next(new Error("Phone number or email is required!"));
+      }
+
+      if (!this.userName && this.email) {
+        this.userName = this.email;
+      }
+
+      if (!this.userName) {
+        return next(new Error("userName is required!"));
+      }
+
+      // 3. Profile picture validation
+      if (this.profilePicture && !validateProfilePicture(this.profilePicture)) {
+        if (this.profilePicture.length > maxLengthOfProfilePictures) {
+          this.profilePicture = this.profilePicture.substring(
+            0,
+            maxLengthOfProfilePictures
+          );
         }
-
-        if (!this.userName && this.email) {
-          this.userName = this.email;
-        }
-
-        if (!this.userName) {
-          return next(new Error("userName is required!"));
-        }
-
-        // Profile picture validation - only for new documents
-        if (
-          this.profilePicture &&
-          !validateProfilePicture(this.profilePicture)
-        ) {
-          // Truncate if too long
-          if (this.profilePicture.length > maxLengthOfProfilePictures) {
-            this.profilePicture = this.profilePicture.substring(
-              0,
-              maxLengthOfProfilePictures
-            );
-          }
-          //validate again after truncating
-          if (!validateProfilePicture(this.profilePicture)) {
-            next(
-              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-                message: "Invalid profile picture URL",
-              })
-            );
-            return;
-          }
-        }
-
-        const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
-        const tenantSettings = await TenantSettingsModel(tenant)
-          .findOne({
-            tenant,
-          })
-          .lean();
-
-        if (!tenantSettings) {
-          next(
-            new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
-              message: "Tenant Settings not found, please contact support",
+        if (!validateProfilePicture(this.profilePicture)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Invalid profile picture URL",
             })
           );
-          return;
-        }
-
-        // Network roles handling - only for new documents
-        if (!this.network_roles || this.network_roles.length === 0) {
-          this.network_roles = [
-            {
-              network: tenantSettings.defaultNetwork,
-              userType: "guest",
-              createdAt: new Date(),
-              role: tenantSettings.defaultNetworkRole,
-            },
-          ];
-        }
-
-        // Group roles handling - only for new documents
-        if (!this.group_roles || this.group_roles.length === 0) {
-          this.group_roles = [
-            {
-              group: tenantSettings.defaultGroup,
-              userType: "guest",
-              createdAt: new Date(),
-              role: tenantSettings.defaultGroupRole,
-            },
-          ];
-        }
-
-        // Permissions handling for new documents
-        if (this.permissions && this.permissions.length > 0) {
-          this.permissions = [...new Set(this.permissions)];
         }
       }
 
-      // For updates, only validate if specific fields are provided
-      if (this.getUpdate) {
-        const fieldsToValidate = [
-          "_id",
-          "firstName",
-          "lastName",
-          "userName",
-          "email",
-          "organization",
-          "long_organization",
-          "privilege",
-          "country",
-          "profilePicture",
-          "phoneNumber",
-          "createdAt",
-          "updatedAt",
-          "rateLimit",
-          "lastLogin",
-          "iat",
+      // 4. Set default roles for new users ONLY
+      const tenant = this.tenant || constants.DEFAULT_TENANT || "airqo";
+      const tenantSettings = await TenantSettingsModel(tenant)
+        .findOne({ tenant })
+        .lean();
+
+      if (!tenantSettings) {
+        return next(
+          new HttpError("Not Found Error", httpStatus.NOT_FOUND, {
+            message: "Tenant Settings not found, please contact support",
+          })
+        );
+      }
+
+      // Only set defaults if no roles are provided
+      if (!this.network_roles || this.network_roles.length === 0) {
+        this.network_roles = [
+          {
+            network: tenantSettings.defaultNetwork,
+            userType: "guest",
+            createdAt: new Date(),
+            role: tenantSettings.defaultNetworkRole,
+          },
         ];
-
-        // Get all actual fields being updated from both root and $set
-        const actualUpdates = {
-          ...(updates || {}),
-          ...(updates.$set || {}),
-        };
-
-        // Profile picture validation for updates
-        if (actualUpdates.profilePicture) {
-          if (!validateProfilePicture(actualUpdates.profilePicture)) {
-            next(
-              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-                message: "Invalid profile picture URL",
-              })
-            );
-            return;
-          }
-        }
-
-        // Conditional validations for updates
-        // Only validate fields that are present in the update
-        fieldsToValidate.forEach((field) => {
-          if (field in actualUpdates) {
-            const value = actualUpdates[field];
-            if (value === undefined || value === null || value === "") {
-              next(
-                new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-                  message: `${field} cannot be empty, null, or undefined`,
-                })
-              );
-              return;
-            }
-          }
-        });
-
-        // Prevent modification of certain immutable fields
-        const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
-        immutableFields.forEach((field) => {
-          if (updates[field]) delete updates[field];
-          if (updates && updates.$set && updates.$set[field]) {
-            next(
-              new HttpError(
-                "Modification Not Allowed",
-                httpStatus.BAD_REQUEST,
-                { message: `Cannot modify ${field} after creation` }
-              )
-            );
-            return;
-          }
-          if (updates && updates.$set) delete updates.$set[field];
-          if (updates.$push) delete updates.$push[field];
-        });
-
-        // Conditional network roles validation
-        if (updates.network_roles) {
-          if (updates.network_roles.length > ORGANISATIONS_LIMIT) {
-            next(
-              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-                message: `Maximum ${ORGANISATIONS_LIMIT} network roles allowed`,
-              })
-            );
-            return;
-          }
-        }
-
-        // Conditional group roles validation
-        if (updates.group_roles) {
-          if (updates.group_roles.length > ORGANISATIONS_LIMIT) {
-            next(
-              new HttpError("Validation Error", httpStatus.BAD_REQUEST, {
-                message: `Maximum ${ORGANISATIONS_LIMIT} group roles allowed`,
-              })
-            );
-            return;
-          }
-        }
-
-        // Conditional permissions validation
-        if (updates.permissions) {
-          const uniquePermissions = [...new Set(updates.permissions)];
-          if (updates && updates.$set) {
-            updates.$set.permissions = uniquePermissions;
-          } else {
-            updates.permissions = uniquePermissions;
-          }
-        }
       }
 
-      // Additional checks for new documents
-      if (isNew) {
-        const requiredFields = ["firstName", "lastName", "email"];
-        requiredFields.forEach((field) => {
-          if (!this[field]) {
-            return next(new Error(`${field} is required`));
-          }
-        });
-
-        if (this.network_roles && this.network_roles.length > 0) {
-          const uniqueNetworks = new Map();
-          this.network_roles.forEach((role) => {
-            // Keep only the latest role for each network
-            uniqueNetworks.set(role.network.toString(), role);
-          });
-          this.network_roles = Array.from(uniqueNetworks.values());
-        }
-        // Handle group_roles duplicates
-        if (this.group_roles && this.group_roles.length > 0) {
-          const uniqueGroups = new Map();
-          this.group_roles.forEach((role) => {
-            // Keep only the latest role for each group
-            uniqueGroups.set(role.group.toString(), role);
-          });
-          this.group_roles = Array.from(uniqueGroups.values());
-        }
+      if (!this.group_roles || this.group_roles.length === 0) {
+        this.group_roles = [
+          {
+            group: tenantSettings.defaultGroup,
+            userType: "guest",
+            createdAt: new Date(),
+            role: tenantSettings.defaultGroupRole,
+          },
+        ];
       }
 
-      return next();
-    } catch (error) {
-      return next(error);
+      // 5. Remove duplicates (simple deduplication)
+      if (this.network_roles && this.network_roles.length > 0) {
+        const uniqueNetworks = new Map();
+        this.network_roles.forEach((role) => {
+          uniqueNetworks.set(role.network.toString(), role);
+        });
+        this.network_roles = Array.from(uniqueNetworks.values());
+      }
+
+      if (this.group_roles && this.group_roles.length > 0) {
+        const uniqueGroups = new Map();
+        this.group_roles.forEach((role) => {
+          uniqueGroups.set(role.group.toString(), role);
+        });
+        this.group_roles = Array.from(uniqueGroups.values());
+      }
+
+      // 6. Deduplicate permissions
+      if (this.permissions && this.permissions.length > 0) {
+        this.permissions = [...new Set(this.permissions)];
+      }
+    } else {
+      // For UPDATES, only handle password hashing if password is being modified
+
+      if (this.isModified("password") && this.password) {
+        this.password = bcrypt.hashSync(this.password, saltRounds);
+      }
     }
+
+    return next();
+  } catch (error) {
+    console.error("❌ [MIDDLEWARE] Error in pre-save:", error);
+    return next(error);
   }
-);
+});
+
+// separate pre middleware for update operations that need special handling
+UserSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
+  const update = this.getUpdate();
+
+  // Handle password hashing in updates
+  if (update.password) {
+    update.password = bcrypt.hashSync(update.password, saltRounds);
+  }
+
+  if (update.$set && update.$set.password) {
+    update.$set.password = bcrypt.hashSync(update.$set.password, saltRounds);
+  }
+
+  // Prevent modification of immutable fields
+  const immutableFields = ["firebase_uid", "email", "createdAt", "_id"];
+  immutableFields.forEach((field) => {
+    if (update[field]) delete update[field];
+    if (update.$set && update.$set[field]) delete update.$set[field];
+  });
+
+  next();
+});
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
@@ -1522,6 +1318,66 @@ UserSchema.statics.auditDeprecatedFieldUsage = async function (next) {
   }
 };
 
+UserSchema.statics.assignUserToGroup = async function (
+  userId,
+  groupId,
+  roleId,
+  userType = "user"
+) {
+  try {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Use the instance method
+    await user.addGroupRole(groupId, roleId, userType);
+
+    return {
+      success: true,
+      data: user,
+      message: "User successfully assigned to group",
+    };
+  } catch (error) {
+    console.error("❌ [STATIC METHOD] Group assignment failed:", error);
+    return {
+      success: false,
+      message: error.message,
+      error: error,
+    };
+  }
+};
+
+UserSchema.statics.assignUserToNetwork = async function (
+  userId,
+  networkId,
+  roleId,
+  userType = "user"
+) {
+  try {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Use the instance method
+    await user.addNetworkRole(networkId, roleId, userType);
+
+    return {
+      success: true,
+      data: user,
+      message: "User successfully assigned to network",
+    };
+  } catch (error) {
+    console.error("❌ [STATIC METHOD] Network assignment failed:", error);
+    return {
+      success: false,
+      message: error.message,
+      error: error,
+    };
+  }
+};
+
 UserSchema.methods = {
   authenticateUser(password) {
     return bcrypt.compareSync(password, this.password);
@@ -1621,6 +1477,48 @@ UserSchema.methods.createToken = async function () {
   } catch (error) {
     logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
   }
+};
+
+UserSchema.methods.addGroupRole = function (
+  groupId,
+  roleId,
+  userType = "user"
+) {
+  // Remove existing role for this group if any
+  this.group_roles = this.group_roles.filter(
+    (gr) => gr.group.toString() !== groupId.toString()
+  );
+
+  // Add new role
+  this.group_roles.push({
+    group: groupId,
+    role: roleId,
+    userType: userType,
+    createdAt: new Date(),
+  });
+
+  return this.save();
+};
+
+UserSchema.methods.addNetworkRole = function (
+  networkId,
+  roleId,
+  userType = "user"
+) {
+  // Remove existing role for this network if any
+  this.network_roles = this.network_roles.filter(
+    (nr) => nr.network.toString() !== networkId.toString()
+  );
+
+  // Add new role
+  this.network_roles.push({
+    network: networkId,
+    role: roleId,
+    userType: userType,
+    createdAt: new Date(),
+  });
+
+  return this.save();
 };
 
 const UserModel = (tenant) => {

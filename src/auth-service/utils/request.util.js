@@ -1,3 +1,4 @@
+//src/auth-service/utils/request.util.js
 const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
@@ -116,6 +117,7 @@ const createAccessRequest = {
       );
     }
   },
+
   requestAccessToGroupByEmail: async (request, next) => {
     try {
       const { tenant, emails, user, grp_id } = {
@@ -416,9 +418,9 @@ const createAccessRequest = {
       return;
     }
   },
+
   acceptInvitation: async (request, next) => {
     try {
-      console.log("🔍 [DEBUG] acceptInvitation started");
       const { tenant, email, firstName, lastName, password, grids, target_id } =
         {
           ...request.body,
@@ -426,20 +428,15 @@ const createAccessRequest = {
           ...request.params,
         };
 
-      console.log("📋 [DEBUG] Request params:", { tenant, email, target_id });
-
       const existingUser = await UserModel(tenant).findOne({
         email: email.toLowerCase(),
       });
-      console.log("👤 [DEBUG] Existing user found:", !!existingUser);
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
         targetId: target_id,
         email,
         status: "pending",
       });
-
-      console.log("📋 [DEBUG] Access request found:", !!accessRequest);
 
       if (isEmpty(accessRequest)) {
         console.error("❌ [DEBUG] Access request not found:", {
@@ -479,7 +476,6 @@ const createAccessRequest = {
         user = existingUser;
         isNewUser = false;
       } else {
-        console.log("🆕 [DEBUG] Creating new user");
         const bodyForCreatingNewUser = {
           email,
           password,
@@ -506,11 +502,10 @@ const createAccessRequest = {
 
         user = responseFromCreateNewUser.data;
         isNewUser = true;
-        console.log("✅ [DEBUG] New user created:", user._id);
       }
 
       // Update access request status
-      console.log("🔄 [DEBUG] Updating access request status");
+
       const update = { status: "approved" };
       const filter = { email, targetId: target_id };
 
@@ -526,15 +521,11 @@ const createAccessRequest = {
         return responseFromUpdateAccessRequest;
       }
 
-      console.log("✅ [DEBUG] Access request updated to approved");
-
       const requestType = accessRequest.requestType;
       let entity_title;
       let assignmentResult;
 
       if (requestType === "group") {
-        console.log("👥 [DEBUG] Processing group assignment");
-
         const group = await GroupModel(tenant).findById(target_id).lean();
         if (!group) {
           console.error("❌ [DEBUG] Group not found:", target_id);
@@ -547,137 +538,118 @@ const createAccessRequest = {
         }
 
         entity_title = group.grp_title;
-        console.log("📋 [DEBUG] Group found:", entity_title);
 
-        // Get default role with enhanced error handling
-        console.log("🔍 [DEBUG] Getting default group role");
+        // Use the existing utility function instead of direct user updates
+
+        const assignUserRequest = {
+          params: {
+            grp_id: target_id,
+            user_id: user._id,
+          },
+          query: { tenant: tenant },
+        };
 
         try {
-          const rolePermissionsUtil = require("@utils/role-permissions.util");
-          const defaultGroupRole =
-            await rolePermissionsUtil.getDefaultGroupRole(tenant, target_id);
+          assignmentResult = await createGroupUtil.assignOneUser(
+            assignUserRequest
+          );
 
-          console.log("📋 [DEBUG] Default group role result:", {
-            found: !!defaultGroupRole,
-            roleId: defaultGroupRole?._id,
-            roleName: defaultGroupRole?.role_name,
-          });
-
-          if (!defaultGroupRole || !defaultGroupRole._id) {
-            console.error("❌ [DEBUG] Default group role not found or invalid");
+          if (!assignmentResult.success) {
+            console.error(
+              "❌ [DEBUG] Group assignment failed:",
+              assignmentResult
+            );
             next(
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
                 {
-                  message: `Unable to find or create default role for group ${target_id}`,
+                  message: `Failed to assign user to group: ${assignmentResult.message}`,
                 }
               )
             );
             return;
           }
-
-          console.log(
-            "🔄 [DEBUG] Assigning user to group with role:",
-            defaultGroupRole._id
-          );
-
-          // METHOD 1: Try standard update with disabled validators
-          try {
-            const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-              user._id,
-              {
-                $addToSet: {
-                  group_roles: {
-                    group: target_id,
-                    role: defaultGroupRole._id,
-                    userType: "user",
-                    createdAt: new Date(),
-                  },
-                },
-              },
-              {
-                new: true,
-                runValidators: false, // Bypass validation temporarily
-                timestamps: false, // Don't update timestamps to avoid issues
-              }
-            );
-
-            if (updatedUser) {
-              console.log(
-                "✅ [DEBUG] User updated successfully via findByIdAndUpdate"
-              );
-              assignmentResult = { success: true, data: updatedUser };
-            } else {
-              throw new Error("findByIdAndUpdate returned null");
-            }
-          } catch (updateError) {
-            console.warn(
-              "⚠️ [DEBUG] Standard update failed, trying direct collection update:",
-              updateError.message
-            );
-
-            // METHOD 2: Direct collection update to bypass all Mongoose middleware
-            const directUpdateResult = await UserModel(
-              tenant
-            ).collection.updateOne(
-              { _id: new mongoose.Types.ObjectId(user._id) },
-              {
-                $addToSet: {
-                  group_roles: {
-                    group: new mongoose.Types.ObjectId(target_id),
-                    role: new mongoose.Types.ObjectId(defaultGroupRole._id),
-                    userType: "user",
-                    createdAt: new Date(),
-                  },
-                },
-              }
-            );
-
-            console.log("📋 [DEBUG] Direct collection update result:", {
-              acknowledged: directUpdateResult.acknowledged,
-              modifiedCount: directUpdateResult.modifiedCount,
-              upsertedCount: directUpdateResult.upsertedCount,
-            });
-
-            if (
-              directUpdateResult.modifiedCount > 0 ||
-              directUpdateResult.upsertedCount > 0
-            ) {
-              // Refetch user after direct update
-              const refetchedUser = await UserModel(tenant).findById(user._id);
-              console.log(
-                "✅ [DEBUG] User updated successfully via direct collection update"
-              );
-              assignmentResult = { success: true, data: refetchedUser };
-            } else {
-              throw new Error("Direct collection update also failed");
-            }
-          }
-        } catch (roleError) {
+        } catch (assignmentError) {
           console.error(
-            "❌ [DEBUG] Error in role assignment process:",
-            roleError
+            "❌ [DEBUG] Error in group assignment:",
+            assignmentError
           );
           next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
               {
-                message: `Role assignment failed: ${roleError.message}`,
+                message: `Group assignment failed: ${assignmentError.message}`,
+              }
+            )
+          );
+          return;
+        }
+      } else if (requestType === "network") {
+        const network = await NetworkModel(tenant).findById(target_id).lean();
+        if (!network) {
+          console.error("❌ [DEBUG] Network not found:", target_id);
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: "Network not found",
+            })
+          );
+          return;
+        }
+
+        entity_title = network.net_name;
+
+        // Use the existing utility function instead of direct user updates
+
+        const assignUserRequest = {
+          params: {
+            net_id: target_id,
+            user_id: user._id,
+          },
+          query: { tenant: tenant },
+        };
+
+        try {
+          assignmentResult = await createNetworkUtil.assignOneUser(
+            assignUserRequest
+          );
+
+          if (!assignmentResult.success) {
+            console.error(
+              "❌ [DEBUG] Network assignment failed:",
+              assignmentResult
+            );
+            next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message: `Failed to assign user to network: ${assignmentResult.message}`,
+                }
+              )
+            );
+            return;
+          }
+        } catch (assignmentError) {
+          console.error(
+            "❌ [DEBUG] Error in network assignment:",
+            assignmentError
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Network assignment failed: ${assignmentError.message}`,
               }
             )
           );
           return;
         }
       }
-      // ... rest of the function remains the same
 
       if (assignmentResult && assignmentResult.success === true) {
-        console.log(
-          "✅ [DEBUG] Assignment successful, sending notification email"
-        );
-
         const responseFromSendEmail = await mailer.afterAcceptingInvitation(
           {
             firstName: user.firstName,
@@ -730,6 +702,7 @@ const createAccessRequest = {
       return;
     }
   },
+
   requestAccessToNetwork: async (request, next) => {
     try {
       const {
@@ -829,6 +802,7 @@ const createAccessRequest = {
       );
     }
   },
+
   approveAccessRequest: async (request, next) => {
     try {
       const { query } = request;
@@ -956,6 +930,7 @@ const createAccessRequest = {
       );
     }
   },
+
   list: async (request, next) => {
     try {
       const { query } = request;
@@ -983,6 +958,7 @@ const createAccessRequest = {
       );
     }
   },
+
   update: async (request, next) => {
     try {
       const { query, body } = request;
@@ -1015,6 +991,7 @@ const createAccessRequest = {
       );
     }
   },
+
   delete: async (request, next) => {
     try {
       const { query } = request;

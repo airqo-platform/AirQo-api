@@ -508,6 +508,17 @@ const createNetwork = {
       const { net_id, user_id } = request.params;
       const { tenant } = request.query;
 
+      // Validate required parameters
+      if (!net_id || !user_id || !tenant) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Missing required parameters: net_id, user_id, or tenant",
+          })
+        );
+        return;
+      }
+
+      // Check if user and network exist
       const userExists = await UserModel(tenant).exists({ _id: user_id });
       const networkExists = await NetworkModel(tenant).exists({ _id: net_id });
 
@@ -517,40 +528,72 @@ const createNetwork = {
             message: "User or Network not found",
           })
         );
+        return;
       }
 
+      // Get user to check current assignments
       const user = await UserModel(tenant).findById(user_id).lean();
 
-      logObject("user", user);
-
+      // Check if already assigned (optional - the new method handles this gracefully)
       const isAlreadyAssigned = isUserAssignedToNetwork(user, net_id);
 
       if (isAlreadyAssigned) {
+        return {
+          success: true,
+          message: "User is already assigned to this network",
+          data: user,
+          status: httpStatus.OK,
+        };
+      }
+
+      // Get default network role
+
+      const defaultNetworkRole =
+        await rolePermissionsUtil.getDefaultNetworkRole(tenant, net_id);
+
+      if (!defaultNetworkRole || !defaultNetworkRole._id) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Network already assigned to User",
+            message: `Default Role not found for network ID ${net_id}`,
           })
         );
+        return;
       }
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+
+      // Use the new static method for safe role assignment
+
+      const assignmentResult = await UserModel(tenant).assignUserToNetwork(
         user_id,
-        {
-          $addToSet: {
-            network_roles: {
-              network: net_id,
-            },
-          },
-        },
-        { new: true }
+        net_id,
+        defaultNetworkRole._id,
+        "user"
       );
 
-      return {
-        success: true,
-        message: "User assigned to the Network",
-        data: updatedUser,
-        status: httpStatus.OK,
-      };
+      if (assignmentResult.success) {
+        return {
+          success: true,
+          message: "User assigned to the Network successfully",
+          data: assignmentResult.data,
+          status: httpStatus.OK,
+        };
+      } else {
+        console.error(
+          "❌ [NETWORK UTIL] Assignment failed:",
+          assignmentResult.message
+        );
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Failed to assign user to network: ${assignmentResult.message}`,
+            }
+          )
+        );
+        return;
+      }
     } catch (error) {
+      console.error("🐛 [NETWORK UTIL] Unexpected error:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -559,6 +602,128 @@ const createNetwork = {
           { message: error.message }
         )
       );
+      return;
+    }
+  },
+  assignMultipleUsers: async (request, next) => {
+    try {
+      const { net_id, user_ids } = request.params;
+      const { tenant } = request.query;
+      const { user_ids: bodyUserIds } = request.body || {};
+
+      // user_ids can come from params or body
+      const userIdsToProcess = user_ids || bodyUserIds;
+
+      if (
+        !net_id ||
+        !userIdsToProcess ||
+        !Array.isArray(userIdsToProcess) ||
+        !tenant
+      ) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Missing required parameters: net_id, user_ids array, or tenant",
+          })
+        );
+        return;
+      }
+
+      // Check if network exists
+      const networkExists = await NetworkModel(tenant).exists({ _id: net_id });
+      if (!networkExists) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Network not found",
+          })
+        );
+        return;
+      }
+
+      // Get default role
+      const defaultNetworkRole =
+        await rolePermissionsUtil.getDefaultNetworkRole(tenant, net_id);
+
+      if (!defaultNetworkRole || !defaultNetworkRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for network ID ${net_id}`,
+          })
+        );
+        return;
+      }
+
+      const results = [];
+      const errors = [];
+
+      // Process each user
+      for (const user_id of userIdsToProcess) {
+        try {
+          const assignmentResult = await UserModel(tenant).assignUserToNetwork(
+            user_id,
+            net_id,
+            defaultNetworkRole._id,
+            "user"
+          );
+
+          if (assignmentResult.success) {
+            results.push({
+              user_id,
+              success: true,
+              message: "User assigned successfully",
+            });
+          } else {
+            errors.push({
+              user_id,
+              success: false,
+              message: assignmentResult.message,
+            });
+            console.error(
+              `❌ [NETWORK UTIL] Failed to assign user ${user_id}:`,
+              assignmentResult.message
+            );
+          }
+        } catch (userError) {
+          errors.push({
+            user_id,
+            success: false,
+            message: userError.message,
+          });
+          console.error(
+            `🐛 [NETWORK UTIL] Error processing user ${user_id}:`,
+            userError
+          );
+        }
+      }
+
+      const successCount = results.length;
+      const errorCount = errors.length;
+
+      return {
+        success: true,
+        message: `Bulk assignment completed: ${successCount} successful, ${errorCount} failed`,
+        data: {
+          successful: results,
+          failed: errors,
+          summary: {
+            total: userIdsToProcess.length,
+            successful: successCount,
+            failed: errorCount,
+          },
+        },
+        status: errorCount > 0 ? httpStatus.MULTI_STATUS : httpStatus.OK,
+      };
+    } catch (error) {
+      console.error("🐛 [NETWORK UTIL] Bulk assignment error:", error);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   unAssignUser: async (request, next) => {
@@ -619,6 +784,64 @@ const createNetwork = {
           { message: error.message }
         )
       );
+    }
+  },
+  removeOneUser: async (request, next) => {
+    try {
+      const { net_id, user_id } = request.params;
+      const { tenant } = request.query;
+
+      if (!net_id || !user_id || !tenant) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Missing required parameters: net_id, user_id, or tenant",
+          })
+        );
+        return;
+      }
+
+      // Check if user exists
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+        return;
+      }
+
+      // Remove user from network using safe update
+      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+        user_id,
+        {
+          $pull: {
+            network_roles: { network: net_id },
+          },
+        },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "User removed from network successfully",
+        data: updatedUser,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      console.error(
+        "🐛 [NETWORK UTIL] Error removing user from network:",
+        error
+      );
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
     }
   },
   unAssignManyUsers: async (request, next) => {

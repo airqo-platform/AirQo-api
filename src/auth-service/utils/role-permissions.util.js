@@ -4,7 +4,7 @@ const RoleModel = require("@models/Role");
 const GroupModel = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logText, HttpError } = require("@utils/shared");
+const { logObject, logText, HttpError, stringify } = require("@utils/shared");
 const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -3301,18 +3301,11 @@ const rolePermissionUtil = {
   },
   getDefaultGroupRole: async (tenant, groupId) => {
     try {
-      console.log("🔍 [DEBUG] getDefaultGroupRole called:", {
-        tenant,
-        groupId,
-      });
-
       const group = await GroupModel(tenant).findById(groupId).lean();
       if (!group) {
         console.error("❌ [DEBUG] Group not found for ID:", groupId);
         return null;
       }
-
-      console.log("📋 [DEBUG] Group found:", group.grp_title);
 
       // Sanitize organization name for role code
       const organizationName = group.grp_title
@@ -3323,17 +3316,11 @@ const rolePermissionUtil = {
 
       const defaultRoleCode = `${organizationName}_DEFAULT_MEMBER`;
 
-      console.log("📋 [DEBUG] Generated role code:", defaultRoleCode);
-
       let role = await RoleModel(tenant).findOne({
         role_code: defaultRoleCode,
       });
 
-      console.log("📋 [DEBUG] Existing role found:", !!role);
-
       if (!role) {
-        console.log("🆕 [DEBUG] Creating new default role");
-
         const roleDocument = {
           role_code: defaultRoleCode,
           role_name: defaultRoleCode,
@@ -3344,19 +3331,12 @@ const rolePermissionUtil = {
 
         try {
           role = await RoleModel(tenant).create(roleDocument);
-          console.log("✅ [DEBUG] Role created successfully:", role._id);
         } catch (roleCreateError) {
-          console.error("❌ [DEBUG] Role creation failed:", roleCreateError);
-
           // Handle duplicate role creation (race condition)
           if (roleCreateError.code === 11000) {
             role = await RoleModel(tenant).findOne({
               role_code: defaultRoleCode,
             });
-            console.log(
-              "✅ [DEBUG] Found role after duplicate error:",
-              role?._id
-            );
           }
 
           if (!role) {
@@ -3368,11 +3348,6 @@ const rolePermissionUtil = {
 
         // Enhanced permission assignment with better error handling
         try {
-          console.log(
-            "🔍 [DEBUG] Available DEFAULT_MEMBER_PERMISSIONS:",
-            constants.DEFAULT_MEMBER_PERMISSIONS
-          );
-
           // First, check what permissions actually exist in the database
           const allPermissions = await PermissionModel(tenant)
             .find({})
@@ -3382,18 +3357,8 @@ const rolePermissionUtil = {
             (p) => p.permission
           );
 
-          console.log(
-            "📋 [DEBUG] All permissions in database:",
-            existingPermissionNames.slice(0, 10),
-            "... (showing first 10)"
-          );
-
           const requestedPermissions =
             constants.DEFAULT_MEMBER_PERMISSIONS || [];
-          console.log(
-            "📋 [DEBUG] Requested default permissions:",
-            requestedPermissions
-          );
 
           // Find which requested permissions actually exist
           const availablePermissions = requestedPermissions.filter(
@@ -3404,21 +3369,7 @@ const rolePermissionUtil = {
             (permission) => !existingPermissionNames.includes(permission)
           );
 
-          console.log(
-            "✅ [DEBUG] Available permissions to assign:",
-            availablePermissions
-          );
-          console.log(
-            "❌ [DEBUG] Missing permissions in database:",
-            missingPermissions
-          );
-
           if (missingPermissions.length > 0) {
-            console.warn(
-              "⚠️ [DEBUG] Some requested permissions do not exist in database:",
-              missingPermissions
-            );
-
             // Try to create missing permissions
             const permissionsToCreate = missingPermissions.map(
               (permission) => ({
@@ -3431,15 +3382,12 @@ const rolePermissionUtil = {
               const createdPermissions = await PermissionModel(
                 tenant
               ).insertMany(permissionsToCreate);
-              console.log(
-                "✅ [DEBUG] Created missing permissions:",
-                createdPermissions.length
-              );
+
               availablePermissions.push(...missingPermissions);
             } catch (createError) {
-              console.warn(
-                "⚠️ [DEBUG] Could not create missing permissions:",
-                createError.message
+              logger.error(
+                "❌ [DEBUG] Error creating missing permissions:",
+                stringify(createError)
               );
             }
           }
@@ -3448,11 +3396,6 @@ const rolePermissionUtil = {
             const defaultPermissions = await PermissionModel(tenant).find({
               permission: { $in: availablePermissions },
             });
-
-            console.log(
-              "📋 [DEBUG] Permissions found for assignment:",
-              defaultPermissions.length
-            );
 
             if (defaultPermissions.length > 0) {
               const updateResult = await RoleModel(tenant).findByIdAndUpdate(
@@ -3466,11 +3409,6 @@ const rolePermissionUtil = {
                     },
                   },
                 }
-              );
-
-              console.log(
-                "✅ [DEBUG] Permissions assigned to role:",
-                updateResult ? "SUCCESS" : "FAILED"
               );
             }
           } else {
@@ -3487,7 +3425,6 @@ const rolePermissionUtil = {
         }
       }
 
-      console.log("✅ [DEBUG] getDefaultGroupRole completed successfully");
       return role;
     } catch (error) {
       console.error("🐛 [DEBUG] Error in getDefaultGroupRole:", error);
@@ -4157,11 +4094,6 @@ const rolePermissionUtil = {
           },
         },
       };
-
-      logObject(
-        "🔍 [DEBUG] Update query:",
-        JSON.stringify(updateQuery, null, 2)
-      );
 
       // FIX: Use runValidators: false temporarily to bypass enum validation if needed
       const updatedUser = await UserModel(actualTenant).findOneAndUpdate(
