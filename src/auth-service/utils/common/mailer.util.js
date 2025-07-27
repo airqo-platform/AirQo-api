@@ -432,7 +432,7 @@ const getEmailSubject = (functionName, params) => {
     }!`,
     user: "Welcome to Your AirQo Account",
     assign: "Welcome to Your New Group/Network at Your AirQo Account",
-    update: "Your AirQo Account account updated",
+    update: "Your AirQo Account Updated",
     existingUserAccessRequest:
       "Your AirQo Account: Existing User Access Request",
     existingUserRegistrationRequest:
