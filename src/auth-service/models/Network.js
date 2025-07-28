@@ -39,6 +39,7 @@ const NetworkSchema = new Schema(
   {
     net_email: {
       type: String,
+      lowercase: true,
       unique: true,
       required: [true, "net_email is required"],
       trim: true,

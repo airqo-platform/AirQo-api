@@ -427,7 +427,10 @@ const createUser = [
       .bail()
       .isEmail()
       .withMessage("this is not a valid email address")
-      .trim(),
+      .bail()
+      .customSanitizer((value) => {
+        return value.toLowerCase().trim();
+      }),
     body("organization")
       .optional()
       .notEmpty()
@@ -977,6 +980,28 @@ const registerViaOrgSlug = [
     .withMessage("captchaToken should not be empty if provided"),
 ];
 
+const userCleanup = [
+  validateTenant,
+  [
+    body("cleanupType")
+      .exists()
+      .withMessage("cleanupType is required")
+      .bail()
+      .isIn([
+        "fix-missing-group-roles",
+        "fix-email-casing",
+        "fix-email-casing-all-collections",
+      ])
+      .withMessage("Invalid cleanupType specified"),
+    body("dryRun")
+      .optional()
+      .isBoolean()
+      .withMessage("dryRun must be a boolean value")
+      .bail()
+      .toBoolean(),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -1016,4 +1041,5 @@ module.exports = {
   verifyMobileEmail,
   getOrganizationBySlug,
   registerViaOrgSlug,
+  userCleanup,
 };

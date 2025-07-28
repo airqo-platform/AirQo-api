@@ -1,6 +1,8 @@
 const UserModel = require("@models/User");
 const SubscriptionModel = require("@models/Subscription");
 const VerifyTokenModel = require("@models/VerifyToken");
+const AccessRequestModel = require("@models/AccessRequest");
+const RoleModel = require("@models/Role");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const bcrypt = require("bcrypt");
@@ -2108,9 +2110,11 @@ const createUserModule = {
         userBody
       );
 
+      // Pass the sendDuplicateEmail option to true for this specific flow
       const responseFromCreateUser = await UserModel(tenant).register(
         newRequest,
-        next
+        next,
+        { sendDuplicateEmail: true }
       );
 
       if (!responseFromCreateUser) {
@@ -4312,6 +4316,319 @@ const createUserModule = {
         size: result.size,
         compression: result.compression,
       })),
+    };
+  },
+  cleanup: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { cleanupType, dryRun = true } = request.body;
+
+      switch (cleanupType) {
+        case "fix-missing-group-roles": {
+          return await createUserModule._fixMissingGroupRoles(tenant, dryRun);
+        }
+        case "fix-email-casing": {
+          return await createUserModule._fixEmailCasing(tenant, dryRun);
+        }
+        case "fix-email-casing-all-collections": {
+          return await createUserModule._fixEmailCasingAllCollections(
+            tenant,
+            dryRun
+          );
+        }
+        default:
+          return {
+            success: false,
+            message: "Invalid cleanupType",
+            status: httpStatus.BAD_REQUEST,
+          };
+      }
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in cleanup util: ${error.message}`
+      );
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+  _fixMissingGroupRoles: async (tenant, dryRun) => {
+    try {
+      logText(
+        `--- Running cleanup: fix-missing-group-roles for tenant: ${tenant} ---`
+      );
+      logText(
+        dryRun
+          ? "DRY RUN: No changes will be saved."
+          : "LIVE RUN: Changes will be saved to the database."
+      );
+
+      const approvedRequests = await AccessRequestModel(tenant)
+        .find({
+          status: "approved",
+          requestType: "group",
+        })
+        .lean();
+
+      const summary = {
+        totalRequestsChecked: approvedRequests.length,
+        usersFixed: 0,
+        usersAlreadyMember: 0,
+        usersNotFound: 0,
+        groupsNotFound: 0,
+        rolesNotFound: 0,
+        errors: [],
+        fixedUserDetails: [],
+      };
+
+      for (const req of approvedRequests) {
+        const { email, targetId: groupId } = req;
+
+        if (!email || !groupId) {
+          summary.errors.push({
+            request_id: req._id,
+            error: "Missing email or groupId",
+          });
+          continue;
+        }
+
+        const user = await UserModel(tenant).findOne({
+          email: email.toLowerCase(),
+        });
+
+        if (!user) {
+          summary.usersNotFound++;
+          continue;
+        }
+
+        const isAlreadyMember = user.group_roles.some(
+          (role) => role.group && role.group.toString() === groupId.toString()
+        );
+
+        if (isAlreadyMember) {
+          summary.usersAlreadyMember++;
+          continue;
+        }
+
+        try {
+          const group = await GroupModel(tenant).findById(groupId).lean();
+          if (!group) {
+            summary.groupsNotFound++;
+            continue;
+          }
+
+          const orgName = group.grp_title
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, "_");
+          const defaultRoleName = `${orgName}_DEFAULT_MEMBER`;
+
+          const defaultRole = await RoleModel(tenant)
+            .findOne({ role_name: defaultRoleName })
+            .lean();
+
+          if (!defaultRole) {
+            summary.rolesNotFound++;
+            summary.errors.push({
+              email,
+              groupId,
+              error: `Default role "${defaultRoleName}" not found.`,
+            });
+            continue;
+          }
+
+          const newRoleAssignment = {
+            group: groupId,
+            role: defaultRole._id,
+            userType: "user",
+            createdAt: new Date(),
+          };
+
+          if (!dryRun) {
+            await UserModel(tenant).findByIdAndUpdate(user._id, {
+              $addToSet: { group_roles: newRoleAssignment },
+            });
+          }
+
+          summary.usersFixed++;
+          summary.fixedUserDetails.push({
+            email,
+            groupId,
+            role: defaultRoleName,
+          });
+        } catch (error) {
+          summary.errors.push({ email, groupId, error: error.message });
+        }
+      }
+
+      return {
+        success: true,
+        message: "Cleanup process completed.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(
+        `🐛🐛 Internal Server Error in _fixMissingGroupRoles: ${error.message}`
+      );
+      throw error; // Re-throw to be handled by the calling function
+    }
+  },
+  _fixEmailCasing: async (tenant, dryRun) => {
+    try {
+      const usersWithUppercaseEmails = await UserModel(tenant)
+        .find({
+          email: { $regex: /[A-Z]/ },
+        })
+        .lean();
+
+      const summary = {
+        totalUsersChecked: usersWithUppercaseEmails.length,
+        usersFixed: 0,
+        conflictsDetected: 0,
+        safeToMigrate: 0,
+        errors: [],
+        conflictDetails: [],
+      };
+
+      // First pass: detect all conflicts
+      const conflicts = new Map();
+      for (const user of usersWithUppercaseEmails) {
+        const lowercaseEmail = user.email.toLowerCase();
+
+        const existingUser = await UserModel(tenant)
+          .findOne({
+            email: lowercaseEmail,
+            _id: { $ne: user._id },
+          })
+          .lean();
+
+        if (existingUser) {
+          conflicts.set(user._id.toString(), {
+            originalUser: user,
+            conflictingUser: existingUser,
+          });
+          summary.conflictsDetected++;
+        } else {
+          summary.safeToMigrate++;
+        }
+      }
+
+      // Second pass: migrate safe users only
+      for (const user of usersWithUppercaseEmails) {
+        if (conflicts.has(user._id.toString())) {
+          const conflict = conflicts.get(user._id.toString());
+          summary.conflictDetails.push({
+            userId: user._id,
+            email: user.email,
+            conflictsWith: conflict.conflictingUser.email,
+            action: "skipped - manual review needed",
+          });
+          continue;
+        }
+
+        try {
+          if (!dryRun) {
+            await UserModel(tenant).findByIdAndUpdate(user._id, {
+              email: user.email.toLowerCase(),
+            });
+          }
+
+          summary.usersFixed++;
+        } catch (error) {
+          summary.errors.push({
+            userId: user._id,
+            email: user.email,
+            error: error.message,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: "Email casing cleanup completed safely.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      throw error;
+    }
+  },
+  _fixEmailCasingAllCollections: async (tenant, dryRun) => {
+    const collections = [
+      { model: "User", field: "email" },
+      { model: "Network", field: "net_email" },
+      { model: "Candidate", field: "email" },
+      { model: "Inquiry", field: "email" },
+    ];
+
+    const summary = {
+      collectionsProcessed: 0,
+      totalFixed: 0,
+      details: [],
+    };
+
+    for (const collection of collections) {
+      try {
+        const Model = require(`@models/${collection.model}`);
+        const result = await createUserModule._fixEmailCasingForCollection(
+          Model(tenant),
+          collection.field,
+          dryRun
+        );
+
+        summary.collectionsProcessed++;
+        summary.totalFixed += result.usersFixed;
+        summary.details.push({
+          collection: collection.model,
+          field: collection.field,
+          ...result,
+        });
+      } catch (error) {
+        summary.details.push({
+          collection: collection.model,
+          error: error.message,
+        });
+      }
+    }
+
+    return summary;
+  },
+
+  _fixEmailCasingForCollection: async (Model, fieldName, dryRun) => {
+    const filter = {};
+    filter[fieldName] = { $regex: /[A-Z]/ };
+
+    const docs = await Model.find(filter).lean();
+    let fixed = 0;
+
+    for (const doc of docs) {
+      const originalEmail = doc[fieldName];
+      const lowercaseEmail = originalEmail.toLowerCase();
+
+      // Check for conflicts
+      const conflictFilter = {};
+      conflictFilter[fieldName] = lowercaseEmail;
+      conflictFilter._id = { $ne: doc._id };
+
+      const existingDoc = await Model.findOne(conflictFilter).lean();
+
+      if (!existingDoc && !dryRun) {
+        const updateFilter = {};
+        updateFilter[fieldName] = lowercaseEmail;
+
+        await Model.findByIdAndUpdate(doc._id, updateFilter);
+        fixed++;
+      }
+    }
+
+    return {
+      totalChecked: docs.length,
+      usersFixed: fixed,
+      fieldName,
     };
   },
 };

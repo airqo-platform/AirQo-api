@@ -217,6 +217,29 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.message = "successful login";
         req.auth.status = httpStatus.OK;
 
+        if (user && user.email !== user.email.toLowerCase()) {
+          try {
+            const conflictUser = await UserModel(tenant.toLowerCase()).findOne({
+              email: user.email.toLowerCase(),
+              _id: { $ne: user._id },
+            });
+
+            if (!conflictUser) {
+              // Safe to migrate this user's email
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                { email: user.email.toLowerCase() },
+                { new: true }
+              );
+
+              logger.info(`Migrated email case for user: ${user._id}`);
+            }
+          } catch (error) {
+            logger.warn(
+              `Could not migrate email case for user ${user._id}: ${error.message}`
+            );
+          }
+        }
         const currentDate = new Date();
 
         try {
@@ -376,6 +399,30 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         req.auth.success = true;
         req.auth.message = "successful login";
 
+        if (user && user.email !== user.email.toLowerCase()) {
+          try {
+            const conflictUser = await UserModel(tenant.toLowerCase()).findOne({
+              email: user.email.toLowerCase(),
+              _id: { $ne: user._id },
+            });
+
+            if (!conflictUser) {
+              // Safe to migrate this user's email
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                { email: user.email.toLowerCase() },
+                { new: true }
+              );
+
+              logger.info(`Migrated email case for user: ${user._id}`);
+            }
+          } catch (error) {
+            logger.warn(
+              `Could not migrate email case for user ${user._id}: ${error.message}`
+            );
+          }
+        }
+
         const currentDate = new Date();
 
         try {
@@ -445,6 +492,32 @@ const useGoogleStrategy = (tenant, req, res, next) =>
         if (user) {
           req.auth.success = true;
           req.auth.message = "successful login";
+
+          if (user && user.email !== user.email.toLowerCase()) {
+            try {
+              const conflictUser = await UserModel(
+                tenant.toLowerCase()
+              ).findOne({
+                email: user.email.toLowerCase(),
+                _id: { $ne: user._id },
+              });
+
+              if (!conflictUser) {
+                // Safe to migrate this user's email
+                await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                  user._id,
+                  { email: user.email.toLowerCase() },
+                  { new: true }
+                );
+
+                logger.info(`Migrated email case for user: ${user._id}`);
+              }
+            } catch (error) {
+              logger.warn(
+                `Could not migrate email case for user ${user._id}: ${error.message}`
+              );
+            }
+          }
 
           winstonLogger.info(
             `successful login through ${service ? service : "unknown"} service`,

@@ -79,6 +79,19 @@ const listSummary = [validateTenant];
 
 const create = [
   validateTenant,
+  body().custom((value, { req }) => {
+    const { network_id, group_id } = req.body;
+
+    if (!network_id && !group_id) {
+      throw new Error("Either network_id or group_id must be provided");
+    }
+
+    if (network_id && group_id) {
+      throw new Error("Cannot provide both network_id and group_id");
+    }
+
+    return true;
+  }),
   oneOf([
     body("network_id")
       .exists()
@@ -112,10 +125,9 @@ const create = [
     body("role_code")
       .optional()
       .notEmpty()
-      .withMessage("role_code should not be empty IF provided")
-      .bail()
-      .notEmpty()
-      .withMessage("the role_code must not be empty")
+      .withMessage(
+        "role_code should not be empty IF provided (will auto-generate from role_name if omitted)"
+      )
       .bail()
       .trim()
       .escape()

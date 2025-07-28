@@ -18,6 +18,7 @@ const InquirySchema = new mongoose.Schema(
   {
     email: {
       type: String,
+      lowercase: true,
       required: [true, "Email is required"],
       trim: true,
       validate: {

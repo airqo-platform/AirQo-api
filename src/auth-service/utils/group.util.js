@@ -1124,6 +1124,17 @@ const groupUtil = {
         ...request.params,
       };
 
+      // Validate required parameters
+      if (!grp_id || !user_id || !tenant) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Missing required parameters: grp_id, user_id, or tenant",
+          })
+        );
+        return;
+      }
+
+      // Check if user and group exist
       const userExists = await UserModel(tenant).exists({ _id: user_id });
       const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
 
@@ -1136,20 +1147,22 @@ const groupUtil = {
         return;
       }
 
+      // Get user to check current assignments
       const user = await UserModel(tenant).findById(user_id).lean();
 
-      logObject("user", user);
-
+      // Check if already assigned (optional - the new method handles this gracefully)
       const isAlreadyAssigned = isUserAssignedToGroup(user, grp_id);
 
       if (isAlreadyAssigned) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Group already assigned to User",
-          })
-        );
-        return;
+        return {
+          success: true,
+          message: "User is already assigned to this group",
+          data: user,
+          status: httpStatus.OK,
+        };
       }
+
+      // Get default group role
 
       const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
         tenant,
@@ -1165,31 +1178,34 @@ const groupUtil = {
         return;
       }
 
-      const defaultRoleId = defaultGroupRole._id;
+      // Use the new static method for safe role assignment
 
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+      const assignmentResult = await UserModel(tenant).assignUserToGroup(
         user_id,
-        {
-          $addToSet: {
-            group_roles: {
-              group: grp_id,
-              role: defaultRoleId,
-              userType: "user",
-              createdAt: new Date(),
-            },
-          },
-        },
-        { new: true }
+        grp_id,
+        defaultGroupRole._id,
+        "user"
       );
 
-      logObject("updatedUser", updatedUser);
-
-      return {
-        success: true,
-        message: "User assigned to the Group",
-        data: updatedUser,
-        status: httpStatus.OK,
-      };
+      if (assignmentResult.success) {
+        return {
+          success: true,
+          message: "User assigned to the Group successfully",
+          data: assignmentResult.data,
+          status: httpStatus.OK,
+        };
+      } else {
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: `Failed to assign user to group: ${assignmentResult.message}`,
+            }
+          )
+        );
+        return;
+      }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -1202,6 +1218,122 @@ const groupUtil = {
       return;
     }
   },
+
+  assignMultipleUsers: async (request, next) => {
+    try {
+      const { grp_id, user_ids, tenant } = {
+        ...request.query,
+        ...request.params,
+        ...request.body,
+      };
+
+      if (!grp_id || !user_ids || !Array.isArray(user_ids) || !tenant) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "Missing required parameters: grp_id, user_ids array, or tenant",
+          })
+        );
+        return;
+      }
+
+      // Check if group exists
+      const groupExists = await GroupModel(tenant).exists({ _id: grp_id });
+      if (!groupExists) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Group not found",
+          })
+        );
+        return;
+      }
+
+      // Get default role
+      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+        tenant,
+        grp_id
+      );
+
+      if (!defaultGroupRole || !defaultGroupRole._id) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Default Role not found for group ID ${grp_id}`,
+          })
+        );
+        return;
+      }
+
+      const results = [];
+      const errors = [];
+
+      // Process each user
+      for (const user_id of user_ids) {
+        try {
+          const assignmentResult = await UserModel(tenant).assignUserToGroup(
+            user_id,
+            grp_id,
+            defaultGroupRole._id,
+            "user"
+          );
+
+          if (assignmentResult.success) {
+            results.push({
+              user_id,
+              success: true,
+              message: "User assigned successfully",
+            });
+          } else {
+            errors.push({
+              user_id,
+              success: false,
+              message: assignmentResult.message,
+            });
+            logger.error(
+              `❌ [GROUP UTIL] Failed to assign user ${user_id}: ${assignmentResult.message}`
+            );
+          }
+        } catch (userError) {
+          errors.push({
+            user_id,
+            success: false,
+            message: userError.message,
+          });
+          logger.error(
+            `🐛 [GROUP UTIL] Error processing user ${user_id}: ${userError.message}`
+          );
+        }
+      }
+
+      const successCount = results.length;
+      const errorCount = errors.length;
+
+      return {
+        success: true,
+        message: `Bulk assignment completed: ${successCount} successful, ${errorCount} failed`,
+        data: {
+          successful: results,
+          failed: errors,
+          summary: {
+            total: user_ids.length,
+            successful: successCount,
+            failed: errorCount,
+          },
+        },
+        status: errorCount > 0 ? httpStatus.MULTI_STATUS : httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛 [GROUP UTIL] Bulk assignment error: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
   unAssignUser: async (request, next) => {
     try {
       const { grp_id, user_id, tenant } = {
