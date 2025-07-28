@@ -52,7 +52,7 @@ def airqo_raw_data_measurements_mobile():
         )
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
-    def send_hourly_measurements_to_api(data: pd.DataFrame):
+    def send_raw_measurements_to_api(data: pd.DataFrame):
         data = DataUtils.process_data_for_api(data, frequency=Frequency.RAW)
 
         data_api = DataApi()
@@ -72,7 +72,7 @@ def airqo_raw_data_measurements_mobile():
 
     raw_data = extract_raw_data()
     cleaned_data = clean_data_raw_data(raw_data)
-    send_hourly_measurements_to_api(cleaned_data)
+    send_raw_measurements_to_api(cleaned_data)
     send_raw_measurements_to_bigquery(cleaned_data)
 
 
