@@ -817,6 +817,7 @@ class BigQueryApi:
             - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
             - This function modifies the input lists in-place and also returns them.
         """
+        # TODO: Make more dynamic to allow addition of multiple columns
         if pollutant_columns:
             pollutant_columns.extend(
                 [f"{table_name}.latitude", f"{table_name}.longitude"]
