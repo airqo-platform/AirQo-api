@@ -1207,7 +1207,6 @@ const groupUtil = {
         return;
       }
     } catch (error) {
-      console.error("🐛 [GROUP UTIL] Unexpected error:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
@@ -1289,9 +1288,8 @@ const groupUtil = {
               success: false,
               message: assignmentResult.message,
             });
-            console.error(
-              `❌ [GROUP UTIL] Failed to assign user ${user_id}:`,
-              assignmentResult.message
+            logger.error(
+              `❌ [GROUP UTIL] Failed to assign user ${user_id}: ${assignmentResult.message}`
             );
           }
         } catch (userError) {
@@ -1300,9 +1298,8 @@ const groupUtil = {
             success: false,
             message: userError.message,
           });
-          console.error(
-            `🐛 [GROUP UTIL] Error processing user ${user_id}:`,
-            userError
+          logger.error(
+            `🐛 [GROUP UTIL] Error processing user ${user_id}: ${userError.message}`
           );
         }
       }
@@ -1325,7 +1322,7 @@ const groupUtil = {
         status: errorCount > 0 ? httpStatus.MULTI_STATUS : httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛 [GROUP UTIL] Bulk assignment error: ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
