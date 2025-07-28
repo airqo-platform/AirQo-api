@@ -72,8 +72,8 @@ def copernicus_hourly_measurements():
     )
     def clean_data(**kwargs) -> pd.DataFrame:
         data_to_read = {
-            "pm10": "tmp/pm10_download.zip",
-            "pm2p5": "tmp/pm25_download.zip",
+            "pm10": "/tmp/pm10_download.zip",
+            "pm2p5": "/tmp/pm25_download.zip",
         }
         files_to_delete = []
         dfs: list[pd.DataFrame] = []
@@ -112,16 +112,18 @@ def copernicus_hourly_measurements():
 )
 def NOMADS_daily_measurements():
     import pandas as pd
+    from airflow.models import Variable
 
     @task(
         provide_context=True,
         retries=2,
         retry_delay=timedelta(minutes=5),
     )
-    def extract_data(**kwargs) -> pd.DataFrame:
+    def extract_data(**kwargs) -> None:
         data_source = DataSourcesApis()
         file = data_source.nomads()
-        return file
+        Variable.set("nomads_file_path", file)
+        return
 
     @task(
         provide_context=True,
@@ -129,6 +131,9 @@ def NOMADS_daily_measurements():
         retry_delay=timedelta(minutes=5),
     )
     def clean_data(file, **kwargs) -> pd.DataFrame:
+        file = Variable.get(
+            "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
+        )
         clean_data = SatelliteUtils.process_nomads_data_files(file)
         if not clean_data.empty:
             delete_old_files([file])
