@@ -130,7 +130,7 @@ def NOMADS_daily_measurements():
         retries=1,
         retry_delay=timedelta(minutes=5),
     )
-    def clean_data(file, **kwargs) -> pd.DataFrame:
+    def clean_data(**kwargs) -> pd.DataFrame:
         file = Variable.get(
             "nomads_file_path", default_var="/tmp/gdas.t00z.pgrb2.0p25.f000"
         )
