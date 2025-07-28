@@ -214,7 +214,7 @@ class DataUtils:
         devices, keys = DataUtils.get_devices(device_category, device_network)
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
         if is_mobile_category and "assigned_grid" in devices.columns:
-            devices = devices[devices["assigned_grid"].apply(has_valid_dict())]
+            devices = devices[devices["assigned_grid"].apply(has_valid_dict)]
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
