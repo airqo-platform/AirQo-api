@@ -21,7 +21,7 @@ from task_docs import (
     "AirQo-Raw-Data-Low-Cost-Measurements-Mobile",
     schedule="*/5 * * * *",
     catchup=False,
-    tags=["airqo", "raw", "low cost"],
+    tags=["airqo", "raw", "low cost", "mobile"],
     default_args=AirflowUtils.dag_default_configs(),
 )
 def airqo_raw_data_measurements_mobile():
@@ -160,3 +160,4 @@ def airqo_mobile_devices_measurements():
 
 
 airqo_mobile_devices_measurements()
+airqo_raw_data_measurements_mobile()
