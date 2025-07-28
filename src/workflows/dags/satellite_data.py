@@ -99,8 +99,8 @@ def copernicus_hourly_measurements():
         big_query_api.load_data(formated_data, table=table)
 
     extraction = extract_data()
-    cleaned = clean_data().set_upstream(extraction)
-    store_data(cleaned)
+    cleaned_data = clean_data().set_upstream(extraction)
+    store_data().set_upstream(cleaned_data)
 
 
 @dag(
