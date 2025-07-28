@@ -2,6 +2,7 @@ import pandas as pd
 from google.cloud import storage
 from typing import List, Optional
 import os
+import ast
 
 import logging
 
@@ -101,3 +102,25 @@ def drop_rows_with_bad_data(
         exclude or []
     )
     return data[data[numeric_columns].count(axis=1) > 1]
+
+
+def has_valid_dict(value: str) -> bool:
+    """
+    Checks whether the input string represents a valid, non-empty dictionary.
+
+    This function attempts to safely evaluate the string using `ast.literal_eval`.
+    It returns True only if the input is a string that evaluates to a non-empty dictionary.
+
+    Args:
+        v(str): A string potentially representing a dictionary.
+
+    Returns:
+        bool: True if `v` is a string representation of a non-empty dictionary, False otherwise.
+    """
+    try:
+        if not isinstance(value, str):
+            return False
+        parsed = ast.literal_eval(value)
+        return isinstance(parsed, dict) and len(parsed) > 0
+    except (ValueError, SyntaxError):
+        return False

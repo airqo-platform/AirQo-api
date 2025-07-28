@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs, drop_rows_with_bad_data
+from .commons import download_file_from_gcs, drop_rows_with_bad_data, has_valid_dict
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
@@ -204,9 +204,17 @@ class DataUtils:
             device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
             device_names(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
         """
+        # Temporary fix for mobile devices - TODO: Fix after requirements review
+        is_mobile_category = device_category == DeviceCategory.MOBILE
+
         devices_data = pd.DataFrame()
+        if is_mobile_category:
+            device_category = DeviceCategory.LOWCOST
 
         devices, keys = DataUtils.get_devices(device_category, device_network)
+        # Temporary fix for mobile devices - # TODO: Fix after requirements review
+        if is_mobile_category and "assigned_grid" in devices.columns:
+            devices = devices[devices["assigned_grid"].apply(has_valid_dict())]
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
@@ -278,12 +286,12 @@ class DataUtils:
         """Fetch devices from the external device registry API, optionally filtered by network and category.
 
         This method:
-        - Retrieves a list of devices from the API using the provided `device_network` and `device_category`.
-        - Converts the response into a pandas DataFrame.
-        - Ensures that any missing `device_number` values are filled with `-1`.
-        - Filters devices belonging to a specific network (e.g., `DeviceNetwork.AIRQO`).
-        - Fetches associated read keys for the filtered devices.
-        - Returns both the complete devices DataFrame and a dictionary of read keys.
+            - Retrieves a list of devices from the API using the provided `device_network` and `device_category`.
+            - Converts the response into a pandas DataFrame.
+            - Ensures that any missing `device_number` values are filled with `-1`.
+            - Filters devices belonging to a specific network (e.g., `DeviceNetwork.AIRQO`).
+            - Fetches associated read keys for the filtered devices.
+            - Returns both the complete devices DataFrame and a dictionary of read keys.
 
         If the API request or processing fails, it logs the exception and returns an empty DataFrame and an empty dictionary.
 
@@ -837,18 +845,26 @@ class DataUtils:
     # ---------------------------------------------------------------------------
 
     @staticmethod
-    def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
+    def process_data_for_api(
+        data: pd.DataFrame, frequency: Frequency
+    ) -> List[Dict[str, Any]]:
         """
-        Formats device measurements into a format required by the events endpoint.
+        Transform **CLEANED** device measurements into the payload format required by the API events endpoint.
+
+        This function:
+            - Ensures `timestamp` is converted to a string format expected by the API.
+            - Retrieves device metadata from the device registry.
+            - Merges measurement data with device metadata.
+            - Restructures each row into a nested JSON-like dict for the events endpoint.
 
         Args:
-            data(pd.DataFrame): device measurements
-            frequency(Frequency): frequency of the measurements.
+            data(pd.DataFrame): Cleaned device measurements. Must contain:
+                - "device_id", "device_number", "site_id", "timestamp", "latitude", "longitude", pollutant columns, etc.
+            frequency(Frequency): The measurement frequency (e.g., hourly, daily).
 
-        Return:
-            A list of measurements
+        Returns:
+            list[dict]: A list of measurement dicts ready to send to the API.
         """
-        restructured_data = []
 
         data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
         data["timestamp"] = data["timestamp"].apply(date_to_str)
@@ -858,6 +874,32 @@ class DataUtils:
         devices = devices[["_id", "device_id", "network"]]
         devices = devices.set_index("device_id")
 
+        restructured_data = DataUtils.__device_registry_api_data(
+            data, devices, frequency
+        )
+
+        return restructured_data
+
+    def __device_registry_api_data(
+        data: pd.DataFrame, devices: pd.DataFrame, frequency: Frequency
+    ) -> List[Dict[str, Any]]:
+        """
+        Merge measurement rows with device metadata and format into the API's expected structure.
+
+        Each row:
+            - Is matched to its corresponding device details from the registry.
+            - Includes pollutant values and calibrated equivalents (if both exist).
+            - Adds location, network, frequency, and additional sensor metadata.
+
+        Args:
+            data(pd.DataFrame): Measurement data with required fields.
+            devices(pd.DataFrame): Device metadata indexed by `device_id`, containing at least `_id` and `network`.
+            frequency(Frequency): Measurement frequency.
+
+        Returns:
+            list[dict]: Structured measurement dicts suitable for the API.
+        """
+        restructured_data = []
         for _, row in data.iterrows():
             try:
                 device_number = row["device_number"]
@@ -870,17 +912,17 @@ class DataUtils:
                     )
                     continue
 
-                if row["site_id"] is None or pd.isna(row["site_id"]):
-                    logger.exception(
-                        f"Invalid site_id: Device {device_id} might have been recalled."
-                    )
-                    continue
+                # only include pollutant if both keys exist - Use same structure to build raw data rows
+                (
+                    average_pollutants,
+                    calibrated_pollutants,
+                ) = DataUtils.__averaged_calibrated_data_structure(row)
 
                 device_details = devices.loc[device_id]
                 row_data = {
                     "device": device_id,
                     "device_id": device_details["_id"],
-                    "site_id": row["site_id"],
+                    "site_id": row.get("site_id", None),
                     "device_number": device_number,
                     "network": device_details["network"],
                     "location": {
@@ -888,20 +930,9 @@ class DataUtils:
                     },
                     "frequency": frequency.str,
                     "time": row["timestamp"],
-                    **{
-                        f"average_{key}": {
-                            "value": row[key],
-                            "calibratedValue": row[f"{key}_calibrated_value"],
-                        }
-                        for key in ["pm2_5", "pm10"]
-                    },
-                    **{
-                        key: {
-                            "value": row[key],
-                            "calibratedValue": row[f"{key}_calibrated_value"],
-                        }
-                        for key in ["pm2_5", "pm10"]
-                    },
+                    **average_pollutants,  # Can be empty
+                    **calibrated_pollutants,  # Can be empty
+                    # extra sensor metadata
                     **{
                         key: {"value": row.get(key, None)}
                         for key in [
@@ -924,8 +955,52 @@ class DataUtils:
                 logger.exception(
                     f"An error occurred while processing data for the api: {e}"
                 )
-
         return restructured_data
+
+    def __averaged_calibrated_data_structure(
+        row: Dict,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """
+        Build pollutant data structures for averaged and calibrated values.
+
+        This function extracts pollutant measurements (`pm2_5`, `pm10`) and their calibrated values from a given `row` dictionary, but only includes entries if both the raw value and its calibrated counterpart (`<pollutant>_calibrated_value`) are present.
+
+        Args:
+            row(Dict): A dictionary containing pollutant values and possibly their calibrated values.
+                Expected keys include:
+                - "pm2_5", "pm10"
+                - "pm2_5_calibrated_value", "pm10_calibrated_value"
+
+        Returns:
+            Tuple[Dict[str, Any], Dict[str, Any]]:
+                - average_pollutants: A dict with keys like `"average_pm2_5"` and `"average_pm10"`, each containing:
+                    {
+                        "value": <raw_value>,
+                        "calibratedValue": <calibrated_value>
+                    }
+                - calibrated_pollutants: A dict with keys `"pm2_5"` and `"pm10"` in the same structure.
+        """
+        pollutants = ["pm2_5", "pm10"]
+
+        average_pollutants = {
+            f"average_{key}": {
+                "value": row[key],
+                "calibratedValue": row[f"{key}_calibrated_value"],
+            }
+            for key in pollutants
+            if key in row and f"{key}_calibrated_value" in row
+        }
+
+        calibrated_pollutants = {
+            key: {
+                "value": row[key],
+                "calibratedValue": row[f"{key}_calibrated_value"],
+            }
+            for key in pollutants
+            if key in row and f"{key}_calibrated_value" in row
+        }
+
+        return average_pollutants, calibrated_pollutants
 
     @staticmethod
     def map_and_extract_data(
@@ -1097,7 +1172,10 @@ class DataUtils:
             #TODO Find a better way to extract frequency of dag that is executing the method. #
         """
         # It's assumed that if a row has no site_id, it could be from an undeployed device.
-        data.dropna(subset=["site_id"], how="any", inplace=True)
+        if (
+            device_category != DeviceCategory.MOBILE
+        ):  # Temporary until location data requirements for mobile data are revised.
+            data.dropna(subset=["site_id"], how="any", inplace=True)
 
         if remove_outliers:
             data = DataValidationUtils.remove_outliers_fix_types(data)
@@ -1695,6 +1773,7 @@ class DataUtils:
         RAW_METHODS = {
             DeviceCategory.GAS: "gaseous_low_cost_sensor_raw_data_check",
             DeviceCategory.LOWCOST: "pm2_5_low_cost_sensor_raw_data",
+            DeviceCategory.MOBILE: "pm2_5_low_cost_sensor_raw_data",
             DeviceCategory.BAM: "bam_sensors_raw_data",
         }
         SQL_METHODS = {
