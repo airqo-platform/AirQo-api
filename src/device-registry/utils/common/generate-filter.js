@@ -361,6 +361,7 @@ const generateFilter = {
       endTime,
       device_id,
       site_id,
+      grid_id,
       limit,
       skip,
       external,
@@ -372,6 +373,7 @@ const generateFilter = {
       index,
       running,
       brief,
+      deployment_type,
     } = { ...query, ...params };
 
     // Constants for date calculations
@@ -624,6 +626,20 @@ const generateFilter = {
 
     if (brief) {
       filter["brief"] = brief;
+    }
+
+    // Handle deployment type filtering
+    if (deployment_type) {
+      filter.deployment_type = deployment_type;
+    }
+
+    // Handle grid_id for mobile deployments
+    if (grid_id) {
+      const gridIdArray = grid_id
+        .toString()
+        .split(",")
+        .map((id) => ObjectId(id));
+      filter["values.grid_id"] = { $in: gridIdArray };
     }
 
     return filter;

@@ -543,9 +543,10 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 const createEvent = {
   addValues: async (req, res, next) => {
     try {
-      logText("adding values...");
+      logText("Adding values with mobile device support...");
       const measurements = req.body;
       const errors = extractErrorsFromRequest(req);
+
       if (errors) {
         next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
@@ -553,14 +554,13 @@ const createEvent = {
         return;
       }
 
-      const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      const tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      let result = await createEventUtil.insert(
-        defaultTenant,
+      const result = await createEventUtil.addValuesWithStats(
+        tenant,
         measurements,
         next
       );
@@ -569,18 +569,7 @@ const createEvent = {
         return;
       }
 
-      if (!result.success) {
-        return res.status(httpStatus.BAD_REQUEST).json({
-          success: false,
-          message: "finished the operation with some errors",
-          errors: result.errors,
-        });
-      } else {
-        return res.status(httpStatus.OK).json({
-          success: true,
-          message: "successfully added all the events",
-        });
-      }
+      return res.status(result.status).json(result);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
@@ -593,6 +582,60 @@ const createEvent = {
       return;
     }
   },
+
+  getDeploymentStats: async (req, res, next) => {
+    try {
+      const { tenant } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const activeTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      const result = await createEventUtil.getDeploymentStats(
+        activeTenant,
+        next
+      );
+
+      return res.status(result.status).json(result);
+    } catch (error) {
+      logger.error(`🐛🐛 Get Deployment Stats Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  validateDeviceContext: async (req, res, next) => {
+    try {
+      const { device_id, device, device_number, tenant } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const activeTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      const result = await createEventUtil.validateDeviceContext(
+        {
+          device_id,
+          device,
+          device_number,
+          tenant: activeTenant,
+        },
+        next
+      );
+
+      return res.status(result.status).json(result);
+    } catch (error) {
+      logger.error(`🐛🐛 Validate Device Context Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
   delete: async (req, res, next) => {
     try {
       const { tenant, startTime, endTime, device, site } = req.query; // Get query parameters
@@ -3183,6 +3226,70 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
+  listByDeploymentType: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const { deploymentType } = req.params;
+      const { tenant } = req.query;
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const activeTenant = isEmpty(tenant) ? defaultTenant : tenant;
+
+      // Add deployment_type to the request query for filtering
+      req.query.deployment_type = deploymentType;
+
+      const request = req;
+      request.query.tenant = activeTenant;
+      request.query.recent = "no";
+      request.query.metadata =
+        deploymentType === "static" ? "site_id" : "device_id";
+      request.query.brief = "yes";
+
+      const result = await createEventUtil.list(request, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      logObject("the result for listing events by deployment type", result);
+      const status = result.status || httpStatus.OK;
+
+      if (result.success === true) {
+        res.status(status).json({
+          success: true,
+          isCache: result.isCache,
+          message: `Successfully retrieved ${deploymentType} device measurements`,
+          deployment_type: deploymentType,
+          meta: result.data[0].meta,
+          measurements: result.data[0].data,
+        });
+      } else {
+        const errorStatus = result.status || httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(errorStatus).json({
+          success: false,
+          errors: result.errors || { message: "" },
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 List By Deployment Type Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",

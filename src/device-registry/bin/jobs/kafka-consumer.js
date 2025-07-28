@@ -1,3 +1,4 @@
+//src/device-registry/bin/jobs/kafka-consumer.js
 const { Kafka } = require("kafkajs");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -14,7 +15,7 @@ const isEmpty = require("is-empty");
 
 const { stringify } = require("@utils/common");
 
-// Existing measurement schema
+// Updated measurement schema with both nested and flat location support
 const eventSchema = Joi.object({
   s2_pm2_5: Joi.number().optional(),
   s2_pm10: Joi.number().optional(),
@@ -42,7 +43,7 @@ const eventSchema = Joi.object({
   device_id: Joi.string()
     .empty("")
     .required(),
-  site_id: Joi.string().required(),
+  site_id: Joi.string().optional(),
   device_number: Joi.number().optional(),
   atmospheric_pressure: Joi.number().optional(),
   humidity: Joi.number().optional(),
@@ -63,6 +64,23 @@ const eventSchema = Joi.object({
   co2: Joi.number().optional(),
   intaketemperature: Joi.number().optional(),
   intakehumidity: Joi.number().optional(),
+  deployment_type: Joi.string()
+    .valid("static", "mobile")
+    .optional(),
+  grid_id: Joi.string().optional(),
+  location: Joi.object({
+    latitude: Joi.object({
+      value: Joi.number().required(),
+      quality: Joi.string().optional(),
+    }).optional(),
+    longitude: Joi.object({
+      value: Joi.number().required(),
+      quality: Joi.string().optional(),
+    }).optional(),
+  }).optional(),
+  latitude_quality: Joi.string().optional(),
+  longitude_quality: Joi.string().optional(),
+  tenant: Joi.string().optional(),
 }).unknown(true);
 
 // Forecast validation schemas
@@ -100,6 +118,48 @@ const forecastSchema = Joi.object({
 
 const eventsSchema = Joi.array().items(eventSchema);
 
+/**
+ * Normalizes location data from nested format to flat format
+ * This ensures backward compatibility with existing downstream systems
+ */
+const normalizeLocationData = (measurements) => {
+  return measurements.map((measurement) => {
+    // If nested location format exists, unpack to flat format
+    if (measurement.location) {
+      const { location } = measurement;
+
+      // Extract latitude
+      if (location.latitude && location.latitude.value !== undefined) {
+        // Only override if flat latitude is not already present
+        if (measurement.latitude === undefined) {
+          measurement.latitude = location.latitude.value;
+        }
+        // Store quality information in flat format
+        if (location.latitude.quality) {
+          measurement.latitude_quality = location.latitude.quality;
+        }
+      }
+
+      // Extract longitude
+      if (location.longitude && location.longitude.value !== undefined) {
+        // Only override if flat longitude is not already present
+        if (measurement.longitude === undefined) {
+          measurement.longitude = location.longitude.value;
+        }
+        // Store quality information in flat format
+        if (location.longitude.quality) {
+          measurement.longitude_quality = location.longitude.quality;
+        }
+      }
+
+      // Remove the nested location object to avoid confusion downstream
+      delete measurement.location;
+    }
+
+    return measurement;
+  });
+};
+
 const consumeHourlyMeasurements = async (messageData) => {
   try {
     if (isEmpty(messageData)) {
@@ -116,9 +176,12 @@ const consumeHourlyMeasurements = async (messageData) => {
       return;
     }
 
-    const cleanedMeasurements = measurements.map((obj) =>
+    let cleanedMeasurements = measurements.map((obj) =>
       cleanDeep(obj, { cleanValues: ["NaN"] })
     );
+
+    // Normalize location data to ensure backward compatibility
+    cleanedMeasurements = normalizeLocationData(cleanedMeasurements);
 
     const options = {
       abortEarly: false,
@@ -131,7 +194,7 @@ const consumeHourlyMeasurements = async (messageData) => {
 
     if (error) {
       const errorDetails = error.details.map((detail) => {
-        const { device_number, timestamp } = value[detail.path[0]];
+        const { device_number, timestamp } = value[detail.path[0]] || {};
         return {
           message: detail.message,
           key: detail.context.key,
@@ -142,18 +205,88 @@ const consumeHourlyMeasurements = async (messageData) => {
       logger.error(`Validation errors: ${stringify(errorDetails)}`);
     }
 
+    // Parallel device context validation for better performance
+    const validationPromises = cleanedMeasurements
+      .filter((measurement) => measurement.device_id)
+      .map(async (measurement) => {
+        try {
+          const deviceContext = await createEventUtil.validateDeviceContext(
+            {
+              device_id: measurement.device_id,
+              tenant: constants.DEFAULT_TENANT || "airqo",
+            },
+            () => {}
+          ); // Pass empty next function
+
+          if (!deviceContext.success) {
+            logger.warn(
+              `Device context validation failed for ${measurement.device_id}: ${deviceContext.message}`
+            );
+          } else {
+            logger.debug(
+              `Device context validated successfully for ${measurement.device_id}`
+            );
+          }
+
+          return {
+            device_id: measurement.device_id,
+            success: deviceContext.success,
+            message: deviceContext.message,
+          };
+        } catch (contextError) {
+          logger.warn(
+            `Device context validation error for ${measurement.device_id}: ${contextError.message}`
+          );
+          return {
+            device_id: measurement.device_id,
+            success: false,
+            error: contextError.message,
+          };
+        }
+      });
+
+    // Wait for all validations to complete (but don't block on failures)
+    const validationResults = await Promise.allSettled(validationPromises);
+
+    // Log summary of validation results
+    const successful = validationResults.filter(
+      (result) => result.status === "fulfilled" && result.value.success
+    ).length;
+    const failed = validationResults.length - successful;
+
+    if (validationResults.length > 0) {
+      logger.info(
+        `Device context validation completed: ${successful} successful, ${failed} failed out of ${validationResults.length} devices`
+      );
+    }
+
     const request = {
       body: cleanedMeasurements,
+      query: {
+        tenant: constants.DEFAULT_TENANT || "airqo",
+      },
     };
 
-    const responseFromInsertMeasurements = await createEventUtil.create(
-      request
-    );
+    const responseFromInsertMeasurements = await createEventUtil.store(request);
 
     if (responseFromInsertMeasurements.success === false) {
-      console.log("KAFKA: failed to store the measurements");
+      logger.error("KAFKA: failed to store the measurements");
+      logger.error(
+        `KAFKA: Error details: ${stringify(
+          responseFromInsertMeasurements.errors
+        )}`
+      );
     } else if (responseFromInsertMeasurements.success === true) {
-      console.log("KAFKA: successfully stored the measurements");
+      logger.info("KAFKA: successfully stored the measurements");
+
+      // Log deployment statistics if available
+      if (responseFromInsertMeasurements.deployment_stats) {
+        logger.info(
+          `KAFKA: Deployment stats: ${stringify(
+            responseFromInsertMeasurements.deployment_stats
+          )}`
+        );
+      }
     }
   } catch (error) {
     logger.error(`🐛🐛 KAFKA: error message --- ${error.message}`);
@@ -294,6 +427,9 @@ const kafkaConsumer = async () => {
           const operation = topicOperations[topic];
           if (operation) {
             const messageData = message.value.toString();
+            logger.debug(
+              `KAFKA: Processing message from topic: ${topic}, partition: ${partition}`
+            );
             await operation(messageData);
           } else {
             logger.error(`🐛🐛 No operation defined for topic: ${topic}`);

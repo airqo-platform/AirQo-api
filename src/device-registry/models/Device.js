@@ -625,7 +625,6 @@ deviceSchema.methods = {
       claimed_at: this.claimed_at,
       assigned_organization_id: this.assigned_organization_id,
       organization_assigned_at: this.organization_assigned_at,
-      // ENHANCED: Include new fields
       grid_id: this.grid_id,
       deployment_type: this.deployment_type,
       mobility_metadata: this.mobility_metadata,
