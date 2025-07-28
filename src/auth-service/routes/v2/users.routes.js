@@ -71,6 +71,21 @@ router.post(
   userController.loginLegacyCompatible
 );
 
+/**
+ * @route POST /api/v2/users/admin/cleanup
+ * @desc Perform administrative cleanup tasks on user data.
+ * @access Private - Requires SYSTEM_ADMIN permission
+ * @body {string} cleanupType - The type of cleanup to perform (e.g., "fix-missing-group-roles").
+ * @body {boolean} [dryRun=true] - If true, simulates the cleanup without making changes.
+ */
+router.post(
+  "/admin/cleanup",
+  enhancedAuth,
+  requirePermissions(["SYSTEM_ADMIN"]),
+  userValidations.userCleanup,
+  userController.cleanup
+);
+
 // ================================
 // TOKEN MANAGEMENT ROUTES
 // ================================

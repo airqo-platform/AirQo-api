@@ -44,7 +44,7 @@ const filter = {
       let filter = {};
 
       if (email) {
-        filter["email"] = email;
+        filter["email"] = email.toLowerCase().trim();
       }
 
       if (role_id) {
@@ -52,7 +52,7 @@ const filter = {
       }
 
       if (email_address) {
-        filter["email"] = email_address;
+        filter["email"] = email_address.toLowerCase().trim();
       }
       if (!isEmpty(resetPasswordToken)) {
         filter["resetPasswordToken"] = resetPasswordToken;
@@ -163,7 +163,7 @@ const filter = {
 
       let filter = {};
       if (net_email) {
-        filter["net_email"] = net_email;
+        filter["net_email"] = net_email.toLowerCase().trim();
       }
       if (category) {
         filter["category"] = category;
@@ -375,13 +375,13 @@ const filter = {
       };
       let filter = {};
       if (email) {
-        filter["email"] = email;
+        filter["email"] = email.toLowerCase().trim();
       }
       if (network_id) {
         filter["network_id"] = ObjectId(network_id);
       }
       if (email_address) {
-        filter["email"] = email_address;
+        filter["email"] = email_address.toLowerCase().trim();
       }
       if (category) {
         filter["category"] = category;
@@ -648,7 +648,7 @@ const filter = {
 
       let filter = {};
       if (email) {
-        filter["email"] = email;
+        filter["email"] = email.toLowerCase().trim();
       }
       if (category) {
         filter["category"] = category;
@@ -1078,7 +1078,7 @@ const filter = {
 
       if (email) {
         logText("email present ");
-        filter["meta.email"] = email;
+        filter["meta.email"] = email.toLowerCase().trim();
       }
 
       return filter;
@@ -1112,8 +1112,7 @@ const filter = {
 
       // Handle email filtering
       if (email) {
-        logText("email present");
-        filter.email = email;
+        filter.email = email.toLowerCase().trim();
       }
 
       // Date range handling for dailyStats

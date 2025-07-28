@@ -19,6 +19,7 @@ const CandidateSchema = new mongoose.Schema(
   {
     email: {
       type: String,
+      lowercase: true,
       required: [true, "email is required"],
       trim: true,
       validate: {

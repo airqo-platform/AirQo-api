@@ -1,3 +1,4 @@
+//src/auth-service/utils/request.util.js
 const UserModel = require("@models/User");
 const AccessRequestModel = require("@models/AccessRequest");
 const GroupModel = require("@models/Group");
@@ -116,6 +117,7 @@ const createAccessRequest = {
       );
     }
   },
+
   requestAccessToGroupByEmail: async (request, next) => {
     try {
       const { tenant, emails, user, grp_id } = {
@@ -125,83 +127,149 @@ const createAccessRequest = {
         ...request.params,
       };
 
-      logObject("grp_id", grp_id);
+      logObject("requestAccessToGroupByEmail", { tenant, emails, grp_id });
 
       const inviter = user._doc;
       const inviterEmail = inviter.email;
       const inviterId = inviter._id;
+
       const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
       if (isEmpty(inviterDetails) || isEmpty(inviter)) {
         next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "Inviter does not exit",
-            }
-          )
+          new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
+            message: "Inviter authentication failed",
+          })
         );
+        return;
       }
 
-      const group = await GroupModel(tenant).findById(grp_id);
-      logObject("group", group);
+      const group = await GroupModel(tenant).findById(grp_id).lean();
       if (isEmpty(group)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "Group not found",
+            message: `Group ${grp_id} not found`,
           })
         );
+        return;
+      }
+
+      const inviterGroupMembership = inviterDetails.group_roles?.find(
+        (gr) => gr.group.toString() === grp_id.toString()
+      );
+
+      if (
+        !inviterGroupMembership &&
+        group.grp_manager?.toString() !== inviterId.toString()
+      ) {
+        logger.warn(
+          `User ${inviterId} attempted to invite to group ${grp_id} without permission`
+        );
+        next(
+          new HttpError("Forbidden", httpStatus.FORBIDDEN, {
+            message: "You do not have permission to invite users to this group",
+          })
+        );
+        return;
+      }
+
+      if (!emails || !Array.isArray(emails) || emails.length === 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Emails array is required and must not be empty",
+          })
+        );
+        return;
+      }
+
+      const invalidEmails = emails.filter(
+        (email) => !email || typeof email !== "string" || !email.includes("@")
+      );
+      if (invalidEmails.length > 0) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Invalid email formats: ${invalidEmails.join(", ")}`,
+          })
+        );
+        return;
+      }
+
+      const uniqueEmails = [
+        ...new Set(emails.map((email) => email.toLowerCase())),
+      ];
+      if (uniqueEmails.length !== emails.length) {
+        logger.warn("Duplicate emails found in invitation request", {
+          emails,
+          uniqueEmails,
+        });
       }
 
       const existingRequests = [];
       const successResponses = [];
       const failureResponses = [];
+      const alreadyMembers = [];
 
-      for (const email of emails) {
-        const existingRequest = await AccessRequestModel(tenant).findOne({
-          email: email,
-          targetId: grp_id,
-          requestType: "group",
-        });
+      for (const email of uniqueEmails) {
+        try {
+          const existingUser = await UserModel(tenant)
+            .findOne({ email: email.toLowerCase() })
+            .lean();
+          if (existingUser) {
+            const isAlreadyMember = existingUser.group_roles?.some(
+              (gr) => gr.group.toString() === grp_id.toString()
+            );
 
-        if (!isEmpty(existingRequest)) {
-          existingRequests.push(email);
-        } else {
+            if (isAlreadyMember) {
+              alreadyMembers.push(email);
+              continue;
+            }
+          }
+
+          // Check for existing pending requests
+          const existingRequest = await AccessRequestModel(tenant).findOne({
+            email: email.toLowerCase(),
+            targetId: grp_id,
+            requestType: "group",
+            status: "pending",
+          });
+
+          if (!isEmpty(existingRequest)) {
+            existingRequests.push({
+              email,
+              request_id: existingRequest._id,
+              created_at: existingRequest.createdAt,
+            });
+            continue;
+          }
+
+          const accessRequestData = {
+            email: email.toLowerCase(),
+            targetId: grp_id,
+            status: "pending",
+            requestType: "group",
+            inviter_id: inviterId,
+            inviter_email: inviterEmail,
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days expiry
+          };
+
+          // If user exists, add user_id to request
+          if (existingUser) {
+            accessRequestData.user_id = existingUser._id;
+          }
+
           const responseFromCreateAccessRequest = await AccessRequestModel(
             tenant
-          ).register(
-            {
-              email: email,
-              targetId: grp_id,
-              status: "pending",
-              requestType: "group",
-            },
-            next
-          );
+          ).register(accessRequestData, next);
 
-          logObject(
-            "responseFromCreateAccessRequest",
-            responseFromCreateAccessRequest
-          );
+          logObject("Access request created", {
+            email,
+            request_id: responseFromCreateAccessRequest.data?._id,
+            has_user_id: !!existingUser,
+          });
 
           if (responseFromCreateAccessRequest.success === true) {
-            const createdAccessRequest =
-              await responseFromCreateAccessRequest.data;
-            if (isEmpty(email)) {
-              next(
-                new HttpError(
-                  "Internal Server Error",
-                  httpStatus.INTERNAL_SERVER_ERROR,
-                  {
-                    message: "Unable to retrieve the requester's email address",
-                  }
-                )
-              );
-            }
+            const createdAccessRequest = responseFromCreateAccessRequest.data;
 
-            const userExists = await UserModel(tenant).exists({ email });
-
-            logObject("userExists", userExists);
+            const userExists = !!existingUser;
 
             const responseFromSendEmail =
               await mailer.requestToJoinGroupByEmail(
@@ -212,55 +280,134 @@ const createAccessRequest = {
                   targetId: grp_id,
                   inviterEmail,
                   userExists,
+                  inviter_name: `${inviterDetails.firstName} ${inviterDetails.lastName}`,
+                  group_description: group.grp_description,
+                  expires_at: accessRequestData.expires_at,
                 },
                 next
               );
 
-            logObject("responseFromSendEmail", responseFromSendEmail);
+            logObject("Email sending result", {
+              email,
+              success: responseFromSendEmail.success,
+              status: responseFromSendEmail.status,
+            });
 
             if (responseFromSendEmail.success === true) {
               successResponses.push({
+                email,
                 success: true,
-                message: "Access Request completed successfully",
-                data: createdAccessRequest,
-                status: responseFromSendEmail.status
-                  ? responseFromSendEmail.status
-                  : httpStatus.OK,
+                message: "Invitation sent successfully",
+                request_id: createdAccessRequest._id,
+                user_exists: userExists,
+                expires_at: accessRequestData.expires_at,
+                status: responseFromSendEmail.status || httpStatus.OK,
               });
-            } else if (responseFromSendEmail.success === false) {
-              logger.error(`${responseFromSendEmail.message}`);
-              failureResponses.push(responseFromSendEmail);
+            } else {
+              logger.error(
+                `Failed to send email to ${email}:`,
+                responseFromSendEmail
+              );
+              failureResponses.push({
+                email,
+                success: false,
+                message: `Failed to send invitation email: ${responseFromSendEmail.message}`,
+                error: responseFromSendEmail.error,
+              });
             }
           } else {
-            logger.error(`${responseFromCreateAccessRequest.message}`);
-            failureResponses.push(responseFromCreateAccessRequest);
+            logger.error(
+              `Failed to create access request for ${email}:`,
+              responseFromCreateAccessRequest
+            );
+            failureResponses.push({
+              email,
+              success: false,
+              message: `Failed to create invitation: ${responseFromCreateAccessRequest.message}`,
+              error: responseFromCreateAccessRequest.error,
+            });
           }
+        } catch (emailError) {
+          logger.error(`Error processing email ${email}:`, emailError);
+          failureResponses.push({
+            email,
+            success: false,
+            message: `Failed to process invitation: ${emailError.message}`,
+            error: emailError.message,
+          });
         }
       }
 
-      if (existingRequests.length > 0 && successResponses.length === 0) {
+      const totalProcessed = uniqueEmails.length;
+      const successCount = successResponses.length;
+      const failureCount = failureResponses.length;
+      const existingCount = existingRequests.length;
+      const memberCount = alreadyMembers.length;
+
+      // Build comprehensive response
+      const responseData = {
+        summary: {
+          total_emails: emails.length,
+          unique_emails: uniqueEmails.length,
+          successful_invitations: successCount,
+          failed_invitations: failureCount,
+          existing_requests: existingCount,
+          already_members: memberCount,
+        },
+        group_info: {
+          id: grp_id,
+          name: group.grp_title,
+        },
+        results: {
+          successful: successResponses,
+          failed: failureResponses,
+          existing_requests: existingRequests,
+          already_members: alreadyMembers,
+        },
+      };
+
+      let statusCode = httpStatus.OK;
+      let message = `Invitations processed: ${successCount} sent, ${failureCount} failed, ${existingCount} already pending, ${memberCount} already members`;
+
+      // Determine appropriate status code
+      if (successCount === 0) {
+        if (failureCount > 0) {
+          statusCode = httpStatus.BAD_REQUEST;
+          message = "All invitations failed to send";
+        } else if (existingCount > 0 || memberCount > 0) {
+          statusCode = httpStatus.OK;
+          message =
+            "No new invitations sent - all users already invited or are members";
+        }
+      } else if (failureCount > 0) {
+        statusCode = httpStatus.MULTI_STATUS; // 207 - some succeeded, some failed
+      }
+
+      if (
+        statusCode === httpStatus.BAD_REQUEST &&
+        successCount === 0 &&
+        failureCount > 0
+      ) {
         next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message:
-              "Access requests were already sent for the following emails",
-            existingRequests,
+          new HttpError("Bad Request Error", statusCode, {
+            message,
+            details: responseData,
           })
         );
+        return;
       }
 
-      if (failureResponses.length > 0) {
-        logger.error(
-          `Internal Server Errors -- ${JSON.stringify(failureResponses)}`
-        );
-        return failureResponses[0];
-      }
-
-      if (successResponses.length > 0) {
-        return successResponses[0];
-      }
+      return {
+        success: true,
+        message,
+        data: responseData,
+        status: statusCode,
+      };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      logObject("error", error);
+      logger.error(
+        `🐛🐛 Internal Server Error in requestAccessToGroupByEmail: ${error.message}`,
+        error
+      );
       next(
         new HttpError(
           "Internal Server Error",
@@ -268,8 +415,10 @@ const createAccessRequest = {
           { message: error.message }
         )
       );
+      return;
     }
   },
+
   acceptInvitation: async (request, next) => {
     try {
       const { tenant, email, firstName, lastName, password, grids, target_id } =
@@ -279,7 +428,9 @@ const createAccessRequest = {
           ...request.params,
         };
 
-      const existingUser = await UserModel(tenant).findOne({ email });
+      const existingUser = await UserModel(tenant).findOne({
+        email: email.toLowerCase(),
+      });
 
       const accessRequest = await AccessRequestModel(tenant).findOne({
         targetId: target_id,
@@ -287,7 +438,6 @@ const createAccessRequest = {
         status: "pending",
       });
 
-      logObject("accessRequest", accessRequest);
       if (isEmpty(accessRequest)) {
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
@@ -307,19 +457,6 @@ const createAccessRequest = {
         if (requestType === "group") {
           const isAlreadyAssigned = existingUser.group_roles?.some(
             (gr) => gr.group.toString() === target_id.toString()
-          );
-
-          if (isAlreadyAssigned) {
-            next(
-              new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-                message: "User is already a member of this organization",
-              })
-            );
-            return;
-          }
-        } else if (requestType === "network") {
-          const isAlreadyAssigned = existingUser.network_roles?.some(
-            (nr) => nr.network.toString() === target_id.toString()
           );
 
           if (isAlreadyAssigned) {
@@ -357,8 +494,9 @@ const createAccessRequest = {
 
         user = responseFromCreateNewUser.data;
         isNewUser = true;
-        logObject("newUser", user);
       }
+
+      // Update access request status
 
       const update = { status: "approved" };
       const filter = { email, targetId: target_id };
@@ -388,54 +526,45 @@ const createAccessRequest = {
 
         entity_title = group.grp_title;
 
-        const rolePermissionsUtil = require("@utils/role-permissions.util");
-        const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
-          tenant,
-          target_id
-        );
+        // Use the existing utility function instead of direct user updates
 
-        if (!defaultGroupRole || !defaultGroupRole._id) {
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Unable to find or create default role for group ${target_id}`,
-              }
-            )
-          );
-          return;
-        }
-
-        const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-          user._id,
-          {
-            $addToSet: {
-              group_roles: {
-                group: target_id,
-                role: defaultGroupRole._id,
-                userType: "user",
-                createdAt: new Date(),
-              },
-            },
+        const assignUserRequest = {
+          params: {
+            grp_id: target_id,
+            user_id: user._id,
           },
-          { new: true }
-        );
+          query: { tenant: tenant },
+        };
 
-        if (!updatedUser) {
+        try {
+          assignmentResult = await createGroupUtil.assignOneUser(
+            assignUserRequest
+          );
+
+          if (!assignmentResult.success) {
+            next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message: `Failed to assign user to group: ${assignmentResult.message}`,
+                }
+              )
+            );
+            return;
+          }
+        } catch (assignmentError) {
           next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
               {
-                message: "Failed to assign user to group",
+                message: `Group assignment failed: ${assignmentError.message}`,
               }
             )
           );
           return;
         }
-
-        assignmentResult = { success: true, data: updatedUser };
       } else if (requestType === "network") {
         const network = await NetworkModel(tenant).findById(target_id).lean();
         if (!network) {
@@ -449,52 +578,45 @@ const createAccessRequest = {
 
         entity_title = network.net_name;
 
-        const rolePermissionsUtil = require("@utils/role-permissions.util");
-        const defaultNetworkRole =
-          await rolePermissionsUtil.getDefaultNetworkRole(tenant, target_id);
+        // Use the existing utility function instead of direct user updates
 
-        if (!defaultNetworkRole || !defaultNetworkRole._id) {
-          next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              {
-                message: `Unable to find or create default role for network ${target_id}`,
-              }
-            )
-          );
-          return;
-        }
-
-        const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-          user._id,
-          {
-            $addToSet: {
-              network_roles: {
-                network: target_id,
-                role: defaultNetworkRole._id,
-                userType: "user",
-                createdAt: new Date(),
-              },
-            },
+        const assignUserRequest = {
+          params: {
+            net_id: target_id,
+            user_id: user._id,
           },
-          { new: true }
-        );
+          query: { tenant: tenant },
+        };
 
-        if (!updatedUser) {
+        try {
+          assignmentResult = await createNetworkUtil.assignOneUser(
+            assignUserRequest
+          );
+
+          if (!assignmentResult.success) {
+            next(
+              new HttpError(
+                "Internal Server Error",
+                httpStatus.INTERNAL_SERVER_ERROR,
+                {
+                  message: `Failed to assign user to network: ${assignmentResult.message}`,
+                }
+              )
+            );
+            return;
+          }
+        } catch (assignmentError) {
           next(
             new HttpError(
               "Internal Server Error",
               httpStatus.INTERNAL_SERVER_ERROR,
               {
-                message: "Failed to assign user to network",
+                message: `Network assignment failed: ${assignmentError.message}`,
               }
             )
           );
           return;
         }
-
-        assignmentResult = { success: true, data: updatedUser };
       }
 
       if (assignmentResult && assignmentResult.success === true) {
@@ -549,6 +671,7 @@ const createAccessRequest = {
       return;
     }
   },
+
   requestAccessToNetwork: async (request, next) => {
     try {
       const {
@@ -648,6 +771,7 @@ const createAccessRequest = {
       );
     }
   },
+
   approveAccessRequest: async (request, next) => {
     try {
       const { query } = request;
@@ -775,6 +899,7 @@ const createAccessRequest = {
       );
     }
   },
+
   list: async (request, next) => {
     try {
       const { query } = request;
@@ -802,6 +927,7 @@ const createAccessRequest = {
       );
     }
   },
+
   update: async (request, next) => {
     try {
       const { query, body } = request;
@@ -834,6 +960,7 @@ const createAccessRequest = {
       );
     }
   },
+
   delete: async (request, next) => {
     try {
       const { query } = request;
