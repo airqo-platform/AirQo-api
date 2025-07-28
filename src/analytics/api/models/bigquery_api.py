@@ -688,6 +688,7 @@ class BigQueryApi:
 
         selected_columns = set(pollutant_columns)
         bam_selected_columns = set(bam_pollutant_columns)
+
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
@@ -780,7 +781,7 @@ class BigQueryApi:
             # TODO Clean up by use using `get_columns` helper method
             if pollutant in {"pm2_5", "pm10"} and data_type.value == "raw":
                 # Add dummy column to fix union column number missmatch.
-                bam_pollutant_columns.append("-1 as " + pollutant)
+                bam_pollutant_columns_.append("-1 as " + pollutant)
 
         pollutant_columns, bam_pollutant_columns = self._add_extra_columns(
             pollutant_columns_,
