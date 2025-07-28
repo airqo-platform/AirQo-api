@@ -59,13 +59,18 @@ class Config:
     BIGQUERY_OPENWEATHERMAP_TABLE = os.getenv("BIGQUERY_OPENWEATHERMAP_TABLE")
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
     BIGQUERY_SATELLITE_DATA_TABLE = os.getenv("BIGQUERY_SATELLITE_DATA_TABLE")
+    BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE = os.getenv(
+        "BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE"
+    )
 
     # Bam data
     BIGQUERY_RAW_BAM_DATA_TABLE = os.getenv("BIGQUERY_RAW_BAM_DATA_TABLE")
     BIGQUERY_HOURLY_BAM_EVENTS_TABLE = os.getenv("BIGQUERY_BAM_EVENTS_TABLE")
 
     # Raw data
-    BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE = os.getenv("BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE")
+    BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE = os.getenv(
+        "BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE"
+    )
     BIGQUERY_RAW_EVENTS_TABLE = os.getenv("BIGQUERY_RAW_EVENTS_TABLE")
     BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE = os.getenv(
         "BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE"
@@ -442,6 +447,21 @@ class Config:
                 "battery",
             ],
         },
+        "mobile": {
+            "field_8_cols": list(
+                AIRQO_LOW_COST_FIELD_MAPPING.get("field8", {}).values()
+            ),
+            "mapping": {
+                "airqo": AIRQO_LOW_COST_FIELD_MAPPING,
+            },
+            "other_fields_cols": [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ],
+        },
     }
 
     # Schema files mapping
@@ -468,7 +488,8 @@ class Config:
         BIGQUERY_DEVICES_DEVICES_TABLE: "devices.json",
         BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
         BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE: "mobile_measurements.json",
-        BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE: "airqo_mobile_measurements.json",
+        BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE: "airqo_mobile_measurements.json",
+        BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE: "airqo_mobile_measurements.json",
         BIGQUERY_HOURLY_BAM_EVENTS_TABLE: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
@@ -485,7 +506,7 @@ class Config:
                 Frequency.RAW: BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE,
             },
             DeviceCategory.MOBILE: {
-                Frequency.RAW: BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE,
+                Frequency.RAW: BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE,
                 Frequency.NONE: BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE,
             },
             DeviceCategory.BAM: {Frequency.RAW: BIGQUERY_RAW_BAM_DATA_TABLE},
@@ -496,6 +517,9 @@ class Config:
                 Frequency.RAW: BIGQUERY_HOURLY_UNCALIBRATED_EVENTS_TABLE,
                 Frequency.HOURLY: BIGQUERY_HOURLY_EVENTS_TABLE,
                 Frequency.DAILY: BIGQUERY_DAILY_EVENTS_TABLE,
+            },
+            DeviceCategory.MOBILE: {
+                Frequency.HOURLY: BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE,
             },
             DeviceCategory.BAM: {Frequency.HOURLY: BIGQUERY_HOURLY_BAM_EVENTS_TABLE},
             DeviceCategory.WEATHER: {Frequency.HOURLY: BIGQUERY_HOURLY_WEATHER_TABLE},

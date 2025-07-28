@@ -46,8 +46,11 @@ class BigQueryApi:
         self.clean_mobile_raw_measurements_table = (
             configuration.BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE
         )
-        self.airqo_mobile_measurements_table = (
-            configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE
+        self.airqo_mobile_measurements_raw_table = (
+            configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE
+        )
+        self.airqo_mobile_measurements_averaged_table = (
+            configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE
         )
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
