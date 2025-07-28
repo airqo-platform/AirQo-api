@@ -151,8 +151,8 @@ def NOMADS_daily_measurements():
         big_query_api = BigQueryApi()
         big_query_api.load_data(formated_data, table=table)
 
-    file = extract_data()
-    cleaned = clean_data(file)
+    extract_data()
+    cleaned = clean_data()
     store_data(cleaned)
 
 
