@@ -506,12 +506,31 @@ gridSchema.statics.cleanupInactiveDevices = async function(
       }
     );
     try {
-      // Update counts and online status in bulk
       await this.updateMany({}, [
         {
           $set: {
-            mobileDeviceCount: { $size: "$activeMobileDevices" },
-            isOnline: { $gt: [{ $size: "$activeMobileDevices" }, 0] },
+            activeMobileDevices: {
+              $ifNull: ["$activeMobileDevices", []],
+            },
+          },
+        },
+        {
+          $set: {
+            mobileDeviceCount: {
+              $size: {
+                $ifNull: ["$activeMobileDevices", []],
+              },
+            },
+            isOnline: {
+              $gt: [
+                {
+                  $size: {
+                    $ifNull: ["$activeMobileDevices", []],
+                  },
+                },
+                0,
+              ],
+            },
           },
         },
       ]);
