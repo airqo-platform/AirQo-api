@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
 
 from .config import configuration as Config
-from .commons import download_file_from_gcs, drop_rows_with_bad_data
+from .commons import download_file_from_gcs, drop_rows_with_bad_data, has_valid_dict
 from .bigquery_api import BigQueryApi
 from airqo_etl_utils.data_api import DataApi
 from .data_sources import DataSourcesApis
@@ -204,26 +204,17 @@ class DataUtils:
             device_category (DeviceCategory): Category of devices to extract data from (BAM or low-cost sensors).
             device_names(list, optional): List of device ids/names whose data to extract. Defaults to None (all devices).
         """
-        # Temporary variable
-        d_category = None
+        # Temporary fix for mobile devices - TODO: Fix after requirements review
+        is_mobile_category = device_category == DeviceCategory.MOBILE
 
         devices_data = pd.DataFrame()
-        if device_category == DeviceCategory.MOBILE:
-            d_category = DeviceCategory.MOBILE
+        if is_mobile_category:
             device_category = DeviceCategory.LOWCOST
 
         devices, keys = DataUtils.get_devices(device_category, device_network)
-        # Temporary fix for mobile devices
-        # TODO: Fix after requirements review
-        if d_category:
-            if "assigned_grid" in devices.columns:
-                devices = devices[
-                    devices["assigned_grid"].apply(
-                        lambda v: isinstance(v, str)
-                        and isinstance(ast.literal_eval(v), dict)
-                        and len(ast.literal_eval(v)) > 0
-                    )
-                ]
+        # Temporary fix for mobile devices - # TODO: Fix after requirements review
+        if is_mobile_category and "assigned_grid" in devices.columns:
+            devices = devices[devices["assigned_grid"].apply(has_valid_dict())]
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
