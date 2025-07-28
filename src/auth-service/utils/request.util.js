@@ -439,10 +439,6 @@ const createAccessRequest = {
       });
 
       if (isEmpty(accessRequest)) {
-        console.error("❌ [DEBUG] Access request not found:", {
-          email,
-          target_id,
-        });
         next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message:
@@ -493,10 +489,6 @@ const createAccessRequest = {
           responseFromCreateNewUser.success !== true ||
           responseFromCreateNewUser.status !== httpStatus.OK
         ) {
-          console.error(
-            "❌ [DEBUG] User creation failed:",
-            responseFromCreateNewUser
-          );
           return responseFromCreateNewUser;
         }
 
@@ -514,10 +506,6 @@ const createAccessRequest = {
       ).modify({ filter, update }, next);
 
       if (responseFromUpdateAccessRequest.success !== true) {
-        console.error(
-          "❌ [DEBUG] Failed to update access request:",
-          responseFromUpdateAccessRequest
-        );
         return responseFromUpdateAccessRequest;
       }
 
@@ -528,7 +516,6 @@ const createAccessRequest = {
       if (requestType === "group") {
         const group = await GroupModel(tenant).findById(target_id).lean();
         if (!group) {
-          console.error("❌ [DEBUG] Group not found:", target_id);
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Group not found",
@@ -555,10 +542,6 @@ const createAccessRequest = {
           );
 
           if (!assignmentResult.success) {
-            console.error(
-              "❌ [DEBUG] Group assignment failed:",
-              assignmentResult
-            );
             next(
               new HttpError(
                 "Internal Server Error",
@@ -571,10 +554,6 @@ const createAccessRequest = {
             return;
           }
         } catch (assignmentError) {
-          console.error(
-            "❌ [DEBUG] Error in group assignment:",
-            assignmentError
-          );
           next(
             new HttpError(
               "Internal Server Error",
@@ -589,7 +568,6 @@ const createAccessRequest = {
       } else if (requestType === "network") {
         const network = await NetworkModel(tenant).findById(target_id).lean();
         if (!network) {
-          console.error("❌ [DEBUG] Network not found:", target_id);
           next(
             new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
               message: "Network not found",
@@ -616,10 +594,6 @@ const createAccessRequest = {
           );
 
           if (!assignmentResult.success) {
-            console.error(
-              "❌ [DEBUG] Network assignment failed:",
-              assignmentResult
-            );
             next(
               new HttpError(
                 "Internal Server Error",
@@ -632,10 +606,6 @@ const createAccessRequest = {
             return;
           }
         } catch (assignmentError) {
-          console.error(
-            "❌ [DEBUG] Error in network assignment:",
-            assignmentError
-          );
           next(
             new HttpError(
               "Internal Server Error",
@@ -690,7 +660,6 @@ const createAccessRequest = {
         return assignmentResult;
       }
     } catch (error) {
-      console.error("🐛 [DEBUG] Unexpected error in acceptInvitation:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(

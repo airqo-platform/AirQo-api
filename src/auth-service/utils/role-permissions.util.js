@@ -429,9 +429,10 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
     );
 
     if (missingPermissions.length > 0) {
-      console.warn(
-        `⚠️  Missing permissions for role ${roleData.role_name}:`,
-        missingPermissions
+      logger.warn(
+        `⚠️  Missing permissions for role ${roleData.role_name}: ${stringify(
+          missingPermissions
+        )}`
       );
     }
 
@@ -523,9 +524,6 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       };
     }
   } catch (err) {
-    console.error(
-      `❌ Error creating/updating role ${roleData.role_name}: ${err.message}`
-    );
     return {
       success: false,
       message: "Error creating/updating role",
@@ -568,8 +566,8 @@ const syncPermissions = async (tenant, permissionsList) => {
         }
       }
     } catch (error) {
-      console.error(
-        `❌ Error syncing permission ${permissionData.permission}: ${error.message}`
+      logger.error(
+        `Error syncing permission ${permissionData.permission}: ${error.message}`
       );
     }
   }
@@ -599,8 +597,8 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
         }
       }
     } catch (error) {
-      console.error(
-        `❌ Failed to create/update role ${roleData.role_name}: ${error.message}`
+      logger.error(
+        `Error creating/updating role ${roleData.role_name}: ${error.message}`
       );
     }
   }
@@ -789,8 +787,8 @@ const auditAndSyncExistingRoles = async (tenant) => {
           }
         }
       } catch (error) {
-        console.error(
-          `❌ Error updating role ${role.role_name}: ${error.message}`
+        logger.error(
+          `❌ Error processing role ${role.role_name}: ${error.message}`
         );
       }
     }
@@ -800,7 +798,7 @@ const auditAndSyncExistingRoles = async (tenant) => {
     );
     return { rolesUpdated, permissionsAdded };
   } catch (error) {
-    console.error(`❌ Error during role audit: ${error.message}`);
+    logger.error(`❌ Error in auditAndSyncExistingRoles:  ${error.message}`);
     return { rolesUpdated: 0, permissionsAdded: 0 };
   }
 };
@@ -1295,7 +1293,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       },
     };
   } catch (error) {
-    console.error(`❌ Error setting up default permissions: ${error.message}`);
+    logger.error(`❌ Error setting up default permissions: ${error.message}`);
     throw error;
   }
 };
@@ -1428,7 +1426,9 @@ const createOrUpdateRole = async (tenant, roleData) => {
           };
         }
       } catch (findError) {
-        console.error(`❌ Error finding existing role: ${findError.message}`);
+        logger.error(
+          `❌ Error finding existing role ${roleData.role_name}: ${findError.message}`
+        );
         return {
           success: false,
           message: "Duplicate role error and failed to find existing role",
@@ -1443,9 +1443,10 @@ const createOrUpdateRole = async (tenant, roleData) => {
       }
     } else {
       // Handle other errors
-      console.error(
-        `❌ Unexpected error creating role ${roleData.role_name}: ${err.message}`
+      logger.error(
+        `❌ Error creating role ${roleData.role_name}: ${err.message}`
       );
+
       return {
         success: false,
         message: "Error creating role",
@@ -1556,7 +1557,7 @@ const createDefaultRolesForOrganization = async (
             error: result.message,
             details: result.errors,
           });
-          console.error(
+          logger.error(
             `❌ Failed to create role ${roleTemplate.role_name}: ${result.message}`
           );
         }
@@ -1566,8 +1567,8 @@ const createDefaultRolesForOrganization = async (
           error: error.message,
           type: "unexpected_error",
         });
-        console.error(
-          `❌ Unexpected error creating role ${roleTemplate.role_name}: ${error.message}`
+        logger.error(
+          `❌ Error creating role ${roleTemplate.role_name}: ${error.message}`
         );
         // Continue with other roles
         continue;
@@ -1590,8 +1591,8 @@ const createDefaultRolesForOrganization = async (
           : `Some roles failed to create for ${organizationName}`,
     };
   } catch (error) {
-    console.error(
-      `Error creating roles for organization ${organizationName}: ${error.message}`
+    logger.error(
+      `❌ Error creating default roles for organization ${organizationName}: ${error.message}`
     );
     return {
       success: false,
@@ -1671,7 +1672,7 @@ const resetRBACData = async (tenant = "airqo", options = {}) => {
       data: results,
     };
   } catch (error) {
-    console.error(`❌ Error resetting RBAC data: ${error.message}`);
+    logger.error(`❌ Error resetting RBAC data: ${error.message}`);
     throw error;
   }
 };
@@ -1817,7 +1818,9 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
           );
           return superAdminRole;
         } else {
-          console.error("❌ Duplicate error but could not find existing role");
+          logger.error(
+            "❌ Duplicate error but could not find existing AIRQO_SUPER_ADMIN role"
+          );
           throw new Error(
             "AIRQO_SUPER_ADMIN role appears to exist but could not be located"
           );
@@ -1828,7 +1831,7 @@ const ensureSuperAdminRole = async (tenant = "airqo") => {
       }
     }
   } catch (error) {
-    console.error(`❌ Error ensuring super admin role: ${error.message}`);
+    logger.error(`❌ Error ensuring AIRQO_SUPER_ADMIN role: ${error.message}`);
     throw error;
   }
 };
@@ -3303,7 +3306,7 @@ const rolePermissionUtil = {
     try {
       const group = await GroupModel(tenant).findById(groupId).lean();
       if (!group) {
-        console.error("❌ [DEBUG] Group not found for ID:", groupId);
+        logger.error("❌ [DEBUG] Group not found for ID:", groupId);
         return null;
       }
 
@@ -3412,14 +3415,15 @@ const rolePermissionUtil = {
               );
             }
           } else {
-            console.warn(
-              "⚠️ [DEBUG] No permissions available to assign to default role"
+            logger.warn(
+              "❌ [DEBUG] No valid permissions found to assign to default role"
             );
           }
         } catch (permissionError) {
-          console.error(
-            "❌ [DEBUG] Permission assignment failed:",
-            permissionError
+          logger.error(
+            `❌ [DEBUG] Error assigning permissions to default role: ${stringify(
+              permissionError
+            )}`
           );
           // Continue anyway - role exists even without permissions
         }
@@ -3427,8 +3431,7 @@ const rolePermissionUtil = {
 
       return role;
     } catch (error) {
-      console.error("🐛 [DEBUG] Error in getDefaultGroupRole:", error);
-      logger.error("Error getting default group role:", error);
+      logger.error(`Error getting default group role: ${stringify(error)}`);
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,

@@ -427,7 +427,10 @@ const createUser = [
       .bail()
       .isEmail()
       .withMessage("this is not a valid email address")
-      .trim(),
+      .bail()
+      .customSanitizer((value) => {
+        return value.toLowerCase().trim();
+      }),
     body("organization")
       .optional()
       .notEmpty()
@@ -984,7 +987,11 @@ const userCleanup = [
       .exists()
       .withMessage("cleanupType is required")
       .bail()
-      .isIn(["fix-missing-group-roles"])
+      .isIn([
+        "fix-missing-group-roles",
+        "fix-email-casing",
+        "fix-email-casing-all-collections",
+      ])
       .withMessage("Invalid cleanupType specified"),
     body("dryRun")
       .optional()

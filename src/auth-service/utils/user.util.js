@@ -4327,7 +4327,15 @@ const createUserModule = {
         case "fix-missing-group-roles": {
           return await createUserModule._fixMissingGroupRoles(tenant, dryRun);
         }
-
+        case "fix-email-casing": {
+          return await createUserModule._fixEmailCasing(tenant, dryRun);
+        }
+        case "fix-email-casing-all-collections": {
+          return await createUserModule._fixEmailCasingAllCollections(
+            tenant,
+            dryRun
+          );
+        }
         default:
           return {
             success: false,
@@ -4468,6 +4476,160 @@ const createUserModule = {
       );
       throw error; // Re-throw to be handled by the calling function
     }
+  },
+  _fixEmailCasing: async (tenant, dryRun) => {
+    try {
+      const usersWithUppercaseEmails = await UserModel(tenant)
+        .find({
+          email: { $regex: /[A-Z]/ },
+        })
+        .lean();
+
+      const summary = {
+        totalUsersChecked: usersWithUppercaseEmails.length,
+        usersFixed: 0,
+        conflictsDetected: 0,
+        safeToMigrate: 0,
+        errors: [],
+        conflictDetails: [],
+      };
+
+      // First pass: detect all conflicts
+      const conflicts = new Map();
+      for (const user of usersWithUppercaseEmails) {
+        const lowercaseEmail = user.email.toLowerCase();
+
+        const existingUser = await UserModel(tenant)
+          .findOne({
+            email: lowercaseEmail,
+            _id: { $ne: user._id },
+          })
+          .lean();
+
+        if (existingUser) {
+          conflicts.set(user._id.toString(), {
+            originalUser: user,
+            conflictingUser: existingUser,
+          });
+          summary.conflictsDetected++;
+        } else {
+          summary.safeToMigrate++;
+        }
+      }
+
+      // Second pass: migrate safe users only
+      for (const user of usersWithUppercaseEmails) {
+        if (conflicts.has(user._id.toString())) {
+          const conflict = conflicts.get(user._id.toString());
+          summary.conflictDetails.push({
+            userId: user._id,
+            email: user.email,
+            conflictsWith: conflict.conflictingUser.email,
+            action: "skipped - manual review needed",
+          });
+          continue;
+        }
+
+        try {
+          if (!dryRun) {
+            await UserModel(tenant).findByIdAndUpdate(user._id, {
+              email: user.email.toLowerCase(),
+            });
+          }
+
+          summary.usersFixed++;
+        } catch (error) {
+          summary.errors.push({
+            userId: user._id,
+            email: user.email,
+            error: error.message,
+          });
+        }
+      }
+
+      return {
+        success: true,
+        message: "Email casing cleanup completed safely.",
+        data: summary,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      throw error;
+    }
+  },
+  _fixEmailCasingAllCollections: async (tenant, dryRun) => {
+    const collections = [
+      { model: "User", field: "email" },
+      { model: "Network", field: "net_email" },
+      { model: "Candidate", field: "email" },
+      { model: "Inquiry", field: "email" },
+    ];
+
+    const summary = {
+      collectionsProcessed: 0,
+      totalFixed: 0,
+      details: [],
+    };
+
+    for (const collection of collections) {
+      try {
+        const Model = require(`@models/${collection.model}`);
+        const result = await createUserModule._fixEmailCasingForCollection(
+          Model(tenant),
+          collection.field,
+          dryRun
+        );
+
+        summary.collectionsProcessed++;
+        summary.totalFixed += result.usersFixed;
+        summary.details.push({
+          collection: collection.model,
+          field: collection.field,
+          ...result,
+        });
+      } catch (error) {
+        summary.details.push({
+          collection: collection.model,
+          error: error.message,
+        });
+      }
+    }
+
+    return summary;
+  },
+
+  _fixEmailCasingForCollection: async (Model, fieldName, dryRun) => {
+    const filter = {};
+    filter[fieldName] = { $regex: /[A-Z]/ };
+
+    const docs = await Model.find(filter).lean();
+    let fixed = 0;
+
+    for (const doc of docs) {
+      const originalEmail = doc[fieldName];
+      const lowercaseEmail = originalEmail.toLowerCase();
+
+      // Check for conflicts
+      const conflictFilter = {};
+      conflictFilter[fieldName] = lowercaseEmail;
+      conflictFilter._id = { $ne: doc._id };
+
+      const existingDoc = await Model.findOne(conflictFilter).lean();
+
+      if (!existingDoc && !dryRun) {
+        const updateFilter = {};
+        updateFilter[fieldName] = lowercaseEmail;
+
+        await Model.findByIdAndUpdate(doc._id, updateFilter);
+        fixed++;
+      }
+    }
+
+    return {
+      totalChecked: docs.length,
+      usersFixed: fixed,
+      fieldName,
+    };
   },
 };
 

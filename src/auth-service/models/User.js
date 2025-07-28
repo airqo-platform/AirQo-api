@@ -401,8 +401,10 @@ UserSchema.path("group_roles.userType").validate(function (value) {
 
 UserSchema.pre("save", async function (next) {
   try {
-    // Only run complex logic for NEW documents
     if (this.isNew) {
+      if (this.email) {
+        this.email = this.email.toLowerCase().trim();
+      }
       // 1. Password hashing for new documents
       if (this.password) {
         this.password = bcrypt.hashSync(this.password, saltRounds);
@@ -497,7 +499,18 @@ UserSchema.pre("save", async function (next) {
         this.permissions = [...new Set(this.permissions)];
       }
     } else {
-      // For UPDATES, only handle password hashing if password is being modified
+      if (!this.isNew && this.isModified("email") && this.email) {
+        const existingUser = await this.constructor.findOne({
+          email: this.email.toLowerCase().trim(),
+          _id: { $ne: this._id },
+        });
+
+        if (existingUser) {
+          throw new Error("Email already exists in the system");
+        }
+
+        this.email = this.email.toLowerCase().trim();
+      }
 
       if (this.isModified("password") && this.password) {
         this.password = bcrypt.hashSync(this.password, saltRounds);
@@ -514,6 +527,14 @@ UserSchema.pre("save", async function (next) {
 // separate pre middleware for update operations that need special handling
 UserSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
   const update = this.getUpdate();
+
+  // Handle email normalization in updates
+  if (update.email) {
+    update.email = update.email.toLowerCase().trim();
+  }
+  if (update.$set && update.$set.email) {
+    update.$set.email = update.$set.email.toLowerCase().trim();
+  }
 
   // Handle password hashing in updates
   if (update.password) {

@@ -1325,7 +1325,6 @@ const groupUtil = {
         status: errorCount > 0 ? httpStatus.MULTI_STATUS : httpStatus.OK,
       };
     } catch (error) {
-      console.error("🐛 [GROUP UTIL] Bulk assignment error:", error);
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
