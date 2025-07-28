@@ -10,7 +10,7 @@ images:
     initContainer: eu.gcr.io/airqo-250220/airqo-workflows-xcom
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     containers: eu.gcr.io/airqo-250220/airqo-workflows
-  tag: prod-a87b2cd1-1753721636
+  tag: prod-e2e4a7e4-1753724056
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
