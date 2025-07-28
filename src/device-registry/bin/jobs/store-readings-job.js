@@ -255,6 +255,7 @@ class BatchProcessor {
           siteDetails = {
             _id: site._id,
             name: site.name,
+            search_name: site.search_name,
             formatted_name: site.formatted_name,
             location_name: site.location_name,
             street: site.street,
