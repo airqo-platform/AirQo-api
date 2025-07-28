@@ -41,6 +41,18 @@ const redisSetAsync = util.promisify(redis.set).bind(redis);
 const redisExpireAsync = util.promisify(redis.expire).bind(redis);
 const asyncRetry = require("async-retry");
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
+let lastRedisWarning = 0;
+const REDIS_WARNING_THROTTLE = 30 * 60 * 1000; // 30 minutes throttle (30 minutes * 60 seconds * 1000 milliseconds)
+
+// Helper function for throttled Redis warnings
+const logRedisWarning = (operation) => {
+  const now = Date.now();
+  if (now - lastRedisWarning > REDIS_WARNING_THROTTLE) {
+    logger.warn(`Redis connection not available, skipping cache ${operation}`);
+    lastRedisWarning = now;
+  }
+};
+
 const listDevices = async (request, next) => {
   try {
     const { tenant, limit, skip } = request.query;
@@ -3196,7 +3208,7 @@ const createEvent = {
     try {
       // Simple Redis availability check
       if (!redis || !redis.connected || !redis.ready) {
-        logger.warn("Redis connection not available, skipping cache set");
+        logRedisWarning("set");
         return {
           success: false,
           message: "Cache unavailable - Redis not connected",
@@ -3278,7 +3290,7 @@ const createEvent = {
     try {
       // Simple Redis availability check
       if (!redis || !redis.connected || !redis.ready) {
-        logger.warn("Redis connection not available, skipping cache");
+        logRedisWarning("get");
         return {
           success: false,
           message: "Cache unavailable",
@@ -5019,7 +5031,7 @@ const createEvent = {
             ),
           ]);
         } catch (error) {
-          logger.warn(`Cache get operation failed: ${stringify(error)}`);
+          logRedisWarning("get operation");
         }
       } else if (operation === "set" && data) {
         try {
@@ -5033,13 +5045,13 @@ const createEvent = {
             ),
           ]);
         } catch (error) {
-          logger.warn(`Cache set operation failed: ${stringify(error)}`);
+          logRedisWarning("set operation");
         }
       }
 
       return cacheResult;
     } catch (error) {
-      logger.warn(`Cache operation ${operation} failed: ${error.message}`);
+      logRedisWarning("operation");
       return { success: false, message: "Cache operation failed" };
     }
   },
