@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import List, Dict, Any, Union, Tuple, Optional
-import ast
+from typing import List, Dict, Any, Set, Optional
 
 from api.models.bigquery_api import BigQueryApi
 from config import BaseConfig as Config
@@ -13,7 +11,6 @@ from constants import (
     Frequency,
     DataType,
 )
-
 
 import logging
 
@@ -30,8 +27,9 @@ class DataUtils:
         device_category: DeviceCategory,
         device_network: Optional[DeviceNetwork] = None,
         dynamic_query: Optional[bool] = False,
-        columns: List[str] = None,
+        main_columns: List[str] = None,
         data_filter: Optional[Dict[str, Any]] = None,
+        extra_columns: Optional[Dict[str, Any]] = None,
         use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -45,7 +43,7 @@ class DataUtils:
             frequency(Frequency): The frequency of the data to be extracted, e.g., RAW or HOURLY.
             device_network(DeviceNetwork, optional): The network to filter devices, default is None (no filter).
             dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
-            columns(List, optional): Columns of interest i.e those that should be returned.
+            main_columns(List, optional): Columns of interest i.e those that should be returned.
             data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
             use_cach(bool, optional): Use biqquery cache
 
@@ -89,7 +87,7 @@ class DataUtils:
             network=device_network,
             frequency=frequency,
             data_type=datatype,
-            columns=columns,  # Columns of interest i.e pollutants
+            columns=main_columns,  # Columns of interest i.e pollutants
             where_fields=data_filter,
             dynamic_query=dynamic_query,
             use_cache=use_cache,
@@ -111,7 +109,10 @@ class DataUtils:
         if dynamic_query:
             # This currently being used for the data-downloads endpoint only
             raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
-                raw_data, datatype, columns
+                raw_data, datatype, main_columns
+            )
+            raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
+                raw_data, extra_columns
             )
             raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
             raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
@@ -126,66 +127,87 @@ class DataUtils:
         cls, data: pd.DataFrame, datatype: DataType, pollutants: List[str]
     ) -> pd.DataFrame:
         """
-        Clean a pandas DataFrame by processing air quality columns like "pm2_5", "pm2_5_raw_value", and "pm2_5_calibrated_value".
+        Cleans the input DataFrame by:
+        - Casting numeric columns to floats.
+        - Conditionally replacing values based on data type and network.
+        - Dropping columns with only zeros or NaNs.
+        - Dropping rows where all required columns are NaN.
 
-        Cleaning steps:
-        1. Cast required columns to numeric types (invalids become NaN).
-        2. If `datatype` is "raw":
-            - Replace "pm2_5" values with NaN where "pm2_5_raw_value" > 0.
-            - Drop "pm2_5_raw_value" if it only contains 0s or NaNs.
-        3. Drop any column (including "pm2_5") where all values are 0.
-        4. Drop rows where all of the required numeric columns are NaN.
+        Specifically for 'raw' data:
+        - Replaces 'pm2_5' values with NaN where all pollutant_raw_value columns are > 0.
+        - Drops pollutant_raw_value columns if they contain only 0s or NaNs.
 
         Args:
-            cls: Class reference (used for class methods).
-            data(pd.DataFrame): Input DataFrame to clean.
-            datatype(DataType): Type of dataset ("raw" or others) determining logic.
+            data(pd.DataFrame): Input air quality DataFrame.
+            datatype(DataType): Indicates if the dataset is 'raw' or another type.
+            pollutants(List[str]): List of pollutant names, e.g., ["pm2_5", "pm10"].
 
         Returns:
-            pd.DataFrame: The cleaned DataFrame.
+            pd.DataFrame: Cleaned DataFrame.
 
         Raises:
-            ValueError: If required columns are missing.
+            ValueError: If required numeric columns are missing.
         """
-        required_numeric_columns: set = set()
-        filter_column: str = None
-        networks = list(data.network.unique())
+        required_columns = set(data.select_dtypes(include="number").columns)
 
-        # TODO clean up logic.
-        numeric_column = data.select_dtypes(include="number").columns.tolist()
-        if datatype.value == "raw":
-            extra_column = (
-                numeric_column
-                if "airqo" in networks and len(networks) == 1
-                else numeric_column + ["pm2_5"]
-            )
-
-            filter_column = [pollutant + "_raw_value" for pollutant in pollutants]
+        if datatype == DataType.RAW:
+            networks = data["network"].unique().tolist()
+            if "airqo" not in networks or len(networks) > 1:
+                required_columns.add("pm2_5")
+            raw_value_columns = [f"{pollutant}_raw_value" for pollutant in pollutants]
+            required_columns.update(raw_value_columns)
         else:
-            extra_column = numeric_column
+            raw_value_columns = []
 
-        required_numeric_columns.update(extra_column)
+        missing = [col for col in required_columns if col not in data.columns]
+        if missing:
+            raise ValueError(f"Missing required numeric columns: {missing}")
 
-        missing_columns = [
-            col for col in required_numeric_columns if col not in data.columns
-        ]
-        if missing_columns:
-            raise ValueError(f"Missing required columns: {missing_columns}")
-        data[list(required_numeric_columns)] = data[
-            list(required_numeric_columns)
-        ].apply(pd.to_numeric, errors="coerce")
+        # Ensure all relevant columns are numeric (coerce bad values to NaN)
+        data[list(required_columns)] = data[list(required_columns)].apply(
+            pd.to_numeric, errors="coerce"
+        )
 
-        if filter_column and len(filter_column) >= 1:
-            # Fill the pm2_5 column with np.nan where filter_column is > 0 for non
-            condition = (data[filter_column] > 0).all(axis=1)
+        if raw_value_columns:
+            # For mixed device data
+            condition = data[raw_value_columns].gt(0).all(axis=1)
             data.loc[condition, "pm2_5"] = np.nan
-            # Drop column(s) that have entirely 0 or np.na values
-            mask = ((data[filter_column] == 0) | (data[filter_column].isna())).all()
-            columns_to_drop = mask[mask].index.tolist()
+
+            drop_mask = data[raw_value_columns].isna() | (data[raw_value_columns] == 0)
+            drop_mask = drop_mask.all()
+            columns_to_drop = drop_mask[drop_mask].index.tolist()
             if columns_to_drop:
                 data.drop(columns=columns_to_drop, inplace=True)
 
-        zero_columns = data.columns[(data == 0).all()]
-        data.drop(columns=zero_columns, axis=1, inplace=True)
+        zero_only_columns = data.columns[(data == 0).all()]
+        data.drop(columns=zero_only_columns, inplace=True)
+
+        return data
+
+    @classmethod
+    def drop_unnecessary_columns_data_cleaning(
+        cls, data: pd.DataFrame, extra_columns: List[str]
+    ) -> pd.DataFrame:
+        """
+        Drops unnecessary columns from the given DataFrame during data cleaning.
+
+        If extra_columns is empty, all optional fields are dropped.
+        Otherwise, only optional fields not in extra_columns are dropped.
+
+        Args:
+            cls: Class reference (used to access Config).
+            data (pd.DataFrame): Input DataFrame to clean.
+            extra_columns (List[str]): List of optional fields to keep.
+
+        Returns:
+            pd.DataFrame: The cleaned DataFrame with unnecessary columns dropped.
+        """
+        optional_fields: Set[str] = Config.OPTIONAL_FIELDS
+
+        if not extra_columns:
+            data.drop(columns=optional_fields, inplace=True)
+        else:
+            columns_to_drop = optional_fields - set(extra_columns)
+            data.drop(columns=list(columns_to_drop), inplace=True)
 
         return data

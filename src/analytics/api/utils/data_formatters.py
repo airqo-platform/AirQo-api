@@ -358,7 +358,6 @@ def get_validated_filter(json_data):
     sites = [
         "sites",
     ]
-
     valid_filters = [
         "sites",
         "device_ids",
