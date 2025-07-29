@@ -23,6 +23,12 @@ router.post(
   preferenceController.upsert
 );
 
+router.post(
+  "/validate",
+  preferenceValidations.validatePreferenceData,
+  preferenceController.validatePreferenceData
+);
+
 router.patch(
   "/replace",
   preferenceValidations.replace,
