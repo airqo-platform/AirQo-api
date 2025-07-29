@@ -171,6 +171,7 @@ class BigQueryApi:
             f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
             f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
         )
+
         if frequency.value in self.extra_time_grouping:
             query += " GROUP BY ALL"
 
@@ -579,6 +580,7 @@ class BigQueryApi:
                 f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {Utils.table_name(Config.BIGQUERY_BAM_DATA)}.timestamp) AS datetime",
                 "",
             )
+
         if filter_type in {"devices", "device_ids", "device_names"}:
             return self.get_device_query(
                 table,
@@ -674,43 +676,15 @@ class BigQueryApi:
         decimal_places = Config.DATA_EXPORT_DECIMAL_PLACES
         table_name = Utils.table_name(table)
         bam_table_name = Utils.table_name(Config.BIGQUERY_BAM_DATA)
-        pollutant_columns = []
-        bam_pollutant_columns = []
 
-        for pollutant in pollutants:
-
-            lc_key = f"{pollutant}_{data_type.value}"
-            bam_key = pollutant
-
-            # The frequency mapper determines which columns are returned
-            LC_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
-                lc_key, []
-            )
-            BM_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
-                bam_key, []
-            )
-
-            pollutant_columns.extend(
-                self.get_averaging_columns(
-                    LC_pollutant_mapping,
-                    frequency,
-                    decimal_places,
-                    table_name,
-                )
-            )
-            bam_pollutant_columns.extend(
-                self.get_averaging_columns(
-                    BM_pollutant_mapping,
-                    frequency,
-                    decimal_places,
-                    bam_table_name,
-                )
-            )
-
-            # TODO Clean up by use using `get_columns` helper method
-            if pollutant in {"pm2_5", "pm10"} and data_type.value == "raw":
-                # Add dummy column to fix union column number missmatch.
-                bam_pollutant_columns.append("-1 as " + pollutant)
+        pollutant_columns, bam_pollutant_columns = self._query_columns_builder(
+            pollutants,
+            data_type,
+            frequency,
+            decimal_places,
+            table_name=table_name,
+            bam_table_name=bam_table_name,
+        )
 
         selected_columns = set(pollutant_columns)
         bam_selected_columns = set(bam_pollutant_columns)
@@ -739,3 +713,118 @@ class BigQueryApi:
             frequency=frequency,
         )
         return query
+
+    def _query_columns_builder(
+        self,
+        pollutants: List[str],
+        data_type: DataType,
+        frequency: Frequency,
+        decimal_places: int,
+        table_name: Optional[str] = None,
+        bam_table_name: Optional[str] = None,
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Builds and returns two lists of pollutant averaging SQL expressions or column names; One for low-cost sensors and one for BAM devices.
+        The function uses the provided frequency, pollutants list, and data type to dynamically determine which columns to extract and how to compute them.
+        This method also handles the case where certain pollutants (e.g. PM2.5, PM10) from low-cost devices are present in raw form but are not expected in the BAM data.
+        In such cases, it appends a dummy column (`-1 as <pollutant>`) to the BAM column list to maintain schema consistency (e.g., for SQL UNION operations).
+
+        Args:
+            pollutants(List[str]): List of pollutant names (e.g., ["pm2_5", "pm10"]).
+            data_type(DataType): An enum or object with a `.value` attribute indicating the data type(e.g., "raw", "averaged").
+            frequency(Frequency): An object with a `.value` attribute representing the data frequency(e.g., "hourly", "daily").
+            decimal_places(int): Number of decimal places to round the averaged values.
+            table_name(Optional[str]): Name of the table containing low-cost sensor data.
+            bam_table_name(Optional[str]): Name of the table containing BAM data.
+
+        Returns:
+            Tuple[List[str], List[str]]:
+                - The first list contains SQL column expressions for the low-cost sensor data.
+                - The second list contains SQL column expressions for the BAM device data.
+                May include dummy columns for compatibility in downstream SQL logic.
+
+        Raises:
+            ValueError: If both `table_name` and `bam_table_name` are None.
+        """
+        pollutant_columns_ = []
+        bam_pollutant_columns_ = []
+        if table_name is None and bam_table_name is None:
+            raise ValueError("At least one table name is supposed to be provided")
+
+        for pollutant in pollutants:
+            low_cost_key = f"{pollutant}_{data_type.value}"
+            bam_key = pollutant
+            # The frequency mapper determines which columns are returned
+            LC_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
+                low_cost_key, []
+            )
+            BM_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
+                bam_key, []
+            )
+
+            pollutant_columns_.extend(
+                self.get_averaging_columns(
+                    LC_pollutant_mapping,
+                    frequency,
+                    decimal_places,
+                    table_name,
+                )
+            )
+            bam_pollutant_columns_.extend(
+                self.get_averaging_columns(
+                    BM_pollutant_mapping,
+                    frequency,
+                    decimal_places,
+                    bam_table_name,
+                )
+            )
+            # TODO Clean up by use using `get_columns` helper method
+            if pollutant in {"pm2_5", "pm10"} and data_type.value == "raw":
+                # Add dummy column to fix union column number missmatch.
+                bam_pollutant_columns_.append("-1 as " + pollutant)
+
+        pollutant_columns, bam_pollutant_columns = self._add_extra_columns(
+            pollutant_columns_,
+            bam_pollutant_columns_,
+            table_name=table_name,
+            bam_table_name=bam_table_name,
+        )
+
+        return pollutant_columns, bam_pollutant_columns
+
+    def _add_extra_columns(
+        self,
+        pollutant_columns: List[str],
+        bam_pollutant_columns: List[str],
+        table_name: Optional[str] = None,
+        bam_table_name: Optional[str] = None,
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Appends latitude and longitude columns to the given lists of pollutant columns for both low-cost sensor and BAM data sources, based on the provided table names.
+        This ensures that both result sets include geospatial coordinates for downstream use (e.g., mapping, grouping, or display).
+
+        Args:
+            pollutant_columns(List[str]): List of SQL column expressions for low-cost sensor data.
+            bam_pollutant_columns(List[str]): List of SQL column expressions for BAM device data.
+            table_name(Optional[str]): Name of the table containing low-cost sensor data.
+            bam_table_name(Optional[str]): Name of the table containing BAM data.
+
+        Returns:
+            Tuple[List[str], List[str]]:
+                - Updated `pollutant_columns` with latitude and longitude (if applicable).
+                - Updated `bam_pollutant_columns` with latitude and longitude (if applicable).
+
+        Notes:
+            - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
+            - This function modifies the input lists in-place and also returns them.
+        """
+        # TODO: Make more dynamic to allow addition of multiple columns
+        if pollutant_columns:
+            pollutant_columns.extend(
+                [f"{table_name}.latitude", f"{table_name}.longitude"]
+            )
+        if bam_pollutant_columns:
+            bam_pollutant_columns.extend(
+                [f"{bam_table_name}.latitude", f"{bam_table_name}.longitude"]
+            )
+        return pollutant_columns, bam_pollutant_columns
