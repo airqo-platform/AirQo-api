@@ -169,6 +169,7 @@ class DataUtils:
         )
 
         if raw_value_columns:
+            # For mixed device data
             condition = data[raw_value_columns].gt(0).all(axis=1)
             data.loc[condition, "pm2_5"] = np.nan
 

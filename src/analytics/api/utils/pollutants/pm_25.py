@@ -54,7 +54,7 @@ COMMON_POLLUTANT_MAPPING = {
     "pm2_5": [
         "pm2_5",
     ],
-    "pm10_calibrated": ["pm10_calibrated_value"],
+    "pm10_calibrated": ["pm10_calibrated_value", "pm10"],
     "pm10_raw": ["pm10_raw_value", "pm10"],
     "pm10": [
         "pm10",
