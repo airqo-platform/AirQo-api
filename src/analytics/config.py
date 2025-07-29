@@ -130,6 +130,9 @@ class BaseConfig:
         logger = logging.getLogger(__name__)
         return logger
 
+    # Fields for data cleaning
+    OPTIONAL_FIELDS = {"longitude", "latitude", "temperature", "humidity"}
+
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {
         BIGQUERY_HOURLY_DATA: "measurements.json",

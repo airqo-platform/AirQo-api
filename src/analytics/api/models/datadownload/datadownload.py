@@ -38,7 +38,9 @@ data_download_model = Model(
         ),
         "outputFormat": fields.String(required=True, description="Output format"),
         "pollutants": fields.List(
-            fields.String, required=True, description="List of pollutants i.e [pm2_5,]"
+            fields.String,
+            required=True,
+            description="List of pollutants i.e [pm2_5, pm10]",
         ),
         "frequency": fields.String(
             required=True, description="Data frequency i.e hourly"
@@ -50,7 +52,12 @@ data_download_model = Model(
             fields.String, description="List of alphanumeric device ids"
         ),
         "device_names": fields.List(fields.String, description="List of device names"),
-        "weatherFields": fields.List(fields.String, description="List of device names"),
+        "metaDataFields": fields.List(
+            fields.String, description="List of meta data fields"
+        ),
+        "weatherFields": fields.List(
+            fields.String, description="List of weather fields"
+        ),
         "datatype": fields.String(
             required=True,
             description="Type of air quality data to download i.e calibrated, raw, consolidated",

@@ -244,22 +244,6 @@ class Config:
         ],
     }
 
-    AIRQO_BAM_CONFIG = {
-        0: "timestamp",
-        1: "realtime_conc",
-        2: "hourly_conc",
-        3: "short_time_conc",
-        4: "air_flow",
-        5: "wind_speed",
-        6: "wind_direction",
-        7: "temperature",
-        8: "humidity",
-        9: "barometric_pressure",
-        10: "filter_temperature",
-        11: "filter_humidity",
-        12: "status",
-    }
-
     AIRQO_BAM_MAPPING_NEW = {
         "field8": {
             0: "timestamp",
