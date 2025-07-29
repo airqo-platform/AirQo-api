@@ -189,7 +189,7 @@ class D3ChartDataResource(Resource):
                 frequency=frequency,
                 dynamic_query=True,
                 device_category=device_category,
-                columns=[
+                main_columns=[
                     pollutant,
                 ],
                 data_filter=data_filter,
