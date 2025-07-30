@@ -5,7 +5,6 @@ from typing import Union
 
 from helpers.exceptions import CollocationError
 
-
 class CollocationBatchStatus(Enum):
     SCHEDULED = "SCHEDULED"
     RUNNING = "RUNNING"
@@ -19,14 +18,12 @@ class CollocationBatchStatus(Enum):
             print(ex)
             return CollocationBatchStatus.RUNNING
 
-
 class CollocationDeviceStatus(Enum):
     ERROR = "ERROR"
     FAILED = "FAILED"
     PASSED = "PASSED"
     RUNNING = "RUNNING"
     SCHEDULED = "SCHEDULED"
-
 
 @dataclass
 class DataCompleteness:
@@ -37,7 +34,6 @@ class DataCompleteness:
     missing: float
     passed: bool
 
-
 @dataclass
 class IntraSensorCorrelation:
     device_name: str
@@ -47,7 +43,6 @@ class IntraSensorCorrelation:
     pm10_r2: Union[float, None]
     passed: bool
 
-
 @dataclass
 class BaseResult:
     results: list[dict]
@@ -55,7 +50,6 @@ class BaseResult:
     failed_devices: list[str]
     error_devices: list[str]
     errors: list[str]
-
 
 @dataclass
 class DataCompletenessResult:
@@ -65,7 +59,6 @@ class DataCompletenessResult:
     error_devices: list[str]
     errors: list[str]
 
-
 @dataclass
 class IntraSensorCorrelationResult:
     results: list[IntraSensorCorrelation]
@@ -73,7 +66,6 @@ class IntraSensorCorrelationResult:
     failed_devices: list[str]
     error_devices: list[str]
     errors: list[str]
-
 
 @dataclass
 class CollocationBatchResultSummary:
@@ -84,7 +76,6 @@ class CollocationBatchResultSummary:
         data = asdict(self)
         data["status"] = self.status.value
         return data
-
 
 @dataclass
 class CollocationBatchResult:
@@ -135,13 +126,11 @@ class CollocationBatchResult:
             errors=[],
         )
 
-
 class DeviceStatusSummaryType(Enum):
     DATA_COMPLETENESS = "DATA_COMPLETENESS"
     INTRA_SENSOR_CORRELATION = "INTRA_SENSOR_CORRELATION"
     INTER_SENSOR_CORRELATION = "INTER_SENSOR_CORRELATION"
     DIFFERENCES = "DIFFERENCES"
-
 
 @dataclass
 class DeviceStatusSummary:
@@ -151,7 +140,6 @@ class DeviceStatusSummary:
     action: str
     extra_message: str
     type: str
-
 
 @dataclass
 class CollocationBatch:
@@ -605,7 +593,6 @@ class CollocationBatch:
 
         return status_summary
 
-
 @dataclass
 class IntraSensorData:
     device_name: str
@@ -618,7 +605,6 @@ class IntraSensorData:
 
     def to_dict(self):
         return asdict(self)
-
 
 @dataclass
 class CollocationSummary:
