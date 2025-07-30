@@ -2,9 +2,11 @@ import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
+import os
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import configuration as Config
 from .commons import download_file_from_gcs, drop_rows_with_bad_data, has_valid_dict
@@ -29,6 +31,9 @@ from .data_validator import DataValidationUtils
 import logging
 
 logger = logging.getLogger("airflow.task")
+
+cpu_count = os.cpu_count() or 2
+max_workers = min(20, cpu_count * 10)
 
 
 class DataUtils:
@@ -234,24 +239,20 @@ class DataUtils:
         )
         data_store: List[pd.DataFrame] = []
 
-        for _, device in devices.iterrows():
-            data, meta_data = DataUtils._extract_device_api_data(
-                device, dates, config, keys, resolution
-            )
-
-            if isinstance(data, pd.DataFrame) and not data.empty:
-                data = DataUtils._process_and_append_device_data(
-                    device, data, meta_data, config
+        with ThreadPoolExecutor(
+            max_workers=max_workers
+        ) as executor:  # Adjust worker count to your CPU
+            futures = [
+                executor.submit(
+                    DataUtils.__per_device_data, device, dates, config, keys, resolution
                 )
-            else:
-                continue
+                for _, device in devices.iterrows()
+            ]
 
-            if not data.empty:
-                data_store.append(data)
-            else:
-                logger.info(
-                    f"No data returned from {device.name} for the given date range"
-                )
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    data_store.append(result)
 
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
@@ -259,6 +260,44 @@ class DataUtils:
                 devices_data["timestamp"].between(start_date_time, end_date_time)
             ]
         return devices_data
+
+    def __per_device_data(
+        device: Dict[str, Any],
+        dates: List[str],
+        config: Dict[str, Any],
+        keys: Dict[str, str],
+        resolution: Frequency,
+    ):
+        """
+        Fetches, processes, and returns device-specific data for a given date range.
+
+        This method performs the following steps:
+        1. Extracts raw data and metadata for the given device using the provided configuration and date range.
+        2. If data is returned and valid, it is processed and enriched.
+        3. Returns the processed DataFrame or None if no valid data was available.
+
+        Args:
+            device(Dict[str, Any]): Device information (must include identifiers used in extraction).
+            dates(List[str]): List of date strings to extract data for.
+            config(Dict[str, Any]): Configuration parameters for data extraction and processing.
+            keys(Dict[str, str]): Mapping of key names used for access or interpretation.
+            resolution(Frequency): Data resolution or granularity (e.g., hourly, daily).
+
+        Returns:
+            Optional[pd.DataFrame]: Processed device data as a DataFrame, or None if no data was returned.
+        """
+        data, meta_data = DataUtils._extract_device_api_data(
+            device, dates, config, keys, resolution
+        )
+
+        if isinstance(data, pd.DataFrame) and not data.empty:
+            data = DataUtils._process_and_append_device_data(
+                device, data, meta_data, config
+            )
+            if not data.empty:
+                return data
+        else:
+            logger.info(f"No data returned from {device.name} for the given date range")
 
     @staticmethod
     def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
