@@ -22,6 +22,7 @@ const commonValidations = {
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
+  // Optional ObjectId validator - validates ObjectId format when provided, allows empty/undefined
   objectId: (
     field,
     location = query,
@@ -56,39 +57,9 @@ const commonValidations = {
       });
   },
 
-  // Explicitly optional ObjectId validator (alias for clarity)
-  optionalObjectId: (
-    field,
-    location = query,
-    errorMessage = "Invalid ObjectId format"
-  ) => {
-    return location(field)
-      .optional()
-      .custom((value) => {
-        let values = Array.isArray(value)
-          ? value
-          : value?.toString().split(",");
-        for (const v of values) {
-          if (v && !isValidObjectId(v)) {
-            throw new Error(`${field}: ${errorMessage} - ${v}`);
-          }
-        }
-        return true;
-      })
-      .customSanitizer((value) => {
-        if (value) {
-          let values;
-          if (Array.isArray(value)) {
-            values = value;
-          } else {
-            values = value?.toString().split(",");
-          }
-          return values
-            .map((v) => (isValidObjectId(v) ? ObjectId(v) : null))
-            .filter((v) => v !== null);
-        }
-        return value;
-      });
+  // Alias for clarity - explicitly optional ObjectId validator (same as objectId)
+  get optionalObjectId() {
+    return this.objectId;
   },
 
   // Required ObjectId validator
