@@ -94,12 +94,14 @@ class DataExportResource(Resource):
         device_category = json_data.get("device_category")
         frequency = json_data.get("frequency")
         pollutants = json_data.get("pollutants")
+        metadata_fields = json_data.get("metaDataFields", [])
+        weather_fields = json_data.get("weatherFields", [])
         minimum_output = json_data.get("minimum", True)
         postfix = "-" if output_format == "airqo-standard" else "-aqcsv-"
         data_filter = {filter_type: filter_value}
         datatype = DataType[data_type.upper()]
         frequency = Frequency[frequency.upper()]
-
+        extra_columns = [*metadata_fields, *weather_fields]
         try:
             device_category = (
                 DeviceCategory[device_category.upper()]
@@ -114,8 +116,9 @@ class DataExportResource(Resource):
                     frequency=frequency,
                     dynamic_query=True,
                     device_category=device_category,
-                    columns=pollutants,
+                    main_columns=pollutants,
                     data_filter=data_filter,
+                    extra_columns=extra_columns,
                     use_cache=True,
                 )
             else:

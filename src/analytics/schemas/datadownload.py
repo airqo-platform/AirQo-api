@@ -128,7 +128,18 @@ class DataDownloadSchema(Schema):
     sites = ma_fields.List(ma_fields.String())
     device_ids = ma_fields.List(ma_fields.String())
     device_names = ma_fields.List(ma_fields.String())
-    weatherFields = ma_fields.List(ma_fields.String())
+    metaDataFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["latitude", "longitude"], error="Invalid metadata fields."
+        ),
+    )
+    weatherFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["temperature", "humidity"], error="Invalid weather fields."
+        ),
+    )
     minimum = ma_fields.Boolean()
 
     @validates_schema

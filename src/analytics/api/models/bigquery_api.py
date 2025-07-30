@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Union, Tuple
+from typing import List, Dict, Any, Optional, Union, Tuple, Set
 from constants import QueryType, DeviceNetwork, ColumnDataType, Frequency, DataType
 from api.utils.utils import Utils
 import pandas as pd
@@ -701,7 +701,6 @@ class BigQueryApi:
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
-
         query = self.build_filter_query(
             table,
             filter_type,
@@ -779,9 +778,8 @@ class BigQueryApi:
                 )
             )
             # TODO Clean up by use using `get_columns` helper method
-            if pollutant in {"pm2_5", "pm10"} and data_type.value == "raw":
-                # Add dummy column to fix union column number missmatch.
-                bam_pollutant_columns_.append("-1 as " + pollutant)
+            # Add dummy column to fix union column number missmatch.
+            bam_pollutant_columns_.append("-1 as " + pollutant)
 
         pollutant_columns, bam_pollutant_columns = self._add_extra_columns(
             pollutant_columns_,
@@ -789,7 +787,6 @@ class BigQueryApi:
             table_name=table_name,
             bam_table_name=bam_table_name,
         )
-
         return pollutant_columns, bam_pollutant_columns
 
     def _add_extra_columns(
@@ -818,13 +815,15 @@ class BigQueryApi:
             - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
             - This function modifies the input lists in-place and also returns them.
         """
-        # TODO: Make more dynamic to allow addition of multiple columns
+        extra_columns: Set = Config.OPTIONAL_FIELDS
+
         if pollutant_columns:
             pollutant_columns.extend(
-                [f"{table_name}.latitude", f"{table_name}.longitude"]
+                [f"{table_name}.{field}" for field in extra_columns]
             )
+
         if bam_pollutant_columns:
             bam_pollutant_columns.extend(
-                [f"{bam_table_name}.latitude", f"{bam_table_name}.longitude"]
+                [f"{bam_table_name}.{field}" for field in extra_columns]
             )
         return pollutant_columns, bam_pollutant_columns
