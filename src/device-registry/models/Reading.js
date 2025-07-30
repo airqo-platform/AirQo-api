@@ -300,7 +300,7 @@ const ReadingsSchema = new Schema(
     indexes: [
       {
         fields: { time: 1 },
-        expireAfterSeconds: 60 * 60 * 24 * 14, // 2 weeks = 1,209,600 seconds
+        expireAfterSeconds: 60 * 60 * 24 * 7, // 1 week
       },
     ],
   }
@@ -388,6 +388,59 @@ ReadingsSchema.index(
       deployment_type: "mobile",
       "location.latitude.value": { $exists: true },
     },
+  }
+);
+
+ReadingsSchema.index(
+  { site_id: 1, time: -1 },
+  {
+    name: "site_time_latest_idx",
+    background: true,
+  }
+);
+
+ReadingsSchema.index(
+  { device_id: 1, time: -1 },
+  {
+    name: "device_time_latest_idx",
+    background: true,
+  }
+);
+
+ReadingsSchema.index(
+  { deployment_type: 1, time: -1 },
+  {
+    name: "deployment_time_idx",
+    background: true,
+  }
+);
+
+// Better TTL index
+ReadingsSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 60 * 60 * 24 * 7, // 1 week instead of 2 weeks
+    background: true,
+  }
+);
+
+// Partial index for active readings only
+ReadingsSchema.index(
+  { time: -1, "pm2_5.value": 1 },
+  {
+    partialFilterExpression: {
+      "pm2_5.value": { $exists: true, $ne: null },
+    },
+    background: true,
+  }
+);
+
+// Sparse index for non-null coordinates (mobile devices)
+ReadingsSchema.index(
+  { "location.latitude.value": 1, "location.longitude.value": 1, time: -1 },
+  {
+    sparse: true,
+    background: true,
   }
 );
 
@@ -521,43 +574,80 @@ ReadingsSchema.statics.latest = async function(
   next
 ) {
   try {
-    let sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Strategy: Use $lookup with pipeline to get only the latest reading per site
+    // This is MUCH more efficient than scanning 7 days of data
 
-    const pipeline = this.aggregate()
-      .match({
-        time: {
-          $gte: sevenDaysAgo,
+    const pipeline = [
+      // 1. Get unique site_ids first (fast operation)
+      {
+        $group: {
+          _id: "$site_id",
         },
-      })
-      .sort({ time: -1 })
-      .group({
-        _id: "$site_id",
-        doc: { $first: "$$ROOT" },
-      })
-      .replaceRoot("$doc")
-      .skip(skip)
-      .limit(limit)
-      .allowDiskUse(true);
+      },
 
-    const data = await pipeline;
+      // 2. For each site, lookup only the latest reading
+      {
+        $lookup: {
+          from: "readings", // Your collection name
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$site_id", "$$siteId"] },
+                // Only look at last 24 hours for "latest" - much faster!
+                time: {
+                  $gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                },
+              },
+            },
+            { $sort: { time: -1 } },
+            { $limit: 1 }, // Only get the latest reading per site
+          ],
+          as: "latestReading",
+        },
+      },
+
+      // 3. Unwind and replace root
+      {
+        $unwind: {
+          path: "$latestReading",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+      {
+        $replaceRoot: { newRoot: "$latestReading" },
+      },
+
+      // 4. Apply additional filters
+      ...(Object.keys(filter).length > 0 ? [{ $match: filter }] : []),
+
+      // 5. Sort by time descending
+      { $sort: { time: -1 } },
+
+      // 6. Apply pagination
+      { $skip: skip || 0 },
+      { $limit: limit || 1000 },
+    ];
+
+    const data = await this.aggregate(pipeline).allowDiskUse(true);
+
     if (!isEmpty(data)) {
       return {
         success: true,
-        message: "Successfull Operation",
+        message: "Successfully retrieved latest readings",
         data,
         status: httpStatus.OK,
       };
     } else {
       return {
         success: true,
-        message: "There are no records for this search",
+        message: "No recent readings found",
         data: [],
         status: httpStatus.OK,
       };
     }
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    logger.error(`🐛🐛 Internal Server Error -- latest -- ${error.message}`);
     return {
       success: false,
       message: "Internal Server Error",
@@ -565,6 +655,87 @@ ReadingsSchema.statics.latest = async function(
         message: error.message,
         stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
+      data: [],
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+ReadingsSchema.statics.latestForMap = async function(
+  { filter = {}, limit = 1000, skip = 0 } = {},
+  next
+) {
+  try {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const pipeline = [
+      // 1. Match recent readings only
+      {
+        $match: {
+          time: { $gte: oneDayAgo },
+          "pm2_5.value": { $exists: true, $ne: null },
+          ...filter,
+        },
+      },
+
+      // 2. Sort by time descending
+      { $sort: { time: -1 } },
+
+      // 3. Group by site_id and take first (latest) reading
+      {
+        $group: {
+          _id: "$site_id",
+          latestReading: { $first: "$$ROOT" },
+        },
+      },
+
+      // 4. Replace root with the latest reading
+      { $replaceRoot: { newRoot: "$latestReading" } },
+
+      // 5. Sort again by time for consistent output
+      { $sort: { time: -1 } },
+
+      // 6. Apply pagination
+      { $skip: skip || 0 },
+      { $limit: limit || 1000 },
+
+      // 7. Project only necessary fields for map
+      {
+        $project: {
+          _id: 0,
+          device: 1,
+          device_id: 1,
+          site_id: 1,
+          time: 1,
+          pm2_5: 1,
+          pm10: 1,
+          no2: 1,
+          siteDetails: 1,
+          aqi_color: 1,
+          aqi_category: 1,
+          aqi_color_name: 1,
+          health_tips: 1,
+          site_image: 1,
+          timeDifferenceHours: 1,
+        },
+      },
+    ];
+
+    const data = await this.aggregate(pipeline).allowDiskUse(true);
+
+    return {
+      success: true,
+      message: "Successfully retrieved latest map readings",
+      data,
+      status: httpStatus.OK,
+    };
+  } catch (error) {
+    logger.error(
+      `🐛🐛 Internal Server Error -- latestForMap -- ${error.message}`
+    );
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
       data: [],
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
