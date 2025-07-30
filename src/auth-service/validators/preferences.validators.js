@@ -326,6 +326,77 @@ const createNestedValidations = (prefix) => {
   ];
 };
 
+const validateArrayOfObjects = (fieldName, requiredFields = []) => [
+  body(fieldName)
+    .optional()
+    .custom((value) => {
+      if (value === undefined || value === null) return true;
+
+      if (!Array.isArray(value)) {
+        throw new Error(`${fieldName} must be an array`);
+      }
+
+      // Check each item in the array is an object, not a string
+      value.forEach((item, index) => {
+        if (typeof item === "string") {
+          throw new Error(
+            `${fieldName}[${index}] must be an object with properties, not a string. Expected format: {_id: "...", name: "...", search_name: "..."}`
+          );
+        }
+
+        if (typeof item !== "object" || item === null || Array.isArray(item)) {
+          throw new Error(
+            `${fieldName}[${index}] must be an object, received ${typeof item}`
+          );
+        }
+
+        // Check required fields
+        requiredFields.forEach((field) => {
+          if (!Object.prototype.hasOwnProperty.call(item, field)) {
+            throw new Error(
+              `${fieldName}[${index}] is missing required field: ${field}`
+            );
+          }
+        });
+      });
+
+      return true;
+    })
+    .withMessage(
+      `${fieldName} must be an array of objects with required fields`
+    ),
+];
+
+const validateArrayOfObjectIds = (fieldName) => [
+  body(fieldName)
+    .optional()
+    .custom((value) => {
+      if (value === undefined || value === null) return true;
+
+      if (!Array.isArray(value)) {
+        throw new Error(`${fieldName} must be an array of ObjectIds`);
+      }
+
+      // Check each item is a valid ObjectId string, not an object
+      value.forEach((item, index) => {
+        if (typeof item === "object") {
+          throw new Error(
+            `${fieldName}[${index}] must be an ObjectId string, not an object`
+          );
+        }
+
+        if (typeof item !== "string" || !isMongoId(item)) {
+          throw new Error(
+            `${fieldName}[${index}] must be a valid MongoDB ObjectId string`
+          );
+        }
+      });
+
+      return true;
+    })
+    .withMessage(`${fieldName} must be an array of valid ObjectId strings`),
+];
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -368,50 +439,91 @@ const commonValidations = {
   ],
   selectedSites: (requiredFields, allowId = false) => {
     return (req, res, next) => {
-      let selectedSites = req.body.selected_sites || req.body; //check both locations for flexibility
+      let selectedSites = req.body.selected_sites;
       const errors = {};
 
       // If selectedSites is undefined or null, skip validation
-      if (selectedSites === undefined) {
+      if (selectedSites === undefined || selectedSites === null) {
         return next();
       }
 
-      // If allowId is true and selected_sites is not in body, skip
+      // If allowId is true and selected_sites is not in body, skip validation
       if (allowId && !req.body.selected_sites) {
         return next();
       }
 
-      // Early check for selectedSites type
-      if (
-        !Array.isArray(selectedSites) &&
-        (typeof selectedSites !== "object" || selectedSites === null)
-      ) {
+      // Primary type validation - check for invalid types first
+      if (typeof selectedSites === "string") {
         return res.status(400).json({
           success: false,
-          message:
-            "Request body(field) for Selected Sites should contain either an array of Site objects or be omitted.",
+          message: "Validation Error: selected_sites cannot be a string",
+          errors: {
+            selected_sites:
+              "Expected an array of objects or a single object, received a string",
+          },
         });
       }
 
+      if (typeof selectedSites !== "object") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Validation Error: selected_sites must be an array of objects or a single object",
+          errors: {
+            selected_sites: `Expected object or array, received ${typeof selectedSites}`,
+          },
+        });
+      }
+
+      // If it's an array, check for string elements (common mistake)
+      if (Array.isArray(selectedSites)) {
+        const stringItems = selectedSites.filter((item, index) => {
+          if (typeof item === "string") {
+            errors[
+              `selected_sites[${index}]`
+            ] = `Must be an object with properties like {_id, name, search_name}, not a string: "${item}"`;
+            return true;
+          }
+          return false;
+        });
+
+        if (stringItems.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Validation Error: selected_sites array contains strings instead of objects",
+            errors,
+          });
+        }
+      }
+
+      // Validate individual site objects
       const validateSite = (site, index) => {
         const siteErrors = [];
-        if (!site) {
-          siteErrors.push("Site value must not be null or undefined");
+
+        if (!site || typeof site !== "object" || Array.isArray(site)) {
+          siteErrors.push("Site value must be a valid object");
+          return siteErrors; // Return early if not an object
         }
+
         if (!allowId && "_id" in site) {
           siteErrors.push("_id field is not allowed");
         }
+
         requiredFields.forEach((field) => {
           if (!(field in site)) {
             siteErrors.push(`Field "${field}" is missing`);
           }
         });
+
         if (allowId && site._id && !isMongoId(site._id)) {
           siteErrors.push("_id must be a valid MongoDB ObjectId");
         }
+
         if (!allowId && site.site_id && !isMongoId(site.site_id)) {
           siteErrors.push("site_id must be a valid MongoDB ObjectId");
         }
+
         // Validate latitude
         if (site.latitude !== undefined) {
           const latValue = parseFloat(site.latitude);
@@ -455,20 +567,19 @@ const commonValidations = {
         }
 
         // Validate site_tags
-        const tags = site.site_tags;
-        if (!isEmpty(tags)) {
-          if (!Array.isArray(tags)) {
+        if (site.site_tags !== undefined && !isEmpty(site.site_tags)) {
+          if (!Array.isArray(site.site_tags)) {
             siteErrors.push("site_tags must be an array");
+          } else {
+            site.site_tags.forEach((tag, tagIndex) => {
+              if (typeof tag !== "string") {
+                siteErrors.push(`site_tags[${tagIndex}] must be a string`);
+              }
+            });
           }
-
-          tags.forEach((tag, tagIndex) => {
-            if (typeof tag !== "string") {
-              siteErrors.push(`site_tags[${tagIndex}] must be a string`);
-            }
-          });
         }
 
-        // Validate optional string fields only when they are present
+        // Validate optional string fields
         const optionalStringFields = [
           "country",
           "district",
@@ -484,8 +595,7 @@ const commonValidations = {
         ];
 
         optionalStringFields.forEach((field) => {
-          if (field in site) {
-            // Only check if the field is provided
+          if (field in site && site[field] !== undefined) {
             if (typeof site[field] !== "string" || site[field].trim() === "") {
               siteErrors.push(`${field} must be a non-empty string`);
             }
@@ -493,91 +603,85 @@ const commonValidations = {
         });
 
         // Validate isFeatured field
-        if ("isFeatured" in site) {
-          // Check only if provided
+        if ("isFeatured" in site && site.isFeatured !== undefined) {
           if (typeof site.isFeatured !== "boolean") {
-            siteErrors.push(`isFeatured must be a boolean`);
+            siteErrors.push("isFeatured must be a boolean");
           }
         }
 
         return siteErrors;
       };
 
+      // Process validation based on type
       if (Array.isArray(selectedSites)) {
+        // Validate each site in the array
         selectedSites.forEach((site, index) => {
           const siteErrors = validateSite(site, index);
           if (siteErrors.length > 0) {
-            errors[`selected_sites[${index}]`] =
-              errors[`selected_sites[${index}]`] || [];
-            errors[`selected_sites[${index}]`].push(...siteErrors);
+            errors[`selected_sites[${index}]`] = siteErrors;
           }
         });
 
-        // Unique checks after validating each item
+        // Check for duplicates
         const uniqueSiteIds = new Set();
         const uniqueSearchNames = new Set();
         const uniqueNames = new Set();
 
         selectedSites.forEach((item, idx) => {
-          // Check for duplicate site_id
-          if (item.site_id !== undefined) {
-            if (uniqueSiteIds.has(item.site_id)) {
-              errors[`selected_sites[${idx}]`] =
-                errors[`selected_sites[${idx}]`] || [];
-              errors[`selected_sites[${idx}]`].push(
-                `Duplicate site_id: ${item.site_id}`
-              );
-            } else {
-              uniqueSiteIds.add(item.site_id);
+          if (typeof item === "object" && item !== null) {
+            // Check for duplicate site_id
+            if (item.site_id !== undefined) {
+              if (uniqueSiteIds.has(item.site_id)) {
+                errors[`selected_sites[${idx}]`] =
+                  errors[`selected_sites[${idx}]`] || [];
+                errors[`selected_sites[${idx}]`].push(
+                  `Duplicate site_id: ${item.site_id}`
+                );
+              } else {
+                uniqueSiteIds.add(item.site_id);
+              }
             }
-          }
 
-          // Check for duplicate search_name
-          if (item.search_name !== undefined) {
-            if (uniqueSearchNames.has(item.search_name)) {
-              errors[`selected_sites[${idx}]`] =
-                errors[`selected_sites[${idx}]`] || [];
-              errors[`selected_sites[${idx}]`].push(
-                `Duplicate search_name: ${item.search_name}`
-              );
-            } else {
-              uniqueSearchNames.add(item.search_name);
+            // Check for duplicate search_name
+            if (item.search_name !== undefined) {
+              if (uniqueSearchNames.has(item.search_name)) {
+                errors[`selected_sites[${idx}]`] =
+                  errors[`selected_sites[${idx}]`] || [];
+                errors[`selected_sites[${idx}]`].push(
+                  `Duplicate search_name: ${item.search_name}`
+                );
+              } else {
+                uniqueSearchNames.add(item.search_name);
+              }
             }
-          }
 
-          // Check for duplicate name
-          if (item.name !== undefined) {
-            if (uniqueNames.has(item.name)) {
-              errors[`selected_sites[${idx}]`] =
-                errors[`selected_sites[${idx}]`] || [];
-              errors[`selected_sites[${idx}]`].push(
-                `Duplicate name: ${item.name}`
-              );
-            } else {
-              uniqueNames.add(item.name);
+            // Check for duplicate name
+            if (item.name !== undefined) {
+              if (uniqueNames.has(item.name)) {
+                errors[`selected_sites[${idx}]`] =
+                  errors[`selected_sites[${idx}]`] || [];
+                errors[`selected_sites[${idx}]`].push(
+                  `Duplicate name: ${item.name}`
+                );
+              } else {
+                uniqueNames.add(item.name);
+              }
             }
           }
         });
-      } else if (typeof selectedSites === "object" && selectedSites !== null) {
+      } else {
+        // Single object validation
         const siteErrors = validateSite(selectedSites, 0);
         if (siteErrors.length > 0) {
-          errors[`selected_sites[0]`] = errors[`selected_sites[0]`] || [];
-          errors[`selected_sites[0]`].push(...siteErrors);
+          errors[`selected_sites[0]`] = siteErrors;
         }
-      } else {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Request body(field) for Selected Sites should contain either an array of Site objects or a single Site object",
-        });
       }
 
-      // Process errors
       // If any errors were collected, respond with them
       if (Object.keys(errors).length > 0) {
         return res.status(400).json({
           success: false,
-          message: "bad request errors",
+          message: "Validation errors found in selected_sites",
           errors,
         });
       }
@@ -807,6 +911,22 @@ const commonValidations = {
       ],
     ]),
   ],
+
+  // ObjectId array validations
+  ...validateArrayOfObjectIds("airqloud_ids"),
+  ...validateArrayOfObjectIds("cohort_ids"),
+  ...validateArrayOfObjectIds("grid_ids"),
+  ...validateArrayOfObjectIds("site_ids"),
+  ...validateArrayOfObjectIds("device_ids"),
+  ...validateArrayOfObjectIds("network_ids"),
+  ...validateArrayOfObjectIds("group_ids"),
+
+  //  validations with specific required fields
+  ...validateArrayOfObjects("selected_sites", ["_id", "search_name", "name"]),
+  ...validateArrayOfObjects("selected_grids", ["_id", "name"]),
+  ...validateArrayOfObjects("selected_devices", ["_id", "name"]),
+  ...validateArrayOfObjects("selected_cohorts", ["_id", "name"]),
+  ...validateArrayOfObjects("selected_airqlouds", ["_id", "name"]),
 };
 
 const chartConfigValidation = [
@@ -992,6 +1112,11 @@ const chartConfigValidation = [
 ];
 
 const preferenceValidations = {
+  validatePreferenceData: [
+    ...commonValidations.tenant,
+    ...commonValidations.preferenceBody,
+    commonValidations.selectedSites(["_id", "search_name", "name"], true),
+  ],
   upsert: [
     ...commonValidations.tenant,
     ...commonValidations.userId,

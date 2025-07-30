@@ -31,6 +31,36 @@ const sendResponse = (res, result) => {
 };
 
 const preferences = {
+  validatePreferenceData: async (req, res, next) => {
+    try {
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors,
+        });
+      }
+
+      return res.status(httpStatus.OK).json({
+        success: true,
+        message: "Preference data validation passed",
+        data: {
+          validated: true,
+          receivedData: req.body,
+        },
+      });
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   update: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);

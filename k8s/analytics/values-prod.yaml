@@ -1,6 +1,6 @@
 namespace: production
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
@@ -9,7 +9,7 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
-  tag: prod-cc87b8a1-1747324969
+  tag: prod-05890f84-1753800750
 api:
   name: airqo-analytics-api
   label: analytics-api
