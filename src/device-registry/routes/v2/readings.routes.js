@@ -1,3 +1,4 @@
+//src/device-registry/routes/v2/readings.routes.js
 const express = require("express");
 const router = express.Router();
 
@@ -38,19 +39,67 @@ const checkController = (controllerMethod) => {
   };
 };
 
-// Middleware to check if validation exists
+// Updated validation middleware that properly handles validation arrays
 const checkValidation = (validationMethod) => {
   return (req, res, next) => {
-    if (
-      !readingsValidations ||
-      typeof readingsValidations[validationMethod] !== "function"
-    ) {
+    if (!readingsValidations) {
+      console.warn(`[VALIDATION_WARNING] Validation module not loaded`);
+      return next(); // Continue without validation
+    }
+
+    const validation = readingsValidations[validationMethod];
+
+    if (!validation) {
       console.warn(
         `[VALIDATION_WARNING] Validation method not found: ${validationMethod}`
       );
       return next(); // Continue without validation
     }
-    readingsValidations[validationMethod](req, res, next);
+
+    // Check if it's a function (middleware)
+    if (typeof validation === "function") {
+      return validation(req, res, next);
+    }
+
+    // Check if it's an array of validation rules
+    if (Array.isArray(validation)) {
+      // Apply all validation rules in sequence
+      let currentIndex = 0;
+
+      const runNextValidation = () => {
+        if (currentIndex >= validation.length) {
+          return next(); // All validations passed
+        }
+
+        const currentValidation = validation[currentIndex++];
+
+        if (typeof currentValidation === "function") {
+          // Handle middleware functions
+          currentValidation(req, res, runNextValidation);
+        } else if (currentValidation && currentValidation.run) {
+          // Handle express-validator validation chains
+          currentValidation
+            .run(req)
+            .then(() => {
+              runNextValidation();
+            })
+            .catch((error) => {
+              console.error(`[VALIDATION_ERROR] ${error.message}`);
+              next(error);
+            });
+        } else {
+          // Skip invalid validation and continue
+          runNextValidation();
+        }
+      };
+
+      runNextValidation();
+    } else {
+      console.warn(
+        `[VALIDATION_WARNING] Validation method ${validationMethod} is neither function nor array`
+      );
+      return next(); // Continue without validation
+    }
   };
 };
 
