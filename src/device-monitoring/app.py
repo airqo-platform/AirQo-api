@@ -22,7 +22,6 @@ _logger = logging.getLogger(__name__)
 mongo = PyMongo()
 cache = Cache()
 
-
 def create_app(environment):
     # create a flask app instance
     application = Flask(__name__)
@@ -49,9 +48,7 @@ def create_app(environment):
 
     return application
 
-
 app = create_app(os.getenv("FLASK_ENV"))
-
 
 def make_celery(application):
     application.config["broker_url"] = f"{Config.REDIS_URL}/0"
@@ -80,9 +77,7 @@ def make_celery(application):
     celery_app.Task = ContextTask
     return celery_app
 
-
 celery = make_celery(app)
-
 
 @celery.task(name="collocation_periodic_task")
 def collocation_periodic_task():
@@ -96,7 +91,6 @@ def collocation_periodic_task():
     collocation.compute_and_update_results(running_batches)
     collocation.update_batches_statues()
 
-
 @app.errorhandler(Exception)
 def handle_exception(error):
     traceback.print_exc()
@@ -105,13 +99,11 @@ def handle_exception(error):
     
     return response, 500
 
-
 @app.errorhandler(NotFound)
 def handle_404_exception(error):
     print(error)
     response = jsonify({"message: Requested Url not found on this service": str(error)})
     return response, 404
-
 
 @app.errorhandler(MethodNotAllowed)
 def handle_405_exception(error):
@@ -119,11 +111,9 @@ def handle_405_exception(error):
     response = jsonify({"message: Method not allowed for this endpoint": str(error)})
     return response, 405
 
-
 @app.before_request
 def check_tenant_param():
     return PreRequest.check_tenant()
-
 
 if __name__ == "__main__":
     app.run()
