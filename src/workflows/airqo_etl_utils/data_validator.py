@@ -42,7 +42,7 @@ class DataValidationUtils:
         integers = integers or []
         timestamps = timestamps or []
         if floats:
-            data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
+            data[floats] = pd.to_numeric(data[floats], errors="coerce")
 
         if timestamps:
             for col in timestamps:
@@ -57,40 +57,47 @@ class DataValidationUtils:
         if integers:
             for col in integers:
                 data[col] = (
-                    data[col]
-                    .fillna("")  # Replace NaN with empty strings
-                    .astype(str)  # Convert to string
-                    .str.strip()  # Remove leading/trailing whitespace
-                    .replace("", np.nan)  # Replace empty strings with NaN for clarity
-                    .apply(
-                        lambda x: pd.to_numeric(x, errors="coerce")
-                    )  # Convert to numeric
-                    .fillna(-1)  # Replace NaN with -1 for invalid/missing values
-                    .astype(np.int64)  # Convert to integer type
+                    pd.to_numeric(
+                        data[col]
+                        .fillna("")
+                        .astype(str)
+                        .str.strip()
+                        .replace("", np.nan),
+                        errors="coerce",
+                    )
+                    .fillna(-1)
+                    .astype(np.int64)
                 )
         return data
 
     @staticmethod
-    def get_valid_value(column_name: str, row_value: int | float) -> int | float | None:
+    def get_valid_value(
+        data: pd.DataFrame, validated_columns: List[str]
+    ) -> pd.DataFrame:
         """
-        Processes the given row value and returns a valid int, float, or None.
+        Validates and cleans the specified columns in a DataFrame by replacing out-of-range values with None based on predefined valid ranges per column.
 
         Args:
-            column_name(str): The name of the column being processed.
-            row_value(int | float): The row value to validate.
+            data(pd.DataFrame): The input DataFrame containing sensor data.
+            validated_columns(List[str]): List of column names to validate.
 
-        Returns:int | float | None: The valid value or None if invalid.
+        Returns:
+            pd.DataFrame: The DataFrame with validated columns, where values outside the allowed range are replaced with None.
         """
-        if isinstance(row_value, (int, float)):
-            if range_values := Config.VALID_SENSOR_RANGES.get(column_name):
-                min_val, max_val = range_values
-                return row_value if min_val <= row_value <= max_val else None
-        else:
-            logger.warning(
-                f"There might be a data type issue with the value type {type(row_value)}: {row_value}"
-            )
+        for col in validated_columns:
+            mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
+            valid_range = Config.VALID_SENSOR_RANGES.get(mapped_name, None)
+            if valid_range is None:
+                continue
 
-        return row_value
+            min_val, max_val = valid_range
+
+            data[col] = pd.to_numeric(data[col], errors="coerce")
+
+            mask = (data[col] >= min_val) & (data[col] <= max_val)
+            data[col] = data[col].where(mask, other=None)
+
+        return data
 
     @staticmethod
     def remove_outliers_fix_types(
@@ -124,13 +131,7 @@ class DataValidationUtils:
         }
         if remove_outliers:
             validated_columns = list(chain.from_iterable(filtered_columns.values()))
-            for col in validated_columns:
-                mapped_name = Config.AIRQO_DATA_COLUMN_NAME_MAPPING.get(col, None)
-                data[col] = data[col].apply(
-                    lambda x: DataValidationUtils.get_valid_value(
-                        column_name=mapped_name, row_value=x
-                    )
-                )
+            data = DataValidationUtils.get_valid_value(data, validated_columns)
 
         # Fix data types after filling nas
         data = DataValidationUtils.format_data_types(
