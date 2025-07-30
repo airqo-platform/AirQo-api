@@ -1953,14 +1953,16 @@ const createEvent = {
         logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).latest(
+      const readingsResponse = await ReadingModel(tenant).latestForMap(
         {
-          skip,
-          limit,
+          filter: {},
+          skip: skip || 0,
+          limit: limit || 1000,
         },
         next
       );
 
+      // **STEP 3: Handle language translation (UNCHANGED - preserving existing functionality)**
       if (
         language !== undefined &&
         !isEmpty(readingsResponse) &&
@@ -1969,12 +1971,19 @@ const createEvent = {
       ) {
         const data = readingsResponse.data;
         for (const event of data) {
-          const translatedHealthTips = await translate.translateTips(
-            { healthTips: event.health_tips, targetLanguage: language },
-            next
-          );
-          if (translatedHealthTips.success === true) {
-            event.health_tips = translatedHealthTips.data;
+          if (event.health_tips) {
+            try {
+              const translatedHealthTips = await translate.translateTips(
+                { healthTips: event.health_tips, targetLanguage: language },
+                next
+              );
+              if (translatedHealthTips.success === true) {
+                event.health_tips = translatedHealthTips.data;
+              }
+            } catch (translationError) {
+              logger.warn(`Translation failed: ${translationError.message}`);
+              // Continue without translation rather than failing
+            }
           }
         }
       }
@@ -1989,7 +1998,8 @@ const createEvent = {
         } catch (error) {
           logger.warn(`Cache set operation failed: ${stringify(error)}`);
         }
-        logText("Cache set.");
+
+        logText("Cache set completed.");
 
         return {
           success: true,
@@ -2004,7 +2014,9 @@ const createEvent = {
         };
       } else {
         logger.error(
-          `Unable to retrieve events --- ${stringify(readingsResponse.errors)}`
+          `Unable to retrieve readings --- ${stringify(
+            readingsResponse.errors
+          )}`
         );
 
         return {
