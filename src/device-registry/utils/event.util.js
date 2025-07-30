@@ -1257,10 +1257,10 @@ const createEvent = {
       let page = parseInt(query.page);
       const language = request.query.language;
 
-      if (recent === "yes") {
-        logText("Routing recent query to optimized Readings collection");
-        return await createEvent.listFromReadings(request, next);
-      }
+      // if (recent === "yes") {
+      //   logText("Routing recent query to optimized Readings collection");
+      //   return await createEvent.listFromReadings(request, next);
+      // }
 
       logText("Using Events collection for historical data");
       const filter = generateFilter.events(request, next);
@@ -1629,10 +1629,10 @@ const createEvent = {
         query: { tenant, language, recent },
       } = request;
 
-      if (recent === "yes") {
-        logText("Routing recent view query to optimized Readings collection");
-        return await createEvent.viewFromReadings(request, next);
-      }
+      // if (recent === "yes") {
+      //   logText("Routing recent view query to optimized Readings collection");
+      //   return await createEvent.viewFromReadings(request, next);
+      // }
 
       const filter = generateFilter.readings(request, next);
 
