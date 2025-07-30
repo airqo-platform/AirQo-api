@@ -42,7 +42,7 @@ class DataValidationUtils:
         integers = integers or []
         timestamps = timestamps or []
         if floats:
-            data[floats] = pd.to_numeric(data[floats], errors="coerce")
+            data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
 
         if timestamps:
             for col in timestamps:
