@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: superset-vs
+  namespace: superset
+spec:
+  host: superset.airqo.net
+  upstreams:
+    - name: superset-upstream
+      service: superset-svc
+      port: 8088
+  routes:
+    - path: /
+      action:
+        pass: superset-upstream
