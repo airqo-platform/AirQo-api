@@ -53,10 +53,11 @@ def airqo_raw_data_measurements_mobile():
 
     @task(retries=3, retry_delay=timedelta(minutes=5))
     def send_raw_measurements_to_api(data: pd.DataFrame):
-        data = DataUtils.process_data_for_api(data, frequency=Frequency.RAW)
-
-        data_api = DataApi()
-        data_api.save_events(measurements=data)
+        # Pause sending of raw mobile data to api
+        # data = DataUtils.process_data_for_api(data, frequency=Frequency.RAW)
+        # data_api = DataApi()
+        # data_api.save_events(measurements=data)
+        pass
 
     @task(
         retries=3,
