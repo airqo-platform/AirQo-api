@@ -1953,7 +1953,7 @@ const createEvent = {
         logger.warn(`Cache get operation failed: ${stringify(error)}`);
       }
 
-      const readingsResponse = await ReadingModel(tenant).listRecentOptimized(
+      const readingsResponse = await ReadingModel(tenant).recent(
         {
           filter: {},
           skip: skip || 0,
