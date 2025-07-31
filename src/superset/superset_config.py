@@ -31,3 +31,5 @@ CACHE_CONFIG = {
 
 # Flask APP
 FLASK_APP = env("FLASK_APP")
+
+# TODO: Check if adding the application root changes anything
