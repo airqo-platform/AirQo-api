@@ -1,5 +1,3 @@
-# aqi_image_generator.py
-
 import os
 import numpy as np
 from io import BytesIO
@@ -8,39 +6,46 @@ from scipy.interpolate import griddata
 from matplotlib.colors import to_rgba
 import base64
 from flask import jsonify
-import redis # Import the redis library
-import json # Import json for serializing/deserializing data
+import redis
+import json
 
-from models.heatmapModel import (AirQualityData, AirQualityGrids, AirQualityPredictor)
-
+from models.heatmapModel import AirQualityData, AirQualityGrids, AirQualityPredictor
 
 class AQIImageGenerator:
-
-    # Initialize Redis client
-    # You should configure your Redis connection details appropriately,
-    # e.g., from environment variables or a config file.
-    # For demonstration, a basic connection to localhost:6379 is used.
     _redis_client = None
 
     @classmethod
     def get_redis_client(cls):
+        """
+        Initializes and returns a Redis client, or None if connection fails.
+        """
         if cls._redis_client is None:
             redis_host = os.getenv("REDIS_HOST", "localhost")
             redis_port = int(os.getenv("REDIS_PORT", 6379))
             redis_db = int(os.getenv("REDIS_DB", 0))
             try:
-                cls._redis_client = redis.StrictRedis(host=redis_host, port=redis_port, db=redis_db, decode_responses=True)
-                cls._redis_client.ping() # Test connection
+                cls._redis_client = redis.StrictRedis(
+                    host=redis_host,
+                    port=redis_port,
+                    db=redis_db,
+                    decode_responses=True
+                )
+                cls._redis_client.ping()
                 print(f"Connected to Redis at {redis_host}:{redis_port}")
             except redis.exceptions.ConnectionError as e:
                 print(f"Could not connect to Redis: {e}")
-                cls._redis_client = None # Ensure client is None if connection fails
+                cls._redis_client = None
         return cls._redis_client
 
     @staticmethod
     def pm25_to_aqi(pm):
-        if np.isnan(pm): return np.nan
-        if pm < 0: return 0
+        """
+        Converts PM2.5 concentration to AQI value.
+        """
+        if np.isnan(pm):
+            return np.nan
+        if pm < 0:
+            return 0
         if pm <= 12.0:
             return int((50 / 12.0) * pm)
         elif pm <= 35.4:
@@ -56,17 +61,38 @@ class AQIImageGenerator:
 
     @staticmethod
     def aqi_to_color(aqi, alpha=0.6):
-        if np.isnan(aqi): return (0, 0, 0, 0)
+        """
+        Converts AQI value to an RGBA color.
+        """
+        if np.isnan(aqi):
+            return (0, 0, 0, 0)
         aqi = int(aqi)
-        if aqi <= 50: return to_rgba("green", alpha)
-        elif aqi <= 100: return to_rgba("yellow", alpha)
-        elif aqi <= 150: return to_rgba("orange", alpha)
-        elif aqi <= 200: return to_rgba("red", alpha)
-        elif aqi <= 300: return to_rgba("purple", alpha)
-        else: return to_rgba("maroon", alpha)
+        if aqi <= 50:
+            return to_rgba("green", alpha)
+        elif aqi <= 100:
+            return to_rgba("yellow", alpha)
+        elif aqi <= 150:
+            return to_rgba("orange", alpha)
+        elif aqi <= 200:
+            return to_rgba("red", alpha)
+        elif aqi <= 300:
+            return to_rgba("purple", alpha)
+        else:
+            return to_rgba("maroon", alpha)
 
     @staticmethod
     def generate_image_for_city(data, city_name, resolution=150):
+        """
+        Generates a heatmap image for a city based on provided data.
+
+        Args:
+            data: List of tuples containing (latitude, longitude, pm25).
+            city_name: Name of the city.
+            resolution: Image resolution (pixels per dimension).
+
+        Returns:
+            Tuple of (image_data_url, bounds, message).
+        """
         if len(data) < 4:
             return None, None, f"⚠️ Not enough data for {city_name}"
 
@@ -96,9 +122,15 @@ class AQIImageGenerator:
 
     @staticmethod
     def generate_aqi_image():
+        """
+        Generates AQI heatmap images for all available cities.
+
+        Returns:
+            Flask response with JSON containing city heatmaps or an error message.
+        """
         redis_client = AQIImageGenerator.get_redis_client()
         cache_key_prefix = "aqi_image_"
-        cache_ttl_seconds = 600 # Cache for 1 hour
+        cache_ttl_seconds = 600  # Cache for 10 minutes
 
         try:
             aq_data = AirQualityData()
@@ -114,24 +146,35 @@ class AQIImageGenerator:
             if predictions_df.empty:
                 return jsonify({"error": "No predictions available"}), 500
 
+            grid_gdf = predictor.grids.gdf
+            if grid_gdf is None or grid_gdf.empty:
+                return jsonify({"error": "No grid data available"}), 500
+
             results = []
-            for city in predictions_df["city"].unique():
-                city_cache_key = f"{cache_key_prefix}{city}"
+            for _, city_row in grid_gdf.iterrows():
+                city_id = city_row["id"]
+                city_name = city_row["name"]
+                city_cache_key = f"{cache_key_prefix}{city_id}"
 
                 # Try to get from cache
                 if redis_client:
                     cached_result = redis_client.get(city_cache_key)
                     if cached_result:
-                        print(f"Serving {city} from Redis cache.")
+                        print(f"Serving {city_name} (ID: {city_id}) from Redis cache.")
                         results.append(json.loads(cached_result))
-                        continue # Skip generation if found in cache
+                        continue
 
-                city_df = predictions_df[predictions_df["city"] == city]
+                city_df = predictions_df[predictions_df["city"] == city_name]
+                if city_df.empty:
+                    print(f"No prediction data for {city_name} (ID: {city_id})")
+                    continue
+
                 city_data = list(zip(city_df["latitude"], city_df["longitude"], city_df["predicted_pm25"]))
-                image_data, bounds, message = AQIImageGenerator.generate_image_for_city(city_data, city)
+                image_data, bounds, message = AQIImageGenerator.generate_image_for_city(city_data, city_name)
 
                 city_result = {
-                    "city": city,
+                    "id": city_id,
+                    "city": city_name,
                     "image": image_data,
                     "bounds": bounds,
                     "message": message
@@ -139,9 +182,12 @@ class AQIImageGenerator:
                 results.append(city_result)
 
                 # Store in cache
-                if redis_client and image_data: # Only cache if image was successfully generated
+                if redis_client and image_data:
                     redis_client.setex(city_cache_key, cache_ttl_seconds, json.dumps(city_result))
-                    print(f"Stored {city} in Redis cache.")
+                    print(f"Stored {city_name} (ID: {city_id}) in Redis cache.")
+
+            if not results:
+                return jsonify({"error": "No valid city data processed"}), 500
 
             return jsonify(results), 200
 
@@ -149,9 +195,88 @@ class AQIImageGenerator:
             print(f"An error occurred: {e}")
             return jsonify({"error": str(e)}), 500
 
+    @staticmethod
+    def generate_aqi_image_for_city(city_id):
+        """
+        Generates AQI heatmap image for a specific city by its grid ID.
+
+        Args:
+            city_id: The grid ID of the city.
+
+        Returns:
+            Flask response with JSON containing the city's heatmap or an error message.
+        """
+        redis_client = AQIImageGenerator.get_redis_client()
+        cache_key = f"aqi_image_{city_id}"
+        cache_ttl_seconds = 600  # Cache for 10 minutes
+
+        # Try to get from cache
+        if redis_client:
+            cached_result = redis_client.get(cache_key)
+            if cached_result:
+                print(f"Serving city ID {city_id} from Redis cache.")
+                return jsonify(json.loads(cached_result)), 200
+
+        try:
+            aq_data = AirQualityData()
+            aq_grids = AirQualityGrids()
+            predictor = AirQualityPredictor(aq_data, aq_grids)
+
+            if not predictor.fetch_and_process_data():
+                return jsonify({"error": "Failed to fetch or process input data"}), 500
+            if not predictor.train_and_predict():
+                return jsonify({"error": "Model training and prediction failed"}), 500
+
+            _, predictions_df = predictor.get_results()
+            if predictions_df.empty:
+                return jsonify({"error": "No predictions available"}), 500
+
+            grid_gdf = predictor.grids.gdf
+            if grid_gdf is None or grid_gdf.empty:
+                return jsonify({"error": "No grid data available"}), 500
+
+            city_row = grid_gdf[grid_gdf["id"] == city_id]
+            if city_row.empty:
+                return jsonify({"error": f"No city found with ID {city_id}"}), 404
+
+            city_name = city_row.iloc[0]["name"]
+            city_df = predictions_df[predictions_df["city"] == city_name]
+            if city_df.empty:
+                return jsonify({"error": f"No prediction data for city ID {city_id} ({city_name})"}), 404
+
+            city_data = list(zip(city_df["latitude"], city_df["longitude"], city_df["predicted_pm25"]))
+            image_data, bounds, message = AQIImageGenerator.generate_image_for_city(city_data, city_name)
+
+            if not image_data:
+                return jsonify({"error": message}), 400
+
+            result = {
+                "id": city_id,
+                "city": city_name,
+                "image": image_data,
+                "bounds": bounds,
+                "message": message
+            }
+
+            # Store in cache
+            if redis_client:
+                redis_client.setex(cache_key, cache_ttl_seconds, json.dumps(result))
+                print(f"Stored {city_name} (ID: {city_id}) in Redis cache.")
+
+            return jsonify(result), 200
+
+        except Exception as e:
+            print(f"An error occurred for city ID {city_id}: {e}")
+            return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
-    # Example of how to use it (assuming a Flask app would call generate_aqi_image)
-    # For a direct run, you might want to mock the Flask jsonify part or just print results
+    # Example usage for testing
     response, status_code = AQIImageGenerator.generate_aqi_image()
     print(f"Status Code: {status_code}")
+    print(response.get_data(as_text=True))
+
+    # Test city-specific endpoint
+    test_city_id = "example_city_id"  # Replace with a valid grid ID for testing
+    response, status_code = AQIImageGenerator.generate_aqi_image_for_city(test_city_id)
+    print(f"Status Code for city {test_city_id}: {status_code}")
     print(response.get_data(as_text=True))
