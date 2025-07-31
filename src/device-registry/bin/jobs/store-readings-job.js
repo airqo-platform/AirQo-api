@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- /bin/jobs/v2.1-store-readings-job`
+  `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job.js`
 );
 const EventModel = require("@models/Event");
 const GridModel = require("@models/Grid");
@@ -85,11 +85,13 @@ class BatchProcessor {
     this.batchSize = batchSize;
     this.pendingAveragesQueue = new Map(); // site_id -> Promise
     this.processingBatch = false;
+    this.operationQueue = []; // Add operation queue
+    this.activeOperations = 0; // Track active operations
     // Cache for lookups to avoid repeated database calls
-    this.siteCache = new NodeCache({ stdTTL: 1800 }); // 30 min
-    this.deviceCache = new NodeCache({ stdTTL: 1800 }); // 30 min
-    this.gridCache = new NodeCache({ stdTTL: 1800 }); // 30 min
-    this.healthTipsCache = new NodeCache({ stdTTL: 3600 }); // 1 hour
+    this.siteCache = new NodeCache({ stdTTL: 3600 }); // 1 hour
+    this.deviceCache = new NodeCache({ stdTTL: 3600 }); // 1 hour
+    this.gridCache = new NodeCache({ stdTTL: 3600 }); // 1 hour
+    this.healthTipsCache = new NodeCache({ stdTTL: 7200 }); // 2 hours
   }
 
   async processDocument(doc) {

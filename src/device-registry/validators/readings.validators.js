@@ -22,6 +22,7 @@ const commonValidations = {
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
+  // Optional ObjectId validator - validates ObjectId format when provided, allows empty/undefined
   objectId: (
     field,
     location = query,
@@ -29,6 +30,49 @@ const commonValidations = {
   ) => {
     return location(field)
       .optional()
+      .custom((value) => {
+        let values = Array.isArray(value)
+          ? value
+          : value?.toString().split(",");
+        for (const v of values) {
+          if (v && !isValidObjectId(v)) {
+            throw new Error(`${field}: ${errorMessage} - ${v}`);
+          }
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        if (value) {
+          let values;
+          if (Array.isArray(value)) {
+            values = value;
+          } else {
+            values = value?.toString().split(",");
+          }
+          return values
+            .map((v) => (isValidObjectId(v) ? ObjectId(v) : null))
+            .filter((v) => v !== null);
+        }
+        return value;
+      });
+  },
+
+  // Alias for clarity - explicitly optional ObjectId validator (same as objectId)
+  get optionalObjectId() {
+    return this.objectId;
+  },
+
+  // Required ObjectId validator
+  requiredObjectId: (
+    field,
+    location = query,
+    errorMessage = "Invalid ObjectId format"
+  ) => {
+    return location(field)
+      .exists()
+      .withMessage(`${field} is required`)
+      .notEmpty()
+      .withMessage(`${field} cannot be empty`)
       .custom((value) => {
         let values = Array.isArray(value)
           ? value
@@ -374,6 +418,21 @@ const createValidationMiddleware = (validationRules) => {
   ];
 };
 
+// Helper to execute middleware array sequentially (eliminates code duplication)
+const executeMiddlewareSequentially = (middleware, req, res, next) => {
+  let index = 0;
+  const runNext = () => {
+    if (index >= middleware.length) return next();
+    const currentMiddleware = middleware[index++];
+    if (typeof currentMiddleware === "function") {
+      currentMiddleware(req, res, runNext);
+    } else {
+      runNext();
+    }
+  };
+  runNext();
+};
+
 // Helper function for decimal places
 function decimalPlaces(num) {
   const match = ("" + num).match(/(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/);
@@ -431,20 +490,8 @@ const readingsValidations = {
         .toInt(),
     ];
 
-    // Apply validation middleware
     const middleware = createValidationMiddleware(validationRules);
-    // Execute the middleware array
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   list: (req, res, next) => {
@@ -470,17 +517,7 @@ const readingsValidations = {
     ];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   bestAirQuality: (req, res, next) => {
@@ -493,17 +530,7 @@ const readingsValidations = {
     ];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   recent: (req, res, next) => {
@@ -542,17 +569,7 @@ const readingsValidations = {
     ];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   listAverages: (req, res, next) => {
@@ -569,34 +586,14 @@ const readingsValidations = {
     ];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   listRecent: (req, res, next) => {
     const validationRules = [...commonValidations.tenant];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   worstReadingForDevices: (req, res, next) => {
@@ -612,17 +609,7 @@ const readingsValidations = {
     ];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 
   worstReadingForSites: (req, res, next) => {
@@ -638,22 +625,12 @@ const readingsValidations = {
     ];
 
     const middleware = createValidationMiddleware(validationRules);
-    let index = 0;
-    const runNext = () => {
-      if (index >= middleware.length) return next();
-      const currentMiddleware = middleware[index++];
-      if (typeof currentMiddleware === "function") {
-        currentMiddleware(req, res, runNext);
-      } else {
-        runNext();
-      }
-    };
-    runNext();
+    executeMiddlewareSequentially(middleware, req, res, next);
   },
 };
 
 module.exports = {
   ...readingsValidations,
   pagination: commonValidations.pagination,
-  validateOptionalObjectId: commonValidations.objectId,
+  validateOptionalObjectId: commonValidations.optionalObjectId,
 };
