@@ -90,4 +90,7 @@ def polygon_site_selection():
 @controller_bp.route("/heatmaps", methods=["GET"])
 def get_heatmaps():
     return AQIImageGenerator.generate_aqi_image()
- 
+
+@controller_bp.route("/heatmaps/<id>", methods=["GET"])
+def get_heatmap_by_id(id):
+    return AQIImageGenerator.generate_aqi_image_for_city(id)
