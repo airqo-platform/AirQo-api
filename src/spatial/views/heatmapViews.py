@@ -98,7 +98,7 @@ class AQIImageGenerator:
     def generate_aqi_image():
         redis_client = AQIImageGenerator.get_redis_client()
         cache_key_prefix = "aqi_image_"
-        cache_ttl_seconds = 3600 # Cache for 1 hour
+        cache_ttl_seconds = 600 # Cache for 1 hour
 
         try:
             aq_data = AirQualityData()
