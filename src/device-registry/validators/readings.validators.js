@@ -1,5 +1,11 @@
 // readings.validators.js
-const { oneOf, query, param, body } = require("express-validator");
+const {
+  oneOf,
+  query,
+  param,
+  body,
+  validationResult,
+} = require("express-validator");
 const { ObjectId } = require("mongoose").Types;
 const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
@@ -16,6 +22,7 @@ const commonValidations = {
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
+  // Optional ObjectId validator - validates ObjectId format when provided, allows empty/undefined
   objectId: (
     field,
     location = query,
@@ -23,6 +30,49 @@ const commonValidations = {
   ) => {
     return location(field)
       .optional()
+      .custom((value) => {
+        let values = Array.isArray(value)
+          ? value
+          : value?.toString().split(",");
+        for (const v of values) {
+          if (v && !isValidObjectId(v)) {
+            throw new Error(`${field}: ${errorMessage} - ${v}`);
+          }
+        }
+        return true;
+      })
+      .customSanitizer((value) => {
+        if (value) {
+          let values;
+          if (Array.isArray(value)) {
+            values = value;
+          } else {
+            values = value?.toString().split(",");
+          }
+          return values
+            .map((v) => (isValidObjectId(v) ? ObjectId(v) : null))
+            .filter((v) => v !== null);
+        }
+        return value;
+      });
+  },
+
+  // Alias for clarity - explicitly optional ObjectId validator (same as objectId)
+  get optionalObjectId() {
+    return this.objectId;
+  },
+
+  // Required ObjectId validator
+  requiredObjectId: (
+    field,
+    location = query,
+    errorMessage = "Invalid ObjectId format"
+  ) => {
+    return location(field)
+      .exists()
+      .withMessage(`${field} is required`)
+      .notEmpty()
+      .withMessage(`${field} cannot be empty`)
       .custom((value) => {
         let values = Array.isArray(value)
           ? value
@@ -349,141 +399,234 @@ const commonValidations = {
   ],
 };
 
+// Helper function to create validation middleware from validation arrays
+const createValidationMiddleware = (validationRules) => {
+  return [
+    ...validationRules, // Apply all validation rules
+    (req, res, next) => {
+      // Check for validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation errors",
+          errors: errors.array(),
+        });
+      }
+      next();
+    },
+  ];
+};
+
+// Helper to execute middleware array sequentially (eliminates code duplication)
+const executeMiddlewareSequentially = (middleware, req, res, next) => {
+  let index = 0;
+  const runNext = () => {
+    if (index >= middleware.length) return next();
+    const currentMiddleware = middleware[index++];
+    if (typeof currentMiddleware === "function") {
+      currentMiddleware(req, res, runNext);
+    } else {
+      runNext();
+    }
+  };
+  runNext();
+};
+
+// Helper function for decimal places
+function decimalPlaces(num) {
+  const match = ("" + num).match(/(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/);
+  if (!match) {
+    return 0;
+  }
+  return Math.max(
+    0,
+    (match[1] ? match[1].length : 0) - (match[2] ? +match[2] : 0)
+  );
+}
+
+// Convert validation arrays to proper middleware functions
 const readingsValidations = {
-  nearestReadings: [
-    ...commonValidations.tenant,
-    query("latitude")
-      .exists()
-      .withMessage("latitude is required")
-      .bail()
-      .matches(constants.LATITUDE_REGEX, "i")
-      .withMessage("Invalid latitude format")
-      .bail()
-      .custom((value) => {
-        let dp = decimalPlaces(value);
-        if (dp < 2) {
-          throw new Error("Latitude must have at least 2 decimal places");
-        }
-        return true;
-      }),
-    query("longitude")
-      .exists()
-      .withMessage("longitude is required")
-      .bail()
-      .matches(constants.LONGITUDE_REGEX, "i")
-      .withMessage("Invalid longitude format")
-      .bail()
-      .custom((value) => {
-        let dp = decimalPlaces(value);
-        if (dp < 2) {
-          throw new Error("Longitude must have at least 2 decimal places");
-        }
-        return true;
-      }),
-    query("radius")
-      .optional()
-      .isFloat({ min: 0.1, max: 100 })
-      .withMessage("Radius must be between 0.1 and 100 kilometers")
-      .toFloat(),
-    query("limit")
-      .optional()
-      .isInt({ min: 1, max: 10 })
-      .withMessage("Limit must be between 1 and 10")
-      .toInt(),
-    commonValidations.errorHandler,
-  ],
-  list: [
-    ...commonValidations.tenant,
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.device,
-    ...commonValidations.deviceId,
-    ...commonValidations.latLong,
-    ...commonValidations.airqloudId,
-    ...commonValidations.cohortId,
-    ...commonValidations.gridId,
-    ...commonValidations.deviceNumber,
-    ...commonValidations.site,
-    ...commonValidations.siteId,
-    ...commonValidations.primary,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-  ],
-  bestAirQuality: [
-    ...commonValidations.threshold,
-    ...commonValidations.pollutant,
-    ...commonValidations.language,
-    ...commonValidations.limit,
-    ...commonValidations.skip,
-  ],
-  recent: [
-    ...commonValidations.tenant,
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.device,
-    ...commonValidations.deviceId,
-    ...commonValidations.latLong,
-    ...commonValidations.airqloudId,
-    ...commonValidations.cohortId,
-    ...commonValidations.gridId,
-    ...commonValidations.deviceNumber,
-    ...commonValidations.site,
-    ...commonValidations.siteId,
-    ...commonValidations.primary,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-    commonValidations.objectId("cohort_id"),
-    commonValidations.objectId("grid_id"),
-    commonValidations.objectId("device_id"),
-    commonValidations.objectId("site_id"),
-    commonValidations.objectId("airqloud_id"),
-    ...commonValidations.checkConflictingParams("cohort_id", "grid_id"),
-    ...commonValidations.checkConflictingParams("device_id", "site_id"),
-    ...commonValidations.checkForEmptyArrays([
-      "cohort_id",
-      "grid_id",
-      "device_id",
-      "site_id",
-    ]),
-  ],
-  listAverages: [
-    ...commonValidations.tenant,
-    ...commonValidations.siteIdParam,
-    ...commonValidations.timeRange,
-    ...commonValidations.frequency,
-    ...commonValidations.format,
-    ...commonValidations.external,
-    ...commonValidations.recent,
-    ...commonValidations.metadata,
-    ...commonValidations.test,
-  ],
-  listRecent: [...commonValidations.tenant],
-  worstReadingForDevices: [
-    ...commonValidations.atLeastOneRequired(
-      ["cohort_id", "device_id"],
-      "At least one of cohort_id or device_id is required."
-    ),
-    commonValidations.objectId("cohort_id"),
-    commonValidations.objectId("device_id"),
-    ...commonValidations.checkConflictingParams("cohort_id", "device_id"),
-    ...commonValidations.checkForEmptyArrays(["cohort_id", "device_id"]),
-  ],
-  worstReadingForSites: [
-    ...commonValidations.atLeastOneRequired(
-      ["grid_id", "site_id"],
-      "At least one of grid_id or site_id is required."
-    ),
-    commonValidations.objectId("grid_id"),
-    commonValidations.objectId("site_id"),
-    ...commonValidations.checkConflictingParams("grid_id", "site_id"),
-    ...commonValidations.checkForEmptyArrays(["grid_id", "site_id"]),
-  ],
+  nearestReadings: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      query("latitude")
+        .exists()
+        .withMessage("latitude is required")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("Invalid latitude format")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            throw new Error("Latitude must have at least 2 decimal places");
+          }
+          return true;
+        }),
+      query("longitude")
+        .exists()
+        .withMessage("longitude is required")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("Invalid longitude format")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            throw new Error("Longitude must have at least 2 decimal places");
+          }
+          return true;
+        }),
+      query("radius")
+        .optional()
+        .isFloat({ min: 0.1, max: 100 })
+        .withMessage("Radius must be between 0.1 and 100 kilometers")
+        .toFloat(),
+      query("limit")
+        .optional()
+        .isInt({ min: 1, max: 10 })
+        .withMessage("Limit must be between 1 and 10")
+        .toInt(),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  list: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      ...commonValidations.timeRange,
+      ...commonValidations.frequency,
+      ...commonValidations.format,
+      ...commonValidations.external,
+      ...commonValidations.recent,
+      ...commonValidations.device,
+      ...commonValidations.deviceId,
+      ...commonValidations.latLong,
+      ...commonValidations.airqloudId,
+      ...commonValidations.cohortId,
+      ...commonValidations.gridId,
+      ...commonValidations.deviceNumber,
+      ...commonValidations.site,
+      ...commonValidations.siteId,
+      ...commonValidations.primary,
+      ...commonValidations.metadata,
+      ...commonValidations.test,
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  bestAirQuality: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.threshold,
+      ...commonValidations.pollutant,
+      ...commonValidations.language,
+      ...commonValidations.limit,
+      ...commonValidations.skip,
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  recent: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      ...commonValidations.timeRange,
+      ...commonValidations.frequency,
+      ...commonValidations.format,
+      ...commonValidations.external,
+      ...commonValidations.recent,
+      ...commonValidations.device,
+      ...commonValidations.deviceId,
+      ...commonValidations.latLong,
+      ...commonValidations.airqloudId,
+      ...commonValidations.cohortId,
+      ...commonValidations.gridId,
+      ...commonValidations.deviceNumber,
+      ...commonValidations.site,
+      ...commonValidations.siteId,
+      ...commonValidations.primary,
+      ...commonValidations.metadata,
+      ...commonValidations.test,
+      commonValidations.objectId("cohort_id"),
+      commonValidations.objectId("grid_id"),
+      commonValidations.objectId("device_id"),
+      commonValidations.objectId("site_id"),
+      commonValidations.objectId("airqloud_id"),
+      ...commonValidations.checkConflictingParams("cohort_id", "grid_id"),
+      ...commonValidations.checkConflictingParams("device_id", "site_id"),
+      ...commonValidations.checkForEmptyArrays([
+        "cohort_id",
+        "grid_id",
+        "device_id",
+        "site_id",
+      ]),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  listAverages: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.tenant,
+      ...commonValidations.siteIdParam,
+      ...commonValidations.timeRange,
+      ...commonValidations.frequency,
+      ...commonValidations.format,
+      ...commonValidations.external,
+      ...commonValidations.recent,
+      ...commonValidations.metadata,
+      ...commonValidations.test,
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  listRecent: (req, res, next) => {
+    const validationRules = [...commonValidations.tenant];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  worstReadingForDevices: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.atLeastOneRequired(
+        ["cohort_id", "device_id"],
+        "At least one of cohort_id or device_id is required."
+      ),
+      commonValidations.objectId("cohort_id"),
+      commonValidations.objectId("device_id"),
+      ...commonValidations.checkConflictingParams("cohort_id", "device_id"),
+      ...commonValidations.checkForEmptyArrays(["cohort_id", "device_id"]),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
+
+  worstReadingForSites: (req, res, next) => {
+    const validationRules = [
+      ...commonValidations.atLeastOneRequired(
+        ["grid_id", "site_id"],
+        "At least one of grid_id or site_id is required."
+      ),
+      commonValidations.objectId("grid_id"),
+      commonValidations.objectId("site_id"),
+      ...commonValidations.checkConflictingParams("grid_id", "site_id"),
+      ...commonValidations.checkForEmptyArrays(["grid_id", "site_id"]),
+    ];
+
+    const middleware = createValidationMiddleware(validationRules);
+    executeMiddlewareSequentially(middleware, req, res, next);
+  },
 };
 
 module.exports = {
