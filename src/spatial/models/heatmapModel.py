@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from requests import Session
 from requests.adapters import HTTPAdapter
 from shapely.geometry import Point, shape
-from sklearn.linear_model import ElasticNet
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from urllib3.util.retry import Retry
@@ -63,7 +63,7 @@ class BaseAirQoAPI:
             raise ValueError(f"Environment variable '{base_url_env}' is missing.")
         self.base_url_root = base_url.rstrip("/")
 
-        self.cache_ttl: int = int(os.getenv(cache_ttl_env, "3600"))
+        self.cache_ttl: int = int(os.getenv(cache_ttl_env, "600"))
 
         self.logger = self._setup_logger(logger_name or self.__class__.__name__)
         self.session = self._build_session()
@@ -321,7 +321,7 @@ class AirQualityData(BaseAirQoAPI):
             self.logger.info("Created raw DataFrame with %d records.", len(df))
 
             # Aggregate data by site, calculating mean PM values
-            grouped_df = df.groupby("site_name", as_index=False).agg(
+            grouped_df = df.groupby(["site_id", "site_name"], as_index=False).agg(
                 latitude=("latitude", "mean"),
                 longitude=("longitude", "mean"),
                 pm2_5=("pm2_5", "mean"),
@@ -457,7 +457,7 @@ class AirQualityGrids(BaseAirQoAPI):
 # ----------------------------- Air Quality Prediction --------------------- #
 class AirQualityPredictor:
     CACHE_KEY = "airqo:predicted_pm25"
-    
+
     """Performs air quality prediction (PM2.5) using a Random Forest model on spatial data."""
 
     def __init__(self, air_quality_data: AirQualityData, air_quality_grids: AirQualityGrids):
@@ -546,7 +546,7 @@ class AirQualityPredictor:
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
                 # 3. Train the model
-                model = ElasticNet(alpha=0.1, l1_ratio=0.5, random_state=42)
+                model = RandomForestRegressor(n_estimators=100, random_state=42)
                 model.fit(X_train, y_train)
 
                 # 4. Evaluate the model if the test set is non-empty
