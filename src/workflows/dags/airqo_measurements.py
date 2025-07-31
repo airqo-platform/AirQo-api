@@ -430,10 +430,7 @@ def airqo_realtime_measurements():
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
-        data = DataUtils.process_data_for_message_broker(
-            data=data,
-            topic=Config.HOURLY_MEASUREMENTS_TOPIC,
-        )
+        data = DataUtils.process_data_for_message_broker(data=data)
 
         if data.empty:
             raise AirflowFailException(
