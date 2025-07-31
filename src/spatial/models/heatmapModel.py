@@ -16,6 +16,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from urllib3.util.retry import Retry
+import joblib 
 
 # Attempt to import optional dependency
 try:
@@ -405,8 +406,7 @@ class AirQualityGrids(BaseAirQoAPI):
         # Set default exclusion lists if none are provided
         exclude_admin_levels = exclude_admin_levels or ["country"]
         exclude_names = exclude_names or [
-            "rubaga", "makindye", "nakawa", "kawempe", "kampala_central", "greater_kampala"
-        ]
+            "rubaga", "makindye", "nakawa", "kawempe", "kampala_central", "greater_kampala" ]
         exclude_names_set = {n.lower() for n in exclude_names}
 
         try:
@@ -457,9 +457,9 @@ class AirQualityGrids(BaseAirQoAPI):
 # ----------------------------- Air Quality Prediction --------------------- #
 class AirQualityPredictor:
     CACHE_KEY = "airqo:predicted_pm25"
-
-    """Performs air quality prediction (PM2.5) using a Random Forest model on spatial data."""
-
+    MODEL_DIR = os.getenv("MODEL_DIR_FILE", "./models")
+    CITY_LIST_FILE = os.path.join(MODEL_DIR, "processed_cities.json")  # JSON file for city list
+    
     def __init__(self, air_quality_data: AirQualityData, air_quality_grids: AirQualityGrids):
         """
         Initializes the AirQualityPredictor.
@@ -475,6 +475,78 @@ class AirQualityPredictor:
         self.results: List[Dict[str, Any]] = []
         self.predictions: List[pd.DataFrame] = []
         self.logger = self.aq_data.logger
+        self.models: Dict[str, RandomForestRegressor] = {}  # Cache loaded models
+        os.makedirs(self.MODEL_DIR, exist_ok=True)  # Create model directory if it doesn't exist
+
+    def _get_processed_cities(self) -> set:
+        """
+        Retrieves the set of previously processed cities from the JSON file.
+
+        Returns:
+            A set of city names that have been processed.
+        """
+        if os.path.exists(self.CITY_LIST_FILE):
+            try:
+                with open(self.CITY_LIST_FILE, "r") as f:
+                    data = json.load(f)
+                    cities = set(data.get("cities", []))
+                    self.logger.info(f"Loaded {len(cities)} processed cities from {self.CITY_LIST_FILE}")
+                    return cities
+            except Exception as e:
+                self.logger.warning(f"Failed to read processed cities from {self.CITY_LIST_FILE}: {e}")
+        else:
+            self.logger.info(f"No processed cities file found at {self.CITY_LIST_FILE}")
+        return set()
+
+    def _save_processed_cities(self, cities: set) -> None:
+        """
+        Saves the list of processed cities to the JSON file.
+
+        Args:
+            cities: A set of city names to save.
+        """
+        cities_list = list(cities)
+        try:
+            with open(self.CITY_LIST_FILE, "w") as f:
+                json.dump({"cities": cities_list}, f, indent=2)
+            self.logger.info(f"Saved {len(cities_list)} processed cities to {self.CITY_LIST_FILE}")
+        except Exception as e:
+            self.logger.error(f"Failed to save processed cities to {self.CITY_LIST_FILE}: {e}")
+
+    def _load_model(self, city_name: str) -> Optional[RandomForestRegressor]:
+        """
+        Loads a saved Random Forest model for a city.
+
+        Args:
+            city_name: The name of the city.
+
+        Returns:
+            The loaded model or None if loading fails.
+        """
+        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
+        if os.path.exists(model_path):
+            try:
+                model = joblib.load(model_path)
+                self.logger.info(f"Loaded model for '{city_name}' from {model_path}")
+                return model
+            except Exception as e:
+                self.logger.error(f"Failed to load model for '{city_name}': {e}")
+        return None
+
+    def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
+        """
+        Saves a Random Forest model for a city.
+
+        Args:
+            city_name: The name of the city.
+            model: The trained Random Forest model.
+        """
+        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
+        try:
+            joblib.dump(model, model_path)
+            self.logger.info(f"Saved model for '{city_name}' to {model_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to save model for '{city_name}': {e}")
 
     def fetch_and_process_data(self) -> bool:
         """
@@ -500,20 +572,16 @@ class AirQualityPredictor:
             self.logger.error(f"Error during data fetching and processing orchestration: {e}", exc_info=True)
             return False
 
-    def train_and_predict(self, buffer_distance: float = 0.001, grid_resolution: int = 15) -> bool:
+    def train_and_predict(
+        self, buffer_distance: float = 0.001, grid_resolution: int = 15, force_retrain: bool = False
+    ) -> bool:
         """
-        Trains a Random Forest model for each grid polygon and predicts PM2.5 values.
-
-        For each city/grid polygon, it:
-        1. Selects nearby measurement points.
-        2. Trains a model using Latitude and Longitude to predict PM2.5.
-        3. Evaluates the model on a test set.
-        4. Predicts PM2.5 for a uniform grid of points within the polygon.
-        5. Combines original data with new grid predictions.
+        Trains or loads Random Forest models for each grid polygon and predicts PM2.5 values.
 
         Args:
             buffer_distance: Buffer around each polygon to include nearby points (in degrees).
             grid_resolution: Number of points per dimension for the prediction grid.
+            force_retrain: If True, retrain models for all cities regardless of existing models.
 
         Returns:
             True if the process completes successfully, False otherwise.
@@ -524,6 +592,13 @@ class AirQualityPredictor:
 
         self.results.clear()
         self.predictions.clear()
+        self.models.clear()
+
+        # Get current and previously processed cities
+        current_cities = set(self.gdf_polygons["name"])
+        processed_cities = self._get_processed_cities()
+        new_cities = current_cities - processed_cities
+        self.logger.info(f"Found {len(new_cities)} new cities: {new_cities}")
 
         try:
             for _, city in self.gdf_polygons.iterrows():
@@ -531,70 +606,89 @@ class AirQualityPredictor:
                 city_poly = city["geometry"].buffer(buffer_distance)
                 city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
 
-                known = city_data[city_data['pm25'].notna()].copy()
-                if len(known) < 4:  # Need enough data for a meaningful train/test split
+                known = city_data[city_data["pm25"].notna()].copy()
+                if len(known) < 4:
                     self.logger.warning(f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points.")
                     continue
-                
-                self.logger.info(f"Training model for '{city_name}' with {len(known)} data points...")
 
-                # 1. Define features (X) and target (y)
-                X = known[['latitude', 'longitude']]
-                y = known['pm25']
+                # Decide whether to train a new model
+                train_model = force_retrain or (city_name in new_cities)
+                model = None
+                if not train_model:
+                    model = self._load_model(city_name)
+                    if model is None:
+                        self.logger.info(f"No model found for '{city_name}'; will train a new one.")
+                        train_model = True
 
-                # 2. Split data for training and evaluation
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                if train_model:
+                    self.logger.info(f"Training model for '{city_name}' with {len(known)} data points...")
+                    # Define features (X) and target (y)
+                    X = known[["latitude", "longitude"]]
+                    y = known["pm25"]
 
-                # 3. Train the model
-                model = RandomForestRegressor(n_estimators=100, random_state=42)
-                model.fit(X_train, y_train)
+                    # Split data for training and evaluation
+                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-                # 4. Evaluate the model if the test set is non-empty
-                if not y_test.empty:
-                    y_pred = model.predict(X_test)
-                    self.results.append({
-                        'city': city_name,
-                        'R²': r2_score(y_test, y_pred),
-                        'RMSE': np.sqrt(mean_squared_error(y_test, y_pred)),
-                        'MAE': mean_absolute_error(y_test, y_pred),
-                        'n_samples_train': len(y_train),
-                        'n_samples_test': len(y_test)
-                    })
+                    # Train the model
+                    model = RandomForestRegressor(n_estimators=100, random_state=42)
+                    model.fit(X_train, y_train)
 
-                # 5. Create a prediction grid within the city polygon
+                    # Save the model
+                    self._save_model(city_name, model)
+
+                    # Evaluate the model if the test set is non-empty
+                    if not y_test.empty:
+                        y_pred = model.predict(X_test)
+                        self.results.append({
+                            "city": city_name,
+                            "R²": r2_score(y_test, y_pred),
+                            "RMSE": np.sqrt(mean_squared_error(y_test, y_pred)),
+                            "MAE": mean_absolute_error(y_test, y_pred),
+                            "n_samples_train": len(y_train),
+                            "n_samples_test": len(y_test)
+                        })
+
+                self.models[city_name] = model
+                self.logger.info(f"Using model for '{city_name}' (trained={train_model}).")
+
+                # Create a prediction grid within the city polygon
                 x_min, y_min, x_max, y_max = city_poly.bounds
                 x_coords = np.linspace(x_min, x_max, grid_resolution)
                 y_coords = np.linspace(y_min, y_max, grid_resolution)
                 xx, yy = np.meshgrid(x_coords, y_coords)
                 grid_points_all = [Point(x, y) for x, y in zip(xx.ravel(), yy.ravel())]
-                
+
                 grid_gdf = gpd.GeoDataFrame(geometry=grid_points_all, crs="EPSG:4326")
                 grid_gdf = grid_gdf[grid_gdf.geometry.within(city_poly)]
 
-                # 6. Predict PM2.5 for the grid points
+                # Predict PM2.5 for the grid points
                 if not grid_gdf.empty:
                     grid_locations = pd.DataFrame({
-                        'latitude': [pt.y for pt in grid_gdf.geometry],
-                        'longitude': [pt.x for pt in grid_gdf.geometry]
+                        "latitude": [pt.y for pt in grid_gdf.geometry],
+                        "longitude": [pt.x for pt in grid_gdf.geometry]
                     })
                     grid_pred_pm25 = model.predict(grid_locations)
-                    
+
                     grid_results_df = pd.DataFrame({
-                        'city': city_name,
-                        'latitude': grid_locations['latitude'],
-                        'longitude': grid_locations['longitude'],
-                        'predicted_pm25': grid_pred_pm25,
-                        'source': 'grid_prediction'
+                        "city": city_name,
+                        "latitude": grid_locations["latitude"],
+                        "longitude": grid_locations["longitude"],
+                        "predicted_pm25": grid_pred_pm25,
+                        "source": "grid_prediction"
                     })
-                    
+
                     # Prepare original data for combination
-                    original_data_df = known[['site_name', 'latitude', 'longitude', 'pm25']].copy()
-                    original_data_df.rename(columns={'pm25': 'predicted_pm25'}, inplace=True)
-                    original_data_df['source'] = 'original'
-                    original_data_df['city'] = city_name
-                    
+                    original_data_df = known[["site_name", "latitude", "longitude", "pm25"]].copy()
+                    original_data_df.rename(columns={"pm25": "predicted_pm25"}, inplace=True)
+                    original_data_df["source"] = "original"
+                    original_data_df["city"] = city_name
+
                     combined = pd.concat([original_data_df, grid_results_df], ignore_index=True)
                     self.predictions.append(combined)
+
+            # Update the processed cities list
+            processed_cities.update(current_cities)
+            self._save_processed_cities(processed_cities)
 
             self.logger.info("Training and prediction completed successfully.")
             return True
@@ -602,6 +696,31 @@ class AirQualityPredictor:
         except Exception as e:
             self.logger.error(f"Error during model training and prediction: {e}", exc_info=True)
             return False
+
+    def retrain_cities(self, city_names: Optional[List[str]] = None) -> bool:
+        """
+        Forces retraining of models for specified cities or all cities.
+
+        Args:
+            city_names: List of city names to retrain. If None, retrains all cities.
+
+        Returns:
+            True if retraining completes successfully, False otherwise.
+        """
+        if self.gdf is None or self.gdf_polygons is None:
+            self.logger.error("GeoDataFrames not initialized. Run fetch_and_process_data() first.")
+            return False
+
+        if city_names is None:
+            city_names = self.gdf_polygons["name"].tolist()
+        else:
+            city_names = [name for name in city_names if name in self.gdf_polygons["name"].values]
+            if not city_names:
+                self.logger.warning("No valid city names provided for retraining.")
+                return False
+
+        self.logger.info(f"Retraining models for {len(city_names)} cities: {city_names}")
+        return self.train_and_predict(force_retrain=True)
 
     def get_results(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
