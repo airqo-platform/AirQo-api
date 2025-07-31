@@ -406,18 +406,21 @@ class AirQualityGrids(BaseAirQoAPI):
         # Set default exclusion lists if none are provided
         exclude_admin_levels = exclude_admin_levels or ["country"]
         exclude_names = exclude_names or [
-            "rubaga", "makindye", "nakawa", "kawempe", "kampala_central", "greater_kampala" ]
+            "rubaga", "makindye", "nakawa", "kawempe", "kampala_central", "greater_kampala"
+        ]
         exclude_names_set = {n.lower() for n in exclude_names}
 
         try:
             records = []
             for grid in self.data.get("grids", []):
                 shape_geojson = grid.get("shape")
-                if not shape_geojson:
+                grid_id = grid.get("_id")
+                if not shape_geojson or not grid_id:
                     continue
                 try:
                     geometry = shape(shape_geojson)
                     records.append({
+                        "id": grid_id,
                         "name": grid.get("name"),
                         "admin_level": grid.get("admin_level"),
                         "geometry": geometry,
