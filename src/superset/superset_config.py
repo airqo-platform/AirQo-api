@@ -12,8 +12,8 @@ SQLALCHEMY_DATABASE_URI = f"{env('DATABASE_DIALECT')}://{env('DATABASE_USER')}:{
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Web Server Settings
-ENABLE_PROXY_FIX = env("SUPERSET_WEBSERVER_ENABLE_PROXY_FIX") == "True"
-TALISMAN_ENABLED = False  # Less secure if not running behind a reverse proxy
+ENABLE_PROXY_FIX = env("SUPERSET_WEBSERVER_ENABLE_PROXY_FIX")
+TALISMAN_ENABLED = True  # Less secure if not running behind a reverse proxy
 WEBSERVER_ADDRESS = env("SUPERSET_WEBSERVER_HOST")
 WEBSERVER_PORT = env("SUPERSET_WEBSERVER_PORT")
 SUPERSET_WEBSERVER_TIMEOUT = env("SUPERSET_WEBSERVER_TIMEOUT")
@@ -31,5 +31,3 @@ CACHE_CONFIG = {
 
 # Flask APP
 FLASK_APP = env("FLASK_APP")
-
-# TODO: Check if adding the application root changes anything
