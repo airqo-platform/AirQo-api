@@ -300,7 +300,7 @@ const ReadingsSchema = new Schema(
     indexes: [
       {
         fields: { time: 1 },
-        expireAfterSeconds: 60 * 60 * 24 * 7, // 1 week
+        expireAfterSeconds: 60 * 60 * 24 * 14, // 2 weeks
       },
     ],
   }
@@ -419,7 +419,7 @@ ReadingsSchema.index(
 ReadingsSchema.index(
   { createdAt: 1 },
   {
-    expireAfterSeconds: 60 * 60 * 24 * 7, // 1 week instead of 2 weeks
+    expireAfterSeconds: 60 * 60 * 24 * 14, //  2 weeks
     background: true,
   }
 );
