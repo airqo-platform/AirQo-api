@@ -665,13 +665,14 @@ ReadingsSchema.statics.latestForMap = async function(
   next
 ) {
   try {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const pipeline = [
       // 1. Match recent readings only
       {
         $match: {
-          time: { $gte: oneDayAgo },
+          time: { $gte: fourteenDaysAgo },
           "pm2_5.value": { $exists: true, $ne: null },
           ...filter,
         },
