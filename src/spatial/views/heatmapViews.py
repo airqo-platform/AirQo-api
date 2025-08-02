@@ -8,8 +8,15 @@ import base64
 from flask import jsonify
 import redis
 import json
-
+from typing import Optional, Dict, Any, List, Tuple
 from models.heatmapModel import AirQualityData, AirQualityGrids, AirQualityPredictor
+
+
+# Ensure matplotlib is not using a GUI backend for image generation
+# This prevents it from trying to open a window on a server
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 class AQIImageGenerator:
     _redis_client = None
@@ -81,7 +88,7 @@ class AQIImageGenerator:
             return to_rgba("maroon", alpha)
 
     @staticmethod
-    def generate_image_for_city(data, city_name, resolution=150):
+    def generate_image_for_city(data: List[Tuple[float, float, float]], city_name: str, resolution: int = 150):
         """
         Generates a heatmap image for a city based on provided data.
 
@@ -125,12 +132,24 @@ class AQIImageGenerator:
         """
         Generates AQI heatmap images for all available cities.
 
+        This function first checks for a cached response for all cities.
+        If not found, it proceeds to check for cached individual city images.
+        If an individual city image is not cached, it is generated and then
+        the full response for all cities is cached before being returned.
+
         Returns:
             Flask response with JSON containing city heatmaps or an error message.
         """
         redis_client = AQIImageGenerator.get_redis_client()
-        cache_key_prefix = "aqi_image_"
         cache_ttl_seconds = 600  # Cache for 10 minutes
+        all_cities_cache_key = "aqi_images_all_cities"
+        
+        # --- NEW: Check for the entire 'all cities' response in cache first ---
+        if redis_client:
+            cached_all_results = redis_client.get(all_cities_cache_key)
+            if cached_all_results:
+                print("Serving ALL cities AQI images from Redis cache (full response).")
+                return jsonify(json.loads(cached_all_results)), 200
 
         try:
             aq_data = AirQualityData()
@@ -151,12 +170,13 @@ class AQIImageGenerator:
                 return jsonify({"error": "No grid data available"}), 500
 
             results = []
+            cache_key_prefix = "aqi_image_"
             for _, city_row in grid_gdf.iterrows():
                 city_id = city_row["id"]
                 city_name = city_row["name"]
                 city_cache_key = f"{cache_key_prefix}{city_id}"
 
-                # Try to get from cache
+                # Try to get from individual city cache
                 if redis_client:
                     cached_result = redis_client.get(city_cache_key)
                     if cached_result:
@@ -181,13 +201,18 @@ class AQIImageGenerator:
                 }
                 results.append(city_result)
 
-                # Store in cache
+                # Store in individual city cache
                 if redis_client and image_data:
                     redis_client.setex(city_cache_key, cache_ttl_seconds, json.dumps(city_result))
                     print(f"Stored {city_name} (ID: {city_id}) in Redis cache.")
 
             if not results:
                 return jsonify({"error": "No valid city data processed"}), 500
+            
+            # --- NEW: Store the full 'all cities' response in cache before returning ---
+            if redis_client:
+                redis_client.setex(all_cities_cache_key, cache_ttl_seconds, json.dumps(results))
+                print("Stored ALL cities AQI images response in Redis cache.")
 
             return jsonify(results), 200
 
