@@ -113,6 +113,7 @@ class AQIImageGenerator:
         grid_lat, grid_lon = np.mgrid[lat_min:lat_max:complex(resolution), lon_min:lon_max:complex(resolution)]
         grid_points = np.vstack([grid_lat.ravel(), grid_lon.ravel()]).T
         interpolated_pm25 = griddata(coords, values, grid_points, method='cubic', fill_value=np.nan)
+        interpolated_pm25 = np.clip(interpolated_pm25, 0, 500)
 
         aqi_flat = np.array([AQIImageGenerator.pm25_to_aqi(pm) for pm in interpolated_pm25])
         colors_flat = np.array([AQIImageGenerator.aqi_to_color(aqi) for aqi in aqi_flat])
@@ -217,7 +218,7 @@ class AQIImageGenerator:
             return jsonify(results), 200
 
         except Exception as e:
-            print(f"An error occurred: ")
+            print(f"An error occurred: {e}")
             return jsonify({"error": "An internal error has occurred."}), 500
 
     @staticmethod
