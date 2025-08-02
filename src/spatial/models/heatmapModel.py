@@ -24,7 +24,6 @@ try:
 except ImportError:
     redis = None
 
-from dotenv import load_dotenv
 load_dotenv() # Call load_dotenv() to load variables from .env file
 
 # ----------------------------- Base / Shared ----------------------------- #
