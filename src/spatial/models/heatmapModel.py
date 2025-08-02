@@ -24,6 +24,8 @@ try:
 except ImportError:
     redis = None
 
+from dotenv import load_dotenv
+load_dotenv() # Call load_dotenv() to load variables from .env file
 
 # ----------------------------- Base / Shared ----------------------------- #
 class BaseAirQoAPI:
@@ -132,7 +134,7 @@ class BaseAirQoAPI:
                 return client
 
         except Exception as e:
-            self.logger.warning(f"Redis connection failed: {e}. Caching is disabled.")
+            self.logger.warning(f"Redis connection failed: Caching is disabled.")
             return None
 
         self.logger.info("Redis not configured; caching is disabled.")
@@ -147,7 +149,7 @@ class BaseAirQoAPI:
             self.redis_client.set(key, blob, ex=self.cache_ttl)
             self.logger.info("Cached payload to Redis key='%s' (TTL %ss).", key, self.cache_ttl)
         except Exception as e:
-            self.logger.warning(f"Failed to write to Redis cache: {e}")
+            self.logger.warning(f"Failed to write to Redis cache")
 
     def _cache_get(self, key: str) -> Optional[Dict[str, Any]]:
         """Retrieves and deserializes a payload from the Redis cache."""
@@ -160,7 +162,7 @@ class BaseAirQoAPI:
                 self.logger.info("Loaded payload from Redis key='%s'.", key)
                 return payload
         except Exception as e:
-            self.logger.warning(f"Failed to read from Redis cache: {e}")
+            self.logger.warning(f"Failed to read from Redis cache: ")
         return None
 
     # ---- Helper Methods ----
@@ -183,9 +185,12 @@ class BaseAirQoAPI:
         use_cache_on_error: bool = True,
     ) -> Optional[Dict[str, Any]]:
         """
-        Performs a GET request and returns the JSON payload.
+        Performs a GET request and returns the JSON payload, prioritizing the cache.
 
-        Features include session-based retries, optional validation, and cache-fallback.
+        First, it attempts to retrieve data from Redis using the cache_key.
+        If the data is not in the cache, it makes an API request.
+        On a successful API response, it caches the data.
+        If the API fails, it will attempt to return a cached version if use_cache_on_error is True.
 
         Args:
             path: API endpoint path (e.g., "/api/v2/devices").
@@ -198,16 +203,26 @@ class BaseAirQoAPI:
         Returns:
             A dictionary with the JSON payload or None if the request fails and no valid cache is available.
         """
+        if cache_key:
+            # Step 1: Attempt to get from cache first
+            cached_data = self._cache_get(cache_key)
+            if cached_data and (validator is None or validator(cached_data)):
+                self.logger.info("Returning valid data from cache for key='%s'.", cache_key)
+                return cached_data
+
         url = f"{self.base_url_root}{path}"
         query_params = {"token": self.api_token}
         if params:
             query_params.update(params)
 
         try:
+            # Step 2: Make API call if not in cache
+            self.logger.info("Fetching from API at %s...", url)
             resp = self.session.get(url, params=query_params, timeout=timeout)
             if resp.status_code == 200:
                 payload = resp.json()
                 if validator is None or validator(payload):
+                    # Step 3: Cache successful API response
                     if cache_key:
                         self._cache_set(cache_key, payload)
                     return payload
@@ -218,12 +233,14 @@ class BaseAirQoAPI:
         except requests.RequestException as e:
             self.logger.error("Request to %s failed: %s", url, e)
 
+        # Step 4: Fallback to cache on API failure if enabled
         if use_cache_on_error and cache_key:
-            cached = self._cache_get(cache_key)
-            if cached and (validator is None or validator(cached)):
+            cached_data_on_error = self._cache_get(cache_key)
+            if cached_data_on_error and (validator is None or validator(cached_data_on_error)):
                 self.logger.warning("Using cached data due to API failure or invalid new data.")
-                return cached
+                return cached_data_on_error
 
+        self.logger.error("Data fetch failed and no usable cache was available for key='%s'.", cache_key)
         return None
 
 
@@ -255,6 +272,7 @@ class AirQualityData(BaseAirQoAPI):
     def fetch_data(self) -> bool:
         """
         Fetches the latest air quality measurements from the API.
+        The Redis cache is checked first.
 
         Returns:
             True if data was fetched successfully (from API or cache), False otherwise.
@@ -341,13 +359,15 @@ class AirQualityData(BaseAirQoAPI):
             return True
 
         except Exception as e:
-            self.logger.error(f"Error during data processing: {e}", exc_info=True)
+            self.logger.error(f"Error during data processing", exc_info=True)
             return False
 
 
 # ----------------------------- AirQualityGrids ---------------------------- #
 class AirQualityGrids(BaseAirQoAPI):
     """Fetches and processes administrative grid polygons from the AirQo API."""
+
+    REDIS_KEY = "airqo:grids"
 
     def __init__(self, *args, **kwargs) -> None:
         """Initializes the AirQualityGrids client."""
@@ -364,7 +384,8 @@ class AirQualityGrids(BaseAirQoAPI):
 
     def fetch_data(self) -> bool:
         """
-        Fetches grid data from the API. Caching is disabled by default for this endpoint.
+        Fetches grid data from the API. Caching is now enabled for this endpoint.
+        The Redis cache is checked first.
 
         Returns:
             True if data was fetched successfully, False otherwise.
@@ -373,8 +394,8 @@ class AirQualityGrids(BaseAirQoAPI):
         payload = self._get_json(
             path="/api/v2/devices/grids",
             validator=self._is_valid_grids,
-            cache_key=None,  # Grids are less dynamic; caching can be enabled if desired
-            use_cache_on_error=False,
+            cache_key=self.REDIS_KEY,
+            use_cache_on_error=True,
         )
         if payload is None:
             self.logger.error("Failed to fetch grid data.")
@@ -426,7 +447,7 @@ class AirQualityGrids(BaseAirQoAPI):
                         "geometry": geometry,
                     })
                 except Exception as e:
-                    self.logger.error(f"Error processing geometry for grid '{grid.get('name')}': {e}")
+                    self.logger.error(f"Error processing geometry for grid '{grid.get('name')}'")
                     continue
 
             if not records:
@@ -453,7 +474,7 @@ class AirQualityGrids(BaseAirQoAPI):
             return True
 
         except Exception as e:
-            self.logger.error(f"Error processing grid data: {e}", exc_info=True)
+            self.logger.error(f"Error processing grid data: ", exc_info=True)
             return False
 
 
@@ -496,7 +517,7 @@ class AirQualityPredictor:
                     self.logger.info(f"Loaded {len(cities)} processed cities from {self.CITY_LIST_FILE}")
                     return cities
             except Exception as e:
-                self.logger.warning(f"Failed to read processed cities from {self.CITY_LIST_FILE}: {e}")
+                self.logger.warning(f"Failed to read processed cities from {self.CITY_LIST_FILE}: ")
         else:
             self.logger.info(f"No processed cities file found at {self.CITY_LIST_FILE}")
         return set()
@@ -514,7 +535,7 @@ class AirQualityPredictor:
                 json.dump({"cities": cities_list}, f, indent=2)
             self.logger.info(f"Saved {len(cities_list)} processed cities to {self.CITY_LIST_FILE}")
         except Exception as e:
-            self.logger.error(f"Failed to save processed cities to {self.CITY_LIST_FILE}: {e}")
+            self.logger.error(f"Failed to save processed cities to {self.CITY_LIST_FILE}")
 
     def _load_model(self, city_name: str) -> Optional[RandomForestRegressor]:
         """
@@ -533,7 +554,7 @@ class AirQualityPredictor:
                 self.logger.info(f"Loaded model for '{city_name}' from {model_path}")
                 return model
             except Exception as e:
-                self.logger.error(f"Failed to load model for '{city_name}': {e}")
+                self.logger.error(f"Failed to load model for '{city_name}' ")
         return None
 
     def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
@@ -549,7 +570,7 @@ class AirQualityPredictor:
             joblib.dump(model, model_path)
             self.logger.info(f"Saved model for '{city_name}' to {model_path}")
         except Exception as e:
-            self.logger.error(f"Failed to save model for '{city_name}': {e}")
+            self.logger.error(f"Failed to save model for '{city_name}' ")
 
     def fetch_and_process_data(self) -> bool:
         """
@@ -572,7 +593,7 @@ class AirQualityPredictor:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error during data fetching and processing orchestration: {e}", exc_info=True)
+            self.logger.error(f"Error during data fetching and processing orchestration", exc_info=True)
             return False
 
     def train_and_predict(
@@ -697,7 +718,7 @@ class AirQualityPredictor:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error during model training and prediction: {e}", exc_info=True)
+            self.logger.error(f"Error during model training and prediction", exc_info=True)
             return False
 
     def retrain_cities(self, city_names: Optional[List[str]] = None) -> bool:

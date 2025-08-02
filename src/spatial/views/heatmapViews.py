@@ -40,7 +40,7 @@ class AQIImageGenerator:
                 cls._redis_client.ping()
                 print(f"Connected to Redis at {redis_host}:{redis_port}")
             except redis.exceptions.ConnectionError as e:
-                print(f"Could not connect to Redis: {e}")
+                print(f"Could not connect to Redis: ")
                 cls._redis_client = None
         return cls._redis_client
 
@@ -217,7 +217,7 @@ class AQIImageGenerator:
             return jsonify(results), 200
 
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred: ")
             return jsonify({"error": str(e)}), 500
 
     @staticmethod
@@ -291,7 +291,7 @@ class AQIImageGenerator:
             return jsonify(result), 200
 
         except Exception as e:
-            print(f"An error occurred for city ID {city_id}: {e}")
+            print(f"An error occurred for city ID {city_id}: ")
             return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
