@@ -294,7 +294,8 @@ class AQIImageGenerator:
             print(f"An error occurred for city ID {city_id}: ")
             return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
+# ----------------------------- Example Usage ------------------------------ #
+'''if __name__ == "__main__":
     # Example usage for testing
     response, status_code = AQIImageGenerator.generate_aqi_image()
     print(f"Status Code: {status_code}")
@@ -305,3 +306,4 @@ if __name__ == "__main__":
     response, status_code = AQIImageGenerator.generate_aqi_image_for_city(test_city_id)
     print(f"Status Code for city {test_city_id}: {status_code}")
     print(response.get_data(as_text=True))
+'''
