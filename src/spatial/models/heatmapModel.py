@@ -761,7 +761,7 @@ class AirQualityPredictor:
 
 
 # ----------------------------- Example Usage ------------------------------ #
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     # Initialize data handlers
     aq_data_handler = AirQualityData()
     grids_handler = AirQualityGrids()
@@ -797,3 +797,4 @@ if __name__ == "__main__":
                 print(predictions_df.sample(5).to_string(index=False))
             else:
                 print("\nNo predictions were generated.")
+'''
