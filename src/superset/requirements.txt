@@ -159,3 +159,4 @@ WTForms-JSON==0.3.5
 XlsxWriter==3.0.9
 zipp==3.21.0
 zstandard==0.23.0
+gevent
