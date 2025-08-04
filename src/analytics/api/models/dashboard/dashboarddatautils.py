@@ -7,31 +7,48 @@ from api.utils.pollutants.pm_25 import get_pollutant_category, PM_COLOR_CATEGORY
 class DashboardDataUtils:
     def processd3data(self, dataframe: pd.DataFrame) -> List[Dict]:
         """
-        Processes time-series sensor data.
+        Processes sensor time-series data into a list of records formatted for D3 visualizations.
+
+        Depending on the available pollutant column ('pm2_5' or 'pm10'), the function:
+        - Renames columns to standardized names ('value', 'time', 'generated_name')
+        - Drops unnecessary metadata fields
+        - Adds a 'name' field copied from 'site_name' for uniformity
 
         Args:
-            dataframe(pd.DataFrame): DataFrame containing columns ['site_id', 'name', 'generated_name', 'value', 'time'].
+            dataframe(pd.DataFrame): DataFrame with raw sensor data. Expected columns include:
+                'pm2_5' or 'pm10', 'datetime', 'site_name', plus optional metadata columns.
 
         Returns:
-            list: A list of dictionaries, each representing a resampled data point with site metadata.
+            List[Dict]: A list of dictionaries where each dictionary represents a sensor data point.
         """
         dataframe["name"] = dataframe["site_name"]
+        drop_cols = [
+            "device_name",
+            "network",
+            "timestamp",
+            "frequency",
+        ]
+
+        if "pm2_5" in dataframe.columns:
+            pollutant_col = "pm2_5"
+            drop_cols.append("pm2_5_calibrated_value")
+        elif "pm10" in dataframe.columns:
+            pollutant_col = "pm10"
+            drop_cols.append("pm10_calibrated_value")
+        else:
+            raise ValueError("Expected 'pm2_5' or 'pm10' column in the DataFrame.")
+
         dataframe.rename(
             columns={
-                "pm2_5": "value",
+                pollutant_col: "value",
                 "datetime": "time",
                 "site_name": "generated_name",
             },
             inplace=True,
         )
+
         dataframe.drop(
-            columns=[
-                "pm2_5_calibrated_value",
-                "device_name",
-                "network",
-                "timestamp",
-                "frequency",
-            ],
+            columns=drop_cols,
             inplace=True,
         )
         records = dataframe.to_dict(orient="records")
