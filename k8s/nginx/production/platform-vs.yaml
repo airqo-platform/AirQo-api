@@ -51,12 +51,12 @@ spec:
   subroutes:
     - path: /grafana
       action:
-        pass: grafana 
+        pass: grafana
     - path: /grafana/(.*)
       action:
         proxy:
           upstream: grafana
-          rewritePath: /$1                 
+          rewritePath: /$1
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -73,7 +73,7 @@ spec:
   subroutes:
     - path: /inventory
       action:
-        pass: inventory        
+        pass: inventory
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -97,23 +97,6 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServerRoute
 metadata:
-  name: superset
-  namespace: superset
-spec:
-  host: platform.airqo.net
-  upstreams:
-    - name: superset
-      service: superset-svc
-      port: 8088
-  subroutes:
-    - path: /superset
-      action:
-        pass: superset
-        
----
-apiVersion: k8s.nginx.org/v1
-kind: VirtualServerRoute
-metadata:
   name: reports
   namespace: production
 spec:
@@ -125,7 +108,7 @@ spec:
   subroutes:
     - path: /reports
       action:
-        pass: reports  
+        pass: reports
 
 ---
 apiVersion: k8s.nginx.org/v1
@@ -183,10 +166,10 @@ spec:
       port: 4001
     - name: notifications
       service: airqo-notification-api-svc
-      port: 8080  
+      port: 8080
     - name: spatial
       service: airqo-spatial-api-svc
-      port: 5000          
+      port: 5000
   routes:
     - path: /
       action:
@@ -198,15 +181,13 @@ spec:
     - path: /argocd
       route: argocd/argocd
     - path: /grafana
-      route: monitoring/grafana      
+      route: monitoring/grafana
     - path: /inventory
-      route: production/inventory 
+      route: production/inventory
     - path: /reports
-      route: production/reports  
-    - path: /superset
-      route: superset/superset 
+      route: production/reports
     - path: /website
-      route: production/website       
+      route: production/website
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -338,4 +319,4 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json               
+                value: application/json
