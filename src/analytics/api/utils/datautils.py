@@ -201,13 +201,15 @@ class DataUtils:
 
         Returns:
             pd.DataFrame: The cleaned DataFrame with unnecessary columns dropped.
+
+        Note: This method fails silently.
         """
         optional_fields: Set[str] = Config.OPTIONAL_FIELDS
 
         if not extra_columns:
-            data.drop(columns=optional_fields, inplace=True)
+            data.drop(columns=optional_fields, errors="ignore", inplace=True)
         else:
             columns_to_drop = optional_fields - set(extra_columns)
-            data.drop(columns=list(columns_to_drop), inplace=True)
+            data.drop(columns=list(columns_to_drop), errors="ignore", inplace=True)
 
         return data
