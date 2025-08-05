@@ -277,9 +277,28 @@ const deviceSchema = new mongoose.Schema(
 
     assigned_organization_id: {
       type: ObjectId,
-      ref: "group",
       default: null,
       index: true,
+    },
+
+    assigned_organization: {
+      id: {
+        type: ObjectId,
+        default: null,
+        index: true,
+      },
+      name: {
+        type: String,
+        trim: true,
+      },
+      type: {
+        type: String,
+        trim: true,
+      },
+      updated_at: {
+        type: Date,
+        default: Date.now,
+      },
     },
 
     organization_assigned_at: {
@@ -623,7 +642,9 @@ deviceSchema.methods = {
       owner_id: this.owner_id,
       claim_status: this.claim_status,
       claimed_at: this.claimed_at,
-      assigned_organization_id: this.assigned_organization_id,
+      assigned_organization_id:
+        this.assigned_organization_id || this.assigned_organization?.id || null,
+      assigned_organization: this.assigned_organization,
       organization_assigned_at: this.organization_assigned_at,
       grid_id: this.grid_id,
       deployment_type: this.deployment_type,
