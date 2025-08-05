@@ -1278,12 +1278,12 @@ const deviceUtil = {
       );
     }
   },
+
   getMyDevices: async (request, next) => {
     try {
       const { user_id, organization_id } = request.query;
       const { tenant } = request.query;
 
-      // Step 1: Validate user_id
       if (!user_id) {
         return {
           success: false,
@@ -1302,7 +1302,6 @@ const deviceUtil = {
         };
       }
 
-      // Step 2: Validate organization_id if provided
       if (organization_id && !isValidObjectId(organization_id)) {
         return {
           success: false,
@@ -1314,45 +1313,42 @@ const deviceUtil = {
         };
       }
 
-      // Step 3: Build filter with proper ObjectId creation
+      // Build filter - handle both old and new organization fields
       let filter = {};
-
       if (organization_id) {
-        // Get devices assigned to organization OR owned by user
         filter = {
           $or: [
             { owner_id: new ObjectId(user_id) },
-            {
-              assigned_organization_id: new ObjectId(organization_id),
-            },
+            { assigned_organization_id: new ObjectId(organization_id) },
+            { "assigned_organization.id": new ObjectId(organization_id) },
           ],
         };
       } else {
-        // Get only user's personal devices
         filter = { owner_id: new ObjectId(user_id) };
       }
 
-      // Step 4: Query devices with error handling
+      // Query devices with both organization fields
       const devices = await DeviceModel(tenant)
         .find(filter)
         .select(
-          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id claimed_at"
+          "name long_name status isActive deployment_date latitude longitude claim_status owner_id assigned_organization_id assigned_organization claimed_at"
         )
-        .populate("assigned_organization_id", "grp_title")
         .sort({ claimed_at: -1 })
-        .lean(); // Use lean() for better performance
+        .lean();
 
       return {
         success: true,
         message: "Devices retrieved successfully",
         data: devices || [],
         status: httpStatus.OK,
+        metadata: {
+          note: "Organization data is managed by the organization microservice",
+        },
       };
     } catch (error) {
       logObject("Get My Devices Error Details:", error);
       logger.error(`🐛🐛 Get My Devices Error ${error.message}`);
 
-      // Handle specific MongoDB errors
       if (error.name === "CastError") {
         return {
           success: false,
@@ -1371,6 +1367,7 @@ const deviceUtil = {
       );
     }
   },
+
   checkDeviceAvailability: async (request, next) => {
     try {
       const { deviceName } = request.params;
@@ -1417,10 +1414,14 @@ const deviceUtil = {
   },
   assignDeviceToOrganization: async (request, next) => {
     try {
-      const { device_name, organization_id, user_id } = request.body;
+      const {
+        device_name,
+        organization_id,
+        user_id,
+        organization_data,
+      } = request.body;
       const { tenant } = request.query;
 
-      // Validate IDs
       if (!user_id || !isValidObjectId(user_id)) {
         return {
           success: false,
@@ -1444,7 +1445,7 @@ const deviceUtil = {
       // Verify user owns the device
       const device = await DeviceModel(tenant).findOne({
         name: device_name,
-        owner_id: new ObjectId(user_id), // Fixed ObjectId usage
+        owner_id: new ObjectId(user_id),
       });
 
       if (!device) {
@@ -1456,13 +1457,21 @@ const deviceUtil = {
         };
       }
 
-      // Update device assignment
+      // Update device with both organization fields
+      const updateData = {
+        assigned_organization_id: new ObjectId(organization_id),
+        assigned_organization: {
+          id: new ObjectId(organization_id),
+          name: organization_data?.name || null,
+          type: organization_data?.type || null,
+          updated_at: new Date(),
+        },
+        organization_assigned_at: new Date(),
+      };
+
       const updatedDevice = await DeviceModel(tenant).findOneAndUpdate(
         { name: device_name, owner_id: new ObjectId(user_id) },
-        {
-          assigned_organization_id: new ObjectId(organization_id), // Fixed ObjectId usage
-          organization_assigned_at: new Date(),
-        },
+        { $set: updateData },
         { new: true }
       );
 
@@ -1472,6 +1481,7 @@ const deviceUtil = {
         data: {
           name: updatedDevice.name,
           assigned_organization_id: updatedDevice.assigned_organization_id,
+          assigned_organization: updatedDevice.assigned_organization,
           organization_assigned_at: updatedDevice.organization_assigned_at,
         },
         status: httpStatus.OK,
@@ -1487,6 +1497,7 @@ const deviceUtil = {
       );
     }
   },
+
   generateClaimQRCode: async (request, next) => {
     try {
       const { deviceName } = request.params;
@@ -1569,7 +1580,6 @@ const deviceUtil = {
       logger.info(`Starting device migration for tenant: ${tenant}`);
 
       if (dry_run) {
-        // Just count how many devices would be updated
         const devicesNeedingMigration = await DeviceModel(
           tenant
         ).countDocuments({
@@ -1588,10 +1598,10 @@ const deviceUtil = {
         };
       }
 
-      // Actual migration
+      // Actual migration - clear both organization fields
       const migrationResult = await DeviceModel(tenant).updateMany(
         {
-          claim_status: { $exists: false }, // Devices without claim_status
+          claim_status: { $exists: false },
         },
         {
           $set: {
@@ -1600,12 +1610,13 @@ const deviceUtil = {
             claimed_at: null,
             claim_token: null,
             assigned_organization_id: null,
+            assigned_organization: null,
             organization_assigned_at: null,
           },
         }
       );
 
-      // Optional: Generate claim tokens for devices that need them
+      // Rest of the migration logic remains the same...
       const { generate_tokens = false } = request.body;
       let tokenGenerationResult = null;
 
@@ -1687,6 +1698,14 @@ const deviceUtil = {
   getUserOrganizations: async (request, next) => {
     try {
       const { user_id } = request.query;
+
+      if (!user_id || !isValidObjectId(user_id)) {
+        return {
+          success: false,
+          message: "Invalid user_id",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const result = await organizationUtil.getUserOrganizations(user_id);
 

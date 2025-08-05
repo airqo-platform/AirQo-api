@@ -29,8 +29,11 @@ const handlePredefinedValueMatch = (
   if (!value || !allowedValues || !Array.isArray(allowedValues))
     return undefined;
 
+  // Ensure value is a string before calling split - THIS IS THE KEY FIX
+  const stringValue = typeof value === "string" ? value : String(value);
+
   // Split input value by commas and trim whitespace
-  const inputValues = value.split(",").map((v) => v.trim().toLowerCase());
+  const inputValues = stringValue.split(",").map((v) => v.trim().toLowerCase());
 
   // If matchCombinations is false but we received an array of arrays,
   // flatten it to get all possible values
@@ -54,7 +57,7 @@ const handlePredefinedValueMatch = (
       }
     }
 
-    return matchedForms.size > 0 ? { $in: [...matchedForms] } : value;
+    return matchedForms.size > 0 ? { $in: [...matchedForms] } : stringValue;
   }
 
   // Handle single value matching
@@ -78,7 +81,7 @@ const handlePredefinedValueMatch = (
     return { $in: [...allForms] };
   }
 
-  return value;
+  return stringValue;
 };
 
 //startTime=2022-12-20T10:34:15.880Z
@@ -1319,6 +1322,7 @@ const generateFilter = {
     }
 
     if (generated_name) {
+      console.log("generated_name", generated_name);
       filter["generated_name"] = generated_name;
     }
 
