@@ -184,6 +184,9 @@ const createSite = {
   },
   hasWhiteSpace: (name, next) => {
     try {
+      if (!name || typeof name !== "string") {
+        return false;
+      }
       return name.indexOf(" ") >= 0;
     } catch (error) {
       logger.error(
@@ -193,6 +196,9 @@ const createSite = {
   },
   checkStringLength: (name, next) => {
     try {
+      if (!name || typeof name !== "string") {
+        return false;
+      }
       //check if name has only white spaces
       name = name.trim();
       let length = name.length;
@@ -731,6 +737,9 @@ const createSite = {
   },
   sanitiseName: (name, next) => {
     try {
+      if (!name || typeof name !== "string") {
+        return "";
+      }
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
       let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
       let trimmedName = shortenedName.trim();
