@@ -2109,12 +2109,13 @@ const rolePermissionUtil = {
             message: `Group ${grp_id.toString()} Not Found`,
           })
         );
+        return;
       }
 
       const roleResponse = await RoleModel(tenant).aggregate([
         {
           $match: {
-            group_id: ObjectId(grp_id),
+            group_id: mongoose.Types.ObjectId(grp_id),
           },
         },
         {
@@ -2150,7 +2151,7 @@ const rolePermissionUtil = {
           status: httpStatus.OK,
           data: roleResponse,
         };
-      } else if (isEmpty(roleResponse)) {
+      } else {
         return {
           success: true,
           message: "No roles for this Group",
@@ -3304,138 +3305,321 @@ const rolePermissionUtil = {
   },
   getDefaultGroupRole: async (tenant, groupId) => {
     try {
-      const group = await GroupModel(tenant).findById(groupId).lean();
+      logObject("🔍 [DEBUG] getDefaultGroupRole called with:", {
+        tenant,
+        groupId,
+      });
+
+      // Validate inputs
+      if (!groupId) {
+        logger.error("❌ [DEBUG] Group ID is required");
+        return null;
+      }
+
+      if (!tenant) {
+        logger.error("❌ [DEBUG] Tenant is required");
+        return null;
+      }
+
+      // Safely convert groupId to ObjectId
+      let groupObjectId;
+      try {
+        groupObjectId = mongoose.Types.ObjectId(groupId);
+      } catch (objectIdError) {
+        logger.error(`❌ [DEBUG] Invalid groupId format: ${groupId}`);
+        return null;
+      }
+
+      // Find the group with error handling
+      const group = await GroupModel(tenant).findById(groupObjectId).lean();
       if (!group) {
         logger.error("❌ [DEBUG] Group not found for ID:", groupId);
         return null;
       }
 
+      logObject("✅ [DEBUG] Group found:", {
+        id: group._id,
+        title: group.grp_title,
+      });
+
+      // Safely handle group title with fallback
+      const groupTitle = group.grp_title || "DEFAULT_GROUP";
+
       // Sanitize organization name for role code
-      const organizationName = group.grp_title
+      const organizationName = groupTitle
+        .toString()
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "_")
         .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
+        .replace(/^_|_$/g, "")
+        .substring(0, 50); // Limit length to prevent overly long role codes
 
-      const defaultRoleCode = `${organizationName}_DEFAULT_MEMBER`;
+      // Ensure we have a valid organization name
+      const finalOrgName = organizationName || "DEFAULT";
+      const defaultRoleCode = `${finalOrgName}_DEFAULT_MEMBER`;
 
-      let role = await RoleModel(tenant).findOne({
-        role_code: defaultRoleCode,
-      });
+      logObject("🔍 [DEBUG] Looking for role with code:", defaultRoleCode);
 
-      if (!role) {
-        const roleDocument = {
+      // Try to find existing default role
+      let role = await RoleModel(tenant)
+        .findOne({
           role_code: defaultRoleCode,
-          role_name: defaultRoleCode,
-          role_description: "Default role for new group members",
-          group_id: groupId,
-          role_status: "ACTIVE",
-        };
+          group_id: groupObjectId,
+        })
+        .lean();
 
-        try {
-          role = await RoleModel(tenant).create(roleDocument);
-        } catch (roleCreateError) {
-          // Handle duplicate role creation (race condition)
-          if (roleCreateError.code === 11000) {
-            role = await RoleModel(tenant).findOne({
+      if (role) {
+        logObject("✅ [DEBUG] Found existing default role:", {
+          id: role._id,
+          name: role.role_name,
+          code: role.role_code,
+        });
+        return role;
+      }
+
+      logObject("🆕 [DEBUG] Default role not found, creating new one...");
+
+      // Create new default role
+      const roleDocument = {
+        role_code: defaultRoleCode,
+        role_name: defaultRoleCode,
+        role_description: `Default role for new group members in ${groupTitle}`,
+        group_id: groupObjectId,
+        role_status: "ACTIVE",
+        role_permissions: [], // Initialize empty, will be populated below
+      };
+
+      try {
+        // Create the role
+        const createResult = await RoleModel(tenant).create(roleDocument);
+        role = createResult;
+
+        logObject("✅ [DEBUG] Created new default role:", {
+          id: role._id,
+          name: role.role_name,
+          code: role.role_code,
+        });
+      } catch (roleCreateError) {
+        logObject("⚠️ [DEBUG] Role creation error:", roleCreateError.message);
+
+        // Handle duplicate role creation (race condition)
+        if (roleCreateError.code === 11000) {
+          logObject(
+            "🔄 [DEBUG] Duplicate role detected, searching for existing..."
+          );
+
+          // Try to find the role that was created by another process
+          role = await RoleModel(tenant)
+            .findOne({
               role_code: defaultRoleCode,
-            });
-          }
-
-          if (!role) {
-            throw new Error(
-              `Failed to create or find default role: ${roleCreateError.message}`
-            );
-          }
-        }
-
-        // Enhanced permission assignment with better error handling
-        try {
-          // First, check what permissions actually exist in the database
-          const allPermissions = await PermissionModel(tenant)
-            .find({})
-            .select("permission")
+              group_id: groupObjectId,
+            })
             .lean();
-          const existingPermissionNames = allPermissions.map(
+
+          if (role) {
+            logObject("✅ [DEBUG] Found role created by another process:", {
+              id: role._id,
+              name: role.role_name,
+            });
+          } else {
+            // Last resort - try to find any role with similar code
+            role = await RoleModel(tenant)
+              .findOne({
+                role_code: { $regex: new RegExp(finalOrgName, "i") },
+                group_id: groupObjectId,
+                role_name: { $regex: /DEFAULT_MEMBER/i },
+              })
+              .lean();
+
+            if (!role) {
+              logger.error(
+                `❌ [DEBUG] Failed to create or find default role after duplicate error: ${roleCreateError.message}`
+              );
+              throw new Error(
+                `Failed to create default role for group ${groupId}: ${roleCreateError.message}`
+              );
+            }
+          }
+        } else {
+          // Some other error occurred during role creation
+          logger.error(
+            `❌ [DEBUG] Unexpected error creating role: ${roleCreateError.message}`
+          );
+          throw new Error(
+            `Failed to create default role: ${roleCreateError.message}`
+          );
+        }
+      }
+
+      // At this point, we should have a role (either newly created or found)
+      if (!role) {
+        logger.error(
+          "❌ [DEBUG] No role available after creation/search process"
+        );
+        throw new Error("Failed to obtain default role for group");
+      }
+
+      // Assign default permissions to the role
+      try {
+        logObject("🔧 [DEBUG] Assigning default permissions to role...");
+
+        // Define default permissions for group members
+        const defaultPermissionNames = constants.DEFAULT_MEMBER_PERMISSIONS || [
+          "GROUP_VIEW",
+          "MEMBER_VIEW",
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "DEVICE_VIEW",
+          "SITE_VIEW",
+        ];
+
+        logObject(
+          "📋 [DEBUG] Default permission names:",
+          defaultPermissionNames
+        );
+
+        if (defaultPermissionNames.length > 0) {
+          // Check which permissions actually exist in the database
+          const existingPermissions = await PermissionModel(tenant)
+            .find({ permission: { $in: defaultPermissionNames } })
+            .select("_id permission")
+            .lean();
+
+          logObject("📋 [DEBUG] Found existing permissions:", {
+            count: existingPermissions.length,
+            permissions: existingPermissions.map((p) => p.permission),
+          });
+
+          const foundPermissionNames = existingPermissions.map(
             (p) => p.permission
           );
-
-          const requestedPermissions =
-            constants.DEFAULT_MEMBER_PERMISSIONS || [];
-
-          // Find which requested permissions actually exist
-          const availablePermissions = requestedPermissions.filter(
-            (permission) => existingPermissionNames.includes(permission)
-          );
-
-          const missingPermissions = requestedPermissions.filter(
-            (permission) => !existingPermissionNames.includes(permission)
+          const missingPermissions = defaultPermissionNames.filter(
+            (perm) => !foundPermissionNames.includes(perm)
           );
 
           if (missingPermissions.length > 0) {
+            logObject("⚠️ [DEBUG] Missing permissions:", missingPermissions);
+
             // Try to create missing permissions
             const permissionsToCreate = missingPermissions.map(
               (permission) => ({
                 permission: permission,
                 description: `Auto-created permission: ${permission}`,
+                group_id: groupObjectId, // Associate with the group
               })
             );
 
             try {
               const createdPermissions = await PermissionModel(
                 tenant
-              ).insertMany(permissionsToCreate);
+              ).insertMany(permissionsToCreate, { ordered: false });
 
-              availablePermissions.push(...missingPermissions);
-            } catch (createError) {
-              logger.error(
-                "❌ [DEBUG] Error creating missing permissions:",
-                stringify(createError)
+              logObject("✅ [DEBUG] Created missing permissions:", {
+                count: createdPermissions.length,
+              });
+
+              // Add the newly created permissions to our list
+              existingPermissions.push(...createdPermissions);
+            } catch (createPermError) {
+              // Log but don't fail - some permissions might have been created by another process
+              logObject(
+                "⚠️ [DEBUG] Error creating some permissions:",
+                createPermError.message
               );
+
+              // Re-fetch to get any permissions that were created
+              const refetchedPermissions = await PermissionModel(tenant)
+                .find({ permission: { $in: defaultPermissionNames } })
+                .select("_id permission")
+                .lean();
+
+              // Use the refetched permissions
+              existingPermissions.length = 0;
+              existingPermissions.push(...refetchedPermissions);
             }
           }
 
-          if (availablePermissions.length > 0) {
-            const defaultPermissions = await PermissionModel(tenant).find({
-              permission: { $in: availablePermissions },
+          // Assign permissions to the role if we have any
+          if (existingPermissions.length > 0) {
+            const permissionIds = existingPermissions.map((p) => p._id);
+
+            logObject("🔧 [DEBUG] Assigning permissions to role:", {
+              roleId: role._id,
+              permissionCount: permissionIds.length,
             });
 
-            if (defaultPermissions.length > 0) {
-              const updateResult = await RoleModel(tenant).findByIdAndUpdate(
-                role._id,
-                {
-                  $addToSet: {
-                    role_permissions: {
-                      $each: defaultPermissions.map(
-                        (permission) => permission._id
-                      ),
-                    },
+            const updateResult = await RoleModel(tenant).findByIdAndUpdate(
+              role._id,
+              {
+                $addToSet: {
+                  role_permissions: {
+                    $each: permissionIds,
                   },
-                }
-              );
+                },
+              },
+              { new: true }
+            );
+
+            if (updateResult) {
+              logObject("✅ [DEBUG] Successfully assigned permissions to role");
+              // Update our role object with the new permissions
+              role = updateResult;
+            } else {
+              logObject("⚠️ [DEBUG] Role update returned null");
             }
           } else {
-            logger.warn(
-              "❌ [DEBUG] No valid permissions found to assign to default role"
-            );
+            logObject("⚠️ [DEBUG] No permissions available to assign to role");
           }
-        } catch (permissionError) {
-          logger.error(
-            `❌ [DEBUG] Error assigning permissions to default role: ${stringify(
-              permissionError
-            )}`
-          );
-          // Continue anyway - role exists even without permissions
+        } else {
+          logObject("⚠️ [DEBUG] No default permissions configured");
         }
+      } catch (permissionError) {
+        // Log the error but don't fail the entire operation
+        logger.warn(
+          `⚠️ [DEBUG] Could not assign permissions to default role: ${permissionError.message}`
+        );
+        logObject("⚠️ [DEBUG] Permission assignment error details:", {
+          error: permissionError.message,
+          roleId: role._id,
+          stack: permissionError.stack,
+        });
+
+        // Continue anyway - role exists even without permissions
+        // The role can be used and permissions can be assigned later
       }
+
+      // Return the role (with or without permissions)
+      logObject("✅ [DEBUG] Returning default group role:", {
+        id: role._id,
+        name: role.role_name,
+        code: role.role_code,
+        hasPermissions: !!(
+          role.role_permissions && role.role_permissions.length > 0
+        ),
+      });
 
       return role;
     } catch (error) {
-      logger.error(`Error getting default group role: ${stringify(error)}`);
+      logObject("🐛 [DEBUG] Error in getDefaultGroupRole:", {
+        error: error.message,
+        stack: error.stack,
+        groupId,
+        tenant,
+      });
+
+      logger.error(
+        `❌ [DEBUG] Error getting default group role: ${error.message}`
+      );
+
+      // Re-throw as HttpError for consistent error handling
       throw new HttpError(
         "Internal Server Error",
         httpStatus.INTERNAL_SERVER_ERROR,
-        { message: error.message }
+        {
+          message: `Failed to get default group role: ${error.message}`,
+          groupId,
+          tenant,
+        }
       );
     }
   },
