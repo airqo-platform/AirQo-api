@@ -1149,9 +1149,21 @@ const groupUtil = {
 
       // Get user to check current assignments
       const user = await UserModel(tenant).findById(user_id).lean();
+      if (!user) {
+        next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "User not found",
+          })
+        );
+        return;
+      }
 
-      // Check if already assigned (optional - the new method handles this gracefully)
-      const isAlreadyAssigned = isUserAssignedToGroup(user, grp_id);
+      // Check if already assigned (with safe access)
+      const userGroupRoles = user.group_roles || [];
+      const isAlreadyAssigned = userGroupRoles.some(
+        (role) =>
+          role && role.group && role.group.toString() === grp_id.toString()
+      );
 
       if (isAlreadyAssigned) {
         return {
@@ -1162,12 +1174,26 @@ const groupUtil = {
         };
       }
 
-      // Get default group role
-
-      const defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
-        tenant,
-        grp_id
-      );
+      // Get default group role with error handling
+      let defaultGroupRole;
+      try {
+        defaultGroupRole = await rolePermissionsUtil.getDefaultGroupRole(
+          tenant,
+          grp_id
+        );
+      } catch (roleError) {
+        logger.error(`Error getting default role: ${roleError.message}`);
+        next(
+          new HttpError(
+            "Internal Server Error",
+            httpStatus.INTERNAL_SERVER_ERROR,
+            {
+              message: "Failed to get default role for group",
+            }
+          )
+        );
+        return;
+      }
 
       if (!defaultGroupRole || !defaultGroupRole._id) {
         next(
@@ -1178,29 +1204,45 @@ const groupUtil = {
         return;
       }
 
-      // Use the new static method for safe role assignment
+      // Use the safe assignment method
+      try {
+        const assignmentResult = await UserModel(tenant).assignUserToGroup(
+          user_id,
+          grp_id,
+          defaultGroupRole._id,
+          "user"
+        );
 
-      const assignmentResult = await UserModel(tenant).assignUserToGroup(
-        user_id,
-        grp_id,
-        defaultGroupRole._id,
-        "user"
-      );
-
-      if (assignmentResult.success) {
-        return {
-          success: true,
-          message: "User assigned to the Group successfully",
-          data: assignmentResult.data,
-          status: httpStatus.OK,
-        };
-      } else {
+        if (assignmentResult && assignmentResult.success) {
+          return {
+            success: true,
+            message: "User assigned to the Group successfully",
+            data: assignmentResult.data,
+            status: httpStatus.OK,
+          };
+        } else {
+          const errorMessage = assignmentResult
+            ? assignmentResult.message
+            : "Assignment failed";
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: `Failed to assign user to group: ${errorMessage}`,
+              }
+            )
+          );
+          return;
+        }
+      } catch (assignError) {
+        logger.error(`Assignment error: ${assignError.message}`);
         next(
           new HttpError(
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: `Failed to assign user to group: ${assignmentResult.message}`,
+              message: `Assignment operation failed: ${assignError.message}`,
             }
           )
         );
