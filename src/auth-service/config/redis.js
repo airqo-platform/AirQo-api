@@ -129,6 +129,21 @@ const redisDelAsync = async (key) => {
   }
 };
 
+// Additional functions for mobile user cache (replacing ioredis usage)
+const redisSetWithTTLAsync = async (key, value, ttlSeconds) => {
+  if (!redis.isOpen) {
+    console.warn(`Redis not available for SETEX ${key}`);
+    return null;
+  }
+  try {
+    // Use setEx for setting value with TTL in one command
+    return await redis.setEx(key, ttlSeconds, value);
+  } catch (error) {
+    console.error(`Redis SETEX failed for ${key}: ${error.message}`);
+    throw error;
+  }
+};
+
 const redisPingAsync = async (timeout = 3000) => {
   if (!redis.isOpen) {
     throw new Error("Redis not available");
@@ -195,3 +210,16 @@ module.exports.redisExpireAsync = redisExpireAsync;
 module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;
 module.exports.redisUtils = redisUtils;
+module.exports.redisSetWithTTLAsync = redisSetWithTTLAsync;
+
+// Compatibility exports for direct redis.method() usage
+module.exports.set = async (key, value, ttlType, ttlValue) => {
+  // Compatible with ioredis.set(key, value, 'EX', seconds) pattern
+  if (ttlType === "EX" && typeof ttlValue === "number") {
+    return await redisSetWithTTLAsync(key, value, ttlValue);
+  } else {
+    return await redisSetAsync(key, value);
+  }
+};
+module.exports.get = redisGetAsync;
+module.exports.del = redisDelAsync;
