@@ -953,6 +953,27 @@ const validateOrganizationAssignment = [
     .isMongoId()
     .withMessage("user_id must be a valid MongoDB ObjectId")
     .customSanitizer((value) => ObjectId(value)),
+
+  body("organization_data")
+    .optional()
+    .custom((value) => {
+      if (typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("organization_data must be an object");
+      }
+      return true;
+    }),
+
+  body("organization_data.name")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage("organization name must be between 1 and 100 characters"),
+
+  body("organization_data.type")
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("organization type must be between 1 and 50 characters"),
 ];
 
 const validateOrganizationSwitch = [
