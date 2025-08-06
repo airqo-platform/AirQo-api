@@ -1,8 +1,7 @@
-// config/redis.js
+// config/redis.js - Redis v4 Compatible with Simple Resilience
 const redis = require("redis");
 const constants = require("./constants");
 const { logObject, logText, logElement } = require("@utils/shared");
-const { promisify } = require("util");
 
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
@@ -19,54 +18,46 @@ let isReady = false;
 let connectionAttempts = 0;
 let lastError = null;
 
-// Simplified Redis configuration - only server and port
+// Simple fallback cache
+const fallbackCache = new Map();
+const FALLBACK_CACHE_MAX_SIZE = 1000;
+const FALLBACK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Redis v4 configuration with improved retry strategy
 const redisConfig = {
-  host: REDIS_SERVER,
-  port: REDIS_PORT,
+  socket: {
+    host: REDIS_SERVER,
+    port: REDIS_PORT,
+    connectTimeout: 10000,
+    commandTimeout: 5000,
+    keepAlive: true,
+    reconnectStrategy: (retries) => {
+      connectionAttempts = retries + 1;
 
-  // Basic timeout settings
-  connect_timeout: 10000, // 10 seconds
-  command_timeout: 5000, // 5 seconds
+      // Increased retry limit (addressing PR review #1)
+      if (retries > 10) {
+        logger.error("Redis maximum retry attempts (10) reached");
+        return false;
+      }
 
-  // Simplified retry strategy
-  retry_strategy: (options) => {
-    connectionAttempts++;
+      // Exponential backoff with jitter (addressing PR review #1)
+      const baseDelay = Math.min(Math.pow(2, retries) * 1000, 30000);
+      const jitter = Math.random() * 1000;
+      const delay = baseDelay + jitter;
 
-    if (options.error && options.error.code === "ECONNREFUSED") {
-      logger.error(
-        `Redis server refused connection to ${REDIS_SERVER}:${REDIS_PORT}`
+      logger.warn(
+        `Redis retry attempt ${retries + 1}/10 in ${Math.round(delay)}ms`
       );
-    }
-
-    if (options.total_retry_time > 1000 * 60 * 2) {
-      // 2 minutes max
-      logger.error("Redis retry time exhausted");
-      return new Error("Retry time exhausted");
-    }
-
-    if (options.attempt > 3) {
-      // Max 3 attempts
-      logger.error("Redis maximum retry attempts reached");
-      return new Error("Max retry attempts exceeded");
-    }
-
-    const delay = Math.min(options.attempt * 1000, 5000); // Max 5s delay
-    logger.warn(`Redis retry attempt ${options.attempt} in ${delay}ms`);
-    return delay;
+      return delay;
+    },
   },
-
-  // Disable offline queue to prevent memory issues
-  enable_offline_queue: false,
-
-  // Basic connection options
-  detect_dead_servers: true,
-  socket_keepalive: true,
+  disableOfflineQueue: true,
 };
 
-// Create Redis client with simplified config
+// Create Redis client
 const client = redis.createClient(redisConfig);
 
-// event handlers
+// Event handlers
 client.on("connect", () => {
   isConnected = true;
   logger.info(`Redis connected to ${REDIS_SERVER}:${REDIS_PORT}`);
@@ -83,7 +74,6 @@ client.on("error", (error) => {
   isConnected = false;
   isReady = false;
 
-  // Simple error logging
   if (error.code === "ECONNREFUSED") {
     logger.warn(
       `Redis connection refused. Is Redis running on ${REDIS_SERVER}:${REDIS_PORT}?`
@@ -103,87 +93,167 @@ client.on("end", () => {
   logger.warn("Redis connection ended");
 });
 
-client.on("reconnecting", (delay, attempt) => {
-  isConnected = false;
-  isReady = false;
-  logger.info(`Redis reconnecting... Attempt ${attempt}, delay: ${delay}ms`);
+client.on("reconnecting", () => {
+  logger.info(`Redis reconnecting... Attempt ${connectionAttempts}`);
 });
 
-// Create safe promisified versions with better error handling
-const redisGetAsync = async (key) => {
-  if (!isReady) {
-    throw new Error("Redis not ready");
+// Initialize connection with graceful handling (addressing PR review #2)
+(async () => {
+  try {
+    await client.connect();
+    logger.info("Redis connection established successfully");
+  } catch (error) {
+    // Always use graceful degradation - never fail the application
+    logger.warn(`Redis unavailable: ${error.message} - using fallback cache`);
   }
-  const asyncGet = promisify(client.get).bind(client);
-  return await asyncGet(key);
+})();
+
+// Simple fallback cache functions
+const setFallbackCache = (key, value, ttl = FALLBACK_CACHE_TTL) => {
+  if (fallbackCache.size >= FALLBACK_CACHE_MAX_SIZE) {
+    const firstKey = fallbackCache.keys().next().value;
+    fallbackCache.delete(firstKey);
+  }
+
+  fallbackCache.set(key, {
+    value,
+    expires: Date.now() + ttl,
+  });
 };
 
-const redisSetAsync = async (key, value) => {
-  if (!isReady) {
-    throw new Error("Redis not ready");
+const getFallbackCache = (key) => {
+  const item = fallbackCache.get(key);
+  if (!item || Date.now() > item.expires) {
+    fallbackCache.delete(key);
+    return null;
   }
-  const asyncSet = promisify(client.set).bind(client);
-  return await asyncSet(key, value);
+  return item.value;
+};
+
+// Redis operations with simple fallback
+const redisGetAsync = async (key) => {
+  if (!client.isOpen) {
+    logger.debug(`Redis not available - using fallback for GET ${key}`);
+    return getFallbackCache(key);
+  }
+
+  try {
+    const result = await client.get(key);
+    // Cache successful results for future fallback use
+    if (result !== null) {
+      setFallbackCache(key, result);
+    }
+    return result;
+  } catch (error) {
+    logger.warn(
+      `Redis GET failed for ${key}: ${error.message} - using fallback`
+    );
+    return getFallbackCache(key);
+  }
+};
+
+const redisSetAsync = async (key, value, ttlSeconds = null) => {
+  // Always update fallback cache
+  const ttlMs = ttlSeconds ? ttlSeconds * 1000 : FALLBACK_CACHE_TTL;
+  setFallbackCache(key, value, ttlMs);
+
+  if (!client.isOpen) {
+    logger.debug(`Redis not available - SET ${key} cached in fallback only`);
+    return "OK";
+  }
+
+  try {
+    if (ttlSeconds) {
+      return await client.setEx(key, ttlSeconds, value);
+    } else {
+      return await client.set(key, value);
+    }
+  } catch (error) {
+    logger.warn(
+      `Redis SET failed for ${key}: ${error.message} - using fallback only`
+    );
+    return "OK"; // Data is in fallback cache
+  }
 };
 
 const redisExpireAsync = async (key, seconds) => {
-  if (!isReady) {
-    throw new Error("Redis not ready");
+  // Update fallback cache expiry
+  const item = fallbackCache.get(key);
+  if (item) {
+    item.expires = Date.now() + seconds * 1000;
   }
-  const asyncExpire = promisify(client.expire).bind(client);
-  return await asyncExpire(key, seconds);
+
+  if (!client.isOpen) {
+    logger.debug(
+      `Redis not available - EXPIRE ${key} applied to fallback only`
+    );
+    return 1;
+  }
+
+  try {
+    return await client.expire(key, seconds);
+  } catch (error) {
+    logger.warn(`Redis EXPIRE failed for ${key}: ${error.message}`);
+    return 1;
+  }
 };
 
 const redisDelAsync = async (key) => {
-  if (!isReady) {
-    throw new Error("Redis not ready");
+  const hadKey = fallbackCache.has(key);
+  fallbackCache.delete(key);
+
+  if (!client.isOpen) {
+    logger.debug(`Redis not available - DEL ${key} removed from fallback only`);
+    return hadKey ? 1 : 0;
   }
-  const asyncDel = promisify(client.del).bind(client);
-  return await asyncDel(key);
+
+  try {
+    return await client.del(key);
+  } catch (error) {
+    logger.warn(`Redis DEL failed for ${key}: ${error.message}`);
+    return hadKey ? 1 : 0;
+  }
 };
 
-// Simple ping function
 const redisPingAsync = async (timeout = 3000) => {
-  if (!isReady) {
-    throw new Error("Redis not ready");
+  if (!client.isOpen) {
+    throw new Error("Redis not available");
   }
 
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error("Ping timeout"));
-    }, timeout);
-
-    client.ping((err, result) => {
-      clearTimeout(timeoutId);
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
+  try {
+    return await Promise.race([
+      client.ping(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Ping timeout")), timeout)
+      ),
+    ]);
+  } catch (error) {
+    throw error;
+  }
 };
 
 // Simple utility functions
 const redisUtils = {
-  isAvailable: () => isConnected && isReady,
+  isAvailable: () => client.isOpen && client.isReady,
 
   getStatus: () => ({
     connected: isConnected,
     ready: isReady,
+    isOpen: client.isOpen,
     attempts: connectionAttempts,
     lastError: lastError?.message || null,
     server: `${REDIS_SERVER}:${REDIS_PORT}`,
+    fallbackCacheSize: fallbackCache.size,
   }),
 
   ping: async (timeout = 3000) => {
-    if (!isReady) {
+    if (!client.isOpen) {
       return false;
     }
 
     try {
       const result = await Promise.race([
-        redisPingAsync(timeout),
+        client.ping(),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Ping timeout")), timeout)
         ),
@@ -194,19 +264,25 @@ const redisUtils = {
       return false;
     }
   },
+
+  clearFallbackCache: () => {
+    const size = fallbackCache.size;
+    fallbackCache.clear();
+    logger.info(`Fallback cache cleared (${size} items removed)`);
+  },
 };
 
 // Graceful shutdown
-const gracefulShutdown = () => {
-  if (client && client.connected) {
+const gracefulShutdown = async () => {
+  if (client.isOpen) {
     logger.info("Shutting down Redis connection...");
-    client.quit((err) => {
-      if (err) {
-        logger.error(`Error during Redis shutdown: ${err.message}`);
-      } else {
-        logger.info("Redis connection closed gracefully");
-      }
-    });
+    try {
+      await client.quit();
+      logger.info("Redis connection closed gracefully");
+    } catch (err) {
+      logger.error(`Error during Redis shutdown: ${err.message}`);
+      await client.disconnect();
+    }
   }
 };
 
@@ -224,5 +300,5 @@ module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;
 module.exports.redisUtils = redisUtils;
 module.exports.gracefulShutdown = gracefulShutdown;
-module.exports.connected = () => client.connected;
-module.exports.ready = () => client.ready;
+module.exports.connected = () => client.isOpen;
+module.exports.ready = () => client.isReady;
