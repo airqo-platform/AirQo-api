@@ -1739,6 +1739,11 @@ const createUserModule = {
           email: normalizedEmail,
           userName: normalizedEmail,
           analyticsVersion: 4, // Mobile users get version 4
+          ...(request.body.interests && { interests: request.body.interests }),
+          ...(request.body.interestsDescription && {
+            interestsDescription: request.body.interestsDescription,
+          }),
+          ...(request.body.country && { country: request.body.country }),
           // Add mobile-specific metadata
           registrationSource: "mobile_app",
           userAgent: request.headers?.["user-agent"]?.substring(0, 200),
@@ -3305,7 +3310,16 @@ const createUserModule = {
         // ✅ STEP 3: Proceed with normal user creation
         const userBody = request.body;
         const newRequest = Object.assign(
-          { userName: email, password, analyticsVersion: 3 },
+          {
+            userName: email,
+            password,
+            analyticsVersion: 3,
+            ...(userBody.interests && { interests: userBody.interests }),
+            ...(userBody.interestsDescription && {
+              interestsDescription: userBody.interestsDescription,
+            }),
+            ...(userBody.country && { country: userBody.country }),
+          },
           userBody
         );
 
@@ -3585,6 +3599,11 @@ const createUserModule = {
           userName: normalizedEmail,
           password,
           network_id,
+          ...(request.body.interests && { interests: request.body.interests }),
+          ...(request.body.interestsDescription && {
+            interestsDescription: request.body.interestsDescription,
+          }),
+          ...(request.body.country && { country: request.body.country }),
           // Add metadata for admin-created users
           createdByAdmin: true,
           adminCreatorEmail: request.user?.email || "unknown",

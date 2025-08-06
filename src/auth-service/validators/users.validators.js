@@ -397,6 +397,66 @@ const registerUser = [
       .withMessage("the privilege value is not among the expected ones")
       .trim(),
   ],
+  body("interests")
+    .optional()
+    .isArray()
+    .withMessage("interests should be an array")
+    .custom((value) => {
+      const validInterests = [
+        "health",
+        "software developer",
+        "community champion",
+        "environmental",
+        "student",
+        "policy maker",
+        "researcher",
+        "air quality partner",
+      ];
+      if (value && Array.isArray(value)) {
+        for (let interest of value) {
+          if (!validInterests.includes(interest)) {
+            throw new Error(`${interest} is not a valid interest option`);
+          }
+        }
+      }
+      return true;
+    }),
+  body("interestsDescription")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Interests description cannot exceed 1000 characters")
+    .trim(),
+
+  // Update registerViaOrgSlug validator - add the same validations
+  body("interests")
+    .optional()
+    .isArray()
+    .withMessage("interests should be an array")
+    .custom((value) => {
+      const validInterests = [
+        "health",
+        "software developer",
+        "community champion",
+        "environmental",
+        "student",
+        "policy maker",
+        "researcher",
+        "air quality partner",
+      ];
+      if (value && Array.isArray(value)) {
+        for (let interest of value) {
+          if (!validInterests.includes(interest)) {
+            throw new Error(`${interest} is not a valid interest option`);
+          }
+        }
+      }
+      return true;
+    }),
+  body("interestsDescription")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Interests description cannot exceed 1000 characters")
+    .trim(),
 ];
 
 const createUser = [
@@ -462,6 +522,40 @@ const createUser = [
       .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
       .withMessage("Password must contain at least one letter and one number"),
   ],
+  body("interests")
+    .optional()
+    .isArray()
+    .withMessage("interests should be an array")
+    .custom((value) => {
+      const validInterests = [
+        "health",
+        "software developer",
+        "community champion",
+        "environmental",
+        "student",
+        "policy maker",
+        "researcher",
+        "air quality partner",
+      ];
+      if (value && Array.isArray(value)) {
+        for (let interest of value) {
+          if (!validInterests.includes(interest)) {
+            throw new Error(`${interest} is not a valid interest option`);
+          }
+        }
+      }
+      return true;
+    }),
+  body("interestsDescription")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Interests description cannot exceed 1000 characters")
+    .trim(),
+  body("country")
+    .optional()
+    .notEmpty()
+    .withMessage("country should not be empty if provided")
+    .trim(),
 ];
 
 const updatePasswordViaEmail = [
