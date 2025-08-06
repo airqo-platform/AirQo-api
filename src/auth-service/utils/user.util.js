@@ -18,16 +18,17 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
 const registrationLocks = new Map();
-
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
-const ioredis = require("@config/ioredis");
-const redis = require("@config/redis");
-const util = require("util");
-const redisGetAsync = util.promisify(redis.get).bind(redis);
-const redisSetAsync = util.promisify(redis.set).bind(redis);
-const redisExpireAsync = util.promisify(redis.expire).bind(redis);
+const {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+  redisDelAsync,
+  redisSetWithTTLAsync,
+} = require("@config/redis");
+
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user util`);
@@ -208,8 +209,8 @@ const setCache = async ({ data, request } = {}, next) => {
         data,
       })
     );
-    await redisExpireAsync(cacheID, 0);
-    // 10 mins is 600 seconds
+    // FIX: Change from 0 to 600 (10 minutes = 600 seconds)
+    await redisExpireAsync(cacheID, 600); // 10 minutes = 600 seconds
 
     return {
       success: true,
@@ -1087,7 +1088,8 @@ const createUserModule = {
   setMobileUserCache: async ({ data, cacheID } = {}, next) => {
     try {
       logObject("cacheID supplied to setMobileUserCache", cacheID);
-      const result = await ioredis.set(cacheID, stringify(data), "EX", 3600);
+      // Use the consistent wrapper function
+      const result = await redisSetWithTTLAsync(cacheID, stringify(data), 3600);
       return result;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -1105,7 +1107,7 @@ const createUserModule = {
       logText("we are getting the cache......");
       logObject("cacheID supplied", cacheID);
 
-      const result = await ioredis.get(cacheID);
+      const result = await redisGetAsync(cacheID);
       logObject("ze result....", result);
       if (isEmpty(result)) {
         next(
@@ -1129,7 +1131,7 @@ const createUserModule = {
   },
   deleteCachedItem: async (cacheID, next) => {
     try {
-      const result = await ioredis.del(cacheID);
+      const result = await redisDelAsync(cacheID);
       return {
         success: true,
         data: { numberOfDeletedKeys: result },
