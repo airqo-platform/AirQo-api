@@ -1,8 +1,7 @@
-// config/redis.js
+// config/redis.js - Redis v4 Compatible
 const redis = require("redis");
 const constants = require("./constants");
 const { logObject, logText, logElement } = require("@utils/shared");
-const { promisify } = require("util");
 
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
@@ -19,54 +18,35 @@ let isReady = false;
 let connectionAttempts = 0;
 let lastError = null;
 
-// Simplified Redis configuration - only server and port
+// Redis v4 configuration
 const redisConfig = {
-  host: REDIS_SERVER,
-  port: REDIS_PORT,
+  socket: {
+    host: REDIS_SERVER,
+    port: REDIS_PORT,
+    connectTimeout: 10000, // 10 seconds (was connect_timeout)
+    commandTimeout: 5000, // 5 seconds (was command_timeout)
+    keepAlive: true, // (was socket_keepalive)
+    reconnectStrategy: (retries) => {
+      connectionAttempts = retries + 1;
 
-  // Basic timeout settings
-  connect_timeout: 10000, // 10 seconds
-  command_timeout: 5000, // 5 seconds
+      if (retries > 3) {
+        logger.error("Redis maximum retry attempts reached");
+        return false; // Stop retrying
+      }
 
-  // Simplified retry strategy
-  retry_strategy: (options) => {
-    connectionAttempts++;
-
-    if (options.error && options.error.code === "ECONNREFUSED") {
-      logger.error(
-        `Redis server refused connection to ${REDIS_SERVER}:${REDIS_PORT}`
-      );
-    }
-
-    if (options.total_retry_time > 1000 * 60 * 2) {
-      // 2 minutes max
-      logger.error("Redis retry time exhausted");
-      return new Error("Retry time exhausted");
-    }
-
-    if (options.attempt > 3) {
-      // Max 3 attempts
-      logger.error("Redis maximum retry attempts reached");
-      return new Error("Max retry attempts exceeded");
-    }
-
-    const delay = Math.min(options.attempt * 1000, 5000); // Max 5s delay
-    logger.warn(`Redis retry attempt ${options.attempt} in ${delay}ms`);
-    return delay;
+      const delay = Math.min(retries * 1000, 5000); // Max 5s delay
+      logger.warn(`Redis retry attempt ${retries + 1} in ${delay}ms`);
+      return delay;
+    },
   },
-
-  // Disable offline queue to prevent memory issues
-  enable_offline_queue: false,
-
-  // Basic connection options
-  detect_dead_servers: true,
-  socket_keepalive: true,
+  // Disable offline queue to prevent memory issues (was enable_offline_queue)
+  disableOfflineQueue: true,
 };
 
-// Create Redis client with simplified config
+// Create Redis client with v4 syntax
 const client = redis.createClient(redisConfig);
 
-// event handlers
+// Redis v4 event handlers
 client.on("connect", () => {
   isConnected = true;
   logger.info(`Redis connected to ${REDIS_SERVER}:${REDIS_PORT}`);
@@ -103,87 +83,90 @@ client.on("end", () => {
   logger.warn("Redis connection ended");
 });
 
-client.on("reconnecting", (delay, attempt) => {
+client.on("reconnecting", () => {
   isConnected = false;
   isReady = false;
-  logger.info(`Redis reconnecting... Attempt ${attempt}, delay: ${delay}ms`);
+  logger.info(`Redis reconnecting... Attempt ${connectionAttempts}`);
 });
 
-// Create safe promisified versions with better error handling
+// Initialize connection
+(async () => {
+  try {
+    await client.connect();
+  } catch (error) {
+    logger.error(`Failed to connect to Redis: ${error.message}`);
+  }
+})();
+
+// Redis v4 uses promises natively - no need for promisify
 const redisGetAsync = async (key) => {
-  if (!isReady) {
+  if (!client.isOpen) {
     throw new Error("Redis not ready");
   }
-  const asyncGet = promisify(client.get).bind(client);
-  return await asyncGet(key);
+  return await client.get(key);
 };
 
 const redisSetAsync = async (key, value) => {
-  if (!isReady) {
+  if (!client.isOpen) {
     throw new Error("Redis not ready");
   }
-  const asyncSet = promisify(client.set).bind(client);
-  return await asyncSet(key, value);
+  return await client.set(key, value);
 };
 
 const redisExpireAsync = async (key, seconds) => {
-  if (!isReady) {
+  if (!client.isOpen) {
     throw new Error("Redis not ready");
   }
-  const asyncExpire = promisify(client.expire).bind(client);
-  return await asyncExpire(key, seconds);
+  return await client.expire(key, seconds);
 };
 
 const redisDelAsync = async (key) => {
-  if (!isReady) {
+  if (!client.isOpen) {
     throw new Error("Redis not ready");
   }
-  const asyncDel = promisify(client.del).bind(client);
-  return await asyncDel(key);
+  return await client.del(key);
 };
 
-// Simple ping function
+// Ping function for v4
 const redisPingAsync = async (timeout = 3000) => {
-  if (!isReady) {
+  if (!client.isOpen) {
     throw new Error("Redis not ready");
   }
 
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error("Ping timeout"));
-    }, timeout);
-
-    client.ping((err, result) => {
-      clearTimeout(timeoutId);
-      if (err) {
-        reject(err);
-      } else {
-        resolve(result);
-      }
-    });
-  });
+  try {
+    const result = await Promise.race([
+      client.ping(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Ping timeout")), timeout)
+      ),
+    ]);
+    return result;
+  } catch (error) {
+    throw error;
+  }
 };
 
-// Simple utility functions
+// Updated utility functions for v4
 const redisUtils = {
-  isAvailable: () => isConnected && isReady,
+  isAvailable: () => client.isOpen && client.isReady,
 
   getStatus: () => ({
     connected: isConnected,
     ready: isReady,
+    isOpen: client.isOpen,
     attempts: connectionAttempts,
     lastError: lastError?.message || null,
     server: `${REDIS_SERVER}:${REDIS_PORT}`,
   }),
 
   ping: async (timeout = 3000) => {
-    if (!isReady) {
+    if (!client.isOpen) {
       return false;
     }
 
     try {
       const result = await Promise.race([
-        redisPingAsync(timeout),
+        client.ping(),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Ping timeout")), timeout)
         ),
@@ -196,17 +179,17 @@ const redisUtils = {
   },
 };
 
-// Graceful shutdown
-const gracefulShutdown = () => {
-  if (client && client.connected) {
+// Graceful shutdown for v4
+const gracefulShutdown = async () => {
+  if (client.isOpen) {
     logger.info("Shutting down Redis connection...");
-    client.quit((err) => {
-      if (err) {
-        logger.error(`Error during Redis shutdown: ${err.message}`);
-      } else {
-        logger.info("Redis connection closed gracefully");
-      }
-    });
+    try {
+      await client.quit();
+      logger.info("Redis connection closed gracefully");
+    } catch (err) {
+      logger.error(`Error during Redis shutdown: ${err.message}`);
+      await client.disconnect();
+    }
   }
 };
 
@@ -215,7 +198,7 @@ process.on("SIGTERM", gracefulShutdown);
 process.on("SIGINT", gracefulShutdown);
 process.on("beforeExit", gracefulShutdown);
 
-// Export everything
+// Export everything with v4 compatibility
 module.exports = client;
 module.exports.redisGetAsync = redisGetAsync;
 module.exports.redisSetAsync = redisSetAsync;
@@ -224,5 +207,5 @@ module.exports.redisDelAsync = redisDelAsync;
 module.exports.redisPingAsync = redisPingAsync;
 module.exports.redisUtils = redisUtils;
 module.exports.gracefulShutdown = gracefulShutdown;
-module.exports.connected = () => client.connected;
-module.exports.ready = () => client.ready;
+module.exports.connected = () => client.isOpen;
+module.exports.ready = () => client.isReady;
