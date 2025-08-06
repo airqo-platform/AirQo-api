@@ -23,11 +23,12 @@ const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
 const ioredis = require("@config/ioredis");
-const redis = require("@config/redis");
-const util = require("util");
-const redisGetAsync = util.promisify(redis.get).bind(redis);
-const redisSetAsync = util.promisify(redis.set).bind(redis);
-const redisExpireAsync = util.promisify(redis.expire).bind(redis);
+const {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+} = require("@config/redis");
+
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user util`);

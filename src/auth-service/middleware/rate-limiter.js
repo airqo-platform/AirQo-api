@@ -1,4 +1,4 @@
-// middleware/rate-limiter.js
+// middleware/rate-limiter.js - Redis v4 Compatible
 const rateLimit = require("express-rate-limit");
 const RedisStore = require("rate-limit-redis");
 const redis = require("@config/redis");
@@ -12,8 +12,9 @@ const limiterCache = new Map();
 // Simple function to check if Redis is available
 const isRedisAvailable = () => {
   try {
-    return redis && redis.connected && redis.ready;
+    return redis && redis.isOpen && redis.isReady;
   } catch (error) {
+    logger.warn(`Redis availability check failed: ${error.message}`);
     return false;
   }
 };
@@ -24,7 +25,7 @@ const createDynamicLimiter = (options) => {
 
   return (req, res, next) => {
     try {
-      // Check Redis availability at runtime using built-in properties
+      // Check Redis availability at runtime using Redis v4 properties
       const useRedis = isRedisAvailable();
 
       if (useRedis) {
@@ -46,6 +47,9 @@ const createDynamicLimiter = (options) => {
           });
 
           limiterCache.set(redisKey, redisLimiter);
+          logger.debug(
+            `Created Redis-backed rate limiter for ${options.prefix}`
+          );
         }
 
         return limiterCache.get(redisKey)(req, res, next);
@@ -68,6 +72,9 @@ const createDynamicLimiter = (options) => {
           });
 
           limiterCache.set(memoryKey, memoryLimiter);
+          logger.debug(
+            `Created memory-backed rate limiter for ${options.prefix}`
+          );
         }
 
         return limiterCache.get(memoryKey)(req, res, next);
@@ -90,6 +97,7 @@ const createDynamicLimiter = (options) => {
         });
 
         limiterCache.set(fallbackKey, fallbackLimiter);
+        logger.debug(`Created fallback rate limiter for ${options.prefix}`);
       }
 
       return limiterCache.get(fallbackKey)(req, res, next);
@@ -131,7 +139,31 @@ const registrationLimiter = createDynamicLimiter({
   message: "Too many registration attempts, please try again later",
 });
 
+// Additional utility functions for monitoring and debugging
+const getRateLimiterStats = () => {
+  return {
+    redisAvailable: isRedisAvailable(),
+    cacheSize: limiterCache.size,
+    cacheKeys: Array.from(limiterCache.keys()),
+  };
+};
+
+const clearLimiterCache = () => {
+  const previousSize = limiterCache.size;
+  limiterCache.clear();
+  logger.info(`Rate limiter cache cleared. Previous size: ${previousSize}`);
+  return {
+    success: true,
+    message: `Cleared ${previousSize} cached limiters`,
+  };
+};
+
 module.exports = {
   brandedLogin: conditionalRateLimiter(brandedLoginLimiter),
   registration: conditionalRateLimiter(registrationLimiter),
+
+  // Utility exports for monitoring/debugging
+  getRateLimiterStats,
+  clearLimiterCache,
+  isRedisAvailable,
 };
