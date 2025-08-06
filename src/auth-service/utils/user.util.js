@@ -17,6 +17,7 @@ const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const createGroupUtil = require("@utils/group.util.js");
+const registrationLocks = new Map();
 
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
@@ -1585,57 +1586,355 @@ const createUserModule = {
 
   registerMobileUser: async (request, next) => {
     try {
-      const { tenant } = {
+      const { tenant, email, firstName, lastName, password } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
 
-      const userData = request.body;
-      const verificationToken = generateNumericToken(5);
-
-      const newUserResponse = await UserModel(tenant).register(userData, next);
-
-      if (newUserResponse && newUserResponse.success === true) {
-        const newUser = newUserResponse.data;
-
-        const tokenExpiry = 86400; //24hrs in seconds.
-
-        const tokenCreationBody = {
-          token: verificationToken,
-          name: newUser.firstName,
-          expires: new Date(Date.now() + tokenExpiry * 1000), // Set token expiry
+      // ✅ STEP 1: Enhanced input validation
+      if (!email || !firstName || !password) {
+        return {
+          success: false,
+          message: "Missing required fields for mobile registration",
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            firstName: !firstName ? "First name is required" : undefined,
+            password: !password ? "Password is required" : undefined,
+          },
         };
+      }
 
-        const verifyTokenResponse = await VerifyTokenModel(
-          tenant.toLowerCase()
-        ).register(tokenCreationBody, next);
+      const normalizedEmail = email.toLowerCase().trim();
 
-        if (verifyTokenResponse && verifyTokenResponse.success === false) {
-          // Consider rolling back user creation
-          logger.error(
-            `Failed to create verification token for user ${newUser.email}: ${verifyTokenResponse.message}`
-          );
+      // ✅ STEP 2: Create mobile registration lock
+      const lockKey = `mobile-reg-${normalizedEmail}-${tenant}`;
 
-          return verifyTokenResponse;
-        }
-
-        await mailer.sendVerificationEmail({
-          email: userData.email,
-          token: verificationToken,
-        });
+      if (registrationLocks.has(lockKey)) {
+        logger.warn(
+          `Duplicate mobile registration attempt blocked for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            lockExists: true,
+            userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+          }
+        );
 
         return {
-          success: true,
-          message: "User registered successfully. Please verify your email.",
-          user: newUser,
+          success: false,
+          message: "Registration already in progress",
+          errors: {
+            email:
+              "A mobile registration for this email is currently being processed. Please wait a moment and try again.",
+          },
         };
-      } else {
-        return newUserResponse;
+      }
+
+      // Set lock with automatic cleanup
+      registrationLocks.set(lockKey, {
+        createdAt: Date.now(),
+        type: "mobile",
+        userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(lockKey);
+      }, 30000); // 30 second lock
+
+      try {
+        // ✅ STEP 3: Check for existing user with enhanced feedback
+        const existingUser = await UserModel(tenant)
+          .findOne({
+            email: normalizedEmail,
+          })
+          .lean();
+
+        if (!isEmpty(existingUser)) {
+          logger.info(
+            `Mobile registration attempt for existing user: ${normalizedEmail}`,
+            {
+              email: normalizedEmail,
+              tenant,
+              existingUserId: existingUser._id,
+              verified: existingUser.verified,
+              analyticsVersion: existingUser.analyticsVersion,
+              createdAt: existingUser.createdAt,
+            }
+          );
+
+          // ✅ Provide specific guidance for mobile users
+          if (existingUser.verified) {
+            // For verified users, direct them to login
+            return {
+              success: false,
+              message: "Account already exists",
+              errors: {
+                email:
+                  "This email is already registered. Please use the login option or 'Forgot Password' if needed.",
+              },
+              data: {
+                accountExists: true,
+                verified: true,
+                shouldLogin: true,
+                userId: existingUser._id,
+              },
+            };
+          } else {
+            // For unverified users, offer to resend verification
+            logger.info(
+              `Resending mobile verification for unverified user: ${normalizedEmail}`
+            );
+
+            try {
+              await createUserModule.mobileVerificationReminder(
+                {
+                  tenant,
+                  email: normalizedEmail,
+                },
+                next
+              );
+
+              return {
+                success: false,
+                message: "Account exists but not verified",
+                errors: {
+                  email:
+                    "This email is already registered but not verified. A new verification code has been sent to your email.",
+                },
+                data: {
+                  accountExists: true,
+                  verified: false,
+                  verificationEmailSent: true,
+                  userId: existingUser._id,
+                },
+              };
+            } catch (emailError) {
+              logger.error(
+                `Failed to send mobile verification reminder: ${emailError.message}`
+              );
+
+              return {
+                success: false,
+                message: "Account exists but not verified",
+                errors: {
+                  email:
+                    "This email is already registered but not verified. Please check your email for the verification code or contact support.",
+                },
+                data: {
+                  accountExists: true,
+                  verified: false,
+                  verificationEmailFailed: true,
+                },
+              };
+            }
+          }
+        }
+
+        // ✅ STEP 4: Prepare user data for mobile registration
+        const userData = {
+          ...request.body,
+          email: normalizedEmail,
+          userName: normalizedEmail,
+          analyticsVersion: 4, // Mobile users get version 4
+          // Add mobile-specific metadata
+          registrationSource: "mobile_app",
+          userAgent: request.headers?.["user-agent"]?.substring(0, 200),
+        };
+
+        logger.info(
+          `Starting mobile user registration for: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            firstName,
+            lastName: lastName || "Not provided",
+            registrationSource: "mobile_app",
+          }
+        );
+
+        // ✅ STEP 5: Create user with enhanced error handling
+        const newUserResponse = await UserModel(tenant).register(
+          userData,
+          next,
+          {
+            sendDuplicateEmail: false, // Mobile handles its own verification flow
+          }
+        );
+
+        if (newUserResponse && newUserResponse.success === true) {
+          const newUser = newUserResponse.data;
+          const userId = newUser._doc._id;
+
+          // ✅ STEP 6: Generate mobile verification token
+          const verificationToken = generateNumericToken(5);
+          const tokenExpiry = 86400; // 24hrs in seconds
+
+          const tokenCreationBody = {
+            token: verificationToken,
+            name: newUser._doc.firstName,
+            expires: new Date(Date.now() + tokenExpiry * 1000),
+          };
+
+          logger.info("Creating mobile verification token", {
+            email: normalizedEmail,
+            userId,
+            tenant,
+            tokenLength: verificationToken.length,
+          });
+
+          const verifyTokenResponse = await VerifyTokenModel(
+            tenant.toLowerCase()
+          ).register(tokenCreationBody, next);
+
+          if (verifyTokenResponse && verifyTokenResponse.success === false) {
+            logger.error(
+              `Failed to create verification token for mobile user ${normalizedEmail}: ${verifyTokenResponse.message}`,
+              {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                tokenError: verifyTokenResponse.message,
+              }
+            );
+
+            // Consider rolling back user creation
+            try {
+              await UserModel(tenant).findByIdAndDelete(userId);
+              logger.info(
+                `Rolled back user creation due to token failure: ${userId}`
+              );
+            } catch (rollbackError) {
+              logger.error(
+                `Failed to rollback user creation: ${rollbackError.message}`
+              );
+            }
+
+            return verifyTokenResponse;
+          }
+
+          // ✅ STEP 7: Send verification email with enhanced monitoring
+          try {
+            const emailResult = await mailer.sendVerificationEmail({
+              email: normalizedEmail,
+              token: verificationToken,
+              tenant,
+            });
+
+            if (emailResult && emailResult.success === true) {
+              logger.info("Mobile verification email sent successfully", {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                messageId: emailResult.data?.messageId,
+                tokenSent: verificationToken.length > 0,
+              });
+
+              return {
+                success: true,
+                message:
+                  "Mobile user registered successfully. Please verify your email.",
+                data: {
+                  user: {
+                    _id: newUser._doc._id,
+                    email: newUser._doc.email,
+                    firstName: newUser._doc.firstName,
+                    lastName: newUser._doc.lastName,
+                    verified: newUser._doc.verified,
+                    analyticsVersion: newUser._doc.analyticsVersion,
+                  },
+                  verificationEmailSent: true,
+                  nextStep: "Check your email for a 5-digit verification code",
+                },
+              };
+            } else {
+              logger.error("Mobile verification email failed", {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                emailError: emailResult?.message || "Unknown email error",
+              });
+
+              return {
+                success: false,
+                message: "User created but verification email failed",
+                data: {
+                  user: {
+                    _id: newUser._doc._id,
+                    email: newUser._doc.email,
+                    firstName: newUser._doc.firstName,
+                    lastName: newUser._doc.lastName,
+                    verified: false,
+                  },
+                  verificationEmailSent: false,
+                  emailError:
+                    emailResult?.message || "Email service unavailable",
+                },
+              };
+            }
+          } catch (emailError) {
+            logger.error(
+              `Mobile verification email exception: ${emailError.message}`,
+              {
+                email: normalizedEmail,
+                userId,
+                tenant,
+                error: emailError.message,
+                stack: emailError.stack?.substring(0, 500),
+              }
+            );
+
+            return {
+              success: false,
+              message: "User created but email delivery failed",
+              data: {
+                user: {
+                  _id: newUser._doc._id,
+                  email: newUser._doc.email,
+                  firstName: newUser._doc.firstName,
+                  lastName: newUser._doc.lastName,
+                  verified: false,
+                },
+                verificationEmailSent: false,
+                emailError: emailError.message,
+              },
+            };
+          }
+        } else {
+          logger.error("Mobile user creation failed", {
+            email: normalizedEmail,
+            tenant,
+            error: newUserResponse?.message || "Unknown creation error",
+            errors: newUserResponse?.errors,
+          });
+
+          return (
+            newUserResponse || {
+              success: false,
+              message: "Failed to create mobile user account",
+            }
+          );
+        }
+      } finally {
+        // ✅ STEP 8: Always cleanup the lock
+        registrationLocks.delete(lockKey);
       }
     } catch (error) {
-      logObject("error in reg", error);
-      return { success: false, message: error.message };
+      logger.error(`🐛🐛 Mobile registration error: ${error.message}`, {
+        email: request.body?.email,
+        tenant: request.query?.tenant,
+        stack: error.stack,
+        userAgent: request.headers?.["user-agent"]?.substring(0, 100),
+      });
+
+      return {
+        success: false,
+        message: "An unexpected error occurred during mobile registration",
+        errors: {
+          server:
+            "Please try again or contact support if the problem persists.",
+        },
+      };
     }
   },
 
@@ -1643,20 +1942,113 @@ const createUserModule = {
     try {
       const { tenant, email } = request;
 
-      const user = await UserModel(tenant)
-        .findOne({ email })
-        .select("_id email firstName lastName verified")
-        .lean();
-      logObject("user", user);
-      if (isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not provided or does not exist",
-          })
-        );
+      if (!email) {
+        return {
+          success: false,
+          message: "Email is required for verification reminder",
+          status: httpStatus.BAD_REQUEST,
+          errors: { email: "Email address is required" },
+        };
       }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 1: Rate limiting for verification reminders
+      const reminderKey = `verify-reminder-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(reminderKey)) {
+        const lockData = registrationLocks.get(reminderKey);
+        const timeElapsed = Date.now() - lockData.createdAt;
+        const remainingTime = Math.ceil((300000 - timeElapsed) / 1000); // 5 minutes lock
+
+        logger.warn(
+          `Verification reminder rate limited for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            timeElapsed: timeElapsed / 1000,
+            remainingSeconds: remainingTime,
+          }
+        );
+
+        return {
+          success: false,
+          message: "Please wait before requesting another verification email",
+          status: httpStatus.TOO_MANY_REQUESTS,
+          errors: {
+            rateLimit: `Please wait ${remainingTime} seconds before requesting another verification email.`,
+          },
+        };
+      }
+
+      // Set rate limiting lock
+      registrationLocks.set(reminderKey, {
+        createdAt: Date.now(),
+        type: "verification_reminder",
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(reminderKey);
+      }, 300000); // 5 minute rate limit
+
+      // ✅ STEP 2: Enhanced user lookup with verification status check
+      const user = await UserModel(tenant)
+        .findOne({ email: normalizedEmail })
+        .select(
+          "_id email firstName lastName verified createdAt lastLogin analyticsVersion"
+        )
+        .lean();
+
+      if (isEmpty(user)) {
+        logger.warn(
+          `Verification reminder requested for non-existent user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+          }
+        );
+
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            email:
+              "No account found with this email address. Please check the email or register a new account.",
+          },
+        };
+      }
+
+      // ✅ STEP 3: Check if user is already verified
+      if (user.verified) {
+        logger.info(
+          `Verification reminder requested for already verified user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            userId: user._id,
+            verifiedStatus: true,
+          }
+        );
+
+        return {
+          success: false,
+          message: "Account is already verified",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            verification:
+              "Your account is already verified. You can proceed to login.",
+          },
+          data: {
+            alreadyVerified: true,
+            canLogin: true,
+          },
+        };
+      }
+
       const user_id = user._id;
 
+      // ✅ STEP 4: Generate new verification token with enhanced security
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
@@ -1666,39 +2058,326 @@ const createUserModule = {
       const tokenCreationBody = {
         token,
         name: user.firstName,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
-      const responseFromCreateToken = await VerifyTokenModel(
-        tenant.toLowerCase()
-      ).register(tokenCreationBody, next);
 
-      if (!responseFromCreateToken) {
+      logger.info("Creating verification reminder token", {
+        email: normalizedEmail,
+        userId: user_id,
+        tenant,
+        tokenGenerated: true,
+      });
+
+      // ✅ STEP 5: Create verification token with cleanup of old tokens
+      try {
+        // Clean up any existing tokens for this user first
+        await VerifyTokenModel(tenant.toLowerCase()).deleteMany({
+          name: user.firstName,
+          expires: { $lt: new Date() }, // Delete expired tokens
+        });
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          tenant.toLowerCase()
+        ).register(tokenCreationBody, next);
+
+        if (!responseFromCreateToken) {
+          logger.error(
+            `🐛🐛 Error creating verification reminder token: responseFromCreateToken is undefined`,
+            { email: normalizedEmail, userId: user_id, tenant }
+          );
+          return {
+            success: false,
+            message: "Failed to create verification token",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { token: "Unable to generate verification token" },
+          };
+        }
+
+        if (responseFromCreateToken.success === false) {
+          logger.error("Verification token creation failed", {
+            email: normalizedEmail,
+            userId: user_id,
+            tenant,
+            tokenError: responseFromCreateToken.message,
+          });
+          return responseFromCreateToken;
+        }
+
+        // ✅ STEP 6: Send verification email with enhanced monitoring
+        try {
+          const responseFromSendEmail = await mailer.verifyEmail(
+            {
+              user_id,
+              token,
+              email: normalizedEmail,
+              firstName: user.firstName,
+              category: "reminder", // Mark as reminder for analytics
+            },
+            next
+          );
+
+          if (responseFromSendEmail) {
+            if (responseFromSendEmail.success === true) {
+              logger.info("Verification reminder email sent successfully", {
+                email: normalizedEmail,
+                userId: user_id,
+                tenant,
+                messageId: responseFromSendEmail.data?.messageId,
+                isReminder: true,
+              });
+
+              const userDetails = {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                verified: user.verified,
+              };
+
+              return {
+                success: true,
+                message: "Verification email sent successfully",
+                data: {
+                  ...userDetails,
+                  reminderSent: true,
+                  expiresIn: "24 hours",
+                },
+                status: responseFromSendEmail.status || httpStatus.OK,
+              };
+            } else if (responseFromSendEmail.success === false) {
+              logger.error("Verification reminder email failed", {
+                email: normalizedEmail,
+                userId: user_id,
+                tenant,
+                emailError: responseFromSendEmail.message,
+              });
+              return responseFromSendEmail;
+            }
+          } else {
+            logger.error(
+              "mailer.verifyEmail did not return a response for reminder"
+            );
+            return {
+              success: false,
+              message: "Email service unavailable",
+              status: httpStatus.SERVICE_UNAVAILABLE,
+              errors: {
+                email: "Unable to send verification email at this time",
+              },
+            };
+          }
+        } catch (emailError) {
+          logger.error(
+            `Verification reminder email exception: ${emailError.message}`,
+            {
+              email: normalizedEmail,
+              userId: user_id,
+              tenant,
+              error: emailError.message,
+            }
+          );
+
+          return {
+            success: false,
+            message: "Failed to send verification email",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { email: emailError.message },
+          };
+        }
+      } catch (tokenError) {
         logger.error(
-          `🐛🐛 Error creating verification token: responseFromCreateToken is undefined`
+          `Token creation error for verification reminder: ${tokenError.message}`,
+          {
+            email: normalizedEmail,
+            userId: user_id,
+            tenant,
+            error: tokenError.message,
+          }
         );
-        return next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            { message: "Failed to create verification token" }
-          )
-        );
+
+        return {
+          success: false,
+          message: "Failed to create verification token",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { token: tokenError.message },
+        };
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Verification reminder error: ${error.message}`, {
+        email: request.email,
+        tenant: request.tenant,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { server: "An unexpected error occurred" },
+      };
+    }
+  },
+  mobileVerificationReminder: async (request, next) => {
+    try {
+      const { tenant, email } = request;
+
+      if (!email) {
+        return {
+          success: false,
+          message: "Email is required for mobile verification reminder",
+          errors: { email: "Email address is required" },
+        };
       }
 
-      if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      } else {
-        const responseFromSendEmail = await mailer.verifyEmail(
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 1: Enhanced rate limiting for mobile
+      const reminderKey = `mobile-verify-reminder-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(reminderKey)) {
+        const lockData = registrationLocks.get(reminderKey);
+        const timeElapsed = Date.now() - lockData.createdAt;
+        const remainingTime = Math.ceil((180000 - timeElapsed) / 1000); // 3 minutes lock for mobile
+
+        logger.warn(
+          `Mobile verification reminder rate limited for ${normalizedEmail}`,
           {
-            user_id,
-            token,
-            email,
-          },
-          next
+            email: normalizedEmail,
+            tenant,
+            timeElapsed: timeElapsed / 1000,
+            remainingSeconds: remainingTime,
+          }
         );
 
-        if (responseFromSendEmail) {
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
+        return {
+          success: false,
+          message: "Please wait before requesting another verification code",
+          errors: {
+            rateLimit: `Please wait ${remainingTime} seconds before requesting another code.`,
+          },
+        };
+      }
+
+      // Set rate limiting lock (shorter for mobile UX)
+      registrationLocks.set(reminderKey, {
+        createdAt: Date.now(),
+        type: "mobile_verification_reminder",
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(reminderKey);
+      }, 180000); // 3 minute rate limit for mobile
+
+      // ✅ STEP 2: Enhanced user lookup
+      const user = await UserModel(tenant)
+        .findOne({ email: normalizedEmail })
+        .select(
+          "_id email firstName lastName verified analyticsVersion createdAt"
+        )
+        .lean();
+
+      if (isEmpty(user)) {
+        logger.warn(
+          `Mobile verification reminder for non-existent user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+          }
+        );
+
+        return {
+          success: false,
+          message: "User not found",
+          errors: {
+            email:
+              "No mobile account found with this email. Please register first.",
+          },
+        };
+      }
+
+      // ✅ STEP 3: Check verification status
+      if (user.verified) {
+        logger.info(
+          `Mobile verification reminder for already verified user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            userId: user._id,
+          }
+        );
+
+        return {
+          success: false,
+          message: "Account already verified",
+          errors: {
+            verification:
+              "Your mobile account is already verified. You can proceed to login.",
+          },
+          data: {
+            alreadyVerified: true,
+            canLogin: true,
+          },
+        };
+      }
+
+      // ✅ STEP 4: Generate mobile verification token (5-digit numeric)
+      const token = generateNumericToken(5);
+
+      const tokenCreationBody = {
+        token,
+        name: user.firstName,
+        expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      };
+
+      logger.info("Creating mobile verification reminder token", {
+        email: normalizedEmail,
+        userId: user._id,
+        tenant,
+        tokenType: "mobile_numeric",
+      });
+
+      // ✅ STEP 5: Create token with cleanup
+      try {
+        // Clean up old mobile tokens first
+        await VerifyTokenModel(tenant.toLowerCase()).deleteMany({
+          name: user.firstName,
+          token: { $regex: /^\d{5}$/ }, // Delete old 5-digit tokens
+          expires: { $lt: new Date() },
+        });
+
+        const responseFromCreateToken = await VerifyTokenModel(
+          tenant.toLowerCase()
+        ).register(tokenCreationBody, next);
+
+        if (responseFromCreateToken.success === false) {
+          logger.error("Mobile verification token creation failed", {
+            email: normalizedEmail,
+            userId: user._id,
+            tenant,
+            error: responseFromCreateToken.message,
+          });
+          return responseFromCreateToken;
+        }
+
+        // ✅ STEP 6: Send mobile verification email
+        try {
+          const emailResponse = await mailer.sendVerificationEmail(
+            {
+              email: normalizedEmail,
+              token,
+              tenant,
+            },
+            next
+          );
+
+          if (emailResponse && emailResponse.success === true) {
+            logger.info("Mobile verification reminder sent successfully", {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              messageId: emailResponse.data?.messageId,
+              isMobileReminder: true,
+            });
+
             const userDetails = {
               firstName: user.firstName,
               lastName: user.lastName,
@@ -1708,111 +2387,177 @@ const createUserModule = {
 
             return {
               success: true,
-              message: "An Email sent to your account please verify",
-              data: userDetails,
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
+              message: "Verification code sent to your email.",
+              data: {
+                ...userDetails,
+                reminderSent: true,
+                codeLength: 5,
+                expiresIn: "24 hours",
+              },
             };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
+          } else {
+            logger.error("Mobile verification reminder email failed", {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              emailError: emailResponse?.message,
+            });
+            return (
+              emailResponse || {
+                success: false,
+                message: "Failed to send verification code",
+              }
+            );
           }
-        } else {
-          logger.error("mailer.verifyEmail did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send after email verification email" }
-            )
-          );
-        }
-      }
-    } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
-  mobileVerificationReminder: async (request, next) => {
-    try {
-      const { tenant, email } = request;
-
-      const user = await UserModel(tenant)
-        .findOne({ email })
-        .select("_id email firstName lastName verified")
-        .lean();
-
-      if (isEmpty(user)) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not provided or does not exist",
-          })
-        );
-      }
-
-      const token = generateNumericToken(5);
-
-      const tokenCreationBody = {
-        token,
-        name: user.firstName,
-      };
-      const responseFromCreateToken = await VerifyTokenModel(
-        tenant.toLowerCase()
-      ).register(tokenCreationBody, next);
-
-      if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
-      } else {
-        const emailResponse = await mailer.sendVerificationEmail(
-          { email, token, tenant },
-          next
-        );
-        logObject("emailResponse", emailResponse);
-        if (emailResponse.success === false) {
+        } catch (emailError) {
           logger.error(
-            `Failed to send mobile verification email to user (${email}) with id ${user._id}`
+            `Mobile verification reminder email exception: ${emailError.message}`,
+            {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              error: emailError.message,
+            }
           );
-          return emailResponse;
-        }
 
-        const userDetails = {
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          verified: user.verified,
-        };
+          return {
+            success: false,
+            message: "Email delivery failed",
+            errors: { email: emailError.message },
+          };
+        }
+      } catch (tokenError) {
+        logger.error(
+          `Mobile verification token creation error: ${tokenError.message}`,
+          {
+            email: normalizedEmail,
+            userId: user._id,
+            tenant,
+            error: tokenError.message,
+          }
+        );
+
         return {
-          success: true,
-          message: "Verification code sent to your email.",
-          data: userDetails,
+          success: false,
+          message: "Failed to generate verification code",
+          errors: { token: tokenError.message },
         };
       }
     } catch (error) {
-      logObject("error in mobileVerificationReminder", error);
-
-      logger.error(`Error sending verification reminder: ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Mobile verification reminder error: ${error.message}`,
+        {
+          email: request.email,
+          tenant: request.tenant,
+          stack: error.stack,
+        }
       );
+
+      return {
+        success: false,
+        message: "An unexpected error occurred",
+        errors: { server: "Please try again or contact support" },
+      };
     }
   },
   verifyMobileEmail: async (request, next) => {
     try {
-      const { email, token, tenant, skip, limit } = {
+      const {
+        email,
+        token,
+        tenant,
+        skip = 0,
+        limit = 1000,
+      } = {
         ...request.body,
         ...request.query,
         ...request.params,
       };
+
+      // ✅ STEP 1: Enhanced input validation
+      if (!email || !token) {
+        return {
+          success: false,
+          message: "Email and verification code are required",
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            token: !token ? "Verification code is required" : undefined,
+          },
+        };
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 2: Token format validation for mobile (5-digit numeric)
+      if (!/^\d{5}$/.test(token)) {
+        logger.warn(
+          `Invalid mobile verification token format for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            tokenFormat: "invalid",
+            providedToken: token.replace(/./g, "*"), // Mask token in logs
+          }
+        );
+
+        return {
+          success: false,
+          message: "Invalid verification code format",
+          errors: {
+            token: "Verification code must be a 5-digit number",
+          },
+        };
+      }
+
+      // ✅ STEP 3: Rate limiting for verification attempts
+      const verifyKey = `mobile-verify-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(verifyKey)) {
+        const lockData = registrationLocks.get(verifyKey);
+        const attempts = lockData.attempts || 0;
+
+        if (attempts >= 5) {
+          // Max 5 attempts per 15 minutes
+          const timeElapsed = Date.now() - lockData.createdAt;
+          const remainingTime = Math.ceil((900000 - timeElapsed) / 1000); // 15 minutes
+
+          logger.warn(
+            `Mobile verification rate limited for ${normalizedEmail}`,
+            {
+              email: normalizedEmail,
+              tenant,
+              attempts,
+              remainingSeconds: remainingTime,
+            }
+          );
+
+          return {
+            success: false,
+            message: "Too many verification attempts",
+            errors: {
+              rateLimit: `Please wait ${Math.ceil(
+                remainingTime / 60
+              )} minutes before trying again.`,
+            },
+          };
+        }
+
+        // Increment attempts
+        lockData.attempts = attempts + 1;
+        registrationLocks.set(verifyKey, lockData);
+      } else {
+        // First attempt
+        registrationLocks.set(verifyKey, {
+          createdAt: Date.now(),
+          attempts: 1,
+          type: "mobile_verification",
+        });
+
+        setTimeout(() => {
+          registrationLocks.delete(verifyKey);
+        }, 900000); // 15 minute window
+      }
+
       const timeZone = moment.tz.guess();
       let filter = {
         token,
@@ -1821,24 +2566,73 @@ const createUserModule = {
         },
       };
 
-      const userDetails = await UserModel("airqo")
-        .find({
-          email,
-        })
-        .select("_id firstName lastName userName email verified")
+      // ✅ STEP 4: Enhanced user lookup with verification status
+      const userDetails = await UserModel(tenant)
+        .find({ email: normalizedEmail })
+        .select(
+          "_id firstName lastName userName email verified analyticsVersion"
+        )
         .lean();
 
       const user = userDetails[0];
 
       if (isEmpty(user)) {
+        logger.warn(
+          `Mobile verification attempted for non-existent user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            token: token.replace(/./g, "*"),
+          }
+        );
+
         return {
           success: false,
-          message: "Invalid Verification Token or the User does not exist",
+          message: "User not found",
           errors: {
-            message: "Invalid Verification Token or the User does not exist",
+            email: "No account found with this email address",
           },
         };
       }
+
+      // ✅ STEP 5: Check if already verified
+      if (user.verified) {
+        logger.info(
+          `Mobile verification attempted for already verified user: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            userId: user._id,
+            alreadyVerified: true,
+          }
+        );
+
+        // Clear rate limiting on successful verification check
+        registrationLocks.delete(verifyKey);
+
+        return {
+          success: true,
+          message: "Account already verified",
+          data: {
+            user: {
+              _id: user._id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              verified: true,
+            },
+            alreadyVerified: true,
+          },
+        };
+      }
+
+      // ✅ STEP 6: Validate verification token
+      logger.info("Attempting mobile email verification", {
+        email: normalizedEmail,
+        userId: user._id,
+        tenant,
+        tokenProvided: true,
+      });
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -1849,19 +2643,30 @@ const createUserModule = {
         next
       );
 
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          next(
-            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
-              message: "incorrect user or token details provided",
-            })
+          logger.warn(
+            `Invalid or expired mobile verification token for ${normalizedEmail}`,
+            {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              tokenStatus: "not_found_or_expired",
+            }
           );
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          let update = {
-            verified: true,
+
+          return {
+            success: false,
+            message: "Invalid or expired verification code",
+            errors: {
+              token:
+                "The verification code is invalid or has expired. Please request a new code.",
+            },
           };
-          filter = { email };
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          // ✅ STEP 7: Update user as verified
+          filter = { email: normalizedEmail };
+          let update = { verified: true };
 
           const responseFromUpdateUser = await UserModel(tenant).modify(
             {
@@ -1872,84 +2677,267 @@ const createUserModule = {
           );
 
           if (responseFromUpdateUser.success === true) {
-            /**
-             * we shall also need to handle case where there was no update
-             * later...cases where the user never existed in the first place
-             * this will not be necessary if user deletion is cascaded.
-             */
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
 
+            // ✅ STEP 8: Delete verification token
             filter = { token };
-            logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await VerifyTokenModel(
               tenant
             ).remove({ filter }, next);
 
-            logObject("responseFromDeleteToken", responseFromDeleteToken);
-
             if (responseFromDeleteToken.success === true) {
-              logObject("user", user);
-              const responseFromSendEmail = await mailer.afterEmailVerification(
-                {
-                  firstName: user.firstName,
-                  username: user.userName,
-                  email: user.email,
-                  analyticsVersion: 4,
-                },
-                next
-              );
+              // ✅ STEP 9: Send welcome email for mobile users
+              try {
+                const responseFromSendEmail =
+                  await mailer.afterEmailVerification(
+                    {
+                      firstName: user.firstName,
+                      username: user.userName,
+                      email: user.email,
+                      analyticsVersion: user.analyticsVersion || 4,
+                    },
+                    next
+                  );
 
-              if (responseFromSendEmail.success === true) {
+                // Clear rate limiting on successful verification
+                registrationLocks.delete(verifyKey);
+
+                logger.info(
+                  "Mobile email verification completed successfully",
+                  {
+                    email: normalizedEmail,
+                    userId: user._id,
+                    tenant,
+                    welcomeEmailSent: responseFromSendEmail?.success === true,
+                  }
+                );
+
+                if (
+                  responseFromSendEmail &&
+                  responseFromSendEmail.success === true
+                ) {
+                  return {
+                    success: true,
+                    message: "Email verified successfully! Welcome to AirQo.",
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                        analyticsVersion: user.analyticsVersion,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: true,
+                    },
+                    status: httpStatus.OK,
+                  };
+                } else {
+                  // Verification successful but welcome email failed
+                  return {
+                    success: true,
+                    message: "Email verified successfully!",
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                        analyticsVersion: user.analyticsVersion,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: false,
+                      welcomeEmailError: responseFromSendEmail?.message,
+                    },
+                    status: httpStatus.OK,
+                  };
+                }
+              } catch (emailError) {
+                logger.error(
+                  `Welcome email error after mobile verification: ${emailError.message}`,
+                  {
+                    email: normalizedEmail,
+                    userId: user._id,
+                    tenant,
+                    error: emailError.message,
+                  }
+                );
+
+                // Still return success since verification completed
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "Email verified successfully!",
+                  data: {
+                    user: {
+                      _id: user._id,
+                      email: user.email,
+                      firstName: user.firstName,
+                      lastName: user.lastName,
+                      verified: true,
+                    },
+                    verificationCompleted: true,
+                    welcomeEmailSent: false,
+                  },
                   status: httpStatus.OK,
                 };
-              } else if (responseFromSendEmail.success === false) {
-                return responseFromSendEmail;
               }
             } else if (responseFromDeleteToken.success === false) {
-              next(
-                new HttpError(
-                  "unable to verify user",
-                  responseFromDeleteToken.status
-                    ? responseFromDeleteToken.status
-                    : httpStatus.INTERNAL_SERVER_ERROR,
-                  responseFromDeleteToken.errors
-                    ? responseFromDeleteToken.errors
-                    : { message: "internal server errors" }
-                )
+              logger.error(
+                "Failed to delete verification token after mobile verification",
+                {
+                  email: normalizedEmail,
+                  userId: user._id,
+                  tenant,
+                  deleteError: responseFromDeleteToken.message,
+                }
               );
+
+              return {
+                success: false,
+                message: "Verification process incomplete",
+                status:
+                  responseFromDeleteToken.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                errors: responseFromDeleteToken.errors || {
+                  message: "Token cleanup failed",
+                },
+              };
             }
           } else if (responseFromUpdateUser.success === false) {
-            next(
-              new HttpError(
-                "unable to verify user",
-                responseFromUpdateUser.status
-                  ? responseFromUpdateUser.status
-                  : httpStatus.INTERNAL_SERVER_ERROR,
-                responseFromUpdateUser.errors
-                  ? responseFromUpdateUser.errors
-                  : { message: "internal server errors" }
-              )
-            );
+            logger.error("Failed to update user verification status", {
+              email: normalizedEmail,
+              userId: user._id,
+              tenant,
+              updateError: responseFromUpdateUser.message,
+            });
+
+            return {
+              success: false,
+              message: "Failed to update verification status",
+              status:
+                responseFromUpdateUser.status ||
+                httpStatus.INTERNAL_SERVER_ERROR,
+              errors: responseFromUpdateUser.errors || {
+                message: "Database update failed",
+              },
+            };
           }
         }
       } else if (responseFromListAccessToken.success === false) {
+        logger.error("Token lookup failed for mobile verification", {
+          email: normalizedEmail,
+          userId: user._id,
+          tenant,
+          tokenError: responseFromListAccessToken.message,
+        });
+
         return responseFromListAccessToken;
       }
     } catch (error) {
-      return { success: false, message: error.message };
+      logger.error(`🐛🐛 Mobile email verification error: ${error.message}`, {
+        email: request.body?.email,
+        tenant: request.query?.tenant,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "An unexpected error occurred during verification",
+        errors: {
+          server:
+            "Please try again or contact support if the problem persists.",
+        },
+      };
     }
   },
   verifyEmail: async (request, next) => {
     try {
-      const { tenant, limit, skip, user_id, token } = {
+      const {
+        tenant,
+        limit = 1000,
+        skip = 0,
+        user_id,
+        token,
+      } = {
         ...request.query,
         ...request.params,
       };
+
+      // ✅ STEP 1: Enhanced input validation
+      if (!user_id || !token) {
+        return {
+          success: false,
+          message: "User ID and verification token are required",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            user_id: !user_id ? "User ID is required" : undefined,
+            token: !token ? "Verification token is required" : undefined,
+          },
+        };
+      }
+
+      // ✅ STEP 2: Enhanced user lookup
+      const userDetails = await UserModel(tenant)
+        .find({ _id: ObjectId(user_id) })
+        .select(
+          "_id firstName lastName userName email verified analyticsVersion"
+        )
+        .lean();
+
+      if (isEmpty(userDetails)) {
+        logger.warn(
+          `Web verification attempted for non-existent user ID: ${user_id}`,
+          {
+            userId: user_id,
+            tenant,
+            token: token.substring(0, 5) + "...",
+          }
+        );
+
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { user: "User account not found" },
+        };
+      }
+
+      const user = userDetails[0];
+
+      // ✅ STEP 3: Check if already verified
+      if (user.verified) {
+        logger.info(
+          `Web verification attempted for already verified user: ${user.email}`,
+          {
+            email: user.email,
+            userId: user_id,
+            tenant,
+            alreadyVerified: true,
+          }
+        );
+
+        return {
+          success: true,
+          message: "Account already verified",
+          status: httpStatus.OK,
+          data: {
+            user: {
+              _id: user._id,
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+              verified: true,
+            },
+            alreadyVerified: true,
+          },
+        };
+      }
+
+      // ✅ STEP 4: Validate token with expiration check
       const timeZone = moment.tz.guess();
       let filter = {
         token,
@@ -1958,19 +2946,12 @@ const createUserModule = {
         },
       };
 
-      const userDetails = await UserModel(tenant)
-        .find({
-          _id: ObjectId(user_id),
-        })
-        .lean();
-
-      if (isEmpty(userDetails)) {
-        next(
-          new HttpError("Bad Reqest Error", httpStatus.BAD_REQUEST, {
-            message: "User does not exist",
-          })
-        );
-      }
+      logger.info("Attempting web email verification", {
+        email: user.email,
+        userId: user_id,
+        tenant,
+        tokenProvided: true,
+      });
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -1983,15 +2964,28 @@ const createUserModule = {
 
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
-          next(
-            new HttpError("Invalid link", httpStatus.BAD_REQUEST, {
-              message: "incorrect user or token details provided",
-            })
+          logger.warn(
+            `Invalid or expired web verification token for user: ${user.email}`,
+            {
+              email: user.email,
+              userId: user_id,
+              tenant,
+              tokenStatus: "not_found_or_expired",
+            }
           );
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          let update = {
-            verified: true,
+
+          return {
+            success: false,
+            message: "Invalid or expired verification link",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              token:
+                "The verification link is invalid or has expired. Please request a new verification email.",
+            },
           };
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          // ✅ STEP 5: Update user as verified
+          let update = { verified: true };
           filter = { _id: user_id };
 
           const responseFromUpdateUser = await UserModel(tenant).modify(
@@ -2003,81 +2997,173 @@ const createUserModule = {
           );
 
           if (responseFromUpdateUser.success === true) {
-            /**
-             * we shall also need to handle case where there was no update
-             * later...cases where the user never existed in the first place
-             * this will not be necessary if user deletion is cascaded.
-             */
             if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
 
+            // ✅ STEP 6: Delete verification token
             filter = { token };
-            logObject("the deletion of the token filter", filter);
             const responseFromDeleteToken = await VerifyTokenModel(
               tenant
             ).remove({ filter }, next);
 
-            logObject("responseFromDeleteToken", responseFromDeleteToken);
-
             if (responseFromDeleteToken.success === true) {
-              const responseFromSendEmail = await mailer.afterEmailVerification(
-                {
-                  firstName: userDetails[0].firstName,
-                  username: userDetails[0].userName,
-                  email: userDetails[0].email,
-                },
-                next
-              );
+              // ✅ STEP 7: Send welcome email
+              try {
+                const responseFromSendEmail =
+                  await mailer.afterEmailVerification(
+                    {
+                      firstName: user.firstName,
+                      username: user.userName,
+                      email: user.email,
+                      analyticsVersion: user.analyticsVersion || 3,
+                    },
+                    next
+                  );
 
-              if (responseFromSendEmail.success === true) {
+                logger.info("Web email verification completed successfully", {
+                  email: user.email,
+                  userId: user_id,
+                  tenant,
+                  welcomeEmailSent: responseFromSendEmail?.success === true,
+                });
+
+                if (
+                  responseFromSendEmail &&
+                  responseFromSendEmail.success === true
+                ) {
+                  return {
+                    success: true,
+                    message: "Email verified successfully! Welcome to AirQo.",
+                    status: httpStatus.OK,
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: true,
+                    },
+                  };
+                } else if (
+                  responseFromSendEmail &&
+                  responseFromSendEmail.success === false
+                ) {
+                  // Verification successful but welcome email failed
+                  return {
+                    success: true,
+                    message: "Email verified successfully!",
+                    status: httpStatus.OK,
+                    data: {
+                      user: {
+                        _id: user._id,
+                        email: user.email,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        verified: true,
+                      },
+                      verificationCompleted: true,
+                      welcomeEmailSent: false,
+                    },
+                  };
+                }
+              } catch (emailError) {
+                logger.error(
+                  `Welcome email error after web verification: ${emailError.message}`,
+                  {
+                    email: user.email,
+                    userId: user_id,
+                    tenant,
+                    error: emailError.message,
+                  }
+                );
+
+                // Still return success since verification completed
                 return {
                   success: true,
-                  message: "email verified sucessfully",
+                  message: "Email verified successfully!",
                   status: httpStatus.OK,
+                  data: {
+                    user: {
+                      _id: user._id,
+                      email: user.email,
+                      firstName: user.firstName,
+                      lastName: user.lastName,
+                      verified: true,
+                    },
+                    verificationCompleted: true,
+                    welcomeEmailSent: false,
+                  },
                 };
-              } else if (responseFromSendEmail.success === false) {
-                return responseFromSendEmail;
               }
             } else if (responseFromDeleteToken.success === false) {
-              next(
-                new HttpError(
-                  "unable to verify user",
-                  responseFromDeleteToken.status
-                    ? responseFromDeleteToken.status
-                    : httpStatus.INTERNAL_SERVER_ERROR,
-                  responseFromDeleteToken.errors
-                    ? responseFromDeleteToken.errors
-                    : { message: "internal server errors" }
-                )
+              logger.error(
+                "Failed to delete verification token after web verification",
+                {
+                  email: user.email,
+                  userId: user_id,
+                  tenant,
+                  deleteError: responseFromDeleteToken.message,
+                }
               );
+
+              return {
+                success: false,
+                message: "Verification process incomplete",
+                status:
+                  responseFromDeleteToken.status ||
+                  httpStatus.INTERNAL_SERVER_ERROR,
+                errors: responseFromDeleteToken.errors || {
+                  message: "Token cleanup failed",
+                },
+              };
             }
           } else if (responseFromUpdateUser.success === false) {
-            next(
-              new HttpError(
-                "unable to verify user",
-                responseFromUpdateUser.status
-                  ? responseFromUpdateUser.status
-                  : httpStatus.INTERNAL_SERVER_ERROR,
-                responseFromUpdateUser.errors
-                  ? responseFromUpdateUser.errors
-                  : { message: "internal server errors" }
-              )
-            );
+            logger.error("Failed to update user verification status", {
+              email: user.email,
+              userId: user_id,
+              tenant,
+              updateError: responseFromUpdateUser.message,
+            });
+
+            return {
+              success: false,
+              message: "Failed to update verification status",
+              status:
+                responseFromUpdateUser.status ||
+                httpStatus.INTERNAL_SERVER_ERROR,
+              errors: responseFromUpdateUser.errors || {
+                message: "Database update failed",
+              },
+            };
           }
         }
       } else if (responseFromListAccessToken.success === false) {
+        logger.error("Token lookup failed for web verification", {
+          email: user.email,
+          userId: user_id,
+          tenant,
+          tokenError: responseFromListAccessToken.message,
+        });
+
         return responseFromListAccessToken;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      logger.error(`🐛🐛 Web email verification error: ${error.message}`, {
+        userId: request.params?.user_id,
+        tenant: request.query?.tenant,
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { server: "An unexpected error occurred during verification" },
+      };
     }
   },
   create: async (request, next) => {
@@ -2088,70 +3174,182 @@ const createUserModule = {
         ...request.params,
       };
 
-      const user = await UserModel(tenant).findOne({ email });
-      if (!isEmpty(user)) {
+      // ✅ STEP 1: Create registration lock to prevent race conditions
+      const lockKey = `reg-${email.toLowerCase()}-${tenant}`;
+
+      if (registrationLocks.has(lockKey)) {
+        logger.warn(`Duplicate registration attempt blocked for ${email}`, {
+          email,
+          tenant,
+          lockExists: true,
+        });
+
         return {
           success: false,
-          message: "User is already part of the AirQo platform",
-          status: httpStatus.BAD_REQUEST,
+          message: "Registration already in progress for this email",
+          status: httpStatus.CONFLICT,
           errors: [
             {
               param: "email",
-              message: "User is already part of the AirQo platform",
+              message:
+                "A registration for this email is already being processed. Please wait a moment and try again.",
               location: "body",
             },
           ],
         };
       }
 
-      const userBody = request.body;
-      const newRequest = Object.assign(
-        { userName: email, password, analyticsVersion: 3 },
-        userBody
-      );
+      // Set lock with automatic cleanup
+      registrationLocks.set(lockKey, Date.now());
+      setTimeout(() => {
+        registrationLocks.delete(lockKey);
+      }, 30000); // 30 second lock
 
-      // Pass the sendDuplicateEmail option to true for this specific flow
-      const responseFromCreateUser = await UserModel(tenant).register(
-        newRequest,
-        next,
-        { sendDuplicateEmail: true }
-      );
+      try {
+        // ✅ STEP 2: Check for existing user with enhanced logging
+        const existingUser = await UserModel(tenant)
+          .findOne({
+            email: email.toLowerCase(),
+          })
+          .lean();
 
-      if (!responseFromCreateUser) {
-        return {
-          success: false,
-          message: "Failed to create user",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-          errors: [{ message: "User creation failed" }],
-        };
-      }
+        if (!isEmpty(existingUser)) {
+          logger.info(`Registration attempt for existing user: ${email}`, {
+            email,
+            tenant,
+            existingUserId: existingUser._id,
+            verified: existingUser.verified,
+            createdAt: existingUser.createdAt,
+          });
 
-      if (responseFromCreateUser.success === true) {
-        if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
-          return responseFromCreateUser;
+          // ✅ ENHANCED RESPONSE: Provide helpful information based on verification status
+          if (existingUser.verified) {
+            // User exists and is verified - send them to login
+            return {
+              success: false,
+              message:
+                "An account with this email already exists and is verified",
+              status: httpStatus.CONFLICT,
+              errors: [
+                {
+                  param: "email",
+                  message:
+                    "This email is already registered. Please use the 'Forgot Password' feature if you need to reset your password.",
+                  location: "body",
+                },
+              ],
+              data: {
+                accountExists: true,
+                verified: true,
+                loginUrl: `${constants.ANALYTICS_BASE_URL}/user/login`,
+                forgotPasswordUrl: `${constants.ANALYTICS_BASE_URL}/user/forgotPwd`,
+              },
+            };
+          } else {
+            // User exists but not verified - offer to resend verification
+            logger.info(`Resending verification for unverified user: ${email}`);
+
+            // Trigger verification email resend
+            try {
+              await createUserModule.verificationReminder(
+                {
+                  tenant,
+                  email: existingUser.email,
+                },
+                next
+              );
+
+              return {
+                success: false,
+                message:
+                  "Account exists but is not verified. A new verification email has been sent.",
+                status: httpStatus.CONFLICT,
+                errors: [
+                  {
+                    param: "email",
+                    message:
+                      "This email is already registered but not verified. We've sent a new verification email.",
+                    location: "body",
+                  },
+                ],
+                data: {
+                  accountExists: true,
+                  verified: false,
+                  verificationEmailSent: true,
+                },
+              };
+            } catch (emailError) {
+              logger.error(
+                `Failed to send verification reminder: ${emailError.message}`
+              );
+
+              return {
+                success: false,
+                message: "Account exists but is not verified",
+                status: httpStatus.CONFLICT,
+                errors: [
+                  {
+                    param: "email",
+                    message:
+                      "This email is already registered but not verified. Please check your email for the verification link or contact support.",
+                    location: "body",
+                  },
+                ],
+              };
+            }
+          }
         }
 
-        const createdUser = await responseFromCreateUser.data;
-        const user_id = createdUser._doc._id;
+        // ✅ STEP 3: Proceed with normal user creation
+        const userBody = request.body;
+        const newRequest = Object.assign(
+          { userName: email, password, analyticsVersion: 3 },
+          userBody
+        );
 
-        const token = accessCodeGenerator
-          .generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
-          )
-          .toUpperCase();
+        const responseFromCreateUser = await UserModel(tenant).register(
+          newRequest,
+          next,
+          { sendDuplicateEmail: true }
+        );
 
-        const tokenCreationBody = {
-          token,
-          name: createdUser._doc.firstName,
-        };
+        if (!responseFromCreateUser) {
+          return {
+            success: false,
+            message: "Failed to create user",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: [{ message: "User creation failed" }],
+          };
+        }
 
-        const responseFromCreateToken = await VerifyTokenModel(
-          tenant.toLowerCase()
-        ).register(tokenCreationBody, next);
+        if (responseFromCreateUser.success === true) {
+          if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
+            return responseFromCreateUser;
+          }
 
-        if (responseFromCreateToken.success === false) {
-          return responseFromCreateToken;
-        } else {
+          const createdUser = await responseFromCreateUser.data;
+          const user_id = createdUser._doc._id;
+
+          const token = accessCodeGenerator
+            .generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            )
+            .toUpperCase();
+
+          const tokenCreationBody = {
+            token,
+            name: createdUser._doc.firstName,
+          };
+
+          const responseFromCreateToken = await VerifyTokenModel(
+            tenant.toLowerCase()
+          ).register(tokenCreationBody, next);
+
+          if (responseFromCreateToken.success === false) {
+            return responseFromCreateToken;
+          }
+
+          // ✅ STEP 4: Enhanced email sending with monitoring
           const responseFromSendEmail = await mailer.verifyEmail(
             {
               user_id,
@@ -2174,7 +3372,8 @@ const createUserModule = {
 
               return {
                 success: true,
-                message: "An Email sent to your account please verify",
+                message:
+                  "Registration successful! Please check your email for verification instructions.",
                 data: userDetails,
                 status: responseFromSendEmail.status || httpStatus.OK,
               };
@@ -2185,25 +3384,44 @@ const createUserModule = {
             logger.error("mailer.verifyEmail did not return a response");
             return {
               success: false,
-              message: "Failed to send verification email",
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              errors: [{ message: "Failed to send verification email" }],
+              message: "User created but verification email failed to send",
+              status: httpStatus.PARTIAL_CONTENT,
+              errors: [
+                {
+                  message:
+                    "Please contact support to resend verification email",
+                },
+              ],
             };
           }
+        } else if (responseFromCreateUser.success === false) {
+          return responseFromCreateUser;
         }
-      } else if (responseFromCreateUser.success === false) {
-        return responseFromCreateUser;
+      } finally {
+        // ✅ STEP 5: Always cleanup the lock
+        registrationLocks.delete(lockKey);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(
+        `🐛🐛 Internal Server Error in user creation: ${error.message}`,
+        {
+          email: request.body?.email,
+          tenant: request.query?.tenant,
+          stack: error.stack,
+        }
+      );
+
       return {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: [{ message: error.message }],
+        errors: [
+          { message: "An unexpected error occurred during registration" },
+        ],
       };
     }
   },
+  // Enhanced register function in user.util.js
   register: async (request, next) => {
     try {
       const {
@@ -2214,82 +3432,315 @@ const createUserModule = {
         long_organization,
         privilege,
         network_id,
-      } = request.body;
-
-      const { tenant } = request.query;
-
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
-
-      let requestBody = {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        userName: email,
-        password,
-        network_id,
+        tenant,
+      } = {
+        ...request.body,
+        ...request.query,
+        ...request.params,
       };
 
-      const responseFromCreateUser = await UserModel(tenant).register(
-        requestBody,
-        next
-      );
-
-      if (responseFromCreateUser.success === true) {
-        const createdUser = await responseFromCreateUser.data;
-        logObject("created user in util", createdUser._doc);
-        const responseFromSendEmail = await mailer.user(
-          {
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            type: "user",
+      // ✅ STEP 1: Input validation and normalization
+      if (!email || !firstName || !lastName) {
+        return {
+          success: false,
+          message: "Missing required fields",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            email: !email ? "Email is required" : undefined,
+            firstName: !firstName ? "First name is required" : undefined,
+            lastName: !lastName ? "Last name is required" : undefined,
           },
-          next
+        };
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // ✅ STEP 2: Create registration lock to prevent race conditions
+      const lockKey = `admin-reg-${normalizedEmail}-${tenant}`;
+
+      if (registrationLocks.has(lockKey)) {
+        logger.warn(
+          `Duplicate admin registration attempt blocked for ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            lockExists: true,
+            requestedBy: request.user?.email || "unknown",
+          }
         );
 
-        if (responseFromSendEmail) {
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "user successfully created",
-              data: createdUser._doc,
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
-            };
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
-        } else {
-          logger.error("mailer.user did not return a response");
-          return next(
-            new HttpError(
-              "Internal Server Error",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { message: "Failed to send user creation email" }
-            )
+        return {
+          success: false,
+          message: "Registration already in progress for this user",
+          status: httpStatus.CONFLICT,
+          errors: {
+            email:
+              "A registration for this email is currently being processed. Please wait and try again.",
+          },
+        };
+      }
+
+      // Set lock with automatic cleanup
+      registrationLocks.set(lockKey, {
+        createdAt: Date.now(),
+        createdBy: request.user?.email || "unknown",
+      });
+
+      setTimeout(() => {
+        registrationLocks.delete(lockKey);
+      }, 45000); // 45 second lock (longer for admin operations)
+
+      try {
+        // ✅ STEP 3: Enhanced duplicate user checking
+        const existingUser = await UserModel(tenant)
+          .findOne({
+            email: normalizedEmail,
+          })
+          .lean();
+
+        if (!isEmpty(existingUser)) {
+          logger.info(
+            `Admin registration attempt for existing user: ${normalizedEmail}`,
+            {
+              email: normalizedEmail,
+              tenant,
+              existingUserId: existingUser._id,
+              verified: existingUser.verified,
+              isActive: existingUser.isActive,
+              createdAt: existingUser.createdAt,
+              requestedBy: request.user?.email || "unknown",
+            }
           );
+
+          // ✅ Enhanced response with actionable information
+          if (existingUser.verified && existingUser.isActive) {
+            return {
+              success: false,
+              message: "User already exists and is active",
+              status: httpStatus.CONFLICT,
+              errors: {
+                email:
+                  "This email is already registered with an active, verified account.",
+              },
+              data: {
+                accountExists: true,
+                verified: true,
+                isActive: true,
+                userId: existingUser._id,
+                createdAt: existingUser.createdAt,
+              },
+            };
+          } else if (existingUser.verified && !existingUser.isActive) {
+            // User exists but is inactive - could reactivate
+            return {
+              success: false,
+              message: "User exists but account is inactive",
+              status: httpStatus.CONFLICT,
+              errors: {
+                email:
+                  "This email belongs to an inactive account. Consider reactivating instead of creating new account.",
+              },
+              data: {
+                accountExists: true,
+                verified: true,
+                isActive: false,
+                canReactivate: true,
+                userId: existingUser._id,
+              },
+            };
+          } else {
+            // User exists but not verified - could resend verification
+            return {
+              success: false,
+              message: "User exists but is not verified",
+              status: httpStatus.CONFLICT,
+              errors: {
+                email:
+                  "This email is registered but not verified. Consider resending verification email instead.",
+              },
+              data: {
+                accountExists: true,
+                verified: false,
+                canResendVerification: true,
+                userId: existingUser._id,
+              },
+            };
+          }
         }
-      } else if (responseFromCreateUser.success === false) {
-        return responseFromCreateUser;
+
+        // ✅ STEP 4: Generate secure password with enhanced logging
+        const password = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        );
+
+        const requestBody = {
+          firstName,
+          lastName,
+          email: normalizedEmail,
+          organization,
+          long_organization,
+          privilege,
+          userName: normalizedEmail,
+          password,
+          network_id,
+          // Add metadata for admin-created users
+          createdByAdmin: true,
+          adminCreatorEmail: request.user?.email || "unknown",
+        };
+
+        logger.info(
+          `Starting admin user registration for: ${normalizedEmail}`,
+          {
+            email: normalizedEmail,
+            tenant,
+            organization,
+            privilege,
+            requestedBy: request.user?.email || "unknown",
+          }
+        );
+
+        // ✅ STEP 5: Create user with enhanced error handling
+        const responseFromCreateUser = await UserModel(tenant).register(
+          requestBody,
+          next,
+          { sendDuplicateEmail: false } // Admin creation shouldn't send duplicate emails
+        );
+
+        if (responseFromCreateUser.success === true) {
+          const createdUser = responseFromCreateUser.data;
+          logger.info("Admin user creation successful", {
+            email: normalizedEmail,
+            userId: createdUser._doc._id,
+            tenant,
+            createdBy: request.user?.email || "unknown",
+          });
+
+          // ✅ STEP 6: Enhanced email sending with monitoring
+          try {
+            const responseFromSendEmail = await mailer.user(
+              {
+                firstName,
+                lastName,
+                email: normalizedEmail,
+                password,
+                tenant,
+                type: "user",
+              },
+              next
+            );
+
+            if (responseFromSendEmail) {
+              if (responseFromSendEmail.success === true) {
+                // ✅ Log successful email delivery
+                logger.info(
+                  "Admin registration welcome email sent successfully",
+                  {
+                    email: normalizedEmail,
+                    userId: createdUser._doc._id,
+                    tenant,
+                    messageId: responseFromSendEmail.data?.messageId,
+                  }
+                );
+
+                return {
+                  success: true,
+                  message: "User successfully created and welcome email sent",
+                  data: {
+                    user: createdUser._doc,
+                    emailSent: true,
+                    loginUrl: `${constants.LOGIN_PAGE}`,
+                    tempPassword: "Sent via email", // Don't return actual password in response
+                  },
+                  status: responseFromSendEmail.status || httpStatus.OK,
+                };
+              } else if (responseFromSendEmail.success === false) {
+                // User created but email failed
+                logger.error("Admin registration email failed", {
+                  email: normalizedEmail,
+                  userId: createdUser._doc._id,
+                  tenant,
+                  emailError: responseFromSendEmail.message,
+                });
+
+                return {
+                  success: true, // User was created successfully
+                  message: "User created but welcome email failed to send",
+                  data: {
+                    user: createdUser._doc,
+                    emailSent: false,
+                    tempPassword: password, // Return password since email failed
+                    emailError: responseFromSendEmail.message,
+                  },
+                  status: httpStatus.PARTIAL_CONTENT,
+                };
+              }
+            } else {
+              logger.error("mailer.user did not return a response");
+              return {
+                success: true, // User was created
+                message: "User created but email service unavailable",
+                data: {
+                  user: createdUser._doc,
+                  emailSent: false,
+                  tempPassword: password, // Return password since email failed
+                },
+                status: httpStatus.PARTIAL_CONTENT,
+              };
+            }
+          } catch (emailError) {
+            logger.error(
+              `Admin registration email error: ${emailError.message}`,
+              {
+                email: normalizedEmail,
+                userId: createdUser._doc._id,
+                tenant,
+                error: emailError.message,
+              }
+            );
+
+            return {
+              success: true, // User was created successfully
+              message: "User created but email delivery failed",
+              data: {
+                user: createdUser._doc,
+                emailSent: false,
+                tempPassword: password, // Return password since email failed
+                emailError: emailError.message,
+              },
+              status: httpStatus.PARTIAL_CONTENT,
+            };
+          }
+        } else if (responseFromCreateUser.success === false) {
+          logger.error("Admin user creation failed", {
+            email: normalizedEmail,
+            tenant,
+            error: responseFromCreateUser.message,
+            errors: responseFromCreateUser.errors,
+          });
+
+          return responseFromCreateUser;
+        }
+      } finally {
+        // ✅ STEP 7: Always cleanup the lock
+        registrationLocks.delete(lockKey);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      logger.error(`🐛🐛 Admin registration error: ${error.message}`, {
+        email: request.body?.email,
+        tenant: request.query?.tenant,
+        requestedBy: request.user?.email || "unknown",
+        stack: error.stack,
+      });
+
+      return {
+        success: false,
+        message: "Internal Server Error during user registration",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          server:
+            "An unexpected error occurred. Please try again or contact support.",
+        },
+      };
     }
   },
   forgotPassword: async (request, next) => {
@@ -3232,11 +4683,13 @@ const createUserModule = {
         ...request.params,
       };
 
+      // If user_id is provided, get the email from the user record
       if (!isEmpty(user_id)) {
         const user = await UserModel(tenant)
           .findOne({ _id: user_id })
           .select("email")
           .lean();
+
         if (isEmpty(user)) {
           return {
             success: false,
@@ -3245,36 +4698,39 @@ const createUserModule = {
             errors: { message: `Provided user_id ${user_id} does not exist` },
           };
         }
+
         email = user.email;
       }
 
-      const subscription = await SubscriptionModel(tenant).findOne({ email });
-      if (!subscription.notifications[type]) {
+      // Validate that we have an email
+      if (isEmpty(email)) {
         return {
           success: false,
-          message: `Forbidden`,
-          status: httpStatus.FORBIDDEN,
-          errors: {
-            message: `User is not subscribed to ${type} notifications`,
-          },
-        };
-      } else {
-        return {
-          success: true,
-          message: `User is subscribed to ${type} notifications`,
-          status: httpStatus.OK,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Email or user_id is required" },
         };
       }
+
+      // Use the SubscriptionModel's checkNotificationStatus method
+      const result = await SubscriptionModel(tenant).checkNotificationStatus(
+        {
+          email,
+          type,
+        },
+        next
+      );
+
+      return result;
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
   getOrganizationBySlug: async (request, next) => {
