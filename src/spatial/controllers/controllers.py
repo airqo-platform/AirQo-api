@@ -14,6 +14,7 @@ from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView 
 from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
+from views.PMcamsDataViews import PMcamsDataHandler
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -85,3 +86,10 @@ def fetch_air_quality_with_customised_prompt():
 def polygon_site_selection():
     return SensorOptimizationAPI.optimize_sensors()
      
+@controller_bp.route("/pm25cams_data", methods=["GET"])
+def get_pm25cams_data():
+    return PMcamsDataHandler.get_pm25cams_data()
+
+@controller_bp.route("/pm10cams_data", methods=["GET"])
+def get_pm10cams_data():
+    return PMcamsDataHandler.get_pm10cams_data()
