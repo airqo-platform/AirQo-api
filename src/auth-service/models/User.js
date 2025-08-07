@@ -1221,7 +1221,6 @@ UserSchema.statics.getEnhancedUserDetails = async function (
         website: 1,
         interests: 1,
         interestsDescription: 1,
-        country: 1,
         category: 1,
         jobTitle: 1,
         description: 1,
@@ -1477,7 +1476,6 @@ UserSchema.methods = {
       isActive: this.isActive,
       interests: this.interests,
       interestsDescription: this.interestsDescription,
-      country: this.country,
       loginCount: this.loginCount,
       timezone: this.timezone,
     };
