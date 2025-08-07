@@ -3,6 +3,43 @@ const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const createInterestValidation = () => [
+  body("interests")
+    .optional()
+    .isArray()
+    .withMessage("interests should be an array")
+    .custom((value) => {
+      const validInterests = [
+        "health",
+        "software developer",
+        "community champion",
+        "environmental",
+        "student",
+        "policy maker",
+        "researcher",
+        "air quality partner",
+      ];
+      if (value && Array.isArray(value)) {
+        for (let interest of value) {
+          if (!validInterests.includes(interest)) {
+            throw new Error(`${interest} is not a valid interest option`);
+          }
+        }
+      }
+      return true;
+    }),
+  body("interestsDescription")
+    .optional()
+    .isLength({ max: 1000 })
+    .withMessage("Interests description cannot exceed 1000 characters")
+    .trim(),
+  body("country")
+    .optional()
+    .notEmpty()
+    .withMessage("country should not be empty if provided")
+    .trim(),
+];
+
 const validateTenant = oneOf([
   query("tenant")
     .optional()
@@ -396,67 +433,8 @@ const registerUser = [
       .isIn(["admin", "netmanager", "user", "super"])
       .withMessage("the privilege value is not among the expected ones")
       .trim(),
+    ...createInterestValidation(),
   ],
-  body("interests")
-    .optional()
-    .isArray()
-    .withMessage("interests should be an array")
-    .custom((value) => {
-      const validInterests = [
-        "health",
-        "software developer",
-        "community champion",
-        "environmental",
-        "student",
-        "policy maker",
-        "researcher",
-        "air quality partner",
-      ];
-      if (value && Array.isArray(value)) {
-        for (let interest of value) {
-          if (!validInterests.includes(interest)) {
-            throw new Error(`${interest} is not a valid interest option`);
-          }
-        }
-      }
-      return true;
-    }),
-  body("interestsDescription")
-    .optional()
-    .isLength({ max: 1000 })
-    .withMessage("Interests description cannot exceed 1000 characters")
-    .trim(),
-
-  // Update registerViaOrgSlug validator - add the same validations
-  body("interests")
-    .optional()
-    .isArray()
-    .withMessage("interests should be an array")
-    .custom((value) => {
-      const validInterests = [
-        "health",
-        "software developer",
-        "community champion",
-        "environmental",
-        "student",
-        "policy maker",
-        "researcher",
-        "air quality partner",
-      ];
-      if (value && Array.isArray(value)) {
-        for (let interest of value) {
-          if (!validInterests.includes(interest)) {
-            throw new Error(`${interest} is not a valid interest option`);
-          }
-        }
-      }
-      return true;
-    }),
-  body("interestsDescription")
-    .optional()
-    .isLength({ max: 1000 })
-    .withMessage("Interests description cannot exceed 1000 characters")
-    .trim(),
 ];
 
 const createUser = [
@@ -521,41 +499,8 @@ const createUser = [
       .bail()
       .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@#?!$%^&*,.]{6,}$/)
       .withMessage("Password must contain at least one letter and one number"),
+    ...createInterestValidation(),
   ],
-  body("interests")
-    .optional()
-    .isArray()
-    .withMessage("interests should be an array")
-    .custom((value) => {
-      const validInterests = [
-        "health",
-        "software developer",
-        "community champion",
-        "environmental",
-        "student",
-        "policy maker",
-        "researcher",
-        "air quality partner",
-      ];
-      if (value && Array.isArray(value)) {
-        for (let interest of value) {
-          if (!validInterests.includes(interest)) {
-            throw new Error(`${interest} is not a valid interest option`);
-          }
-        }
-      }
-      return true;
-    }),
-  body("interestsDescription")
-    .optional()
-    .isLength({ max: 1000 })
-    .withMessage("Interests description cannot exceed 1000 characters")
-    .trim(),
-  body("country")
-    .optional()
-    .notEmpty()
-    .withMessage("country should not be empty if provided")
-    .trim(),
 ];
 
 const updatePasswordViaEmail = [
@@ -1072,6 +1017,7 @@ const registerViaOrgSlug = [
     .optional()
     .notEmpty()
     .withMessage("captchaToken should not be empty if provided"),
+  ...createInterestValidation(),
 ];
 
 const userCleanup = [
