@@ -339,7 +339,9 @@ const gracefulShutdown = async () => {
 
     // Close Redis connections if needed
     if (redis && redis.isOpen) {
-      logger.info("Rate limiter Redis cleanup complete");
+      logger.info(
+        "Rate limiter cache cleared, Redis connection managed externally"
+      );
     }
 
     return { success: true };
