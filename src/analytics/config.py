@@ -14,6 +14,7 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 TWO_HOURS = 7200  # seconds
 
 API_V2_BASE_URL = "/api/v2/analytics"
+API_V2_BASE_INTERNAL_URL = "/api/v2/internal/analytics"
 API_V3_BASE_URL = "/api/v3/public/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
@@ -133,6 +134,15 @@ class BaseConfig:
 
     # Fields for data cleaning
     OPTIONAL_FIELDS = {"longitude", "latitude", "temperature", "humidity"}
+
+    FILTER_FIELD_MAPPING = {
+        "devices": "device_id",
+        "device_ids": "device_id",
+        "device_names": "device_id",
+        "sites": "site_id",
+        "site_names": "site_id",
+        "site_ids": "site_id",
+    }
 
     # Schema files mapping
     SCHEMA_FILE_MAPPING = {

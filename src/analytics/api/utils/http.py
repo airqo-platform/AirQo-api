@@ -4,7 +4,6 @@ import urllib3
 from urllib3.util.retry import Retry
 from urllib.parse import urlencode
 import logging
-
 from typing import Dict, Any
 
 
