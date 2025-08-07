@@ -55,7 +55,9 @@ class RawDataSchema(Schema):
         required=True,
         validate=validate.OneOf(["airqo", "iqair", "airnow"], error="Invalid network."),
     )
-    device_names = ma_fields.List(ma_fields.String(), required=True)
+    sites = ma_fields.List(ma_fields.String())
+    device_ids = ma_fields.List(ma_fields.String())
+    device_names = ma_fields.List(ma_fields.String())
     device_category = ma_fields.String(
         required=True,
         validate=validate.OneOf(["bam", "lowcost"], error="Invalid device category."),
@@ -69,6 +71,22 @@ class RawDataSchema(Schema):
             error="Invalid data frequency.",
         ),
     )
+
+    @validates_schema
+    def validate_data_filter(self, data, **kwargs) -> None:
+        """
+        Schema-level validator to enforce mutual exclusivity between site and device filters.
+
+        Ensures that the input data does not include both site-related and device-related filtering fields at the same time, as they are mutually exclusive.
+
+        Args:
+            data(dict): The input data being validated.
+            **kwargs: Additional keyword arguments passed by Marshmallow.
+
+        Raises:
+            ValidationError: If both site and device fields are present in the input.
+        """
+        validate_mutually_exclusive_sites_devices_fields(data)
 
     @validates_schema
     def validate_request_dates(self, data, **kwargs) -> None:
