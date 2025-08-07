@@ -25,6 +25,7 @@ class BigQueryApi:
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
         self.all_time_grouping = {"hourly", "daily", "weekly", "monthly", "yearly"}
         self.extra_time_grouping = {"weekly", "monthly", "yearly"}
+        self.field_mappings = Config.FILTER_FIELD_MAPPING
 
     @property
     def device_info_query(self):
@@ -293,8 +294,7 @@ class BigQueryApi:
         exclude_columns: Optional[List] = None,
     ) -> str:
         """
-        Composes a SQL query for BigQuery based on the query type (GET or DELETE),
-        and optionally includes a dynamic selection and aggregation of numeric columns.
+        Composes a SQL query for BigQuery based on the query type (GET or DELETE), and optionally includes a dynamic selection and aggregation of numeric columns.
 
         Args:
             query_type (QueryType): The type of query (GET or DELETE).
@@ -310,42 +310,69 @@ class BigQueryApi:
             str: The composed SQL query as a string.
 
         Raises:
-            Exception: If an invalid column is provided in `where_fields` or `null_cols`,
-                      or if the `query_type` is not supported.
+            Exception: If an invalid column is provided in `where_fields` or `null_cols`, or if the `query_type` is not supported.
         """
-        exclude_columns: List = []
-        table_name = table
+        exclude_columns = exclude_columns or []
+        where_fields = where_fields or {}
 
-        where_fields = {} if where_fields is None else where_fields
+        valid_columns = self.get_columns(table)
+        resolved_where = self._resolve_where_clause(
+            where_fields, valid_columns, exclude_columns
+        )
 
-        columns = ", ".join(map(str, columns)) if columns else " * "
-        where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
+        columns_clause = ", ".join(columns) if columns else "*"
 
+        where_clauses = [f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}'"]
         if network:
-            where_clause += f"AND network = '{network.value}' "
+            where_clauses.append(f"network = '{network.value}'")
+        if resolved_where:
+            where_clauses.extend(resolved_where)
 
-        valid_cols = self.get_columns(table=table)
-        for key, value in where_fields.items():
+        if query_type == QueryType.GET:
+            query = f"""
+                SELECT {columns_clause}
+                FROM `{table}`
+                WHERE {' AND '.join(where_clauses)}
+            """
+        else:
+            raise ValueError(f"Unsupported query type: {query_type}")
 
-            if key not in valid_cols:
-                raise Exception(
-                    f"Invalid table column. {key} is not among the columns for {table}"
-                )
+        return query.strip()
+
+    def _resolve_where_clause(
+        self,
+        where_fields: Dict[str, Union[str, int, List]],
+        valid_columns: List[str],
+        exclude_columns: List[str],
+    ) -> List[str]:
+        """
+        Convert where_fields into SQL-safe WHERE clause parts.
+
+        Returns:
+            List[str]: WHERE conditions (e.g., ["device_id = '123'"]).
+        """
+        clauses = []
+
+        for raw_key, value in where_fields.items():
+            key = self.field_mappings.get(raw_key, None)
 
             if key in exclude_columns:
                 continue
 
+            if key not in valid_columns:
+                raise ValueError(
+                    f"Invalid table column: '{key}' not in {valid_columns}"
+                )
+
             if isinstance(value, (str, int)):
-                where_clause += f" AND {key} = '{value}' "
-
+                clauses.append(f"{key} = '{value}'")
             elif isinstance(value, list):
-                where_clause += f" AND {key} in UNNEST({value}) "
+                formatted_list = ", ".join(f"'{v}'" for v in value)
+                clauses.append(f"{key} IN ({formatted_list})")
+            else:
+                raise TypeError(f"Unsupported filter type for key: {key}")
 
-        if query_type == QueryType.GET:
-            query = f""" SELECT {columns} FROM `{table_name}` WHERE {where_clause} """
-        else:
-            raise Exception(f"Invalid Query Type {str(query_type)}")
-        return query
+        return clauses
 
     def query_data(
         self,
