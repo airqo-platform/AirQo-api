@@ -442,15 +442,6 @@ async function sendMailWithDeduplication(
     // Send the email
     const result = await transporter.sendMail(mailOptions);
 
-    // ✅ ADD SUCCESS LOGGING for debugging
-    logger.info("Email sent successfully", {
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      messageId: result.messageId,
-      accepted: result.accepted?.length || 0,
-      rejected: result.rejected?.length || 0,
-    });
-
     return {
       success: true,
       message: "Email sent successfully",
