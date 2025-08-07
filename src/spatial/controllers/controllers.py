@@ -1,5 +1,6 @@
 # controller/controller.py
 from flask import Blueprint, request, jsonify
+
 from views.getis_services import SpatialDataHandler
 from views.getis_confidence_services import SpatialDataHandler_confidence
 from views.localmoran_services import SpatialDataHandler_moran
@@ -14,6 +15,10 @@ from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView 
 from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
+from views.report_view import ReportView
+
+from views.pollutant_views import PollutantApis
+from views.pollutant_profile_view import PollutantProfileApis
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -68,7 +73,7 @@ def site_selection():
 @controller_bp.route("/satellite_prediction", methods=["POST"])
 def get_satellite_prediction():
     return SatellitePredictionView.make_predictions()
-
+    
 @controller_bp.route("/air_quality_report", methods=["POST"])
 def fetch_air_quality():
     return ReportView.generate_air_quality_report_with_gemini()
@@ -85,3 +90,54 @@ def fetch_air_quality_with_customised_prompt():
 def polygon_site_selection():
     return SensorOptimizationAPI.optimize_sensors()
      
+
+
+@controller_bp.route('/upload-image', methods=['POST'])
+def upload_image_for_prediction():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    return PollutantApis.upload_image()
+
+@controller_bp.route('/get-data-by-confidence', methods=['GET'])
+def get_data_by_confidence():
+    return PollutantApis.get_data_by_confidence()
+
+@controller_bp.route('/get-all-data', methods=['GET'])
+def get_all_data():
+    return PollutantApis.get_all_data()
+
+@controller_bp.route('/save-all-location', methods=['GET'])
+def save_all_location_data():
+    return PollutantProfileApis.add_location_profile()
+
+
+@controller_bp.route('/get-all-data-location', methods=['GET'])
+def get_all_location_data():
+    return PollutantProfileApis.get_location_profile_data()
+
+
+
+@controller_bp.route('/save-all-environment_data', methods=['GET'])
+def save_all_environment_data():
+    return PollutantProfileApis.add_environment_profile_data()
+
+
+@controller_bp.route('/get-all-environment_data', methods=['GET'])
+def get_all_environmet_data():
+    return PollutantProfileApis.get_environment_profile_data()
+
+@controller_bp.route('/add-building-landcover', methods=['GET'])
+def add_building_landcover():
+    return PollutantProfileApis.add_building_landcover_profile_data()
+
+@controller_bp.route('/add-bulk-building-landcover', methods=['GET'])
+def add_bulk_building_landcover():
+    return PollutantProfileApis.add_bulk_building_landcover_profiles()
+
+@controller_bp.route('/get-building-landcover', methods=['GET'])
+def get_building_landcover():
+    return PollutantProfileApis.get_building_landcover_profile_data()
+
+@controller_bp.route('/get-building-location', methods=['GET'])
+def get_building_location():
+    return PollutantProfileApis.get_building_location_data()

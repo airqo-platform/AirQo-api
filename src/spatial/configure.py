@@ -5,6 +5,8 @@ from pathlib import Path
 import gcsfs
 import joblib
 from dotenv import load_dotenv
+import tensorflow as tf  
+import logging
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -26,6 +28,9 @@ class Config:
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
+    DB_NAME = os.getenv("DB_NAME", "sources_of_pollution")
+
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
@@ -151,3 +156,24 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
         print(f"Error loading model from GCS: {e}")
         job = None
     return job
+    
+import tensorflow as tf
+import logging
+
+def load_tflite_model_from_gcs(project_name, bucket_name, source_blob_name):
+    # Create a GCSFileSystem object
+    fs = gcsfs.GCSFileSystem(project=project_name)
+    
+    # Construct the full path to the model in GCS
+    gcs_model_path = f"gs://{bucket_name}/{source_blob_name}"
+    
+    try:
+        # Open the TFLite model file from GCS
+        with fs.open(gcs_model_path, "rb") as model_file:
+            # Load the TFLite model
+            tflite_model = tf.lite.Interpreter(model_content=model_file.read())
+            tflite_model.allocate_tensors()  # Allocate tensors for the model
+            return tflite_model  # Return the loaded model interpreter
+    except Exception as e:
+        logging.error(f"Error loading TFLite model from GCS: {e}")
+        raise RuntimeError(f"Failed to load model: {e}")
