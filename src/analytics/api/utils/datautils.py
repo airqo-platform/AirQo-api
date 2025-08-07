@@ -54,7 +54,7 @@ class DataUtils:
             ValueError: If the frequency is unsupported or no table is associated with it.
         """
         table: str = None
-        sorting_cols: List[str] = ["site_id", "device_name"]
+        sorting_cols: List[str] = ["device_name"]
         bigquery_api = BigQueryApi()
         datatype_ = datatype
         data_table_freq = frequency
@@ -62,12 +62,6 @@ class DataUtils:
             device_category = DeviceCategory.LOWCOST
 
         datasource = Config.data_sources()
-
-        if dynamic_query:
-            # Temporary fix for raw data downloads. This only works for the /data-download endpoint and allow it to download raw data from the average table.
-            # TODO Come up with permanent solutions.
-            datatype_ = DataType.CALIBRATED
-            frequency = Frequency.HOURLY if frequency == Frequency.RAW else frequency
 
         if data_table_freq.value in {"weekly", "monthly", "yearly"}:
             data_table_freq = Frequency.HOURLY
@@ -109,11 +103,12 @@ class DataUtils:
             raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
                 raw_data, datatype, main_columns
             )
+            raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
+
             raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
                 raw_data, extra_columns
             )
             raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
-            raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
         raw_data["frequency"] = frequency.value
         raw_data = raw_data.replace(np.nan, None)
@@ -205,9 +200,15 @@ class DataUtils:
         optional_fields: Set[str] = Config.OPTIONAL_FIELDS
 
         if not extra_columns:
-            data.drop(columns=optional_fields, errors="ignore", inplace=True)
+            data.drop(
+                columns=optional_fields.union({"site_id", "timestamp"}),
+                errors="ignore",
+                inplace=True,
+            )
         else:
-            columns_to_drop = optional_fields - set(extra_columns)
+            columns_to_drop = optional_fields.union({"site_id", "timestamp"}) - set(
+                extra_columns
+            )
             data.drop(columns=list(columns_to_drop), errors="ignore", inplace=True)
 
         return data
