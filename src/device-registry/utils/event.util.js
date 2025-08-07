@@ -35,10 +35,11 @@ const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
-const util = require("util");
-const redisGetAsync = util.promisify(redis.get).bind(redis);
-const redisSetAsync = util.promisify(redis.set).bind(redis);
-const redisExpireAsync = util.promisify(redis.expire).bind(redis);
+const {
+  redisGetAsync,
+  redisSetAsync,
+  redisExpireAsync,
+} = require("@config/redis");
 const asyncRetry = require("async-retry");
 const CACHE_TIMEOUT_PERIOD = constants.CACHE_TIMEOUT_PERIOD || 10000;
 let lastRedisWarning = 0;
@@ -3219,7 +3220,7 @@ const createEvent = {
   setCache: async (data, request, next) => {
     try {
       // Simple Redis availability check
-      if (!redis || !redis.connected || !redis.ready) {
+      if (!redis || !redis.connected() || !redis.ready()) {
         logRedisWarning("set");
         return {
           success: false,
@@ -3301,7 +3302,7 @@ const createEvent = {
   getCache: async (request, next) => {
     try {
       // Simple Redis availability check
-      if (!redis || !redis.connected || !redis.ready) {
+      if (!redis || !redis.connected() || !redis.ready()) {
         logRedisWarning("get");
         return {
           success: false,
