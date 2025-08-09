@@ -10,6 +10,6 @@ spec:
       service: superset-svc
       port: 8088
   routes:
-    - path: /
+    - path: /superset/
       action:
         pass: superset-upstream
