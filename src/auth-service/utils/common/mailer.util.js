@@ -165,7 +165,7 @@ const createMailerFunction = (
 
       // ✅ STEP 4: Continue with email sending logic
 
-      // ✅ STEP 4a: Process BCC emails with subscription validation (if needed)
+      // ✅ STEP 4a: Process BCC emails with improved subscription validation
       let subscribedBccEmails = "";
 
       const shouldProcessBcc = [
@@ -186,29 +186,67 @@ const createMailerFunction = (
             : constants.REQUEST_ACCESS_EMAILS;
 
         if (bccEmailSource) {
-          const bccEmails = bccEmailSource.split(",");
+          const bccEmails = bccEmailSource
+            .split(",")
+            .map((email) => email.trim())
+            .filter(Boolean);
           const subscribedEmails = [];
 
           const bccCheckPromises = bccEmails.map(async (bccEmail) => {
-            const trimmedEmail = bccEmail.trim();
             try {
               const bccCheckResult = await SubscriptionModel(
                 tenant
               ).checkNotificationStatus({
-                email: trimmedEmail,
+                email: bccEmail,
                 type: "email",
               });
 
-              return bccCheckResult.success ? trimmedEmail : null;
+              // ✅ IMPROVED LOGIC: Handle different scenarios properly
+              if (bccCheckResult.success) {
+                // User is subscribed
+                return bccEmail;
+              } else if (bccCheckResult.status === httpStatus.NOT_FOUND) {
+                // No subscription record - CREATE DEFAULT and INCLUDE
+                logger.info(
+                  `Creating default subscription for BCC recipient: ${bccEmail}`
+                );
+                try {
+                  await SubscriptionModel(tenant).createDefaultSubscription(
+                    bccEmail,
+                    true
+                  ); // isSystemUser = true
+                  return bccEmail; // Include after creating subscription
+                } catch (createError) {
+                  logger.warn(
+                    `Failed to create subscription for BCC ${bccEmail}: ${createError.message}`
+                  );
+                  // ✅ STILL INCLUDE - BCC emails are typically system notifications
+                  return bccEmail;
+                }
+              } else if (bccCheckResult.status === httpStatus.FORBIDDEN) {
+                // User explicitly unsubscribed - RESPECT THEIR CHOICE
+                logger.info(
+                  `BCC recipient ${bccEmail} has unsubscribed - excluding from BCC`
+                );
+                return null;
+              } else {
+                // Other errors - INCLUDE BY DEFAULT (fail open for BCC)
+                logger.warn(
+                  `BCC subscription check uncertain for ${bccEmail}, including anyway`
+                );
+                return bccEmail;
+              }
             } catch (error) {
               logger.error(
-                `BCC subscription check failed for ${trimmedEmail}: ${error.message}`,
+                `BCC subscription check failed for ${bccEmail}: ${error.message}`,
                 {
                   primary_email: email,
                   operation: functionName,
+                  bccEmail: bccEmail,
                 }
               );
-              return null;
+              // ✅ FAIL OPEN: Include in BCC on errors (system notifications are important)
+              return bccEmail;
             }
           });
 
@@ -217,6 +255,13 @@ const createMailerFunction = (
             ...bccResults.filter((email) => email !== null)
           );
           subscribedBccEmails = subscribedEmails.join(",");
+
+          logger.info(`BCC processing for ${functionName}:`, {
+            totalBccEmails: bccEmails.length,
+            subscribedBccEmails: subscribedEmails.length,
+            excludedEmails: bccEmails.length - subscribedEmails.length,
+            finalBccList: subscribedBccEmails,
+          });
         }
       }
 
