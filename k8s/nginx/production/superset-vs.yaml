@@ -13,17 +13,3 @@ spec:
     - path: /
       action:
         pass: superset-upstream
-      policies:
-        - name: superset-headers
----
-apiVersion: k8s.nginx.org/v1
-kind: Policy
-metadata:
-  name: superset-headers
-  namespace: superset
-spec:
-  headers:
-    set:
-      X-Forwarded-Proto: "https"
-      X-Forwarded-Prefix: "/"
-      Host: "$host"
