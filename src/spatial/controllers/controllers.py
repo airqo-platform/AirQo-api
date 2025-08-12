@@ -14,6 +14,8 @@ from views.site_category_view import SiteCategorizationView
 from views.site_selection_views import SiteSelectionView
 from views.report_view import ReportView 
 from views.PolygonSensorOptimizerViews import SensorOptimizationAPI
+from views.heatmapViews import AQIImageGenerator
+
 
 
 controller_bp = Blueprint("controller", __name__)
@@ -85,3 +87,10 @@ def fetch_air_quality_with_customised_prompt():
 def polygon_site_selection():
     return SensorOptimizationAPI.optimize_sensors()
      
+@controller_bp.route("/heatmaps", methods=["GET"])
+def get_heatmaps():
+    return AQIImageGenerator.generate_aqi_image()
+
+@controller_bp.route("/heatmaps/<id>", methods=["GET"])
+def get_heatmap_by_id(id):
+    return AQIImageGenerator.generate_aqi_image_for_city(id)
