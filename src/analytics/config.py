@@ -53,10 +53,14 @@ class BaseConfig:
 
     # Data tables
     BIGQUERY_RAW_DATA = env_var("BIGQUERY_RAW_DATA")
+    BIGQUERY_MOBILE_RAW_DATA = env_var("BIGQUERY_AIRQO_MOBILE_EVENTS_RAW_TABLE")
+    BIGQUERY_MOBILE_HOURLY_TABLE = env_var(
+        "BIGQUERY_AIRQO_MOBILE_EVENTS_AVERAGED_TABLE"
+    )
     BIGQUERY_HOURLY_DATA = env_var("BIGQUERY_HOURLY_DATA")
     BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
     BIGQUERY_RAW_BAM_DATA_TABLE = env_var("BIGQUERY_RAW_BAM_DATA_TABLE")
-    BIGQUERY_BAM_DATA = env_var("BIGQUERY_BAM_DATA")
+    BIGQUERY_BAM_HOURLY_DATA = env_var("BIGQUERY_BAM_HOURLY_DATA")
     BIGQUERY_HOURLY_CONSOLIDATED = env_var("BIGQUERY_HOURLY_CONSOLIDATED")
 
     # Meta-Data
@@ -78,8 +82,16 @@ class BaseConfig:
                 DeviceCategory.LOWCOST: {
                     Frequency.RAW: cls.BIGQUERY_RAW_DATA,
                     Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,  # For the use case of hourly raw data
+                    Frequency.DAILY: cls.BIGQUERY_DAILY_DATA,
                 },
-                DeviceCategory.BAM: {Frequency.RAW: cls.BIGQUERY_RAW_BAM_DATA_TABLE},
+                DeviceCategory.BAM: {
+                    Frequency.RAW: cls.BIGQUERY_RAW_BAM_DATA_TABLE,
+                    Frequency.HOURLY: cls.BIGQUERY_BAM_HOURLY_DATA,
+                    Frequency.DAILY: cls.BIGQUERY_BAM_HOURLY_DATA,
+                },
+                DeviceCategory.MOBILE: {
+                    Frequency.RAW: cls.BIGQUERY_MOBILE_RAW_DATA,
+                },
             },
             # Added as a repetition - Accomodates the frontend request parameters as is. Can be cleanup better.
             DataType.CALIBRATED: {
@@ -93,7 +105,10 @@ class BaseConfig:
                     Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,
                     Frequency.DAILY: cls.BIGQUERY_DAILY_DATA,
                 },
-                DeviceCategory.BAM: {Frequency.HOURLY: cls.BIGQUERY_BAM_DATA},
+                DeviceCategory.BAM: {
+                    Frequency.HOURLY: cls.BIGQUERY_BAM_HOURLY_DATA,
+                    Frequency.DAILY: cls.BIGQUERY_BAM_HOURLY_DATA,
+                },
             },
             DataType.CONSOLIDATED: {
                 DeviceCategory.GENERAL: {
@@ -133,7 +148,11 @@ class BaseConfig:
         return logger
 
     # Fields for data cleaning
-    OPTIONAL_FIELDS = {"longitude", "latitude", "temperature", "humidity"}
+    OPTIONAL_FIELDS = {
+        DeviceCategory.LOWCOST: {"longitude", "latitude", "temperature", "humidity"},
+        DeviceCategory.BAM: {"longitude", "latitude", "temperature", "humidity"},
+        DeviceCategory.MOBILE: {"longitude", "latitude", "temperature", "humidity"},
+    }
 
     FILTER_FIELD_MAPPING = {
         "devices": "device_id",
@@ -150,8 +169,10 @@ class BaseConfig:
         BIGQUERY_DAILY_DATA: "measurements.json",
         BIGQUERY_RAW_DATA: "raw_measurements.json",
         BIGQUERY_HOURLY_CONSOLIDATED: "data_warehouse.json",
-        BIGQUERY_BAM_DATA: "bam_measurements.json",
+        BIGQUERY_BAM_HOURLY_DATA: "bam_measurements.json",
         BIGQUERY_RAW_BAM_DATA_TABLE: "bam_raw_measurements.json",
+        BIGQUERY_MOBILE_RAW_DATA: "airqo_mobile_measurements.json",
+        BIGQUERY_MOBILE_HOURLY_TABLE: "airqo_mobile_measurements.json",
         "all": None,
     }
 
