@@ -86,7 +86,7 @@ def validate_mobile_device_filters(data: Dict[str, Any], **kwargs) -> None:
         ValidationError: If `device_category` is "mobile" and `frequency` is not "raw".
     """
     device_category = data.get("device_category")
-    if device_category == "mobile":
+    if device_category in {"mobile", "bam"}:
         frequency = data.get("frequency")
         if frequency != "raw":
             raise ValidationError(
