@@ -1,19 +1,13 @@
-import flask_excel as excel
 from flasgger import swag_from
 from flask import request
 from flask_restx import Resource
-from typing import Dict, Tuple, List, Dict, Any, Union
-import pandas as pd
 
-from constants import Frequency, DataType, DeviceCategory, DeviceNetwork
-from api.utils.datautils import DataUtils
 from api.utils.utils import limiter, ratelimit_response
 from api.models.datadownload.datadownload import data_download_model, raw_data_model
 from schemas.datadownload import DataDownloadSchema, RawDataSchema
 from marshmallow import ValidationError
 from api.utils.data_formatters import (
     get_validated_filter,
-    format_to_aqcsv,
 )
 from api.views.common.responses import ResponseBuilder
 from api.views.common.data_ops import DownloadService
@@ -91,7 +85,7 @@ class DataExportResource(Resource):
 @rest_api_v3.route("/raw-data")
 class RawDataExportResource(Resource):
     @rest_api_v3.expect(raw_data_model)
-    @limiter.limit("10 per minute", error_message=ratelimit_response)
+    @limiter.limit("5 per minute", error_message=ratelimit_response)
     def post(self):
         try:
             json_data = RawDataSchema().load(request.json)
