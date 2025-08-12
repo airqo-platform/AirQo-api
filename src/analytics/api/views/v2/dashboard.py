@@ -1,7 +1,5 @@
 # Third-party libraries
-
 import math
-from typing import List
 
 from flasgger import swag_from
 from flask import request
@@ -16,7 +14,6 @@ from constants import (
     Frequency,
     DataType,
     DeviceCategory,
-    DeviceNetwork,
 )
 from api.utils.datautils import DataUtils
 from api.utils.data_formatters import (
@@ -28,7 +25,6 @@ from api.utils.data_formatters import (
 from api.utils.http import AirQoRequests
 from api.utils.pollutants import (
     generate_pie_chart_data,
-    d3_generate_pie_chart_data,
     PM_COLOR_CATEGORY,
     set_pm25_category_background,
 )
