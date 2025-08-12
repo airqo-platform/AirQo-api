@@ -9,7 +9,7 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
     redisContainer: eu.gcr.io/airqo-250220/airqo-stage-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-stage-analytics-devices-summary-job
-  tag: stage-115816ce-1754727082
+  tag: stage-73c3ea64-1755029133
 api:
   name: airqo-stage-analytics-api
   label: sta-alytics-api
