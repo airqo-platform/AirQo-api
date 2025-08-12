@@ -217,6 +217,7 @@ class DataUtils:
             device_category = DeviceCategory.LOWCOST
 
         devices, keys = DataUtils.get_devices(device_category, device_network)
+
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
         if is_mobile_category:
             devices = devices[devices["mobility"] == True]
@@ -253,9 +254,9 @@ class DataUtils:
                 result = future.result()
                 if result is not None:
                     data_store.append(result)
-
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
+            # Data could be dropped due to bad datetime entries
             devices_data = devices_data[
                 devices_data["timestamp"].between(start_date_time, end_date_time)
             ]
@@ -289,7 +290,6 @@ class DataUtils:
         data, meta_data = DataUtils._extract_device_api_data(
             device, dates, config, keys, resolution
         )
-
         if isinstance(data, pd.DataFrame) and not data.empty:
             data = DataUtils._process_and_append_device_data(
                 device, data, meta_data, config
