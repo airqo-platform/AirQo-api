@@ -9,7 +9,6 @@ import pandas as pd
 from .responses import ResponseBuilder
 from api.utils.datautils import DataUtils
 from api.utils.data_formatters import (
-    get_validated_filter,
     format_to_aqcsv,
 )
 
@@ -53,17 +52,17 @@ class DownloadService:
         try:
             data_type = DataType[data_type_str.upper()]
         except KeyError:
-            raise ValueError(f"Invalid data type: {data_type_str}")
+            raise ValueError(f"Invalid data type: {data_type_str!r}")
 
         try:
             frequency = Frequency[freq_str.upper()]
         except KeyError:
-            raise ValueError(f"Invalid frequency: {freq_str}")
+            raise ValueError(f"Invalid frequency: {freq_str!r}")
 
         try:
             device_category = DeviceCategory[device_category_str.upper()]
         except KeyError:
-            device_category = DeviceCategory.LOWCOST  # default fallback
+            raise ValueError(f"Invalid device category: {device_category_str!r}")
 
         pollutants = json_data.get("pollutants", [])
         metadata_fields = json_data.get("metaDataFields", [])
