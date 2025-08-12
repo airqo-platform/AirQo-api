@@ -340,6 +340,54 @@ const organizationRequest = {
         };
       }
 
+      // ENSURE ORGANIZATION SLUG EXISTS - Generate if missing
+      let organizationSlug = orgRequest.organization_slug;
+      let slugWasGenerated = false;
+
+      if (!organizationSlug || organizationSlug.trim() === "") {
+        // Generate slug from organization name
+        if (!orgRequest.organization_name) {
+          return {
+            success: false,
+            message:
+              "Cannot approve request: Organization name is required for slug generation",
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        try {
+          // Import group util for slug generation
+          const groupUtil = require("@utils/group.util");
+          const baseSlug = groupUtil.generateSlugFromTitle(
+            orgRequest.organization_name
+          );
+          organizationSlug = await groupUtil.generateUniqueSlug(
+            tenant,
+            baseSlug
+          );
+          slugWasGenerated = true;
+
+          // Update the organization request with the generated slug
+          await OrganizationRequestModel(tenant).findByIdAndUpdate(request_id, {
+            organization_slug: organizationSlug,
+          });
+
+          logger.info(
+            `Generated organization slug: ${organizationSlug} for request ${request_id}`
+          );
+        } catch (slugError) {
+          logger.error(
+            `Error generating organization slug: ${slugError.message}`
+          );
+          return {
+            success: false,
+            message: "Failed to generate organization slug",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { slug_generation: slugError.message },
+          };
+        }
+      }
+
       // ✅ CHECK IF USER ALREADY EXISTS
       const existingUser = await UserModel(tenant)
         .findOne({
@@ -365,7 +413,7 @@ const organizationRequest = {
             {
               email: orgRequest.contact_email,
               organization_name: orgRequest.organization_name,
-              organization_slug: orgRequest.organization_slug,
+              organization_slug: organizationSlug, // Use the ensured slug
               contact_name: orgRequest.contact_name,
               request_id: orgRequest._id,
               tenant: tenant,
@@ -392,7 +440,7 @@ const organizationRequest = {
             {
               email: orgRequest.contact_email,
               organization_name: orgRequest.organization_name,
-              organization_slug: orgRequest.organization_slug,
+              organization_slug: organizationSlug, // Use the ensured slug
               contact_name: orgRequest.contact_name,
               request_id: orgRequest._id,
               tenant: tenant,
@@ -454,11 +502,11 @@ const organizationRequest = {
           orgRequest.branding_settings?.logo_url
         );
 
-        // Create the group with validated profile picture
+        // Create the group with validated profile picture and ensured slug
         const baseGroupBody = {
           grp_title: orgRequest.organization_name,
           grp_description: orgRequest.use_case,
-          organization_slug: orgRequest.organization_slug,
+          organization_slug: organizationSlug, // Use the ensured slug
         };
 
         // Only add profile picture if it's valid
@@ -469,7 +517,7 @@ const organizationRequest = {
         // ✅ SIMPLIFIED GROUP CREATION WITH DIRECT ERROR HANDLING
         // Check if group already exists by slug
         const existingGroupBySlug = await GroupModel(tenant)
-          .findOne({ organization_slug: orgRequest.organization_slug })
+          .findOne({ organization_slug: organizationSlug })
           .lean();
 
         let groupResponse;
@@ -534,7 +582,7 @@ const organizationRequest = {
 
             try {
               logger.info(
-                `🔧 Attempt ${createAttempts}: Creating group with title: "${currentGroupTitle}"`
+                `🔧 Attempt ${createAttempts}: Creating group with title: "${currentGroupTitle}" and slug: "${organizationSlug}"`
               );
 
               const createGroupRequest = {
@@ -551,7 +599,7 @@ const organizationRequest = {
               if (groupResponse && groupResponse.success) {
                 groupCreated = true;
                 logger.info(
-                  `✅ Successfully created group with title: "${currentGroupTitle}"`
+                  `✅ Successfully created group with title: "${currentGroupTitle}" and slug: "${organizationSlug}"`
                 );
 
                 // Add metadata if title was modified
@@ -614,6 +662,7 @@ const organizationRequest = {
             approved_by: user._id,
             approved_at: new Date(),
             onboarding_token: onboardingToken, // Store token if using onboarding flow
+            organization_slug: organizationSlug, // Ensure slug is stored
           };
 
           const responseFromUpdate = await OrganizationRequestModel(
@@ -629,7 +678,7 @@ const organizationRequest = {
                 contact_name: orgRequest.contact_name,
                 email: orgRequest.contact_email,
                 onboarding_url: `${constants.ANALYTICS_BASE_URL}/onboarding/setup-account?token=${onboardingToken}`,
-                organization_slug: orgRequest.organization_slug,
+                organization_slug: organizationSlug, // Use ensured slug
                 isExistingUser,
               });
             } else {
@@ -638,7 +687,7 @@ const organizationRequest = {
                 organization_name: orgRequest.organization_name,
                 contact_name: orgRequest.contact_name,
                 email: orgRequest.contact_email,
-                login_url: `${constants.ANALYTICS_BASE_URL}/login/${orgRequest.organization_slug}`,
+                login_url: `${constants.ANALYTICS_BASE_URL}/login/${organizationSlug}`, // Use ensured slug
                 isExistingUser,
               });
             }
@@ -656,6 +705,10 @@ const organizationRequest = {
                 groupResponse.titleModified
                   ? ` (group title modified from '${groupResponse.originalTitle}' to '${groupResponse.finalTitle}')`
                   : ""
+              }${
+                slugWasGenerated
+                  ? ` (organization slug auto-generated: '${organizationSlug}')`
+                  : ""
               }`,
               data: {
                 request: responseFromUpdate.data,
@@ -667,6 +720,8 @@ const organizationRequest = {
                   !validatedProfilePicture &&
                   orgRequest.branding_settings?.logo_url,
                 groupTitleModified: groupResponse.titleModified || false,
+                organizationSlugGenerated: slugWasGenerated,
+                organizationSlug: organizationSlug,
                 ...(groupResponse.titleModified && {
                   originalGroupTitle: groupResponse.originalTitle,
                   finalGroupTitle: groupResponse.finalTitle,
@@ -743,6 +798,19 @@ const organizationRequest = {
             status: httpStatus.CONFLICT,
             errors: {
               group_title: "Group name already exists",
+              suggestion: "Please try approving the request again",
+            },
+          };
+        } else if (error.keyPattern && error.keyPattern.organization_slug) {
+          logger.warn(
+            `Duplicate organization slug error: ${error.keyValue.organization_slug}`
+          );
+          return {
+            success: false,
+            message: "Organization slug conflict occurred. Please try again.",
+            status: httpStatus.CONFLICT,
+            errors: {
+              organization_slug: "Slug already exists",
               suggestion: "Please try approving the request again",
             },
           };
