@@ -21,7 +21,7 @@ def ratelimit_response():
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=BaseConfig.CACHE_REDIS_URL,
-    default_limits=["3 per minute"],
+    default_limits=["100 per minute"],
 )
 
 

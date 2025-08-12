@@ -169,7 +169,7 @@ class AirQoRequests:
             return self.create_response(f"HTTPError: {ex}", success=False)
 
     @staticmethod
-    def create_response(message, data=None, success=True):
+    def create_response(message, data=None, success=True) -> Dict[str, Any]:
         """
         Generate a standardized response dictionary.
 
