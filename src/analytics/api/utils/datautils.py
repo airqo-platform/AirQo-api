@@ -58,13 +58,11 @@ class DataUtils:
         bigquery_api = BigQueryApi()
         datatype_ = datatype
         data_table_freq = frequency
-        if not device_category:
-            device_category = DeviceCategory.LOWCOST
 
         datasource = Config.data_sources()
 
         if data_table_freq.value in {"weekly", "monthly", "yearly"}:
-            data_table_freq = Frequency.HOURLY
+            data_table_freq = Frequency.DAILY
 
         table = datasource.get(datatype_).get(device_category).get(data_table_freq)
 
@@ -78,6 +76,7 @@ class DataUtils:
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
+            device_category=device_category,
             network=device_network,
             frequency=frequency,
             data_type=datatype,
@@ -106,7 +105,7 @@ class DataUtils:
             raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
             raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
-                raw_data, extra_columns
+                raw_data, extra_columns, device_category
             )
             raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
 
@@ -143,14 +142,15 @@ class DataUtils:
         """
         required_columns = set(data.select_dtypes(include="number").columns)
 
+        # TODO: Clean or delete this functionality
         if datatype == DataType.RAW:
             networks = data["network"].unique().tolist()
             if "airqo" not in networks or len(networks) > 1:
                 required_columns.add("pm2_5")
-            raw_value_columns = [f"{pollutant}_raw_value" for pollutant in pollutants]
-            required_columns.update(raw_value_columns)
-        else:
-            raw_value_columns = []
+            # raw_value_columns = [f"{pollutant}_raw_value" for pollutant in pollutants]
+            # required_columns.update(raw_value_columns)
+        # else:
+        #     raw_value_columns = []
 
         missing = [col for col in required_columns if col not in data.columns]
         if missing:
@@ -161,16 +161,16 @@ class DataUtils:
             pd.to_numeric, errors="coerce"
         )
 
-        if raw_value_columns:
-            # For mixed device data
-            condition = data[raw_value_columns].gt(0).all(axis=1)
-            data.loc[condition, "pm2_5"] = np.nan
+        # if raw_value_columns:
+        #     # For mixed device data
+        #     condition = data[raw_value_columns].gt(0).all(axis=1)
+        #     data.loc[condition, "pm2_5"] = np.nan
 
-            drop_mask = data[raw_value_columns].isna() | (data[raw_value_columns] == 0)
-            drop_mask = drop_mask.all()
-            columns_to_drop = drop_mask[drop_mask].index.tolist()
-            if columns_to_drop:
-                data.drop(columns=columns_to_drop, inplace=True)
+        #     drop_mask = data[raw_value_columns].isna() | (data[raw_value_columns] == 0)
+        #     drop_mask = drop_mask.all()
+        #     columns_to_drop = drop_mask[drop_mask].index.tolist()
+        #     if columns_to_drop:
+        #         data.drop(columns=columns_to_drop, inplace=True)
 
         zero_only_columns = data.columns[(data == 0).all()]
         data.drop(columns=zero_only_columns, inplace=True)
@@ -179,7 +179,7 @@ class DataUtils:
 
     @classmethod
     def drop_unnecessary_columns_data_cleaning(
-        cls, data: pd.DataFrame, extra_columns: List[str]
+        cls, data: pd.DataFrame, extra_columns: List[str], device_category
     ) -> pd.DataFrame:
         """
         Drops unnecessary columns from the given DataFrame during data cleaning.
@@ -197,7 +197,7 @@ class DataUtils:
 
         Note: This method fails silently.
         """
-        optional_fields: Set[str] = Config.OPTIONAL_FIELDS
+        optional_fields: Set[str] = Config.OPTIONAL_FIELDS.get(device_category)
 
         if not extra_columns:
             data.drop(
