@@ -1,3 +1,5 @@
+from typing import Dict, Any
+from datetime import datetime, timezone
 from marshmallow import (
     Schema,
     fields as ma_fields,
@@ -5,7 +7,6 @@ from marshmallow import (
     ValidationError,
     validates_schema,
 )
-from typing import Dict, Any
 
 
 def validate_mutually_exclusive_sites_devices_fields(data: Dict[str, Any]) -> None:
@@ -35,18 +36,38 @@ def validate_mutually_exclusive_sites_devices_fields(data: Dict[str, Any]) -> No
 
 def validate_dates(data: Dict[str, Any]) -> None:
     """
-    Validates that the 'endDateTime' is not earlier than 'startDateTime'.
+    Validates that the 'endDateTime' is not earlier than 'startDateTime', and that 'startDateTime' is not set in the future.
 
     Args:
-        data (dict): A dictionary containing 'startDateTime' and 'endDateTime' keys,
-                     both of which should be datetime objects or comparable types.
+        data(Mapping[str, Any]): A dictionary-like object containing 'startDateTime' and 'endDateTime' keys, both expected to be datetime objects or types supporting comparison.
 
     Raises:
-        ValidationError: If 'endDateTime' is earlier than 'startDateTime'.
+        ValidationError: If:
+            - 'endDateTime' is earlier than 'startDateTime', or
+            - 'startDateTime' is in the future relative to today's date.
     """
-    if data["endDateTime"] < data["startDateTime"]:
+    start = data["startDateTime"]
+    end = data["endDateTime"]
+
+    if start.tzinfo is None or start.tzinfo.utcoffset(start) is None:
         raise ValidationError(
-            "endDateTime must not be earlier than startDateTime.", "endDateTime"
+            "startDateTime must be timezone-aware.", field_name="startDateTime"
+        )
+    if end.tzinfo is None or end.tzinfo.utcoffset(end) is None:
+        raise ValidationError(
+            "endDateTime must be timezone-aware.", field_name="endDateTime"
+        )
+
+    if start > end:
+        raise ValidationError(
+            "startDateTime must not be greater than endDateTime.",
+            field_name="startDateTime",
+        )
+
+    if start > datetime.now(timezone.utc):
+        raise ValidationError(
+            "startDateTime must not be greater than now.",
+            field_name="startDateTime",
         )
 
 
