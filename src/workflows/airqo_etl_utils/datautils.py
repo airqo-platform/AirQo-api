@@ -257,9 +257,9 @@ class DataUtils:
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
             # Data could be dropped due to bad datetime entries
-            devices_data = devices_data[
-                devices_data["timestamp"].between(start_date_time, end_date_time)
-            ]
+            # devices_data = devices_data[
+            #     devices_data["timestamp"].between(start_date_time, end_date_time)
+            # ]
         return devices_data
 
     def __per_device_data(
