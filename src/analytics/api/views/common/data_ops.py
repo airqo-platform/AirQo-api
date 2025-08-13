@@ -45,9 +45,9 @@ class DownloadService:
         """
         start = json_data["startDateTime"]
         end = json_data["endDateTime"]
-        data_type_str = json_data.get("datatype", "raw")
-        freq_str = json_data.get("frequency", "HOURLY")
-        device_category_str = json_data.get("device_category", "LOWCOST")
+        data_type_str = json_data.get("datatype", "calibrated")
+        freq_str = json_data.get("frequency", "daily")
+        device_category_str = json_data.get("device_category", "lowcost")
         query_type = json_data.get("dynamic", False)
         try:
             data_type = DataType[data_type_str.upper()]
