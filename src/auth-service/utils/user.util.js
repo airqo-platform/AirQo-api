@@ -1653,18 +1653,6 @@ const createUserModule = {
           .lean();
 
         if (!isEmpty(existingUser)) {
-          logger.info(
-            `Mobile registration attempt for existing user: ${normalizedEmail}`,
-            {
-              email: normalizedEmail,
-              tenant,
-              existingUserId: existingUser._id,
-              verified: existingUser.verified,
-              analyticsVersion: existingUser.analyticsVersion,
-              createdAt: existingUser.createdAt,
-            }
-          );
-
           // ✅ Provide specific guidance for mobile users
           if (existingUser.verified) {
             // For verified users, direct them to login
@@ -1684,9 +1672,6 @@ const createUserModule = {
             };
           } else {
             // For unverified users, offer to resend verification
-            logger.info(
-              `Resending mobile verification for unverified user: ${normalizedEmail}`
-            );
 
             try {
               await createUserModule.mobileVerificationReminder(
@@ -1749,17 +1734,6 @@ const createUserModule = {
           userAgent: request.headers?.["user-agent"]?.substring(0, 200),
         };
 
-        logger.info(
-          `Starting mobile user registration for: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            firstName,
-            lastName: lastName || "Not provided",
-            registrationSource: "mobile_app",
-          }
-        );
-
         // ✅ STEP 5: Create user with enhanced error handling
         const newUserResponse = await UserModel(tenant).register(
           userData,
@@ -1782,13 +1756,6 @@ const createUserModule = {
             name: newUser._doc.firstName,
             expires: new Date(Date.now() + tokenExpiry * 1000),
           };
-
-          logger.info("Creating mobile verification token", {
-            email: normalizedEmail,
-            userId,
-            tenant,
-            tokenLength: verificationToken.length,
-          });
 
           const verifyTokenResponse = await VerifyTokenModel(
             tenant.toLowerCase()
@@ -1829,14 +1796,6 @@ const createUserModule = {
             });
 
             if (emailResult && emailResult.success === true) {
-              logger.info("Mobile verification email sent successfully", {
-                email: normalizedEmail,
-                userId,
-                tenant,
-                messageId: emailResult.data?.messageId,
-                tokenSent: verificationToken.length > 0,
-              });
-
               return {
                 success: true,
                 message:
@@ -2028,16 +1987,6 @@ const createUserModule = {
 
       // ✅ STEP 3: Check if user is already verified
       if (user.verified) {
-        logger.info(
-          `Verification reminder requested for already verified user: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            userId: user._id,
-            verifiedStatus: true,
-          }
-        );
-
         return {
           success: false,
           message: "Account is already verified",
@@ -2067,13 +2016,6 @@ const createUserModule = {
         name: user.firstName,
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
-
-      logger.info("Creating verification reminder token", {
-        email: normalizedEmail,
-        userId: user_id,
-        tenant,
-        tokenGenerated: true,
-      });
 
       // ✅ STEP 5: Create verification token with cleanup of old tokens
       try {
@@ -2125,14 +2067,6 @@ const createUserModule = {
 
           if (responseFromSendEmail) {
             if (responseFromSendEmail.success === true) {
-              logger.info("Verification reminder email sent successfully", {
-                email: normalizedEmail,
-                userId: user_id,
-                tenant,
-                messageId: responseFromSendEmail.data?.messageId,
-                isReminder: true,
-              });
-
               const userDetails = {
                 firstName: user.firstName,
                 lastName: user.lastName,
@@ -2303,15 +2237,6 @@ const createUserModule = {
 
       // ✅ STEP 3: Check verification status
       if (user.verified) {
-        logger.info(
-          `Mobile verification reminder for already verified user: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            userId: user._id,
-          }
-        );
-
         return {
           success: false,
           message: "Account already verified",
@@ -2334,13 +2259,6 @@ const createUserModule = {
         name: user.firstName,
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       };
-
-      logger.info("Creating mobile verification reminder token", {
-        email: normalizedEmail,
-        userId: user._id,
-        tenant,
-        tokenType: "mobile_numeric",
-      });
 
       // ✅ STEP 5: Create token with cleanup
       try {
@@ -2377,14 +2295,6 @@ const createUserModule = {
           );
 
           if (emailResponse && emailResponse.success === true) {
-            logger.info("Mobile verification reminder sent successfully", {
-              email: normalizedEmail,
-              userId: user._id,
-              tenant,
-              messageId: emailResponse.data?.messageId,
-              isMobileReminder: true,
-            });
-
             const userDetails = {
               firstName: user.firstName,
               lastName: user.lastName,
@@ -2604,16 +2514,6 @@ const createUserModule = {
 
       // ✅ STEP 5: Check if already verified
       if (user.verified) {
-        logger.info(
-          `Mobile verification attempted for already verified user: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            userId: user._id,
-            alreadyVerified: true,
-          }
-        );
-
         // Clear rate limiting on successful verification check
         registrationLocks.delete(verifyKey);
 
@@ -2634,12 +2534,6 @@ const createUserModule = {
       }
 
       // ✅ STEP 6: Validate verification token
-      logger.info("Attempting mobile email verification", {
-        email: normalizedEmail,
-        userId: user._id,
-        tenant,
-        tokenProvided: true,
-      });
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -2710,16 +2604,6 @@ const createUserModule = {
 
                 // Clear rate limiting on successful verification
                 registrationLocks.delete(verifyKey);
-
-                logger.info(
-                  "Mobile email verification completed successfully",
-                  {
-                    email: normalizedEmail,
-                    userId: user._id,
-                    tenant,
-                    welcomeEmailSent: responseFromSendEmail?.success === true,
-                  }
-                );
 
                 if (
                   responseFromSendEmail &&
@@ -2917,16 +2801,6 @@ const createUserModule = {
 
       // ✅ STEP 3: Check if already verified
       if (user.verified) {
-        logger.info(
-          `Web verification attempted for already verified user: ${user.email}`,
-          {
-            email: user.email,
-            userId: user_id,
-            tenant,
-            alreadyVerified: true,
-          }
-        );
-
         return {
           success: true,
           message: "Account already verified",
@@ -2952,13 +2826,6 @@ const createUserModule = {
           $gt: moment().tz(timeZone).toDate(),
         },
       };
-
-      logger.info("Attempting web email verification", {
-        email: user.email,
-        userId: user_id,
-        tenant,
-        tokenProvided: true,
-      });
 
       const responseFromListAccessToken = await VerifyTokenModel(tenant).list(
         {
@@ -3027,13 +2894,6 @@ const createUserModule = {
                     },
                     next
                   );
-
-                logger.info("Web email verification completed successfully", {
-                  email: user.email,
-                  userId: user_id,
-                  tenant,
-                  welcomeEmailSent: responseFromSendEmail?.success === true,
-                });
 
                 if (
                   responseFromSendEmail &&
@@ -3221,14 +3081,6 @@ const createUserModule = {
           .lean();
 
         if (!isEmpty(existingUser)) {
-          logger.info(`Registration attempt for existing user: ${email}`, {
-            email,
-            tenant,
-            existingUserId: existingUser._id,
-            verified: existingUser.verified,
-            createdAt: existingUser.createdAt,
-          });
-
           // ✅ ENHANCED RESPONSE: Provide helpful information based on verification status
           if (existingUser.verified) {
             // User exists and is verified - send them to login
@@ -3254,7 +3106,6 @@ const createUserModule = {
             };
           } else {
             // User exists but not verified - offer to resend verification
-            logger.info(`Resending verification for unverified user: ${email}`);
 
             // Trigger verification email resend
             try {
@@ -3515,19 +3366,6 @@ const createUserModule = {
           .lean();
 
         if (!isEmpty(existingUser)) {
-          logger.info(
-            `Admin registration attempt for existing user: ${normalizedEmail}`,
-            {
-              email: normalizedEmail,
-              tenant,
-              existingUserId: existingUser._id,
-              verified: existingUser.verified,
-              isActive: existingUser.isActive,
-              createdAt: existingUser.createdAt,
-              requestedBy: request.user?.email || "unknown",
-            }
-          );
-
           // ✅ Enhanced response with actionable information
           if (existingUser.verified && existingUser.isActive) {
             return {
@@ -3609,17 +3447,6 @@ const createUserModule = {
           adminCreatorEmail: request.user?.email || "unknown",
         };
 
-        logger.info(
-          `Starting admin user registration for: ${normalizedEmail}`,
-          {
-            email: normalizedEmail,
-            tenant,
-            organization,
-            privilege,
-            requestedBy: request.user?.email || "unknown",
-          }
-        );
-
         // ✅ STEP 5: Create user with enhanced error handling
         const responseFromCreateUser = await UserModel(tenant).register(
           requestBody,
@@ -3629,12 +3456,6 @@ const createUserModule = {
 
         if (responseFromCreateUser.success === true) {
           const createdUser = responseFromCreateUser.data;
-          logger.info("Admin user creation successful", {
-            email: normalizedEmail,
-            userId: createdUser._doc._id,
-            tenant,
-            createdBy: request.user?.email || "unknown",
-          });
 
           // ✅ STEP 6: Enhanced email sending with monitoring
           try {
@@ -3653,15 +3474,6 @@ const createUserModule = {
             if (responseFromSendEmail) {
               if (responseFromSendEmail.success === true) {
                 // ✅ Log successful email delivery
-                logger.info(
-                  "Admin registration welcome email sent successfully",
-                  {
-                    email: normalizedEmail,
-                    userId: createdUser._doc._id,
-                    tenant,
-                    messageId: responseFromSendEmail.data?.messageId,
-                  }
-                );
 
                 return {
                   success: true,
@@ -4310,10 +4122,6 @@ const createUserModule = {
 
       logObject("responseFromMailChimp", responseFromMailChimp);
 
-      logger.info(
-        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
-      );
-
       if (responseFromMailChimp.status !== "unsubscribed") {
         return next(
           new HttpError(
@@ -4397,10 +4205,6 @@ const createUserModule = {
       const responseFromMailChimp =
         await mailchimp.lists.deleteListMemberPermanent(listId, subscriberHash);
       logObject("responseFromMailChimp", responseFromMailChimp);
-
-      logger.info(
-        `Unsubscription attempt: ${stringify(responseFromMailChimp)}`
-      );
 
       if (responseFromMailChimp.status_code !== 200) {
         logObject("responseFromMailChimp", responseFromMailChimp);

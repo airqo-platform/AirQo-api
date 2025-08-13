@@ -217,9 +217,10 @@ class DataUtils:
             device_category = DeviceCategory.LOWCOST
 
         devices, keys = DataUtils.get_devices(device_category, device_network)
+
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
-        if is_mobile_category and "assigned_grid" in devices.columns:
-            devices = devices[devices["assigned_grid"].apply(has_valid_dict)]
+        if is_mobile_category:
+            devices = devices[devices["mobility"] == True]
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
@@ -253,9 +254,9 @@ class DataUtils:
                 result = future.result()
                 if result is not None:
                     data_store.append(result)
-
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
+            # Data could be dropped due to bad datetime entries
             devices_data = devices_data[
                 devices_data["timestamp"].between(start_date_time, end_date_time)
             ]
@@ -289,7 +290,6 @@ class DataUtils:
         data, meta_data = DataUtils._extract_device_api_data(
             device, dates, config, keys, resolution
         )
-
         if isinstance(data, pd.DataFrame) and not data.empty:
             data = DataUtils._process_and_append_device_data(
                 device, data, meta_data, config
@@ -481,6 +481,7 @@ class DataUtils:
             - Latitude/longitude will NOT be overwritten if valid (non-zero, non-null) values exist.
             - If no valid fallback latitude/longitude is found in `device` or `meta_data`, the 0.0 values remain unchanged.
         """
+        is_mobile = device.get("mobility", False)
         if data.empty:
             logger.warning(f"No data received from {device.get('name')}")
             return
@@ -500,8 +501,12 @@ class DataUtils:
             )
         )
 
-        lat_fallback = device.get("latitude") or meta_data.get("latitude")
-        lon_fallback = device.get("longitude") or meta_data.get("longitude")
+        if is_mobile:
+            lat_fallback = device.get("latitude")
+            lon_fallback = device.get("longitude")
+        else:
+            lat_fallback = meta_data.get("latitude") or device.get("latitude")
+            lon_fallback = meta_data.get("longitude") or device.get("longitude")
 
         data = DataValidationUtils.fill_missing_columns(data=data, cols=data_columns)
         data["device_category"] = device.get("device_category")
