@@ -751,7 +751,12 @@ class BigQueryApi:
         pollutant_columns_ = []
 
         for pollutant in pollutants:
-            key = "averaged" if data_type.value == "calibrated" else "raw"
+            key = (
+                "averaged"
+                if data_type.value == "calibrated"
+                or (device_category.value == "bam" and frequency.value != "raw")
+                else "raw"
+            )
 
             # The frequency mapper determines which columns are returned
             pollutant_mapping = (

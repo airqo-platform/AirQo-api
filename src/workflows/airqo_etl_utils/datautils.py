@@ -219,8 +219,10 @@ class DataUtils:
         devices, keys = DataUtils.get_devices(device_category, device_network)
 
         # Temporary fix for mobile devices - # TODO: Fix after requirements review
-        if is_mobile_category:
-            devices = devices[devices["mobility"] == True]
+        if is_mobile_category and "assigned_grid" in devices.columns:
+            # Device registry metadata has multiple devices tagged as mobile and yet aren't
+            # devices = devices[devices["mobility"] == True]
+            devices = devices[devices["assigned_grid"].apply(has_valid_dict)]
 
         if not devices.empty and device_network:
             devices = devices.loc[devices.network == device_network.str]
@@ -257,9 +259,9 @@ class DataUtils:
         if data_store:
             devices_data = pd.concat(data_store, ignore_index=True)
             # Data could be dropped due to bad datetime entries
-            devices_data = devices_data[
-                devices_data["timestamp"].between(start_date_time, end_date_time)
-            ]
+            # devices_data = devices_data[
+            #     devices_data["timestamp"].between(start_date_time, end_date_time)
+            # ]
         return devices_data
 
     def __per_device_data(

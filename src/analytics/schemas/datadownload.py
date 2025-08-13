@@ -86,7 +86,8 @@ def validate_mobile_device_filters(data: Dict[str, Any], **kwargs) -> None:
         ValidationError: If `device_category` is "mobile" and `frequency` is not "raw".
     """
     device_category = data.get("device_category")
-    if device_category in {"mobile", "bam"}:
+    # TODO: Review bam workflow
+    if device_category in {"mobile"}:
         frequency = data.get("frequency")
         if frequency != "raw":
             raise ValidationError(
@@ -301,7 +302,8 @@ class DataDownloadSchema(Schema):
             ValidationError: If `device_category` is "bam" or "mobile" and `datatype` is not "raw".
         """
         device_category = data.get("device_category")
-        if device_category in {"bam", "mobile"}:
+        # TODO: Review bam workflow
+        if device_category in {"mobile"}:
             datatype = data.get("datatype")
             if datatype != "raw":
                 raise ValidationError(
