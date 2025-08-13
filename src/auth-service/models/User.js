@@ -387,6 +387,29 @@ const UserSchema = new Schema(
         billingCycle: String, // 'monthly', 'annual', etc.
       },
     },
+    // Add after the existing fields, before the timestamps
+    interests: {
+      type: [String],
+      enum: {
+        values: [
+          "health",
+          "software developer",
+          "community champion",
+          "environmental",
+          "student",
+          "policy maker",
+          "researcher",
+          "air quality partner",
+        ],
+        message: "{VALUE} is not a valid interest option",
+      },
+      default: [],
+    },
+    interestsDescription: {
+      type: String,
+      maxLength: [1000, "Interests description cannot exceed 1000 characters"],
+      trim: true,
+    },
   },
   { timestamps: true }
 );
@@ -1196,6 +1219,8 @@ UserSchema.statics.getEnhancedUserDetails = async function (
         isActive: 1,
         country: 1,
         website: 1,
+        interests: 1,
+        interestsDescription: 1,
         category: 1,
         jobTitle: 1,
         description: 1,
@@ -1449,6 +1474,8 @@ UserSchema.methods = {
       rateLimit: this.rateLimit,
       lastLogin: this.lastLogin,
       isActive: this.isActive,
+      interests: this.interests,
+      interestsDescription: this.interestsDescription,
       loginCount: this.loginCount,
       timezone: this.timezone,
     };

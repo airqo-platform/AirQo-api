@@ -599,12 +599,12 @@ const groupUtil = {
       const { tenant } = request.query;
       const { grp_id } = request.params;
       let { slug, regenerate = false } = request.body;
+
       // normalise regenerate to boolean
       regenerate = ["true", "1", true].includes(regenerate);
 
       // Find the group
       const group = await GroupModel(tenant).findById(grp_id).lean();
-
       if (!group) {
         return {
           success: false,
@@ -629,15 +629,23 @@ const groupUtil = {
       }
 
       let finalSlug;
-
       if (slug) {
-        // Validate provided slug
+        // Validate provided slug format
         const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-        if (!slugRegex.test(slug) || slug.length > SLUG_MAX_LENGTH) {
+        if (!slugRegex.test(slug)) {
           return {
             success: false,
             message:
               "Invalid slug format. Slug must be lowercase alphanumeric with hyphens only",
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        // Validate slug length
+        if (slug.length > SLUG_MAX_LENGTH) {
+          return {
+            success: false,
+            message: `Slug too long. Maximum length is ${SLUG_MAX_LENGTH} characters`,
             status: httpStatus.BAD_REQUEST,
           };
         }
@@ -655,7 +663,6 @@ const groupUtil = {
             status: httpStatus.CONFLICT,
           };
         }
-
         finalSlug = slug;
       } else {
         // Generate slug from title
@@ -666,7 +673,6 @@ const groupUtil = {
             status: httpStatus.BAD_REQUEST,
           };
         }
-
         const baseSlug = groupUtil.generateSlugFromTitle(group.grp_title);
         finalSlug = await groupUtil.generateUniqueSlug(
           tenant,
@@ -773,13 +779,50 @@ const groupUtil = {
         }
       }
 
-      // Generate organization_slug if not provided
+      // ✅ ENHANCED ORGANIZATION SLUG GENERATION
       let organizationSlug = body.organization_slug;
+      let slugWasGenerated = false;
 
-      if (!organizationSlug && body.grp_title) {
-        // Generate slug from title
-        const baseSlug = groupUtil.generateSlugFromTitle(body.grp_title);
-        organizationSlug = await groupUtil.generateUniqueSlug(tenant, baseSlug);
+      // Check if organization_slug needs to be generated
+      if (!organizationSlug || organizationSlug.trim() === "") {
+        if (!body.grp_title || body.grp_title.trim() === "") {
+          next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message:
+                "Group title is required for automatic slug generation when organization_slug is not provided",
+            })
+          );
+          return;
+        }
+
+        try {
+          // Generate slug from title
+          const baseSlug = groupUtil.generateSlugFromTitle(body.grp_title);
+          organizationSlug = await groupUtil.generateUniqueSlug(
+            tenant,
+            baseSlug
+          );
+          slugWasGenerated = true;
+
+          logger.info(
+            `Auto-generated organization slug: ${organizationSlug} for group: ${body.grp_title}`
+          );
+        } catch (slugError) {
+          logger.error(
+            `Error generating organization slug: ${slugError.message}`
+          );
+          next(
+            new HttpError(
+              "Internal Server Error",
+              httpStatus.INTERNAL_SERVER_ERROR,
+              {
+                message: "Failed to generate organization slug",
+                errors: { slug_generation: slugError.message },
+              }
+            )
+          );
+          return;
+        }
       }
 
       const modifiedBody = {
@@ -877,6 +920,17 @@ const groupUtil = {
             )
           );
           return;
+        }
+
+        // Add slug generation info to response if applicable
+        if (slugWasGenerated) {
+          responseFromRegisterGroup.organizationSlugGenerated = true;
+          responseFromRegisterGroup.generatedSlug = organizationSlug;
+          if (
+            !responseFromRegisterGroup.message.includes("organization slug")
+          ) {
+            responseFromRegisterGroup.message += ` (organization slug auto-generated: ${organizationSlug})`;
+          }
         }
 
         return responseFromRegisterGroup;
