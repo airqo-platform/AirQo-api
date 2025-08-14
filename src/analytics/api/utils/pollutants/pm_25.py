@@ -47,18 +47,46 @@ AQCSV_QC_CODE_MAPPER = {
 }
 
 FREQUENCY_MAPPER = {"hourly": 60, "daily": 1440, "raw": 1}
-
+# TODO:Phase out usage
 COMMON_POLLUTANT_MAPPING = {
     "pm2_5_calibrated": ["pm2_5_calibrated_value", "pm2_5"],
-    "pm2_5_raw": ["pm2_5_raw_value", "pm2_5"],
+    "pm2_5_raw": ["pm2_5", "s1_pm2_5", "s2_pm2_5"],
     "pm2_5": [
         "pm2_5",
     ],
     "pm10_calibrated": ["pm10_calibrated_value", "pm10"],
-    "pm10_raw": ["pm10_raw_value", "pm10"],
+    "pm10_raw": ["pm10", "s1_pm10", "s2_pm10"],
     "pm10": [
         "pm10",
     ],
+    "no2_calibrated": ["no2_calibrated_value"],
+    "no2_raw": ["no2_raw_value"],
+}
+
+COMMON_POLLUTANT_MAPPING_v2 = {
+    "bam": {
+        "raw": {
+            "pm2_5": ["realtime_conc", "hourly_conc", "short_time_conc"],
+            "pm10": [],
+        },
+        "averaged": {"pm2_5": ["pm2_5"], "pm10": ["pm10"]},
+    },
+    "lowcost": {
+        "raw": {
+            "pm2_5": ["pm2_5", "s1_pm2_5", "s2_pm2_5"],
+            "pm10": ["pm10", "s1_pm10", "s2_pm10"],
+        },
+        "averaged": {
+            "pm2_5": ["pm2_5_calibrated_value", "pm2_5"],
+            "pm10": ["pm10_calibrated_value", "pm10"],
+        },
+    },
+    "mobile": {
+        "raw": {
+            "pm2_5": ["pm2_5", "s1_pm2_5", "s2_pm2_5"],
+            "pm10": ["pm10", "s1_pm10", "s2_pm10"],
+        }
+    },
     "no2_calibrated": ["no2_calibrated_value"],
     "no2_raw": ["no2_raw_value"],
 }

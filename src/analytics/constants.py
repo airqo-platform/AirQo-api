@@ -22,6 +22,7 @@ class DeviceCategory(Enum):
     BAM = "bam"
     GAS = "gas"
     GENERAL = "general"
+    MOBILE = "mobile"
 
     def __str__(self) -> str:
         return self.value
