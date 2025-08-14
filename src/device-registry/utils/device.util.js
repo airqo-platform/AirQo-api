@@ -2019,6 +2019,595 @@ const deviceUtil = {
       );
     }
   },
+  getMobileDevicesMetadataAnalysis: async (request, next) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+
+      // Get all devices (both mobile and static) for comprehensive analysis
+      const allDevices = await DeviceModel(tenant).aggregate([
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment",
+          },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "grid",
+          },
+        },
+      ]);
+
+      // Analyze for conflicts with enhanced business rules
+      const conflictingDevices = [];
+      const validMobileDevices = [];
+      const validStaticDevices = [];
+
+      allDevices.forEach((device) => {
+        const conflicts = [];
+        const deviceType = device.deployment_type || "static";
+
+        // MOBILE DEVICE VALIDATIONS
+        if (deviceType === "mobile" || device.mobility === true) {
+          // Mobile must have vehicle mount
+          if (device.mountType && device.mountType !== "vehicle") {
+            conflicts.push({
+              type: "mobile_mount_type_invalid",
+              message: `Mobile device has invalid mountType '${device.mountType}', should be 'vehicle'`,
+              current_value: {
+                mountType: device.mountType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { mountType: "vehicle" },
+            });
+          }
+
+          // Mobile must have alternator power
+          if (device.powerType && device.powerType !== "alternator") {
+            conflicts.push({
+              type: "mobile_power_type_invalid",
+              message: `Mobile device has invalid powerType '${device.powerType}', should be 'alternator'`,
+              current_value: {
+                powerType: device.powerType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { powerType: "alternator" },
+            });
+          }
+
+          // Mobile must have grid_id, not site_id
+          if (device.site_id && !device.grid_id) {
+            conflicts.push({
+              type: "mobile_with_site_not_grid",
+              message: "Mobile device has site_id but should have grid_id",
+              current_value: {
+                site_id: device.site_id,
+                grid_id: device.grid_id,
+              },
+              suggested_fix: { site_id: null, grid_id: "NEEDS_ASSIGNMENT" },
+            });
+          }
+
+          // Mobile must have mobility true
+          if (device.mobility !== true) {
+            conflicts.push({
+              type: "mobile_mobility_false",
+              message: "Mobile device has mobility set to false",
+              current_value: {
+                mobility: device.mobility,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { mobility: true },
+            });
+          }
+        }
+
+        // STATIC DEVICE VALIDATIONS
+        if (deviceType === "static" || device.mobility === false) {
+          // Static cannot have vehicle mount
+          if (device.mountType === "vehicle") {
+            conflicts.push({
+              type: "static_vehicle_mount",
+              message: "Static device cannot have mountType 'vehicle'",
+              current_value: {
+                mountType: device.mountType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: {
+                deployment_type: "mobile",
+                mobility: true,
+                powerType: "alternator",
+              },
+            });
+          }
+
+          // Static should not have alternator power
+          if (device.powerType === "alternator") {
+            conflicts.push({
+              type: "static_alternator_power",
+              message: "Static device should not have powerType 'alternator'",
+              current_value: {
+                powerType: device.powerType,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { powerType: "solar" },
+            });
+          }
+
+          // Static must have site_id, not grid_id
+          if (device.grid_id && !device.site_id) {
+            conflicts.push({
+              type: "static_with_grid_not_site",
+              message: "Static device has grid_id but should have site_id",
+              current_value: {
+                site_id: device.site_id,
+                grid_id: device.grid_id,
+              },
+              suggested_fix: { grid_id: null, site_id: "NEEDS_ASSIGNMENT" },
+            });
+          }
+
+          // Static must have mobility false
+          if (device.mobility !== false) {
+            conflicts.push({
+              type: "static_mobility_true",
+              message: "Static device has mobility set to true",
+              current_value: {
+                mobility: device.mobility,
+                deployment_type: deviceType,
+              },
+              suggested_fix: { mobility: false },
+            });
+          }
+        }
+
+        // CROSS-VALIDATION CONFLICTS
+        // Vehicle mount must be mobile
+        if (device.mountType === "vehicle" && deviceType !== "mobile") {
+          conflicts.push({
+            type: "vehicle_mount_not_mobile",
+            message: "Vehicle-mounted device must be mobile deployment",
+            current_value: {
+              mountType: device.mountType,
+              deployment_type: deviceType,
+            },
+            suggested_fix: {
+              deployment_type: "mobile",
+              mobility: true,
+              powerType: "alternator",
+            },
+          });
+        }
+
+        // Pole mount must be static
+        if (
+          device.mountType === "pole" &&
+          (deviceType !== "static" || device.mobility === true)
+        ) {
+          conflicts.push({
+            type: "pole_mount_not_static",
+            message: "Pole-mounted device must be static deployment",
+            current_value: {
+              mountType: device.mountType,
+              deployment_type: deviceType,
+              mobility: device.mobility,
+            },
+            suggested_fix: {
+              deployment_type: "static",
+              mobility: false,
+              grid_id: null,
+            },
+          });
+        }
+
+        // Alternator power must be mobile
+        if (device.powerType === "alternator" && deviceType !== "mobile") {
+          conflicts.push({
+            type: "alternator_power_not_mobile",
+            message: "Alternator-powered device must be mobile deployment",
+            current_value: {
+              powerType: device.powerType,
+              deployment_type: deviceType,
+            },
+            suggested_fix: {
+              deployment_type: "mobile",
+              mobility: true,
+              mountType: "vehicle",
+            },
+          });
+        }
+
+        // Both site_id and grid_id present
+        if (device.site_id && device.grid_id) {
+          conflicts.push({
+            type: "both_site_and_grid",
+            message: "Device cannot have both site_id and grid_id",
+            current_value: { site_id: device.site_id, grid_id: device.grid_id },
+            suggested_fix:
+              deviceType === "mobile" ? { site_id: null } : { grid_id: null },
+          });
+        }
+
+        // Categorize devices
+        if (conflicts.length > 0) {
+          conflictingDevices.push({
+            ...device,
+            conflicts: conflicts,
+            severity: conflicts.some((c) =>
+              [
+                "vehicle_mount_not_mobile",
+                "pole_mount_not_static",
+                "alternator_power_not_mobile",
+              ].includes(c.type)
+            )
+              ? "high"
+              : "medium",
+          });
+        } else {
+          if (deviceType === "mobile") {
+            validMobileDevices.push(device);
+          } else {
+            validStaticDevices.push(device);
+          }
+        }
+      });
+
+      // Enhanced analysis with business rule insights
+      const analysis = {
+        total_devices: allDevices.length,
+        valid_mobile_devices: validMobileDevices.length,
+        valid_static_devices: validStaticDevices.length,
+        conflicting_devices: conflictingDevices.length,
+        high_severity_conflicts: conflictingDevices.filter(
+          (d) => d.severity === "high"
+        ).length,
+
+        conflict_breakdown: {
+          mobile_issues: {
+            invalid_mount_type: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_mount_type_invalid")
+            ).length,
+            invalid_power_type: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_power_type_invalid")
+            ).length,
+            has_site_not_grid: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_with_site_not_grid")
+            ).length,
+            mobility_false: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "mobile_mobility_false")
+            ).length,
+          },
+
+          static_issues: {
+            vehicle_mount: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_vehicle_mount")
+            ).length,
+            alternator_power: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_alternator_power")
+            ).length,
+            has_grid_not_site: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_with_grid_not_site")
+            ).length,
+            mobility_true: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "static_mobility_true")
+            ).length,
+          },
+
+          cross_validation_issues: {
+            vehicle_mount_not_mobile: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "vehicle_mount_not_mobile")
+            ).length,
+            pole_mount_not_static: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "pole_mount_not_static")
+            ).length,
+            alternator_power_not_mobile: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "alternator_power_not_mobile")
+            ).length,
+            both_site_and_grid: conflictingDevices.filter((d) =>
+              d.conflicts.some((c) => c.type === "both_site_and_grid")
+            ).length,
+          },
+        },
+
+        business_rules_summary: {
+          expected_mobile_attributes: {
+            mountType: "vehicle",
+            powerType: "alternator",
+            mobility: true,
+            location_reference: "grid_id",
+          },
+          expected_static_attributes: {
+            mountType: "pole|wall|faceboard|rooftop|suspended",
+            powerType: "solar|mains",
+            mobility: false,
+            location_reference: "site_id",
+          },
+        },
+      };
+
+      return {
+        success: true,
+        message: "Comprehensive device metadata analysis completed",
+        data: {
+          valid_mobile_devices: validMobileDevices,
+          valid_static_devices: validStaticDevices,
+          conflicting_devices: conflictingDevices,
+          analysis: analysis,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Enhanced Metadata Analysis Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  fixMetadataConflicts: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const {
+        dry_run = false,
+        fix_types = ["all"],
+        auto_assign_locations = false,
+      } = body;
+
+      // Get conflicting devices first
+      const analysisResult = await deviceUtil.getMobileDevicesMetadataAnalysis(
+        request,
+        next
+      );
+
+      if (!analysisResult.success) {
+        return analysisResult;
+      }
+
+      const conflictingDevices = analysisResult.data.conflicting_devices;
+      const fixedDevices = [];
+      const failedFixes = [];
+      const manualReviewRequired = [];
+
+      for (const device of conflictingDevices) {
+        try {
+          const fixes = [];
+          let updateData = {};
+          let requiresManualReview = false;
+
+          device.conflicts.forEach((conflict) => {
+            switch (conflict.type) {
+              // MOBILE DEVICE FIXES
+              case "mobile_mount_type_invalid":
+                updateData.mountType = "vehicle";
+                fixes.push("Set mountType to 'vehicle' for mobile device");
+                break;
+
+              case "mobile_power_type_invalid":
+                updateData.powerType = "alternator";
+                fixes.push("Set powerType to 'alternator' for mobile device");
+                break;
+
+              case "mobile_with_site_not_grid":
+                updateData.site_id = null;
+                if (!auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push(
+                    "Cleared site_id - MANUAL: Assign appropriate grid_id"
+                  );
+                }
+                break;
+
+              case "mobile_mobility_false":
+                updateData.mobility = true;
+                fixes.push("Set mobility to true for mobile device");
+                break;
+
+              // STATIC DEVICE FIXES
+              case "static_vehicle_mount":
+                // This is ambiguous - could fix by making mobile OR changing mount
+                requiresManualReview = true;
+                fixes.push(
+                  "MANUAL REVIEW: Vehicle-mounted device marked as static"
+                );
+                break;
+
+              case "static_alternator_power":
+                updateData.powerType = "solar"; // Default to solar for static
+                fixes.push(
+                  "Changed powerType from 'alternator' to 'solar' for static device"
+                );
+                break;
+
+              case "static_with_grid_not_site":
+                updateData.grid_id = null;
+                if (!auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push(
+                    "Cleared grid_id - MANUAL: Assign appropriate site_id"
+                  );
+                }
+                break;
+
+              case "static_mobility_true":
+                updateData.mobility = false;
+                fixes.push("Set mobility to false for static device");
+                break;
+
+              // CROSS-VALIDATION FIXES
+              case "vehicle_mount_not_mobile":
+                // Convert to mobile since vehicle mount strongly indicates mobile
+                updateData.deployment_type = "mobile";
+                updateData.mobility = true;
+                updateData.powerType = "alternator";
+                updateData.site_id = null;
+                fixes.push(
+                  "Converted to mobile deployment (vehicle mount detected)"
+                );
+                if (!device.grid_id && !auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push("MANUAL: Assign grid_id for mobile device");
+                }
+                break;
+
+              case "pole_mount_not_static":
+                // Convert to static since pole mount strongly indicates static
+                updateData.deployment_type = "static";
+                updateData.mobility = false;
+                updateData.grid_id = null;
+                if (device.powerType === "alternator") {
+                  updateData.powerType = "solar";
+                }
+                fixes.push(
+                  "Converted to static deployment (pole mount detected)"
+                );
+                if (!device.site_id && !auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push("MANUAL: Assign site_id for static device");
+                }
+                break;
+
+              case "alternator_power_not_mobile":
+                // Convert to mobile since alternator strongly indicates mobile
+                updateData.deployment_type = "mobile";
+                updateData.mobility = true;
+                updateData.mountType = "vehicle";
+                updateData.site_id = null;
+                fixes.push(
+                  "Converted to mobile deployment (alternator power detected)"
+                );
+                if (!device.grid_id && !auto_assign_locations) {
+                  requiresManualReview = true;
+                  fixes.push("MANUAL: Assign grid_id for mobile device");
+                }
+                break;
+
+              case "both_site_and_grid":
+                // Decide based on deployment type
+                if (
+                  device.deployment_type === "mobile" ||
+                  device.mobility === true
+                ) {
+                  updateData.site_id = null;
+                  fixes.push(
+                    "Removed site_id (kept grid_id for mobile device)"
+                  );
+                } else {
+                  updateData.grid_id = null;
+                  fixes.push(
+                    "Removed grid_id (kept site_id for static device)"
+                  );
+                }
+                break;
+            }
+          });
+
+          // Apply fixes or mark for manual review
+          if (requiresManualReview) {
+            manualReviewRequired.push({
+              device_id: device._id,
+              device_name: device.name,
+              conflicts: device.conflicts,
+              suggested_fixes: fixes,
+              partial_update_data: updateData,
+              status: "requires_manual_review",
+            });
+          } else if (Object.keys(updateData).length > 0) {
+            if (!dry_run) {
+              await DeviceModel(tenant).findOneAndUpdate(
+                { _id: device._id },
+                { $set: updateData }
+              );
+            }
+
+            fixedDevices.push({
+              device_id: device._id,
+              device_name: device.name,
+              conflicts_detected: device.conflicts.length,
+              fixes_applied: fixes,
+              update_data: updateData,
+              status: dry_run ? "would_be_fixed" : "fixed",
+            });
+          }
+        } catch (error) {
+          failedFixes.push({
+            device_id: device._id,
+            device_name: device.name,
+            error: error.message,
+          });
+        }
+      }
+
+      const summary = {
+        total_conflicting_devices: conflictingDevices.length,
+        automatically_fixed: fixedDevices.length,
+        requires_manual_review: manualReviewRequired.length,
+        failed_fixes: failedFixes.length,
+        dry_run: dry_run,
+        timestamp: new Date(),
+        business_rules_applied: {
+          mobile_requirements:
+            "mountType=vehicle, powerType=alternator, mobility=true, grid_id required",
+          static_requirements:
+            "mountType≠vehicle, powerType≠alternator, mobility=false, site_id required",
+        },
+      };
+
+      return {
+        success: true,
+        message: dry_run
+          ? "Dry run completed - no changes made"
+          : "Enhanced metadata cleanup completed",
+        data: {
+          fixed_devices: fixedDevices,
+          manual_review_required: manualReviewRequired,
+          failed_fixes: failedFixes,
+          summary: summary,
+        },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Enhanced Fix Metadata Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = deviceUtil;
