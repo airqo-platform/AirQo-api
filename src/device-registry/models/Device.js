@@ -206,7 +206,7 @@ const deviceSchema = new mongoose.Schema(
       type: ObjectId,
     },
 
-    // ENHANCED: Add support for grid-based deployments
+    //support for grid-based deployments
     grid_id: {
       type: ObjectId,
       ref: "grid",
@@ -305,7 +305,6 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
     },
 
-    // ENHANCED: Add mobility-specific metadata
     mobility_metadata: {
       route_id: { type: String, trim: true },
       coverage_area: { type: String, trim: true },
@@ -338,7 +337,7 @@ const checkDuplicates = (arr, fieldName) => {
   return null;
 };
 
-// ENHANCED: Add validation for deployment type consistency
+// validation for deployment type consistency
 deviceSchema.pre(
   [
     "update",
@@ -354,7 +353,7 @@ deviceSchema.pre(
       const isNew = this.isNew;
       const updateData = this.getUpdate ? this.getUpdate() : this;
 
-      // ENHANCED: Validate deployment type consistency
+      // Validate deployment type consistency
       if (isNew) {
         // For new documents, set deployment_type based on provided data
         if (!this.deployment_type) {
