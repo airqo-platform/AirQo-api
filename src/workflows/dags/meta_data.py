@@ -199,7 +199,7 @@ def meta_data_update_microservice_sites_meta_data():
 
 @dag(
     "AirQo-devices-to-temp-store-pipeline",
-    schedule="0 0 * * *",
+    schedule="0 */3 * * *",
     doc_md=extract_store_devices_data_in_temp_store,
     catchup=False,
     tags=["devices", "store"],
@@ -231,7 +231,7 @@ def cache_devices_data():
 
 @dag(
     "AirQo-sites-to-temp-store-pipeline",
-    schedule="0 0 * * *",
+    schedule="0 */3 * * *",
     doc_md=extract_store_sites_data_in_temp_store,
     catchup=False,
     tags=["sites", "store"],
