@@ -368,7 +368,8 @@ def get_validated_filter(json_data):
     filter_type = provided_filters[0]
     filter_value = json_data.get(filter_type)
 
-    # TODO Uncomment when access control
+    # TODO Uncomment when proper access control is implemented in device registry.
+    # TODO Filter/validate device names/ids existence.
     # if filter_type in sites:
     #     validated_value = filter_non_private_sites_devices(filter_type, filter_value)
     # elif filter_type in devices:

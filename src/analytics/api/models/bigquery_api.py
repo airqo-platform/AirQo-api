@@ -1,12 +1,17 @@
 from typing import List, Dict, Any, Optional, Union, Tuple, Set
-from constants import QueryType, DeviceNetwork, ColumnDataType, Frequency, DataType
+from constants import (
+    QueryType,
+    DeviceNetwork,
+    ColumnDataType,
+    Frequency,
+    DataType,
+    DeviceCategory,
+)
 from api.utils.utils import Utils
 import pandas as pd
 from google.cloud import bigquery
 from config import BaseConfig as Config
-from api.utils.pollutants.pm_25 import (
-    BQ_FREQUENCY_MAPPER,
-)
+from api.utils.pollutants.pm_25 import COMMON_POLLUTANT_MAPPING_v2
 
 from main import cache
 
@@ -25,6 +30,7 @@ class BigQueryApi:
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
         self.all_time_grouping = {"hourly", "daily", "weekly", "monthly", "yearly"}
         self.extra_time_grouping = {"weekly", "monthly", "yearly"}
+        self.field_mappings = Config.FILTER_FIELD_MAPPING
 
     @property
     def device_info_query(self):
@@ -140,28 +146,25 @@ class BigQueryApi:
         table: str,
         filter_value: List,
         pollutants_query: str,
-        bam_pollutants_query: str,
         time_grouping: str,
         start_date: str,
         end_date: str,
         frequency: Frequency,
     ):
         """
-        Constructs a SQL query to retrieve pollutant data for specific devices,
-        including standard and BAM measurements when applicable.
+        Constructs a SQL query to retrieve pollutant data for specific devices, including standard and BAM measurements when applicable.
 
         Args:
             table (str): Name of the table containing the primary device measurements.
             filter_value (str): List of device IDs to filter the query (used in UNNEST).
             pollutants_query (str): SQL fragment for selecting standard pollutants.
-            bam_pollutants_query (str): SQL fragment for selecting BAM pollutants.
             time_grouping (str): SQL expression for time-based grouping (e.g., by hour, day).
             start_date (str): Start timestamp (inclusive) for filtering data.
             end_date (str): End timestamp (inclusive) for filtering data.
             frequency (Any): Frequency of aggregation (e.g., 'raw', 'hourly', 'daily').
 
         Returns:
-            str: The fully constructed SQL query, combining standard and BAM data if required.
+            str: The fully constructed SQL query
         """
         table_name = Utils.table_name(table)
         query = (
@@ -175,24 +178,7 @@ class BigQueryApi:
         if frequency.value in self.extra_time_grouping:
             query += " GROUP BY ALL"
 
-        query = self.add_site_join(query)
-
-        # This query skips BAM sensor daily measurements since there is no daily measurements table for bam.
-        # TODO Add/update query to consider bam measurements.
-        if frequency.value in self.extra_time_grouping | {"hourly"}:
-            bam_table_name = Utils.table_name(Config.BIGQUERY_BAM_DATA)
-            bam_query = (
-                f"{bam_pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
-                f"FROM {bam_table_name} "
-                f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {bam_table_name}.device_id "
-                f"WHERE {bam_table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
-                f"AND {self.devices_table}.device_id IN UNNEST(@filter_value) "
-            )
-            if frequency.value in self.extra_time_grouping:
-                bam_query += " GROUP BY ALL"
-            bam_query = self.add_site_join(bam_query)
-            query = f"{query} UNION ALL {bam_query}"
-        return query
+        return self.add_site_join(query)
 
     def get_site_query(
         self,
@@ -287,14 +273,14 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
+        device_category: DeviceCategory,
         network: Optional[DeviceNetwork] = None,
         where_fields: Optional[Dict[str, Union[str, int, Tuple]]] = None,
         columns: Optional[List] = None,
         exclude_columns: Optional[List] = None,
     ) -> str:
         """
-        Composes a SQL query for BigQuery based on the query type (GET or DELETE),
-        and optionally includes a dynamic selection and aggregation of numeric columns.
+        Composes a SQL query for BigQuery based on the query type (GET or DELETE), and optionally includes a dynamic selection and aggregation of numeric columns.
 
         Args:
             query_type (QueryType): The type of query (GET or DELETE).
@@ -310,48 +296,76 @@ class BigQueryApi:
             str: The composed SQL query as a string.
 
         Raises:
-            Exception: If an invalid column is provided in `where_fields` or `null_cols`,
-                      or if the `query_type` is not supported.
+            Exception: If an invalid column is provided in `where_fields` or `null_cols`, or if the `query_type` is not supported.
         """
-        exclude_columns: List = []
-        table_name = table
+        exclude_columns = exclude_columns or []
+        where_fields = where_fields or {}
 
-        where_fields = {} if where_fields is None else where_fields
+        valid_columns = self.get_columns(table)
+        resolved_where = self._resolve_where_clause(
+            where_fields, valid_columns, exclude_columns
+        )
 
-        columns = ", ".join(map(str, columns)) if columns else " * "
-        where_clause = f" timestamp between '{start_date_time}' and '{end_date_time}' "
+        columns_clause = ", ".join(columns) if columns else "*"
 
+        where_clauses = [f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}'"]
         if network:
-            where_clause += f"AND network = '{network.value}' "
+            where_clauses.append(f"network = '{network.value}'")
+        if resolved_where:
+            where_clauses.extend(resolved_where)
 
-        valid_cols = self.get_columns(table=table)
-        for key, value in where_fields.items():
+        if query_type == QueryType.GET:
+            query = f"""
+                SELECT {columns_clause}
+                FROM `{table}`
+                WHERE {' AND '.join(where_clauses)}
+            """
+        else:
+            raise ValueError(f"Unsupported query type: {query_type}")
 
-            if key not in valid_cols:
-                raise Exception(
-                    f"Invalid table column. {key} is not among the columns for {table}"
-                )
+        return query.strip()
+
+    def _resolve_where_clause(
+        self,
+        where_fields: Dict[str, Union[str, int, List]],
+        valid_columns: List[str],
+        exclude_columns: List[str],
+    ) -> List[str]:
+        """
+        Convert where_fields into SQL-safe WHERE clause parts.
+
+        Returns:
+            List[str]: WHERE conditions (e.g., ["device_id = '123'"]).
+        """
+        clauses = []
+
+        for raw_key, value in where_fields.items():
+            key = self.field_mappings.get(raw_key, None)
 
             if key in exclude_columns:
                 continue
 
+            if key not in valid_columns:
+                raise ValueError(
+                    f"Invalid table column: '{key}' not in {valid_columns}"
+                )
+
             if isinstance(value, (str, int)):
-                where_clause += f" AND {key} = '{value}' "
-
+                clauses.append(f"{key} = '{value}'")
             elif isinstance(value, list):
-                where_clause += f" AND {key} in UNNEST({value}) "
+                formatted_list = ", ".join(f"'{v}'" for v in value)
+                clauses.append(f"{key} IN ({formatted_list})")
+            else:
+                raise TypeError(f"Unsupported filter type for key: {key}")
 
-        if query_type == QueryType.GET:
-            query = f""" SELECT {columns} FROM `{table_name}` WHERE {where_clause} """
-        else:
-            raise Exception(f"Invalid Query Type {str(query_type)}")
-        return query
+        return clauses
 
     def query_data(
         self,
         table: str,
         start_date_time: str,
         end_date_time: str,
+        device_category: DeviceCategory,
         network: Optional[DeviceNetwork] = None,
         frequency: Optional[Frequency] = None,
         data_type: Optional[str] = None,
@@ -387,6 +401,7 @@ class BigQueryApi:
                 table=table,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
+                device_category=device_category,
                 network=network,
                 where_fields=where_fields,
                 columns=columns,
@@ -401,11 +416,13 @@ class BigQueryApi:
                 data_filter=where_fields,
                 data_type=data_type,
                 frequency=frequency,
+                device_category=device_category
                 # time_granularity=time_granularity,
             )
-            query_parameters = [
-                bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
-            ]
+
+        query_parameters = [
+            bigquery.ArrayQueryParameter("filter_value", "STRING", filter_value),
+        ]
 
         job_config.query_parameters = query_parameters
         job_config.use_query_cache = use_cache
@@ -545,7 +562,6 @@ class BigQueryApi:
         filter_type: str,
         filter_value: List,
         pollutants_query: str,
-        bam_pollutants_query: str,
         start_date: str,
         end_date: str,
         frequency: Frequency,
@@ -558,7 +574,6 @@ class BigQueryApi:
             filter_type(str): Type of filter (e.g., devices, sites, airqlouds).
             filter_value(list): Filter values corresponding to the filter type.
             pollutants_query(str): Query for pollutant data.
-            bam_pollutants_query(str): Query for BAM pollutant data.
             start_date(str): Start date for data retrieval.
             end_date(str): End date for data retrieval.
             frequency(Frequency): Frequency filter.
@@ -576,17 +591,12 @@ class BigQueryApi:
                 f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime",
                 "",
             )
-            bam_pollutants_query = bam_pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {Utils.table_name(Config.BIGQUERY_BAM_DATA)}.timestamp) AS datetime",
-                "",
-            )
 
         if filter_type in {"devices", "device_ids", "device_names"}:
             return self.get_device_query(
                 table,
                 filter_value,
                 pollutants_query,
-                bam_pollutants_query,
                 time_grouping,
                 start_date,
                 end_date,
@@ -656,6 +666,7 @@ class BigQueryApi:
         data_filter: Dict[str, Any],  # Either 'devices', 'sites'
         data_type: DataType,
         frequency: Frequency,
+        device_category: DeviceCategory,
     ) -> pd.DataFrame:
         """
         Retrieves data from BigQuery with specified filters, frequency, pollutants, and weather fields.
@@ -675,29 +686,22 @@ class BigQueryApi:
         """
         decimal_places = Config.DATA_EXPORT_DECIMAL_PLACES
         table_name = Utils.table_name(table)
-        bam_table_name = Utils.table_name(Config.BIGQUERY_BAM_DATA)
 
-        pollutant_columns, bam_pollutant_columns = self._query_columns_builder(
+        pollutant_columns = self._query_columns_builder(
             pollutants,
             data_type,
             frequency,
+            device_category,
             decimal_places,
             table_name=table_name,
-            bam_table_name=bam_table_name,
         )
 
         selected_columns = set(pollutant_columns)
-        bam_selected_columns = set(bam_pollutant_columns)
 
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
             + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime "
-        )
-        bam_pollutants_query = (
-            "SELECT "
-            + (", ".join(bam_selected_columns) + ", " if bam_selected_columns else "")
-            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {bam_table_name}.timestamp) AS datetime "
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
@@ -706,7 +710,6 @@ class BigQueryApi:
             filter_type,
             filter_value,
             pollutants_query,
-            bam_pollutants_query,
             start_date,
             end_date,
             frequency=frequency,
@@ -718,10 +721,10 @@ class BigQueryApi:
         pollutants: List[str],
         data_type: DataType,
         frequency: Frequency,
+        device_category: DeviceCategory,
         decimal_places: int,
         table_name: Optional[str] = None,
-        bam_table_name: Optional[str] = None,
-    ) -> Tuple[List[str], List[str]]:
+    ) -> List[str]:
         """
         Builds and returns two lists of pollutant averaging SQL expressions or column names; One for low-cost sensors and one for BAM devices.
         The function uses the provided frequency, pollutants list, and data type to dynamically determine which columns to extract and how to compute them.
@@ -746,55 +749,41 @@ class BigQueryApi:
             ValueError: If both `table_name` and `bam_table_name` are None.
         """
         pollutant_columns_ = []
-        bam_pollutant_columns_ = []
-        if table_name is None and bam_table_name is None:
-            raise ValueError("At least one table name is supposed to be provided")
 
         for pollutant in pollutants:
-            low_cost_key = f"{pollutant}_{data_type.value}"
-            bam_key = pollutant
-            # The frequency mapper determines which columns are returned
-            LC_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
-                low_cost_key, []
+            key = (
+                "averaged"
+                if data_type.value == "calibrated"
+                or (device_category.value == "bam" and frequency.value != "raw")
+                else "raw"
             )
-            BM_pollutant_mapping = BQ_FREQUENCY_MAPPER.get(frequency.value, {}).get(
-                bam_key, []
+
+            # The frequency mapper determines which columns are returned
+            pollutant_mapping = (
+                COMMON_POLLUTANT_MAPPING_v2.get(device_category.value, {})
+                .get(key, {})
+                .get(pollutant, [])
             )
 
             pollutant_columns_.extend(
                 self.get_averaging_columns(
-                    LC_pollutant_mapping,
+                    pollutant_mapping,
                     frequency,
                     decimal_places,
                     table_name,
                 )
             )
-            bam_pollutant_columns_.extend(
-                self.get_averaging_columns(
-                    BM_pollutant_mapping,
-                    frequency,
-                    decimal_places,
-                    bam_table_name,
-                )
-            )
-            # TODO Clean up by use using `get_columns` helper method
-            # Add dummy column to fix union column number missmatch.
-            bam_pollutant_columns_.append("-1 as " + pollutant)
 
-        pollutant_columns, bam_pollutant_columns = self._add_extra_columns(
-            pollutant_columns_,
-            bam_pollutant_columns_,
-            table_name=table_name,
-            bam_table_name=bam_table_name,
+        pollutant_columns = self._add_extra_columns(
+            device_category, pollutant_columns_, table_name=table_name
         )
-        return pollutant_columns, bam_pollutant_columns
+        return pollutant_columns
 
     def _add_extra_columns(
         self,
+        device_category: DeviceCategory,
         pollutant_columns: List[str],
-        bam_pollutant_columns: List[str],
         table_name: Optional[str] = None,
-        bam_table_name: Optional[str] = None,
     ) -> Tuple[List[str], List[str]]:
         """
         Appends latitude and longitude columns to the given lists of pollutant columns for both low-cost sensor and BAM data sources, based on the provided table names.
@@ -815,15 +804,11 @@ class BigQueryApi:
             - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
             - This function modifies the input lists in-place and also returns them.
         """
-        extra_columns: Set = Config.OPTIONAL_FIELDS
+        extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category)
 
         if pollutant_columns:
             pollutant_columns.extend(
                 [f"{table_name}.{field}" for field in extra_columns]
             )
 
-        if bam_pollutant_columns:
-            bam_pollutant_columns.extend(
-                [f"{bam_table_name}.{field}" for field in extra_columns]
-            )
-        return pollutant_columns, bam_pollutant_columns
+        return pollutant_columns

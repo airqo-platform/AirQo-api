@@ -195,6 +195,22 @@ router.put(
 );
 
 // =============================================================================
+// DEVICE METADATA CLEANUP ROUTES
+// =============================================================================
+router.get(
+  "/mobile-metadata-analysis",
+  validateTenant,
+  pagination(),
+  deviceController.getMobileDevicesMetadataAnalysis
+);
+
+router.post(
+  "/fix-metadata-conflicts",
+  validateTenant,
+  deviceController.fixMetadataConflicts
+);
+
+// =============================================================================
 // SHIPPING PREPARATION ROUTES
 // =============================================================================
 

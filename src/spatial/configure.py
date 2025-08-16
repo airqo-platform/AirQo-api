@@ -13,19 +13,30 @@ load_dotenv(dotenv_path)
 
 class Config:
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
+    AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
+    REDIS_CACHE_TTL = os.getenv("REDIS_CACHE_TTL")
     GRID_URL = os.getenv("GRID_URL_ID")
     BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED")
     CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     GOOGLE_CLOUD_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT_ID")
     GOOGLE_APPLICATION_CREDENTIALS_EMAIL = os.getenv(
         "GOOGLE_APPLICATION_CREDENTIALS_EMAIL"
     )
     PROJECT_BUCKET = os.getenv("PROJECT_BUCKET")
+    SPATIAL_PROJECT_BUCKET = os.getenv("SPATIAL_PROJECT_BUCKET")
     BIGQUERY_SATELLITE_MODEL_PREDICTIONS = os.getenv(
         "BIGQUERY_SATELLITE_MODEL_PREDICTIONS"
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    CACHE_KEY = "airqo:predicted_pm25"
+    MODEL_DIR = os.getenv("MODEL_DIR_FILE", "./models")
+    CITY_LIST_FILE = os.path.join(
+        MODEL_DIR, "processed_cities.json"
+    )  # JSON file for city list
+
+
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False

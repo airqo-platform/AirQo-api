@@ -195,10 +195,26 @@ const validateCreateDevice = [
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"])
         .withMessage(
-          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
-        ),
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle"
+        )
+        .bail()
+        .custom((mountType, { req }) => {
+          const { mobility } = req.body;
+
+          if (mountType === "vehicle" && !mobility) {
+            throw new Error("Vehicle mountType requires mobility to be true");
+          }
+
+          if (mobility === true && mountType && mountType !== "vehicle") {
+            throw new Error(
+              "Mobile devices (mobility=true) require vehicle mountType"
+            );
+          }
+
+          return true;
+        }),
       body("category")
         .optional()
         .notEmpty()
@@ -220,7 +236,25 @@ const validateCreateDevice = [
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
-        ),
+        )
+        .bail()
+        .custom((powerType, { req }) => {
+          const { mobility } = req.body;
+
+          if (powerType === "alternator" && !mobility) {
+            throw new Error(
+              "Alternator powerType requires mobility to be true"
+            );
+          }
+
+          if (mobility === true && powerType && powerType !== "alternator") {
+            throw new Error(
+              "Mobile devices (mobility=true) require alternator powerType"
+            );
+          }
+
+          return true;
+        }),
       body("latitude")
         .optional()
         .notEmpty()
@@ -431,21 +465,58 @@ const validateUpdateDevice = [
   body("mountType")
     .optional()
     .notEmpty()
+    .withMessage("the mountType should not be empty if provided")
+    .bail()
     .trim()
     .toLowerCase()
-    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+    .isIn(["pole", "wall", "faceboard", "rooftop", "suspended", "vehicle"]) // ADD "vehicle"
     .withMessage(
-      "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
-    ),
+      "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended, rooftop, and vehicle"
+    )
+    .bail()
+    .custom((mountType, { req }) => {
+      // Add business logic validation for device creation
+      const { mobility, deployment_type } = req.body;
+
+      if (mountType === "vehicle" && !mobility) {
+        throw new Error("Vehicle mountType requires mobility to be true");
+      }
+
+      if (mobility === true && mountType && mountType !== "vehicle") {
+        throw new Error(
+          "Mobile devices (mobility=true) require vehicle mountType"
+        );
+      }
+
+      return true;
+    }),
   body("powerType")
     .optional()
     .notEmpty()
+    .withMessage("the powerType should not be empty if provided")
+    .bail()
     .trim()
     .toLowerCase()
     .isIn(["solar", "mains", "alternator"])
     .withMessage(
       "the powerType value is not among the expected ones which include: solar, mains and alternator"
-    ),
+    )
+    .bail()
+    .custom((powerType, { req }) => {
+      const { mobility } = req.body;
+
+      if (powerType === "alternator" && !mobility) {
+        throw new Error("Alternator powerType requires mobility to be true");
+      }
+
+      if (mobility === true && powerType && powerType !== "alternator") {
+        throw new Error(
+          "Mobile devices (mobility=true) require alternator powerType"
+        );
+      }
+
+      return true;
+    }),
   body("isActive")
     .optional()
     .notEmpty()

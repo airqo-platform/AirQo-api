@@ -213,6 +213,43 @@ const commonValidations = {
 };
 
 const cohortValidations = {
+  updateCohortName: [
+    ...commonValidations.tenant,
+    commonValidations.paramObjectId("cohort_id"),
+    body("name")
+      .exists()
+      .withMessage("name is required for name updates")
+      .bail()
+      .notEmpty()
+      .withMessage("name cannot be empty")
+      .bail()
+      .trim()
+      .matches(/^[a-zA-Z0-9\s\-_]+$/)
+      .withMessage(
+        "the name can only contain letters, numbers, spaces, hyphens and underscores"
+      ),
+    body("confirm_update")
+      .exists()
+      .withMessage("confirm_update is required for name updates")
+      .bail()
+      .isBoolean()
+      .withMessage("confirm_update must be a boolean")
+      .bail()
+      .equals("true")
+      .withMessage(
+        "confirm_update must be set to true to proceed with name update"
+      ),
+    body("update_reason")
+      .exists()
+      .withMessage("update_reason is required for name updates")
+      .bail()
+      .notEmpty()
+      .withMessage("update_reason cannot be empty")
+      .bail()
+      .isLength({ min: 10, max: 500 })
+      .withMessage("update_reason must be between 10 and 500 characters"),
+    handleValidationErrors,
+  ],
   deleteCohort: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),
