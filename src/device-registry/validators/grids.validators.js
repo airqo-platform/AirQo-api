@@ -296,6 +296,44 @@ const commonValidations = {
 };
 
 const gridsValidations = {
+  updateGridShape: [
+    ...commonValidations.tenant,
+    commonValidations.paramObjectId("grid_id"),
+    ...commonValidations.shape,
+    body("confirm_update")
+      .exists()
+      .withMessage("confirm_update is required for shape updates")
+      .bail()
+      .isBoolean()
+      .withMessage("confirm_update must be a boolean")
+      .bail()
+      .equals("true")
+      .withMessage(
+        "confirm_update must be set to true to proceed with shape update"
+      ),
+    body("update_reason")
+      .exists()
+      .withMessage("update_reason is required for shape updates")
+      .bail()
+      .notEmpty()
+      .withMessage("update_reason cannot be empty")
+      .bail()
+      .isLength({ min: 10, max: 500 })
+      .withMessage("update_reason must be between 10 and 500 characters"),
+    (req, res, next) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(
+          new HttpError(
+            "Validation error",
+            httpStatus.BAD_REQUEST,
+            errors.mapped()
+          )
+        );
+      }
+      next();
+    },
+  ],
   createGrid: [
     ...commonValidations.tenant,
     ...commonValidations.name,

@@ -114,6 +114,22 @@ const gridSchema = new Schema(
       type: shapeSchema,
       required: [true, "shape is required!"],
     },
+    shape_update_history: [
+      {
+        updated_at: {
+          type: Date,
+          default: Date.now,
+        },
+        reason: {
+          type: String,
+          required: true,
+        },
+        previous_shape: {
+          type: shapeSchema,
+        },
+        previous_centers: [centerPointSchema],
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -597,6 +613,58 @@ gridSchema.statics.getMobileDeviceStats = async function(filter = {}, next) {
       errors: { message: error.message },
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
+  }
+};
+
+gridSchema.statics.modifyShape = async function(
+  { filter = {}, update = {} } = {},
+  next
+) {
+  try {
+    const options = {
+      new: true,
+      useFindAndModify: false,
+      projection: { __v: 0 },
+    };
+
+    // Only allow shape, centers, and shape_update_history updates
+    const allowedFields = ["shape", "centers", "$push"];
+    const modifiedUpdateBody = {};
+
+    Object.keys(update).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        modifiedUpdateBody[key] = update[key];
+      }
+    });
+
+    const updatedGrid = await this.findOneAndUpdate(
+      filter,
+      modifiedUpdateBody,
+      options
+    ).exec();
+
+    if (!isEmpty(updatedGrid)) {
+      return {
+        success: true,
+        message: "Successfully updated the grid shape and recalculated centers",
+        data: updatedGrid._doc,
+        status: httpStatus.OK,
+      };
+    } else {
+      next(
+        new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+          ...filter,
+          message: "Grid does not exist, please crosscheck",
+        })
+      );
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 
