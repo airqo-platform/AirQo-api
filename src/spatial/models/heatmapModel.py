@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 from urllib3.util.retry import Retry
 import joblib
 from configure import Config as config
-from utils.commons import download_file_from_gcs, upload_to_gcs
+from utils.commons import download_file_from_gcs,upload_to_gcs
 
 # Attempt to import optional dependency
 try:
@@ -545,9 +545,18 @@ class AirQualityPredictor:
         self.predictions: List[pd.DataFrame] = []
         self.logger = self.aq_data.logger
         self.models: Dict[str, RandomForestRegressor] = {}  # Cache loaded models
+        # GCS-related configurations from configure.py
+        # The MODEL_DIR and SPATIAL_PROJECT_BUCKET are now used to define GCS paths
+        self.SPATIAL_PROJECT_BUCKET = config.SPATIAL_PROJECT_BUCKET
         self.city_list: Any = config.CITY_LIST_FILE
         self.MODEL_DIR = config.MODEL_DIR
-    
+        os.makedirs(
+            self.MODEL_DIR, exist_ok=True
+        )  # Create model directory if it doesn't exist
+
+        if not self.SPATIAL_PROJECT_BUCKET:  # Only ensure local dir if no bucket
+            os.makedirs(self.MODEL_DIR, exist_ok=True)
+
     def _get_processed_cities(self) -> set:
         """
         Retrieves the set of previously processed cities from the JSON file.
@@ -599,49 +608,47 @@ class AirQualityPredictor:
         Returns:
             The loaded model or None if loading fails.
         """
-        model_path = os.path.join(config.MODEL_DIR, f"{city_name}_rf_model.joblib")
-        # Check for model locally first
-        if os.path.exists(model_path):
-            try:
-                model = joblib.load(model_path)
-                self.logger.info(f"Loaded model for '{city_name}' from {model_path}")
-                return model
-            except Exception as e:
-                self.logger.warning(f"Failed to load model for '{city_name}' from {model_path}")
-        # Try to download from GCS if not found locally
+        model_filename = f"{city_name}_rf_model.joblib"
+        local_path = os.path.join(self.MODEL_DIR, model_filename)
+
         try:
-            gcs_path = f"{config.MODEL_GCS_BUCKET}/{city_name}_rf_model.joblib"
-            local_path = download_file_from_gcs(gcs_path, model_path)
-            if local_path and os.path.exists(local_path):
+             # If bucket is defined, try downloading first
+            if self.SPATIAL_PROJECT_BUCKET:
+                gcs_path = f"{self.SPATIAL_PROJECT_BUCKET}/{model_filename}"
+                download_file_from_gcs(gcs_path, local_path)
+            
+            if os.path.exists(local_path):
                 model = joblib.load(local_path)
-                self.logger.info(f"Downloaded and loaded model for '{city_name}' from GCS")
+                self.logger.info(f"Loaded model for '{city_name}' from {local_path}")
                 return model
         except Exception as e:
-            self.logger.warning(f"Failed to download model for '{city_name}' from GCS")
+            self.logger.error(f"Failed to load model for '{city_name}'", exc_info=True)
         return None
-        
+
+
 
     def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
         """
-        Saves a Random Forest model for a city locally and uploads it to GCS
-        if the environment is staging or production.
+        Saves a Random Forest model for a city.
 
         Args:
             city_name: The name of the city.
             model: The trained Random Forest model.
         """
-        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
+        model_filename = f"{city_name}_rf_model.joblib"
+        local_path = os.path.join(self.MODEL_DIR, model_filename)
+
         try:
-            joblib.dump(model, model_path)
-            self.logger.info(f"Saved model for '{city_name}' to {model_path}")
-            # Upload to GCS if environment is staging or production
-            env = os.getenv("ENV", "development").lower()
-            if env in ["staging", "production"]:
-                gcs_path = f"{config.MODEL_GCS_BUCKET}/{city_name}_rf_model.joblib"
-                upload_to_gcs(model_path, gcs_path)
-                self.logger.info(f"Uploaded model for '{city_name}' to GCS: {gcs_path}")
+        # Save locally first
+            joblib.dump(model, local_path)
+            self.logger.info(f"Saved model locally for '{city_name}' to {local_path}")
+         # If running in production (bucket available), upload to GCS
+            if self.SPATIAL_PROJECT_BUCKET:
+                gcs_path = f"{self.SPATIAL_PROJECT_BUCKET}/{model_filename}"
+                upload_to_gcs(local_path, gcs_path)
+                self.logger.info(f"Uploaded model for '{city_name}' to {gcs_path}")
         except Exception as e:
-            self.logger.error(f"Failed to save or upload model for '{city_name}'")
+            self.logger.error(f"Failed to save/upload model for '{city_name}'", exc_info=True) 
 
     def fetch_and_process_data(self) -> bool:
         """
