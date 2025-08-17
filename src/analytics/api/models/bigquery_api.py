@@ -804,8 +804,8 @@ class BigQueryApi:
             - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
             - This function modifies the input lists in-place and also returns them.
         """
-        extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category)
-
+        extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category).copy()
+        extra_columns.discard("site_id")
         if pollutant_columns:
             pollutant_columns.extend(
                 [f"{table_name}.{field}" for field in extra_columns]

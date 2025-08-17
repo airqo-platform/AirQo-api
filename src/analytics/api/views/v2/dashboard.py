@@ -171,6 +171,8 @@ class D3ChartDataResource(Resource):
         device_category = json_data.get("device_category", None)
         data_filter = {filter_type: filter_value}
         frequency = Frequency[frequency.upper()]
+        metadata_fields = json_data.get("metaDataFields", ["site_id"])
+        extra_columns = metadata_fields
         try:
             device_category = (
                 (DeviceCategory[device_category.upper()])
@@ -189,9 +191,9 @@ class D3ChartDataResource(Resource):
                     pollutant,
                 ],
                 data_filter=data_filter,
+                extra_columns=extra_columns,
                 use_cache=True,
             )
-
             if not data.empty:
                 dashboardata = DashboardDataUtils()
                 data = dashboardata.processd3data(data)
