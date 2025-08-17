@@ -588,7 +588,7 @@ class BigQueryApi:
         if frequency.value in self.extra_time_grouping:
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime",
+                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime",
                 "",
             )
 
@@ -701,7 +701,7 @@ class BigQueryApi:
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
-            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime "
+            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime "
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
