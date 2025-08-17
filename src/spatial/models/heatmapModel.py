@@ -608,15 +608,23 @@ class AirQualityPredictor:
         model_filename = f"{city_name}_rf_model.joblib" 
         # Try to load from GCS first
         if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = os.path.join("models", model_filename)
-            temp_local_path = os.path.join(model_filename)
+            gcs_path = f"models/{model_filename}"
+            import tempfile
+            fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
+            os.close(fd)
             try:
-                self.logger.info(f"Attempting to download model from GCS: {gcs_path}")
+                self.logger.info( 
+                    f"Attempting to download model from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{gcs_path}")
                 download_file_from_gcs(
                     self.SPATIAL_PROJECT_BUCKET, gcs_path, temp_local_path
                 )
-                self.logger.info("Model loaded successfully from GCS.")
-                return joblib.load(temp_local_path)
+                model = joblib.load(temp_local_path)
+                self.logger.info("Loaded model from GCS.")
+                try:
+                    os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
+                return model
             except Exception as e:
                 self.logger.warning(
                     f"Failed to load model from GCS for {city_name}. Reason: {e}. Falling back to local directory."
@@ -645,16 +653,19 @@ class AirQualityPredictor:
             model: The trained RandomForestRegressor model.
         """
         model_filename = f"{city_name}_rf_model.joblib"
+        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
         # Prioritize saving to GCS
         if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = os.path.join("models", model_filename)
-            temp_local_path = os.path.join(model_filename)
+            gcs_path = f"models/{model_filename}"
+            import tempfile
+            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
+            os.close(temp_fd)
             try:
                 # Save locally first, then upload
                 joblib.dump(model, temp_local_path)
                 upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, gcs_path)
                 self.logger.info(
-                    f"Model for {city_name} saved successfully to GCS bucket."
+                    f"Model for {city_name} saved successfully to GCS bucket at {gcs_path}."
                 )
                 # Clean up the temporary local file
                 os.remove(temp_local_path)
@@ -664,7 +675,6 @@ class AirQualityPredictor:
                     f"Failed to save model to GCS for {city_name}. Reason: {e}. Falling back to local save."
                 ) 
         # Fallback to local directory save
-        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
         try:
             os.makedirs(self.MODEL_DIR, exist_ok=True) # Ensure dir exists before saving
             joblib.dump(model, local_filepath)
