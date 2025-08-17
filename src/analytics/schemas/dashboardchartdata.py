@@ -41,6 +41,12 @@ class DashboardChartDataSchema(Schema):
             error="Invalid chart type",
         ),
     )
+    metaDataFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["latitude", "longitude", "site_id"], error="Invalid metadata fields."
+        ),
+    )
 
     @validates_schema
     def validate_request_dates(self, data, **kwargs):
