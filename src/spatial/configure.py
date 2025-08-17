@@ -35,22 +35,33 @@ class Config:
     CITY_LIST_FILE = os.path.join(
         MODEL_DIR, "processed_cities.json"
     )  # JSON file for city list
-
+    ENVIRONMENT = "base"
 
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
+    ENVIRONMENT = "production"
 
-
+class StagingConfig(Config):
+    """
+    Configuration for staging environment.
+    """
+    DEBUG = True
+    TESTING = True
+    ENVIRONMENT = "staging"
 class DevelopmentConfig(Config):
+    """
+    Configuration for development environment.
+    """
     DEVELOPMENT = True
     DEBUG = True
+    ENVIRONMENT = "development"
 
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-
+    ENVIRONMENT = "testing"
 
 app_config = {
     "development": DevelopmentConfig,
@@ -62,7 +73,8 @@ app_config = {
 environment = os.getenv("FLASK_ENV", "staging")
 print("ENVIRONMENT", environment or "staging")
 
-configuration = app_config.get(environment, "staging")
+#configuration = app_config.get(environment, "staging")
+configuration = app_config.get(environment, StagingConfig)
 
 satellite_collections = {
     "COPERNICUS/S5P/OFFL/L3_SO2": [
