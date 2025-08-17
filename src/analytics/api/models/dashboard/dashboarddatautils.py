@@ -22,6 +22,9 @@ class DashboardDataUtils:
             List[Dict]: A list of dictionaries where each dictionary represents a sensor data point.
         """
         dataframe["name"] = dataframe["site_name"]
+        dataframe.rename(
+            columns={"datetime": "timestamp"}, errors="ignore", inplace=True
+        )
         drop_cols = [
             "device_name",
             "network",
