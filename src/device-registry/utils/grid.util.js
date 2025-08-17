@@ -507,6 +507,96 @@ const createGrid = {
       );
     }
   },
+  updateShape: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const { shape, update_reason } = body;
+
+      const filter = generateFilter.grids(request, next);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+
+      // First, get the existing grid to validate it exists
+      const existingGrid = await GridModel(tenant)
+        .findOne(filter)
+        .lean();
+      if (!existingGrid) {
+        return {
+          success: false,
+          message: "Grid not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "The specified grid does not exist" },
+        };
+      }
+
+      // Calculate new centers for the updated shape
+      const modifiedRequest = {
+        ...request,
+        body: { shape },
+      };
+
+      const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
+        modifiedRequest,
+        next
+      );
+
+      if (responseFromCalculateGeographicalCenter.success === false) {
+        return responseFromCalculateGeographicalCenter;
+      }
+
+      const newCenters = responseFromCalculateGeographicalCenter.data;
+
+      // Prepare the update object with shape and recalculated centers
+      const update = {
+        shape,
+        centers: newCenters,
+        $push: {
+          shape_update_history: {
+            updated_at: new Date(),
+            reason: update_reason,
+            previous_shape: existingGrid.shape,
+            previous_centers: existingGrid.centers,
+          },
+        },
+      };
+
+      const responseFromUpdateGridShape = await GridModel(tenant).modifyShape(
+        {
+          filter,
+          update,
+        },
+        next
+      );
+
+      if (responseFromUpdateGridShape.success === true) {
+        // Refresh the grid to update associated sites with new boundaries
+        try {
+          const refreshRequest = {
+            ...request,
+            params: { grid_id: existingGrid._id.toString() },
+          };
+          await createGrid.refresh(refreshRequest, next);
+        } catch (refreshError) {
+          logger.error(
+            `Grid shape updated but refresh failed: ${refreshError.message}`
+          );
+        }
+      }
+
+      return responseFromUpdateGridShape;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 
   /************* admin levels **************************************/
   listAdminLevels: async (request, next) => {

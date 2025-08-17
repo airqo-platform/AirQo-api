@@ -1,6 +1,7 @@
 """Module for creating the flask app"""
 
 # System libraries
+from api.utils.utils import limiter
 
 # Third-Party libraries
 from flasgger import Swagger
@@ -16,12 +17,22 @@ from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 
 # Config
-from config import CONFIGURATIONS, API_V2_BASE_URL, BaseConfig
+from config import (
+    CONFIGURATIONS,
+    API_V2_BASE_URL,
+    API_V3_BASE_URL,
+    API_V2_BASE_INTERNAL_URL,
+    BaseConfig,
+)
 
 BaseConfig.init_logging()
+
 rest_api = Api(doc=False)
 rest_api_v2 = Namespace(name="v2", description="API version 2", path=API_V2_BASE_URL)
+rest_api_v3 = Namespace(name="v3", description="API version 3", path=API_V3_BASE_URL)
+
 rest_api.add_namespace(rest_api_v2)
+rest_api.add_namespace(rest_api_v3)
 cache = Cache()
 
 
@@ -37,6 +48,7 @@ def create_app(rest_api, config=CONFIGURATIONS):
     app = Flask(__name__)
     app.config.from_object(config)
     rest_api.init_app(app)
+    limiter.init_app(app)
     cache.init_app(app)
     init_excel(app)
     CORS(app)

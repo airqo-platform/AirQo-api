@@ -14,6 +14,12 @@ router.delete(
 );
 
 router.put(
+  "/:cohort_id/name",
+  cohortValidations.updateCohortName,
+  createCohortController.updateName
+);
+
+router.put(
   "/:cohort_id",
   cohortValidations.updateCohort,
   createCohortController.update
