@@ -149,8 +149,20 @@ class BaseConfig:
 
     # Fields for data cleaning
     OPTIONAL_FIELDS = {
-        DeviceCategory.LOWCOST: {"longitude", "latitude", "temperature", "humidity"},
-        DeviceCategory.BAM: {"longitude", "latitude", "temperature", "humidity"},
+        DeviceCategory.LOWCOST: {
+            "longitude",
+            "latitude",
+            "temperature",
+            "humidity",
+            "site_id",
+        },
+        DeviceCategory.BAM: {
+            "longitude",
+            "latitude",
+            "temperature",
+            "humidity",
+            "site_id",
+        },
         DeviceCategory.MOBILE: {"longitude", "latitude", "temperature", "humidity"},
     }
 
