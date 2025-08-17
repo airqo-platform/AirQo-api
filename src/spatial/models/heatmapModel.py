@@ -532,7 +532,6 @@ class AirQualityPredictor:
     ):
         """
         Initializes the AirQualityPredictor.
-
         Args:
             air_quality_data: An initialized instance of AirQualityData.
             air_quality_grids: An initialized instance of AirQualityGrids.
@@ -557,7 +556,6 @@ class AirQualityPredictor:
     def _get_processed_cities(self) -> set:
         """
         Retrieves the set of previously processed cities from the JSON file.
-
         Returns:
             A set of city names that have been processed.
         """
