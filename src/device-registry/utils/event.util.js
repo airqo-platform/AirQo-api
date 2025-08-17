@@ -21,6 +21,7 @@ const {
   formatDate,
   translate,
   stringify,
+  ActivityLogger,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
@@ -299,6 +300,27 @@ async function processEvent(event, next) {
           value
         )}`
       );
+
+      // Log the rejected event
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "FAILURE",
+        records_attempted: event.values ? event.values.length : 1,
+        records_successful: 0,
+        records_failed: event.values ? event.values.length : 1,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        error_details: "All values zero or negative, discarded",
+        error_code: "INVALID_VALUES",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+          original_values_count: event.values ? event.values.length : 0,
+        },
+      });
+
       return { added: false };
     }
 
@@ -313,6 +335,27 @@ async function processEvent(event, next) {
     );
 
     if (addedEvents) {
+      // Log successful insertion
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "SUCCESS",
+        records_attempted: event.values ? event.values.length : 1,
+        records_successful: validValues.length,
+        records_failed: event.values
+          ? event.values.length - validValues.length
+          : 0,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+          valid_values_count: validValues.length,
+          original_values_count: event.values ? event.values.length : 0,
+        },
+      });
+
       return {
         added: true,
         error: null,
@@ -328,13 +371,32 @@ async function processEvent(event, next) {
           ...(event.site_id ? { site_id: event.site_id } : {}),
         },
       };
+
+      // Log failed insertion
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "FAILURE",
+        records_attempted: validValues.length,
+        records_successful: 0,
+        records_failed: validValues.length,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        error_details: errMsg.message,
+        error_code: "INSERT_FAILED",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+        },
+      });
+
       return {
         added: false,
         error: errMsg,
       };
     }
   } catch (e) {
-    // Removed reference to eventsRejected variable
     let errMsg = {
       message: "System conflict detected, most likely a duplicate record",
       more: e.message,
@@ -346,6 +408,27 @@ async function processEvent(event, next) {
         ...(event.site_id ? { site_id: event.site_id } : {}),
       },
     };
+
+    // Log the exception
+    await ActivityLogger.logActivity({
+      operation_type: "INSERT",
+      entity_type: "EVENT",
+      status: "FAILURE",
+      records_attempted: event.values ? event.values.length : 1,
+      records_successful: 0,
+      records_failed: event.values ? event.values.length : 1,
+      tenant: event.tenant || "airqo",
+      source_function: "processEvent",
+      error_details: errMsg.message,
+      error_code: e.code || e.name || "EXCEPTION",
+      entity_id: event.device_id,
+      metadata: {
+        device: event.device,
+        site_id: event.site_id,
+        exception_details: e.message,
+      },
+    });
+
     return {
       added: false,
       error: errMsg,
@@ -4917,29 +5000,26 @@ const createEvent = {
 
   addValuesWithStats: async (tenant, measurements, next) => {
     try {
-      const result = await createEvent.insertMeasurements_v3(
-        tenant,
-        measurements,
-        next
+      return await ActivityLogger.trackOperation(
+        async () => {
+          return await createEvent.insertMeasurements_v3(
+            tenant,
+            measurements,
+            next
+          );
+        },
+        {
+          operation_type: "BULK_INSERT",
+          entity_type: "EVENT",
+          tenant: tenant,
+          source_function: "addValuesWithStats",
+          records_attempted: measurements.length,
+          metadata: {
+            tenant: tenant,
+            total_measurements: measurements.length,
+          },
+        }
       );
-
-      if (!result.success) {
-        return {
-          success: false,
-          message: "Finished the operation with some errors",
-          errors: result.errors,
-          deployment_stats: result.deployment_stats,
-          status: httpStatus.BAD_REQUEST,
-        };
-      } else {
-        return {
-          success: true,
-          message: "Successfully added all the events",
-          deployment_stats: result.deployment_stats,
-          errors: result.errors,
-          status: httpStatus.OK,
-        };
-      }
     } catch (error) {
       logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
       return {
@@ -4950,7 +5030,6 @@ const createEvent = {
       };
     }
   },
-
   // Helper function to validate and process grid IDs (moved from controller logic)
   processLocationIds: async (
     { grid_ids, cohort_ids, airqloud_ids, type },
