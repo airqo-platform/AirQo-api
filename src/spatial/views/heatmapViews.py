@@ -100,7 +100,7 @@ class AQIImageGenerator:
         Returns:
             Tuple of (image_data_url, bounds, message).
         """
-        if len(data) < 4:
+        if len(data) < 2:
             return None, None, f"⚠️ Not enough data for {city_name}"
 
         coords = np.array([[lat, lon] for lat, lon, _ in data])
