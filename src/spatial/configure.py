@@ -43,9 +43,8 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     ENVIRONMENT = "production"
-    CITY_LIST_FILE = os.path.join(
-        Config.SPATIAL_PROJECT_BUCKET, "processed_cities.json"
-    )
+    CITY_LIST_FILE = f"gs://{Config.SPATIAL_PROJECT_BUCKET}/processed_cities.json"
+    
 
 class StagingConfig(Config):
     """
@@ -54,9 +53,7 @@ class StagingConfig(Config):
     DEBUG = True
     TESTING = True
     ENVIRONMENT = "staging"
-    CITY_LIST_FILE = os.path.join(
-        Config.SPATIAL_PROJECT_BUCKET, "processed_cities.json"
-    )
+    CITY_LIST_FILE = f"gs://{Config.SPATIAL_PROJECT_BUCKET}/processed_cities.json"
 class DevelopmentConfig(Config):
     """
     Configuration for development environment.
