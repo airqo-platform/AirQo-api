@@ -124,14 +124,14 @@ class BaseAirQoAPI:
                 self.logger.info("Redis connection successful via URL.")
                 return client
 
-            redis_host = os.getenv("REDIS_HOST")
-            redis_port = os.getenv("REDIS_PORT")
+            redis_host = config.REDIS_HOST
+            redis_port = config.REDIS_PORT
             if redis_host and redis_port:
                 client = redis.Redis(
                     host=redis_host,
                     port=int(redis_port),
-                    db=int(os.getenv("REDIS_DB", "0")),
-                    password=os.getenv("REDIS_PASSWORD"),
+                    db=int(config.REDIS_DB),
+                    password=config.REDIS_PASSWORD,
                     decode_responses=False,
                 )
                 client.ping()
@@ -559,6 +559,44 @@ class AirQualityPredictor:
         Returns:
             A set of city names that have been processed.
         """
+        cities = set()
+        city_list_filename = "processed_cities.json"
+        # Try GCS first if SPATIAL_PROJECT_BUCKET is configured
+        if self.SPATIAL_PROJECT_BUCKET:
+            import tempfile
+            fd, temp_local_path = tempfile.mkstemp(suffix=".json")
+            os.close(fd)
+            try:
+                self.logger.info(
+                    f"Attempting to download processed cities from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{city_list_filename}"
+                )
+                download_file_from_gcs(
+                    self.SPATIAL_PROJECT_BUCKET, city_list_filename, temp_local_path
+                )
+                with open(temp_local_path, "r") as f:
+                    data = json.load(f)
+                    raw_cities = data.get("cities", [])
+                    if not isinstance(raw_cities, list):
+                        self.logger.warning(
+                            "Invalid 'cities' type in processed cities JSON. Expected list, got %s. Defaulting to empty list.",
+                                type(raw_cities).__name__,)                        
+                        raw_cities = []
+                    cities = set(raw_cities)
+                    self.logger.info(
+                        f"Loaded {len(cities)} processed cities from GCS")                   
+                return cities
+            except Exception as e:
+                self.logger.warning(
+                     f"Failed to load processed cities from GCS: {e}. Falling back to local file.")
+            finally:
+                try:
+                    if os.path.exists(temp_local_path):
+                        os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")                 
+                
+        # Fallback to local file
+
         if os.path.exists(self.city_list):
             try:
                 with open(self.city_list, "r") as f:
@@ -584,6 +622,32 @@ class AirQualityPredictor:
             cities: A set of city names to save.
         """
         cities_list = list(cities)
+        city_list_filename = "processed_cities.json"
+        data = {"cities": cities_list}
+
+        # Try GCS first if SPATIAL_PROJECT_BUCKET is configured
+        if self.SPATIAL_PROJECT_BUCKET:
+            import tempfile
+            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".json")
+            os.close(temp_fd)
+            try:
+                with open(temp_local_path, "w") as f:
+                    json.dump(data, f, indent=2)
+                upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, city_list_filename)
+                self.logger.info(
+                    f"Saved {len(cities_list)} processed cities to GCS at gs://{self.SPATIAL_PROJECT_BUCKET}/{city_list_filename}"
+                )
+                try:
+                    os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
+                return
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save processed cities to GCS: {e}. Falling back to local file."
+                )
+
+        # Fallback to local file
         try:
             with open(self.city_list, "w") as f:
                 json.dump({"cities": cities_list}, f, indent=2)
@@ -606,7 +670,7 @@ class AirQualityPredictor:
         model_filename = f"{city_name}_rf_model.joblib" 
         # Try to load from GCS first
         if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = f"models/{model_filename}"
+            gcs_path = model_filename
             import tempfile
             fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
             os.close(fd)
@@ -654,7 +718,7 @@ class AirQualityPredictor:
         local_filepath = os.path.join(self.MODEL_DIR, model_filename)
         # Prioritize saving to GCS
         if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = f"models/{model_filename}"
+            gcs_path = model_filename
             import tempfile
             temp_fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
             os.close(temp_fd)
@@ -751,7 +815,7 @@ class AirQualityPredictor:
                 city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
 
                 known = city_data[city_data["pm25"].notna()].copy()
-                if len(known) < 4:
+                if len(known) < 2:
                     self.logger.warning(
                         f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
                     )
