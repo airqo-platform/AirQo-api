@@ -129,8 +129,7 @@ class BaseAirQoAPI:
             if redis_host and redis_port:
                 client = redis.Redis(
                     host=redis_host,
-                    port=int(redis_port),
-                    db=int(config.REDIS_DB),
+                    port=int(redis_port), 
                     password=config.REDIS_PASSWORD,
                     decode_responses=False,
                 )
@@ -681,7 +680,8 @@ class AirQualityPredictor:
                     self.SPATIAL_PROJECT_BUCKET, gcs_path, temp_local_path
                 )
                 model = joblib.load(temp_local_path)
-                self.logger.info("Loaded model from GCS.")
+                self.logger.info(f"Loaded model from GCS: for {model_filename}")
+                
                 try:
                     os.remove(temp_local_path)
                 except OSError:
