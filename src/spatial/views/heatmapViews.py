@@ -219,7 +219,7 @@ class AQIImageGenerator:
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            return jsonify({"error": "An internal error has occurred."}), 500
+            return jsonify({"error": "An internal error has occurred Redis cache."}), 500
 
     @staticmethod
     def generate_aqi_image_for_city(city_id):
@@ -293,7 +293,7 @@ class AQIImageGenerator:
 
         except Exception as e:
             print(f"An error occurred for city ID {city_id}: ")
-            return jsonify({"error": "An internal error has occurred."}), 500
+            return jsonify({"error": "An internal error has occurred in occurred for city ID."}), 500
 
 # ----------------------------- Example Usage ------------------------------ #
 '''if __name__ == "__main__":
