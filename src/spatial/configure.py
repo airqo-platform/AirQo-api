@@ -15,6 +15,8 @@ class Config:
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
     AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
     REDIS_CACHE_TTL = os.getenv("REDIS_CACHE_TTL")
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PORT=os.getenv("REDIS_PORT")
     GRID_URL = os.getenv("GRID_URL_ID")
     BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED")
     CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -41,6 +43,9 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     ENVIRONMENT = "production"
+    CITY_LIST_FILE = os.path.join(
+        Config.SPATIAL_PROJECT_BUCKET, "processed_cities.json"
+    )
 
 class StagingConfig(Config):
     """
@@ -49,6 +54,9 @@ class StagingConfig(Config):
     DEBUG = True
     TESTING = True
     ENVIRONMENT = "staging"
+    CITY_LIST_FILE = os.path.join(
+        Config.SPATIAL_PROJECT_BUCKET, "processed_cities.json"
+    )
 class DevelopmentConfig(Config):
     """
     Configuration for development environment.
@@ -56,13 +64,13 @@ class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
     ENVIRONMENT = "development"
-
+    # uses default CITY_LIST_FILE (local)
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
     ENVIRONMENT = "testing"
-
+    # uses default CITY_LIST_FILE (local)
 app_config = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,

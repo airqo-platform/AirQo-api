@@ -559,6 +559,9 @@ class AirQualityPredictor:
         Returns:
             A set of city names that have been processed.
         """
+
+
+        
         if os.path.exists(self.city_list):
             try:
                 with open(self.city_list, "r") as f:
@@ -606,7 +609,7 @@ class AirQualityPredictor:
         model_filename = f"{city_name}_rf_model.joblib" 
         # Try to load from GCS first
         if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = f"models/{model_filename}"
+            gcs_path = model_filename
             import tempfile
             fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
             os.close(fd)
@@ -654,7 +657,7 @@ class AirQualityPredictor:
         local_filepath = os.path.join(self.MODEL_DIR, model_filename)
         # Prioritize saving to GCS
         if self.SPATIAL_PROJECT_BUCKET:
-            gcs_path = f"models/{model_filename}"
+            gcs_path = model_filename
             import tempfile
             temp_fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
             os.close(temp_fd)
@@ -751,7 +754,7 @@ class AirQualityPredictor:
                 city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
 
                 known = city_data[city_data["pm25"].notna()].copy()
-                if len(known) < 4:
+                if len(known) < 2:
                     self.logger.warning(
                         f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
                     )
