@@ -680,7 +680,7 @@ class AirQualityPredictor:
                     self.SPATIAL_PROJECT_BUCKET, gcs_path, temp_local_path
                 )
                 model = joblib.load(temp_local_path)
-                self.logger.info(f"Loaded model from GCS:{model_filename}")
+                self.logger.info(f"Loaded model from GCS: for {model_filename}")
                 
                 try:
                     os.remove(temp_local_path)
