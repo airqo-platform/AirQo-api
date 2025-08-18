@@ -124,14 +124,14 @@ class BaseAirQoAPI:
                 self.logger.info("Redis connection successful via URL.")
                 return client
 
-            redis_host = os.getenv("REDIS_HOST")
-            redis_port = os.getenv("REDIS_PORT")
+            redis_host = config.REDIS_HOST
+            redis_port = config.REDIS_PORT
             if redis_host and redis_port:
                 client = redis.Redis(
                     host=redis_host,
                     port=int(redis_port),
-                    db=int(os.getenv("REDIS_DB", "0")),
-                    password=os.getenv("REDIS_PASSWORD"),
+                    db=int(config.REDIS_DB),
+                    password=config.REDIS_PASSWORD,
                     decode_responses=False,
                 )
                 client.ping()
