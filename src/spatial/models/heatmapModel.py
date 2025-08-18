@@ -575,22 +575,27 @@ class AirQualityPredictor:
                 )
                 with open(temp_local_path, "r") as f:
                     data = json.load(f)
-                    cities = set(data.get("cities", []))
+                    raw_cities = data.get("cities", [])
+                    if not isinstance(raw_cities, list):
+                        self.logger.warning(
+                            "Invalid 'cities' type in processed cities JSON. Expected list, got %s. Defaulting to empty list.",
+                                type(raw_cities).__name__,)                        
+                        raw_cities = []
+                    cities = set(raw_cities)
                     self.logger.info(
-                        f"Loaded {len(cities)} processed cities from GCS"
-                    )
-                try:
-                    os.remove(temp_local_path)
-                except OSError:
-                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
+                        f"Loaded {len(cities)} processed cities from GCS")                   
                 return cities
             except Exception as e:
                 self.logger.warning(
-                    f"Failed to load processed cities from GCS: {e}. Falling back to local file."
-                )
-
+                     f"Failed to load processed cities from GCS: {e}. Falling back to local file.")
+            finally:
+                try:
+                    if os.path.exists(temp_local_path):
+                        os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")                 
+                
         # Fallback to local file
-
 
         if os.path.exists(self.city_list):
             try:
