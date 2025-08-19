@@ -848,7 +848,7 @@ class AirQualityPredictor:
             )
             
             # Train the model
-            model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model = RandomForestRegressor(n_estimators=50, random_state=42)
             model.fit(X_train, y_train)
             
             # Save the model
@@ -917,7 +917,7 @@ class AirQualityPredictor:
     def train_and_predict(
         self,
         buffer_distance: float = 0.001,
-        grid_resolution: int = 15,
+        grid_resolution: int = 10,
         force_retrain: bool = False,
         max_workers: int = None  # Add parameter for controlling parallelism
     ) -> bool:
