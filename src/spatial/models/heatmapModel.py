@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import concurrent.futures
+from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
@@ -18,7 +20,7 @@ from sklearn.model_selection import train_test_split
 from urllib3.util.retry import Retry
 import joblib
 from configure import Config as config
-from utils.commons import download_file_from_gcs,upload_to_gcs
+from utils.commons import download_file_from_gcs, upload_to_gcs
 
 # Attempt to import optional dependency
 try:
@@ -289,25 +291,38 @@ class AirQualityData(BaseAirQoAPI):
     def fetch_data(self) -> bool:
         """
         Fetches the latest air quality measurements from the API.
-        The Redis cache is checked first.
+        The Redis cache is checked first, and only if not found, fetches from API.
 
         Returns:
-            True if data was fetched successfully (from API or cache), False otherwise.
+            True if data was fetched successfully (from cache or API), False otherwise.
         """
-        self.logger.info("Fetching air quality measurements...")
+        self.logger.info("Checking Redis cache for air quality measurements...")
+        
+        # First try to get data from Redis cache
+        cached_data = self._cache_get(self.REDIS_KEY)
+        if cached_data and self._is_valid_payload(cached_data):
+            self.data = cached_data
+            self.logger.info(
+                "Loaded air quality measurements from Redis cache. Records: %d",
+                len(cached_data.get("measurements", [])),
+            )
+            return True
+        
+        self.logger.info("Cache miss. Fetching air quality measurements from API...")
         payload = self._get_json(
             path="/api/v2/devices/readings/map",
             validator=self._is_valid_payload,
             cache_key=self.REDIS_KEY,
             use_cache_on_error=True,
         )
+        
         if payload is None:
             self.logger.error("Data fetch failed and no usable cache was available.")
             return False
 
         self.data = payload
         self.logger.info(
-            "Successfully fetched %d measurement records.",
+            "Successfully fetched %d measurement records from API.",
             len(payload.get("measurements", [])),
         )
         return True
@@ -414,26 +429,38 @@ class AirQualityGrids(BaseAirQoAPI):
 
     def fetch_data(self) -> bool:
         """
-        Fetches grid data from the API. Caching is now enabled for this endpoint.
-        The Redis cache is checked first.
+        Fetches grid data. The Redis cache is checked first, and only if not found, fetches from API.
 
         Returns:
             True if data was fetched successfully, False otherwise.
         """
-        self.logger.info("Fetching grid polygons...")
+        self.logger.info("Checking Redis cache for grid polygons...")
+        
+        # First try to get data from Redis cache
+        cached_data = self._cache_get(self.REDIS_KEY)
+        if cached_data and self._is_valid_grids(cached_data):
+            self.data = cached_data
+            self.logger.info(
+                "Loaded grid data from Redis cache. Records: %d",
+                len(cached_data.get("grids", [])),
+            )
+            return True
+        
+        self.logger.info("Cache miss. Fetching grid polygons from API...")
         payload = self._get_json(
             path="/api/v2/devices/grids",
             validator=self._is_valid_grids,
             cache_key=self.REDIS_KEY,
             use_cache_on_error=True,
         )
+        
         if payload is None:
             self.logger.error("Failed to fetch grid data.")
             return False
 
         self.data = payload
         self.logger.info(
-            "Successfully fetched %d grid records.", len(payload.get("grids", []))
+            "Successfully fetched %d grid records from API.", len(payload.get("grids", []))
         )
         return True
 
@@ -704,7 +731,6 @@ class AirQualityPredictor:
 
         return None
 
-
     def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
         """
         Saves a trained model for a specific city.
@@ -775,19 +801,127 @@ class AirQualityPredictor:
             )
             return False
 
+    def _process_city(self, city, buffer_distance, grid_resolution, force_retrain, processed_cities):
+        """Process a single city (training/prediction) - designed for parallel execution"""
+        city_name = city["name"]
+        city_poly = city["geometry"].buffer(buffer_distance)
+        city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
+        
+        known = city_data[city_data["pm25"].notna()].copy()
+        if len(known) < 2:
+            self.logger.warning(
+                f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
+            )
+            return None, None, None
+        
+        # Decide whether to train a new model
+        train_model = force_retrain or (city_name not in processed_cities)
+        model = None
+        if not train_model:
+            model = self._load_model(city_name)
+            if model is None:
+                self.logger.info(
+                    f"No model found for '{city_name}'; will train a new one."
+                )
+                train_model = True
+        
+        result = None
+        prediction_df = None
+        
+        if train_model:
+            self.logger.info(
+                f"Training model for '{city_name}' with {len(known)} data points..."
+            )
+            # Define features (X) and target (y)
+            X = known[["latitude", "longitude"]]
+            y = known["pm25"]
+            
+            # Split data for training and evaluation
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+            
+            # Train the model
+            model = RandomForestRegressor(n_estimators=100, random_state=42)
+            model.fit(X_train, y_train)
+            
+            # Save the model
+            self._save_model(city_name, model)
+            
+            # Evaluate the model if the test set is non-empty
+            if not y_test.empty:
+                y_pred = model.predict(X_test)
+                result = {
+                    "city": city_name,
+                    "R²": r2_score(y_test, y_pred),
+                    "RMSE": np.sqrt(mean_squared_error(y_test, y_pred)),
+                    "MAE": mean_absolute_error(y_test, y_pred),
+                    "n_samples_train": len(y_train),
+                    "n_samples_test": len(y_test),
+                }
+        
+        # Create a prediction grid within the city polygon
+        x_min, y_min, x_max, y_max = city_poly.bounds
+        x_coords = np.linspace(x_min, x_max, grid_resolution)
+        y_coords = np.linspace(y_min, y_max, grid_resolution)
+        xx, yy = np.meshgrid(x_coords, y_coords)
+        grid_points_all = [Point(x, y) for x, y in zip(xx.ravel(), yy.ravel())]
+        
+        grid_gdf = gpd.GeoDataFrame(geometry=grid_points_all, crs="EPSG:4326")
+        grid_gdf = grid_gdf[grid_gdf.geometry.within(city_poly)]
+        
+        # Predict PM2.5 for the grid points
+        if not grid_gdf.empty:
+            grid_locations = pd.DataFrame(
+                {
+                    "latitude": [pt.y for pt in grid_gdf.geometry],
+                    "longitude": [pt.x for pt in grid_gdf.geometry],
+                }
+            )
+            grid_pred_pm25 = model.predict(grid_locations)
+            
+            grid_results_df = pd.DataFrame(
+                {
+                    "city": city_name,
+                    "latitude": grid_locations["latitude"],
+                    "longitude": grid_locations["longitude"],
+                    "predicted_pm25": grid_pred_pm25,
+                    "source": "grid_prediction",
+                }
+            )
+            
+            # Prepare original data for combination
+            original_data_df = known[
+                ["site_name", "latitude", "longitude", "pm25"]
+            ].copy()
+            original_data_df.rename(
+                columns={"pm25": "predicted_pm25"}, inplace=True
+            )
+            original_data_df["source"] = "original"
+            original_data_df["city"] = city_name
+            
+            prediction_df = pd.concat(
+                [original_data_df, grid_results_df], ignore_index=True
+            )
+        
+        return city_name, result, prediction_df
+
     def train_and_predict(
         self,
         buffer_distance: float = 0.001,
         grid_resolution: int = 15,
         force_retrain: bool = False,
+        max_workers: int = None  # Add parameter for controlling parallelism
     ) -> bool:
         """
         Trains or loads Random Forest models for each grid polygon and predicts PM2.5 values.
+        Uses concurrent processing for faster execution.
 
         Args:
             buffer_distance: Buffer around each polygon to include nearby points (in degrees).
             grid_resolution: Number of points per dimension for the prediction grid.
             force_retrain: If True, retrain models for all cities regardless of existing models.
+            max_workers: Maximum number of parallel workers. If None, uses os.cpu_count().
 
         Returns:
             True if the process completes successfully, False otherwise.
@@ -805,116 +939,42 @@ class AirQualityPredictor:
         # Get current and previously processed cities
         current_cities = set(self.gdf_polygons["name"])
         processed_cities = self._get_processed_cities()
-        new_cities = current_cities - processed_cities
-        self.logger.info(f"Found {len(new_cities)} new cities: {new_cities}")
+        
+        if max_workers is None:
+            max_workers = min(os.cpu_count() or 4, len(self.gdf_polygons))
+        
+        self.logger.info(f"Processing {len(self.gdf_polygons)} cities with {max_workers} workers")
 
         try:
-            for _, city in self.gdf_polygons.iterrows():
-                city_name = city["name"]
-                city_poly = city["geometry"].buffer(buffer_distance)
-                city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
-
-                known = city_data[city_data["pm25"].notna()].copy()
-                if len(known) < 2:
-                    self.logger.warning(
-                        f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
-                    )
-                    continue
-
-                # Decide whether to train a new model
-                train_model = force_retrain or (city_name in new_cities)
-                model = None
-                if not train_model:
-                    model = self._load_model(city_name)
-                    if model is None:
-                        self.logger.info(
-                            f"No model found for '{city_name}'; will train a new one."
-                        )
-                        train_model = True
-
-                if train_model:
-                    self.logger.info(
-                        f"Training model for '{city_name}' with {len(known)} data points..."
-                    )
-                    # Define features (X) and target (y)
-                    X = known[["latitude", "longitude"]]
-                    y = known["pm25"]
-
-                    # Split data for training and evaluation
-                    X_train, X_test, y_train, y_test = train_test_split(
-                        X, y, test_size=0.2, random_state=42
-                    )
-
-                    # Train the model
-                    model = RandomForestRegressor(n_estimators=100, random_state=42)
-                    model.fit(X_train, y_train)
-
-                    # Save the model
-                    self._save_model(city_name, model)
-
-                    # Evaluate the model if the test set is non-empty
-                    if not y_test.empty:
-                        y_pred = model.predict(X_test)
-                        self.results.append(
-                            {
-                                "city": city_name,
-                                "R²": r2_score(y_test, y_pred),
-                                "RMSE": np.sqrt(mean_squared_error(y_test, y_pred)),
-                                "MAE": mean_absolute_error(y_test, y_pred),
-                                "n_samples_train": len(y_train),
-                                "n_samples_test": len(y_test),
-                            }
-                        )
-
-                self.models[city_name] = model
-                self.logger.info(
-                    f"Using model for '{city_name}' (trained={train_model})."
-                )
-
-                # Create a prediction grid within the city polygon
-                x_min, y_min, x_max, y_max = city_poly.bounds
-                x_coords = np.linspace(x_min, x_max, grid_resolution)
-                y_coords = np.linspace(y_min, y_max, grid_resolution)
-                xx, yy = np.meshgrid(x_coords, y_coords)
-                grid_points_all = [Point(x, y) for x, y in zip(xx.ravel(), yy.ravel())]
-
-                grid_gdf = gpd.GeoDataFrame(geometry=grid_points_all, crs="EPSG:4326")
-                grid_gdf = grid_gdf[grid_gdf.geometry.within(city_poly)]
-
-                # Predict PM2.5 for the grid points
-                if not grid_gdf.empty:
-                    grid_locations = pd.DataFrame(
-                        {
-                            "latitude": [pt.y for pt in grid_gdf.geometry],
-                            "longitude": [pt.x for pt in grid_gdf.geometry],
-                        }
-                    )
-                    grid_pred_pm25 = model.predict(grid_locations)
-
-                    grid_results_df = pd.DataFrame(
-                        {
-                            "city": city_name,
-                            "latitude": grid_locations["latitude"],
-                            "longitude": grid_locations["longitude"],
-                            "predicted_pm25": grid_pred_pm25,
-                            "source": "grid_prediction",
-                        }
-                    )
-
-                    # Prepare original data for combination
-                    original_data_df = known[
-                        ["site_name", "latitude", "longitude", "pm25"]
-                    ].copy()
-                    original_data_df.rename(
-                        columns={"pm25": "predicted_pm25"}, inplace=True
-                    )
-                    original_data_df["source"] = "original"
-                    original_data_df["city"] = city_name
-
-                    combined = pd.concat(
-                        [original_data_df, grid_results_df], ignore_index=True
-                    )
-                    self.predictions.append(combined)
+            # Create a partial function with fixed parameters
+            process_city_partial = partial(
+                self._process_city,
+                buffer_distance=buffer_distance,
+                grid_resolution=grid_resolution,
+                force_retrain=force_retrain,
+                processed_cities=processed_cities
+            )
+            
+            # Use ThreadPoolExecutor for parallel processing
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all cities for processing
+                future_to_city = {
+                    executor.submit(process_city_partial, city): city["name"]
+                    for _, city in self.gdf_polygons.iterrows()
+                }
+                
+                # Process results as they complete
+                for future in concurrent.futures.as_completed(future_to_city):
+                    city_name = future_to_city[future]
+                    try:
+                        city_name, result, prediction_df = future.result()
+                        if result:
+                            self.results.append(result)
+                        if prediction_df is not None:
+                            self.predictions.append(prediction_df)
+                        self.logger.info(f"Completed processing for {city_name}")
+                    except Exception as exc:
+                        self.logger.error(f"City {city_name} generated an exception: {exc}")
 
             # Update the processed cities list
             processed_cities.update(current_cities)
@@ -1000,7 +1060,7 @@ class AirQualityPredictor:
 
         print("\n--- Starting Prediction Workflow ---")
         # Step 2: Train models and generate predictions
-        if predictor.train_and_predict():
+        if predictor.train_and_predict(max_workers=8):  # Use 8 parallel workers
             # Step 3: Retrieve and display results
             eval_results_df, predictions_df = predictor.get_results()
 
