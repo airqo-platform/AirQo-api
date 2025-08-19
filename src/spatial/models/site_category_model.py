@@ -1,14 +1,33 @@
 import overpy
 from geopy.distance import geodesic
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+import time
 
 # Initialize the Overpass API
 api = overpy.Overpass()
+# Initialize Nominatim geocoder
+geolocator = Nominatim(user_agent="site_categorization_app")
 
 
 class SiteCategoryModel:
     def __init__(self, category=None):
         # Initialize the class with an optional category
         self.category = category
+
+    def get_location_name(self, latitude, longitude):
+        """Use Nominatim to get a human-readable name for the location."""
+        try:
+            location = geolocator.reverse((latitude, longitude), exactly_one=True)
+            if location:
+                return location.address
+            return None
+        except (GeocoderTimedOut, GeocoderServiceError) as e:
+            print(f"Geocoding error: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected geocoding error: {e}")
+            return None
 
     def categorize_site_osm(self, latitude, longitude):
         # Define search radii for querying OSM data
@@ -116,7 +135,7 @@ class SiteCategoryModel:
                         return (
                             "Urban Commercial",
                             distance,
-                            area_name,
+                            area_name if area_name != "Unnamed" else self.get_location_name(latitude, longitude),
                             landuse,
                             natural,
                             waterway,
@@ -129,7 +148,7 @@ class SiteCategoryModel:
                         return (
                             "Urban Commercial",
                             distance,
-                            area_name,
+                            area_name if area_name != "Unnamed" else self.get_location_name(latitude, longitude),
                             landuse,
                             natural,
                             waterway,
@@ -148,7 +167,7 @@ class SiteCategoryModel:
                             if distance < nearest_distance:
                                 nearest_categorization = "Urban Background"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
+                                nearest_area_name = area_name if area_name != "Unnamed" else self.get_location_name(latitude, longitude)
                                 landuse_info = landuse
                                 natural_info = natural
                                 waterway_info = waterway
@@ -161,7 +180,7 @@ class SiteCategoryModel:
                             if distance < nearest_distance:
                                 nearest_categorization = "Urban Commercial"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
+                                nearest_area_name = area_name if area_name != "Unnamed" else self.get_location_name(latitude, longitude)
                                 landuse_info = landuse
                                 natural_info = natural
                                 waterway_info = waterway
@@ -176,7 +195,7 @@ class SiteCategoryModel:
                             if distance < nearest_distance:
                                 nearest_categorization = "Background Site"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
+                                nearest_area_name = area_name if area_name != "Unnamed" else self.get_location_name(latitude, longitude)
                                 landuse_info = landuse
                                 natural_info = natural
                                 waterway_info = waterway
@@ -188,7 +207,7 @@ class SiteCategoryModel:
                             if distance < nearest_distance:
                                 nearest_categorization = "Water Body"
                                 nearest_distance = distance
-                                nearest_area_name = area_name
+                                nearest_area_name = area_name if area_name != "Unnamed" else self.get_location_name(latitude, longitude)
                                 landuse_info = landuse
                                 natural_info = natural
                                 waterway_info = waterway
@@ -200,7 +219,7 @@ class SiteCategoryModel:
                 return (
                     "Background Site",
                     None,
-                    nearest_area_name,
+                    nearest_area_name if nearest_area_name != "Unnamed" else self.get_location_name(latitude, longitude),
                     landuse_info,
                     natural_info,
                     waterway_info,
@@ -211,7 +230,7 @@ class SiteCategoryModel:
                 return (
                     "Urban Background",
                     None,
-                    nearest_area_name,
+                    nearest_area_name if nearest_area_name != "Unnamed" else self.get_location_name(latitude, longitude),
                     landuse_info,
                     natural_info,
                     waterway_info,
@@ -222,7 +241,7 @@ class SiteCategoryModel:
                 return (
                     "Water Body",
                     None,
-                    nearest_area_name,
+                    nearest_area_name if nearest_area_name != "Unnamed" else self.get_location_name(latitude, longitude),
                     landuse_info,
                     natural_info,
                     waterway_info,
@@ -234,7 +253,7 @@ class SiteCategoryModel:
         return (
             nearest_categorization if nearest_categorization else "Unknown_Category",
             nearest_distance if nearest_categorization else None,
-            nearest_area_name,
+            nearest_area_name if nearest_area_name and nearest_area_name != "Unnamed" else self.get_location_name(latitude, longitude),
             landuse_info,
             natural_info,
             waterway_info,
