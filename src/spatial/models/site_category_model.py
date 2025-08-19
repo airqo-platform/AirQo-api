@@ -34,17 +34,15 @@ class SiteCategoryModel:
         search_radii = [50, 100, 250]
         # Define categories with corresponding OSM tags
         categories = {
-            "Urban Background": ["residential", "urban"],
+            "Urban Background": ["residential","urban","mine","quarry"],
             "Urban Commercial": ["commercial", "retail", "industrial"],
             "Background Site": [
-                "forest",
-                "farmland",
-                "grass",
-                "meadow",
-                "wetland",
-                "park",
+                "forest", "farmland", "grass", "meadow","vineyard",
+                "wetland", "park", "scrub", "heath", "bare_rock",
+                "orchard",
             ],
-            "Water Body": ["river", "stream", "lake", "canal", "ditch"],
+            "Water Body": ["river", "stream", "lake",
+                            "canal", "reservoir", "ditch"],
             "Major Highway": ["motorway", "trunk", "primary", "secondary", "service"],
             "Residential Road": [
                 "residential",
