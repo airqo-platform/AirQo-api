@@ -855,13 +855,15 @@ class AirQualityPredictor:
             self._save_model(city_name, model)
             
             # Evaluate the model if the test set is non-empty
-            if not y_test.empty:
-                y_pred = model.predict(X_test)
-                result = {
+            y_pred = model.predict(X_test)
+            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+            r2 = r2_score(y_test, y_pred)
+            mae = mean_absolute_error(y_test, y_pred)
+            result = {
                     "city": city_name,
-                    "R²": r2_score(y_test, y_pred),
-                    "RMSE": np.sqrt(mean_squared_error(y_test, y_pred)),
-                    "MAE": mean_absolute_error(y_test, y_pred),
+                    "R²": r2,
+                    "RMSE": rmse,
+                    "MAE": mae,
                     "n_samples_train": len(y_train),
                     "n_samples_test": len(y_test),
                 }
@@ -946,9 +948,13 @@ class AirQualityPredictor:
         current_cities = set(self.gdf_polygons["name"])
         processed_cities = self._get_processed_cities()
         
+        num_cities = len(self.gdf_polygons)
+        if num_cities == 0:
+            self.logger.info("No cities to process; nothing to do.")
+            return True
         if max_workers is None:
-            max_workers = min(os.cpu_count() or 4, len(self.gdf_polygons))
-        
+            max_workers = min(os.cpu_count() or 4, num_cities)
+        max_workers = max(1, max_workers)
         self.logger.info(f"Processing {len(self.gdf_polygons)} cities with {max_workers} workers")
 
         try:
