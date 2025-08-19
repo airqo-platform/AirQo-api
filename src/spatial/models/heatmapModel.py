@@ -282,7 +282,7 @@ class AirQualityData(BaseAirQoAPI):
 
     def __init__(self, *args, **kwargs) -> None:
         """Initializes the AirQualityData client."""
-        super().__init__(cache_ttl=self.CACHE_TTL, *args, **kwargs)
+        super().__init__(*args, cache_ttl=self.CACHE_TTL, **kwargs)
         self.data: Optional[Dict[str, Any]] = None
         self.df: Optional[pd.DataFrame] = None
         self.gdf: Optional[gpd.GeoDataFrame] = None
@@ -422,7 +422,7 @@ class AirQualityGrids(BaseAirQoAPI):
 
     def __init__(self, *args, **kwargs) -> None:
         """Initializes the AirQualityGrids client."""
-        super().__init__(cache_ttl=self.CACHE_TTL, *args, **kwargs)
+        super().__init__(*args, cache_ttl=self.CACHE_TTL, **kwargs)
         self.data: Optional[Dict[str, Any]] = None
         self.df: Optional[pd.DataFrame] = None
         self.gdf: Optional[gpd.GeoDataFrame] = None
