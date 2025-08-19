@@ -18,6 +18,7 @@ class Config:
     REDIS_HOST = os.getenv("REDIS_HOST")
     REDIS_PORT=os.getenv("REDIS_PORT")
     REDIS_CACHE_TTL=os.getenv("REDIS_CACHE_TTL")
+    REDIS_URL=os.getenv("REDIS_UR")
     GRID_URL = os.getenv("GRID_URL_ID")
     REDIS_DB = os.getenv("REDIS_DB")
     REDIS_PASSWORD=os.getenv("REDIS_PASSWORD")

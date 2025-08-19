@@ -43,7 +43,7 @@ class BaseAirQoAPI:
         self,
         base_url_env: str = "AIRQO_API_BASE_URL",
         token_env: str = "AIRQO_API_TOKEN",
-        cache_ttl_env: str = "REDIS_CACHE_TTL",
+        cache_ttl: Optional[int] = None,  # Accept custom TTL
         logger_name: Optional[str] = None,
     ) -> None:
         """
@@ -52,7 +52,7 @@ class BaseAirQoAPI:
         Args:
             base_url_env: The name of the environment variable for the API base URL.
             token_env: The name of the environment variable for the API token.
-            cache_ttl_env: The name of the environment variable for Redis cache TTL in seconds.
+            cache_ttl: Custom cache TTL in seconds. If None, uses environment variable or default.
             logger_name: Optional name for the logger. Defaults to the class name.
 
         Raises:
@@ -71,7 +71,11 @@ class BaseAirQoAPI:
             raise ValueError(f"Environment variable '{base_url_env}' is missing.")
         self.base_url_root = base_url.rstrip("/")
 
-        self.cache_ttl: int = int(os.getenv(cache_ttl_env, "600"))
+        # Use custom TTL if provided, else fallback to env var or default
+        if cache_ttl is not None:
+            self.cache_ttl = cache_ttl
+        else:
+            self.cache_ttl = int(os.getenv("REDIS_CACHE_TTL", "600"))
 
         self.logger = self._setup_logger(logger_name or self.__class__.__name__)
         self.session = self._build_session()
@@ -118,7 +122,7 @@ class BaseAirQoAPI:
             self.logger.info("Redis library not installed; caching is disabled.")
             return None
 
-        redis_url = os.getenv("REDIS_URL")
+        redis_url = config.REDIS_URL
         try:
             if redis_url:
                 client = redis.from_url(redis_url, decode_responses=False)
@@ -274,10 +278,11 @@ class AirQualityData(BaseAirQoAPI):
     """
 
     REDIS_KEY = "airqo:devices_readings_map"
+    CACHE_TTL = 1200  # 20 minutes
 
     def __init__(self, *args, **kwargs) -> None:
         """Initializes the AirQualityData client."""
-        super().__init__(*args, **kwargs)
+        super().__init__(cache_ttl=self.CACHE_TTL, *args, **kwargs)
         self.data: Optional[Dict[str, Any]] = None
         self.df: Optional[pd.DataFrame] = None
         self.gdf: Optional[gpd.GeoDataFrame] = None
@@ -413,10 +418,11 @@ class AirQualityGrids(BaseAirQoAPI):
     """Fetches and processes administrative grid polygons from the AirQo API."""
 
     REDIS_KEY = "airqo:grids"
+    CACHE_TTL = 86400  # 24 hours
 
     def __init__(self, *args, **kwargs) -> None:
         """Initializes the AirQualityGrids client."""
-        super().__init__(*args, **kwargs)
+        super().__init__(cache_ttl=self.CACHE_TTL, *args, **kwargs)
         self.data: Optional[Dict[str, Any]] = None
         self.df: Optional[pd.DataFrame] = None
         self.gdf: Optional[gpd.GeoDataFrame] = None
