@@ -60,13 +60,13 @@ class BaseAirQoAPI:
         """
         load_dotenv()
 
-        self.api_token = os.getenv(token_env)
+        self.api_token = getattr(config, token_env, None)
         if not self.api_token:
             raise ValueError(
                 f"Environment variable '{token_env}' is missing or invalid."
             )
 
-        base_url = os.getenv(base_url_env)
+        base_url = getattr(config, base_url_env, None)
         if not base_url:
             raise ValueError(f"Environment variable '{base_url_env}' is missing.")
         self.base_url_root = base_url.rstrip("/")
@@ -75,7 +75,7 @@ class BaseAirQoAPI:
         if cache_ttl is not None:
             self.cache_ttl = cache_ttl
         else:
-            self.cache_ttl = int(os.getenv("REDIS_CACHE_TTL", "600"))
+            self.cache_ttl = getattr(config, "REDIS_CACHE_TTL", 600)
 
         self.logger = self._setup_logger(logger_name or self.__class__.__name__)
         self.session = self._build_session()
