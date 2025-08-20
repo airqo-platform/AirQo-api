@@ -23,9 +23,11 @@ const distance = require("./distance");
 const translate = require("./translate");
 const claimTokenUtil = require("./claimToken.util");
 const { deduplicator } = require("./slack-dedup-utility");
+const ActivityLogger = require("./activity-logger.util");
 
 module.exports = {
   claimTokenUtil,
+  ActivityLogger,
   deduplicator,
   translate,
   distance,
