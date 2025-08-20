@@ -917,7 +917,7 @@ class AirQualityPredictor:
     def train_and_predict(
         self,
         buffer_distance: float = 0.001,
-        grid_resolution: int = 10,
+        grid_resolution: int = 15,
         force_retrain: bool = False,
         max_workers: int = None  # Add parameter for controlling parallelism
     ) -> bool:
