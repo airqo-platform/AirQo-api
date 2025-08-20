@@ -1,5 +1,5 @@
 from flasgger import swag_from
-from flask import request
+from flask import request, jsonify
 from flask_restx import Resource
 
 from api.utils.utils import limiter, ratelimit_response
@@ -9,12 +9,15 @@ from marshmallow import ValidationError
 from api.utils.data_formatters import (
     get_validated_filter,
 )
+from api.utils.datautils import DataUtils
 from api.views.common.responses import ResponseBuilder
 from api.views.common.data_ops import DownloadService
 from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import AirQoRequests
 from main import rest_api_v3
+from api.utils.cursor_utils import CursorUtils
 
+from constants import DataType, DeviceCategory
 import logging
 
 logger = logging.getLogger(__name__)
@@ -97,17 +100,19 @@ class RawDataExportResource(Resource):
             if error_message:
                 return ResponseBuilder.error(error_message, 400)
 
-            json_data.update({"data_type": "raw"})
-            data_frame = DownloadService.fetch_data(
+            json_data.update({"datatype": "raw"})
+            data_frame, metadata = DownloadService.fetch_data(
                 json_data, filter_type, filter_value
             )
             if data_frame.empty:
-                return ResponseBuilder.error("No data found", 400)
+                return ResponseBuilder.error("No data found.", 400)
 
-            return DownloadService.format_and_respond(json_data, data_frame)
+            return DownloadService.format_and_respond(json_data, data_frame, metadata)
 
         except Exception as e:
-            logger.exception("Unexpected error occurred during custom data download.")
+            logger.exception(
+                f"Unexpected error occurred during custom data download: {e}"
+            )
             return ResponseBuilder.error(
                 "An error occurred while processing your request. Please contact support.",
                 AirQoRequests.Status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,4 +1,5 @@
 from typing import Dict, List, Dict, Any, Union, Tuple
+from api.utils.cursor_utils import CursorUtils
 from constants import (
     Frequency,
     DataType,
@@ -20,7 +21,7 @@ class DownloadService:
     @staticmethod
     def fetch_data(
         json_data: Dict[str, Any], filter_type: str, filter_value: Union[str, int]
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
         Extracts time-series environmental data from BigQuery based on user-defined filters.
 
@@ -49,6 +50,17 @@ class DownloadService:
         freq_str = json_data.get("frequency", "daily")
         device_category_str = json_data.get("device_category", "lowcost")
         query_type = json_data.get("dynamic", False)
+        cursor_token = json_data.get("cursor", None)
+
+        try:
+            if cursor_token and not CursorUtils.validate_cursor(cursor_token):
+                raise ValueError("Invalid or expired cursor token")
+            elif cursor_token:
+                cursor_metadata = CursorUtils.parse_cursor(cursor_token)
+                start = cursor_metadata["timestamp"]
+        except Exception as e:
+            raise ValueError(f"Error validating cursor token: {e}")
+
         try:
             data_type = DataType[data_type_str.upper()]
         except KeyError:
@@ -68,8 +80,7 @@ class DownloadService:
         metadata_fields = json_data.get("metaDataFields", [])
         weather_fields = json_data.get("weatherFields", [])
         extra_columns = metadata_fields + weather_fields
-
-        return DataUtils.extract_data_from_bigquery(
+        results, metadata = DataUtils.extract_data_from_bigquery(
             datatype=data_type,
             start_date_time=start,
             end_date_time=end,
@@ -80,7 +91,10 @@ class DownloadService:
             data_filter={filter_type: filter_value},
             extra_columns=extra_columns,
             use_cache=True,
+            cursor_token=cursor_token,
         )
+
+        return results, metadata
 
     @staticmethod
     def format_csv_records(
@@ -126,7 +140,7 @@ class DownloadService:
 
     @staticmethod
     def format_and_respond(
-        json_data: Dict[str, Any], data_frame: pd.DataFrame
+        json_data: Dict[str, Any], data_frame: pd.DataFrame, metadata: Dict[str, Any]
     ) -> Union[Tuple[Dict[str, Any], int], Any]:
         """
         Formats the retrieved data and returns the appropriate response.
@@ -145,7 +159,9 @@ class DownloadService:
 
         if download_type == "json":
             records = DownloadService.cast_for_json_serialization(data_frame)
-            return ResponseBuilder.success(records, "Data download successful")
+            return ResponseBuilder.success(
+                records, metadata, "Data download successful"
+            )
 
         records: List[Dict[str, Any]] = data_frame.to_dict("records")
 
