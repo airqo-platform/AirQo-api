@@ -14,7 +14,7 @@ const logger = require("log4js").getLogger(
 );
 const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
-const { logObject, HttpError } = require("@utils/shared");
+const { logObject, HttpError, logText } = require("@utils/shared");
 
 const createAccessRequest = {
   requestAccessToGroup: async (request, next) => {

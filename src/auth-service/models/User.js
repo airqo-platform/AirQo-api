@@ -1371,17 +1371,38 @@ UserSchema.statics.assignUserToGroup = async function (
   userType = "user"
 ) {
   try {
+    // Check if user exists first
     const user = await this.findById(userId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Use the instance method
-    await user.addGroupRole(groupId, roleId, userType);
+    // First remove any existing role for this group
+    await this.findByIdAndUpdate(userId, {
+      $pull: {
+        group_roles: { group: groupId },
+      },
+    });
+
+    // Then add the new role
+    const updatedUser = await this.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: {
+          group_roles: {
+            group: groupId,
+            role: roleId,
+            userType: userType,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
 
     return {
       success: true,
-      data: user,
+      data: updatedUser,
       message: "User successfully assigned to group",
     };
   } catch (error) {
@@ -1401,17 +1422,38 @@ UserSchema.statics.assignUserToNetwork = async function (
   userType = "user"
 ) {
   try {
+    // Check if user exists first
     const user = await this.findById(userId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Use the instance method
-    await user.addNetworkRole(networkId, roleId, userType);
+    // First remove any existing role for this network
+    await this.findByIdAndUpdate(userId, {
+      $pull: {
+        network_roles: { network: networkId },
+      },
+    });
+
+    // Then add the new role
+    const updatedUser = await this.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: {
+          network_roles: {
+            network: networkId,
+            role: roleId,
+            userType: userType,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
 
     return {
       success: true,
-      data: user,
+      data: updatedUser,
       message: "User successfully assigned to network",
     };
   } catch (error) {
