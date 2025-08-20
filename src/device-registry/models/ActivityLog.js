@@ -174,15 +174,22 @@ activityLogSchema.statics = {
           status: httpStatus.CREATED,
         };
       } else {
-        next(
-          new HttpError(
-            "Internal Server Error",
-            httpStatus.INTERNAL_SERVER_ERROR,
-            {
-              message: "Activity not logged despite successful operation",
-            }
-          )
+        const err = new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: "Activity not logged despite successful operation" }
         );
+        if (typeof next === "function") {
+          return next(err);
+        }
+        return {
+          success: false,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          message: err.message,
+          errors: {
+            message: "Activity not logged despite successful operation",
+          },
+        };
       }
     } catch (error) {
       // Don't let logging errors break the main operation
@@ -251,13 +258,20 @@ activityLogSchema.statics = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      const err = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
+      if (typeof next === "function") {
+        return next(err);
+      }
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed to retrieve daily statistics",
+        errors: { message: error.message },
+      };
     }
   },
 
@@ -318,13 +332,20 @@ activityLogSchema.statics = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      const err = new HttpError(
+        "Internal Server Error",
+        httpStatus.INTERNAL_SERVER_ERROR,
+        { message: error.message }
       );
+      if (typeof next === "function") {
+        return next(err);
+      }
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Failed to retrieve operation summary",
+        errors: { message: error.message },
+      };
     }
   },
 };
@@ -333,12 +354,12 @@ const ActivityLogModel = (tenant) => {
   const defaultTenant = constants.DEFAULT_TENANT || "airqo";
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
   try {
-    const activityLogs = mongoose.model("activityLogs");
+    const activityLogs = mongoose.model("activity_logs");
     return activityLogs;
   } catch (errors) {
     return getModelByTenant(
       dbTenant.toLowerCase(),
-      "activityLog",
+      "activity_log",
       activityLogSchema
     );
   }

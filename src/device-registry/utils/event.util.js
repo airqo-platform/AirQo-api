@@ -5002,11 +5002,25 @@ const createEvent = {
     try {
       return await ActivityLogger.trackOperation(
         async () => {
-          return await createEvent.insertMeasurements_v3(
+          const result = await createEvent.insertMeasurements_v3(
             tenant,
             measurements,
             next
           );
+
+          // Map deployment_stats to fields that trackOperation recognizes
+          return {
+            ...result,
+            // Satisfy trackOperation's rate counting expectations
+            records_successful:
+              result.deployment_stats?.successful_insertions ?? 0,
+            records_failed:
+              result.deployment_stats?.failed_insertions ??
+              (Array.isArray(result.errors) ? result.errors.length : 0),
+            // Keep original arrays for backward compatibility if they exist
+            eventsAdded: result.eventsAdded || [],
+            eventsRejected: result.eventsRejected || [],
+          };
         },
         {
           operation_type: "BULK_INSERT",
@@ -5030,7 +5044,7 @@ const createEvent = {
       };
     }
   },
-  // Helper function to validate and process grid IDs (moved from controller logic)
+
   processLocationIds: async (
     { grid_ids, cohort_ids, airqloud_ids, type },
     request,
