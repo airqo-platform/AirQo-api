@@ -100,7 +100,7 @@ class AQIImageGenerator:
         Returns:
             Tuple of (image_data_url, bounds, message).
         """
-        if len(data) < 4:
+        if len(data) < 2:
             return None, None, f"⚠️ Not enough data for {city_name}"
 
         coords = np.array([[lat, lon] for lat, lon, _ in data])
@@ -219,7 +219,7 @@ class AQIImageGenerator:
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            return jsonify({"error": "An internal error has occurred."}), 500
+            return jsonify({"error": "An internal error has occurred with Redis cache."}), 500
 
     @staticmethod
     def generate_aqi_image_for_city(city_id):
@@ -293,7 +293,7 @@ class AQIImageGenerator:
 
         except Exception as e:
             print(f"An error occurred for city ID {city_id}: ")
-            return jsonify({"error": "An internal error has occurred."}), 500
+            return jsonify({"error": "An internal error has occurred for city ID."}), 500
 
 # ----------------------------- Example Usage ------------------------------ #
 '''if __name__ == "__main__":

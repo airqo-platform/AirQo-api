@@ -29,7 +29,7 @@ class DataUtils:
         dynamic_query: Optional[bool] = False,
         main_columns: List[str] = None,
         data_filter: Optional[Dict[str, Any]] = None,
-        extra_columns: Optional[Dict[str, Any]] = None,
+        extra_columns: Optional[List[str]] = None,
         use_cache: Optional[bool] = False,
     ) -> pd.DataFrame:
         """
@@ -45,6 +45,7 @@ class DataUtils:
             dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
             main_columns(List, optional): Columns of interest i.e those that should be returned.
             data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
+            extra_columns(List[str], ptional): A list of columns to include in the query and or returned data.
             use_cach(bool, optional): Use biqquery cache
 
         Returns:
@@ -198,17 +199,13 @@ class DataUtils:
         Note: This method fails silently.
         """
         optional_fields: Set[str] = Config.OPTIONAL_FIELDS.get(device_category)
-
         if not extra_columns:
             data.drop(
-                columns=optional_fields.union({"site_id", "timestamp"}),
+                columns=optional_fields.union({"timestamp"}),
                 errors="ignore",
                 inplace=True,
             )
         else:
-            columns_to_drop = optional_fields.union({"site_id", "timestamp"}) - set(
-                extra_columns
-            )
+            columns_to_drop = optional_fields.union({"timestamp"}) - set(extra_columns)
             data.drop(columns=list(columns_to_drop), errors="ignore", inplace=True)
-
         return data

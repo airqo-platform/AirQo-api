@@ -18,6 +18,7 @@ from sklearn.model_selection import train_test_split
 from urllib3.util.retry import Retry
 import joblib
 from configure import Config as config
+from utils.commons import download_file_from_gcs,upload_to_gcs
 
 # Attempt to import optional dependency
 try:
@@ -123,14 +124,13 @@ class BaseAirQoAPI:
                 self.logger.info("Redis connection successful via URL.")
                 return client
 
-            redis_host = os.getenv("REDIS_HOST")
-            redis_port = os.getenv("REDIS_PORT")
+            redis_host = config.REDIS_HOST
+            redis_port = config.REDIS_PORT
             if redis_host and redis_port:
                 client = redis.Redis(
                     host=redis_host,
-                    port=int(redis_port),
-                    db=int(os.getenv("REDIS_DB", "0")),
-                    password=os.getenv("REDIS_PASSWORD"),
+                    port=int(redis_port), 
+                    password=config.REDIS_PASSWORD,
                     decode_responses=False,
                 )
                 client.ping()
@@ -531,7 +531,6 @@ class AirQualityPredictor:
     ):
         """
         Initializes the AirQualityPredictor.
-
         Args:
             air_quality_data: An initialized instance of AirQualityData.
             air_quality_grids: An initialized instance of AirQualityGrids.
@@ -544,18 +543,59 @@ class AirQualityPredictor:
         self.predictions: List[pd.DataFrame] = []
         self.logger = self.aq_data.logger
         self.models: Dict[str, RandomForestRegressor] = {}  # Cache loaded models
+        # GCS-related configurations from configure.py
+        # The MODEL_DIR and SPATIAL_PROJECT_BUCKET are now used to define GCS paths
+        self.SPATIAL_PROJECT_BUCKET = config.SPATIAL_PROJECT_BUCKET
         self.city_list: Any = config.CITY_LIST_FILE
-        os.makedirs(
-            self.MODEL_DIR, exist_ok=True
-        )  # Create model directory if it doesn't exist
+        self.MODEL_DIR = config.MODEL_DIR 
+
+        if not self.SPATIAL_PROJECT_BUCKET:  # Only ensure local dir if no bucket
+            os.makedirs(self.MODEL_DIR, exist_ok=True)
 
     def _get_processed_cities(self) -> set:
         """
         Retrieves the set of previously processed cities from the JSON file.
-
         Returns:
             A set of city names that have been processed.
         """
+        cities = set()
+        city_list_filename = "processed_cities.json"
+        # Try GCS first if SPATIAL_PROJECT_BUCKET is configured
+        if self.SPATIAL_PROJECT_BUCKET:
+            import tempfile
+            fd, temp_local_path = tempfile.mkstemp(suffix=".json")
+            os.close(fd)
+            try:
+                self.logger.info(
+                    f"Attempting to download processed cities from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{city_list_filename}"
+                )
+                download_file_from_gcs(
+                    self.SPATIAL_PROJECT_BUCKET, city_list_filename, temp_local_path
+                )
+                with open(temp_local_path, "r") as f:
+                    data = json.load(f)
+                    raw_cities = data.get("cities", [])
+                    if not isinstance(raw_cities, list):
+                        self.logger.warning(
+                            "Invalid 'cities' type in processed cities JSON. Expected list, got %s. Defaulting to empty list.",
+                                type(raw_cities).__name__,)                        
+                        raw_cities = []
+                    cities = set(raw_cities)
+                    self.logger.info(
+                        f"Loaded {len(cities)} processed cities from GCS")                   
+                return cities
+            except Exception as e:
+                self.logger.warning(
+                     f"Failed to load processed cities from GCS: {e}. Falling back to local file.")
+            finally:
+                try:
+                    if os.path.exists(temp_local_path):
+                        os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")                 
+                
+        # Fallback to local file
+
         if os.path.exists(self.city_list):
             try:
                 with open(self.city_list, "r") as f:
@@ -581,6 +621,32 @@ class AirQualityPredictor:
             cities: A set of city names to save.
         """
         cities_list = list(cities)
+        city_list_filename = "processed_cities.json"
+        data = {"cities": cities_list}
+
+        # Try GCS first if SPATIAL_PROJECT_BUCKET is configured
+        if self.SPATIAL_PROJECT_BUCKET:
+            import tempfile
+            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".json")
+            os.close(temp_fd)
+            try:
+                with open(temp_local_path, "w") as f:
+                    json.dump(data, f, indent=2)
+                upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, city_list_filename)
+                self.logger.info(
+                    f"Saved {len(cities_list)} processed cities to GCS at gs://{self.SPATIAL_PROJECT_BUCKET}/{city_list_filename}"
+                )
+                try:
+                    os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
+                return
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save processed cities to GCS: {e}. Falling back to local file."
+                )
+
+        # Fallback to local file
         try:
             with open(self.city_list, "w") as f:
                 json.dump({"cities": cities_list}, f, indent=2)
@@ -592,38 +658,93 @@ class AirQualityPredictor:
 
     def _load_model(self, city_name: str) -> Optional[RandomForestRegressor]:
         """
-        Loads a saved Random Forest model for a city.
-
+        Loads a pre-trained model for a specific city.
+        It first tries to load the model from the GCS bucket.
+        If the GCS bucket is not configured or the model is not found there, it falls back to the local directory.
         Args:
             city_name: The name of the city.
-
         Returns:
-            The loaded model or None if loading fails.
+            The loaded model, or None if no model is found.
         """
-        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
-        if os.path.exists(model_path):
+        model_filename = f"{city_name}_rf_model.joblib" 
+        # Try to load from GCS first
+        if self.SPATIAL_PROJECT_BUCKET:
+            gcs_path = model_filename
+            import tempfile
+            fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
+            os.close(fd)
             try:
-                model = joblib.load(model_path)
-                self.logger.info(f"Loaded model for '{city_name}' from {model_path}")
+                self.logger.info( 
+                    f"Attempting to download model from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{gcs_path}")
+                download_file_from_gcs(
+                    self.SPATIAL_PROJECT_BUCKET, gcs_path, temp_local_path
+                )
+                model = joblib.load(temp_local_path)
+                self.logger.info(f"Loaded model from GCS: for {model_filename}")
+                
+                try:
+                    os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
                 return model
             except Exception as e:
-                self.logger.error(f"Failed to load model for '{city_name}' ")
+                self.logger.warning(
+                    f"Failed to load model from GCS for {city_name}. Reason: {e}. Falling back to local directory."
+                )
+        # Fallback to local directory
+        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
+        if os.path.exists(local_filepath):
+            try:
+                self.logger.info(f"Loading model from local directory: {local_filepath}")
+                return joblib.load(local_filepath)
+            except Exception as e:
+                self.logger.error(f"Failed to load model from local file. Reason: {e}")
+        else:
+            self.logger.info(f"No model found for {city_name} in local directory.")
+
         return None
+
 
     def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
         """
-        Saves a Random Forest model for a city.
-
+        Saves a trained model for a specific city.
+        Prioritizes saving to the GCS bucket if configured.
+        Falls back to saving to the local directory if GCS is not used or fails.
         Args:
             city_name: The name of the city.
-            model: The trained Random Forest model.
+            model: The trained RandomForestRegressor model.
         """
-        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
+        model_filename = f"{city_name}_rf_model.joblib"
+        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
+        # Prioritize saving to GCS
+        if self.SPATIAL_PROJECT_BUCKET:
+            gcs_path = model_filename
+            import tempfile
+            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
+            os.close(temp_fd)
+            try:
+                # Save locally first, then upload
+                joblib.dump(model, temp_local_path)
+                upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, gcs_path)
+                self.logger.info(
+                    f"Model for {city_name} saved successfully to GCS bucket at {gcs_path}."
+                )
+                # Clean up the temporary local file
+                os.remove(temp_local_path)
+                return
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save model to GCS for {city_name}. Reason: {e}. Falling back to local save."
+                ) 
+        # Fallback to local directory save
         try:
-            joblib.dump(model, model_path)
-            self.logger.info(f"Saved model for '{city_name}' to {model_path}")
+            os.makedirs(self.MODEL_DIR, exist_ok=True) # Ensure dir exists before saving
+            joblib.dump(model, local_filepath)
+            self.logger.info(
+                f"Model for {city_name} saved successfully to local directory."
+            )
         except Exception as e:
-            self.logger.error(f"Failed to save model for '{city_name}' ")
+            self.logger.error(f"Failed to save model locally for {city_name}. Reason: {e}")
 
     def fetch_and_process_data(self) -> bool:
         """
@@ -694,7 +815,7 @@ class AirQualityPredictor:
                 city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
 
                 known = city_data[city_data["pm25"].notna()].copy()
-                if len(known) < 4:
+                if len(known) < 2:
                     self.logger.warning(
                         f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
                     )

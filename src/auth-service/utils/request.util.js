@@ -14,7 +14,7 @@ const logger = require("log4js").getLogger(
 );
 const createNetworkUtil = require("@utils/network.util");
 const createGroupUtil = require("@utils/group.util");
-const { logObject, HttpError } = require("@utils/shared");
+const { logObject, HttpError, logText } = require("@utils/shared");
 
 const createAccessRequest = {
   requestAccessToGroup: async (request, next) => {
@@ -497,7 +497,6 @@ const createAccessRequest = {
       }
 
       // Update access request status
-
       const update = { status: "approved" };
       const filter = { email, targetId: target_id };
 
@@ -526,8 +525,6 @@ const createAccessRequest = {
 
         entity_title = group.grp_title;
 
-        // Use the existing utility function instead of direct user updates
-
         const assignUserRequest = {
           params: {
             grp_id: target_id,
@@ -538,22 +535,26 @@ const createAccessRequest = {
 
         try {
           assignmentResult = await createGroupUtil.assignOneUser(
-            assignUserRequest
+            assignUserRequest,
+            next
           );
 
-          if (!assignmentResult.success) {
+          if (!assignmentResult || !assignmentResult.success) {
             next(
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
                 {
-                  message: `Failed to assign user to group: ${assignmentResult.message}`,
+                  message: `Failed to assign user to group: ${
+                    assignmentResult?.message || "Unknown error"
+                  }`,
                 }
               )
             );
             return;
           }
         } catch (assignmentError) {
+          logger.error(`Group assignment error: ${assignmentError.message}`);
           next(
             new HttpError(
               "Internal Server Error",
@@ -578,8 +579,6 @@ const createAccessRequest = {
 
         entity_title = network.net_name;
 
-        // Use the existing utility function instead of direct user updates
-
         const assignUserRequest = {
           params: {
             net_id: target_id,
@@ -590,22 +589,26 @@ const createAccessRequest = {
 
         try {
           assignmentResult = await createNetworkUtil.assignOneUser(
-            assignUserRequest
+            assignUserRequest,
+            next
           );
 
-          if (!assignmentResult.success) {
+          if (!assignmentResult || !assignmentResult.success) {
             next(
               new HttpError(
                 "Internal Server Error",
                 httpStatus.INTERNAL_SERVER_ERROR,
                 {
-                  message: `Failed to assign user to network: ${assignmentResult.message}`,
+                  message: `Failed to assign user to network: ${
+                    assignmentResult?.message || "Unknown error"
+                  }`,
                 }
               )
             );
             return;
           }
         } catch (assignmentError) {
+          logger.error(`Network assignment error: ${assignmentError.message}`);
           next(
             new HttpError(
               "Internal Server Error",
@@ -815,7 +818,7 @@ const createAccessRequest = {
       if (responseFromUpdateAccessRequest.success === true) {
         const { firstName, lastName, email } = user;
         if (accessRequest.requestType === "group") {
-          const request = {
+          const assignUserRequest = {
             params: {
               grp_id: accessRequest.targetId,
               user_id: accessRequest.user_id,
@@ -823,7 +826,7 @@ const createAccessRequest = {
             query: { tenant: tenant },
           };
           const responseFromAssignUserToGroup =
-            await createGroupUtil.assignOneUser(request);
+            await createGroupUtil.assignOneUser(assignUserRequest, next);
 
           logObject(
             "responseFromAssignUserToGroup",
@@ -855,7 +858,7 @@ const createAccessRequest = {
             return responseFromAssignUserToGroup;
           }
         } else if (accessRequest.requestType === "network") {
-          const request = {
+          const assignUserRequest = {
             params: {
               net_id: accessRequest.targetId,
               user_id: accessRequest.user_id,
@@ -863,7 +866,7 @@ const createAccessRequest = {
             query: { tenant: tenant },
           };
           const responseFromAssignUserToNetwork =
-            await createNetworkUtil.assignOneUser(request);
+            await createNetworkUtil.assignOneUser(assignUserRequest, next);
 
           if (responseFromAssignUserToNetwork.success === true) {
             const updatedUserDetails = { networks: 1 };

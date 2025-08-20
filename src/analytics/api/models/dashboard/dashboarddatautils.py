@@ -9,49 +9,46 @@ class DashboardDataUtils:
         """
         Processes sensor time-series data into a list of records formatted for D3 visualizations.
 
-        Depending on the available pollutant column ('pm2_5' or 'pm10'), the function:
-        - Renames columns to standardized names ('value', 'time', 'generated_name')
-        - Drops unnecessary metadata fields
-        - Adds a 'name' field copied from 'site_name' for uniformity
-
         Args:
-            dataframe(pd.DataFrame): DataFrame with raw sensor data. Expected columns include:
-                'pm2_5' or 'pm10', 'datetime', 'site_name', plus optional metadata columns.
+            dataframe(pd.DataFrame): DataFrame with raw sensor data. Expected columns include: 'pm2_5' or 'pm10', 'datetime', 'site_name', plus optional metadata columns.
 
         Returns:
             List[Dict]: A list of dictionaries where each dictionary represents a sensor data point.
+
+        Raises:
+            ValueError: If neither 'pm2_5' nor 'pm10' columns are present in the DataFrame.
         """
-        dataframe["name"] = dataframe["site_name"]
+        supported_pollutants = ["pm2_5", "pm10"]
+
+        pollutant_col = next(
+            (col for col in supported_pollutants if col in dataframe.columns), None
+        )
+        if not pollutant_col:
+            raise ValueError(
+                f"DataFrame must contain one of the following columns: {supported_pollutants}"
+            )
+
         drop_cols = [
             "device_name",
-            "network",
             "timestamp",
+            "network",
             "frequency",
+            f"{pollutant_col}_calibrated_value",
         ]
 
-        if "pm2_5" in dataframe.columns:
-            pollutant_col = "pm2_5"
-            drop_cols.append("pm2_5_calibrated_value")
-        elif "pm10" in dataframe.columns:
-            pollutant_col = "pm10"
-            drop_cols.append("pm10_calibrated_value")
-        else:
-            raise ValueError("Expected 'pm2_5' or 'pm10' column in the DataFrame.")
-
-        dataframe.rename(
+        renamed_dataframe = dataframe.rename(
             columns={
                 pollutant_col: "value",
                 "datetime": "time",
                 "site_name": "generated_name",
-            },
-            inplace=True,
+            }
         )
 
-        dataframe.drop(
-            columns=drop_cols,
-            inplace=True,
-        )
-        records = dataframe.to_dict(orient="records")
+        cleaned_dataframe = renamed_dataframe.drop(columns=drop_cols, errors="ignore")
+
+        cleaned_dataframe["name"] = cleaned_dataframe["generated_name"]
+
+        records = cleaned_dataframe.to_dict(orient="records")
         return records
 
     def __destructure_pie_data(self, generated_data) -> List[List[Dict]]:

@@ -15,7 +15,12 @@ class Config:
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
     AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
     REDIS_CACHE_TTL = os.getenv("REDIS_CACHE_TTL")
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PORT=os.getenv("REDIS_PORT")
+    REDIS_CACHE_TTL=os.getenv("REDIS_CACHE_TTL")
     GRID_URL = os.getenv("GRID_URL_ID")
+    REDIS_DB = os.getenv("REDIS_DB")
+    REDIS_PASSWORD=os.getenv("REDIS_PASSWORD")
     BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED")
     CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -35,23 +40,37 @@ class Config:
     CITY_LIST_FILE = os.path.join(
         MODEL_DIR, "processed_cities.json"
     )  # JSON file for city list
-
+    ENVIRONMENT = "base"
 
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
+    ENVIRONMENT = "production"
+    CITY_LIST_FILE = f"gs://{Config.SPATIAL_PROJECT_BUCKET}/processed_cities.json"
+    
 
-
+class StagingConfig(Config):
+    """
+    Configuration for staging environment.
+    """
+    DEBUG = True
+    TESTING = True
+    ENVIRONMENT = "staging"
+    CITY_LIST_FILE = f"gs://{Config.SPATIAL_PROJECT_BUCKET}/processed_cities.json"
 class DevelopmentConfig(Config):
+    """
+    Configuration for development environment.
+    """
     DEVELOPMENT = True
     DEBUG = True
-
+    ENVIRONMENT = "development"
+    # uses default CITY_LIST_FILE (local)
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-
-
+    ENVIRONMENT = "testing"
+    # uses default CITY_LIST_FILE (local)
 app_config = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,
@@ -62,7 +81,8 @@ app_config = {
 environment = os.getenv("FLASK_ENV", "staging")
 print("ENVIRONMENT", environment or "staging")
 
-configuration = app_config.get(environment, "staging")
+#configuration = app_config.get(environment, "staging")
+configuration = app_config.get(environment, StagingConfig)
 
 satellite_collections = {
     "COPERNICUS/S5P/OFFL/L3_SO2": [

@@ -588,7 +588,7 @@ class BigQueryApi:
         if frequency.value in self.extra_time_grouping:
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime",
+                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime",
                 "",
             )
 
@@ -701,7 +701,7 @@ class BigQueryApi:
         pollutants_query = (
             "SELECT "
             + (", ".join(selected_columns) + ", " if selected_columns else "")
-            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {table_name}.timestamp) AS datetime "
+            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime "
         )
 
         filter_type, filter_value = next(iter(data_filter.items()))
@@ -804,8 +804,8 @@ class BigQueryApi:
             - Columns are appended only if the corresponding list is non-empty and the respective table name is provided.
             - This function modifies the input lists in-place and also returns them.
         """
-        extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category)
-
+        extra_columns: Set = Config.OPTIONAL_FIELDS.get(device_category).copy()
+        extra_columns.discard("site_id")
         if pollutant_columns:
             pollutant_columns.extend(
                 [f"{table_name}.{field}" for field in extra_columns]
