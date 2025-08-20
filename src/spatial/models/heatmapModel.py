@@ -4,7 +4,6 @@ import os
 import concurrent.futures
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
-
 # Third-party imports
 import geopandas as gpd
 import numpy as np
