@@ -455,7 +455,6 @@ class BigQueryApi:
         # Adjust the limit to fetch one extra row
         adjusted_limit = limits + 1
 
-        print(query)
         # Execute the query with ordering and adjusted limit
         measurements = (
             self.client.query(
@@ -680,7 +679,7 @@ class BigQueryApi:
         if frequency.value in self.extra_time_grouping:
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime",
+                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime ",
                 "",
             )
 

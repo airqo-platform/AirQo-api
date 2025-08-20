@@ -78,7 +78,7 @@ class DataExportResource(Resource):
                 return ResponseBuilder.error(error_message, 400)
 
             json_data.update({"dynamic": True})
-            data_frame = DownloadService.fetch_data(
+            data_frame, _ = DownloadService.fetch_data(
                 json_data, filter_type, filter_value
             )
 
@@ -109,14 +109,14 @@ class RawDataExportResource(Resource):
             if error_message:
                 return ResponseBuilder.error(error_message, 400)
 
-            json_data.update({"data_type": "raw"})
-            data_frame = DownloadService.fetch_data(
+            json_data.update({"datatype": "raw"})
+            data_frame, metadata = DownloadService.fetch_data(
                 json_data, filter_type, filter_value
             )
             if data_frame.empty:
                 return ResponseBuilder.error("No data found", 400)
 
-            return DownloadService.format_and_respond(json_data, data_frame)
+            return DownloadService.format_and_respond(json_data, data_frame, metadata)
 
         except Exception as e:
             logger.exception("Unexpected error occurred during custom data download.")

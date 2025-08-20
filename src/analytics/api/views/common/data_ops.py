@@ -1,4 +1,4 @@
-from typing import Dict, List, Dict, Any, Union, Tuple
+from typing import Dict, List, Dict, Any, Optional, Union, Tuple
 from api.utils.cursor_utils import CursorUtils
 from constants import (
     Frequency,
@@ -140,7 +140,9 @@ class DownloadService:
 
     @staticmethod
     def format_and_respond(
-        json_data: Dict[str, Any], data_frame: pd.DataFrame, metadata: Dict[str, Any]
+        json_data: Dict[str, Any],
+        data_frame: pd.DataFrame,
+        metadata: Optional[Dict[str, Any]] = {},
     ) -> Union[Tuple[Dict[str, Any], int], Any]:
         """
         Formats the retrieved data and returns the appropriate response.
