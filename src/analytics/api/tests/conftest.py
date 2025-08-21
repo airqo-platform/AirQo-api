@@ -1,5 +1,21 @@
 import pandas as pd
 import pytest
+from unittest.mock import MagicMock
+from manage import app as flask_app  # Import the already configured Flask app
+
+
+@pytest.fixture
+def app():
+    """Return the pre-configured Flask app for testing."""
+    # Set testing configuration
+    flask_app.config["TESTING"] = True
+    return flask_app
+
+
+@pytest.fixture
+def client(app):
+    """Create a test client for the Flask application."""
+    return app.test_client()
 
 
 @pytest.fixture
@@ -48,3 +64,17 @@ def mock_dataframe():
             "site_longitude": [-122.0609, -122.0309, -123.0609],
         }
     )
+
+
+@pytest.fixture
+def mock_download_service():
+    """Create a mock for the DownloadService."""
+    mock = MagicMock()
+    return mock
+
+
+@pytest.fixture
+def mock_response_builder():
+    """Create a mock for the ResponseBuilder."""
+    mock = MagicMock()
+    return mock

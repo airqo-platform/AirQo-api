@@ -4,7 +4,7 @@ import urllib3
 from urllib3.util.retry import Retry
 from urllib.parse import urlencode
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -169,7 +169,9 @@ class AirQoRequests:
             return self.create_response(f"HTTPError: {ex}", success=False)
 
     @staticmethod
-    def create_response(message, data=None, success=True) -> Dict[str, Any]:
+    def create_response(
+        message, data=None, success=True, metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Generate a standardized response dictionary.
 
@@ -185,5 +187,6 @@ class AirQoRequests:
             "status": "success" if success else "error",
             "message": message,
             "data": data,
+            "metadata": metadata,
         }
         return response
