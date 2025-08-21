@@ -46,7 +46,7 @@ async function updateEntityStatus(Model, filter, time, entityType) {
           .toDate(),
         isOnline: isActive,
       };
-      await Model.updateOne(filter, updateData);
+      await Model.updateOne(filter, { $set: updateData });
     } else {
       logger.warn(
         `🙀🙀 ${entityType} not found with filter: ${stringify(filter)}`
@@ -221,7 +221,7 @@ async function updateOfflineDevices(data) {
         _id: { $nin: Array.from(activeDeviceIds) },
         lastActive: { $lt: thresholdTime },
       },
-      { isOnline: false }
+      { $set: { isOnline: false } }
     );
   } catch (error) {
     if (isDuplicateKeyError(error)) {
@@ -246,7 +246,7 @@ async function updateOfflineSites(data) {
         _id: { $nin: Array.from(activeSiteIds) },
         lastActive: { $lt: thresholdTime },
       },
-      { isOnline: false }
+      { $set: { isOnline: false } }
     );
   } catch (error) {
     if (isDuplicateKeyError(error)) {
