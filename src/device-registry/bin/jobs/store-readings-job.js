@@ -26,7 +26,7 @@ async function updateEntityStatus(Model, filter, time, entityType) {
   try {
     const entity = await Model.findOne(filter);
     if (entity) {
-      const isActive = isEntityActive(entity, time);
+      const isActive = isEntityActive(time);
       const updateData = {
         lastActive: moment(time)
           .tz(TIMEZONE)
@@ -48,8 +48,8 @@ async function updateEntityStatus(Model, filter, time, entityType) {
 }
 
 // Helper function to check if entity is active
-function isEntityActive(entity, time) {
-  if (!entity || !entity.lastActive) {
+function isEntityActive(time) {
+  if (!time) {
     return false;
   }
   const currentTime = moment()
