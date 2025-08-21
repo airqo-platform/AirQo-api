@@ -21,7 +21,7 @@ const NodeCache = require("node-cache");
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
-const JOB_NAME = "store-readings-job";
+const JOB_NAME = "store-readings-job.beta";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 
 // Cache manager for storing site averages

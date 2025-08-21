@@ -1,3 +1,4 @@
+//src/device-registry/bin/jobs/store-readings-job.js
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -18,8 +19,20 @@ const NodeCache = require("node-cache");
 const TIMEZONE = moment.tz.guess();
 const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
 
+const JOB_NAME = "store-readings-job";
+const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
+
 // Cache manager for storing site averages
 const siteAveragesCache = new NodeCache({ stdTTL: 3600 }); // 1 hour TTL
+
+// Utility function to check if an error is a duplicate key error
+function isDuplicateKeyError(error) {
+  return (
+    error &&
+    (error.code === 11000 ||
+      (error.name === "MongoError" && error.code === 11000))
+  );
+}
 
 // Helper function to update entity status (previously undefined)
 async function updateEntityStatus(Model, filter, time, entityType) {
@@ -40,6 +53,9 @@ async function updateEntityStatus(Model, filter, time, entityType) {
       );
     }
   } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
     logger.error(
       `🐛🐛 Error updating ${entityType}'s status: ${error.message}`
     );
@@ -124,6 +140,10 @@ class BatchProcessor {
         upsert: true,
       });
     } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        // Silently ignore duplicate key errors
+        return;
+      }
       logger.error(`🐛🐛 Error processing document: ${error.message}`);
       throw error;
     }
@@ -164,6 +184,9 @@ class BatchProcessor {
       const averages = await EventModel("airqo").getAirQualityAverages(siteId);
       return averages?.success ? averages.data : null;
     } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        return null; // Silently ignore duplicate key errors
+      }
       logger.error(
         `🐛🐛 Error calculating averages for site ${siteId}: ${error.message}`
       );
@@ -174,34 +197,50 @@ class BatchProcessor {
 
 // Helper function to update offline devices
 async function updateOfflineDevices(data) {
-  const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
-  const thresholdTime = moment()
-    .subtract(INACTIVE_THRESHOLD, "milliseconds")
-    .toDate();
+  try {
+    const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
+    const thresholdTime = moment()
+      .subtract(INACTIVE_THRESHOLD, "milliseconds")
+      .toDate();
 
-  await DeviceModel("airqo").updateMany(
-    {
-      _id: { $nin: Array.from(activeDeviceIds) },
-      lastActive: { $lt: thresholdTime },
-    },
-    { isOnline: false }
-  );
+    await DeviceModel("airqo").updateMany(
+      {
+        _id: { $nin: Array.from(activeDeviceIds) },
+        lastActive: { $lt: thresholdTime },
+      },
+      { isOnline: false }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
+    logger.error(`🐛🐛 Error updating offline devices: ${error.message}`);
+  }
 }
 
 // Helper function to update offline sites
 async function updateOfflineSites(data) {
-  const activeSiteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
-  const thresholdTime = moment()
-    .subtract(INACTIVE_THRESHOLD, "milliseconds")
-    .toDate();
+  try {
+    const activeSiteIds = new Set(
+      data.map((doc) => doc.site_id).filter(Boolean)
+    );
+    const thresholdTime = moment()
+      .subtract(INACTIVE_THRESHOLD, "milliseconds")
+      .toDate();
 
-  await SiteModel("airqo").updateMany(
-    {
-      _id: { $nin: Array.from(activeSiteIds) },
-      lastActive: { $lt: thresholdTime },
-    },
-    { isOnline: false }
-  );
+    await SiteModel("airqo").updateMany(
+      {
+        _id: { $nin: Array.from(activeSiteIds) },
+        lastActive: { $lt: thresholdTime },
+      },
+      { isOnline: false }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return; // Silently ignore duplicate key errors
+    }
+    logger.error(`🐛🐛 Error updating offline sites: ${error.message}`);
+  }
 }
 
 // Main function to fetch and store data
@@ -225,6 +264,10 @@ async function fetchAndStoreDataIntoReadingsModel() {
       viewEventsResponse = await EventModel("airqo").fetch(filter);
       logText("Running the data insertion script");
     } catch (fetchError) {
+      if (isDuplicateKeyError(fetchError)) {
+        logText("Ignoring duplicate key error in fetch operation");
+        return;
+      }
       logger.error(`🐛🐛 Error fetching events: ${stringify(fetchError)}`);
       return;
     }
@@ -257,7 +300,11 @@ async function fetchAndStoreDataIntoReadingsModel() {
               try {
                 await batchProcessor.processDocument(doc);
               } catch (error) {
-                if (error && error.code !== 11000) {
+                if (isDuplicateKeyError(error)) {
+                  // Silently ignore duplicate key errors
+                  return;
+                }
+                if (error.name === "MongoError" && error.code !== 11000) {
                   logger.error(
                     `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
                       error
@@ -265,10 +312,13 @@ async function fetchAndStoreDataIntoReadingsModel() {
                   );
                   throw error; // Retry non-duplicate errors
                 }
-                // Log duplicate errors but don't retry
-                console.warn(
-                  `🙀🙀 Duplicate key error for document: ${stringify(doc)}`
-                );
+                // Log other errors but don't retry duplicate key errors
+                if (!isDuplicateKeyError(error)) {
+                  logger.error(
+                    `🐛🐛 Error processing document: ${error.message}`
+                  );
+                  throw error;
+                }
               }
             },
             {
@@ -286,16 +336,47 @@ async function fetchAndStoreDataIntoReadingsModel() {
 
     logText("All data inserted successfully and offline devices updated");
   } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      logText("Completed with some duplicate key errors (ignored)");
+      return;
+    }
     logger.error(`🐛🐛 Internal Server Error ${stringify(error)}`);
   }
 }
 
-// Schedules job to run once every hour at minute 30
-const schedule = "30 * * * *";
-cron.schedule(schedule, fetchAndStoreDataIntoReadingsModel, {
-  scheduled: true,
-  timezone: TIMEZONE,
-});
+// Create and register the job
+const startJob = () => {
+  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
+  const cronJobInstance = cron.schedule(
+    JOB_SCHEDULE,
+    fetchAndStoreDataIntoReadingsModel,
+    {
+      scheduled: true,
+      timezone: TIMEZONE,
+    }
+  );
+
+  // Initialize global registry
+  if (!global.cronJobs) {
+    global.cronJobs = {};
+  }
+
+  // Register for cleanup 👇 USING cronJobInstance HERE!
+  global.cronJobs[JOB_NAME] = {
+    job: cronJobInstance,
+    stop: async () => {
+      cronJobInstance.stop();
+      if (typeof cronJobInstance.destroy === "function") {
+        cronJobInstance.destroy();
+      }
+      delete global.cronJobs[JOB_NAME];
+    },
+  };
+
+  console.log(`✅ ${JOB_NAME} started`);
+};
+
+startJob();
 
 // Export for testing purposes
 module.exports = {
@@ -305,4 +386,5 @@ module.exports = {
   isEntityActive,
   updateOfflineDevices,
   updateOfflineSites,
+  isDuplicateKeyError,
 };
