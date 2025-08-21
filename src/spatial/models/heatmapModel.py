@@ -135,7 +135,6 @@ class BaseAirQoAPI:
                 client = redis.Redis(
                     host=redis_host,
                     port=int(redis_port), 
-                    password=config.REDIS_PASSWORD,
                     decode_responses=False,
                 )
                 client.ping()
