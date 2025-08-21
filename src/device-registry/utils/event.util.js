@@ -3846,163 +3846,7 @@ const createEvent = {
       );
     }
   },
-  insert: async (tenant, measurements, next) => {
-    try {
-      let nAdded = 0;
-      let eventsAdded = [];
-      let eventsRejected = [];
-      let errors = [];
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
-        measurements,
-        next
-      );
-
-      if (!responseFromTransformMeasurements.success) {
-        logger.error(
-          `internal server error -- unable to transform measurements -- ${
-            responseFromTransformMeasurements.message
-          }, ${stringify(measurements)}`
-        );
-      }
-
-      for (const measurement of responseFromTransformMeasurements.data) {
-        try {
-          // logObject("the measurement in the insertion process", measurement);
-          const eventsFilter = {
-            day: measurement.day,
-            site_id: measurement.site_id,
-            device_id: measurement.device_id,
-            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
-            $or: [
-              { "values.time": { $ne: measurement.time } },
-              { "values.device": { $ne: measurement.device } },
-              { "values.frequency": { $ne: measurement.frequency } },
-              { "values.device_id": { $ne: measurement.device_id } },
-              { "values.site_id": { $ne: measurement.site_id } },
-              { day: { $ne: measurement.day } },
-            ],
-          };
-          let someDeviceDetails = {};
-          someDeviceDetails["device_id"] = measurement.device_id;
-          someDeviceDetails["site_id"] = measurement.site_id;
-          // logObject("someDeviceDetails", someDeviceDetails);
-
-          // logObject("the measurement", measurement);
-
-          const eventsUpdate = {
-            $push: { values: measurement },
-            $min: { first: measurement.time },
-            $max: { last: measurement.time },
-            $inc: { nValues: 1 },
-          };
-          // logObject("eventsUpdate", eventsUpdate);
-          // logObject("eventsFilter", eventsFilter);
-
-          const addedEvents = await EventModel(tenant).updateOne(
-            eventsFilter,
-            eventsUpdate,
-            {
-              upsert: true,
-            }
-          );
-          // logObject("addedEvents", addedEvents);
-          if (addedEvents) {
-            nAdded += 1;
-            eventsAdded.push(measurement);
-          } else if (!addedEvents) {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "unable to add the events",
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
-          } else {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "unable to add the events",
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
-          }
-        } catch (e) {
-          // logger.error(`internal server serror -- ${e.message}`);
-          eventsRejected.push(measurement);
-          let errMsg = {
-            msg:
-              "there is a system conflict, most likely a cast error or duplicate record",
-            more: e.message,
-            record: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-            },
-          };
-          errors.push(errMsg);
-        }
-      }
-
-      if (errors.length > 0 && isEmpty(eventsAdded)) {
-        logTextWithTimestamp(
-          "API: failed to store measurements, most likely DB cast errors or duplicate records"
-        );
-        return {
-          success: false,
-          message: "finished the operation with some errors",
-          errors,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      } else {
-        logTextWithTimestamp("API: successfully added the events");
-        return {
-          success: true,
-          message: "successfully added the events",
-          status: httpStatus.OK,
-          errors,
-        };
-      }
-    } catch (error) {
-      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
   transformMeasurements: async (device, measurements, next) => {
     let promises = measurements.map(async (measurement) => {
       try {
@@ -4711,6 +4555,163 @@ const createEvent = {
       );
     }
   },
+  insert: async (tenant, measurements, next) => {
+    try {
+      let nAdded = 0;
+      let eventsAdded = [];
+      let eventsRejected = [];
+      let errors = [];
+
+      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+        measurements,
+        next
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        logger.error(
+          `internal server error -- unable to transform measurements -- ${
+            responseFromTransformMeasurements.message
+          }, ${stringify(measurements)}`
+        );
+      }
+
+      for (const measurement of responseFromTransformMeasurements.data) {
+        try {
+          // logObject("the measurement in the insertion process", measurement);
+          const eventsFilter = {
+            day: measurement.day,
+            site_id: measurement.site_id,
+            device_id: measurement.device_id,
+            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+            $or: [
+              { "values.time": { $ne: measurement.time } },
+              { "values.device": { $ne: measurement.device } },
+              { "values.frequency": { $ne: measurement.frequency } },
+              { "values.device_id": { $ne: measurement.device_id } },
+              { "values.site_id": { $ne: measurement.site_id } },
+              { day: { $ne: measurement.day } },
+            ],
+          };
+          let someDeviceDetails = {};
+          someDeviceDetails["device_id"] = measurement.device_id;
+          someDeviceDetails["site_id"] = measurement.site_id;
+          // logObject("someDeviceDetails", someDeviceDetails);
+
+          // logObject("the measurement", measurement);
+
+          const eventsUpdate = {
+            $push: { values: measurement },
+            $min: { first: measurement.time },
+            $max: { last: measurement.time },
+            $inc: { nValues: 1 },
+          };
+          // logObject("eventsUpdate", eventsUpdate);
+          // logObject("eventsFilter", eventsFilter);
+
+          const addedEvents = await EventModel(tenant).updateOne(
+            eventsFilter,
+            eventsUpdate,
+            {
+              upsert: true,
+            }
+          );
+          // logObject("addedEvents", addedEvents);
+          if (addedEvents) {
+            nAdded += 1;
+            eventsAdded.push(measurement);
+          } else if (!addedEvents) {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "unable to add the events",
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
+          } else {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "unable to add the events",
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
+          }
+        } catch (e) {
+          // logger.error(`internal server serror -- ${e.message}`);
+          eventsRejected.push(measurement);
+          let errMsg = {
+            msg:
+              "there is a system conflict, most likely a cast error or duplicate record",
+            more: e.message,
+            record: {
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+            },
+          };
+          errors.push(errMsg);
+        }
+      }
+
+      if (errors.length > 0 && isEmpty(eventsAdded)) {
+        logTextWithTimestamp(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+        );
+        return {
+          success: false,
+          message: "finished the operation with some errors",
+          errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      } else {
+        logTextWithTimestamp("API: successfully added the events");
+        return {
+          success: true,
+          message: "successfully added the events",
+          status: httpStatus.OK,
+          errors,
+        };
+      }
+    } catch (error) {
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   insertMeasurements_v3: async (tenant, measurements, next) => {
     try {
       let nAdded = 0;
@@ -4864,6 +4865,9 @@ const createEvent = {
       };
 
       if (errors.length > 0 && nAdded === 0) {
+        logTextWithTimestamp(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+        );
         return {
           success: false,
           message: "Finished the operation with some errors",
@@ -4872,6 +4876,7 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
+        logTextWithTimestamp("API: successfully added the events");
         return {
           success: true,
           message: "Successfully added the events",
@@ -4881,7 +4886,8 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logObject("Error in insertMeasurements_v3", error);
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
