@@ -149,18 +149,30 @@ class BatchProcessor {
       const enrichedDoc = await this.enrichDocument(doc, docTime);
       // Prepare and save reading
       // Build appropriate filter based on deployment type
-      let filter = { time: docTime.toDate() };
-
-      if (enrichedDoc.deployment_type === "static") {
-        filter.site_id = enrichedDoc.site_id;
+      let filter = null;
+      const base = { time: docTime.toDate() };
+      if (enrichedDoc.deployment_type === "static" && enrichedDoc.site_id) {
+        filter = { ...base, site_id: enrichedDoc.site_id };
       } else if (enrichedDoc.deployment_type === "mobile") {
-        if (enrichedDoc.grid_id) {
-          filter.grid_id = enrichedDoc.grid_id;
+        if (enrichedDoc.grid_id && enrichedDoc.device_id) {
+          filter = {
+            ...base,
+            grid_id: enrichedDoc.grid_id,
+            device_id: enrichedDoc.device_id,
+          };
+        } else if (enrichedDoc.device_id) {
+          filter = { ...base, device_id: enrichedDoc.device_id };
         }
-        filter.device_id = enrichedDoc.device_id;
       } else if (enrichedDoc.device_id) {
-        // Defensive fallback when deployment_type is unavailable
-        filter.device_id = enrichedDoc.device_id;
+        filter = { ...base, device_id: enrichedDoc.device_id };
+      }
+      if (!filter) {
+        logger.warn(
+          `🙀🙀 Skipping reading without stable identity: ${stringify(
+            enrichedDoc
+          )}`
+        );
+        return;
       }
       const { _id, ...updateDoc } = enrichedDoc;
 

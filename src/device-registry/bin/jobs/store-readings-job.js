@@ -124,13 +124,22 @@ class BatchProcessor {
 
       // Prepare and save reading
       const base = { time: docTime.toDate() };
-      const filter = doc.site_id
-        ? { ...base, site_id: doc.site_id }
-        : doc.grid_id && doc.device_id
-        ? { ...base, grid_id: doc.grid_id, device_id: doc.device_id }
-        : doc.device_id
-        ? { ...base, device_id: doc.device_id }
-        : base; // last resort; consider logging if we hit this case
+      let filter = null;
+
+      if (doc.site_id) {
+        filter = { ...base, site_id: doc.site_id };
+      } else if (doc.grid_id && doc.device_id) {
+        filter = { ...base, grid_id: doc.grid_id, device_id: doc.device_id };
+      } else if (doc.device_id) {
+        filter = { ...base, device_id: doc.device_id };
+      }
+
+      if (!filter) {
+        logger.warn(
+          `Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id) – would collapse on time only`
+        );
+        return;
+      }
       const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
 
       if (averages) {
