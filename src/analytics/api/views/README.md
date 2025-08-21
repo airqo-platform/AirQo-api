@@ -245,8 +245,8 @@ The API uses HTTP status codes to indicate the result of requests:
 - **401 Unauthorized**: Authentication failure
 - **403 Forbidden**: Insufficient permissions
 - **404 Not Found**: Resource not found
+- **429 Too Many Requests**: Rate limit exceeded; retry after the indicated period
 - **500 Internal Server Error**: Server-side error
-
 Error responses include:
 
 ```json
