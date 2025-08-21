@@ -139,7 +139,7 @@ class RawDataSchema(Schema):
     cursor = ma_fields.String(
         required=False,
         allow_none=True,
-        description="Cursor value for pagination.",
+        metadata={"description": "Cursor value for pagination."},
     )
 
     @validates_schema
