@@ -53,6 +53,8 @@ Contact AirQo to obtain an API key for your application.
 
 Retrieves raw sensor measurements within a specified time range.
 
+Note: This endpoint currently returns JSON only (CSV export is not supported on raw-data).
+
 #### Request Body
 
 ```json
