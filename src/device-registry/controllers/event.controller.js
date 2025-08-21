@@ -595,17 +595,12 @@ const createEvent = {
         return;
       }
 
-      const request = req;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
+      const tenant = isEmpty(req.query.tenant)
         ? defaultTenant
         : req.query.tenant;
 
-      let result = await createEventUtil.insert(
-        defaultTenant,
-        measurements,
-        next
-      );
+      let result = await createEventUtil.insert(tenant, measurements, next);
 
       if (isEmpty(result) || res.headersSent) {
         return;

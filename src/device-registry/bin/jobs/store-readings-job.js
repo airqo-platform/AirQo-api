@@ -107,7 +107,14 @@ class BatchProcessor {
       }
 
       // Prepare and save reading
-      const filter = { site_id: doc.site_id, time: docTime.toDate() };
+      const base = { time: docTime.toDate() };
+      const filter = doc.site_id
+        ? { ...base, site_id: doc.site_id }
+        : doc.grid_id && doc.device_id
+        ? { ...base, grid_id: doc.grid_id, device_id: doc.device_id }
+        : doc.device_id
+        ? { ...base, device_id: doc.device_id }
+        : base; // last resort; consider logging if we hit this case
       const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
 
       if (averages) {
@@ -250,7 +257,7 @@ async function fetchAndStoreDataIntoReadingsModel() {
               try {
                 await batchProcessor.processDocument(doc);
               } catch (error) {
-                if (error.name === "MongoError" && error.code !== 11000) {
+                if (error && error.code !== 11000) {
                   logger.error(
                     `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
                       error

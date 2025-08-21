@@ -352,7 +352,6 @@ ReadingsSchema.index(
   }
 );
 ReadingsSchema.index({ device_id: 1, time: 1 }, { unique: true });
-ReadingsSchema.index({ site_id: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ device: 1, time: 1 }, { unique: true });
 ReadingsSchema.index({ deployment_type: 1, time: -1 });
 ReadingsSchema.index({ deployment_type: 1, device_id: 1, time: -1 });

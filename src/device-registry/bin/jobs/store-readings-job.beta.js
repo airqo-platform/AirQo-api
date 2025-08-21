@@ -158,6 +158,9 @@ class BatchProcessor {
           filter.grid_id = enrichedDoc.grid_id;
         }
         filter.device_id = enrichedDoc.device_id;
+      } else if (enrichedDoc.device_id) {
+        // Defensive fallback when deployment_type is unavailable
+        filter.device_id = enrichedDoc.device_id;
       }
       const { _id, ...updateDoc } = enrichedDoc;
 

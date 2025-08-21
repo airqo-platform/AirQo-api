@@ -151,9 +151,26 @@ ReadingsSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-ReadingsSchema.index({ device_id: 1, time: 1 }, { unique: true });
-ReadingsSchema.index({ device: 1, time: 1 }, { unique: true });
-ReadingsSchema.index({ site_id: 1, time: 1 }, { unique: true });
+// Unique when device_id exists
+ReadingsSchema.index(
+  { device_id: 1, time: 1 },
+  { unique: true, partialFilterExpression: { device_id: { $exists: true } } }
+);
+// Unique when device string exists (only if you truly need this)
+ReadingsSchema.index(
+  { device: 1, time: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { device: { $exists: true, $type: "string" } },
+  }
+);
+// Unique when site_id exists
+ReadingsSchema.index(
+  { site_id: 1, time: 1 },
+  { unique: true, partialFilterExpression: { site_id: { $exists: true } } }
+);
+// TTL on time (30 days)
+ReadingsSchema.index({ time: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
 
 ReadingsSchema.methods = {
   toJSON() {
@@ -274,6 +291,7 @@ ReadingsSchema.statics.latest = async function(
 
     const pipeline = this.aggregate()
       .match({
+        ...filter,
         time: {
           $gte: sevenDaysAgo,
         },
@@ -662,16 +680,13 @@ ReadingsSchema.statics.getAirQualityAnalytics = async function(siteId, next) {
     // Process all data
     const weeklyData = processWeeklyData(weeklyComparison);
     // Denominator: replaced 24 with Object.keys(hourlyData).length
+    const hours = Object.keys(hourlyData).length;
+    const safeAvg = (arr) =>
+      hours > 0 ? arr.reduce((s, v) => s + v, 0) / hours : null;
     const dailyAverages = {
-      pm2_5:
-        Object.values(hourlyData).reduce((sum, hour) => sum + hour.pm2_5, 0) /
-        Object.keys(hourlyData).length,
-      pm10:
-        Object.values(hourlyData).reduce((sum, hour) => sum + hour.pm10, 0) /
-        Object.keys(hourlyData).length,
-      no2:
-        Object.values(hourlyData).reduce((sum, hour) => sum + hour.no2, 0) /
-        Object.keys(hourlyData).length,
+      pm2_5: safeAvg(Object.values(hourlyData).map((h) => h.pm2_5 || 0)),
+      pm10: safeAvg(Object.values(hourlyData).map((h) => h.pm10 || 0)),
+      no2: safeAvg(Object.values(hourlyData).map((h) => h.no2 || 0)),
     };
 
     // Calculate percentage differences
