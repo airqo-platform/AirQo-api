@@ -216,6 +216,7 @@ const dbProjections = {
       "grids.description": 0,
       "grids.grid_tags": 0,
       "grids.grid_codes": 0,
+      "grids.shape_update_history": 0,
       "grids.shape": 0,
       "grids.network": 0,
       "grids.centers": 0,
