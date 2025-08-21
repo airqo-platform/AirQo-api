@@ -88,7 +88,7 @@ class DataExportResource(Resource):
 @rest_api_v3.route("/raw-data")
 class RawDataExportResource(Resource):
     @rest_api_v3.expect(raw_data_model)
-    @limiter.limit("5 per minute", error_message=ratelimit_response)
+    @limiter.limit("10 per minute", error_message=ratelimit_response)
     def post(self):
         try:
             json_data = RawDataSchema().load(request.json)
