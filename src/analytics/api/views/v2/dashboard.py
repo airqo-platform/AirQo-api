@@ -180,7 +180,7 @@ class D3ChartDataResource(Resource):
                 else DeviceCategory.LOWCOST
             )
             datatype = DataType.CALIBRATED
-            data = DataUtils.extract_data_from_bigquery(
+            data, _ = DataUtils.extract_data_from_bigquery(
                 datatype,
                 start_date,
                 end_date,
