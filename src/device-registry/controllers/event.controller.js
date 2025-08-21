@@ -541,7 +541,7 @@ const processAirQloudIds = async (airqloud_ids, request) => {
 };
 
 const createEvent = {
-  addValues_beta: async (req, res, next) => {
+  addValues: async (req, res, next) => {
     try {
       logText("Adding values with mobile device support...");
       const measurements = req.body;
@@ -583,7 +583,7 @@ const createEvent = {
     }
   },
 
-  addValues: async (req, res, next) => {
+  addValues_backup: async (req, res, next) => {
     try {
       logText("adding values...");
       const measurements = req.body;
