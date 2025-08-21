@@ -1,3 +1,5 @@
+import hashlib
+import base64
 from typing import List, Dict, Any, Optional, Union, Tuple, Set
 from constants import (
     QueryType,
@@ -7,6 +9,7 @@ from constants import (
     DataType,
     DeviceCategory,
 )
+from datetime import datetime
 from api.utils.utils import Utils
 import pandas as pd
 from google.cloud import bigquery
@@ -14,6 +17,7 @@ from config import BaseConfig as Config
 from api.utils.pollutants.pm_25 import COMMON_POLLUTANT_MAPPING_v2
 
 from main import cache
+from api.utils.cursor_utils import CursorUtils
 
 import logging
 
@@ -69,7 +73,7 @@ class BigQueryApi:
         return (
             f"SELECT {self.device_info_query}, data.* "
             f"FROM {self.devices_table} "
-            f"RIGHT JOIN ({data_query}) data ON data.device_name = {self.devices_table}.device_id "
+            f"RIGHT JOIN ({data_query}) data ON data.device_id = {self.devices_table}.device_id "
             f"{filter_clause}"
         )
 
@@ -168,7 +172,7 @@ class BigQueryApi:
         """
         table_name = Utils.table_name(table)
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_name "
+            f"{pollutants_query}, {time_grouping}, {self.device_info_query}, {self.devices_table}.name AS device_id "
             f"FROM {table_name} "
             f"JOIN {self.devices_table} ON {self.devices_table}.device_id = {table_name}.device_id "
             f"WHERE {table_name}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
@@ -207,7 +211,7 @@ class BigQueryApi:
         """
         table = Utils.table_name(table)
         query = (
-            f"{pollutants_query}, {time_grouping}, {self.site_info_query}, {table}.device_id AS device_name "
+            f"{pollutants_query}, {time_grouping}, {self.site_info_query}, {table}.device_id AS device_id "
             f"FROM {table} "
             f"JOIN {self.sites_table} ON {self.sites_table}.id = {table}.site_id "
             f"WHERE {table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
@@ -254,7 +258,7 @@ class BigQueryApi:
         meta_data_query = self.add_device_join_to_airqlouds(meta_data_query)
 
         query = (
-            f"{pollutants_query}, {time_grouping}, {table}.device_id AS device_name, meta_data.* "
+            f"{pollutants_query}, {time_grouping}, {table}.device_id AS device_id, meta_data.* "
             f"FROM {table} "
             f"RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {table}.site_id "
             f"WHERE {table}.timestamp BETWEEN '{start_date}' AND '{end_date}' "
@@ -269,15 +273,14 @@ class BigQueryApi:
 
     def compose_query(
         self,
-        query_type: QueryType,
         table: str,
         start_date_time: str,
         end_date_time: str,
-        device_category: DeviceCategory,
+        pollutants: List[str],
+        data_type: DataType,
+        data_filter: Dict[str, Any],
+        device_category: Optional[DeviceCategory],
         network: Optional[DeviceNetwork] = None,
-        where_fields: Optional[Dict[str, Union[str, int, Tuple]]] = None,
-        columns: Optional[List] = None,
-        exclude_columns: Optional[List] = None,
     ) -> str:
         """
         Composes a SQL query for BigQuery based on the query type (GET or DELETE), and optionally includes a dynamic selection and aggregation of numeric columns.
@@ -290,7 +293,6 @@ class BigQueryApi:
             network (DeviceNetwork, optional): The network or ownership information (e.g., to filter data).
             where_fields (dict, optional):  Dictionary of fields to filter on i.e {"device_id":("aq_001", "aq_002")}.
             columns (list, optional):  List of columns to select. If None, selects all.
-            exclude_columns (list, optional): List of columns to exclude from aggregation if dynamically selecting numeric columns.
 
         Returns:
             str: The composed SQL query as a string.
@@ -298,32 +300,34 @@ class BigQueryApi:
         Raises:
             Exception: If an invalid column is provided in `where_fields` or `null_cols`, or if the `query_type` is not supported.
         """
-        exclude_columns = exclude_columns or []
-        where_fields = where_fields or {}
+        table_name = Utils.table_name(table)
 
-        valid_columns = self.get_columns(table)
-        resolved_where = self._resolve_where_clause(
-            where_fields, valid_columns, exclude_columns
+        pollutant_columns = self._query_columns_builder(
+            pollutants,
+            data_type,
+            DataType.RAW,
+            device_category,
+            table_name=table_name,
+        )
+        selected_columns = set(pollutant_columns)
+
+        pollutants_query = (
+            "SELECT "
+            + (", ".join(selected_columns) + ", " if selected_columns else "")
+            + f"FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime "
         )
 
-        columns_clause = ", ".join(columns) if columns else "*"
-
-        where_clauses = [f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}'"]
-        if network:
-            where_clauses.append(f"network = '{network.value}'")
-        if resolved_where:
-            where_clauses.extend(resolved_where)
-
-        if query_type == QueryType.GET:
-            query = f"""
-                SELECT {columns_clause}
-                FROM `{table}`
-                WHERE {' AND '.join(where_clauses)}
-            """
-        else:
-            raise ValueError(f"Unsupported query type: {query_type}")
-
-        return query.strip()
+        filter_type, filter_value = next(iter(data_filter.items()))
+        query = self.build_filter_query(
+            table,
+            filter_type,
+            filter_value,
+            pollutants_query,
+            start_date_time,
+            end_date_time,
+            frequency=Frequency.RAW,
+        )
+        return query
 
     def _resolve_where_clause(
         self,
@@ -373,38 +377,49 @@ class BigQueryApi:
         where_fields: Optional[Dict[str, Any]] = None,
         dynamic_query: Optional[bool] = False,
         use_cache: Optional[bool] = True,
-    ) -> pd.DataFrame:
+        cursor_field: Optional[str] = "timestamp",
+        cursor_token: Optional[str] = None,
+    ) -> Tuple[pd.DataFrame, Dict]:
         """
         Queries data from a specified BigQuery table based on the provided parameters.
+
         Args:
             table(str): The name of the table from which to retrieve the data.
             start_date_time(str): The start datetime for the data query in ISO format.
             end_date_time(str): The end datetime for the data query in ISO format.
-            network(DeviceNetwork, optional): An Enum representing the site ownership. Defaults to `ALL` if not supplied, representing all networks.
-            data_type(str, optional):
-            columns(list, optional): A list of column names to include in the query. If None, all columns are included. Defaults to None.
-            where_fields(dict, optional): A dictionary of additional WHERE clause filters where the key is the field name and the value is the filter value. Defaults to None.
-            time_granularity(str, optional):
-            dynamic_query(bool, optional): A boolean value to signal bypassing the automatic query composition to a more dynamic averaging approach.
-            use_cache(bool, optional):
+            device_category(DeviceCategory): Category of device data to query.
+            network(DeviceNetwork, optional): An Enum representing the site ownership.
+            frequency(Frequency, optional): The frequency of the data.
+            data_type(str, optional): Type of data ('raw', 'calibrated', etc.).
+            columns(list, optional): A list of column names to include in the query.
+            where_fields(dict, optional): A dictionary of WHERE clause filters.
+            dynamic_query(bool, optional): Whether to use dynamic query generation.
+            use_cache(bool, optional): Whether to use cached query results.
+            cursor_field(str, optional): The field to use for cursor-based pagination.
+            cursor_value(str, optional): The value of the cursor for pagination.
 
         Returns:
-            pd.DataFrame: A pandas DataFrame containing the queried data, with duplicates removed and timestamps converted to `datetime` format. If no data is retrieved, an empty DataFrame is returned.
+            Tuple[pd.DataFrame, str]: A pandas DataFrame containing the queried data and
+            a string containing the next cursor value (or None if there's no more data).
         """
         job_config = bigquery.QueryJobConfig()
+        limits = int(Config.DATA_EXPORT_LIMIT)
         query_parameters = []
-        _, filter_value = next(iter(where_fields.items()))
+        filter_type, filter_value = next(iter(where_fields.items()))
+        meta_data: Dict[str, Any] = {"total_count": 0, "has_more": False, "next": None}
+
+        # Determine which query generation approach to use
         if not dynamic_query:
             # Raw data
             query = self.compose_query(
-                QueryType.GET,
                 table=table,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
+                pollutants=columns,
+                data_type=data_type,
+                data_filter=where_fields,
                 device_category=device_category,
                 network=network,
-                where_fields=where_fields,
-                columns=columns,
             )
         else:
             # Device, sites specific data
@@ -416,8 +431,7 @@ class BigQueryApi:
                 data_filter=where_fields,
                 data_type=data_type,
                 frequency=frequency,
-                device_category=device_category
-                # time_granularity=time_granularity,
+                device_category=device_category,
             )
 
         query_parameters = [
@@ -426,96 +440,173 @@ class BigQueryApi:
 
         job_config.query_parameters = query_parameters
         job_config.use_query_cache = use_cache
+
+        if cursor_token:
+            _, _, _, paginate = self.estimate_query_rows(query, table)
+            if paginate:
+                query = self._apply_pagination_cursor(
+                    query, cursor_field, cursor_token, filter_type
+                )
+
+        order_by_clause = self._get_pagination_order_clause(
+            cursor_field, filter_type, table
+        )
+
+        # Adjust the limit to fetch one extra row
+        adjusted_limit = limits + 1
+
+        # Execute the query with ordering and adjusted limit
         measurements = (
             self.client.query(
-                query=f"select distinct * from ({query}) limit {Config.DATA_EXPORT_LIMIT}",
+                query=f"select distinct * from ({query}) order by {order_by_clause} limit {adjusted_limit}",
                 job_config=job_config,
             )
             .result()
             .to_dataframe()
         )
-        return measurements
 
-    def dynamic_averaging_query(
-        self,
-        table: str,
-        start_date_time: str,
-        end_date_time: str,
-        exclude_columns: Optional[List] = None,
-        group_by: Optional[List] = None,
-        network: Optional[DeviceNetwork] = None,
-        time_granularity: Optional[str] = "HOUR",
+        # Handle pagination logic
+        if not measurements.empty:
+            # Use only the first `Config.DATA_EXPORT_LIMIT` rows for the current page
+            current_page_data = measurements.iloc[:limits]
+
+            # Use the `(Config.DATA_EXPORT_LIMIT + 1)`th row to generate the next cursor
+            if len(measurements) > limits:
+                next_cursor_token = self._generate_next_cursor(
+                    measurements.iloc[limits:], cursor_field, filter_type
+                )
+            else:
+                next_cursor_token = None
+        else:
+            current_page_data = measurements
+            next_cursor_token = None
+
+        # Update metadata
+        count = current_page_data.shape[0]
+        meta_data["total_count"] = count
+        meta_data["has_more"] = next_cursor_token is not None
+        meta_data["next"] = next_cursor_token
+
+        return current_page_data, meta_data
+
+    def _apply_pagination_cursor(
+        self, query: str, cursor_field: str, cursor_token: str, filter_type: str
     ) -> str:
         """
-        Constructs a dynamic SQL query to select and average numeric columns, allowing exclusions,
-        custom groupings, and ordering by a specified time granularity (hour, day, week, month).
+        Applies pagination cursor logic to a query string, ensuring results continue precisely
+        from where the previous request left off, using appropriate operators for string fields.
 
         Args:
-            table (str): The BigQuery table to query.
-            start_date_time (str): The start datetime for filtering records.
-            end_date_time (str): The end datetime for filtering records.
-            exclude_columns (list): List of columns to exclude from selection and aggregation.
-                                    Defaults to excluding `device_number`, `device_id`, `site_id`, `timestamp`.
-            group_by (list): List of columns to group by in the query. Defaults to
-                            `["device_number", "device_id", "site_id", <time_granularity>]`.
-            time_granularity (str): Time truncation granularity for ordering, must be one of `HOUR`,
-                                    `DAY`, `WEEK`, or `MONTH`. Defaults to `HOUR`.
+            query (str): The SQL query to modify.
+            cursor_field (str): The field used for pagination (typically timestamp).
+            cursor_token (str): The cursor token from Redis.
+            filter_type (str): The type of filter being applied (e.g., 'site_id').
 
         Returns:
-            str: A dynamic SQL query string that averages numeric columns and groups data based on
-                the provided granularity and group-by fields.
-
-                Example:
-                    query = dynamic_averaging_query(
-                        table="project.dataset.table",
-                        start_date_time="2024-01-01T00:00:00",
-                        end_date_time="2024-01-04T00:00:00",
-                        exclude_columns=["device_number", "device_id", "site_id", "timestamp"],
-                        group_by=["device_number", "site_id"],
-                        time_granularity="HOUR"
-                    )
+            str: The modified query with cursor conditions added.
         """
-        valid_granularities = ["HOUR", "DAY", "WEEK", "MONTH"]
-        if time_granularity.upper() not in valid_granularities:
-            logger.exception(
-                f"Invalid time granularity: {time_granularity}. Must be one of {valid_granularities}."
-            )
+        filter_type = self.field_mappings.get(filter_type, None)
 
-        # Default for exclude_columns and group_by
-        exclude_columns = exclude_columns or [
-            "device_number",
-            "device_id",
-            "site_id",
-            "timestamp",
-        ]
-        group_by = group_by or ["device_number", "device_id", "site_id", "network"]
+        # Retrieve the cursor data from Redis
+        try:
+            cursor_value = CursorUtils.decode_cursor(cursor_token)
+        except ValueError as e:
+            raise ValueError(f"Invalid pagination cursor: {str(e)}")
 
-        numeric_columns = self.get_columns(
-            table, [ColumnDataType.FLOAT, ColumnDataType.INTEGER]
-        )
+        cursor_parts = cursor_value.split("|")
 
-        # Construct dynamic AVG statements for numeric columns
-        avg_columns = ",\n    ".join(
-            [
-                f"ROUND(AVG({col}), {Config.DATA_EXPORT_DECIMAL_PLACES}) AS {col}"
-                for col in numeric_columns
-                if col not in exclude_columns
-            ]
-        )
+        if len(cursor_parts) < 2:
+            raise ValueError("Invalid cursor format")
 
-        where_clause: str = (
-            f"timestamp BETWEEN '{start_date_time}' AND '{end_date_time}' "
-        )
+        timestamp_part = cursor_parts[0]
+        filter_value_part = cursor_parts[1]
 
-        if network:
-            where_clause += f"AND network = '{network.value}' "
+        if filter_type == "site_id" and len(cursor_parts) >= 3:
+            # Site ID case with device ID for multi-device sites
+            device_id_part = cursor_parts[2]
+            query += f"""
+                AND (
+                    /* Records with later timestamps */
+                    {cursor_field} > '{timestamp_part}'
 
-        # Include time granularity in both SELECT and GROUP BY
-        timestamp_trunc = f"TIMESTAMP_TRUNC(timestamp, {time_granularity.upper()}) AS {time_granularity.lower()}"
-        group_by_clause = ", ".join(group_by + [time_granularity.lower()])
-        query = f"""SELECT {", ".join(group_by)}, {timestamp_trunc}, {avg_columns} FROM `{table}` WHERE {where_clause} GROUP BY {group_by_clause} ORDER BY {time_granularity.lower()};"""
+                    /* OR same timestamp, same site and same device_id */
+                    OR ({cursor_field} = '{timestamp_part}'
+                        AND {filter_type} = '{filter_value_part}'
+                        AND device_id = '{device_id_part}')
+                )
+            """
+        else:
+            # Simpler case (e.g., device_id or other filters)
+            query += f"""
+                AND (
+                    /* Records with later timestamps */
+                    {cursor_field} > '{timestamp_part}'
+
+                    /* OR same timestamp and same filter value(device_id)*/
+                    OR ({cursor_field} = '{timestamp_part}'
+                        AND {filter_type} IS NOT NULL
+                        AND {filter_type} = '{filter_value_part}')
+                )
+            """
 
         return query
+
+    def _generate_next_cursor(
+        self, dataframe: pd.DataFrame, cursor_field: str, filter_type: str
+    ) -> Optional[str]:
+        """
+        Generates the next cursor value from a dataframe of results and stores it in Redis.
+
+        Args:
+            dataframe (pd.DataFrame): The result dataframe.
+            cursor_field (str): Field used for pagination (typically timestamp).
+            filter_type (str): Type of filter being applied (e.g., 'site_id').
+
+        Returns:
+            Optional[str]: Cursor token for retrieving the stored cursor, or None if no more data.
+        """
+        cursor_token = None
+        filter_type = self.field_mappings.get(filter_type, None)
+        if not dataframe.empty:
+            last_row = dataframe.iloc[-1]
+            max_timestamp = last_row[cursor_field]
+            last_filter_value = last_row[filter_type]
+
+            if filter_type == "site_id" and "device_id" in dataframe.columns:
+                # For site_id filtering, include device_id in the cursor
+                cursor_token = CursorUtils.create_cursor(
+                    timestamp=str(max_timestamp),
+                    filter_value=last_filter_value,
+                    device_id=last_row["device_id"],
+                )
+            else:
+                cursor_token = CursorUtils.create_cursor(
+                    timestamp=str(max_timestamp), filter_value=last_filter_value
+                )
+
+        return cursor_token
+
+    def _get_pagination_order_clause(
+        self, cursor_field: str, filter_type: str, table: str
+    ) -> str:
+        """
+        Generates an ORDER BY clause for consistent pagination ordering.
+
+        Args:
+            cursor_field (str): Field used for pagination (typically timestamp).
+            filter_type (str): Type of filter being applied.
+            table (str): The table being queried.
+
+        Returns:
+            str: SQL ORDER BY clause for consistent pagination.
+        """
+        filter_type = self.field_mappings.get(filter_type, None)
+        order_by_clause = f"{cursor_field}, {filter_type}"
+
+        # Add device_id to ordering if we're filtering by site_id for consistent results
+        if filter_type == "site_id" and "device_id" in self.get_columns(table):
+            order_by_clause += ", device_id"
+        return order_by_clause
 
     def get_columns(
         self,
@@ -588,7 +679,7 @@ class BigQueryApi:
         if frequency.value in self.extra_time_grouping:
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
-                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime",
+                f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime ",
                 "",
             )
 
@@ -722,31 +813,26 @@ class BigQueryApi:
         data_type: DataType,
         frequency: Frequency,
         device_category: DeviceCategory,
-        decimal_places: int,
+        decimal_places: Optional[int] = 2,
         table_name: Optional[str] = None,
     ) -> List[str]:
         """
-        Builds and returns two lists of pollutant averaging SQL expressions or column names; One for low-cost sensors and one for BAM devices.
+        Builds and returns a list of pollutant averaging SQL expressions or column names for the specified device category.
         The function uses the provided frequency, pollutants list, and data type to dynamically determine which columns to extract and how to compute them.
-        This method also handles the case where certain pollutants (e.g. PM2.5, PM10) from low-cost devices are present in raw form but are not expected in the BAM data.
-        In such cases, it appends a dummy column (`-1 as <pollutant>`) to the BAM column list to maintain schema consistency (e.g., for SQL UNION operations).
 
         Args:
             pollutants(List[str]): List of pollutant names (e.g., ["pm2_5", "pm10"]).
-            data_type(DataType): An enum or object with a `.value` attribute indicating the data type(e.g., "raw", "averaged").
-            frequency(Frequency): An object with a `.value` attribute representing the data frequency(e.g., "hourly", "daily").
+            data_type(DataType): An enum or object with a `.value` attribute indicating the data type (e.g., "raw", "averaged").
+            frequency(Frequency): An object with a `.value` attribute representing the data frequency (e.g., "hourly", "daily").
             decimal_places(int): Number of decimal places to round the averaged values.
-            table_name(Optional[str]): Name of the table containing low-cost sensor data.
-            bam_table_name(Optional[str]): Name of the table containing BAM data.
+            table_name(Optional[str]): Name of the table containing sensor data.
 
         Returns:
-            Tuple[List[str], List[str]]:
-                - The first list contains SQL column expressions for the low-cost sensor data.
-                - The second list contains SQL column expressions for the BAM device data.
-                May include dummy columns for compatibility in downstream SQL logic.
+            List[str]: A list containing SQL column expressions for the selected pollutants.
 
-        Raises:
-            ValueError: If both `table_name` and `bam_table_name` are None.
+        Returns:
+            List[str]: The list contains SQL column expressions for the selected pollutants.
+                May include dummy columns for compatibility in downstream SQL logic.
         """
         pollutant_columns_ = []
 
@@ -812,3 +898,34 @@ class BigQueryApi:
             )
 
         return pollutant_columns
+
+    def estimate_query_rows(
+        self, query: str, table: str, row_threshold: int = Config.DATA_EXPORT_LIMIT
+    ) -> Tuple[int, int, float, bool]:
+        """
+        Estimate number of rows a query could return, using dry run + table metadata.
+
+        Args:
+            query(str): SQL query string.
+            table(str): Fully qualified table id i.e `project.dataset.table`.
+            row_threshold(int): Row count threshold to decide if pagination is needed.
+
+        Returns:
+            Tuple[estimated_rows(int), bytes_scanned(int), avg_row_size(float), paginate(bool)]
+        """
+        job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+        query_job = self.client.query(query, job_config=job_config)
+        bytes_scanned = query_job.total_bytes_processed
+
+        # Get table metadata (row + size stats)
+        table = self.client.get_table(table)
+        if table.num_rows > 0:
+            avg_row_size = table.num_bytes / table.num_rows
+        else:
+            avg_row_size = 0
+
+        estimated_rows = int(bytes_scanned / avg_row_size) if avg_row_size > 0 else 0
+
+        paginate = estimated_rows > int(row_threshold)
+
+        return estimated_rows, bytes_scanned, avg_row_size, paginate

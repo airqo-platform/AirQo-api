@@ -101,6 +101,11 @@ class RawDataSchema(Schema):
         required=True,
         validate=validate.OneOf(["airqo", "iqair", "airnow"], error="Invalid network."),
     )
+    pollutants = ma_fields.List(
+        ma_fields.String(),
+        required=True,
+        validate=validate.ContainsOnly(["pm2_5", "pm10"], error="Invalid pollutant."),
+    )
     sites = ma_fields.List(ma_fields.String())
     device_ids = ma_fields.List(ma_fields.String())
     device_names = ma_fields.List(ma_fields.String())
@@ -118,6 +123,23 @@ class RawDataSchema(Schema):
             ["raw", "hourly", "daily", "weekly", "monthly", "yearly"],
             error="Invalid data frequency.",
         ),
+    )
+    metaDataFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["latitude", "longitude"], error="Invalid metadata fields."
+        ),
+    )
+    weatherFields = ma_fields.List(
+        ma_fields.String(),
+        validate=validate.ContainsOnly(
+            ["temperature", "humidity"], error="Invalid weather fields."
+        ),
+    )
+    cursor = ma_fields.String(
+        required=False,
+        allow_none=True,
+        description="Cursor value for pagination.",
     )
 
     @validates_schema

@@ -374,6 +374,9 @@ class BigQueryApi:
             Exception: If an invalid component is provided.
         """
         dataframe.reset_index(drop=True, inplace=True)
+        dataframe.rename(
+            columns={"mountType": "mount_type"}, errors="ignore", inplace=True
+        )
         dataframe = self.validate_data(dataframe=dataframe, table=table)
         unique_ids = {
             "sites": ["id"],
