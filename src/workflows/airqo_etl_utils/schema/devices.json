@@ -60,6 +60,16 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "mount_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "mobility",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "last_updated",
     "type": "TIMESTAMP",
     "mode": "REQUIRED"
