@@ -33,6 +33,12 @@ router.delete(
 );
 
 router.put(
+  "/:grid_id/shape",
+  gridsValidations.updateGridShape,
+  createGridController.updateShape
+);
+
+router.put(
   "/:grid_id",
   gridsValidations.updateGrid,
   createGridController.update

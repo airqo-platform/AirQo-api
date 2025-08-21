@@ -44,7 +44,7 @@ class BaseConfig:
 
     # Export
     DATA_EXPORT_DECIMAL_PLACES = env_var("DATA_EXPORT_DECIMAL_PLACES", 2)
-    DATA_EXPORT_LIMIT = env_var("DATA_EXPORT_LIMIT", 2000)
+    DATA_EXPORT_LIMIT = env_var("DATA_EXPORT_LIMIT", 10000)
     DATA_SUMMARY_DAYS_INTERVAL = env_var("DATA_SUMMARY_DAYS_INTERVAL", 2)
     DATA_EXPORT_BUCKET = env_var("DATA_EXPORT_BUCKET")
     DATA_EXPORT_DATASET = env_var("DATA_EXPORT_DATASET")
@@ -149,8 +149,20 @@ class BaseConfig:
 
     # Fields for data cleaning
     OPTIONAL_FIELDS = {
-        DeviceCategory.LOWCOST: {"longitude", "latitude", "temperature", "humidity"},
-        DeviceCategory.BAM: {"longitude", "latitude", "temperature", "humidity"},
+        DeviceCategory.LOWCOST: {
+            "longitude",
+            "latitude",
+            "temperature",
+            "humidity",
+            "site_id",
+        },
+        DeviceCategory.BAM: {
+            "longitude",
+            "latitude",
+            "temperature",
+            "humidity",
+            "site_id",
+        },
         DeviceCategory.MOBILE: {"longitude", "latitude", "temperature", "humidity"},
     }
 

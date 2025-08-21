@@ -16,7 +16,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from urllib3.util.retry import Retry
-import joblib 
+import joblib
+from configure import Config as config
+from utils.commons import download_file_from_gcs,upload_to_gcs
 
 # Attempt to import optional dependency
 try:
@@ -24,7 +26,7 @@ try:
 except ImportError:
     redis = None
 
-load_dotenv() # Call load_dotenv() to load variables from .env file
+load_dotenv()  # Call load_dotenv() to load variables from .env file
 
 # ----------------------------- Base / Shared ----------------------------- #
 class BaseAirQoAPI:
@@ -58,7 +60,9 @@ class BaseAirQoAPI:
 
         self.api_token = os.getenv(token_env)
         if not self.api_token:
-            raise ValueError(f"Environment variable '{token_env}' is missing or invalid.")
+            raise ValueError(
+                f"Environment variable '{token_env}' is missing or invalid."
+            )
 
         base_url = os.getenv(base_url_env)
         if not base_url:
@@ -78,7 +82,9 @@ class BaseAirQoAPI:
         if not logger.handlers:
             logger.setLevel(logging.INFO)
             handler = logging.StreamHandler()
-            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
             handler.setFormatter(formatter)
             logger.addHandler(handler)
         return logger
@@ -118,14 +124,13 @@ class BaseAirQoAPI:
                 self.logger.info("Redis connection successful via URL.")
                 return client
 
-            redis_host = os.getenv("REDIS_HOST")
-            redis_port = os.getenv("REDIS_PORT")
+            redis_host = config.REDIS_HOST
+            redis_port = config.REDIS_PORT
             if redis_host and redis_port:
                 client = redis.Redis(
                     host=redis_host,
-                    port=int(redis_port),
-                    db=int(os.getenv("REDIS_DB", "0")),
-                    password=os.getenv("REDIS_PASSWORD"),
+                    port=int(redis_port), 
+                    password=config.REDIS_PASSWORD,
                     decode_responses=False,
                 )
                 client.ping()
@@ -146,7 +151,9 @@ class BaseAirQoAPI:
         try:
             blob = json.dumps(payload).encode("utf-8")
             self.redis_client.set(key, blob, ex=self.cache_ttl)
-            self.logger.info("Cached payload to Redis key='%s' (TTL %ss).", key, self.cache_ttl)
+            self.logger.info(
+                "Cached payload to Redis key='%s' (TTL %ss).", key, self.cache_ttl
+            )
         except Exception as e:
             self.logger.warning(f"Failed to write to Redis cache")
 
@@ -206,7 +213,9 @@ class BaseAirQoAPI:
             # Step 1: Attempt to get from cache first
             cached_data = self._cache_get(cache_key)
             if cached_data and (validator is None or validator(cached_data)):
-                self.logger.info("Returning valid data from cache for key='%s'.", cache_key)
+                self.logger.info(
+                    "Returning valid data from cache for key='%s'.", cache_key
+                )
                 return cached_data
 
         url = f"{self.base_url_root}{path}"
@@ -228,18 +237,27 @@ class BaseAirQoAPI:
                 else:
                     self.logger.warning("Validation failed for payload from %s.", url)
             else:
-                self.logger.error("HTTP %s from %s: %s", resp.status_code, url, resp.text[:200])
+                self.logger.error(
+                    "HTTP %s from %s: %s", resp.status_code, url, resp.text[:200]
+                )
         except requests.RequestException as e:
             self.logger.error("Request to %s failed: %s", url, e)
 
         # Step 4: Fallback to cache on API failure if enabled
         if use_cache_on_error and cache_key:
             cached_data_on_error = self._cache_get(cache_key)
-            if cached_data_on_error and (validator is None or validator(cached_data_on_error)):
-                self.logger.warning("Using cached data due to API failure or invalid new data.")
+            if cached_data_on_error and (
+                validator is None or validator(cached_data_on_error)
+            ):
+                self.logger.warning(
+                    "Using cached data due to API failure or invalid new data."
+                )
                 return cached_data_on_error
 
-        self.logger.error("Data fetch failed and no usable cache was available for key='%s'.", cache_key)
+        self.logger.error(
+            "Data fetch failed and no usable cache was available for key='%s'.",
+            cache_key,
+        )
         return None
 
 
@@ -288,7 +306,10 @@ class AirQualityData(BaseAirQoAPI):
             return False
 
         self.data = payload
-        self.logger.info("Successfully fetched %d measurement records.", len(payload.get("measurements", [])))
+        self.logger.info(
+            "Successfully fetched %d measurement records.",
+            len(payload.get("measurements", [])),
+        )
         return True
 
     def process_data(self) -> bool:
@@ -314,21 +335,27 @@ class AirQualityData(BaseAirQoAPI):
                 if pm2_5 is None or not site_id:
                     continue
 
-                records.append({
-                    "site_id": site_id,
-                    "site_name": site.get("name") or "Unknown",
-                    "latitude": self._safe_float(site.get("approximate_latitude")),
-                    "longitude": self._safe_float(site.get("approximate_longitude")),
-                    "region": site.get("region") or "Unknown",
-                    "country": site.get("country") or "Unknown",
-                    "pm2_5": pm2_5,
-                    "pm10": self._safe_float((m.get("pm10") or {}).get("value")),
-                    "timestamp": m.get("time"),
-                    "device_id": m.get("device_id"),
-                })
+                records.append(
+                    {
+                        "site_id": site_id,
+                        "site_name": site.get("name") or "Unknown",
+                        "latitude": self._safe_float(site.get("approximate_latitude")),
+                        "longitude": self._safe_float(
+                            site.get("approximate_longitude")
+                        ),
+                        "region": site.get("region") or "Unknown",
+                        "country": site.get("country") or "Unknown",
+                        "pm2_5": pm2_5,
+                        "pm10": self._safe_float((m.get("pm10") or {}).get("value")),
+                        "timestamp": m.get("time"),
+                        "device_id": m.get("device_id"),
+                    }
+                )
 
             if not records:
-                self.logger.warning("No valid measurement records found after cleaning.")
+                self.logger.warning(
+                    "No valid measurement records found after cleaning."
+                )
                 return False
 
             df = pd.DataFrame.from_records(records)
@@ -351,10 +378,14 @@ class AirQualityData(BaseAirQoAPI):
 
             self.gdf = gpd.GeoDataFrame(
                 grouped_df,
-                geometry=gpd.points_from_xy(grouped_df["longitude"], grouped_df["latitude"]),
+                geometry=gpd.points_from_xy(
+                    grouped_df["longitude"], grouped_df["latitude"]
+                ),
                 crs="EPSG:4326",
             )
-            self.logger.info("Created aggregated GeoDataFrame with %d sites.", len(self.gdf))
+            self.logger.info(
+                "Created aggregated GeoDataFrame with %d sites.", len(self.gdf)
+            )
             return True
 
         except Exception as e:
@@ -401,7 +432,9 @@ class AirQualityGrids(BaseAirQoAPI):
             return False
 
         self.data = payload
-        self.logger.info("Successfully fetched %d grid records.", len(payload.get("grids", [])))
+        self.logger.info(
+            "Successfully fetched %d grid records.", len(payload.get("grids", []))
+        )
         return True
 
     def process_data(
@@ -426,7 +459,12 @@ class AirQualityGrids(BaseAirQoAPI):
         # Set default exclusion lists if none are provided
         exclude_admin_levels = exclude_admin_levels or ["country"]
         exclude_names = exclude_names or [
-            "rubaga", "makindye", "nakawa", "kawempe", "kampala_central", "greater_kampala"
+            "rubaga",
+            "makindye",
+            "nakawa",
+            "kawempe",
+            "kampala_central",
+            "greater_kampala",
         ]
         exclude_names_set = {n.lower() for n in exclude_names}
 
@@ -439,18 +477,24 @@ class AirQualityGrids(BaseAirQoAPI):
                     continue
                 try:
                     geometry = shape(shape_geojson)
-                    records.append({
-                        "id": grid_id,
-                        "name": grid.get("name"),
-                        "admin_level": grid.get("admin_level"),
-                        "geometry": geometry,
-                    })
+                    records.append(
+                        {
+                            "id": grid_id,
+                            "name": grid.get("name"),
+                            "admin_level": grid.get("admin_level"),
+                            "geometry": geometry,
+                        }
+                    )
                 except Exception as e:
-                    self.logger.error(f"Error processing geometry for grid '{grid.get('name')}'")
+                    self.logger.error(
+                        f"Error processing geometry for grid '{grid.get('name')}'"
+                    )
                     continue
 
             if not records:
-                self.logger.warning("No valid grid records found after processing shapes.")
+                self.logger.warning(
+                    "No valid grid records found after processing shapes."
+                )
                 return False
 
             df = pd.DataFrame(records)
@@ -469,7 +513,10 @@ class AirQualityGrids(BaseAirQoAPI):
 
             self.df = df.reset_index(drop=True)
             self.gdf = gpd.GeoDataFrame(self.df, geometry="geometry", crs="EPSG:4326")
-            self.logger.info("Grid data processed successfully into a GeoDataFrame with %d polygons.", len(self.gdf))
+            self.logger.info(
+                "Grid data processed successfully into a GeoDataFrame with %d polygons.",
+                len(self.gdf),
+            )
             return True
 
         except Exception as e:
@@ -479,14 +526,11 @@ class AirQualityGrids(BaseAirQoAPI):
 
 # ----------------------------- Air Quality Prediction --------------------- #
 class AirQualityPredictor:
-    CACHE_KEY = "airqo:predicted_pm25"
-    MODEL_DIR = os.getenv("MODEL_DIR_FILE", "./models")
-    CITY_LIST_FILE = os.path.join(MODEL_DIR, "processed_cities.json")  # JSON file for city list
-    
-    def __init__(self, air_quality_data: AirQualityData, air_quality_grids: AirQualityGrids):
+    def __init__(
+        self, air_quality_data: AirQualityData, air_quality_grids: AirQualityGrids
+    ):
         """
         Initializes the AirQualityPredictor.
-
         Args:
             air_quality_data: An initialized instance of AirQualityData.
             air_quality_grids: An initialized instance of AirQualityGrids.
@@ -499,26 +543,74 @@ class AirQualityPredictor:
         self.predictions: List[pd.DataFrame] = []
         self.logger = self.aq_data.logger
         self.models: Dict[str, RandomForestRegressor] = {}  # Cache loaded models
-        os.makedirs(self.MODEL_DIR, exist_ok=True)  # Create model directory if it doesn't exist
+        # GCS-related configurations from configure.py
+        # The MODEL_DIR and SPATIAL_PROJECT_BUCKET are now used to define GCS paths
+        self.SPATIAL_PROJECT_BUCKET = config.SPATIAL_PROJECT_BUCKET
+        self.city_list: Any = config.CITY_LIST_FILE
+        self.MODEL_DIR = config.MODEL_DIR 
+
+        if not self.SPATIAL_PROJECT_BUCKET:  # Only ensure local dir if no bucket
+            os.makedirs(self.MODEL_DIR, exist_ok=True)
 
     def _get_processed_cities(self) -> set:
         """
         Retrieves the set of previously processed cities from the JSON file.
-
         Returns:
             A set of city names that have been processed.
         """
-        if os.path.exists(self.CITY_LIST_FILE):
+        cities = set()
+        city_list_filename = "processed_cities.json"
+        # Try GCS first if SPATIAL_PROJECT_BUCKET is configured
+        if self.SPATIAL_PROJECT_BUCKET:
+            import tempfile
+            fd, temp_local_path = tempfile.mkstemp(suffix=".json")
+            os.close(fd)
             try:
-                with open(self.CITY_LIST_FILE, "r") as f:
+                self.logger.info(
+                    f"Attempting to download processed cities from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{city_list_filename}"
+                )
+                download_file_from_gcs(
+                    self.SPATIAL_PROJECT_BUCKET, city_list_filename, temp_local_path
+                )
+                with open(temp_local_path, "r") as f:
+                    data = json.load(f)
+                    raw_cities = data.get("cities", [])
+                    if not isinstance(raw_cities, list):
+                        self.logger.warning(
+                            "Invalid 'cities' type in processed cities JSON. Expected list, got %s. Defaulting to empty list.",
+                                type(raw_cities).__name__,)                        
+                        raw_cities = []
+                    cities = set(raw_cities)
+                    self.logger.info(
+                        f"Loaded {len(cities)} processed cities from GCS")                   
+                return cities
+            except Exception as e:
+                self.logger.warning(
+                     f"Failed to load processed cities from GCS: {e}. Falling back to local file.")
+            finally:
+                try:
+                    if os.path.exists(temp_local_path):
+                        os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")                 
+                
+        # Fallback to local file
+
+        if os.path.exists(self.city_list):
+            try:
+                with open(self.city_list, "r") as f:
                     data = json.load(f)
                     cities = set(data.get("cities", []))
-                    self.logger.info(f"Loaded {len(cities)} processed cities from {self.CITY_LIST_FILE}")
+                    self.logger.info(
+                        f"Loaded {len(cities)} processed cities from {self.city_list}"
+                    )
                     return cities
             except Exception as e:
-                self.logger.warning(f"Failed to read processed cities from {self.CITY_LIST_FILE}: ")
+                self.logger.warning(
+                    f"Failed to read processed cities from {self.city_list}: "
+                )
         else:
-            self.logger.info(f"No processed cities file found at {self.CITY_LIST_FILE}")
+            self.logger.info(f"No processed cities file found at {self.city_list}")
         return set()
 
     def _save_processed_cities(self, cities: set) -> None:
@@ -529,47 +621,130 @@ class AirQualityPredictor:
             cities: A set of city names to save.
         """
         cities_list = list(cities)
+        city_list_filename = "processed_cities.json"
+        data = {"cities": cities_list}
+
+        # Try GCS first if SPATIAL_PROJECT_BUCKET is configured
+        if self.SPATIAL_PROJECT_BUCKET:
+            import tempfile
+            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".json")
+            os.close(temp_fd)
+            try:
+                with open(temp_local_path, "w") as f:
+                    json.dump(data, f, indent=2)
+                upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, city_list_filename)
+                self.logger.info(
+                    f"Saved {len(cities_list)} processed cities to GCS at gs://{self.SPATIAL_PROJECT_BUCKET}/{city_list_filename}"
+                )
+                try:
+                    os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
+                return
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save processed cities to GCS: {e}. Falling back to local file."
+                )
+
+        # Fallback to local file
         try:
-            with open(self.CITY_LIST_FILE, "w") as f:
+            with open(self.city_list, "w") as f:
                 json.dump({"cities": cities_list}, f, indent=2)
-            self.logger.info(f"Saved {len(cities_list)} processed cities to {self.CITY_LIST_FILE}")
+            self.logger.info(
+                f"Saved {len(cities_list)} processed cities to {self.city_list}"
+            )
         except Exception as e:
-            self.logger.error(f"Failed to save processed cities to {self.CITY_LIST_FILE}")
+            self.logger.error(f"Failed to save processed cities to {self.city_list}")
 
     def _load_model(self, city_name: str) -> Optional[RandomForestRegressor]:
         """
-        Loads a saved Random Forest model for a city.
-
+        Loads a pre-trained model for a specific city.
+        It first tries to load the model from the GCS bucket.
+        If the GCS bucket is not configured or the model is not found there, it falls back to the local directory.
         Args:
             city_name: The name of the city.
-
         Returns:
-            The loaded model or None if loading fails.
+            The loaded model, or None if no model is found.
         """
-        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
-        if os.path.exists(model_path):
+        model_filename = f"{city_name}_rf_model.joblib" 
+        # Try to load from GCS first
+        if self.SPATIAL_PROJECT_BUCKET:
+            gcs_path = model_filename
+            import tempfile
+            fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
+            os.close(fd)
             try:
-                model = joblib.load(model_path)
-                self.logger.info(f"Loaded model for '{city_name}' from {model_path}")
+                self.logger.info( 
+                    f"Attempting to download model from GCS: gs://{self.SPATIAL_PROJECT_BUCKET}/{gcs_path}")
+                download_file_from_gcs(
+                    self.SPATIAL_PROJECT_BUCKET, gcs_path, temp_local_path
+                )
+                model = joblib.load(temp_local_path)
+                self.logger.info(f"Loaded model from GCS: for {model_filename}")
+                
+                try:
+                    os.remove(temp_local_path)
+                except OSError:
+                    self.logger.debug(f"Could not remove temp file: {temp_local_path}")
                 return model
             except Exception as e:
-                self.logger.error(f"Failed to load model for '{city_name}' ")
+                self.logger.warning(
+                    f"Failed to load model from GCS for {city_name}. Reason: {e}. Falling back to local directory."
+                )
+        # Fallback to local directory
+        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
+        if os.path.exists(local_filepath):
+            try:
+                self.logger.info(f"Loading model from local directory: {local_filepath}")
+                return joblib.load(local_filepath)
+            except Exception as e:
+                self.logger.error(f"Failed to load model from local file. Reason: {e}")
+        else:
+            self.logger.info(f"No model found for {city_name} in local directory.")
+
         return None
+
 
     def _save_model(self, city_name: str, model: RandomForestRegressor) -> None:
         """
-        Saves a Random Forest model for a city.
-
+        Saves a trained model for a specific city.
+        Prioritizes saving to the GCS bucket if configured.
+        Falls back to saving to the local directory if GCS is not used or fails.
         Args:
             city_name: The name of the city.
-            model: The trained Random Forest model.
+            model: The trained RandomForestRegressor model.
         """
-        model_path = os.path.join(self.MODEL_DIR, f"{city_name}_rf_model.joblib")
+        model_filename = f"{city_name}_rf_model.joblib"
+        local_filepath = os.path.join(self.MODEL_DIR, model_filename)
+        # Prioritize saving to GCS
+        if self.SPATIAL_PROJECT_BUCKET:
+            gcs_path = model_filename
+            import tempfile
+            temp_fd, temp_local_path = tempfile.mkstemp(suffix=".joblib")
+            os.close(temp_fd)
+            try:
+                # Save locally first, then upload
+                joblib.dump(model, temp_local_path)
+                upload_to_gcs(self.SPATIAL_PROJECT_BUCKET, temp_local_path, gcs_path)
+                self.logger.info(
+                    f"Model for {city_name} saved successfully to GCS bucket at {gcs_path}."
+                )
+                # Clean up the temporary local file
+                os.remove(temp_local_path)
+                return
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save model to GCS for {city_name}. Reason: {e}. Falling back to local save."
+                ) 
+        # Fallback to local directory save
         try:
-            joblib.dump(model, model_path)
-            self.logger.info(f"Saved model for '{city_name}' to {model_path}")
+            os.makedirs(self.MODEL_DIR, exist_ok=True) # Ensure dir exists before saving
+            joblib.dump(model, local_filepath)
+            self.logger.info(
+                f"Model for {city_name} saved successfully to local directory."
+            )
         except Exception as e:
-            self.logger.error(f"Failed to save model for '{city_name}' ")
+            self.logger.error(f"Failed to save model locally for {city_name}. Reason: {e}")
 
     def fetch_and_process_data(self) -> bool:
         """
@@ -580,7 +755,9 @@ class AirQualityPredictor:
         """
         try:
             if not (self.aq_data.fetch_data() and self.aq_data.process_data()):
-                self.logger.error("Failed to fetch or process air quality measurement data.")
+                self.logger.error(
+                    "Failed to fetch or process air quality measurement data."
+                )
                 return False
 
             if not (self.grids.fetch_data() and self.grids.process_data()):
@@ -592,11 +769,17 @@ class AirQualityPredictor:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error during data fetching and processing orchestration", exc_info=True)
+            self.logger.error(
+                f"Error during data fetching and processing orchestration",
+                exc_info=True,
+            )
             return False
 
     def train_and_predict(
-        self, buffer_distance: float = 0.001, grid_resolution: int = 15, force_retrain: bool = False
+        self,
+        buffer_distance: float = 0.001,
+        grid_resolution: int = 15,
+        force_retrain: bool = False,
     ) -> bool:
         """
         Trains or loads Random Forest models for each grid polygon and predicts PM2.5 values.
@@ -610,7 +793,9 @@ class AirQualityPredictor:
             True if the process completes successfully, False otherwise.
         """
         if self.gdf is None or self.gdf_polygons is None:
-            self.logger.error("GeoDataFrames not initialized. Run fetch_and_process_data() first.")
+            self.logger.error(
+                "GeoDataFrames not initialized. Run fetch_and_process_data() first."
+            )
             return False
 
         self.results.clear()
@@ -630,8 +815,10 @@ class AirQualityPredictor:
                 city_data = self.gdf[self.gdf.geometry.intersects(city_poly)]
 
                 known = city_data[city_data["pm25"].notna()].copy()
-                if len(known) < 4:
-                    self.logger.warning(f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points.")
+                if len(known) < 2:
+                    self.logger.warning(
+                        f"Skipping '{city_name}': Only {len(known)} valid PM2.5 data points."
+                    )
                     continue
 
                 # Decide whether to train a new model
@@ -640,17 +827,23 @@ class AirQualityPredictor:
                 if not train_model:
                     model = self._load_model(city_name)
                     if model is None:
-                        self.logger.info(f"No model found for '{city_name}'; will train a new one.")
+                        self.logger.info(
+                            f"No model found for '{city_name}'; will train a new one."
+                        )
                         train_model = True
 
                 if train_model:
-                    self.logger.info(f"Training model for '{city_name}' with {len(known)} data points...")
+                    self.logger.info(
+                        f"Training model for '{city_name}' with {len(known)} data points..."
+                    )
                     # Define features (X) and target (y)
                     X = known[["latitude", "longitude"]]
                     y = known["pm25"]
 
                     # Split data for training and evaluation
-                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                    X_train, X_test, y_train, y_test = train_test_split(
+                        X, y, test_size=0.2, random_state=42
+                    )
 
                     # Train the model
                     model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -662,17 +855,21 @@ class AirQualityPredictor:
                     # Evaluate the model if the test set is non-empty
                     if not y_test.empty:
                         y_pred = model.predict(X_test)
-                        self.results.append({
-                            "city": city_name,
-                            "R²": r2_score(y_test, y_pred),
-                            "RMSE": np.sqrt(mean_squared_error(y_test, y_pred)),
-                            "MAE": mean_absolute_error(y_test, y_pred),
-                            "n_samples_train": len(y_train),
-                            "n_samples_test": len(y_test)
-                        })
+                        self.results.append(
+                            {
+                                "city": city_name,
+                                "R²": r2_score(y_test, y_pred),
+                                "RMSE": np.sqrt(mean_squared_error(y_test, y_pred)),
+                                "MAE": mean_absolute_error(y_test, y_pred),
+                                "n_samples_train": len(y_train),
+                                "n_samples_test": len(y_test),
+                            }
+                        )
 
                 self.models[city_name] = model
-                self.logger.info(f"Using model for '{city_name}' (trained={train_model}).")
+                self.logger.info(
+                    f"Using model for '{city_name}' (trained={train_model})."
+                )
 
                 # Create a prediction grid within the city polygon
                 x_min, y_min, x_max, y_max = city_poly.bounds
@@ -686,27 +883,37 @@ class AirQualityPredictor:
 
                 # Predict PM2.5 for the grid points
                 if not grid_gdf.empty:
-                    grid_locations = pd.DataFrame({
-                        "latitude": [pt.y for pt in grid_gdf.geometry],
-                        "longitude": [pt.x for pt in grid_gdf.geometry]
-                    })
+                    grid_locations = pd.DataFrame(
+                        {
+                            "latitude": [pt.y for pt in grid_gdf.geometry],
+                            "longitude": [pt.x for pt in grid_gdf.geometry],
+                        }
+                    )
                     grid_pred_pm25 = model.predict(grid_locations)
 
-                    grid_results_df = pd.DataFrame({
-                        "city": city_name,
-                        "latitude": grid_locations["latitude"],
-                        "longitude": grid_locations["longitude"],
-                        "predicted_pm25": grid_pred_pm25,
-                        "source": "grid_prediction"
-                    })
+                    grid_results_df = pd.DataFrame(
+                        {
+                            "city": city_name,
+                            "latitude": grid_locations["latitude"],
+                            "longitude": grid_locations["longitude"],
+                            "predicted_pm25": grid_pred_pm25,
+                            "source": "grid_prediction",
+                        }
+                    )
 
                     # Prepare original data for combination
-                    original_data_df = known[["site_name", "latitude", "longitude", "pm25"]].copy()
-                    original_data_df.rename(columns={"pm25": "predicted_pm25"}, inplace=True)
+                    original_data_df = known[
+                        ["site_name", "latitude", "longitude", "pm25"]
+                    ].copy()
+                    original_data_df.rename(
+                        columns={"pm25": "predicted_pm25"}, inplace=True
+                    )
                     original_data_df["source"] = "original"
                     original_data_df["city"] = city_name
 
-                    combined = pd.concat([original_data_df, grid_results_df], ignore_index=True)
+                    combined = pd.concat(
+                        [original_data_df, grid_results_df], ignore_index=True
+                    )
                     self.predictions.append(combined)
 
             # Update the processed cities list
@@ -717,7 +924,9 @@ class AirQualityPredictor:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error during model training and prediction", exc_info=True)
+            self.logger.error(
+                f"Error during model training and prediction", exc_info=True
+            )
             return False
 
     def retrain_cities(self, city_names: Optional[List[str]] = None) -> bool:
@@ -731,18 +940,24 @@ class AirQualityPredictor:
             True if retraining completes successfully, False otherwise.
         """
         if self.gdf is None or self.gdf_polygons is None:
-            self.logger.error("GeoDataFrames not initialized. Run fetch_and_process_data() first.")
+            self.logger.error(
+                "GeoDataFrames not initialized. Run fetch_and_process_data() first."
+            )
             return False
 
         if city_names is None:
             city_names = self.gdf_polygons["name"].tolist()
         else:
-            city_names = [name for name in city_names if name in self.gdf_polygons["name"].values]
+            city_names = [
+                name for name in city_names if name in self.gdf_polygons["name"].values
+            ]
             if not city_names:
                 self.logger.warning("No valid city names provided for retraining.")
                 return False
 
-        self.logger.info(f"Retraining models for {len(city_names)} cities: {city_names}")
+        self.logger.info(
+            f"Retraining models for {len(city_names)} cities: {city_names}"
+        )
         return self.train_and_predict(force_retrain=True)
 
     def get_results(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -755,12 +970,16 @@ class AirQualityPredictor:
             - A DataFrame with the combined original and grid-based PM2.5 predictions.
         """
         results_df = pd.DataFrame(self.results)
-        predictions_df = pd.concat(self.predictions, ignore_index=True) if self.predictions else pd.DataFrame()
+        predictions_df = (
+            pd.concat(self.predictions, ignore_index=True)
+            if self.predictions
+            else pd.DataFrame()
+        )
         return results_df, predictions_df
 
 
 # ----------------------------- Example Usage ------------------------------ #
-'''if __name__ == "__main__":
+"""if __name__ == "__main__":
     # Initialize data handlers
     aq_data_handler = AirQualityData()
     grids_handler = AirQualityGrids()
@@ -790,10 +1009,10 @@ class AirQualityPredictor:
                 print(eval_results_df.to_string(index=False))
             else:
                 print("\nNo model evaluation results were generated.")
-            
+
             if not predictions_df.empty:
                 print("\n--- Combined PM2.5 Predictions (Original + Grid) Sample ---")
                 print(predictions_df.sample(5).to_string(index=False))
             else:
                 print("\nNo predictions were generated.")
-'''
+"""

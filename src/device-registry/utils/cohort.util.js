@@ -292,6 +292,92 @@ const createCohort = {
       );
     }
   },
+  updateName: async (request, next) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      const { name, update_reason } = body;
+
+      const filter = generateFilter.cohorts(request, next);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+
+      // First, get the existing cohort to validate it exists
+      const existingCohort = await CohortModel(tenant)
+        .findOne(filter)
+        .lean();
+      if (!existingCohort) {
+        return {
+          success: false,
+          message: "Cohort not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "The specified cohort does not exist" },
+        };
+      }
+
+      // Check if the new name already exists (excluding current cohort)
+      const nameExists = await CohortModel(tenant).findOne({
+        name: name
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .slice(0, 41)
+          .trim()
+          .toLowerCase(),
+        _id: { $ne: existingCohort._id },
+      });
+
+      if (nameExists) {
+        return {
+          success: false,
+          message: "Name already exists",
+          status: httpStatus.CONFLICT,
+          errors: { message: "A cohort with this name already exists" },
+        };
+      }
+
+      // Prepare the processed name and regenerated cohort_codes
+      const processedName = name
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .slice(0, 41)
+        .trim()
+        .toLowerCase();
+
+      const newCohortCodes = [existingCohort._id, processedName];
+
+      // Prepare the update object
+      const update = {
+        name: processedName,
+        cohort_codes: newCohortCodes,
+        $push: {
+          name_update_history: {
+            updated_at: new Date(),
+            reason: update_reason,
+            previous_name: existingCohort.name,
+            previous_cohort_codes: existingCohort.cohort_codes,
+          },
+        },
+      };
+
+      const responseFromUpdateCohortName = await CohortModel(tenant).modifyName(
+        {
+          filter,
+          update,
+        },
+        next
+      );
+
+      return responseFromUpdateCohortName;
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   delete: async (request, next) => {
     try {
       return {

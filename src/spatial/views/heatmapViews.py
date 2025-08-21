@@ -100,7 +100,7 @@ class AQIImageGenerator:
         Returns:
             Tuple of (image_data_url, bounds, message).
         """
-        if len(data) < 4:
+        if len(data) < 2:
             return None, None, f"⚠️ Not enough data for {city_name}"
 
         coords = np.array([[lat, lon] for lat, lon, _ in data])
@@ -142,7 +142,7 @@ class AQIImageGenerator:
             Flask response with JSON containing city heatmaps or an error message.
         """
         redis_client = AQIImageGenerator.get_redis_client()
-        cache_ttl_seconds = 1200  # Cache for 20 minutes
+        cache_ttl_seconds = 1800 #Cache for 30 minutes
         all_cities_cache_key = "aqi_images_all_cities"
         
         # --- NEW: Check for the entire 'all cities' response in cache first ---
@@ -219,7 +219,7 @@ class AQIImageGenerator:
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            return jsonify({"error": "An internal error has occurred."}), 500
+            return jsonify({"error": "An internal error has occurred with Redis cache.{e}"}), 500
 
     @staticmethod
     def generate_aqi_image_for_city(city_id):
@@ -234,7 +234,7 @@ class AQIImageGenerator:
         """
         redis_client = AQIImageGenerator.get_redis_client()
         cache_key = f"aqi_image_{city_id}"
-        cache_ttl_seconds = 1200  # Cache for 20 minutes
+        cache_ttl_seconds = 1800 #Cache for 30 minutes
 
         # Try to get from cache
         if redis_client:
@@ -293,7 +293,7 @@ class AQIImageGenerator:
 
         except Exception as e:
             print(f"An error occurred for city ID {city_id}: ")
-            return jsonify({"error": "An internal error has occurred."}), 500
+            return jsonify({"error": f"An internal error has occurred for city ID: {e}"}), 500
 
 # ----------------------------- Example Usage ------------------------------ #
 '''if __name__ == "__main__":

@@ -13,34 +13,64 @@ load_dotenv(dotenv_path)
 
 class Config:
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
+    AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
+    REDIS_CACHE_TTL = os.getenv("REDIS_CACHE_TTL")
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PORT=os.getenv("REDIS_PORT") 
+    REDIS_URL=os.getenv("REDIS_URL")
     GRID_URL = os.getenv("GRID_URL_ID")
+    REDIS_DB = os.getenv("REDIS_DB")
+    REDIS_PASSWORD=os.getenv("REDIS_PASSWORD")
     BIGQUERY_HOURLY_CONSOLIDATED = os.getenv("BIGQUERY_HOURLY_CONSOLIDATED")
     CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     GOOGLE_CLOUD_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT_ID")
     GOOGLE_APPLICATION_CREDENTIALS_EMAIL = os.getenv(
         "GOOGLE_APPLICATION_CREDENTIALS_EMAIL"
     )
     PROJECT_BUCKET = os.getenv("PROJECT_BUCKET")
+    SPATIAL_PROJECT_BUCKET = os.getenv("SPATIAL_PROJECT_BUCKET")
     BIGQUERY_SATELLITE_MODEL_PREDICTIONS = os.getenv(
         "BIGQUERY_SATELLITE_MODEL_PREDICTIONS"
     )
     ANALTICS_URL = os.getenv("ANALTICS_URL")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    CACHE_KEY = "airqo:predicted_pm25"
+    MODEL_DIR = os.getenv("MODEL_DIR_FILE", "./models")
+    CITY_LIST_FILE = os.path.join(
+        MODEL_DIR, "processed_cities.json"
+    )  # JSON file for city list
+    ENVIRONMENT = "base"
+
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
+    ENVIRONMENT = "production"
+    CITY_LIST_FILE = f"gs://{Config.SPATIAL_PROJECT_BUCKET}/processed_cities.json"
+    
 
-
+class StagingConfig(Config):
+    """
+    Configuration for staging environment.
+    """
+    DEBUG = True
+    TESTING = True
+    ENVIRONMENT = "staging"
+    CITY_LIST_FILE = f"gs://{Config.SPATIAL_PROJECT_BUCKET}/processed_cities.json"
 class DevelopmentConfig(Config):
+    """
+    Configuration for development environment.
+    """
     DEVELOPMENT = True
     DEBUG = True
-
+    ENVIRONMENT = "development"
+    # uses default CITY_LIST_FILE (local)
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-
-
+    ENVIRONMENT = "testing"
+    # uses default CITY_LIST_FILE (local)
 app_config = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,
@@ -51,7 +81,8 @@ app_config = {
 environment = os.getenv("FLASK_ENV", "staging")
 print("ENVIRONMENT", environment or "staging")
 
-configuration = app_config.get(environment, "staging")
+#configuration = app_config.get(environment, "staging")
+configuration = app_config.get(environment, StagingConfig)
 
 satellite_collections = {
     "COPERNICUS/S5P/OFFL/L3_SO2": [

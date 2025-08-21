@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Set, Optional
+from typing import List, Dict, Any, Set, Optional, Tuple
 
 from api.models.bigquery_api import BigQueryApi
 from config import BaseConfig as Config
@@ -29,8 +29,9 @@ class DataUtils:
         dynamic_query: Optional[bool] = False,
         main_columns: List[str] = None,
         data_filter: Optional[Dict[str, Any]] = None,
-        extra_columns: Optional[Dict[str, Any]] = None,
+        extra_columns: Optional[List[str]] = None,
         use_cache: Optional[bool] = False,
+        cursor_token: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Extracts data from BigQuery within a specified time range and frequency,
@@ -45,7 +46,9 @@ class DataUtils:
             dynamic_query(bool, optional): Determines the type of data returned. If True, returns averaged data grouped by `device_number`, `device_id`, and `site_id`. If False, returns raw data without aggregation. Defaults to False.
             main_columns(List, optional): Columns of interest i.e those that should be returned.
             data_filter(Dict, optional): A column filter with it's values i.e {"device_id":["aq_001", "aq_002"]}
-            use_cach(bool, optional): Use biqquery cache
+            extra_columns(List[str], optional): A list of columns to include in the query and or returned data.
+            use_cache(bool, optional): Use BigQuery cache
+            cursor_value(str, optional): The value of the cursor(datetime string) for pagination.
 
         Returns:
             pd.DataFrame: A pandas DataFrame containing the cleaned data from BigQuery.
@@ -54,7 +57,7 @@ class DataUtils:
             ValueError: If the frequency is unsupported or no table is associated with it.
         """
         table: str = None
-        sorting_cols: List[str] = ["device_name"]
+        sorting_cols: List[str] = ["device_id"]
         bigquery_api = BigQueryApi()
         datatype_ = datatype
         data_table_freq = frequency
@@ -72,7 +75,7 @@ class DataUtils:
             )
             raise ValueError("No table information provided.")
 
-        raw_data = bigquery_api.query_data(
+        raw_data, metadata = bigquery_api.query_data(
             table=table,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -84,12 +87,13 @@ class DataUtils:
             where_fields=data_filter,
             dynamic_query=dynamic_query,
             use_cache=use_cache,
+            cursor_token=cursor_token,
         )
 
         expected_columns = bigquery_api.get_columns(table=table)
         if raw_data.empty:
-            return pd.DataFrame(columns=expected_columns)
-        drop_columns = ["device_name"]
+            return pd.DataFrame(columns=expected_columns), metadata
+        drop_columns = ["device_id"]
         if frequency.value in {"weekly", "monthly", "yearly"}:
             frequency_ = frequency.value[:-2]
             sorting_cols.append(frequency_)
@@ -97,22 +101,22 @@ class DataUtils:
             drop_columns.append("datetime")
             sorting_cols.append("datetime")
 
-        if dynamic_query:
-            # This currently being used for the data-downloads endpoint only
-            raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
-                raw_data, datatype, main_columns
-            )
-            raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
+        # if dynamic_query:
+        # This currently being used for the data-downloads endpoint only
+        raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
+            raw_data, datatype, main_columns
+        )
+        raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
-            raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
-                raw_data, extra_columns, device_category
-            )
-            raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
+        raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
+            raw_data, extra_columns, device_category
+        )
+        raw_data.drop_duplicates(subset=drop_columns, inplace=True, keep="first")
 
         raw_data["frequency"] = frequency.value
         raw_data = raw_data.replace(np.nan, None)
 
-        return raw_data
+        return raw_data, metadata
 
     @classmethod
     def drop_zero_rows_and_columns_data_cleaning(
@@ -198,17 +202,13 @@ class DataUtils:
         Note: This method fails silently.
         """
         optional_fields: Set[str] = Config.OPTIONAL_FIELDS.get(device_category)
-
         if not extra_columns:
             data.drop(
-                columns=optional_fields.union({"site_id", "timestamp"}),
+                columns=optional_fields.union({"timestamp"}),
                 errors="ignore",
                 inplace=True,
             )
         else:
-            columns_to_drop = optional_fields.union({"site_id", "timestamp"}) - set(
-                extra_columns
-            )
+            columns_to_drop = optional_fields.union({"timestamp"}) - set(extra_columns)
             data.drop(columns=list(columns_to_drop), errors="ignore", inplace=True)
-
         return data

@@ -583,6 +583,54 @@ const createEvent = {
     }
   },
 
+  addValues_backup: async (req, res, next) => {
+    try {
+      logText("adding values...");
+      const measurements = req.body;
+      const errors = extractErrorsFromRequest(req);
+      if (errors) {
+        next(
+          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
+        );
+        return;
+      }
+
+      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+      const tenant = isEmpty(req.query.tenant)
+        ? defaultTenant
+        : req.query.tenant;
+
+      let result = await createEventUtil.insert(tenant, measurements, next);
+
+      if (isEmpty(result) || res.headersSent) {
+        return;
+      }
+
+      if (!result.success) {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: false,
+          message: "finished the operation with some errors",
+          errors: result.errors,
+        });
+      } else {
+        return res.status(httpStatus.OK).json({
+          success: true,
+          message: "successfully added all the events",
+        });
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+      return;
+    }
+  },
+
   getDeploymentStats: async (req, res, next) => {
     try {
       const { tenant } = req.query;
