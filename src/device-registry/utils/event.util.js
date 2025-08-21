@@ -21,6 +21,7 @@ const {
   formatDate,
   translate,
   stringify,
+  ActivityLogger,
 } = require("@utils/common");
 const isEmpty = require("is-empty");
 const cryptoJS = require("crypto-js");
@@ -299,6 +300,27 @@ async function processEvent(event, next) {
           value
         )}`
       );
+
+      // Log the rejected event
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "FAILURE",
+        records_attempted: event.values ? event.values.length : 1,
+        records_successful: 0,
+        records_failed: event.values ? event.values.length : 1,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        error_details: "All values zero or negative, discarded",
+        error_code: "INVALID_VALUES",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+          original_values_count: event.values ? event.values.length : 0,
+        },
+      });
+
       return { added: false };
     }
 
@@ -313,6 +335,27 @@ async function processEvent(event, next) {
     );
 
     if (addedEvents) {
+      // Log successful insertion
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "SUCCESS",
+        records_attempted: event.values ? event.values.length : 1,
+        records_successful: validValues.length,
+        records_failed: event.values
+          ? event.values.length - validValues.length
+          : 0,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+          valid_values_count: validValues.length,
+          original_values_count: event.values ? event.values.length : 0,
+        },
+      });
+
       return {
         added: true,
         error: null,
@@ -328,13 +371,32 @@ async function processEvent(event, next) {
           ...(event.site_id ? { site_id: event.site_id } : {}),
         },
       };
+
+      // Log failed insertion
+      await ActivityLogger.logActivity({
+        operation_type: "INSERT",
+        entity_type: "EVENT",
+        status: "FAILURE",
+        records_attempted: validValues.length,
+        records_successful: 0,
+        records_failed: validValues.length,
+        tenant: event.tenant || "airqo",
+        source_function: "processEvent",
+        error_details: errMsg.message,
+        error_code: "INSERT_FAILED",
+        entity_id: event.device_id,
+        metadata: {
+          device: event.device,
+          site_id: event.site_id,
+        },
+      });
+
       return {
         added: false,
         error: errMsg,
       };
     }
   } catch (e) {
-    // Removed reference to eventsRejected variable
     let errMsg = {
       message: "System conflict detected, most likely a duplicate record",
       more: e.message,
@@ -346,6 +408,27 @@ async function processEvent(event, next) {
         ...(event.site_id ? { site_id: event.site_id } : {}),
       },
     };
+
+    // Log the exception
+    await ActivityLogger.logActivity({
+      operation_type: "INSERT",
+      entity_type: "EVENT",
+      status: "FAILURE",
+      records_attempted: event.values ? event.values.length : 1,
+      records_successful: 0,
+      records_failed: event.values ? event.values.length : 1,
+      tenant: event.tenant || "airqo",
+      source_function: "processEvent",
+      error_details: errMsg.message,
+      error_code: e.code || e.name || "EXCEPTION",
+      entity_id: event.device_id,
+      metadata: {
+        device: event.device,
+        site_id: event.site_id,
+        exception_details: e.message,
+      },
+    });
+
     return {
       added: false,
       error: errMsg,
@@ -3763,163 +3846,7 @@ const createEvent = {
       );
     }
   },
-  insert: async (tenant, measurements, next) => {
-    try {
-      let nAdded = 0;
-      let eventsAdded = [];
-      let eventsRejected = [];
-      let errors = [];
 
-      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
-        measurements,
-        next
-      );
-
-      if (!responseFromTransformMeasurements.success) {
-        logger.error(
-          `internal server error -- unable to transform measurements -- ${
-            responseFromTransformMeasurements.message
-          }, ${stringify(measurements)}`
-        );
-      }
-
-      for (const measurement of responseFromTransformMeasurements.data) {
-        try {
-          // logObject("the measurement in the insertion process", measurement);
-          const eventsFilter = {
-            day: measurement.day,
-            site_id: measurement.site_id,
-            device_id: measurement.device_id,
-            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
-            $or: [
-              { "values.time": { $ne: measurement.time } },
-              { "values.device": { $ne: measurement.device } },
-              { "values.frequency": { $ne: measurement.frequency } },
-              { "values.device_id": { $ne: measurement.device_id } },
-              { "values.site_id": { $ne: measurement.site_id } },
-              { day: { $ne: measurement.day } },
-            ],
-          };
-          let someDeviceDetails = {};
-          someDeviceDetails["device_id"] = measurement.device_id;
-          someDeviceDetails["site_id"] = measurement.site_id;
-          // logObject("someDeviceDetails", someDeviceDetails);
-
-          // logObject("the measurement", measurement);
-
-          const eventsUpdate = {
-            $push: { values: measurement },
-            $min: { first: measurement.time },
-            $max: { last: measurement.time },
-            $inc: { nValues: 1 },
-          };
-          // logObject("eventsUpdate", eventsUpdate);
-          // logObject("eventsFilter", eventsFilter);
-
-          const addedEvents = await EventModel(tenant).updateOne(
-            eventsFilter,
-            eventsUpdate,
-            {
-              upsert: true,
-            }
-          );
-          // logObject("addedEvents", addedEvents);
-          if (addedEvents) {
-            nAdded += 1;
-            eventsAdded.push(measurement);
-          } else if (!addedEvents) {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "unable to add the events",
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
-          } else {
-            eventsRejected.push(measurement);
-            let errMsg = {
-              msg: "unable to add the events",
-              record: {
-                ...(measurement.device ? { device: measurement.device } : {}),
-                ...(measurement.frequency
-                  ? { frequency: measurement.frequency }
-                  : {}),
-                ...(measurement.time ? { time: measurement.time } : {}),
-                ...(measurement.device_id
-                  ? { device_id: measurement.device_id }
-                  : {}),
-                ...(measurement.site_id
-                  ? { site_id: measurement.site_id }
-                  : {}),
-              },
-            };
-            errors.push(errMsg);
-          }
-        } catch (e) {
-          // logger.error(`internal server serror -- ${e.message}`);
-          eventsRejected.push(measurement);
-          let errMsg = {
-            msg:
-              "there is a system conflict, most likely a cast error or duplicate record",
-            more: e.message,
-            record: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-            },
-          };
-          errors.push(errMsg);
-        }
-      }
-
-      if (errors.length > 0 && isEmpty(eventsAdded)) {
-        logTextWithTimestamp(
-          "API: failed to store measurements, most likely DB cast errors or duplicate records"
-        );
-        return {
-          success: false,
-          message: "finished the operation with some errors",
-          errors,
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      } else {
-        logTextWithTimestamp("API: successfully added the events");
-        return {
-          success: true,
-          message: "successfully added the events",
-          status: httpStatus.OK,
-          errors,
-        };
-      }
-    } catch (error) {
-      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-    }
-  },
   transformMeasurements: async (device, measurements, next) => {
     let promises = measurements.map(async (measurement) => {
       try {
@@ -4628,6 +4555,163 @@ const createEvent = {
       );
     }
   },
+  insert: async (tenant, measurements, next) => {
+    try {
+      let nAdded = 0;
+      let eventsAdded = [];
+      let eventsRejected = [];
+      let errors = [];
+
+      const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+        measurements,
+        next
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        logger.error(
+          `internal server error -- unable to transform measurements -- ${
+            responseFromTransformMeasurements.message
+          }, ${stringify(measurements)}`
+        );
+      }
+
+      for (const measurement of responseFromTransformMeasurements.data) {
+        try {
+          // logObject("the measurement in the insertion process", measurement);
+          const eventsFilter = {
+            day: measurement.day,
+            site_id: measurement.site_id,
+            device_id: measurement.device_id,
+            nValues: { $lt: parseInt(constants.N_VALUES || 500) },
+            $or: [
+              { "values.time": { $ne: measurement.time } },
+              { "values.device": { $ne: measurement.device } },
+              { "values.frequency": { $ne: measurement.frequency } },
+              { "values.device_id": { $ne: measurement.device_id } },
+              { "values.site_id": { $ne: measurement.site_id } },
+              { day: { $ne: measurement.day } },
+            ],
+          };
+          let someDeviceDetails = {};
+          someDeviceDetails["device_id"] = measurement.device_id;
+          someDeviceDetails["site_id"] = measurement.site_id;
+          // logObject("someDeviceDetails", someDeviceDetails);
+
+          // logObject("the measurement", measurement);
+
+          const eventsUpdate = {
+            $push: { values: measurement },
+            $min: { first: measurement.time },
+            $max: { last: measurement.time },
+            $inc: { nValues: 1 },
+          };
+          // logObject("eventsUpdate", eventsUpdate);
+          // logObject("eventsFilter", eventsFilter);
+
+          const addedEvents = await EventModel(tenant).updateOne(
+            eventsFilter,
+            eventsUpdate,
+            {
+              upsert: true,
+            }
+          );
+          // logObject("addedEvents", addedEvents);
+          if (addedEvents) {
+            nAdded += 1;
+            eventsAdded.push(measurement);
+          } else if (!addedEvents) {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "unable to add the events",
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
+          } else {
+            eventsRejected.push(measurement);
+            let errMsg = {
+              msg: "unable to add the events",
+              record: {
+                ...(measurement.device ? { device: measurement.device } : {}),
+                ...(measurement.frequency
+                  ? { frequency: measurement.frequency }
+                  : {}),
+                ...(measurement.time ? { time: measurement.time } : {}),
+                ...(measurement.device_id
+                  ? { device_id: measurement.device_id }
+                  : {}),
+                ...(measurement.site_id
+                  ? { site_id: measurement.site_id }
+                  : {}),
+              },
+            };
+            errors.push(errMsg);
+          }
+        } catch (e) {
+          // logger.error(`internal server serror -- ${e.message}`);
+          eventsRejected.push(measurement);
+          let errMsg = {
+            msg:
+              "there is a system conflict, most likely a cast error or duplicate record",
+            more: e.message,
+            record: {
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+            },
+          };
+          errors.push(errMsg);
+        }
+      }
+
+      if (errors.length > 0 && isEmpty(eventsAdded)) {
+        logTextWithTimestamp(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+        );
+        return {
+          success: false,
+          message: "finished the operation with some errors",
+          errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      } else {
+        logTextWithTimestamp("API: successfully added the events");
+        return {
+          success: true,
+          message: "successfully added the events",
+          status: httpStatus.OK,
+          errors,
+        };
+      }
+    } catch (error) {
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
   insertMeasurements_v3: async (tenant, measurements, next) => {
     try {
       let nAdded = 0;
@@ -4781,6 +4865,9 @@ const createEvent = {
       };
 
       if (errors.length > 0 && nAdded === 0) {
+        logTextWithTimestamp(
+          "API: failed to store measurements, most likely DB cast errors or duplicate records"
+        );
         return {
           success: false,
           message: "Finished the operation with some errors",
@@ -4789,6 +4876,7 @@ const createEvent = {
           status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       } else {
+        logTextWithTimestamp("API: successfully added the events");
         return {
           success: true,
           message: "Successfully added the events",
@@ -4798,7 +4886,8 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logObject("Error in insertMeasurements_v3", error);
+      logTextWithTimestamp(`API: Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
@@ -4917,29 +5006,40 @@ const createEvent = {
 
   addValuesWithStats: async (tenant, measurements, next) => {
     try {
-      const result = await createEvent.insertMeasurements_v3(
-        tenant,
-        measurements,
-        next
-      );
+      return await ActivityLogger.trackOperation(
+        async () => {
+          const result = await createEvent.insertMeasurements_v3(
+            tenant,
+            measurements,
+            next
+          );
 
-      if (!result.success) {
-        return {
-          success: false,
-          message: "Finished the operation with some errors",
-          errors: result.errors,
-          deployment_stats: result.deployment_stats,
-          status: httpStatus.BAD_REQUEST,
-        };
-      } else {
-        return {
-          success: true,
-          message: "Successfully added all the events",
-          deployment_stats: result.deployment_stats,
-          errors: result.errors,
-          status: httpStatus.OK,
-        };
-      }
+          // Map deployment_stats to fields that trackOperation recognizes
+          return {
+            ...result,
+            // Satisfy trackOperation's rate counting expectations
+            records_successful:
+              result.deployment_stats?.successful_insertions ?? 0,
+            records_failed:
+              result.deployment_stats?.failed_insertions ??
+              (Array.isArray(result.errors) ? result.errors.length : 0),
+            // Keep original arrays for backward compatibility if they exist
+            eventsAdded: result.eventsAdded || [],
+            eventsRejected: result.eventsRejected || [],
+          };
+        },
+        {
+          operation_type: "BULK_INSERT",
+          entity_type: "EVENT",
+          tenant: tenant,
+          source_function: "addValuesWithStats",
+          records_attempted: measurements.length,
+          metadata: {
+            tenant: tenant,
+            total_measurements: measurements.length,
+          },
+        }
+      );
     } catch (error) {
       logger.error(`🐛🐛 Add Values With Stats Util Error ${error.message}`);
       return {
@@ -4951,7 +5051,6 @@ const createEvent = {
     }
   },
 
-  // Helper function to validate and process grid IDs (moved from controller logic)
   processLocationIds: async (
     { grid_ids, cohort_ids, airqloud_ids, type },
     request,
