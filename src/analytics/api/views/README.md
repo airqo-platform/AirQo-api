@@ -73,28 +73,6 @@ Note: This endpoint currently returns JSON only (CSV export is not supported on 
 
 #### Response
 
-```json
-{
-  "status": "success",
-  "message": "Data downloaded successfully",
-  "data": [
-    {
-      "dateTime": "2023-01-01T12:00:00Z",
-      "device_id": "device1",
-      "pm2_5": 15.5,
-      "pm10": 25.7,
-      "temperature": 24.5,
-      "humidity": 65.3
-    }
-    // ...more data points
-  ],
-  "metadata": {
-    "total_count": 10,
-    "has_more": "false",
-    "next": "None"
-  }
-}
-```
 
 ### Data Download Endpoint
 
