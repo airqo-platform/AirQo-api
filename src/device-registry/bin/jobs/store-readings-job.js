@@ -145,9 +145,13 @@ class BatchProcessor {
       if (averages) {
         updateDoc.averages = averages;
       }
-      await ReadingModel("airqo").updateOne(filter, updateDoc, {
-        upsert: true,
-      });
+      await ReadingModel("airqo").updateOne(
+        filter,
+        { $set: updateDoc },
+        {
+          upsert: true,
+        }
+      );
     } catch (error) {
       if (isDuplicateKeyError(error)) {
         // Silently ignore duplicate key errors
