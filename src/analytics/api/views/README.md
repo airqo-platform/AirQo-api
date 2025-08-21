@@ -171,7 +171,7 @@ Extended version of the raw data endpoint with pagination and enhanced metadata.
   "startDateTime": "2023-01-01T00:00:00Z",
   "endDateTime": "2023-01-02T00:00:00Z",
   "device_category": "lowcost",
-  "deviceNames": ["device1", "device2"],
+  "device_names": ["device1", "device2"],
   "pollutants": ["pm2_5", "pm10", "no2"],
   "metaDataFields": ["latitude", "longitude"],
   "weatherFields": ["temperature", "humidity"],
@@ -219,7 +219,7 @@ Enhanced version with additional formatting options and improved metadata.
   "startDateTime": "2023-01-01T00:00:00Z",
   "endDateTime": "2023-01-02T00:00:00Z",
   "device_category": "lowcost",
-  "deviceNames": ["device1", "device2"],
+  "device_names": ["device1", "device2"],
   "pollutants": ["pm2_5", "pm10", "no2"],
   "frequency": "hourly",
   "datatype": "calibrated",
@@ -278,7 +278,7 @@ do {
   });
 
   allData = allData.concat(response.data);
-  cursorToken = response.pagination?.nextCursor;
+  cursorToken = response.metadata?.next;
 } while (response.metadata?.hasMore);
 ```
 
@@ -341,8 +341,9 @@ All API responses follow a consistent structure:
   - `message`: Description of the result
   - `data`: The requested data
 
-- For v3 endpoints with pagination:
-  - Additional `metadata` object
+- For v3 endpoints with pagination, responses include:
+
+* - `metadata`: { totalCount, hasMore, next }
 
 ## Best Practices
 
