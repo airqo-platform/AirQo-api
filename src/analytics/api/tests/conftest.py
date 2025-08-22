@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 from unittest.mock import MagicMock
-from manage import app as flask_app  # Import the already configured Flask app
+from manage import app as flask_app
 
 
 @pytest.fixture
