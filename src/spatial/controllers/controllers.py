@@ -57,7 +57,7 @@ def get_satellite_data():
     return Satellite_data.get_pollutants_data()
 
 
-@controller_bp.route("/categorize_site", methods=["GET"])
+@controller_bp.route("/categorize_site", methods=["GET", "POST"])
 def categorize_site():
     return SiteCategorizationView.get_site_categorization()
 
