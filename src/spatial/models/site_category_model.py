@@ -39,7 +39,7 @@ class SiteCategoryModel:
                 print(f"Unexpected geocoding error: {e}. Skipping.")
                 return "Unknown"
 
-        print(f"Skipping location ({latitude}, {longitude}) after {retries} failed attempts.")
+        print(f"Skipping location  after {retries} failed attempts.")
         return "Unknown"
 
     def categorize_site_osm(self, latitude, longitude):
