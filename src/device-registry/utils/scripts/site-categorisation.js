@@ -3,26 +3,46 @@ const axios = require("axios");
 // Configuration
 const baseUrl = "BASE_URL";
 const token = "YOUR_TOKEN_VALUE"; // Replace with your actual token
-const batchSize = 50; // For processing categorization
+const batchSize = 10; // Reduced batch size for processing categorization
 const fetchBatchSize = 100; // For fetching sites (can be larger since it's lighter)
+const CATEGORIZATION_DELAY = 2000; // 2 seconds delay between categorization requests
+const BATCH_DELAY = 5000; // 5 seconds delay between batches
+const MAX_RETRIES = 3; // Maximum retry attempts
+const RETRY_DELAY = 5000; // 5 seconds delay between retries
+
+// Logging configuration
+const ENABLE_VERBOSE_LOGGING = false; // Set to false to reduce log output
+const ENABLE_REQUEST_BODY_LOGGING = false; // Set to false to disable request body logging
+const ENABLE_RESPONSE_LOGGING = false; // Set to false to disable response logging
 
 // Clean the token to remove any problematic characters
-const cleanToken = token.trim().replace(/[\r\n\t\0]/g, "");
+const cleanToken = token.trim().replace(/[\r\n\t\0\x00-\x1f\x7f-\x9f]/g, "");
+
+// Validate token doesn't contain invalid characters
+function validateToken(token) {
+  // Check for invalid characters that could cause header parsing issues
+  const invalidChars = /[\r\n\t\0\x00-\x1f\x7f-\x9f]/g;
+  if (invalidChars.test(token)) {
+    console.error("Token contains invalid characters!");
+    return false;
+  }
+  return true;
+}
+
+// Validate the token before using it
+if (!validateToken(cleanToken)) {
+  console.error(
+    "Token validation failed. Please check your token for invalid characters."
+  );
+  process.exit(1);
+}
 
 // Create a reusable axios instance with all configurations
 const apiClient = axios.create({
   baseURL: baseUrl,
-  timeout: 60000, // 60 second timeout
+  timeout: 120000, // Increased to 120 seconds timeout for better reliability
+  insecureHTTPParser: true, // Helps with strict header parsing in newer Node.js versions
 });
-
-/**
- * 
- * // Replace the apiClient creation with:
-const apiClient = createApiClientWithJWTAuth();
-
-// Replace the apiClient creation with:
-const apiClient = createApiClientWithCustomHeader();
- */
 
 // Add default query parameters (including token) to all requests
 apiClient.interceptors.request.use(
@@ -34,9 +54,11 @@ apiClient.interceptors.request.use(
     };
 
     // Debug logging (remove in production)
-    console.log(
-      `Making request: ${config.method?.toUpperCase()} ${config.url}`
-    );
+    if (ENABLE_VERBOSE_LOGGING) {
+      console.log(
+        `Making request: ${config.method?.toUpperCase()} ${config.url}`
+      );
+    }
 
     return config;
   },
@@ -66,6 +88,44 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Helper function to sleep/delay
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Helper function to retry failed requests - NOW PROPERLY UTILIZED
+async function retryRequest(
+  requestFn,
+  maxRetries = MAX_RETRIES,
+  delay = RETRY_DELAY
+) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+
+      const isRetryableError =
+        error.message.includes("timeout") ||
+        error.message.includes("Invalid header value char") ||
+        error.code === "ECONNABORTED" ||
+        (error.response && error.response.status >= 500);
+
+      if (!isRetryableError) {
+        throw error;
+      }
+
+      console.log(
+        `   Retrying in ${delay /
+          1000}s... (attempt ${attempt}/${maxRetries}) - ${error.message}`
+      );
+      await sleep(delay);
+    }
+  }
+}
 
 // Helper function to validate coordinates
 function validateCoordinates(latitude, longitude) {
@@ -102,7 +162,7 @@ function extractTags(osmInfo) {
   return osmInfo.map((line) => line.trim()).filter((line) => line.length > 0);
 }
 
-// Phase 1: Collect all site IDs that need categorization
+// Phase 1: Collect all site IDs that need categorization - WITH RETRY LOGIC
 async function collectSitesNeedingCategorization() {
   console.log("=== PHASE 1: Collecting sites that need categorization ===");
 
@@ -118,12 +178,15 @@ async function collectSitesNeedingCategorization() {
         `Fetching sites batch: skip=${skip}, limit=${fetchBatchSize}`
       );
 
-      const response = await apiClient.get("/api/v2/devices/sites/summary", {
-        params: {
-          limit: fetchBatchSize,
-          skip: skip,
-        },
-      });
+      // USING RETRY LOGIC FOR SITE FETCHING
+      const response = await retryRequest(() =>
+        apiClient.get("/api/v2/devices/sites/summary", {
+          params: {
+            limit: fetchBatchSize,
+            skip: skip,
+          },
+        })
+      );
 
       const sites = response.data.sites || [];
       console.log(`Fetched ${sites.length} sites in this batch`);
@@ -145,9 +208,9 @@ async function collectSitesNeedingCategorization() {
           if (validation.valid) {
             sitesNeedingCategorization.push({
               _id: site._id,
+              name: site.name,
               latitude: validation.lat,
               longitude: validation.lng,
-              name: site.name,
             });
           } else {
             console.log(`Skipping site ${site._id}: ${validation.error}`);
@@ -168,14 +231,18 @@ async function collectSitesNeedingCategorization() {
 
       // Small delay between fetching batches to be respectful to the API
       if (hasMoreSites) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await sleep(500);
       }
     } catch (error) {
       console.error(`Error fetching sites at skip=${skip}:`, error.message);
-      // Decide whether to continue or abort based on error type
+
+      // If retry logic failed after all attempts, we can still try to continue
+      // with a longer delay, or abort based on error type
       if (error.response?.status >= 500) {
-        console.log("Server error encountered. Retrying in 5 seconds...");
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        console.log(
+          "Server error encountered after retries. Waiting 10 seconds before continuing..."
+        );
+        await sleep(10000);
       } else {
         throw error; // Abort on client errors or auth issues
       }
@@ -188,7 +255,6 @@ async function collectSitesNeedingCategorization() {
   console.log(
     `Sites needing categorization: ${sitesNeedingCategorization.length}`
   );
-  console.dir(sitesNeedingCategorization);
   console.log(
     `Sites with invalid coordinates (skipped): ${totalSitesProcessed -
       totalSitesAlreadyCategorized -
@@ -198,18 +264,26 @@ async function collectSitesNeedingCategorization() {
   return sitesNeedingCategorization;
 }
 
-// Phase 2: Process collected sites for categorization
+// Phase 2: Process collected sites for categorization - WITH RETRY LOGIC AND SEQUENTIAL PROCESSING
 async function processSitesForCategorization(sitesToProcess) {
   console.log("\n=== PHASE 2: Processing sites for categorization ===");
 
   if (sitesToProcess.length === 0) {
     console.log("No sites need categorization. Exiting.");
-    return;
+    return {
+      processed: 0,
+      successful: 0,
+      failed: 0,
+      successfulSites: [],
+      failedSites: [],
+    };
   }
 
   let totalProcessed = 0;
   let totalSuccessful = 0;
   let totalFailed = 0;
+  const successfulSites = [];
+  const failedSites = [];
 
   // Process sites in batches
   for (let i = 0; i < sitesToProcess.length; i += batchSize) {
@@ -221,32 +295,45 @@ async function processSitesForCategorization(sitesToProcess) {
       `\nProcessing batch ${batchNumber}/${totalBatches} (${batch.length} sites)...`
     );
 
-    // Categorize sites in this batch
-    const categorizedSites = await Promise.all(
-      batch.map(async (site) => {
-        try {
-          // Make request using the configured client (token is automatically added)
-          const response = await apiClient.get(
-            "/api/v2/spatial/categorize_site",
-            {
-              params: {
-                latitude: site.latitude,
-                longitude: site.longitude,
-              },
-            }
+    // SEQUENTIAL PROCESSING instead of Promise.all to avoid overwhelming the API
+    const categorizedSites = [];
+
+    for (let siteIndex = 0; siteIndex < batch.length; siteIndex++) {
+      const site = batch[siteIndex];
+
+      console.log(
+        `  Processing site ${siteIndex + 1}/${batch.length}: ${
+          site._id
+        } (${site.name || "Unnamed"})`
+      );
+
+      try {
+        // USING RETRY LOGIC FOR SPATIAL CATEGORIZATION
+        const categorizedSite = await retryRequest(() =>
+          apiClient.get("/api/v2/spatial/categorize_site", {
+            params: {
+              latitude: site.latitude,
+              longitude: site.longitude,
+            },
+          })
+        );
+
+        const osmInfo = categorizedSite.data.site?.OSM_info;
+        const siteCategoryInfo = categorizedSite.data.site?.["site-category"];
+
+        if (!siteCategoryInfo) {
+          console.log(
+            `    ❌ No site category info found for site ${site._id}`
           );
-
-          const osmInfo = response.data.site?.OSM_info;
-          const siteCategoryInfo = response.data.site?.["site-category"];
-
-          if (!siteCategoryInfo) {
-            console.log(`No site category info found for site ${site._id}`);
-            return null;
-          }
-
+          failedSites.push({
+            ...site,
+            reason: "No site category info returned from categorization API",
+          });
+          totalFailed++;
+        } else {
           const tags = extractTags(osmInfo);
 
-          return {
+          const siteWithCategory = {
             _id: site._id,
             site_category: {
               area_name: siteCategoryInfo.area_name || "Unknown",
@@ -261,14 +348,30 @@ async function processSitesForCategorization(sitesToProcess) {
               tags,
             },
           };
-        } catch (error) {
-          console.error(`Error categorizing site ${site._id}:`, error.message);
-          return null;
-        }
-      })
-    );
 
-    // Filter out failed categorizations
+          categorizedSites.push(siteWithCategory);
+          console.log(`    ✅ Successfully categorized: ${site._id}`);
+        }
+      } catch (error) {
+        console.log(
+          `    ❌ Failed to categorize: ${site._id} - ${error.message}`
+        );
+        failedSites.push({
+          ...site,
+          reason: `Categorization error: ${error.message}`,
+        });
+        totalFailed++;
+      }
+
+      totalProcessed++;
+
+      // Add delay between categorization requests
+      if (siteIndex < batch.length - 1) {
+        await sleep(CATEGORIZATION_DELAY);
+      }
+    }
+
+    // Filter out failed categorizations for updating
     const validSites = categorizedSites.filter(
       (site) =>
         site && site.site_category && site.site_category.category !== "Unknown"
@@ -278,101 +381,222 @@ async function processSitesForCategorization(sitesToProcess) {
       `Successfully categorized ${validSites.length} out of ${batch.length} sites in this batch`
     );
 
-    // Update site categories using the configured client
-    const updatePromises = validSites.map(async (site) => {
+    // SEQUENTIAL SITE UPDATES with retry logic
+    for (let updateIndex = 0; updateIndex < validSites.length; updateIndex++) {
+      const site = validSites[updateIndex];
+
+      console.log(
+        `  Updating site ${updateIndex + 1}/${validSites.length}: ${site._id}`
+      );
+
       try {
-        const response = await apiClient.put(
-          `/api/v2/devices/sites`,
-          site.site_category,
-          {
-            params: {
-              id: site._id,
-            },
-          }
+        // USING RETRY LOGIC FOR SITE UPDATES
+        const updateResponse = await retryRequest(() =>
+          apiClient.put(
+            `/api/v2/devices/sites`,
+            { site_category: site.site_category }, // Wrap in site_category object
+            {
+              params: {
+                id: site._id,
+              },
+            }
+          )
         );
+
+        if (ENABLE_VERBOSE_LOGGING) {
+          console.log(`    🔄 Updated site ${site._id}:`);
+        }
+        if (ENABLE_REQUEST_BODY_LOGGING) {
+          console.log(
+            `    📤 Request body for ${site._id}:`,
+            JSON.stringify({ site_category: site.site_category }, null, 2)
+          );
+        }
+        if (ENABLE_RESPONSE_LOGGING) {
+          console.log(
+            `    📥 Response status for ${site._id}: ${updateResponse.status}`
+          );
+          console.log(
+            `    📥 Response data for ${site._id}:`,
+            JSON.stringify(updateResponse.data, null, 2)
+          );
+        }
+
+        // Find original site info for success tracking
+        const originalSite = sitesToProcess.find((s) => s._id === site._id);
+        successfulSites.push({
+          _id: site._id,
+          name: originalSite?.name || "Unnamed",
+          latitude: originalSite?.latitude,
+          longitude: originalSite?.longitude,
+          category: site.site_category.category,
+          area_name: site.site_category.area_name,
+          responseMessage: updateResponse.data.message || "Success",
+        });
+
+        totalSuccessful++;
         console.log(
-          `✓ Updated site ${site._id}: ${response.data.message || "Success"}`
+          `    ✅ Updated site ${site._id}: ${updateResponse.data.message ||
+            "Success"}`
         );
-        return { success: true, siteId: site._id };
       } catch (error) {
+        console.log(`    ❌ Failed to update site ${site._id}:`);
+
+        if (ENABLE_REQUEST_BODY_LOGGING) {
+          console.log(
+            `    📤 Request body that failed for ${site._id}:`,
+            JSON.stringify({ site_category: site.site_category }, null, 2)
+          );
+        }
+        if (error.response && ENABLE_RESPONSE_LOGGING) {
+          console.log(
+            `    📥 Error response status for ${site._id}: ${error.response.status}`
+          );
+          console.log(
+            `    📥 Error response data for ${site._id}:`,
+            JSON.stringify(error.response.data, null, 2)
+          );
+        }
+
+        // Move to failed sites
+        const originalSite = sitesToProcess.find((s) => s._id === site._id);
+        failedSites.push({
+          ...originalSite,
+          reason: `Update error: ${error.response?.data?.message ||
+            error.message}`,
+        });
+
         console.error(
-          `✗ Failed to update site ${site._id}:`,
+          `    ✗ Failed to update site ${site._id}:`,
           error.response?.data?.message || error.message
         );
-        return { success: false, siteId: site._id, error: error.message };
       }
-    });
 
-    const updateResults = await Promise.all(updatePromises);
-    const batchSuccessCount = updateResults.filter((result) => result.success)
-      .length;
-    const batchFailCount = updateResults.filter((result) => !result.success)
-      .length;
+      // Small delay between updates
+      if (updateIndex < validSites.length - 1) {
+        await sleep(1000);
+      }
+    }
 
-    totalProcessed += batch.length;
-    totalSuccessful += batchSuccessCount;
-    totalFailed += batch.length - validSites.length + batchFailCount;
-
+    // Progress logging
+    const progressPercent = (
+      (totalProcessed / sitesToProcess.length) *
+      100
+    ).toFixed(1);
     console.log(
-      `Batch ${batchNumber} complete: ${batchSuccessCount} updated, ${batchFailCount} update failed, ${batch.length -
-        validSites.length} categorization failed`
+      `Batch ${batchNumber} complete. Overall progress: ${totalProcessed}/${sitesToProcess.length} (${progressPercent}%)`
     );
 
-    console.log(
-      `Overall progress: ${totalProcessed}/${
-        sitesToProcess.length
-      } processed (${((totalProcessed / sitesToProcess.length) * 100).toFixed(
-        1
-      )}%)`
-    );
-
-    // Add a delay between batches to avoid overwhelming the API
+    // Add delay between batches to avoid overwhelming the API
     if (i + batchSize < sitesToProcess.length) {
-      console.log("Waiting 2 seconds before next batch...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log(`Waiting ${BATCH_DELAY / 1000} seconds before next batch...`);
+      await sleep(BATCH_DELAY);
     }
   }
+
+  // Final summary
+  const successRate =
+    totalProcessed > 0
+      ? ((totalSuccessful / totalProcessed) * 100).toFixed(1)
+      : 0;
 
   console.log("\n=== PHASE 2 SUMMARY ===");
   console.log(`Total sites processed: ${totalProcessed}`);
   console.log(`Successfully updated: ${totalSuccessful}`);
   console.log(`Failed: ${totalFailed}`);
-  console.log(
-    `Success rate: ${((totalSuccessful / totalProcessed) * 100).toFixed(1)}%`
-  );
+  console.log(`Success rate: ${successRate}%`);
+
+  return {
+    processed: totalProcessed,
+    successful: totalSuccessful,
+    failed: totalFailed,
+    successfulSites,
+    failedSites,
+  };
 }
 
-// Main function
+// Main function with comprehensive final summary
 async function main() {
   try {
     console.log("Starting site categorization script...");
     console.log(
-      `Configuration: fetchBatchSize=${fetchBatchSize}, processingBatchSize=${batchSize}\n`
+      `Configuration: fetchBatchSize=${fetchBatchSize}, processingBatchSize=${batchSize}`
+    );
+    console.log(
+      `Retry settings: maxRetries=${MAX_RETRIES}, retryDelay=${RETRY_DELAY}ms`
+    );
+    console.log(
+      `Processing delays: categorization=${CATEGORIZATION_DELAY}ms, batch=${BATCH_DELAY}ms\n`
     );
 
     // Phase 1: Collect all sites needing categorization
     const sitesToProcess = await collectSitesNeedingCategorization();
 
     // Phase 2: Process the collected sites
-    await processSitesForCategorization(sitesToProcess);
+    const results = await processSitesForCategorization(sitesToProcess);
 
-    console.log("\n=== SCRIPT COMPLETED SUCCESSFULLY ===");
+    // Comprehensive final summary
+    console.log("\n" + "=".repeat(80));
+    console.log("FINAL OPERATION SUMMARY");
+    console.log("=".repeat(80));
+
+    console.log("\n📊 OVERALL STATISTICS:");
+    console.log(`Total sites processed: ${results.processed}`);
+    console.log(`Successfully updated: ${results.successful}`);
+    console.log(`Failed: ${results.failed}`);
+    console.log(
+      `Success rate: ${
+        results.processed > 0
+          ? ((results.successful / results.processed) * 100).toFixed(1)
+          : 0
+      }%`
+    );
+
+    if (results.successfulSites.length > 0) {
+      console.log("\n✅ SUCCESSFULLY CATEGORIZED AND UPDATED SITES:");
+      console.log("-".repeat(80));
+      results.successfulSites.forEach((site, index) => {
+        console.log(`${index + 1}. Site ID: ${site._id}`);
+        console.log(`   Name: ${site.name || "Unnamed"}`);
+        console.log(`   Coordinates: ${site.latitude}, ${site.longitude}`);
+        console.log(`   Category: ${site.category}`);
+        console.log(`   Area: ${site.area_name}`);
+        console.log(`   Response: ${site.responseMessage}`);
+        console.log("");
+      });
+    }
+
+    if (results.failedSites.length > 0) {
+      console.log("\n❌ FAILED SITES:");
+      console.log("-".repeat(80));
+      results.failedSites.forEach((site, index) => {
+        console.log(`${index + 1}. Site ID: ${site._id}`);
+        console.log(`   Name: ${site.name || "Unnamed"}`);
+        console.log(`   Coordinates: ${site.latitude}, ${site.longitude}`);
+        console.log(`   Reason: ${site.reason}`);
+        console.log("");
+      });
+    }
+
+    console.log("\n" + "=".repeat(80));
+    console.log("=== SCRIPT COMPLETED SUCCESSFULLY ===");
   } catch (error) {
     console.error("Script error:", error.message);
+    console.error("Stack trace:", error.stack);
     process.exit(1);
   }
 }
 
 // Alternative: If your API uses JWT token in headers instead of query params
-function createApiClientWithJWTAuth() {
+function createApiClientWithBearerAuth() {
   return axios.create({
     baseURL: baseUrl,
-    timeout: 30000,
+    timeout: 120000,
+    insecureHTTPParser: true,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
       Authorization: `JWT ${cleanToken}`,
-      "User-Agent": "AirQo-Site-Categorization-Script/1.0",
     },
   });
 }
