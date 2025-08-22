@@ -239,21 +239,19 @@ class SiteCategoryModel:
             osm_info
         )
 
-
-def batch_categorize(coords, max_workers=5):
-    """
-    Process multiple (lat, lon) locations in parallel.
-    """
-    model = SiteCategoryModel()
-    results = {}
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_coord = {executor.submit(model.categorize_site_osm, lat, lon): (lat, lon) for lat, lon in coords}
-        for future in as_completed(future_to_coord):
-            coord = future_to_coord[future]
-            try:
-                results[coord] = future.result()
-            except Exception as exc:
-                print(f"{coord} generated an exception: {exc}")
-                results[coord] = ("Unknown_Category", None, "Unknown", "unknown", "unknown", "unknown", "unknown", [{"error": str(exc)}])
-    return results
+    def batch_categorize(self, coords, max_workers=5):
+        """
+        Process multiple (lat, lon) locations in parallel.
+        Returns a dictionary mapping coordinates to their categorization results.
+        """
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_coord = {executor.submit(self.categorize_site_osm, lat, lon): (lat, lon) for lat, lon in coords}
+            for future in as_completed(future_to_coord):
+                coord = future_to_coord[future]
+                try:
+                    results[coord] = future.result()
+                except Exception as exc:
+                    print(f"{coord} generated an exception: {exc}")
+                    results[coord] = ("Unknown_Category", None, "Unknown", "unknown", "unknown", "unknown", "unknown", [{"error": str(exc)}])
+        return results
