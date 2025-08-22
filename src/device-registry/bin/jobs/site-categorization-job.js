@@ -357,9 +357,6 @@ async function processSitesForCategorization(sitesToProcess) {
         });
 
         totalSuccessful++;
-        logger.info(
-          `✅ Successfully categorized and updated site: ${site._id}`
-        );
       } catch (error) {
         const errorReason = error.message.includes("Invalid header value char")
           ? `${error.message} (Header parsing issue)`
