@@ -197,6 +197,8 @@ class D3ChartDataResource(Resource):
             if not data.empty:
                 dashboardata = DashboardDataUtils()
                 data = dashboardata.processd3data(data)
+            else:
+                data: list = []
 
             if chart_type.lower() == "pie":
                 data = dashboardata.d3_generate_pie_chart_data(data, pollutant)
