@@ -906,7 +906,8 @@ class ProjectionFactory {
             "airqlouds.devices": 0,
             "grids.admin_level": 0,
             "grids.visibility": 0,
-            "grids.name": 0,
+            "grids.shape_update_history": 0,
+            "grids.activeMobileDevices": 0,
           },
         },
         public: {

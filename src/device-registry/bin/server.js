@@ -89,6 +89,8 @@ require("@bin/jobs/check-duplicate-site-fields-job");
 require("@bin/jobs/update-duplicate-site-fields-job");
 require("@bin/jobs/health-tip-checker-job");
 require("@bin/jobs/daily-activity-summary-job");
+require("@bin/jobs/site-categorization-job");
+require("@bin/jobs/site-categorization-notification-job");
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
