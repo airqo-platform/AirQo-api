@@ -240,7 +240,7 @@ async function main() {
   }
 }
 
-// Alternative: If your API uses Bearer token in headers instead of query params
+// Alternative: If your API uses JWT token in headers instead of query params
 function createApiClientWithBearerAuth() {
   return axios.create({
     baseURL: baseUrl,
@@ -248,21 +248,7 @@ function createApiClientWithBearerAuth() {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${cleanToken}`,
-      "User-Agent": "AirQo-Site-Categorization-Script/1.0",
-    },
-  });
-}
-
-// Alternative: If your API uses custom header for token
-function createApiClientWithCustomHeader() {
-  return axios.create({
-    baseURL: baseUrl,
-    timeout: 30000,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-API-Key": cleanToken, // or whatever header name your API expects
+      Authorization: `JWT ${cleanToken}`,
       "User-Agent": "AirQo-Site-Categorization-Script/1.0",
     },
   });
