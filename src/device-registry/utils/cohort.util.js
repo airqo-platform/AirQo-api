@@ -1108,7 +1108,21 @@ const createCohort = {
         next
       );
 
-      const newCohort = newCohortResponse.data;
+      // const newCohort = newCohortResponse.data;
+
+      const newCohort = newCohortResponse && newCohortResponse.data;
+      if (!newCohortResponse?.success || !newCohort) {
+        return {
+          success: false,
+          message: "Failed to create the new cohort",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              newCohortResponse?.errors?.message ||
+              "Cohort registration did not return a valid cohort",
+          },
+        };
+      }
 
       // 4. Find all unique devices belonging to the source cohorts
       const devicesToUpdate = await DeviceModel(tenant)

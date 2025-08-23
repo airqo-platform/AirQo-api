@@ -30,7 +30,7 @@ const validateTenant = query("tenant")
   .trim()
   .toLowerCase()
   .bail()
-  .isIn(["kcca", "airqo", "airqount"])
+  .isIn(constants.NETWORKS)
   .withMessage("the tenant value is not among the expected ones");
 
 const createFromCohorts = [
@@ -41,7 +41,11 @@ const createFromCohorts = [
     .bail()
     .notEmpty()
     .withMessage("the name must not be empty")
-    .trim(),
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
   body("description")
     .optional()
     .notEmpty()
