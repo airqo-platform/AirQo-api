@@ -385,6 +385,31 @@ router.get(
   groupController.getGroupHealth
 );
 
+// Cohort assignment routes
+router.post(
+  "/:grp_id/cohorts/assign",
+  setJWTAuth,
+  authJWT,
+  groupValidations.assignCohortsToGroup,
+  groupController.assignCohortsToGroup
+);
+
+router.delete(
+  "/:grp_id/cohorts/unassign",
+  setJWTAuth,
+  authJWT,
+  groupValidations.unassignCohortsFromGroup,
+  groupController.unassignCohortsFromGroup
+);
+
+router.get(
+  "/:grp_id/cohorts",
+  setJWTAuth,
+  authJWT,
+  groupValidations.listGroupCohorts,
+  groupController.listGroupCohorts
+);
+
 // System-level operations - requires super admin
 router.post(
   "/removeUniqueConstraints",
