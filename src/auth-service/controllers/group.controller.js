@@ -21,6 +21,12 @@ const AccessRequestModel = require("@models/AccessRequest");
 // Helper function to handle common controller logic without RBAC
 const executeGroupAction = async (req, res, next, utilFunction) => {
   try {
+    const errors = extractErrorsFromRequest(req);
+    if (errors) {
+      next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+      return;
+    }
+
     const defaultTenant = constants.DEFAULT_TENANT || "airqo";
     const tenant = isEmpty(req.query.tenant) ? defaultTenant : req.query.tenant;
 
@@ -785,6 +791,15 @@ const groupController = {
 
   getGroupHealth: (req, res, next) =>
     executeGroupAction(req, res, next, groupUtil.getGroupHealth),
+
+  assignCohortsToGroup: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.assignCohortsToGroup),
+
+  unassignCohortsFromGroup: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.unassignCohortsFromGroup),
+
+  listGroupCohorts: (req, res, next) =>
+    executeGroupAction(req, res, next, groupUtil.listGroupCohorts),
 };
 
 module.exports = groupController;
