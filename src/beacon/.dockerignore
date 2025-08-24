@@ -1,0 +1,106 @@
+# Git
+.git/
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Testing
+tests/
+test_*.py
+*_test.py
+*.test
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile.*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Secrets
+*.pem
+*.key
+*.crt
+ssl/
+certificates/
+secrets/
+private/
+
+# Backup files
+*.bak
+*.backup
+*.sql
+
+# Local development
+.local/
+local_settings.py
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Data files
+data/
+uploads/
+downloads/
+exports/
+*.csv
+*.xlsx
+*.xls

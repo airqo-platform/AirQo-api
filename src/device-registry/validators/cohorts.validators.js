@@ -23,6 +23,45 @@ const handleValidationErrors = (req, res, next) => {
   next();
 };
 
+const validateTenant = query("tenant")
+  .optional()
+  .notEmpty()
+  .withMessage("tenant should not be empty if provided")
+  .trim()
+  .toLowerCase()
+  .bail()
+  .isIn(constants.NETWORKS)
+  .withMessage("the tenant value is not among the expected ones");
+
+const createFromCohorts = [
+  validateTenant,
+  body("name")
+    .exists()
+    .withMessage("the new cohort's name is required")
+    .bail()
+    .notEmpty()
+    .withMessage("the name must not be empty")
+    .trim()
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage(
+      "the name can only contain letters, numbers, spaces, hyphens and underscores"
+    ),
+  body("description")
+    .optional()
+    .notEmpty()
+    .withMessage("the description must not be empty if provided")
+    .trim(),
+  body("cohort_ids")
+    .exists()
+    .withMessage("cohort_ids are required")
+    .bail()
+    .isArray({ min: 1 })
+    .withMessage("cohort_ids must be a non-empty array of cohort ObjectIDs"),
+  body("cohort_ids.*")
+    .isMongoId()
+    .withMessage("Each ID in cohort_ids must be a valid MongoDB ObjectId"),
+];
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -213,6 +252,7 @@ const commonValidations = {
 };
 
 const cohortValidations = {
+  createFromCohorts,
   updateCohortName: [
     ...commonValidations.tenant,
     commonValidations.paramObjectId("cohort_id"),

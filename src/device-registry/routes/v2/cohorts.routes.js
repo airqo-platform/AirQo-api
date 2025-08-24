@@ -137,6 +137,11 @@ router.get(
   pagination(),
   createCohortController.verify
 );
+router.post(
+  "/from-cohorts",
+  cohortValidations.createFromCohorts,
+  createCohortController.createFromCohorts
+);
 
 router.get(
   "/:cohort_id",
