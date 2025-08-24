@@ -102,6 +102,11 @@ const routes = [
     route: "@routes/v2/airqlouds.routes",
     name: "airqlouds",
   },
+  {
+    path: "/lookups",
+    route: "@routes/v2/lookup.routes",
+    name: "lookups",
+  },
   { path: "/sites", route: "@routes/v2/sites.routes", name: "sites" },
   // MAIN DEVICES ROUTE - mounted at root "/" since we're already at /api/v2/devices
   { path: "/", route: "@routes/v2/devices.routes", name: "devices" },

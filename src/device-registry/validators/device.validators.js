@@ -108,6 +108,35 @@ const validateDeviceIdParam = [
     .customSanitizer((value) => ObjectId(value)),
 ];
 
+const getIdFromName = [
+  param("name")
+    .exists()
+    .withMessage("Device name is required in the path")
+    .bail()
+    .notEmpty()
+    .withMessage("Device name must not be empty")
+    .trim(),
+];
+
+const getNameFromId = [
+  param("id")
+    .exists()
+    .withMessage("Device ID is required in the path")
+    .bail()
+    .isMongoId()
+    .withMessage("A valid MongoDB Object ID is required for the device ID"),
+];
+
+const suggestDeviceNames = [
+  query("name")
+    .exists()
+    .withMessage("A 'name' query parameter to search for is required")
+    .bail()
+    .notEmpty()
+    .withMessage("The name must not be empty")
+    .trim(),
+];
+
 const validateCreateDevice = [
   oneOf([
     body("name")
@@ -1273,4 +1302,7 @@ module.exports = {
   validateBulkPrepareDeviceShipping,
   validateGetShippingStatus,
   validateGenerateShippingLabels,
+  getIdFromName,
+  getNameFromId,
+  suggestDeviceNames,
 };

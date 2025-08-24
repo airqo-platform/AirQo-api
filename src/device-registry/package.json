@@ -126,6 +126,7 @@
     "retry-request": "^4.1.1",
     "serve-favicon": "~2.4.5",
     "shapefile": "^0.6.6",
+    "string-similarity": "^4.0.4",
     "underscore": "^1.13.1",
     "unique-names-generator": "^4.3.0",
     "uuid": "^3.3.3",
