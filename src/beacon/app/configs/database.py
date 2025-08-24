@@ -1,3 +1,4 @@
+from typing import Generator
 from sqlmodel import Session, create_engine, SQLModel
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
@@ -35,6 +36,6 @@ def init_db() -> None:
         raise
 
 
-def get_session() -> Session:
+def get_session() -> Generator[Session, None, None]:
     with SessionLocal() as session:
-        return session
+        yield session

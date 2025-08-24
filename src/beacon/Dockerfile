@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS staging
 
 # Set working directory
 WORKDIR /app
@@ -28,7 +28,9 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+    CMD python -c "import urllib.request, sys; \
+resp = urllib.request.urlopen('http://localhost:8000/health', timeout=5); \
+sys.exit(0 if resp.getcode() == 200 else 1)"
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

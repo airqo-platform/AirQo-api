@@ -96,8 +96,8 @@ All endpoints return JSON responses with appropriate HTTP status codes:
 
 ## Authentication
 
-Currently no authentication required (to be implemented).
+**⚠️ SECURITY WARNING**: Currently no authentication required. For production deployment, implement authentication/authorization via API gateway with TLS termination.
 
 ## Rate Limiting
 
-No rate limiting currently implemented (recommended for production).
+**⚠️ WARNING**: No rate limiting currently implemented. Strongly recommended for production to prevent abuse.

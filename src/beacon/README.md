@@ -47,6 +47,7 @@ Configuration via environment variables. See `.env.example` for required variabl
 | `POSTGRES_PASSWORD` | Database password | Yes |
 | `POSTGRES_DB` | Database name | Yes |
 | `SECRET_KEY` | JWT signing key | Yes |
+| `REDIS_URL` | Redis connection URL | No |
 | `ENVIRONMENT` | Deployment environment | No |
 
 ## API Documentation

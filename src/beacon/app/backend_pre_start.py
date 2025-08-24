@@ -15,17 +15,17 @@ wait_seconds = 1
     stop=stop_after_attempt(max_tries),
     wait=wait_fixed(wait_seconds),
     before=before_log(logger, logging.INFO),
-    after=after_log(logger, logging.WARN),
+    after=after_log(logger, logging.WARNING),
 )
 def init() -> None:
     try:
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
+        # Ensure session/connection is always released, even on exceptions.
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
         logger.info("Database is ready!")
-    except Exception as e:
-        logger.error(e)
-        raise e
+    except Exception:
+        logger.exception("Database readiness check failed")
+        raise
 
 
 def main() -> None:
