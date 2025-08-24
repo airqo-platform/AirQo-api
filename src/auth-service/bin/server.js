@@ -438,7 +438,7 @@ const transactionLimiter = rateLimit({
 });
 app.use("/api/v2/users/transactions", transactionLimiter);
 
-// app.use("/api/v1/users", require("@routes/v1"));
+app.use("/api/v3/users", require("@routes/v3"));
 app.use("/api/v2/users", require("@routes/v2"));
 
 // default error handling
