@@ -76,7 +76,7 @@ async def get_site_statistics(
     # Sites by region
     regions = db.exec(
         select(Site.region, func.count(Site.id))
-        .where(Site.region != None)
+        .where(Site.region.is_not(None))
         .group_by(Site.region)
     ).all()
     
@@ -301,8 +301,8 @@ async def get_regions(
     """
     Get list of unique regions
     """
-    query = select(Site.region).distinct().where(Site.region != None)
-    regions = db.exec(query).all()
+    query = select(Site.region).distinct().where(Site.region.is_not(None))
+    regions = db.exec(query).scalars().all()
     
     return {
         "count": len(regions),
@@ -319,12 +319,12 @@ async def get_districts(
     """
     Get list of unique districts, optionally filtered by region
     """
-    query = select(Site.district).distinct().where(Site.district != None)
+    query = select(Site.district).distinct().where(Site.district.is_not(None))
     
     if region:
         query = query.where(Site.region == region)
     
-    districts = db.exec(query).all()
+    districts = db.exec(query).scalars().all()
     
     return {
         "count": len(districts),
