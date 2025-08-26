@@ -36,7 +36,7 @@ service:
   port: 8000
   protocol: TCP
   targetPort: 8000
-  nodePort: 31111
+  nodePort: 31115
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
