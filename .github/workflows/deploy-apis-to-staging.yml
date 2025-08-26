@@ -40,7 +40,7 @@ jobs:
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
       run_data_proxy: ${{ steps.check_files.outputs.run_data_proxy }} # data proxy
       run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
-      run_beacon: ${{ steps.check_files.outputs.run_beacon }} # beacon
+      run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon_api
       run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
       run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
       run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
@@ -85,7 +85,7 @@ jobs:
           echo "run_data_mgt=false" >>$GITHUB_OUTPUT
           echo "run_data_proxy=false" >>$GITHUB_OUTPUT
           echo "run_analytics=false" >>$GITHUB_OUTPUT
-          echo "run_beacon=false" >>$GITHUB_OUTPUT
+          echo "run_beacon_api=false" >>$GITHUB_OUTPUT
           echo "run_device_uptime=false" >>$GITHUB_OUTPUT  
           echo "run_device_status=false" >>$GITHUB_OUTPUT 
           echo "run_locate=false" >>$GITHUB_OUTPUT
@@ -159,12 +159,12 @@ jobs:
               echo "run_analytics=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/beacon/* ]]; then
-              echo "run_beacon=true" >>$GITHUB_OUTPUT
+            if [[ $file == src/beacon-api/* ]]; then
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == k8s/beacon/* ]]; then
-              echo "run_beacon=true" >>$GITHUB_OUTPUT
+            if [[ $file == k8s/beacon-api/* ]]; then
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-uptime/* ]]; then
@@ -313,7 +313,7 @@ jobs:
               echo "run_device_status=true" >>$GITHUB_OUTPUT
               echo "run_device_uptime=true" >>$GITHUB_OUTPUT
               echo "run_analytics=true" >>$GITHUB_OUTPUT
-              echo "run_beacon=true" >>$GITHUB_OUTPUT
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
               echo "run_data_mgt=true" >>$GITHUB_OUTPUT
               echo "run_data_proxy=true" >>$GITHUB_OUTPUT
               echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
@@ -934,12 +934,12 @@ jobs:
           cd src/data-proxy/
           gcloud secrets versions access latest --secret="sta-env-data-proxy" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-proxy-api-config | kubectl replace -f - -n staging
-  
-  ### beacon ###
-  beacon:
-    name: build-push-deploy-beacon
+
+  ### beacon_api ###
+  beacon-api:
+    name: build-push-deploy-beacon-api
     needs: [check, image-tag]
-    if: needs.check.outputs.run_beacon == 'true'
+    if: needs.check.outputs.run_beacon_api == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -960,7 +960,7 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          cd src/beacon/
+          cd src/beacon-api/
           docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-beacon-api:latest
@@ -971,12 +971,12 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/beacon/values-stage.yaml"
+            valueFile: "k8s/beacon-api/values-stage.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update beacon staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update beacon-api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
@@ -986,7 +986,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1.1.1
       - name: Update the corresponding k8s configmap(s)
         run: |
-          cd src/beacon/
+          cd src/beacon-api/
           gcloud secrets versions access latest --secret="sta-env-beacon" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-beacon-staging | kubectl replace -f - -n staging
   
