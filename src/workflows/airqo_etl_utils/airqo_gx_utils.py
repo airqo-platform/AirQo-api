@@ -320,10 +320,9 @@ class AirQoGx:
         Returns a dictionary of expectations, their results and meta data if any.
         """
         results = self.context.run_checkpoint(self.checkpoint_name)
-        # Uncomment in local environment to build data docs.
-        # self.context.build_data_docs(site_names=["local_site"])
-        # Uncomment in local environment to open data docs.
-        # self.context.open_data_docs()
+        if configuration.ENVIRONMENT == "development":
+            self.context.build_data_docs(site_names=["local_site"])
+            self.context.open_data_docs()
         return results
 
     def store_results_in_bigquery(
