@@ -9,7 +9,7 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
     redisContainer: eu.gcr.io/airqo-250220/airqo-redis
     devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
-  tag: prod-1d34651b-1755804560
+  tag: prod-d9cdfa9e-1755882680
 api:
   name: airqo-analytics-api
   label: analytics-api
