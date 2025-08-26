@@ -68,7 +68,7 @@ class DataUtils:
         devices = DataUtils._load_devices_from_cache(local_file_path)
 
         if Config.ENVIRONMENT == "production":
-            devices = devices.loc[devices.deployed == True]
+            devices = devices.loc[devices["deployed"]]
 
         if devices is not None and not devices.empty:
             devices = DataUtils._process_cached_devices(
