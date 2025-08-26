@@ -374,13 +374,10 @@ class BigQueryApi:
             Exception: If an invalid component is provided.
         """
         dataframe.reset_index(drop=True, inplace=True)
-        dataframe.rename(
-            columns={"mountType": "mount_type"}, errors="ignore", inplace=True
-        )
         dataframe = self.validate_data(dataframe=dataframe, table=table)
         unique_ids = {
             "sites": ["id"],
-            "devices": ["device_id"],
+            "devices": ["device_id", "device_number", "network"],
             "grids": ["id", "network"],
             "airqlouds": ["id", "network"],
             "cohorts": ["id", "network"],
@@ -391,7 +388,7 @@ class BigQueryApi:
         if unique_id is None:
             raise Exception(f"Invalid metadata component: {component.str}")
 
-        dataframe.drop_duplicates(subset=[unique_id[0]], inplace=True, keep="first")
+        dataframe.drop_duplicates(subset=unique_id, inplace=True, keep="first")
 
         q = f"SELECT * FROM `{table}` "
 

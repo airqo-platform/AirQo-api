@@ -30,7 +30,7 @@ class MetaDataUtils:
         """
         devices, _ = DataUtils.get_devices()
         devices["status"] = devices["status"].replace(
-            {"deployed": True, "not deployed": False}
+            {"deployed": True, "not deployed": False, "recalled": False}
         )
         devices = devices[
             [
@@ -45,10 +45,17 @@ class MetaDataUtils:
                 "description",
                 "device_manufacturer",
                 "device_category",
+                "mountType",
+                "mobility",
             ]
         ]
         devices.rename(
-            columns={"isActive": "active", "status": "deployed"}, inplace=True
+            columns={
+                "isActive": "active",
+                "status": "deployed",
+                "mountType": "mount_type",
+            },
+            inplace=True,
         )
         devices["device_id"] = devices["name"]
         devices["last_updated"] = datetime.now(timezone.utc)

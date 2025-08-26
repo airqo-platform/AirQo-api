@@ -10,6 +10,9 @@ class AirQoGxExpectations:
         self.checkpoint_name = None
         self.expectations = None
         self.data_connector_name = None
+        valid_engines = ["sql", "pandas"]
+        if execution_engine not in valid_engines:
+            raise ValueError("Unsupported execution engine")
         self.execution_engine = execution_engine
         self.dataframe = None
         self.cloud_mode = False
@@ -197,14 +200,18 @@ class AirQoGxExpectations:
         """
         expectations = {
             "expect_column_values_to_not_be_null": [
-                "pm2_5",
-                "pm10",
+                "realtime_conc",
+                "hourly_conc",
+                "short_time_conc",
+                "air_flow",
+                "status",
                 "timestamp",
                 "device_id",
             ],
             "expect_column_values_to_be_between": [
-                {"pm2_5": {"min_value": 0, "max_value": 1000}},
-                {"pm10": {"min_value": 0, "max_value": 1000}},
+                {"realtime_conc": {"min_value": 0, "max_value": 1000}},
+                {"hourly_conc": {"min_value": 0, "max_value": 1000}},
+                {"short_time_conc": {"min_value": 0, "max_value": 1000}},
             ],
         }
         self.expectations = expectations
