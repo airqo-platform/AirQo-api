@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-beacon-api
-  tag: stage-76841069-1756212935
+  tag: stage-31553e0c-1756192356
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -36,7 +36,7 @@ service:
   port: 8000
   protocol: TCP
   targetPort: 8000
-  nodePort: 31111
+  nodePort: 31114
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
