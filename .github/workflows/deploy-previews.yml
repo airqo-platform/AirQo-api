@@ -26,7 +26,7 @@ jobs:
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
-      run_beacon: ${{ steps.check_files.outputs.run_beacon }} # beacon
+      run_beacon_api: ${{ steps.check_files.outputs.run_beacon_api }} # beacon_api
       run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
       run_data_proxy: ${{ steps.check_files.outputs.run_data_proxy }} # data proxy
@@ -58,7 +58,7 @@ jobs:
 
           echo "run_auth_service=false" >>$GITHUB_OUTPUT
           echo "run_device_registry=false" >>$GITHUB_OUTPUT  
-          echo "run_beacon=false" >>$GITHUB_OUTPUT
+          echo "run_beacon_api=false" >>$GITHUB_OUTPUT
           echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
           echo "run_data_mgt=false" >>$GITHUB_OUTPUT
           echo "run_data_proxy=false" >>$GITHUB_OUTPUT
@@ -82,8 +82,8 @@ jobs:
             if [[ $file == src/device-registry/* ]]; then
               echo "run_device_registry=true" >>$GITHUB_OUTPUT
             fi
-            if [[ $file == src/beacon/* ]]; then
-              echo "run_beacon=true" >>$GITHUB_OUTPUT
+            if [[ $file == src/beacon-api/* ]]; then
+              echo "run_beacon_api=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-monitoring/* ]]; then
@@ -215,11 +215,11 @@ jobs:
               body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
             })
 
- ### beacon ###
-  beacon:
-    name: build-push-deploy-beacon
+ ### beacon_api ###
+  beacon-api:
+    name: build-push-deploy-beacon-api
     needs: [check, branch-name]
-    if: needs.check.outputs.run_beacon == 'true'
+    if: needs.check.outputs.run_beacon_api == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -249,38 +249,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/beacon/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/beacon-pr-previews:${{ github.sha }} ./
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/beacon-pr-previews:${{ github.sha }}
+          cd src/beacon-api/
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/beacon-api-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/beacon-api-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-beacon-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-beacon-api-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/beacon-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/beacon-api-pr-previews:${{ github.sha }} \
+            --port=8000 \
             --cpu=1000m \
             --memory=300Mi \
-            --update-secrets=/etc/env/.env=sta-env-beacon:latest,/etc/config/google_application_credentials.json=sta-key-beacon-service-account:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-beacon:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-beacon-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-beacon-api-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "url=${service_url}" >>$GITHUB_OUTPUT
 
-  beacon-pr-comment:
-    name: beacon-preview-link-comment
-    if: needs.check.outputs.run_beacon == 'true'
-    needs: [beacon]
+  beacon-api-pr-comment:
+    name: beacon-api-preview-link-comment
+    if: needs.check.outputs.run_beacon_api == 'true'
+    needs: [beacon-api]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -290,7 +290,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Beacon changes in this PR available for preview [here](${{ needs.beacon.outputs.url }})'
+              body: 'Beacon API changes in this PR available for preview [here](${{ needs.beacon-api.outputs.url }})'
             })
 
 
