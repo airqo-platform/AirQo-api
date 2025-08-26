@@ -4217,6 +4217,122 @@ const groupUtil = {
       return { summary: {}, quick_stats: {}, role_overview: [] };
     }
   },
+  assignCohortsToGroup: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { cohort_ids } = request.body;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { $addToSet: { cohorts: { $each: cohort_ids } } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Cohorts assigned to group successfully",
+        data: updatedGroup,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  unassignCohortsFromGroup: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { cohort_ids } = request.body;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant).findById(grp_id);
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedGroup = await GroupModel(tenant).findByIdAndUpdate(
+        grp_id,
+        { $pullAll: { cohorts: cohort_ids } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Cohorts unassigned from group successfully",
+        data: updatedGroup,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  listGroupCohorts: async (request, next) => {
+    try {
+      const { grp_id } = request.params;
+      const { tenant } = request.query;
+
+      const group = await GroupModel(tenant)
+        .findById(grp_id)
+        .select("cohorts")
+        .lean();
+
+      if (!group) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Group ${grp_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved group cohorts",
+        data: group.cohorts || [],
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
 };
 
 module.exports = groupUtil;

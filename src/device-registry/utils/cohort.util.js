@@ -1037,6 +1037,142 @@ const createCohort = {
       );
     }
   },
+  createCohortFromCohortIDs: async (request, next) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { name, description, cohort_ids } = body;
+
+      // 1. Fetch all source cohorts to validate they exist and get network ID
+      const existingCohorts = await CohortModel(tenant)
+        .find({ _id: { $in: cohort_ids } })
+        .select("network") // only need network
+        .lean();
+
+      logObject("existingCohorts", existingCohorts);
+
+      if (existingCohorts.length !== cohort_ids.length) {
+        const foundIds = existingCohorts.map((c) => c._id.toString());
+        const notFoundIds = cohort_ids.filter((id) => !foundIds.includes(id));
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The following cohorts were not found: ${notFoundIds.join(
+              ", "
+            )}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // 2. Ensure all cohorts belong to the same network
+      // 2. Ensure all source cohorts belong to the same network
+      if (existingCohorts.length === 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "Cannot create a cohort from an empty list of source cohorts.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      const networkId = existingCohorts[0].network;
+      const allSameNetwork = existingCohorts.every(
+        (cohort) =>
+          cohort.network && cohort.network.toString() === networkId.toString()
+      );
+
+      if (!allSameNetwork) {
+        // return {
+        //   success: false,
+        //   message: "Bad Request Error",
+        //   errors: {
+        //     message: "All provided cohorts must belong to the same network.",
+        //   },
+        //   status: httpStatus.BAD_REQUEST,
+        // };
+      }
+
+      // 3. Create the new cohort first to get its ID
+      const newCohortData = {
+        name,
+        description,
+        network: networkId,
+      };
+
+      const newCohortResponse = await CohortModel(tenant).register(
+        newCohortData,
+        next
+      );
+
+      // const newCohort = newCohortResponse.data;
+
+      const newCohort = newCohortResponse && newCohortResponse.data;
+      if (!newCohortResponse?.success || !newCohort) {
+        return {
+          success: false,
+          message: "Failed to create the new cohort",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message:
+              newCohortResponse?.errors?.message ||
+              "Cohort registration did not return a valid cohort",
+          },
+        };
+      }
+
+      // 4. Find all unique devices belonging to the source cohorts
+      const devicesToUpdate = await DeviceModel(tenant)
+        .find({ cohorts: { $in: cohort_ids } })
+        .distinct("_id");
+
+      if (devicesToUpdate.length === 0) {
+        // It's not an error if there are no devices, just return the newly created empty cohort.
+        return {
+          success: true,
+          message:
+            "Successfully created an empty cohort as source cohorts have no devices.",
+          data: newCohort,
+          status: httpStatus.CREATED,
+        };
+      }
+
+      // 5. Assign the new cohort to all these devices
+      const updateResult = await DeviceModel(tenant).updateMany(
+        { _id: { $in: devicesToUpdate } },
+        { $addToSet: { cohorts: newCohort._id } }
+      );
+
+      logObject(
+        "updateResult from assigning devices to new cohort",
+        updateResult
+      );
+
+      return {
+        success: true,
+        message: `Successfully created cohort and assigned it to ${updateResult.nModified} devices.`,
+        data: newCohort,
+        status: httpStatus.CREATED,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      if (error instanceof HttpError) {
+        return next(error);
+      }
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
 };
 
 module.exports = createCohort;

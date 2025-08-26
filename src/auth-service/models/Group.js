@@ -99,6 +99,11 @@ const GroupSchema = new Schema(
           "Profile picture URL must be a valid URL & must not exceed 200 characters.",
       },
     },
+    cohorts: [
+      {
+        type: ObjectId,
+      },
+    ],
   },
   {
     timestamps: true,
@@ -202,6 +207,7 @@ GroupSchema.methods = {
       grp_country: this.grp_country,
       grp_timezone: this.grp_timezone,
       grp_image: this.grp_image,
+      cohorts: this.cohorts,
     };
   },
 };
