@@ -1,4 +1,4 @@
-# Beacon Service
+# Beacon Service.
 
 Air quality monitoring device management and analytics microservice.
 
