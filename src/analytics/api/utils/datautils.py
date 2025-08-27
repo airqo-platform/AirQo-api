@@ -67,7 +67,11 @@ class DataUtils:
         if data_table_freq.value in {"weekly", "monthly", "yearly"}:
             data_table_freq = Frequency.DAILY
 
-        table = datasource.get(datatype_).get(device_category).get(data_table_freq)
+        table = (
+            datasource.get(datatype_, {})
+            .get(device_category, {})
+            .get(data_table_freq, None)
+        )
 
         if not table:
             logger.exception(
