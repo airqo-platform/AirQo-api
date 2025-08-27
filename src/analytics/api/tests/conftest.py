@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
 from manage import app as flask_app
 
 
@@ -46,6 +47,18 @@ def mock_aqcsv_globals():
         },
     }
 
+    AQCSV_QC_CODE_MAPPER = {"averaged": "1", "estimated": "2"}
+
+    AQCSV_PARAMETER_MAPPER = {"pm2_5": "88101", "pm10": "81102"}
+
+    return {
+        "FREQUENCY_MAPPER": FREQUENCY_MAPPER,
+        "POLLUTANT_BIGQUERY_MAPPER": POLLUTANT_BIGQUERY_MAPPER,
+        "BIGQUERY_FREQUENCY_MAPPER": BIGQUERY_FREQUENCY_MAPPER,
+        "AQCSV_QC_CODE_MAPPER": AQCSV_QC_CODE_MAPPER,
+        "AQCSV_PARAMETER_MAPPER": AQCSV_PARAMETER_MAPPER,
+    }
+
 
 @pytest.fixture
 def mock_dataframe():
@@ -78,3 +91,57 @@ def mock_response_builder():
     """Create a mock for the ResponseBuilder."""
     mock = MagicMock()
     return mock
+
+
+class MockCacheClient:
+    """Mock implementation of Redis cache client for testing"""
+
+    def __init__(self):
+        self.cache_data = {}
+
+    def get(self, key):
+        return self.cache_data.get(key)
+
+    def set(self, key, value, *args, **kwargs):
+        self.cache_data[key] = value
+        return True
+
+    def delete(self, *keys):
+        for key in keys:
+            if key in self.cache_data:
+                del self.cache_data[key]
+        return len(keys)
+
+    def memoize(self, timeout=None, make_name=None, source=None, **kwargs):
+        """
+        Improved memoize decorator mock that properly handles decorated functions.
+        When used as a decorator, it returns the function unchanged.
+        """
+
+        def decorator(func):
+            # Simply return the original function without changes
+            return func
+
+        return decorator
+
+    # Add this method for Flask-Caching compatibility
+    def _memoize_make_cache_key(*args, **kwargs):
+        """Mock implementation to prevent actual cache key generation"""
+        return "mock_cache_key"
+
+
+@pytest.fixture(autouse=True)
+def mock_redis_cache():
+    """
+    Fixture that automatically mocks Redis cache for all tests.
+    This prevents tests from connecting to a real Redis instance.
+    """
+    mock_cache = MockCacheClient()
+
+    # We need to patch at multiple levels to ensure no Redis connections are made
+    with patch("main.cache", mock_cache), patch(
+        "api.models.bigquery_api.cache", mock_cache
+    ), patch("api.utils.cursor_utils.cache", mock_cache), patch(
+        "flask_caching.Cache", return_value=mock_cache
+    ):
+        yield mock_cache
