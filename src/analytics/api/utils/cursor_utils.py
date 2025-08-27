@@ -94,6 +94,8 @@ class CursorUtils:
         except TypeError:
             cache.set(cursor_key, cursor_str)
             CursorUtils._set_cache_expiration(cursor_key)
+        except RedisConnectionError:
+            logger.exception("Failed to refresh cursor expiration in Redis")
 
         return cursor_str
 
