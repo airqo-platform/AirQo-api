@@ -13,6 +13,7 @@ const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-util`);
 const qs = require("qs");
+const stringSimilarity = require("string-similarity");
 const QRCode = require("qrcode");
 const { Kafka } = require("kafkajs");
 const httpStatus = require("http-status");
@@ -1274,6 +1275,139 @@ const deviceUtil = {
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
           { message: error.message }
+        )
+      );
+    }
+  },
+
+  getIdFromName: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { name } = request.params;
+
+      const device = await DeviceModel(tenant)
+        .findOne({ name })
+        .select("_id")
+        .lean();
+
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Device with name '${name}' not found` },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved device ID",
+        data: { _id: device._id.toString() },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          { message: error.message }
+        )
+      );
+    }
+  },
+
+  getNameFromId: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { id } = request.params;
+
+      const device = await DeviceModel(tenant)
+        .findById(id)
+        .select("name")
+        .lean();
+
+      if (!device) {
+        return {
+          success: false,
+          message: "Device not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: `Device with ID '${id}' not found` },
+        };
+      }
+
+      return {
+        success: true,
+        message: "Successfully retrieved device name",
+        data: { name: device.name },
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
+
+  suggestNames: async (request, next) => {
+    try {
+      const { tenant } = request.query;
+      const { name } = request.query;
+
+      // STEP 1: Narrow the search space using an indexed-friendly query.
+      // This finds names starting with the same first 3 characters.
+      // NOTE: This is a pragmatic approach. For ultimate scalability,
+      // consider a full-text search engine like Atlas Search.
+      const searchRegex = new RegExp(`^${name.substring(0, 3)}`, "i");
+
+      const candidateDevices = await DeviceModel(tenant)
+        .find({ name: searchRegex })
+        .select("name")
+        .limit(500) // Protect against memory overload
+        .lean();
+
+      if (candidateDevices.length === 0) {
+        return {
+          success: true,
+          message: "No similar device names found.",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+
+      const candidateNames = candidateDevices.map((device) => device.name);
+
+      // STEP 2: Find the best match from the candidates using string similarity.
+      const matches = stringSimilarity.findBestMatch(name, candidateNames);
+
+      // Filter and sort the results to return the most relevant suggestions.
+      const suggestions = matches.ratings
+        .filter((match) => match.rating > 0.4) // Only include reasonably good matches
+        .sort((a, b) => b.rating - a.rating) // Sort by best rating
+        .slice(0, 5); // Return up to the top 5 suggestions
+
+      return {
+        success: true,
+        message: "Successfully retrieved device name suggestions.",
+        data: suggestions,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
         )
       );
     }
