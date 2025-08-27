@@ -131,6 +131,10 @@ data/
 
 # Docker volumes (local development)
 .docker/
+docker-compose.yml
+docker-compose.yaml
+docker-compose.override.yml
+docker-compose.override.yaml
 
 # Alembic local files
 alembic/versions/*.pyc
