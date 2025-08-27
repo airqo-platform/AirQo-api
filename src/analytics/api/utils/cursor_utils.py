@@ -1,9 +1,15 @@
-import base64
 import uuid
 from typing import Optional, Tuple, Dict, Any
 from main import cache
-import json
-import time
+import redis
+import logging
+
+logger = logging.getLogger(__name__)
+
+try:
+    RedisConnectionError = redis.ConnectionError
+except ImportError:
+    RedisConnectionError = ConnectionError
 
 
 class CursorUtils:
@@ -18,44 +24,76 @@ class CursorUtils:
     CURSOR_KEY_PREFIX = "api:cursor:"
 
     @staticmethod
+    def _set_cache_expiration(cursor_key: str) -> None:
+        """
+        Helper method to set cache expiration if supported by the cache backend.
+        """
+        if hasattr(cache, "expire"):
+            cache.expire(cursor_key, CursorUtils.CURSOR_EXPIRATION)
+
+    @staticmethod
     def encode_cursor(cursor_str: str) -> str:
         """
-        Base64 encodes a cursor string and stores it in Redis with a unique token.
+        Stores a cursor string in Redis with a unique token.
 
         Args:
-            cursor_str(str): The raw cursor string to encode
+            cursor_str(str): The raw cursor string to store
 
         Returns:
             str: Unique cursor token for API response
         """
-        token = str(uuid.uuid4())
+        cursor_token = str(uuid.uuid4())
 
-        cursor_key = f"{CursorUtils.CURSOR_KEY_PREFIX}{token}"
-        cache.set(cursor_key, cursor_str, timeout=CursorUtils.CURSOR_EXPIRATION)
-        return token
+        cursor_key = f"{CursorUtils.CURSOR_KEY_PREFIX}{cursor_token}"
+        try:
+            cache.set(cursor_key, cursor_str, timeout=CursorUtils.CURSOR_EXPIRATION)
+        except TypeError:
+            # Fallback if 'timeout' is not supported
+            cache.set(cursor_key, cursor_str)
+            CursorUtils._set_cache_expiration(cursor_key)
+        except RedisConnectionError:
+            logger.exception("Failed to store cursor in Redis")
+            # TODO: Figure out how to handle Redis connection errors | may be retry
+            pass
+        return cursor_token
 
     @staticmethod
-    def decode_cursor(token: str) -> str:
+    def retrieve_cursor(token: str) -> str:
         """
-        Retrieves and decodes a cursor from Redis using its token.
+        Retrieves a cursor from Redis using its token and refreshes its expiration time.
+
+        This method fetches the stored cursor string associated with the provided token,
+        extends its expiration time to prevent premature invalidation during active use,
+        and returns the cursor string for further processing.
 
         Args:
-            token (str): The cursor token from the API request
+            token(str): The unique cursor token received from a previous API response
 
         Returns:
-            str: Decoded cursor string
+            str: The retrieved cursor string containing pagination metadata
 
         Raises:
-            ValueError: If the token is invalid or expired
+            ValueError: If the token is invalid, doesn't exist in cache, or has already expired
         """
         cursor_key = f"{CursorUtils.CURSOR_KEY_PREFIX}{token}"
-        cursor_str = cache.get(cursor_key)
+        cursor_str: Optional[str] = None
+        try:
+            # Attempt to get the cursor string from cache
+            cursor_str = cache.get(cursor_key)
+        except RedisConnectionError:
+            logger.exception("Failed to retrieve cursor from Redis")
+            # TODO: Figure out how to handle Redis connection errors | may be retry
+            pass
 
         if not cursor_str:
             raise ValueError("Invalid or expired cursor token")
 
         # Reset the expiration time when the cursor is accessed
-        cache.set(cursor_key, cursor_str, timeout=CursorUtils.CURSOR_EXPIRATION)
+        try:
+            cache.set(cursor_key, cursor_str, timeout=CursorUtils.CURSOR_EXPIRATION)
+        except TypeError:
+            cache.set(cursor_key, cursor_str)
+            CursorUtils._set_cache_expiration(cursor_key)
 
         return cursor_str
 
@@ -76,7 +114,9 @@ class CursorUtils:
         Raises:
             ValueError: If the cursor format is invalid or token is expired
         """
-        cursor_str = CursorUtils.decode_cursor(token)
+        cursor_str: Optional[str] = CursorUtils.retrieve_cursor(token)
+        if not cursor_str:
+            raise ValueError("Invalid or expired cursor token")
 
         parts = cursor_str.split("|")
         if len(parts) < 2:
@@ -124,4 +164,9 @@ class CursorUtils:
             bool: True if the cursor is valid, False otherwise
         """
         cursor_key = f"{CursorUtils.CURSOR_KEY_PREFIX}{token}"
-        return cache.get(cursor_key) is not None
+
+        try:
+            return cache.get(cursor_key) is not None
+        except RedisConnectionError:
+            logger.exception("Failed to validate cursor in Redis")
+            return False
