@@ -6,9 +6,9 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-beacon-api
-  tag: prod-0322d146-1753370560
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-cf7ac1d2-1756318779
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
@@ -29,7 +29,6 @@ affinity:
               values:
                 - moderate-usage
         weight: 1
-
 ingress:
   enabled: false
 service:
