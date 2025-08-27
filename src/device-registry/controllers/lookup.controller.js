@@ -21,7 +21,9 @@ const lookup = {
           )
         );
       }
+
       const response = await deviceUtil.getIdFromName(req, next);
+      if (!response) return; // error already forwarded via next()
       return res.status(response.status).json(response);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -48,6 +50,7 @@ const lookup = {
         );
       }
       const response = await deviceUtil.getNameFromId(req, next);
+      if (!response) return;
       return res.status(response.status).json(response);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
@@ -74,6 +77,7 @@ const lookup = {
         );
       }
       const response = await deviceUtil.suggestNames(req, next);
+      if (!response) return;
       return res.status(response.status).json(response);
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);

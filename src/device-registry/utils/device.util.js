@@ -1302,12 +1302,12 @@ const deviceUtil = {
       return {
         success: true,
         message: "Successfully retrieved device ID",
-        data: { _id: device._id },
+        data: { _id: device._id.toString() },
         status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -1344,7 +1344,7 @@ const deviceUtil = {
       };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
+      return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
