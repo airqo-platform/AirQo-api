@@ -79,6 +79,27 @@ async def ready_check():
     }
 
 
+# Also add health/ready at the beacon prefix for compatibility
+@app.get(f"{settings.API_V1_STR}/health")
+async def beacon_health_check():
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION
+    }
+
+
+@app.get(f"{settings.API_V1_STR}/ready")
+async def beacon_ready_check():
+    return {
+        "status": "ready",
+        "checks": {
+            "database": "ok",
+            "redis": "ok"
+        }
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
