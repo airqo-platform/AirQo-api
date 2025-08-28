@@ -417,8 +417,8 @@ class AirQualityGrids(BaseAirQoAPI):
             cached_data = self.redis_client.get(self.REDIS_KEY)
             if cached_data:
                 self.logger.info("Retrieved grid data from cache.")
-                return cached_data
-        except RedisError as e:
+                return json.loads(cached_data)  # decode bytes → dict
+        except (RedisError, json.JSONDecodeError) as e:
             self.logger.error(f"Failed to access Redis cache: {str(e)}")
         return None
 
@@ -428,7 +428,7 @@ class AirQualityGrids(BaseAirQoAPI):
             self.redis_client.setex(
                 self.REDIS_KEY,
                 self.CACHE_TTL_SECONDS_GRID,
-                data,
+                json.dumps(data),  # encode dict → JSON string
             )
             self.logger.info(
                 "Stored grid data in cache with TTL %d seconds.",
