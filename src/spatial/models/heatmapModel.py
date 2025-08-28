@@ -460,11 +460,12 @@ class AirQualityGrids(BaseAirQoAPI):
             "kampala_central",
             "greater_kampala",
         ]
-        if not all(isinstance(l, str) for l in levels):
+        if not all(isinstance(lvl, str) for lvl in levels):
             raise ValueError("All admin levels must be strings")
         if not all(isinstance(n, str) for n in names):
             raise ValueError("All grid names must be strings")
-        return levels, [n.lower() for n in names]
+        levels = [lvl.lower() for lvl in levels]
+        return levels, {n.lower() for n in names}
 
     # ------------------- Grid Processing -------------------
 
