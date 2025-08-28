@@ -23,10 +23,10 @@ from utils.commons import download_file_from_gcs,upload_to_gcs
 # Attempt to import optional dependency
 try:
     import redis  # pip install redis
-    from redis import RedisError
+    RedisError = redis.RedisError
 except ImportError:
     redis = None
-    RedisError = None
+    RedisError = Exception  # or a custom fallback, but Exception is generally safe
 
 load_dotenv()  # Call load_dotenv() to load variables from .env file
 
@@ -396,6 +396,7 @@ class AirQualityData(BaseAirQoAPI):
 
 
 # ----------------------------- AirQualityGrids ---------------------------- #
+
 class AirQualityGrids(BaseAirQoAPI):
     """Fetches and processes administrative grid polygons from the AirQo API."""
 
