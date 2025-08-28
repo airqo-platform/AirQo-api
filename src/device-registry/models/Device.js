@@ -313,6 +313,15 @@ const deviceSchema = new mongoose.Schema(
       max_speed: { type: Number },
       typical_locations: [{ type: String, trim: true }],
     },
+
+    onlineStatusAccuracy: {
+      totalAttempts: { type: Number, default: 0 },
+      successfulUpdates: { type: Number, default: 0 },
+      failedUpdates: { type: Number, default: 0 },
+      lastUpdate: { type: Date },
+      lastSuccessfulUpdate: { type: Date },
+      lastFailureReason: { type: String },
+    },
   },
   {
     timestamps: true,
@@ -645,6 +654,7 @@ deviceSchema.methods = {
         this.assigned_organization_id || this.assigned_organization?.id || null,
       assigned_organization: this.assigned_organization,
       organization_assigned_at: this.organization_assigned_at,
+      onlineStatusAccuracy: this.onlineStatusAccuracy,
       grid_id: this.grid_id,
       deployment_type: this.deployment_type,
       mobility_metadata: this.mobility_metadata,
