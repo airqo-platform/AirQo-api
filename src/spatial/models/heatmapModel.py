@@ -23,8 +23,10 @@ from utils.commons import download_file_from_gcs,upload_to_gcs
 # Attempt to import optional dependency
 try:
     import redis  # pip install redis
+    from redis import RedisError
 except ImportError:
     redis = None
+    RedisError = None
 
 load_dotenv()  # Call load_dotenv() to load variables from .env file
 
@@ -394,17 +396,11 @@ class AirQualityData(BaseAirQoAPI):
 
 
 # ----------------------------- AirQualityGrids ---------------------------- #
-import pandas as pd
-import geopandas as gpd
-from typing import Optional, Dict, List, Any
-from shapely.geometry import shape
-from redis.exceptions import RedisError
-
 class AirQualityGrids(BaseAirQoAPI):
     """Fetches and processes administrative grid polygons from the AirQo API."""
 
     REDIS_KEY = "airqo:grids"
-    CACHE_TTL_SECONDS = 86400  # 24 hours cache expiration
+    CACHE_TTL_SECONDS_GRID = 86400  # 24 hours cache expiration
 
     def __init__(self, *args, **kwargs) -> None:
         """Initializes the AirQualityGrids client with cache and data structures."""
@@ -467,11 +463,11 @@ class AirQualityGrids(BaseAirQoAPI):
             # Store in cache with TTL
             self.redis_client.setex(
                 self.REDIS_KEY,
-                self.CACHE_TTL_SECONDS,
+                self.CACHE_TTL_SECONDS_GRID,
                 payload
             )
             self.logger.info("Stored grid data in cache with TTL %d seconds.", 
-                           self.CACHE_TTL_SECONDS)
+                           self.CACHE_TTL_SECONDS_GRID)
         except RedisError as e:
             self.logger.error(f"Failed to store data in cache: {str(e)}")
 
