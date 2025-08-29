@@ -32,9 +32,10 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     description=settings.DESCRIPTION,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    root_path=settings.ROOT_PATH,
     lifespan=lifespan
 )
 
@@ -46,7 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router)
 
 
 @app.get("/")
@@ -70,27 +71,6 @@ async def health_check():
 
 @app.get("/ready")
 async def ready_check():
-    return {
-        "status": "ready",
-        "checks": {
-            "database": "ok",
-            "redis": "ok"
-        }
-    }
-
-
-# Also add health/ready at the beacon prefix for compatibility
-@app.get(f"{settings.API_V1_STR}/health")
-async def beacon_health_check():
-    return {
-        "status": "healthy",
-        "service": settings.PROJECT_NAME,
-        "version": settings.VERSION
-    }
-
-
-@app.get(f"{settings.API_V1_STR}/ready")
-async def beacon_ready_check():
     return {
         "status": "ready",
         "checks": {
