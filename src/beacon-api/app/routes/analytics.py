@@ -68,7 +68,7 @@ async def get_dashboard_summary(
     valid_24h_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
             DeviceReading.created_at >= yesterday,
-            (DeviceReading.pm2_5 != None) | (DeviceReading.pm10 != None)
+            (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
         )
     ).first() or 0
     
@@ -83,14 +83,14 @@ async def get_dashboard_summary(
     # Network distribution
     networks = db.exec(
         select(Device.network, func.count(Device.device_key))
-        .where(Device.network != None)
+        .where(Device.network.is_not(None))
         .group_by(Device.network)
     ).all()
     
     # Regional distribution
     regions = db.exec(
         select(Site.region, func.count(Site.id))
-        .where(Site.region != None)
+        .where(Site.region.is_not(None))
         .group_by(Site.region)
     ).all()
     
@@ -183,7 +183,7 @@ async def get_data_transmission_summary(
         select(func.count(DeviceReading.reading_key)).where(
             DeviceReading.created_at >= start_date,
             DeviceReading.created_at <= end_date,
-            (DeviceReading.pm2_5 != None) | (DeviceReading.pm10 != None)
+            (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
         )
     ).first()
     
@@ -275,7 +275,7 @@ async def get_network_performance(
     start_date = end_date - timedelta(days=days)
     
     # Get unique networks
-    networks = db.exec(select(Device.network).distinct().where(Device.network != None)).all()
+    networks = db.exec(select(Device.network).distinct().where(Device.network.is_not(None))).all()
     
     network_stats = []
     
@@ -301,7 +301,7 @@ async def get_network_performance(
                 DeviceReading.device_key.in_(device_keys),
                 DeviceReading.created_at >= start_date,
                 DeviceReading.created_at <= end_date,
-                (DeviceReading.pm2_5 != None) | (DeviceReading.pm10 != None)
+                (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
             )
         ).first()
         
@@ -350,7 +350,7 @@ async def get_regional_analysis(
     start_date = end_date - timedelta(days=days)
     
     # Get unique regions
-    regions = db.exec(select(Site.region).distinct().where(Site.region != None)).all()
+    regions = db.exec(select(Site.region).distinct().where(Site.region.is_not(None))).all()
     
     regional_stats = []
     
@@ -430,7 +430,7 @@ async def get_system_health(
     daily_valid = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
             DeviceReading.created_at >= one_day_ago,
-            (DeviceReading.pm2_5 != None) | (DeviceReading.pm10 != None)
+            (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
         )
     ).first()
     
@@ -453,7 +453,7 @@ async def get_system_health(
             health_score -= 20
             issues.append(f"Data quality at {round(data_quality, 1)}%")
     
-    if recent_readings < 10:
+    if recent_readings and recent_readings < 10:
         health_score -= 10
         issues.append("Low data transmission rate")
     

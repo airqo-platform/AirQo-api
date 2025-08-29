@@ -110,21 +110,28 @@ async def get_devices(
 ):
     from sqlalchemy import text
     
-    # Build WHERE conditions
+    # Build WHERE conditions and parameters
     where_conditions = []
+    params = {}
     
     if network:
-        where_conditions.append(f"d.network = '{network}'")
+        where_conditions.append("d.network = :network")
+        params["network"] = network
     if status:
-        where_conditions.append(f"d.status = '{status}'")
+        where_conditions.append("d.status = :status")
+        params["status"] = status
     
     where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
     
-    # Add LIMIT and OFFSET
+    # Add LIMIT and OFFSET with parameters
     limit_clause = ""
     if limit is not None:
-        limit_clause = f"LIMIT {limit}"
-    offset_clause = f"OFFSET {skip}" if skip > 0 else ""
+        limit_clause = "LIMIT :limit"
+        params["limit"] = limit
+    offset_clause = ""
+    if skip > 0:
+        offset_clause = "OFFSET :skip"
+        params["skip"] = skip
     
     query_str = f"""
         SELECT 
@@ -160,7 +167,7 @@ async def get_devices(
         {limit_clause} {offset_clause}
     """
     
-    result_rows = db.exec(text(query_str)).all()
+    result_rows = db.exec(text(query_str), params).all()
     
     devices = []
     for row in result_rows:
@@ -185,7 +192,7 @@ async def get_devices(
                 "latitude": row.latitude,
                 "longitude": row.longitude,
                 "site_name": row.site_name
-            } if row.latitude and row.longitude else None
+            } if (row.latitude is not None and row.longitude is not None) else None
         }
         devices.append(device_data)
     
@@ -287,14 +294,18 @@ async def get_device(
         "last_updated": device.last_updated.isoformat() if device.last_updated else None,
         "created_at": device.created_at.isoformat() if device.created_at else None,
         "updated_at": device.updated_at.isoformat() if device.updated_at else None,
-        "latitude": location.latitude if location else None,
-        "longitude": location.longitude if location else None,
-        "site_name": recent_reading.site_name if recent_reading else None,
-        "temperature": recent_reading.temperature if recent_reading else None,
-        "humidity": recent_reading.humidity if recent_reading else None,
-        "pm2_5": recent_reading.pm2_5 if recent_reading else None,
-        "pm10": recent_reading.pm10 if recent_reading else None,
-        "last_reading_time": recent_reading.created_at.isoformat() if recent_reading and recent_reading.created_at else None
+        "location": {
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+        } if location else None,
+        "recent_reading": {
+            "site_name": recent_reading.site_name,
+            "temperature": recent_reading.temperature,
+            "humidity": recent_reading.humidity,
+            "pm2_5": recent_reading.pm2_5,
+            "pm10": recent_reading.pm10,
+            "timestamp": recent_reading.created_at.isoformat() if recent_reading.created_at else None
+        } if recent_reading else None
     }
     
     return device_data

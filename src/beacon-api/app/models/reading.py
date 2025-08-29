@@ -1,6 +1,6 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class DeviceReadingBase(SQLModel):
@@ -15,7 +15,7 @@ class DeviceReadingBase(SQLModel):
     frequency: Optional[str] = None
     network: Optional[str] = None
     site_name: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
 
 class DeviceReading(DeviceReadingBase, table=True):

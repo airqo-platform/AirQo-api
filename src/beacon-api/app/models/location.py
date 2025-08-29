@@ -1,12 +1,12 @@
 from sqlmodel import Field, SQLModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class LocationBase(SQLModel):
     device_key: int = Field(foreign_key="dim_device.device_key", index=True)
-    latitude: float
-    longitude: float
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
     site_id: Optional[str] = None
     site_name: Optional[str] = None
     location_name: Optional[str] = None
@@ -24,10 +24,10 @@ class LocationBase(SQLModel):
     mount_type: Optional[str] = None
     power_type: Optional[str] = None
     deployment_date: Optional[datetime] = None
-    effective_from: datetime = Field(default_factory=datetime.utcnow)
+    effective_from: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     effective_to: Optional[datetime] = None
     is_active: bool = True
-    recorded_at: datetime = Field(default_factory=datetime.utcnow)
+    recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Location(LocationBase, table=True):
