@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from sqlmodel import Session, select, func, and_
+from typing import Optional
+from datetime import datetime, timedelta, timezone
 from app.deps import get_db
 from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceReading
 from app.models.location import Location
 from app.crud import device as device_crud
-from app.configs.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,13 +23,13 @@ async def get_comprehensive_device_stats(
 ):
     total_devices = db.exec(select(func.count(Device.device_key))).first() or 0
     active_devices = db.exec(
-        select(func.count(Device.device_key)).where(Device.is_active == True)
+        select(func.count(Device.device_key)).where(Device.is_active.is_(True))
     ).first() or 0
     online_devices = db.exec(
-        select(func.count(Device.device_key)).where(Device.is_online == True)
+        select(func.count(Device.device_key)).where(Device.is_online.is_(True))
     ).first() or 0
     offline_devices = db.exec(
-        select(func.count(Device.device_key)).where(Device.is_online == False)
+        select(func.count(Device.device_key)).where(Device.is_online.is_(False))
     ).first() or 0
     deployed = db.exec(
         select(func.count(Device.device_key)).where(Device.status == "deployed")
@@ -81,7 +80,7 @@ async def get_comprehensive_device_stats(
         ).all()
         result["categories"] = {category or "unknown": count for category, count in categories}
     if include_maintenance:
-        maintenance_cutoff = datetime.utcnow() + timedelta(days=30)
+        maintenance_cutoff = datetime.now(timezone.utc) + timedelta(days=30)
         upcoming_maintenance = db.exec(
             select(func.count(Device.device_key)).where(
                 (Device.next_maintenance != None) & 
@@ -93,7 +92,7 @@ async def get_comprehensive_device_stats(
             "percentage": round((upcoming_maintenance / total_devices * 100), 2) if total_devices > 0 else 0
         }
     
-    result["timestamp"] = datetime.utcnow().isoformat()
+    result["timestamp"] = datetime.now(timezone.utc).isoformat()
     return result
 
 
@@ -105,7 +104,6 @@ async def get_devices(
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: Optional[int] = Query(100, ge=1, le=10000, description="Number of items to return"),
-    site_id: Optional[str] = None,
     network: Optional[str] = None,
     status: Optional[str] = None
 ):
@@ -129,25 +127,67 @@ async def get_devices(
     # Execute query
     devices = db.exec(query).all()
     
+    if not devices:
+        return []
+    
+    # Collect all device keys for batch queries
+    device_keys = [device.device_key for device in devices]
+    
+    # Batch query for latest locations
+    location_subquery = (
+        select(
+            Location.device_key,
+            func.max(Location.recorded_at).label("max_recorded_at")
+        )
+        .where(Location.device_key.in_(device_keys))
+        .where(Location.is_active.is_(True))
+        .group_by(Location.device_key)
+        .subquery()
+    )
+    
+    locations_query = (
+        select(Location)
+        .join(
+            location_subquery,
+            and_(
+                Location.device_key == location_subquery.c.device_key,
+                Location.recorded_at == location_subquery.c.max_recorded_at,
+                Location.is_active.is_(True)
+            )
+        )
+    )
+    locations = db.exec(locations_query).all()
+    location_map = {loc.device_key: loc for loc in locations}
+    
+    # Batch query for latest readings
+    reading_subquery = (
+        select(
+            DeviceReading.device_key,
+            func.max(DeviceReading.created_at).label("max_created_at")
+        )
+        .where(DeviceReading.device_key.in_(device_keys))
+        .group_by(DeviceReading.device_key)
+        .subquery()
+    )
+    
+    readings_query = (
+        select(DeviceReading)
+        .join(
+            reading_subquery,
+            and_(
+                DeviceReading.device_key == reading_subquery.c.device_key,
+                DeviceReading.created_at == reading_subquery.c.max_created_at
+            )
+        )
+    )
+    readings = db.exec(readings_query).all()
+    reading_map = {reading.device_key: reading for reading in readings}
+    
     # Format response
     device_list = []
     for device in devices:
-        # Get latest location if available
-        location = db.exec(
-            select(Location)
-            .where(Location.device_key == device.device_key)
-            .where(Location.is_active == True)
-            .order_by(Location.recorded_at.desc())
-            .limit(1)
-        ).first()
-        
-        # Get latest reading if available
-        latest_reading = db.exec(
-            select(DeviceReading)
-            .where(DeviceReading.device_key == device.device_key)
-            .order_by(DeviceReading.created_at.desc())
-            .limit(1)
-        ).first()
+        location = location_map.get(device.device_key)
+        latest_reading = reading_map.get(device.device_key)
         
         device_data = {
             "device_key": device.device_key,
@@ -202,7 +242,8 @@ async def get_map_data(
         location = db.exec(
             select(Location)
             .where(Location.device_key == device.device_key)
-            .where(Location.is_active == True)
+            .where(Location.is_active.is_(True))
+            .order_by(Location.recorded_at.desc())
             .limit(1)
         ).first()
         
@@ -247,7 +288,9 @@ async def get_device(
     location = db.exec(
         select(Location)
         .where(Location.device_key == device.device_key)
-        .where(Location.is_active == True)
+        .where(Location.is_active.is_(True))
+        .order_by(Location.recorded_at.desc())
+        .limit(1)
     ).first()
     
     # Get recent reading from fact_device_readings
@@ -346,7 +389,7 @@ async def get_device_performance(
     device = device_crud.get_by_device_id(db, device_id=device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
     readings_query = select(DeviceReading).where(
         DeviceReading.device_key == device.device_key,
