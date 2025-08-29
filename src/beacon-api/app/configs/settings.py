@@ -6,7 +6,7 @@ import os
 
 class Settings(BaseSettings):
     API_V1_STR: str = ""
-    ROOT_PATH: str = "/api/v1/beacon"
+    ROOT_PATH: str = ""
     PROJECT_NAME: str = "AirQo Beacon Service"
     VERSION: str = "2.0.0"
     DESCRIPTION: str = "API for comprehensive AirQo device performance and data monitoring"
