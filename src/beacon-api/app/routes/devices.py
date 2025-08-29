@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from sqlmodel import Session, select, func, and_
+from typing import Optional
+from datetime import datetime, timedelta, timezone
 from app.deps import get_db
-from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceReading, Location
+from app.models import Device, DeviceRead, DeviceCreate, DeviceUpdate, DeviceReading
+from app.models.location import Location
 from app.crud import device as device_crud
-from app.configs.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,13 +23,13 @@ async def get_comprehensive_device_stats(
 ):
     total_devices = db.exec(select(func.count(Device.device_key))).first() or 0
     active_devices = db.exec(
-        select(func.count(Device.device_key)).where(Device.is_active == True)
+        select(func.count(Device.device_key)).where(Device.is_active.is_(True))
     ).first() or 0
     online_devices = db.exec(
-        select(func.count(Device.device_key)).where(Device.is_online == True)
+        select(func.count(Device.device_key)).where(Device.is_online.is_(True))
     ).first() or 0
     offline_devices = db.exec(
-        select(func.count(Device.device_key)).where(Device.is_online == False)
+        select(func.count(Device.device_key)).where(Device.is_online.is_(False))
     ).first() or 0
     deployed = db.exec(
         select(func.count(Device.device_key)).where(Device.status == "deployed")
@@ -80,7 +80,7 @@ async def get_comprehensive_device_stats(
         ).all()
         result["categories"] = {category or "unknown": count for category, count in categories}
     if include_maintenance:
-        maintenance_cutoff = datetime.utcnow() + timedelta(days=30)
+        maintenance_cutoff = datetime.now(timezone.utc) + timedelta(days=30)
         upcoming_maintenance = db.exec(
             select(func.count(Device.device_key)).where(
                 (Device.next_maintenance != None) & 
@@ -92,7 +92,7 @@ async def get_comprehensive_device_stats(
             "percentage": round((upcoming_maintenance / total_devices * 100), 2) if total_devices > 0 else 0
         }
     
-    result["timestamp"] = datetime.utcnow().isoformat()
+    result["timestamp"] = datetime.now(timezone.utc).isoformat()
     return result
 
 
@@ -103,100 +103,125 @@ async def get_devices(
     *,
     db: Session = Depends(get_db),
     skip: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: Optional[int] = Query(None, ge=1, le=10000, description="Number of items to return (None for all)"),
-    site_id: Optional[str] = None,
+    limit: Optional[int] = Query(100, ge=1, le=10000, description="Number of items to return"),
     network: Optional[str] = None,
     status: Optional[str] = None
 ):
-    from sqlalchemy import text
+    # Build query using SQLModel
+    query = select(Device)
     
-    # Build WHERE conditions and parameters
-    where_conditions = []
-    params = {}
-    
+    # Apply filters
     if network:
-        where_conditions.append("d.network = :network")
-        params["network"] = network
+        query = query.where(Device.network == network)
     if status:
-        where_conditions.append("d.status = :status")
-        params["status"] = status
+        query = query.where(Device.status == status)
     
-    where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+    # Apply ordering
+    query = query.order_by(Device.device_name)
     
-    # Add LIMIT and OFFSET with parameters
-    limit_clause = ""
-    if limit is not None:
-        limit_clause = "LIMIT :limit"
-        params["limit"] = limit
-    offset_clause = ""
-    if skip > 0:
-        offset_clause = "OFFSET :skip"
-        params["skip"] = skip
+    # Apply pagination
+    query = query.offset(skip)
+    if limit:
+        query = query.limit(limit)
     
-    query_str = f"""
-        SELECT 
-            d.device_key,
-            d.device_id,
-            d.device_name,
-            d.network,
-            d.category,
-            d.is_active,
-            d.status,
-            d.is_online,
-            d.mount_type,
-            d.power_type,
-            d.height,
-            d.next_maintenance,
-            d.first_seen,
-            d.last_updated,
-            d.created_at,
-            d.updated_at,
-            r.latitude,
-            r.longitude,
-            r.site_name
-        FROM dim_device d
-        LEFT JOIN LATERAL (
-            SELECT latitude, longitude, site_name
-            FROM fact_device_readings 
-            WHERE device_key = d.device_key 
-            ORDER BY created_at DESC 
-            LIMIT 1
-        ) r ON true
-        WHERE {where_clause}
-        ORDER BY d.device_name
-        {limit_clause} {offset_clause}
-    """
+    # Execute query
+    devices = db.exec(query).all()
     
-    result_rows = db.exec(text(query_str), params).all()
+    if not devices:
+        return []
     
-    devices = []
-    for row in result_rows:
+    # Collect all device keys for batch queries
+    device_keys = [device.device_key for device in devices]
+    
+    # Batch query for latest locations
+    location_subquery = (
+        select(
+            Location.device_key,
+            func.max(Location.recorded_at).label("max_recorded_at")
+        )
+        .where(Location.device_key.in_(device_keys))
+        .where(Location.is_active.is_(True))
+        .group_by(Location.device_key)
+        .subquery()
+    )
+    
+    locations_query = (
+        select(Location)
+        .join(
+            location_subquery,
+            and_(
+                Location.device_key == location_subquery.c.device_key,
+                Location.recorded_at == location_subquery.c.max_recorded_at,
+                Location.is_active.is_(True)
+            )
+        )
+    )
+    locations = db.exec(locations_query).all()
+    location_map = {loc.device_key: loc for loc in locations}
+    
+    # Batch query for latest readings
+    reading_subquery = (
+        select(
+            DeviceReading.device_key,
+            func.max(DeviceReading.created_at).label("max_created_at")
+        )
+        .where(DeviceReading.device_key.in_(device_keys))
+        .group_by(DeviceReading.device_key)
+        .subquery()
+    )
+    
+    readings_query = (
+        select(DeviceReading)
+        .join(
+            reading_subquery,
+            and_(
+                DeviceReading.device_key == reading_subquery.c.device_key,
+                DeviceReading.created_at == reading_subquery.c.max_created_at
+            )
+        )
+    )
+    readings = db.exec(readings_query).all()
+    reading_map = {reading.device_key: reading for reading in readings}
+    
+    # Format response
+    device_list = []
+    for device in devices:
+        location = location_map.get(device.device_key)
+        latest_reading = reading_map.get(device.device_key)
+        
         device_data = {
-            "device_key": row.device_key,
-            "device_id": row.device_id,
-            "device_name": row.device_name,
-            "network": row.network,
-            "category": row.category,
-            "is_active": row.is_active,
-            "status": row.status,
-            "is_online": row.is_online,
-            "mount_type": row.mount_type,
-            "power_type": row.power_type,
-            "height": row.height,
-            "next_maintenance": row.next_maintenance.isoformat() if row.next_maintenance else None,
-            "first_seen": row.first_seen.isoformat() if row.first_seen else None,
-            "last_updated": row.last_updated.isoformat() if row.last_updated else None,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "device_key": device.device_key,
+            "device_id": device.device_id,
+            "device_name": device.device_name,
+            "network": device.network,
+            "category": device.category,
+            "is_active": device.is_active,
+            "status": device.status,
+            "is_online": device.is_online,
+            "mount_type": device.mount_type,
+            "power_type": device.power_type,
+            "height": device.height,
+            "next_maintenance": device.next_maintenance.isoformat() if device.next_maintenance else None,
+            "first_seen": device.first_seen.isoformat() if device.first_seen else None,
+            "last_updated": device.last_updated.isoformat() if device.last_updated else None,
+            "created_at": device.created_at.isoformat() if device.created_at else None,
+            "updated_at": device.updated_at.isoformat() if device.updated_at else None,
             "location": {
-                "latitude": row.latitude,
-                "longitude": row.longitude,
-                "site_name": row.site_name
-            } if (row.latitude is not None and row.longitude is not None) else None
+                "latitude": location.latitude,
+                "longitude": location.longitude,
+                "site_name": location.site_name
+            } if location else None,
+            "latest_reading": {
+                "pm2_5": latest_reading.pm2_5,
+                "pm10": latest_reading.pm10,
+                "temperature": latest_reading.temperature,
+                "humidity": latest_reading.humidity,
+                "timestamp": latest_reading.created_at.isoformat() if latest_reading.created_at else None
+            } if latest_reading else None
         }
-        devices.append(device_data)
+        device_list.append(device_data)
     
-    return devices
+    return device_list
 
 
 @router.get("/map-data")
@@ -204,48 +229,46 @@ async def get_map_data(
     *,
     db: Session = Depends(get_db)
 ):
-    # Use raw SQL for efficiency
-    from sqlalchemy import text
-    
-    query = text("""
-        SELECT 
-            d.device_name,
-            d.is_online,
-            l.latitude,
-            l.longitude,
-            r.site_name,
-            r.created_at,
-            r.pm2_5,
-            r.pm10
-        FROM dim_device d
-        INNER JOIN dim_location l ON d.device_key = l.device_key 
-        LEFT JOIN LATERAL (
-            SELECT created_at, pm2_5, pm10, site_name
-            FROM fact_device_readings 
-            WHERE device_key = d.device_key 
-            ORDER BY created_at DESC 
-            LIMIT 1
-        ) r ON true
-        WHERE d.status = 'deployed' 
-        AND l.is_active = true
-        ORDER BY d.device_name
-    """)
-    
-    result_rows = db.exec(query).all()
+    # Get deployed devices
+    devices = db.exec(
+        select(Device)
+        .where(Device.status == 'deployed')
+        .order_by(Device.device_name)
+    ).all()
     
     result = []
-    for row in result_rows:
+    for device in devices:
+        # Get active location
+        location = db.exec(
+            select(Location)
+            .where(Location.device_key == device.device_key)
+            .where(Location.is_active.is_(True))
+            .order_by(Location.recorded_at.desc())
+            .limit(1)
+        ).first()
+        
+        if not location:
+            continue
+        
+        # Get latest reading
+        latest_reading = db.exec(
+            select(DeviceReading)
+            .where(DeviceReading.device_key == device.device_key)
+            .order_by(DeviceReading.created_at.desc())
+            .limit(1)
+        ).first()
+        
         result.append({
-            "device_name": row.device_name,
-            "is_online": row.is_online,
-            "latitude": row.latitude,
-            "longitude": row.longitude,
-            "site_name": row.site_name,
+            "device_name": device.device_name,
+            "is_online": device.is_online,
+            "latitude": location.latitude,
+            "longitude": location.longitude,
+            "site_name": location.site_name if location else None,
             "recent_reading": {
-                "timestamp": row.created_at.isoformat() if row.created_at else None,
-                "pm2_5": row.pm2_5,
-                "pm10": row.pm10
-            } if row.created_at else None
+                "timestamp": latest_reading.created_at.isoformat() if latest_reading and latest_reading.created_at else None,
+                "pm2_5": latest_reading.pm2_5 if latest_reading else None,
+                "pm10": latest_reading.pm10 if latest_reading else None
+            } if latest_reading else None
         })
     
     return result
@@ -265,7 +288,9 @@ async def get_device(
     location = db.exec(
         select(Location)
         .where(Location.device_key == device.device_key)
-        .where(Location.is_active == True)
+        .where(Location.is_active.is_(True))
+        .order_by(Location.recorded_at.desc())
+        .limit(1)
     ).first()
     
     # Get recent reading from fact_device_readings
@@ -364,7 +389,7 @@ async def get_device_performance(
     device = device_crud.get_by_device_id(db, device_id=device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
     readings_query = select(DeviceReading).where(
         DeviceReading.device_key == device.device_key,
