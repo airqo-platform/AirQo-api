@@ -82,22 +82,21 @@ async function updateEntityonlineStatusAccuracy(
   entityType
 ) {
   try {
-    const accuracyUpdate = {
-      [`onlineStatusAccuracy.lastUpdate`]: new Date(),
-      [`onlineStatusAccuracy.totalAttempts`]: 1,
+    const incUpdate = {
+      "onlineStatusAccuracy.totalAttempts": 1,
+      ...(isSuccess
+        ? { "onlineStatusAccuracy.successfulUpdates": 1 }
+        : { "onlineStatusAccuracy.failedUpdates": 1 }),
     };
-
-    if (isSuccess) {
-      accuracyUpdate[`onlineStatusAccuracy.successfulUpdates`] = 1;
-      accuracyUpdate[`onlineStatusAccuracy.lastSuccessfulUpdate`] = new Date();
-    } else {
-      accuracyUpdate[`onlineStatusAccuracy.failedUpdates`] = 1;
-      accuracyUpdate[`onlineStatusAccuracy.lastFailureReason`] = reason;
-    }
-
+    const setUpdate = {
+      "onlineStatusAccuracy.lastUpdate": new Date(),
+      ...(isSuccess
+        ? { "onlineStatusAccuracy.lastSuccessfulUpdate": new Date() }
+        : { "onlineStatusAccuracy.lastFailureReason": reason }),
+    };
     await Model.findByIdAndUpdate(
       entityId,
-      { $inc: accuracyUpdate },
+      { $inc: incUpdate, $set: setUpdate },
       { upsert: false }
     );
   } catch (error) {
@@ -256,11 +255,20 @@ async function updateOfflineEntitiesWithAccuracy(
       }
     );
 
+    let modified = 0;
+    if (offlineUpdateResult) {
+      if (offlineUpdateResult.modifiedCount !== undefined) {
+        modified = offlineUpdateResult.modifiedCount;
+      } else if (offlineUpdateResult.nModified !== undefined) {
+        modified = offlineUpdateResult.nModified;
+      }
+    }
+
     // Track accuracy metrics
     const accuracyMetrics = {
       entityType,
       totalProcessed: activeEntityIds.size,
-      markedOffline: offlineUpdateResult.nModified,
+      markedOffline: modified,
       successfulUpdates: statusResults.filter((r) => r.success).length,
       failedUpdates: statusResults.filter((r) => !r.success).length,
       timestamp: new Date(),
@@ -273,7 +281,7 @@ async function updateOfflineEntitiesWithAccuracy(
     return {
       success: true,
       metrics: accuracyMetrics,
-      offlineCount: offlineUpdateResult.nModified,
+      offlineCount: modified,
     };
   } catch (error) {
     if (isDuplicateKeyError(error)) {
@@ -291,7 +299,9 @@ async function updateOfflineEntitiesWithAccuracy(
 
 // Legacy functions for backward compatibility
 async function updateOfflineDevices(data) {
-  const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
+  const activeDeviceIds = new Set(
+    data.map((doc) => doc.device_id).filter(Boolean)
+  );
   const deviceResults = data.map(() => ({ success: true }));
   const result = await updateOfflineEntitiesWithAccuracy(
     DeviceModel("airqo"),
@@ -689,7 +699,7 @@ async function fetchAndStoreDataIntoReadingsModel() {
     }
 
     // Enhanced offline detection with tracking
-    const deviceIds = new Set(data.map((doc) => doc.device_id));
+    const deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
     const siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
 
     try {
