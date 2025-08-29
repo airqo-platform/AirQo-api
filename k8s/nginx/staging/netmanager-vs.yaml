@@ -63,7 +63,9 @@ spec:
   routes:
     - path: /
       action:
-        pass: platform-ui
+        redirect:
+          url: https://staging-vertex.airqo.net
+          code: 301      
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
