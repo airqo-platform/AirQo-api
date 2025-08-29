@@ -45,7 +45,7 @@ async def get_dashboard_summary(
     one_hour_ago = datetime.utcnow() - timedelta(hours=1)
     recent_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= one_hour_ago
+            DeviceReading.created_at >= one_hour_ago
         )
     ).first() or 0
     
@@ -53,7 +53,7 @@ async def get_dashboard_summary(
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= today_start
+            DeviceReading.created_at >= today_start
         )
     ).first() or 0
     
@@ -61,14 +61,14 @@ async def get_dashboard_summary(
     yesterday = datetime.utcnow() - timedelta(days=1)
     total_24h_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= yesterday
+            DeviceReading.created_at >= yesterday
         )
     ).first() or 0
     
     valid_24h_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= yesterday,
-            (DeviceReading.s1_pm2_5 != None) | (DeviceReading.s2_pm2_5 != None)
+            DeviceReading.created_at >= yesterday,
+            (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
         )
     ).first() or 0
     
@@ -83,14 +83,14 @@ async def get_dashboard_summary(
     # Network distribution
     networks = db.exec(
         select(Device.network, func.count(Device.device_key))
-        .where(Device.network != None)
+        .where(Device.network.is_not(None))
         .group_by(Device.network)
     ).all()
     
     # Regional distribution
     regions = db.exec(
         select(Site.region, func.count(Site.id))
-        .where(Site.region != None)
+        .where(Site.region.is_not(None))
         .group_by(Site.region)
     ).all()
     
@@ -145,7 +145,7 @@ async def get_system_summary(
         },
         "readings_today": db.exec(
             select(func.count(DeviceReading.reading_key)).where(
-                DeviceReading.timestamp >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                DeviceReading.created_at >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
             )
         ).first() or 0,
         "timestamp": datetime.utcnow().isoformat()
@@ -173,17 +173,17 @@ async def get_data_transmission_summary(
     # Get total readings
     total_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= start_date,
-            DeviceReading.timestamp <= end_date
+            DeviceReading.created_at >= start_date,
+            DeviceReading.created_at <= end_date
         )
     ).first()
     
     # Get valid readings (with PM2.5 data)
     valid_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= start_date,
-            DeviceReading.timestamp <= end_date,
-            (DeviceReading.s1_pm2_5 != None) | (DeviceReading.s2_pm2_5 != None)
+            DeviceReading.created_at >= start_date,
+            DeviceReading.created_at <= end_date,
+            (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
         )
     ).first()
     
@@ -240,8 +240,8 @@ async def get_hourly_transmission(
         
         readings_count = db.exec(
             select(func.count(DeviceReading.reading_key)).where(
-                DeviceReading.timestamp >= hour_start,
-                DeviceReading.timestamp < hour_end
+                DeviceReading.created_at >= hour_start,
+                DeviceReading.created_at < hour_end
             )
         ).first()
         
@@ -275,7 +275,7 @@ async def get_network_performance(
     start_date = end_date - timedelta(days=days)
     
     # Get unique networks
-    networks = db.exec(select(Device.network).distinct().where(Device.network != None)).all()
+    networks = db.exec(select(Device.network).distinct().where(Device.network.is_not(None))).all()
     
     network_stats = []
     
@@ -291,17 +291,17 @@ async def get_network_performance(
         readings_count = db.exec(
             select(func.count(DeviceReading.reading_key)).where(
                 DeviceReading.device_key.in_(device_keys),
-                DeviceReading.timestamp >= start_date,
-                DeviceReading.timestamp <= end_date
+                DeviceReading.created_at >= start_date,
+                DeviceReading.created_at <= end_date
             )
         ).first()
         
         valid_readings = db.exec(
             select(func.count(DeviceReading.reading_key)).where(
                 DeviceReading.device_key.in_(device_keys),
-                DeviceReading.timestamp >= start_date,
-                DeviceReading.timestamp <= end_date,
-                (DeviceReading.s1_pm2_5 != None) | (DeviceReading.s2_pm2_5 != None)
+                DeviceReading.created_at >= start_date,
+                DeviceReading.created_at <= end_date,
+                (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
             )
         ).first()
         
@@ -350,7 +350,7 @@ async def get_regional_analysis(
     start_date = end_date - timedelta(days=days)
     
     # Get unique regions
-    regions = db.exec(select(Site.region).distinct().where(Site.region != None)).all()
+    regions = db.exec(select(Site.region).distinct().where(Site.region.is_not(None))).all()
     
     regional_stats = []
     
@@ -415,7 +415,7 @@ async def get_system_health(
     one_hour_ago = datetime.utcnow() - timedelta(hours=1)
     recent_readings = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= one_hour_ago
+            DeviceReading.created_at >= one_hour_ago
         )
     ).first()
     
@@ -423,14 +423,14 @@ async def get_system_health(
     one_day_ago = datetime.utcnow() - timedelta(days=1)
     daily_total = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= one_day_ago
+            DeviceReading.created_at >= one_day_ago
         )
     ).first()
     
     daily_valid = db.exec(
         select(func.count(DeviceReading.reading_key)).where(
-            DeviceReading.timestamp >= one_day_ago,
-            (DeviceReading.s1_pm2_5 != None) | (DeviceReading.s2_pm2_5 != None)
+            DeviceReading.created_at >= one_day_ago,
+            (DeviceReading.pm2_5.is_not(None)) | (DeviceReading.pm10.is_not(None))
         )
     ).first()
     
@@ -453,7 +453,7 @@ async def get_system_health(
             health_score -= 20
             issues.append(f"Data quality at {round(data_quality, 1)}%")
     
-    if recent_readings < 10:
+    if recent_readings and recent_readings < 10:
         health_score -= 10
         issues.append("Low data transmission rate")
     
