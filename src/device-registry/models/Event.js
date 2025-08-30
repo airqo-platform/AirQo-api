@@ -1589,10 +1589,7 @@ function filterNullAndReportOffDevices(data) {
 
   return data;
 }
-function filterNull(data) {
-  data = data.filter((record) => record.pm2_5 !== null);
-  return data;
-}
+
 function computeAveragePm2_5(transformedData) {
   let total = 0;
   transformedData.forEach((record) => {

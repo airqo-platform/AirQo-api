@@ -106,7 +106,6 @@ const generateFilter = {
       index,
       running,
       brief,
-      internal,
       active,
     } = { ...query, ...params };
 
@@ -355,10 +354,6 @@ const generateFilter = {
 
     if (active) {
       filter["active"] = active;
-    }
-
-    if (internal) {
-      filter["internal"] = internal;
     }
 
     return filter;
