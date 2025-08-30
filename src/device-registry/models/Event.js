@@ -1544,50 +1544,92 @@ async function signalData(model, filter) {
   return data;
 }
 function filterNullAndReportOffDevices(data) {
-  data.forEach((record) => {
-    if (record.timeDifferenceHours > UPTIME_CHECK_THRESHOLD) {
-      logObject(
-        `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours for device: ${
-          record.device ? record.device : ""
-        }, frequency ${record.frequency ? record.frequency : ""}, time ${
-          record.time ? record.time : ""
-        } and site ${record.siteDetails ? record.siteDetails.name : ""}`
-      );
-      if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
-        logger.info(
-          `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours for device: ${
-            record.device ? record.device : ""
-          }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
-            record.time ? record.time : ""
-          }, Site Name: ${record.siteDetails ? record.siteDetails.name : ""}`
-        );
+  // Ensure data is an array and handle null/undefined input
+  if (!Array.isArray(data)) return [];
+
+  // Helper function for safe property access
+  function safeGetValue(obj, path, defaultValue) {
+    if (!obj) return defaultValue;
+    const keys = path.split(".");
+    let current = obj;
+    for (let key of keys) {
+      if (
+        current === null ||
+        current === undefined ||
+        typeof current !== "object"
+      ) {
+        return defaultValue;
       }
+      current = current[key];
+    }
+    return current !== undefined ? current : defaultValue;
+  }
+
+  // Helper function to log device information
+  function logDeviceInfo(message, record) {
+    const device = safeGetValue(record, "device", "");
+    const frequency = safeGetValue(record, "frequency", "");
+    const time = safeGetValue(record, "time", "");
+    const siteName = safeGetValue(record, "siteDetails.name", "");
+
+    const logMessage = `${message} for device: ${device}, frequency ${frequency}, time ${time} and site ${siteName}`;
+
+    logObject(logMessage);
+
+    if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
+      const prodMessage = `${message} for device: ${device}, Frequency: ${frequency}, Time: ${time}, Site Name: ${siteName}`;
+      logger.info(prodMessage);
+    }
+  }
+
+  // Helper function to check if pm2_5 value is valid
+  function hasPm25Value(record) {
+    if (!record) return false;
+
+    // Handle case where pm2_5 is a direct value
+    if (typeof record.pm2_5 === "number") {
+      return record.pm2_5 !== null && !isNaN(record.pm2_5);
     }
 
-    if (record.pm2_5 === null) {
-      logObject(
-        `😲😲 Null pm2_5 value for device: ${
-          record.device ? record.device : ""
-        }, frequency ${record.frequency ? record.frequency : ""}, time ${
-          record.time ? record.time : ""
-        } and site ${record.siteDetails ? record.siteDetails.name : ""}`
+    // Handle case where pm2_5 is an object with value property
+    if (record.pm2_5 && typeof record.pm2_5 === "object") {
+      return (
+        record.pm2_5.value !== null &&
+        record.pm2_5.value !== undefined &&
+        !isNaN(record.pm2_5.value)
       );
+    }
 
-      if (constants.ENVIRONMENT === "PRODUCTION ENVIRONMENT") {
-        logger.info(
-          `😲😲 Null pm2_5 value for device: ${
-            record.device ? record.device : ""
-          }, Frequency: ${record.frequency ? record.frequency : ""}, Time: ${
-            record.time ? record.time : ""
-          }, Site Name: ${record.siteDetails ? record.siteDetails.name : ""}`
-        );
-      }
+    // Handle null/undefined pm2_5
+    return record.pm2_5 !== null && record.pm2_5 !== undefined;
+  }
+
+  // Process each record for logging
+  data.forEach(function(record) {
+    // Skip null/undefined records
+    if (!record) return;
+
+    // Check uptime threshold
+    if (
+      typeof record.timeDifferenceHours === "number" &&
+      record.timeDifferenceHours > UPTIME_CHECK_THRESHOLD
+    ) {
+      logDeviceInfo(
+        `🪫🪫 Last refreshed time difference exceeds ${UPTIME_CHECK_THRESHOLD} hours`,
+        record
+      );
+    }
+
+    // Check for null pm2_5 values
+    if (!hasPm25Value(record)) {
+      logDeviceInfo("😲😲 Null pm2_5 value", record);
     }
   });
 
-  data = data.filter((record) => record.pm2_5 !== null);
-
-  return data;
+  // Filter out records with invalid pm2_5 values
+  return data.filter(function(record) {
+    return record && hasPm25Value(record);
+  });
 }
 
 function computeAveragePm2_5(transformedData) {
@@ -1600,10 +1642,12 @@ function computeAveragePm2_5(transformedData) {
 }
 
 function filterNull(data) {
-  if (!Array.isArray(data)) {
-    return [];
-  }
-  return data.filter((record) => record.pm2_5 !== null);
+  if (!Array.isArray(data)) return [];
+  return data.filter(function(r) {
+    return (
+      r && r.pm2_5 && r.pm2_5.value !== null && r.pm2_5.value !== undefined
+    );
+  });
 }
 
 eventSchema.statics.createEvent = async function(args) {
