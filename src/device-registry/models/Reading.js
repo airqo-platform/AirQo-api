@@ -750,6 +750,11 @@ ReadingsSchema.statics.recent = async function(
     let threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
+    let groupBy = "$site_id";
+    if (filter.device || filter.device_id) {
+      groupBy = "$device_id";
+    }
+
     const pipeline = this.aggregate()
       .match({
         ...filter,
@@ -759,7 +764,7 @@ ReadingsSchema.statics.recent = async function(
       })
       .sort({ time: -1 })
       .group({
-        _id: "$site_id",
+        _id: groupBy,
         doc: { $first: "$$ROOT" },
       })
       .replaceRoot("$doc")

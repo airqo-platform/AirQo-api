@@ -733,6 +733,7 @@ async function updateOnlineStatusAndAccuracy() {
         tenant: "airqo",
         recent: "yes",
         metadata: "site_id",
+        internal: "yes",
         active: "yes",
         brief: "yes",
       },
