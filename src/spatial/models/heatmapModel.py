@@ -23,8 +23,10 @@ from utils.commons import download_file_from_gcs,upload_to_gcs
 # Attempt to import optional dependency
 try:
     import redis  # pip install redis
+    RedisError = redis.RedisError
 except ImportError:
     redis = None
+    RedisError = Exception  # or a custom fallback, but Exception is generally safe
 
 load_dotenv()  # Call load_dotenv() to load variables from .env file
 
@@ -394,17 +396,49 @@ class AirQualityData(BaseAirQoAPI):
 
 
 # ----------------------------- AirQualityGrids ---------------------------- #
+
 class AirQualityGrids(BaseAirQoAPI):
     """Fetches and processes administrative grid polygons from the AirQo API."""
 
     REDIS_KEY = "airqo:grids"
+    CACHE_TTL_SECONDS_GRID = 86400  # 24 hours cache expiration
 
     def __init__(self, *args, **kwargs) -> None:
-        """Initializes the AirQualityGrids client."""
+        """Initializes the AirQualityGrids client with cache and data structures."""
         super().__init__(*args, **kwargs)
         self.data: Optional[Dict[str, Any]] = None
         self.df: Optional[pd.DataFrame] = None
         self.gdf: Optional[gpd.GeoDataFrame] = None
+
+    # ------------------- Cache Helpers -------------------
+
+    def _get_cached_data(self) -> Optional[Dict[str, Any]]:
+        """Attempts to retrieve data from Redis cache."""
+        try:
+            cached_data = self.redis_client.get(self.REDIS_KEY)
+            if cached_data:
+                self.logger.info("Retrieved grid data from cache.")
+                return json.loads(cached_data)  # decode bytes → dict
+        except (RedisError, json.JSONDecodeError) as e:
+            self.logger.error(f"Failed to access Redis cache: {str(e)}")
+        return None
+
+    def _set_cached_data(self, data: Dict[str, Any]) -> None:
+        """Store data in Redis with TTL."""
+        try:
+            self.redis_client.setex(
+                self.REDIS_KEY,
+                self.CACHE_TTL_SECONDS_GRID,
+                json.dumps(data),  # encode dict → JSON string
+            )
+            self.logger.info(
+                "Stored grid data in cache with TTL %d seconds.",
+                self.CACHE_TTL_SECONDS_GRID,
+            )
+        except RedisError as e:
+            self.logger.error(f"Failed to store data in cache: {str(e)}")
+
+    # ------------------- Validation Helpers -------------------
 
     @staticmethod
     def _is_valid_grids(payload: Dict[str, Any]) -> bool:
@@ -412,15 +446,81 @@ class AirQualityGrids(BaseAirQoAPI):
         grids = payload.get("grids")
         return isinstance(grids, list) and len(grids) > 0
 
+    @staticmethod
+    def _validate_filter_inputs(
+        levels: Optional[List[str]], names: Optional[List[str]]
+    ) -> Tuple[List[str], List[str]]:
+        """Validate and normalize filter inputs."""
+        levels = levels or ["country"]
+        names = names or [
+            "rubaga",
+            "makindye",
+            "nakawa",
+            "kawempe",
+            "kampala_central",
+            "greater_kampala",
+        ]
+        if not all(isinstance(lvl, str) for lvl in levels):
+            raise ValueError("All admin levels must be strings")
+        if not all(isinstance(n, str) for n in names):
+            raise ValueError("All grid names must be strings")
+        levels = [lvl.lower() for lvl in levels]
+        return levels, {n.lower() for n in names}
+
+    # ------------------- Grid Processing -------------------
+
+    def _process_single_grid(self, grid: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Validate and convert a single grid to record format."""
+        shape_geojson = grid.get("shape")
+        grid_id = grid.get("_id")
+        grid_name = grid.get("name", "")
+
+        if not shape_geojson or not grid_id:
+            self.logger.warning(
+                f"Skipping grid '{grid_name}' due to missing shape or ID."
+            )
+            return None
+
+        try:
+            geometry = shape(shape_geojson)
+            if not geometry.is_valid:
+                self.logger.warning(
+                    f"Skipping grid '{grid_name}' due to invalid geometry."
+                )
+                return None
+            return {
+                "id": grid_id,
+                "name": grid_name,
+                "admin_level": grid.get("admin_level", ""),
+                "geometry": geometry,
+            }
+        except Exception as e:
+            self.logger.error(
+                f"Error processing geometry for grid '{grid_name}': {str(e)}"
+            )
+            return None
+
+    # ------------------- Main Methods -------------------
+
     def fetch_data(self) -> bool:
         """
-        Fetches grid data from the API. Caching is now enabled for this endpoint.
-        The Redis cache is checked first.
-
-        Returns:
-            True if data was fetched successfully, False otherwise.
+        Fetches grid data first from Redis cache, then from API if cache is empty.
+        Stores fetched data in cache with TTL.
         """
-        self.logger.info("Fetching grid polygons...")
+        self.logger.info("Attempting to fetch grid polygons...")
+
+        # Check cache first
+        cached_data = self._get_cached_data()
+        if cached_data and self._is_valid_grids(cached_data):
+            self.data = cached_data
+            self.logger.info(
+                "Using cached grid data with %d records.",
+                len(cached_data.get("grids", [])),
+            )
+            return True
+
+        # If cache is empty or invalid, fetch from API
+        self.logger.info("No valid cached data found, fetching from API...")
         payload = self._get_json(
             path="/api/v2/devices/grids",
             validator=self._is_valid_grids,
@@ -428,12 +528,15 @@ class AirQualityGrids(BaseAirQoAPI):
             use_cache_on_error=True,
         )
         if payload is None:
-            self.logger.error("Failed to fetch grid data.")
+            self.logger.error("Failed to fetch grid data from API.")
             return False
 
         self.data = payload
+        self._set_cached_data(payload)
+
         self.logger.info(
-            "Successfully fetched %d grid records.", len(payload.get("grids", []))
+            "Successfully fetched %d grid records from API.",
+            len(payload.get("grids", [])),
         )
         return True
 
@@ -444,85 +547,48 @@ class AirQualityGrids(BaseAirQoAPI):
     ) -> bool:
         """
         Processes raw grid data into a pandas DataFrame and a GeoDataFrame.
-
-        Args:
-            exclude_admin_levels: A list of admin levels to exclude (e.g., ["country"]).
-            exclude_names: A list of grid names to exclude (case-insensitive).
-
-        Returns:
-            True if processing was successful, False otherwise.
         """
         if not self.data or "grids" not in self.data:
             self.logger.error("No grid data available to process.")
             return False
 
-        # Set default exclusion lists if none are provided
-        exclude_admin_levels = exclude_admin_levels or ["country"]
-        exclude_names = exclude_names or [
-            "rubaga",
-            "makindye",
-            "nakawa",
-            "kawempe",
-            "kampala_central",
-            "greater_kampala",
-        ]
-        exclude_names_set = {n.lower() for n in exclude_names}
-
         try:
-            records = []
-            for grid in self.data.get("grids", []):
-                shape_geojson = grid.get("shape")
-                grid_id = grid.get("_id")
-                if not shape_geojson or not grid_id:
-                    continue
-                try:
-                    geometry = shape(shape_geojson)
-                    records.append(
-                        {
-                            "id": grid_id,
-                            "name": grid.get("name"),
-                            "admin_level": grid.get("admin_level"),
-                            "geometry": geometry,
-                        }
-                    )
-                except Exception as e:
-                    self.logger.error(
-                        f"Error processing geometry for grid '{grid.get('name')}'"
-                    )
-                    continue
+            exclude_admin_levels, exclude_names_set = self._validate_filter_inputs(
+                exclude_admin_levels, exclude_names
+            )
+
+            # Process grids
+            records = [
+                r
+                for grid in self.data.get("grids", [])
+                if (r := self._process_single_grid(grid)) is not None
+            ]
 
             if not records:
-                self.logger.warning(
-                    "No valid grid records found after processing shapes."
-                )
+                self.logger.warning("No valid grid records found after processing.")
                 return False
 
             df = pd.DataFrame(records)
+            mask = (
+                (~df["admin_level"].isin(exclude_admin_levels))
+                & (~df["name"].str.lower().isin(exclude_names_set))
+            )
+            df = df[mask].reset_index(drop=True)
 
-            # Filter out excluded grids
-            if exclude_admin_levels:
-                df = df[~df["admin_level"].isin(exclude_admin_levels)]
-            if exclude_names:
-                df = df[~df["name"].str.lower().isin(exclude_names_set)]
+            self.df = df
+            self.gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
 
             if df.empty:
                 self.logger.warning("DataFrame is empty after filtering.")
-                self.df = df
-                self.gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
-                return True
-
-            self.df = df.reset_index(drop=True)
-            self.gdf = gpd.GeoDataFrame(self.df, geometry="geometry", crs="EPSG:4326")
-            self.logger.info(
-                "Grid data processed successfully into a GeoDataFrame with %d polygons.",
-                len(self.gdf),
-            )
+            else:
+                self.logger.info(
+                    "Successfully processed %d grid polygons.", len(df)
+                )
             return True
 
         except Exception as e:
-            self.logger.error(f"Error processing grid data: ", exc_info=True)
+            self.logger.error(f"Error processing grid data: {str(e)}", exc_info=True)
             return False
-
 
 # ----------------------------- Air Quality Prediction --------------------- #
 class AirQualityPredictor:
