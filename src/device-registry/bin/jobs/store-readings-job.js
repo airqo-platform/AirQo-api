@@ -5,8 +5,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`
 );
 const EventModel = require("@models/Event");
-const DeviceModel = require("@models/Device");
-const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
@@ -17,8 +15,6 @@ const NodeCache = require("node-cache");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
-const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
-
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 
@@ -73,389 +69,57 @@ function validateTimestamp(time) {
   };
 }
 
-// Update accuracy tracking in database
-async function updateEntityonlineStatusAccuracy(
-  Model,
-  entityId,
-  isSuccess,
-  reason,
-  entityType
-) {
-  try {
-    const incUpdate = {
-      "onlineStatusAccuracy.totalAttempts": 1,
-      ...(isSuccess
-        ? { "onlineStatusAccuracy.successfulUpdates": 1 }
-        : { "onlineStatusAccuracy.failedUpdates": 1 }),
-    };
-    const setUpdate = {
-      "onlineStatusAccuracy.lastUpdate": new Date(),
-      ...(isSuccess
-        ? { "onlineStatusAccuracy.lastSuccessfulUpdate": new Date() }
-        : { "onlineStatusAccuracy.lastFailureReason": reason }),
-    };
-    await Model.findByIdAndUpdate(
-      entityId,
-      { $inc: incUpdate, $set: setUpdate },
-      { upsert: false }
-    );
-  } catch (error) {
-    // Don't let accuracy tracking errors stop the main process
-    logger.warn(
-      `Failed to update accuracy tracking for ${entityType} ${entityId}: ${error.message}`
-    );
-  }
-}
-
-// Enhanced entity status update with better validation and atomic operations
-async function updateEntityStatus(Model, filter, time, entityType) {
-  let entityId = null;
-  try {
-    // Validate timestamp first
-    const validationResult = validateTimestamp(time);
-    if (!validationResult.isValid) {
-      logger.warn(
-        `🙀🙀 Invalid timestamp for ${entityType}: ${validationResult.reason} - ${time}`
-      );
-      // Still try to get entity ID for accuracy tracking
-      try {
-        const entity = await Model.findOne(filter, { _id: 1 });
-        if (entity) {
-          entityId = entity._id;
-          await updateEntityonlineStatusAccuracy(
-            Model,
-            entityId,
-            false,
-            validationResult.reason,
-            entityType
-          );
-        }
-      } catch (err) {
-        // Ignore errors in accuracy tracking
-      }
-      return { success: false, reason: validationResult.reason };
-    }
-
-    const isActive = isEntityActive(validationResult.validTime);
-    const lastActiveTime = moment(validationResult.validTime)
-      .tz(TIMEZONE)
-      .toDate();
-
-    // Use atomic findOneAndUpdate with better error handling
-    const result = await Model.findOneAndUpdate(
-      filter,
-      {
-        $set: {
-          lastActive: lastActiveTime,
-          isOnline: isActive,
-          statusUpdatedAt: new Date(),
-          statusSource: "cron_job",
-        },
-      },
-      {
-        new: true,
-        upsert: false,
-        runValidators: true,
-      }
-    );
-
-    if (result) {
-      entityId = result._id;
-      await updateEntityonlineStatusAccuracy(
-        Model,
-        entityId,
-        true,
-        "success",
-        entityType
-      );
-      return {
-        success: true,
-        wasOnline: isActive,
-        entityId: result._id,
-        lastActive: lastActiveTime,
-      };
-    } else {
-      logger.warn(
-        `🙀🙀 ${entityType} not found with filter: ${stringify(filter)}`
-      );
-      return { success: false, reason: "entity_not_found" };
-    }
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      if (entityId) {
-        await updateEntityonlineStatusAccuracy(
-          Model,
-          entityId,
-          false,
-          "duplicate_key",
-          entityType
-        );
-      }
-      return { success: true, reason: "duplicate_ignored" };
-    }
-    logger.error(
-      `🐛🐛 Error updating ${entityType}'s status: ${error.message}`
-    );
-    if (entityId) {
-      await updateEntityonlineStatusAccuracy(
-        Model,
-        entityId,
-        false,
-        "database_error",
-        entityType
-      );
-    }
-    return { success: false, reason: "database_error", error: error.message };
-  }
-}
-
-// Enhanced activity check with better edge case handling
-function isEntityActive(time) {
-  if (!time) {
-    return false;
-  }
-
-  const validationResult = validateTimestamp(time);
-  if (!validationResult.isValid) {
-    return false;
-  }
-
-  return validationResult.timeDiff < INACTIVE_THRESHOLD;
-}
-
-// Enhanced offline detection with accuracy tracking
-async function updateOfflineEntitiesWithAccuracy(
-  Model,
-  activeEntityIds,
-  entityType,
-  statusResults
-) {
-  try {
-    const thresholdTime = moment()
-      .subtract(INACTIVE_THRESHOLD, "milliseconds")
-      .toDate();
-
-    // More sophisticated offline detection
-    const offlineUpdateResult = await Model.updateMany(
-      {
-        _id: { $nin: Array.from(activeEntityIds) },
-        lastActive: { $lt: thresholdTime },
-        $or: [{ isOnline: true }, { isOnline: { $exists: false } }],
-      },
-      {
-        $set: {
-          isOnline: false,
-          statusUpdatedAt: new Date(),
-          statusSource: "cron_offline_detection",
-        },
-        $inc: {
-          "onlineStatusAccuracy.totalAttempts": 1,
-          "onlineStatusAccuracy.successfulUpdates": 1,
-        },
-      }
-    );
-
-    let modified = 0;
-    if (offlineUpdateResult) {
-      if (offlineUpdateResult.modifiedCount !== undefined) {
-        modified = offlineUpdateResult.modifiedCount;
-      } else if (offlineUpdateResult.nModified !== undefined) {
-        modified = offlineUpdateResult.nModified;
-      }
-    }
-
-    // Track accuracy metrics
-    const accuracyMetrics = {
-      entityType,
-      totalProcessed: activeEntityIds.size,
-      markedOffline: modified,
-      successfulUpdates: statusResults.filter((r) => r.success).length,
-      failedUpdates: statusResults.filter((r) => !r.success).length,
-      timestamp: new Date(),
-    };
-
-    logger.info(
-      `📊 ${entityType} Status Update Metrics: ${stringify(accuracyMetrics)}`
-    );
-
-    return {
-      success: true,
-      metrics: accuracyMetrics,
-      offlineCount: modified,
-    };
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      logger.info(
-        `Duplicate key error in offline detection for ${entityType}s - continuing`
-      );
-      return { success: true, reason: "duplicate_ignored" };
-    }
-    logger.error(
-      `🐛🐛 Error updating offline ${entityType}s: ${error.message}`
-    );
-    return { success: false, error: error.message };
-  }
-}
-
-// Legacy functions for backward compatibility
-async function updateOfflineDevices(data) {
-  const activeDeviceIds = new Set(
-    data.map((doc) => doc.device_id).filter(Boolean)
-  );
-  const deviceResults = data.map(() => ({ success: true }));
-  const result = await updateOfflineEntitiesWithAccuracy(
-    DeviceModel("airqo"),
-    activeDeviceIds,
-    "Device",
-    deviceResults
-  );
-  if (!result.success) {
-    logger.error(`Failed to update offline devices: ${result.error}`);
-  }
-}
-
-async function updateOfflineSites(data) {
-  const activeSiteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
-  const siteResults = data.map(() => ({ success: true }));
-  const result = await updateOfflineEntitiesWithAccuracy(
-    SiteModel("airqo"),
-    activeSiteIds,
-    "Site",
-    siteResults
-  );
-  if (!result.success) {
-    logger.error(`Failed to update offline sites: ${result.error}`);
-  }
-}
-
-// Enhanced batch processing manager
-class BatchProcessor {
+// Focused batch processor for readings only
+class ReadingsBatchProcessor {
   constructor(batchSize = 50) {
     this.batchSize = batchSize;
     this.pendingAveragesQueue = new Map();
-    this.processingBatch = false;
-    this.statusResults = {
-      devices: [],
-      sites: [],
-    };
     this.processingMetrics = {
       startTime: null,
       endTime: null,
       totalDocuments: 0,
-      successfulUpdates: 0,
-      failedUpdates: 0,
       readingsProcessed: 0,
       readingsFailed: 0,
+      timestampValidationFailures: 0,
+      averageCalculationFailures: 0,
     };
   }
 
   async processDocument(doc) {
     try {
-      const docTime = moment(doc.time).tz(TIMEZONE);
-      const updatePromises = [];
-
       if (!this.processingMetrics.startTime) {
         this.processingMetrics.startTime = new Date();
       }
       this.processingMetrics.totalDocuments++;
 
-      // Handle site status updates with result tracking
-      if (doc.site_id) {
-        const siteUpdatePromise = updateEntityStatus(
-          SiteModel("airqo"),
-          { _id: doc.site_id },
-          docTime.toDate(),
-          "Site"
-        )
-          .then((result) => {
-            this.statusResults.sites.push({
-              siteId: doc.site_id,
-              result: result,
-              timestamp: new Date(),
-            });
-            return result;
-          })
-          .catch((error) => {
-            logger.error(
-              `Site status update failed for ${doc.site_id}: ${error.message}`
-            );
-            this.statusResults.sites.push({
-              siteId: doc.site_id,
-              result: {
-                success: false,
-                reason: "exception",
-                error: error.message,
-              },
-              timestamp: new Date(),
-            });
-            return { success: false, reason: "exception" };
-          });
-        updatePromises.push(siteUpdatePromise);
+      // Validate timestamp
+      const validationResult = validateTimestamp(doc.time);
+      if (!validationResult.isValid) {
+        logger.debug(
+          `⚠️ Skipping reading due to invalid timestamp: ${validationResult.reason} - ${doc.time}`
+        );
+        this.processingMetrics.timestampValidationFailures++;
+        return;
       }
 
-      // Handle device status updates with result tracking
-      if (doc.device_id) {
-        const deviceUpdatePromise = updateEntityStatus(
-          DeviceModel("airqo"),
-          { _id: doc.device_id },
-          docTime.toDate(),
-          "Device"
-        )
-          .then((result) => {
-            this.statusResults.devices.push({
-              deviceId: doc.device_id,
-              result: result,
-              timestamp: new Date(),
-            });
-            return result;
-          })
-          .catch((error) => {
-            logger.error(
-              `Device status update failed for ${doc.device_id}: ${error.message}`
-            );
-            this.statusResults.devices.push({
-              deviceId: doc.device_id,
-              result: {
-                success: false,
-                reason: "exception",
-                error: error.message,
-              },
-              timestamp: new Date(),
-            });
-            return { success: false, reason: "exception" };
-          });
-        updatePromises.push(deviceUpdatePromise);
-      }
+      const docTime = validationResult.validTime;
 
-      // Wait for status updates - don't let failures stop the process
-      try {
-        const results = await Promise.allSettled(updatePromises);
-        results.forEach((result) => {
-          if (result.status === "fulfilled" && result.value.success) {
-            this.processingMetrics.successfulUpdates++;
-          } else {
-            this.processingMetrics.failedUpdates++;
-          }
-        });
-      } catch (error) {
-        logger.error(`Error in status updates: ${error.message}`);
-        this.processingMetrics.failedUpdates++;
-      }
-
-      // Handle averages calculation with caching - don't let this stop processing
+      // Handle averages calculation - don't let failures stop reading storage
       let averages = null;
       if (doc.site_id) {
         try {
           averages = await this.getOrQueueAverages(doc.site_id.toString());
         } catch (error) {
-          logger.error(
+          logger.debug(
             `Failed to get averages for site ${doc.site_id}: ${error.message}`
           );
+          this.processingMetrics.averageCalculationFailures++;
+          // Continue without averages
         }
       }
 
-      // Prepare and save reading
-      const base = { time: docTime.toDate() };
+      // Prepare reading filter
+      const base = { time: docTime };
       let filter = null;
 
       if (doc.site_id) {
@@ -467,19 +131,20 @@ class BatchProcessor {
       }
 
       if (!filter) {
-        logger.warn(
-          `Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id) – would collapse on time only`
+        logger.debug(
+          `⚠️ Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id)`
         );
         this.processingMetrics.readingsFailed++;
         return;
       }
 
-      const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
-
+      // Prepare update document
+      const { _id, ...updateDoc } = { ...doc, time: docTime };
       if (averages) {
         updateDoc.averages = averages;
       }
 
+      // Save reading
       try {
         await ReadingModel("airqo").updateOne(
           filter,
@@ -489,20 +154,19 @@ class BatchProcessor {
         this.processingMetrics.readingsProcessed++;
       } catch (error) {
         if (isDuplicateKeyError(error)) {
-          // Silently ignore duplicate readings
+          // Silently count duplicates as successful
           this.processingMetrics.readingsProcessed++;
         } else {
-          logger.error(`Failed to save reading: ${error.message}`);
+          logger.warn(`Failed to save reading: ${error.message}`);
           this.processingMetrics.readingsFailed++;
         }
       }
     } catch (error) {
-      this.processingMetrics.failedUpdates++;
       this.processingMetrics.readingsFailed++;
       if (!isDuplicateKeyError(error)) {
-        logger.error(`🐛🐛 Error processing document: ${error.message}`);
+        logger.error(`🐛 Error processing document: ${error.message}`);
       }
-      // Don't throw - continue processing other documents
+      // Continue processing other documents
     }
   }
 
@@ -536,81 +200,51 @@ class BatchProcessor {
       return averages?.success ? averages.data : null;
     } catch (error) {
       if (!isDuplicateKeyError(error)) {
-        logger.error(
-          `🐛🐛 Error calculating averages for site ${siteId}: ${error.message}`
+        logger.debug(
+          `Error calculating averages for site ${siteId}: ${error.message}`
         );
       }
       return null;
     }
   }
 
-  getAccuracyReport() {
+  getProcessingReport() {
     this.processingMetrics.endTime = new Date();
 
-    const deviceSuccessRate =
-      this.statusResults.devices.length > 0
-        ? (this.statusResults.devices.filter((d) => d.result.success).length /
-            this.statusResults.devices.length) *
-          100
-        : 0;
-
-    const siteSuccessRate =
-      this.statusResults.sites.length > 0
-        ? (this.statusResults.sites.filter((s) => s.result.success).length /
-            this.statusResults.sites.length) *
-          100
-        : 0;
-
-    const readingsSuccessRate =
+    const totalAttempted =
       this.processingMetrics.readingsProcessed +
-        this.processingMetrics.readingsFailed >
-      0
-        ? (this.processingMetrics.readingsProcessed /
-            (this.processingMetrics.readingsProcessed +
-              this.processingMetrics.readingsFailed)) *
-          100
+      this.processingMetrics.readingsFailed;
+    const successRate =
+      totalAttempted > 0
+        ? Math.round(
+            (this.processingMetrics.readingsProcessed / totalAttempted) * 10000
+          ) / 100
         : 0;
 
     return {
-      processing: this.processingMetrics,
-      deviceonlineStatusAccuracy: {
-        totalUpdates: this.statusResults.devices.length,
-        successRate: Math.round(deviceSuccessRate * 100) / 100,
-        failureReasons: this.getFailureReasons(this.statusResults.devices),
-      },
-      siteonlineStatusAccuracy: {
-        totalUpdates: this.statusResults.sites.length,
-        successRate: Math.round(siteSuccessRate * 100) / 100,
-        failureReasons: this.getFailureReasons(this.statusResults.sites),
-      },
-      readingsAccuracy: {
-        processed: this.processingMetrics.readingsProcessed,
-        failed: this.processingMetrics.readingsFailed,
-        successRate: Math.round(readingsSuccessRate * 100) / 100,
-      },
-      overallAccuracy: {
+      summary: {
+        totalDocuments: this.processingMetrics.totalDocuments,
+        readingsProcessed: this.processingMetrics.readingsProcessed,
+        readingsFailed: this.processingMetrics.readingsFailed,
+        successRate: successRate,
         processingDuration:
           this.processingMetrics.endTime - this.processingMetrics.startTime,
       },
+      details: {
+        timestampValidationFailures: this.processingMetrics
+          .timestampValidationFailures,
+        averageCalculationFailures: this.processingMetrics
+          .averageCalculationFailures,
+        startTime: this.processingMetrics.startTime,
+        endTime: this.processingMetrics.endTime,
+      },
     };
-  }
-
-  getFailureReasons(statusResults) {
-    const failureReasons = {};
-    statusResults
-      .filter((item) => !item.result.success)
-      .forEach((item) => {
-        const reason = item.result.reason || "unknown";
-        failureReasons[reason] = (failureReasons[reason] || 0) + 1;
-      });
-    return failureReasons;
   }
 }
 
-// Main function - enhanced with comprehensive error handling but no premature returns
-async function fetchAndStoreDataIntoReadingsModel() {
-  const batchProcessor = new BatchProcessor(50);
-  let hasProcessedData = false;
+// Main function focused purely on readings
+async function fetchAndStoreReadings() {
+  const batchProcessor = new ReadingsBatchProcessor(50);
 
   try {
     const request = {
@@ -624,36 +258,33 @@ async function fetchAndStoreDataIntoReadingsModel() {
     };
     const filter = generateFilter.fetch(request);
 
+    logText("Starting readings processing job");
+
     let viewEventsResponse;
     try {
       viewEventsResponse = await EventModel("airqo").fetch(filter);
-      logText(
-        "Running the enhanced data insertion script with accuracy tracking"
-      );
     } catch (fetchError) {
       if (isDuplicateKeyError(fetchError)) {
         logText("Ignoring duplicate key error in fetch operation");
-        return; // Nothing to process, safe to exit
+        return;
       }
-      logger.error(`🐛🐛 Error fetching events: ${stringify(fetchError)}`);
-      return; // Cannot proceed without data, safe to exit
+      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
+      return;
     }
 
     if (
       !viewEventsResponse?.success ||
       !Array.isArray(viewEventsResponse.data?.[0]?.data)
     ) {
-      logger.warn("🙀🙀 Invalid or empty response from EventModel.fetch()");
-      return; // No valid data to process, safe to exit
+      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
+      return;
     }
 
     const data = viewEventsResponse.data[0].data;
     if (data.length === 0) {
-      logText("No Events found to insert into Readings");
-      return; // No data to process, safe to exit
+      logText("No Events found to process into Readings");
+      return;
     }
-
-    hasProcessedData = true;
 
     // Process in batches
     const batches = [];
@@ -673,24 +304,17 @@ async function fetchAndStoreDataIntoReadingsModel() {
                   return; // Skip duplicates
                 }
                 if (error.name === "MongoError" && error.code !== 11000) {
-                  logger.error(
-                    `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
-                      error
-                    )}`
-                  );
-                  throw error; // Retry non-duplicate errors
+                  throw error; // Retry non-duplicate database errors
                 }
                 if (!isDuplicateKeyError(error)) {
-                  logger.error(
-                    `🐛🐛 Error processing document: ${error.message}`
-                  );
+                  logger.debug(`Error processing document: ${error.message}`);
                   throw error;
                 }
               }
             },
             {
-              retries: 3,
-              minTimeout: 1000,
+              retries: 2,
+              minTimeout: 500,
               factor: 2,
             }
           )
@@ -698,85 +322,37 @@ async function fetchAndStoreDataIntoReadingsModel() {
       );
     }
 
-    // Enhanced offline detection with tracking
-    const deviceIds = new Set(data.map((doc) => doc.device_id).filter(Boolean));
-    const siteIds = new Set(data.map((doc) => doc.site_id).filter(Boolean));
+    // Generate processing report
+    const report = batchProcessor.getProcessingReport();
 
-    try {
-      const [deviceOfflineResult, siteOfflineResult] = await Promise.allSettled(
-        [
-          updateOfflineEntitiesWithAccuracy(
-            DeviceModel("airqo"),
-            deviceIds,
-            "Device",
-            batchProcessor.statusResults.devices.map((d) => d.result)
-          ),
-          updateOfflineEntitiesWithAccuracy(
-            SiteModel("airqo"),
-            siteIds,
-            "Site",
-            batchProcessor.statusResults.sites.map((s) => s.result)
-          ),
-        ]
+    // Simple success logging
+    if (report.summary.successRate >= 95) {
+      logText(
+        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
       );
-
-      // Generate and log accuracy report
-      const accuracyReport = batchProcessor.getAccuracyReport();
-      accuracyReport.offlineDetection = {
-        devices:
-          deviceOfflineResult.status === "fulfilled"
-            ? deviceOfflineResult.value
-            : { success: false, error: deviceOfflineResult.reason },
-        sites:
-          siteOfflineResult.status === "fulfilled"
-            ? siteOfflineResult.value
-            : { success: false, error: siteOfflineResult.reason },
-      };
-
-      logger.info(`📊📊 ACCURACY REPORT: ${stringify(accuracyReport)}`);
-    } catch (offlineError) {
-      logger.error(`Error in offline detection: ${offlineError.message}`);
-      // Log the accuracy report even if offline detection failed
-      const accuracyReport = batchProcessor.getAccuracyReport();
-      logger.info(`📊📊 PARTIAL ACCURACY REPORT: ${stringify(accuracyReport)}`);
+    } else {
+      logger.warn(
+        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
+      );
+      logger.info(`📊 Processing details: ${stringify(report.details)}`);
     }
-
-    logText("Data processing completed with enhanced accuracy tracking");
   } catch (error) {
     if (isDuplicateKeyError(error)) {
-      logText("Completed with some duplicate key errors (ignored)");
-    } else {
-      logger.error(
-        `🐛🐛 Internal Server Error in main processing: ${stringify(error)}`
+      logText(
+        "Readings processing completed with some duplicate entries (ignored)"
       );
-    }
-
-    // Always try to log accuracy report even if there was an error
-    if (hasProcessedData) {
-      try {
-        const partialReport = batchProcessor.getAccuracyReport();
-        logger.info(
-          `📊📊 ERROR RECOVERY ACCURACY REPORT: ${stringify(partialReport)}`
-        );
-      } catch (reportError) {
-        logger.error(
-          `Failed to generate accuracy report: ${reportError.message}`
-        );
-      }
+    } else {
+      logger.error(`🐛 Error in readings processing: ${stringify(error)}`);
     }
   }
 }
 
 // Create and register the job
 const startJob = () => {
-  const cronJobInstance = cron.schedule(
-    JOB_SCHEDULE,
-    fetchAndStoreDataIntoReadingsModel,
-    {
-      scheduled: true,
-      timezone: TIMEZONE,
-    }
-  );
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, fetchAndStoreReadings, {
+    scheduled: true,
+    timezone: TIMEZONE,
+  });
 
   if (!global.cronJobs) {
     global.cronJobs = {};
@@ -793,22 +369,15 @@ const startJob = () => {
     },
   };
 
-  console.log(
-    `✅ ${JOB_NAME} started with enhanced accuracy tracking and error recovery`
-  );
+  console.log(`✅ ${JOB_NAME} started - focused on readings storage`);
 };
 
 startJob();
 
 // Export for testing purposes
 module.exports = {
-  fetchAndStoreDataIntoReadingsModel,
-  BatchProcessor,
-  updateEntityStatus,
-  isEntityActive,
-  updateOfflineDevices,
-  updateOfflineSites,
+  fetchAndStoreReadings,
+  ReadingsBatchProcessor,
   isDuplicateKeyError,
   validateTimestamp,
-  updateOfflineEntitiesWithAccuracy,
 };
