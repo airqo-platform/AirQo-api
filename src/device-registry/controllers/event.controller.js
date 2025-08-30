@@ -1207,6 +1207,8 @@ const createEvent = {
         },
       };
 
+      delete request.query.internal;
+
       const result = await createEventUtil.signal(request, next);
 
       if (isEmpty(result) || res.headersSent) {
