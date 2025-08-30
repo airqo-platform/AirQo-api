@@ -106,6 +106,8 @@ const generateFilter = {
       index,
       running,
       brief,
+      internal,
+      active,
     } = { ...query, ...params };
 
     // Constants for date calculations
@@ -349,6 +351,14 @@ const generateFilter = {
 
     if (brief) {
       filter["brief"] = brief;
+    }
+
+    if (active) {
+      filter["active"] = active;
+    }
+
+    if (internal) {
+      filter["internal"] = internal;
     }
 
     return filter;
@@ -727,6 +737,8 @@ const generateFilter = {
       page,
       network,
       index,
+      active,
+      internal,
       running,
       brief,
     } = { ...query, ...params };
@@ -978,6 +990,14 @@ const generateFilter = {
 
     if (brief) {
       filter["brief"] = brief;
+    }
+
+    if (active) {
+      filter["active"] = active;
+    }
+
+    if (internal) {
+      filter["internal"] = internal;
     }
 
     return filter;

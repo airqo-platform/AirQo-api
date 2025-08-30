@@ -252,6 +252,7 @@ async function fetchAndStoreReadings() {
         tenant: "airqo",
         recent: "yes",
         metadata: "site_id",
+        internal: "yes",
         active: "yes",
         brief: "yes",
       },
