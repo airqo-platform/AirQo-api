@@ -110,6 +110,7 @@ logThrottleSchema.statics = {
     next
   ) {
     try {
+      const now = new Date();
       const result = await this.findOneAndUpdate(
         {
           date: date,
@@ -118,12 +119,14 @@ logThrottleSchema.statics = {
         },
         {
           $inc: { count: 1 },
-          $set: { lastUpdated: new Date() },
+          $set: { lastUpdated: now },
+          $setOnInsert: { createdAt: now, updatedAt: now },
         },
         {
           upsert: true,
           new: true,
           runValidators: true,
+          setDefaultsOnInsert: true,
         }
       );
 
