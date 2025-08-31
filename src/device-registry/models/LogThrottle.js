@@ -72,12 +72,6 @@ logThrottleSchema.index(
 logThrottleSchema.index({ date: 1 });
 logThrottleSchema.index({ environment: 1 });
 
-// Add unique validator plugin
-logThrottleSchema.plugin(uniqueValidator, {
-  message:
-    "A log throttle entry for {PATH} already exists for this date, logType, and environment combination.",
-});
-
 // Instance methods
 logThrottleSchema.methods = {
   toJSON() {
@@ -141,6 +135,42 @@ logThrottleSchema.statics = {
         };
       }
     } catch (error) {
+      // Handle duplicate key error gracefully
+      if (error.code === 11000) {
+        // Duplicate key - try to find and increment existing document
+        try {
+          const existingDoc = await this.findOneAndUpdate(
+            {
+              date: date,
+              logType: logType,
+              environment: environment,
+            },
+            {
+              $inc: { count: 1 },
+              $set: { lastUpdated: new Date() },
+            },
+            {
+              new: true,
+            }
+          );
+
+          if (!isEmpty(existingDoc)) {
+            return {
+              success: true,
+              data: existingDoc,
+              message: "Log count incremented successfully (retry)",
+              status: httpStatus.OK,
+            };
+          }
+        } catch (retryError) {
+          logger.error(
+            `🐛🐛 Log Throttle Increment Retry Error -- ${JSON.stringify(
+              retryError || ""
+            )}`
+          );
+        }
+      }
+
       const stringifiedMessage = JSON.stringify(error || "");
       logger.error(
         `🐛🐛 Log Throttle Increment Error -- ${stringifiedMessage}`
@@ -426,12 +456,12 @@ const LogThrottleModel = (tenant) => {
   const dbTenant = isEmpty(tenant) ? defaultTenant : tenant;
 
   try {
-    let logThrottle = mongoose.model("log_throttle_tracking");
+    let logThrottle = mongoose.model("log_throttles");
     return logThrottle;
   } catch (error) {
     let logThrottle = getModelByTenant(
       dbTenant,
-      "log_throttle_tracking",
+      "log_throttle",
       logThrottleSchema
     );
     return logThrottle;
