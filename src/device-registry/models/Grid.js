@@ -11,6 +11,9 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- grid-model`
 );
 const { getModelByTenant } = require("@config/database");
+
+const { validatePolygonClosure } = require("@validators/common");
+
 const shapeSchema = new Schema(
   {
     type: {
@@ -149,6 +152,20 @@ gridSchema.pre("save", function(next) {
     delete this._id;
   }
   this.grid_codes = [this._id, this.name];
+
+  // Backup validation using geometry utility
+  if ((this.isModified("shape") || this.isNew) && this.shape) {
+    try {
+      validatePolygonClosure(this.shape, 0.000001);
+    } catch (error) {
+      return next(
+        new Error(
+          `Invalid polygon detected at model level - route validation may have been bypassed: ${error.message}`
+        )
+      );
+    }
+  }
+
   return next();
 });
 
