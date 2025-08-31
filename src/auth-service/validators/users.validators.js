@@ -520,17 +520,6 @@ const updatePasswordViaEmail = [
 const updatePassword = [
   validateTenant,
   [
-    query("id")
-      .exists()
-      .withMessage("the user ID must be provided")
-      .trim()
-      .bail()
-      .isMongoId()
-      .withMessage("the user ID must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
     body("old_password")
       .exists()
       .withMessage("the old_password must be provided")

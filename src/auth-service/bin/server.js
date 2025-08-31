@@ -449,6 +449,29 @@ app.use((req, res, next) => {
 });
 
 app.use(function (err, req, res, next) {
+  // Log server errors as activities for authenticated users
+  if (err.status >= 500 && req.user) {
+    try {
+      const { logActivity } = require("@utils/common");
+      logActivity({
+        email: req.user.email || "system",
+        userName: req.user.userName || "system",
+        tenant: req.query.tenant || req.headers.tenant || "airqo",
+        user_id: req.user._id,
+        action: "server_error",
+        description: `Server error: ${err.message}`,
+        payload: {
+          stack: err.stack,
+          endpoint: req.originalUrl,
+          method: req.method,
+          statusCode: err.status,
+        },
+      });
+    } catch (logError) {
+      logger.error(`Failed to log server error activity: ${logError.message}`);
+    }
+  }
+
   if (!res.headersSent) {
     if (err instanceof HttpError) {
       res.status(err.statusCode).json({

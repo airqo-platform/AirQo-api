@@ -5,8 +5,6 @@ const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
 const { validate } = require("@validators/common");
 const {
-  setJWTAuth,
-  authJWT,
   setLocalAuth,
   setGoogleAuth,
   authGoogleCallback,
@@ -14,13 +12,13 @@ const {
   authLocal,
   authGuest,
   authGoogle,
+  enhancedJWTAuth,
 } = require("@middleware/passport");
 const rateLimiter = require("@middleware/rate-limiter");
 const captchaMiddleware = require("@middleware/captcha");
 const analyticsMiddleware = require("@middleware/analytics");
 
 const {
-  enhancedAuth,
   requirePermissions,
   requireAllPermissions,
   requireGroupPermissions,
@@ -28,7 +26,7 @@ const {
   requireGroupMembership,
   requireNetworkMembership,
   debugPermissions,
-} = require("@middleware/enhancedPermissionAuth");
+} = require("@middleware/permissionAuth");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -80,7 +78,7 @@ router.post(
  */
 router.post(
   "/admin/cleanup",
-  enhancedAuth,
+  enhancedJWTAuth,
   requirePermissions(["SYSTEM_ADMIN"]),
   userValidations.userCleanup,
   userController.cleanup
@@ -100,7 +98,7 @@ router.post(
  */
 router.post(
   "/generate-token",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requirePermissions(["USER_MANAGE", "TOKEN_GENERATE"]),
   validate,
   userController.generateOptimizedToken
@@ -115,7 +113,7 @@ router.post(
  */
 router.post(
   "/refresh-permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
   validate,
   userController.refreshPermissions
 );
@@ -128,7 +126,7 @@ router.post(
  */
 router.get(
   "/analyze-tokens/:userId",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requirePermissions(["ADMIN_FULL_ACCESS", "TOKEN_ANALYZE"]),
   validate,
   userController.analyzeTokenStrategies
@@ -143,7 +141,7 @@ router.get(
  */
 router.put(
   "/token-strategy",
-  enhancedAuth,
+  enhancedJWTAuth,
   validate,
   userController.updateTokenStrategy
 );
@@ -162,7 +160,7 @@ router.put(
  */
 router.get(
   "/context-permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
   validate,
   userController.getContextPermissions
 );
@@ -174,7 +172,7 @@ router.get(
  */
 router.get(
   "/profile/enhanced",
-  enhancedAuth,
+  enhancedJWTAuth,
   userController.getEnhancedProfile
 );
 
@@ -189,7 +187,7 @@ router.get(
  */
 router.get(
   "/groups/:grp_id/permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireGroupMembership("grp_id"),
   (req, res) => {
     req.query.contextId = req.params.grp_id;
@@ -205,7 +203,7 @@ router.get(
  */
 router.get(
   "/groups/:grp_id/members",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireGroupPermissions(["USER_VIEW"], "grp_id"),
   async (req, res) => {
     try {
@@ -322,7 +320,7 @@ router.get(
  */
 router.get(
   "/networks/:network_id/permissions",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireNetworkMembership("network_id"),
   (req, res) => {
     req.query.contextId = req.params.network_id;
@@ -338,7 +336,7 @@ router.get(
  */
 router.get(
   "/networks/:network_id/members",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requireNetworkPermissions(["USER_VIEW"], "network_id"),
   async (req, res) => {
     try {
@@ -459,7 +457,7 @@ router.get(
  */
 router.get(
   "/debug/permissions/:userId",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requirePermissions(["ADMIN_FULL_ACCESS"]),
   debugPermissions(),
   async (req, res) => {
@@ -493,7 +491,7 @@ router.get(
  */
 router.get(
   "/admin/token-analytics",
-  enhancedAuth,
+  enhancedJWTAuth,
   // requirePermissions(["ADMIN_FULL_ACCESS"]),
   async (req, res) => {
     try {
@@ -590,8 +588,7 @@ router.post(
 router.get(
   "/logout",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.logout
 );
 
@@ -650,8 +647,7 @@ router.post(
 router.post(
   "/emailReport",
   userValidations.emailReport,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.emailReport
 );
 
@@ -661,13 +657,12 @@ router.post(
   userController.verifyFirebaseCustomToken
 );
 
-router.post("/verify", setJWTAuth, authJWT, userController.verify);
+router.post("/verify", enhancedJWTAuth, userController.verify);
 
 router.get(
   "/combined",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listUsersAndAccessRequests
 );
 
@@ -686,13 +681,7 @@ router.get(
 
 router.get("/auth/google", setGoogleAuth, authGoogle, userController.login);
 
-router.get(
-  "/",
-  userValidations.tenant,
-  setJWTAuth,
-  authJWT,
-  userController.list
-);
+router.get("/", userValidations.tenant, enhancedJWTAuth, userController.list);
 
 router.post(
   "/registerUser",
@@ -705,15 +694,13 @@ router.post("/", userValidations.createUser, userController.create);
 router.put(
   "/updatePasswordViaEmail",
   userValidations.updatePasswordViaEmail,
-  setJWTAuth,
   userController.updateForgottenPassword
 );
 
 router.put(
   "/updatePassword",
   userValidations.updatePassword,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.updateKnownPassword
 );
 
@@ -754,16 +741,14 @@ router.put("/:user_id", userValidations.updateUserById, userController.update);
 router.delete(
   "/",
   userValidations.deleteUser,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.delete
 );
 
 router.delete(
   "/:user_id",
   userValidations.deleteUserById,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.delete
 );
 
@@ -788,32 +773,28 @@ router.post(
 router.get(
   "/stats",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listStatistics
 );
 
 router.get(
   "/cache",
   userValidations.cache,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listCache
 );
 
 router.get(
   "/logs",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.listLogs
 );
 
 router.get(
   "/user-stats",
   userValidations.tenant,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.getUserStats
 );
 
@@ -838,8 +819,7 @@ router.post(
 router.get(
   "/:user_id",
   userValidations.getUser,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   userController.list
 );
 

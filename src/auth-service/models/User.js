@@ -4,7 +4,9 @@ const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
+const { AbstractTokenFactory } = require("@services/atf.service");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { tokenConfig } = require("@config/tokenStrategyConfig");
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
@@ -500,6 +502,38 @@ UserSchema.pre("save", async function (next) {
         ];
       }
 
+      // 6. Set default permissions for new users
+      const DEFAULT_NEW_USER_PERMISSIONS = [
+        "DASHBOARD_VIEW",
+        "DATA_VIEW",
+        "ANALYTICS_VIEW",
+        "DATA_EXPORT",
+        "SITE_VIEW",
+        "DEVICE_VIEW",
+        "DEVICE_CLAIM",
+        "DEVICE_DEPLOY",
+        "NETWORK_VIEW",
+        "API_ACCESS",
+        "TOKEN_GENERATE",
+      ];
+
+      const permissions = await PermissionModel(tenant)
+        .find({ permission: { $in: DEFAULT_NEW_USER_PERMISSIONS } })
+        .select("_id")
+        .lean();
+
+      if (permissions.length > 0) {
+        const permissionIds = permissions.map((p) => p._id);
+        // Use Set to ensure uniqueness and avoid adding duplicates
+        const existingPermissionIds = this.permissions.map((p) => p.toString());
+        const combinedPermissions = [
+          ...new Set([
+            ...existingPermissionIds,
+            ...permissionIds.map((p) => p.toString()),
+          ]),
+        ];
+        this.permissions = combinedPermissions.map((p) => ObjectId(p));
+      }
       // 5. Remove duplicates (simple deduplication)
       if (this.network_roles && this.network_roles.length > 0) {
         const uniqueNetworks = new Map();
@@ -1524,48 +1558,16 @@ UserSchema.methods = {
   },
 };
 
-UserSchema.methods.createToken = async function () {
+UserSchema.methods.createToken = async function (
+  strategy = tokenConfig.defaultStrategy,
+  options = {}
+) {
   try {
-    const filter = { _id: this._id };
-    const userWithDerivedAttributes = await UserModel("airqo").list({ filter });
-    if (
-      userWithDerivedAttributes.success &&
-      userWithDerivedAttributes.success === false
-    ) {
-      logger.error(
-        `Internal Server Error -- ${JSON.stringify(userWithDerivedAttributes)}`
-      );
-      return userWithDerivedAttributes;
-    } else {
-      const user = userWithDerivedAttributes.data[0];
-      const oneDayExpiry = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
-      const oneHourExpiry = Math.floor(Date.now() / 1000) + 60 * 60;
-      logObject("user", user);
-      return jwt.sign(
-        {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          userName: user.userName,
-          email: user.email,
-          organization: user.organization,
-          long_organization: user.long_organization,
-          privilege: user.privilege,
-          role: user.role,
-          country: user.country,
-          profilePicture: user.profilePicture,
-          phoneNumber: user.phoneNumber,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          rateLimit: user.rateLimit,
-          lastLogin: user.lastLogin,
-          // exp: oneHourExpiry,
-        },
-        constants.JWT_SECRET
-      );
-    }
+    const tokenFactory = new AbstractTokenFactory(this.tenant || "airqo");
+    return await tokenFactory.createToken(this, strategy, options);
   } catch (error) {
-    logger.error(`🐛🐛 Internal Server Error --- ${error.message}`);
+    logger.error(`Error in createToken for user ${this._id}: ${error.message}`);
+    throw error; // Re-throw to be handled by caller
   }
 };
 
