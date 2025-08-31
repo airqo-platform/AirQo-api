@@ -752,28 +752,6 @@ async function fetchData(model, filter) {
   let projection = {
     _id: 0,
   };
-  let meta = {
-    total: { $arrayElemAt: ["$total.device", 0] },
-    skip: { $literal: skip },
-    limit: { $literal: limit },
-    page: {
-      $trunc: {
-        $literal: skip / limit + 1,
-      },
-    },
-    pages: {
-      $ifNull: [
-        {
-          $ceil: {
-            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-          },
-        },
-        1,
-      ],
-    },
-    startTime,
-    endTime,
-  };
   let siteProjection = {};
   let deviceProjection = {};
   let sort = { time: -1 };
@@ -946,6 +924,60 @@ async function fetchData(model, filter) {
   logObject("the query for this request", search);
 
   if (!recent || recent === "yes") {
+    // First, get the total count with a lightweight aggregation
+    const totalCountPipeline = model
+      .aggregate()
+      .unwind("values")
+      .match(search)
+      .replaceRoot("values");
+
+    if (active === "yes") {
+      totalCountPipeline
+        .lookup({
+          from: "devices",
+          localField: "device_id",
+          foreignField: "_id",
+          as: "device_details",
+        })
+        .match({ "device_details.isActive": true });
+    }
+
+    if (internal !== "yes") {
+      if (
+        !totalCountPipeline._pipeline.some(
+          (stage) => stage.$lookup && stage.$lookup.from === "devices"
+        )
+      ) {
+        totalCountPipeline.lookup({
+          from: "devices",
+          localField: "device_id",
+          foreignField: "_id",
+          as: "device_details",
+        });
+      }
+      totalCountPipeline
+        .lookup({
+          from: "cohorts",
+          localField: "device_details.cohorts",
+          foreignField: "_id",
+          as: "cohort_details",
+        })
+        .match({
+          "cohort_details.visibility": { $ne: false },
+        });
+    }
+
+    const totalCountResult = await totalCountPipeline
+      .group({
+        _id: idField,
+      })
+      .count("device")
+      .allowDiskUse(true);
+
+    const totalCount =
+      totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+    // Now get the actual data with pagination applied early
     let pipeline = model
       .aggregate()
       .unwind("values")
@@ -1092,28 +1124,47 @@ async function fetchData(model, filter) {
       .addFields({
         aqi_ranges: AQI_RANGES,
       })
-      .facet({
-        total: [{ $count: "device" }],
-        data: [generateAqiAddFields()],
-      })
-      .project({
-        meta,
-        data: {
-          $slice: [
-            "$data",
-            skip,
-            {
-              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
-            },
-          ],
-        },
-      })
+      .addFields(generateAqiAddFields().$addFields)
+      // Apply pagination here instead of in facet to prevent memory overflow
+      .skip(skip)
+      .limit(limit)
       .allowDiskUse(true);
 
-    return data;
+    // Construct the exact same response format as the original
+    const meta = {
+      total: totalCount,
+      skip: skip,
+      limit: limit,
+      page: Math.trunc(skip / limit + 1),
+      pages: Math.ceil(totalCount / limit) || 1,
+      startTime,
+      endTime,
+    };
+
+    // Return in the exact same format as the original facet-based approach
+    return [{ meta, data }];
   }
 
   if (recent === "no") {
+    // Get total count first to avoid memory issues
+    const totalCountResult = await model
+      .aggregate()
+      .unwind("values")
+      .match(search)
+      .replaceRoot("values")
+      .lookup({
+        from,
+        localField,
+        foreignField,
+        as,
+      })
+      .count("device")
+      .allowDiskUse(true);
+
+    const totalCount =
+      totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+    // Get paginated data
     let data = await model
       .aggregate()
       .unwind("values")
@@ -1128,10 +1179,7 @@ async function fetchData(model, filter) {
       .sort(sort)
       .addFields({
         timeDifferenceHours: {
-          $divide: [
-            { $subtract: [new Date(), "$time"] },
-            1000 * 60 * 60, // milliseconds to hours
-          ],
+          $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
         },
       })
       .project({
@@ -1221,29 +1269,23 @@ async function fetchData(model, filter) {
         [as]: "$" + _as,
       })
       .project(projection)
-      .facet({
-        total: [{ $count: "device" }],
-        data: [
-          {
-            $addFields: { device: "$device" },
-          },
-        ],
-      })
-      .project({
-        meta,
-        data: {
-          $slice: [
-            "$data",
-            skip,
-            {
-              $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
-            },
-          ],
-        },
-      })
+      // Apply pagination to prevent memory overflow
+      .skip(skip)
+      .limit(limit)
       .allowDiskUse(true);
 
-    return data;
+    const meta = {
+      total: totalCount,
+      skip: skip,
+      limit: limit,
+      page: Math.trunc(skip / limit + 1),
+      pages: Math.ceil(totalCount / limit) || 1,
+      startTime,
+      endTime,
+    };
+
+    // Return in the exact same format as the original
+    return [{ meta, data }];
   }
 }
 
@@ -1259,7 +1301,6 @@ async function signalData(model, filter) {
   const startTime = filter["values.time"]["$gte"];
   const endTime = filter["values.time"]["$lte"];
   let idField;
-  // const visibilityFilter = true;
 
   let search = filter;
   let groupId = "$device";
@@ -1275,28 +1316,6 @@ async function signalData(model, filter) {
   let elementAtIndex0 = elementAtIndexName(metadata, recent);
   let projection = {
     _id: 0,
-  };
-  let meta = {
-    total: { $arrayElemAt: ["$total.device", 0] },
-    skip: { $literal: skip },
-    limit: { $literal: limit },
-    page: {
-      $trunc: {
-        $literal: skip / limit + 1,
-      },
-    },
-    pages: {
-      $ifNull: [
-        {
-          $ceil: {
-            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-          },
-        },
-        1,
-      ],
-    },
-    startTime,
-    endTime,
   };
   let siteProjection = {};
   let sort = { time: -1 };
@@ -1331,13 +1350,11 @@ async function signalData(model, filter) {
   projection["externalTemperature"] = 0;
   projection["internalTemperature"] = 0;
   projection["hdop"] = 0;
-
   projection["tvoc"] = 0;
   projection["hcho"] = 0;
   projection["co2"] = 0;
   projection["intaketemperature"] = 0;
   projection["intakehumidity"] = 0;
-
   projection["satellites"] = 0;
   projection["speed"] = 0;
   projection["altitude"] = 0;
@@ -1375,11 +1392,42 @@ async function signalData(model, filter) {
   elementAtIndex0 = elementAtIndexName(metadata, recent);
 
   siteProjection = constants.EVENTS_METADATA_PROJECTION("brief_site", as);
-
   Object.assign(projection, siteProjection);
 
   logObject("the query for this request", search);
 
+  // Get total count first with lightweight aggregation
+  const totalCountResult = await model
+    .aggregate()
+    .unwind("values")
+    .match(search)
+    .replaceRoot("values")
+    .lookup({
+      from: "devices",
+      localField: "device_id",
+      foreignField: "_id",
+      as: "device_details",
+    })
+    .lookup({
+      from: "cohorts",
+      localField: "device_details.cohorts",
+      foreignField: "_id",
+      as: "cohort_details",
+    })
+    .match({
+      "cohort_details.visibility": { $ne: false },
+      "cohort_details.name": "map",
+    })
+    .group({
+      _id: idField,
+    })
+    .count("device")
+    .allowDiskUse(true);
+
+  const totalCount =
+    totalCountResult.length > 0 ? totalCountResult[0].device : 0;
+
+  // Get paginated data
   const data = await model
     .aggregate()
     .unwind("values")
@@ -1407,7 +1455,6 @@ async function signalData(model, filter) {
       "cohort_details.visibility": { $ne: false },
       "cohort_details.name": "map",
     })
-    // .match({ "device_details.visibility": visibilityFilter })
     .lookup({
       from,
       localField,
@@ -1469,13 +1516,11 @@ async function signalData(model, filter) {
       speed: { $first: "$speed" },
       satellites: { $first: "$satellites" },
       hdop: { $first: "$hdop" },
-
       intaketemperature: { $first: "$intaketemperature" },
       tvoc: { $first: "$tvoc" },
       hcho: { $first: "$hcho" },
       co2: { $first: "$co2" },
       intakehumidity: { $first: "$intakehumidity" },
-
       internalTemperature: { $first: "$internalTemperature" },
       externalTemperature: { $first: "$externalTemperature" },
       internalHumidity: { $first: "$internalHumidity" },
@@ -1493,10 +1538,7 @@ async function signalData(model, filter) {
     })
     .addFields({
       timeDifferenceHours: {
-        $divide: [
-          { $subtract: [new Date(), "$time"] },
-          1000 * 60 * 60, // milliseconds to hours
-        ],
+        $divide: [{ $subtract: [new Date(), "$time"] }, 1000 * 60 * 60],
       },
     })
     .project({
@@ -1523,26 +1565,26 @@ async function signalData(model, filter) {
     .addFields({
       aqi_ranges: AQI_RANGES,
     })
-    .facet({
-      total: [{ $count: "device" }],
-      data: [generateAqiAddFields()],
-    })
-    .project({
-      meta,
-      data: {
-        $slice: [
-          "$data",
-          skip,
-          {
-            $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
-          },
-        ],
-      },
-    })
+    .addFields(generateAqiAddFields().$addFields)
+    // Apply pagination here to prevent memory overflow
+    .skip(skip)
+    .limit(limit)
     .allowDiskUse(true);
 
-  return data;
+  const meta = {
+    total: totalCount,
+    skip: skip,
+    limit: limit,
+    page: Math.trunc(skip / limit + 1),
+    pages: Math.ceil(totalCount / limit) || 1,
+    startTime,
+    endTime,
+  };
+
+  // Return in the exact same format as original
+  return [{ meta, data }];
 }
+
 function filterNullAndReportOffDevices(data) {
   // Ensure data is an array and handle null/undefined input
   if (!Array.isArray(data)) return [];
