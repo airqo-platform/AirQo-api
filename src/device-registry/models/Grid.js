@@ -12,7 +12,10 @@ const logger = require("log4js").getLogger(
 );
 const { getModelByTenant } = require("@config/database");
 
-const { validatePolygonClosure } = require("@validators/common");
+const {
+  validatePolygonClosure,
+  TOLERANCE_LEVELS,
+} = require("@validators/common");
 
 const shapeSchema = new Schema(
   {
@@ -156,7 +159,7 @@ gridSchema.pre("save", function(next) {
   // Backup validation using geometry utility
   if ((this.isModified("shape") || this.isNew) && this.shape) {
     try {
-      validatePolygonClosure(this.shape, 0.000001);
+      validatePolygonClosure(this.shape, TOLERANCE_LEVELS.NORMAL);
     } catch (error) {
       return next(
         new Error(
@@ -174,6 +177,34 @@ gridSchema.pre("update", function(next) {
     delete this._id;
   }
   return next();
+});
+
+gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
+  const update = this.getUpdate();
+
+  // Check if shape is being updated
+  if (update && update.shape) {
+    try {
+      validatePolygonClosure(update.shape, TOLERANCE_LEVELS.NORMAL);
+    } catch (error) {
+      return next(
+        new Error(`Invalid polygon in update operation: ${error.message}`)
+      );
+    }
+  }
+
+  // Check if using $set operator with shape
+  if (update && update.$set && update.$set.shape) {
+    try {
+      validatePolygonClosure(update.$set.shape, TOLERANCE_LEVELS.NORMAL);
+    } catch (error) {
+      return next(
+        new Error(`Invalid polygon in $set update operation: ${error.message}`)
+      );
+    }
+  }
+
+  next();
 });
 
 gridSchema.plugin(uniqueValidator, {

@@ -17,14 +17,8 @@ const {
   validateAndFixPolygon,
   ensureClosedRing,
   validateCoordinates,
+  TOLERANCE_LEVELS,
 } = require("@validators/common");
-
-const TOLERANCE_LEVELS = {
-  STRICT: 0.000001, // Almost exact match required
-  NORMAL: 0.001, // Default - good for most cases
-  LENIENT: 0.01, // More forgiving - good for imported data
-  VERY_LENIENT: 0.1, // Very forgiving - for rough/legacy data
-};
 
 const validateCoordinate = (coordinate) => {
   const [longitude, latitude] = coordinate;
@@ -50,7 +44,7 @@ const validateCoordinate = (coordinate) => {
 
 const validateAndAutoFixPolygonCoordinatesLenient = (
   value,
-  tolerance = 0.001
+  tolerance = TOLERANCE_LEVELS.NORMAL
 ) => {
   if (!Array.isArray(value)) {
     throw new Error("Coordinates must be provided as an array");
@@ -263,7 +257,7 @@ const commonValidations = {
       .bail()
       .custom((value, { req }) => {
         const shapeType = req.body.shape.type;
-        const tolerance = TOLERANCE_LEVELS.NORMAL; // Configure tolerance here
+        const tolerance = TOLERANCE_LEVELS.NORMAL;
 
         if (shapeType === "Polygon") {
           return validateAndAutoFixPolygonCoordinatesLenient(value, tolerance);

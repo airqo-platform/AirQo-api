@@ -5,35 +5,38 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- geometry-util`
 );
 
+// Tolerance levels for different validation scenarios
+const TOLERANCE_LEVELS = {
+  STRICT: 0.000001, // Almost exact match required
+  NORMAL: 0.001, // Default - good for most cases
+  LENIENT: 0.01, // More forgiving - good for imported data
+  VERY_LENIENT: 0.1, // Very forgiving - for rough/legacy data
+};
+
 /**
- * Validates and fixes polygon coordinates to ensure they form a closed loop
- * @param {Object} shape - The shape object containing type and coordinates
- * @returns {Object} - The validated and fixed shape object
+ * Validates coordinate values to ensure they're within valid ranges
+ * @param {Array} coordinates - Coordinate pair [lng, lat]
+ * @returns {boolean} - True if valid, false otherwise
  */
-function validateAndFixPolygon(shape) {
-  if (!shape || !shape.coordinates || !shape.type) {
-    throw new Error("Invalid shape object provided");
+function validateCoordinates(coordinates) {
+  if (!Array.isArray(coordinates) || coordinates.length !== 2) {
+    return false;
   }
 
-  const { type, coordinates } = shape;
+  const [lng, lat] = coordinates;
 
-  if (type === "Polygon") {
-    const fixedCoordinates = coordinates.map((ring) => ensureClosedRing(ring));
-    return {
-      ...shape,
-      coordinates: fixedCoordinates,
-    };
-  } else if (type === "MultiPolygon") {
-    const fixedCoordinates = coordinates.map((polygon) =>
-      polygon.map((ring) => ensureClosedRing(ring))
-    );
-    return {
-      ...shape,
-      coordinates: fixedCoordinates,
-    };
-  }
-
-  return shape;
+  // Longitude should be between -180 and 180
+  // Latitude should be between -90 and 90
+  return (
+    typeof lng === "number" &&
+    typeof lat === "number" &&
+    !isNaN(lng) &&
+    !isNaN(lat) &&
+    lng >= -180 &&
+    lng <= 180 &&
+    lat >= -90 &&
+    lat <= 90
+  );
 }
 
 /**
@@ -43,8 +46,17 @@ function validateAndFixPolygon(shape) {
  */
 function ensureClosedRing(ring) {
   if (!Array.isArray(ring) || ring.length < 3) {
-    throw new Error("Polygon ring must contain at least 3 coordinates");
+    throw new Error(
+      "Polygon ring must contain at least 3 coordinates before closure"
+    );
   }
+
+  // Validate each coordinate before processing
+  ring.forEach((c, i) => {
+    if (!validateCoordinates(c)) {
+      throw new Error(`Invalid coordinate at ring index ${i}`);
+    }
+  });
 
   const firstCoord = ring[0];
   const lastCoord = ring[ring.length - 1];
@@ -67,36 +79,80 @@ function ensureClosedRing(ring) {
 }
 
 /**
- * Validates coordinate values to ensure they're within valid ranges
- * @param {Array} coordinates - Coordinate pair [lng, lat]
- * @returns {boolean} - True if valid, false otherwise
+ * Validates and fixes polygon coordinates to ensure they form a closed loop
+ * @param {Object} shape - The shape object containing type and coordinates
+ * @returns {Object} - The validated and fixed shape object
  */
-function validateCoordinates(coordinates) {
-  if (!Array.isArray(coordinates) || coordinates.length !== 2) {
-    return false;
+function validateAndFixPolygon(shape) {
+  if (!shape || !shape.coordinates || !shape.type) {
+    throw new Error("Invalid shape object provided");
   }
 
-  const [lng, lat] = coordinates;
+  const { type, coordinates } = shape;
 
-  // Longitude should be between -180 and 180
-  // Latitude should be between -90 and 90
-  return (
-    typeof lng === "number" &&
-    typeof lat === "number" &&
-    lng >= -180 &&
-    lng <= 180 &&
-    lat >= -90 &&
-    lat <= 90
-  );
+  if (type === "Polygon") {
+    if (!Array.isArray(coordinates)) {
+      throw new Error("Polygon coordinates must be an array of rings");
+    }
+    const fixedCoordinates = coordinates.map((ring, ringIndex) => {
+      if (!Array.isArray(ring) || ring.length < 3) {
+        throw new Error(
+          `Polygon ring ${ringIndex} must contain at least 3 coordinates before closure`
+        );
+      }
+      ring.forEach((c, i) => {
+        if (!validateCoordinates(c)) {
+          throw new Error(
+            `Invalid coordinate at ring ${ringIndex}, index ${i}; expected [lng, lat] within ranges`
+          );
+        }
+      });
+      return ensureClosedRing(ring);
+    });
+    return {
+      ...shape,
+      coordinates: fixedCoordinates,
+    };
+  } else if (type === "MultiPolygon") {
+    if (!Array.isArray(coordinates)) {
+      throw new Error("MultiPolygon coordinates must be an array of polygons");
+    }
+    const fixedCoordinates = coordinates.map((polygon, pIdx) => {
+      if (!Array.isArray(polygon) || polygon.length === 0) {
+        throw new Error(`MultiPolygon ${pIdx} must contain at least one ring`);
+      }
+      return polygon.map((ring, rIdx) => {
+        if (!Array.isArray(ring) || ring.length < 3) {
+          throw new Error(
+            `MultiPolygon ${pIdx}, ring ${rIdx} must contain at least 3 coordinates before closure`
+          );
+        }
+        ring.forEach((c, i) => {
+          if (!validateCoordinates(c)) {
+            throw new Error(
+              `Invalid coordinate at polygon ${pIdx}, ring ${rIdx}, index ${i}`
+            );
+          }
+        });
+        return ensureClosedRing(ring);
+      });
+    });
+    return {
+      ...shape,
+      coordinates: fixedCoordinates,
+    };
+  }
+
+  return shape;
 }
 
 /**
  * Validates polygon coordinates without fixing them
  * @param {Object} shape - The shape object containing type and coordinates
- * @param {number} tolerance - Tolerance for coordinate matching (default: 0.000001)
+ * @param {number} tolerance - Tolerance for coordinate matching (default: TOLERANCE_LEVELS.STRICT)
  * @returns {boolean} - True if valid, throws error if invalid
  */
-function validatePolygonClosure(shape, tolerance = 0.000001) {
+function validatePolygonClosure(shape, tolerance = TOLERANCE_LEVELS.STRICT) {
   if (!shape || !shape.coordinates || !shape.type) {
     throw new Error("Invalid shape object provided");
   }
@@ -105,14 +161,20 @@ function validatePolygonClosure(shape, tolerance = 0.000001) {
 
   if (type === "Polygon") {
     coordinates.forEach((ring, ringIndex) => {
-      if (!Array.isArray(ring) || ring.length < 3) {
+      if (!Array.isArray(ring) || ring.length < 4) {
         throw new Error(
-          `Polygon ring ${ringIndex} must contain at least 3 coordinates`
+          `Polygon ring ${ringIndex} must contain at least 4 coordinates (closed linear ring)`
         );
       }
 
       const first = ring[0];
       const last = ring[ring.length - 1];
+
+      if (!validateCoordinates(first) || !validateCoordinates(last)) {
+        throw new Error(
+          `Invalid endpoint coordinate(s) in ring ${ringIndex} (expected numeric [lng, lat])`
+        );
+      }
 
       if (
         Math.abs(first[0] - last[0]) > tolerance ||
@@ -127,14 +189,20 @@ function validatePolygonClosure(shape, tolerance = 0.000001) {
   } else if (type === "MultiPolygon") {
     coordinates.forEach((polygon, polygonIndex) => {
       polygon.forEach((ring, ringIndex) => {
-        if (!Array.isArray(ring) || ring.length < 3) {
+        if (!Array.isArray(ring) || ring.length < 4) {
           throw new Error(
-            `MultiPolygon ${polygonIndex}, ring ${ringIndex} must contain at least 3 coordinates`
+            `MultiPolygon ${polygonIndex}, ring ${ringIndex} must contain at least 4 coordinates (closed linear ring)`
           );
         }
 
         const first = ring[0];
         const last = ring[ring.length - 1];
+
+        if (!validateCoordinates(first) || !validateCoordinates(last)) {
+          throw new Error(
+            `Invalid endpoint coordinate(s) in polygon ${polygonIndex}, ring ${ringIndex}`
+          );
+        }
 
         if (
           Math.abs(first[0] - last[0]) > tolerance ||
@@ -149,6 +217,8 @@ function validatePolygonClosure(shape, tolerance = 0.000001) {
         }
       });
     });
+  } else {
+    throw new Error(`Unsupported shape type: ${type}`);
   }
 
   return true;
@@ -159,4 +229,5 @@ module.exports = {
   ensureClosedRing,
   validateCoordinates,
   validatePolygonClosure,
+  TOLERANCE_LEVELS,
 };

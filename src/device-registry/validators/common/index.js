@@ -8,6 +8,7 @@ const {
   ensureClosedRing,
   validateCoordinates,
   validatePolygonClosure,
+  TOLERANCE_LEVELS,
 } = require("./geometry");
 
 module.exports = {
@@ -16,6 +17,7 @@ module.exports = {
   ensureClosedRing,
   validateCoordinates,
   validatePolygonClosure,
+  TOLERANCE_LEVELS,
   validateAdminLevels,
   headers,
   pagination,
