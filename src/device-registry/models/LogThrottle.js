@@ -1,7 +1,6 @@
 //src/device-registry/models/LogThrottle.js
 const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
-const uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
@@ -110,7 +109,6 @@ logThrottleSchema.statics = {
     next
   ) {
     try {
-      const now = new Date();
       const result = await this.findOneAndUpdate(
         {
           date: date,
@@ -119,14 +117,12 @@ logThrottleSchema.statics = {
         },
         {
           $inc: { count: 1 },
-          $set: { lastUpdated: now },
-          $setOnInsert: { createdAt: now, updatedAt: now },
+          $set: { lastUpdated: new Date() },
         },
         {
           upsert: true,
           new: true,
           runValidators: true,
-          setDefaultsOnInsert: true,
         }
       );
 
