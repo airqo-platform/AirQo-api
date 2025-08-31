@@ -159,7 +159,9 @@ gridSchema.pre("save", function(next) {
   // Backup validation using geometry utility
   if ((this.isModified("shape") || this.isNew) && this.shape) {
     try {
-      validatePolygonClosure(this.shape, TOLERANCE_LEVELS.NORMAL);
+      const fixed = validateAndFixPolygon(this.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      this.shape = fixed;
     } catch (error) {
       return next(
         new Error(
@@ -182,10 +184,12 @@ gridSchema.pre("update", function(next) {
 gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
   const update = this.getUpdate();
 
-  // Check if shape is being updated
+  // Check if shape is being updated directly
   if (update && update.shape) {
     try {
-      validatePolygonClosure(update.shape, TOLERANCE_LEVELS.NORMAL);
+      const fixed = validateAndFixPolygon(update.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      update.shape = fixed;
     } catch (error) {
       return next(
         new Error(`Invalid polygon in update operation: ${error.message}`)
@@ -196,7 +200,9 @@ gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
   // Check if using $set operator with shape
   if (update && update.$set && update.$set.shape) {
     try {
-      validatePolygonClosure(update.$set.shape, TOLERANCE_LEVELS.NORMAL);
+      const fixed = validateAndFixPolygon(update.$set.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      update.$set.shape = fixed;
     } catch (error) {
       return next(
         new Error(`Invalid polygon in $set update operation: ${error.message}`)

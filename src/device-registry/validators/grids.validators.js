@@ -116,6 +116,64 @@ const validateAndAutoFixMultiPolygonCoordinatesLenient = (
   return true;
 };
 
+const validateAndAutoFixPolygonCoordinatesStrict = (value) => {
+  if (!Array.isArray(value)) {
+    throw new Error("Coordinates must be provided as an array");
+  }
+  if (value.length === 0) {
+    throw new Error("At least one polygon must be provided");
+  }
+
+  for (let i = 0; i < value.length; i++) {
+    const polygon = value[i];
+    if (!Array.isArray(polygon)) {
+      throw new Error(
+        "Each polygon must be provided as an array of coordinates"
+      );
+    }
+    if (polygon.length < 4) {
+      throw new Error("Each polygon must have at least four coordinates");
+    }
+
+    // Validate each coordinate
+    for (const coordinate of polygon) {
+      validateCoordinate(coordinate);
+    }
+
+    // Always fix any non-zero difference (MongoDB requires exact closure)
+    const firstCoord = polygon[0];
+    const lastCoord = polygon[polygon.length - 1];
+
+    const longitudeDiff = Math.abs(firstCoord[0] - lastCoord[0]);
+    const latitudeDiff = Math.abs(firstCoord[1] - lastCoord[1]);
+
+    if (longitudeDiff > 0 || latitudeDiff > 0) {
+      value[i] = ensureClosedRing(polygon);
+      logText(
+        `Auto-closed polygon ring. Differences: lng=${longitudeDiff.toFixed(
+          6
+        )}, lat=${latitudeDiff.toFixed(6)}.`
+      );
+    }
+  }
+  return true;
+};
+
+// Update MultiPolygon version as well
+const validateAndAutoFixMultiPolygonCoordinatesStrict = (value) => {
+  if (!Array.isArray(value)) {
+    throw new Error("Coordinates must be provided as an array");
+  }
+  if (value.length === 0) {
+    throw new Error("At least one multipolygon must be provided");
+  }
+
+  for (const multipolygon of value) {
+    validateAndAutoFixPolygonCoordinatesStrict(multipolygon);
+  }
+  return true;
+};
+
 const commonValidations = {
   tenant: [
     query("tenant")
@@ -257,15 +315,11 @@ const commonValidations = {
       .bail()
       .custom((value, { req }) => {
         const shapeType = req.body.shape.type;
-        const tolerance = TOLERANCE_LEVELS.NORMAL;
 
         if (shapeType === "Polygon") {
-          return validateAndAutoFixPolygonCoordinatesLenient(value, tolerance);
+          return validateAndAutoFixPolygonCoordinatesStrict(value);
         } else if (shapeType === "MultiPolygon") {
-          return validateAndAutoFixMultiPolygonCoordinatesLenient(
-            value,
-            tolerance
-          );
+          return validateAndAutoFixMultiPolygonCoordinatesStrict(value);
         }
         return true;
       }),
