@@ -1,4 +1,3 @@
-//src/device-registry/bin/jobs/update-online-status-job.js
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -7,13 +6,12 @@ const logger = log4js.getLogger(
 const EventModel = require("@models/Event");
 const DeviceModel = require("@models/Device");
 const SiteModel = require("@models/Site");
+const LogThrottleModel = require("@models/LogThrottle");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
 const { stringify, generateFilter } = require("@utils/common");
 const cron = require("node-cron");
 const moment = require("moment-timezone");
-const fs = require("fs");
-const path = require("path");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
@@ -26,136 +24,223 @@ const JOB_SCHEDULE = "45 * * * *"; // At minute 45 of every hour (15 minutes aft
 const LOG_THROTTLE_CONFIG = {
   maxLogsPerDay: 2,
   logTypesThrottled: ["METRICS", "ACCURACY_REPORT"],
-  trackingFile: path.join(
-    __dirname,
-    "logs",
-    "online-status-log-throttle-tracking.json"
-  ),
 };
 
-// Log throttling manager
+// Database-based Log throttling manager
 class LogThrottleManager {
   constructor() {
-    this.trackingData = this.loadTrackingData();
+    this.environment = constants.ENVIRONMENT;
+    this.model = LogThrottleModel("airqo");
   }
 
-  loadTrackingData() {
+  async shouldAllowLog(logType) {
+    const today = moment()
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+
     try {
-      const dir = path.dirname(LOG_THROTTLE_CONFIG.trackingFile);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      // Use the model's static method to atomically increment the counter
+      const result = await this.model.incrementCount({
+        date: today,
+        logType: logType,
+        environment: this.environment,
+      });
+
+      if (result.success) {
+        // Check if we've exceeded the limit
+        const currentCount = result.data?.count || 1;
+        return currentCount <= LOG_THROTTLE_CONFIG.maxLogsPerDay;
+      } else {
+        // On error, default to allowing the log (fail open)
+        logger.debug(`Log throttle increment failed: ${result.message}`);
+        return true;
+      }
+    } catch (error) {
+      if (error.code === 11000) {
+        // Duplicate key error - retry once to get current count
+        try {
+          const countResult = await this.model.getCurrentCount({
+            date: today,
+            logType: logType,
+            environment: this.environment,
+          });
+
+          if (countResult.success && countResult.data.exists) {
+            // Try to increment again
+            const retryResult = await this.model.incrementCount({
+              date: today,
+              logType: logType,
+              environment: this.environment,
+            });
+
+            if (retryResult.success) {
+              const currentCount = retryResult.data?.count || 1;
+              return currentCount <= LOG_THROTTLE_CONFIG.maxLogsPerDay;
+            }
+          }
+        } catch (retryError) {
+          logger.warn(`Log throttle retry failed: ${retryError.message}`);
+        }
+      } else {
+        logger.warn(`Log throttle check failed: ${error.message}`);
       }
 
-      if (fs.existsSync(LOG_THROTTLE_CONFIG.trackingFile)) {
-        const data = JSON.parse(
-          fs.readFileSync(LOG_THROTTLE_CONFIG.trackingFile, "utf8")
+      // On error, default to allowing the log (fail open)
+      return true;
+    }
+  }
+
+  async getRemainingLogsForToday(logType) {
+    const today = moment()
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+
+    try {
+      const result = await this.model.getCurrentCount({
+        date: today,
+        logType: logType,
+        environment: this.environment,
+      });
+
+      if (result.success) {
+        const used = result.data?.count || 0;
+        return Math.max(0, LOG_THROTTLE_CONFIG.maxLogsPerDay - used);
+      } else {
+        logger.debug(`Failed to get remaining log count: ${result.message}`);
+        return LOG_THROTTLE_CONFIG.maxLogsPerDay; // Default to allowing logs on error
+      }
+    } catch (error) {
+      logger.debug(`Failed to get remaining log count: ${error.message}`);
+      return LOG_THROTTLE_CONFIG.maxLogsPerDay; // Default to allowing logs on error
+    }
+  }
+
+  async cleanupOldEntries() {
+    try {
+      const result = await this.model.cleanupOldEntries({
+        daysToKeep: 7,
+        environment: this.environment,
+      });
+
+      if (result.success && result.data.deletedCount > 0) {
+        logger.debug(
+          `Cleaned up ${result.data.deletedCount} old log throttle entries`
         );
-        return data;
       }
     } catch (error) {
-      logger.warn(
-        `Failed to load log throttle tracking data: ${error.message}`
+      logger.debug(
+        `Failed to cleanup old log throttle entries: ${error.message}`
       );
     }
-    return {};
   }
 
-  saveTrackingData() {
+  async getCurrentStats() {
+    const today = moment()
+      .tz(TIMEZONE)
+      .format("YYYY-MM-DD");
+
     try {
-      fs.writeFileSync(
-        LOG_THROTTLE_CONFIG.trackingFile,
-        JSON.stringify(this.trackingData, null, 2)
-      );
+      const result = await this.model.getDailyCounts({
+        date: today,
+        environment: this.environment,
+      });
+
+      if (result.success) {
+        const stats = {};
+        Object.keys(result.data).forEach((logType) => {
+          const data = result.data[logType];
+          stats[logType] = {
+            count: data.count,
+            remaining: Math.max(
+              0,
+              LOG_THROTTLE_CONFIG.maxLogsPerDay - data.count
+            ),
+            lastUpdated: data.lastUpdated,
+          };
+        });
+        return stats;
+      } else {
+        logger.debug(
+          `Failed to get current log throttle stats: ${result.message}`
+        );
+        return {};
+      }
     } catch (error) {
-      logger.warn(
-        `Failed to save log throttle tracking data: ${error.message}`
+      logger.debug(
+        `Failed to get current log throttle stats: ${error.message}`
       );
+      return {};
     }
   }
 
-  shouldAllowLog(logType) {
+  async resetDailyCounts() {
     const today = moment()
       .tz(TIMEZONE)
       .format("YYYY-MM-DD");
 
-    if (!this.trackingData[today]) {
-      this.trackingData[today] = {};
+    try {
+      const result = await this.model.resetDailyCounts({
+        date: today,
+        environment: this.environment,
+      });
+
+      return result;
+    } catch (error) {
+      logger.warn(`Failed to reset daily counts: ${error.message}`);
+      return {
+        success: false,
+        message: error.message,
+      };
     }
-
-    if (!this.trackingData[today][logType]) {
-      this.trackingData[today][logType] = 0;
-    }
-
-    this.cleanupOldEntries();
-
-    if (
-      this.trackingData[today][logType] >= LOG_THROTTLE_CONFIG.maxLogsPerDay
-    ) {
-      return false;
-    }
-
-    this.trackingData[today][logType]++;
-    this.saveTrackingData();
-
-    return true;
-  }
-
-  cleanupOldEntries() {
-    const cutoffDate = moment()
-      .tz(TIMEZONE)
-      .subtract(7, "days")
-      .format("YYYY-MM-DD");
-    const keysToDelete = Object.keys(this.trackingData).filter(
-      (date) => date < cutoffDate
-    );
-
-    keysToDelete.forEach((key) => {
-      delete this.trackingData[key];
-    });
-
-    if (keysToDelete.length > 0) {
-      this.saveTrackingData();
-    }
-  }
-
-  getRemainingLogsForToday(logType) {
-    const today = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD");
-    const used = this.trackingData[today]?.[logType] || 0;
-    return Math.max(0, LOG_THROTTLE_CONFIG.maxLogsPerDay - used);
   }
 }
 
 // Initialize log throttle manager
 const logThrottleManager = new LogThrottleManager();
 
-// Throttled logging function
-function throttledLog(logType, message, forceLog = false) {
-  if (forceLog || logThrottleManager.shouldAllowLog(logType)) {
+// Enhanced throttled logging function with async support
+async function throttledLog(logType, message, forceLog = false) {
+  if (forceLog) {
     logger.info(message);
+    return;
+  }
 
-    const remaining = logThrottleManager.getRemainingLogsForToday(logType);
-    if (remaining === 0) {
-      logger.info(
-        `📝 Daily limit reached for ${logType} logs. Next ${logType} logs will be suppressed until tomorrow.`
+  try {
+    const shouldAllow = await logThrottleManager.shouldAllowLog(logType);
+
+    if (shouldAllow) {
+      logger.info(message);
+
+      // Get remaining count and show appropriate message
+      const remaining = await logThrottleManager.getRemainingLogsForToday(
+        logType
       );
-    } else if (remaining === 1) {
-      logger.info(`📝 One more ${logType} log remaining for today.`);
+      if (remaining === 0) {
+        logger.info(
+          `📝 Daily limit reached for ${logType} logs. Next ${logType} logs will be suppressed until tomorrow.`
+        );
+      } else if (remaining === 1) {
+        logger.info(`📝 One more ${logType} log remaining for today.`);
+      }
+    } else {
+      // Log throttling is working - don't spam debug logs
+      const hourKey = moment()
+        .tz(TIMEZONE)
+        .format("YYYY-MM-DD-HH");
+      if (
+        !throttledLog.lastThrottleNotification ||
+        throttledLog.lastThrottleNotification !== hourKey
+      ) {
+        logger.debug(
+          `Log throttled: ${logType} - Daily limit (${LOG_THROTTLE_CONFIG.maxLogsPerDay}) reached.`
+        );
+        throttledLog.lastThrottleNotification = hourKey;
+      }
     }
-  } else {
-    const hourKey = moment()
-      .tz(TIMEZONE)
-      .format("YYYY-MM-DD-HH");
-    if (
-      !this.lastThrottleNotification ||
-      this.lastThrottleNotification !== hourKey
-    ) {
-      logger.debug(
-        `Log throttled: ${logType} - Daily limit (${LOG_THROTTLE_CONFIG.maxLogsPerDay}) reached.`
-      );
-      this.lastThrottleNotification = hourKey;
-    }
+  } catch (error) {
+    // On error, log the message anyway (fail open)
+    logger.info(message);
+    logger.debug(`Throttle check failed, logging anyway: ${error.message}`);
   }
 }
 
@@ -270,7 +355,6 @@ async function updateEntityOnlineStatusAccuracy(
     logger.debug(
       `Failed to update accuracy tracking for ${entityType} ${entityId}: ${error.message}`
     );
-    // Never throw - this is supplementary functionality
     return { success: false, error: error.message };
   }
 }
@@ -434,7 +518,7 @@ async function updateOfflineEntitiesWithAccuracy(
       timestamp: new Date(),
     };
 
-    throttledLog(
+    await throttledLog(
       "METRICS",
       `📊 ${entityType} Status Update Metrics: ${stringify(accuracyMetrics)}`
     );
@@ -807,14 +891,14 @@ async function updateOnlineStatusAndAccuracy() {
       };
 
       // Use throttled logging for accuracy report
-      throttledLog(
+      await throttledLog(
         "ACCURACY_REPORT",
         `📊📊 ONLINE STATUS ACCURACY REPORT: ${stringify(accuracyReport)}`
       );
     } catch (offlineError) {
       logger.error(`Error in offline detection: ${offlineError.message}`);
       const accuracyReport = await processor.getAccuracyReport();
-      throttledLog(
+      await throttledLog(
         "ACCURACY_REPORT",
         `📊📊 PARTIAL ONLINE STATUS ACCURACY REPORT: ${stringify(
           accuracyReport
