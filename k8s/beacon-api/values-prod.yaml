@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-beacon-api
-  tag: prod-a8d28ce7-1756485515
+  tag: prod-d3ba7d09-1756578940
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
