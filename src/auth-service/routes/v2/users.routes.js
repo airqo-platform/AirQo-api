@@ -462,11 +462,11 @@ router.get(
   debugPermissions(),
   async (req, res) => {
     try {
-      const EnhancedRBACService = require("@services/enhancedRBAC.service");
+      const RBACService = require("@services/rbac.service");
       const userId = req.params.userId;
       const tenant = req.query.tenant || "airqo";
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = new RBACService(tenant);
       const debugInfo = await rbacService.debugUserPermissions(userId);
 
       res.json({

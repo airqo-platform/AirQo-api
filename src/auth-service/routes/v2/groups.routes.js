@@ -19,7 +19,7 @@ const {
   requireGroupAccess,
   requireGroupUserManagement,
   requireGroupSettings,
-} = require("@middleware/enhancedAdminAccess");
+} = require("@middleware/adminAccess");
 
 const {
   requireGroupManagerAccess,

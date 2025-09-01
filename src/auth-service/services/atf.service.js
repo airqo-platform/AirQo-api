@@ -103,8 +103,8 @@ class TokenStrategy {
 class LegacyTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const EnhancedRBACService = require("@services/enhancedRBAC.service");
-      const rbacService = new EnhancedRBACService(tenant);
+      const RBACService = require("@services/rbac.service");
+      const rbacService = new RBACService(tenant);
 
       const permissions = await rbacService.getUserPermissions(user._id);
       const roles = [user.userType, user.privilege];
@@ -154,8 +154,8 @@ class LegacyTokenStrategy extends TokenStrategy {
 class StandardTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
-      const EnhancedRBACService = require("@services/enhancedRBAC.service");
-      const rbacService = new EnhancedRBACService(tenant);
+      const RBACService = require("@services/rbac.service");
+      const rbacService = new RBACService(tenant);
 
       const permissionData = await rbacService.getUserPermissionsByContext(
         user._id

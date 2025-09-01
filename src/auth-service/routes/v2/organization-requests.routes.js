@@ -5,7 +5,7 @@ const organizationRequestController = require("@controllers/organization-request
 const organizationRequestValidations = require("@validators/organization-requests.validators");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const { validate } = require("@validators/common");
-const { requireSystemAdmin } = require("@middleware/enhancedAdminAccess");
+const { requireSystemAdmin } = require("@middleware/adminAccess");
 const rateLimit = require("express-rate-limit");
 const onboardingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 

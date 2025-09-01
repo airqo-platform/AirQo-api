@@ -3,7 +3,7 @@ const httpStatus = require("http-status");
 const { HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 const constants = require("@config/constants");
-const EnhancedRBACService = require("@services/enhancedRBAC.service");
+const EnhancedRBACService = require("@services/rbac.service");
 
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- permission-auth`);
 

@@ -40,11 +40,11 @@ const {
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
 
-const EnhancedRBACService = require("@services/enhancedRBAC.service");
+const RBACService = require("@services/rbac.service");
 const {
-  EnhancedTokenFactory,
+  AbstractTokenFactory,
   TOKEN_STRATEGIES,
-} = require("@services/enhancedTokenFactory.service");
+} = require("@services/atf.service");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -4812,7 +4812,7 @@ const createUserModule = {
       }
 
       // Initialize RBAC service
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       // Get comprehensive permission data
       console.log("🔍 Getting comprehensive permissions for user:", user._id);
@@ -4837,7 +4837,7 @@ const createUserModule = {
       console.log("🎯 Using token strategy:", strategy);
 
       // Initialize token factory
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
 
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
@@ -5237,7 +5237,7 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
       const token = await tokenFactory.createToken(
         populatedUser,
         tokenStrategy,
@@ -5290,7 +5290,7 @@ const createUserModule = {
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
 
       // Clear cache for this user
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
       rbacService.clearUserCache(userId);
 
       // Get fresh permissions
@@ -5311,7 +5311,7 @@ const createUserModule = {
           const populatedUser =
             await createUserModule._populateUserDataManually(user, dbTenant);
 
-          const tokenFactory = new EnhancedTokenFactory(dbTenant);
+          const tokenFactory = new AbstractTokenFactory(dbTenant);
           newToken = await tokenFactory.createToken(populatedUser, strategy);
           tokenInfo = {
             token: `JWT ${newToken}`,
@@ -5380,7 +5380,7 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
       const strategies = Object.values(TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
@@ -5461,7 +5461,7 @@ const createUserModule = {
       }
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       let permissions;
       if (contextId && contextType) {
