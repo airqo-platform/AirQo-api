@@ -319,6 +319,7 @@ class TestBigQueryApiQueryExecution:
                 start_date_time="2025-01-01",
                 end_date_time="2025-01-04",
                 device_category=DeviceCategory.LOWCOST,
+                frequency=Frequency.HOURLY,
                 where_fields={"device_names": ["device1", "device2"]},
                 cursor_token="some_cursor_token",
             )
@@ -382,6 +383,7 @@ class TestBigQueryApiQueryExecution:
                 start_date_time="2025-01-01",
                 end_date_time="2025-01-04",
                 device_category=DeviceCategory.LOWCOST,
+                frequency=Frequency.HOURLY,
                 where_fields={"device_names": ["device1", "device2"]},
             )
 
