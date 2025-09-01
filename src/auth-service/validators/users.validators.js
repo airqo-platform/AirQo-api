@@ -109,6 +109,28 @@ const login = [
   ],
 ];
 
+const loginLegacyCompatible = [
+  validateTenant,
+  [
+    body("email")
+      .exists()
+      .withMessage("email is required")
+      .bail()
+      .notEmpty()
+      .withMessage("email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("Invalid email format")
+      .trim(),
+    body("password")
+      .exists()
+      .withMessage("password is required")
+      .bail()
+      .notEmpty()
+      .withMessage("password should not be empty"),
+  ],
+];
+
 const validStrategies = Object.values(TOKEN_STRATEGIES);
 
 const loginEnhanced = [
@@ -1088,6 +1110,7 @@ module.exports = {
   pagination,
   deleteMobileUserData,
   loginEnhanced,
+  loginLegacyCompatible,
   login,
   emailLogin,
   emailAuth,

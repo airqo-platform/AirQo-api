@@ -285,13 +285,7 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
   async decodeToken(decoded, tenant) {
     try {
       // On decode, we must fetch all user data from the database.
-      const UserModel = require("@models/User");
       const RBACService = require("@services/rbac.service");
-
-      const user = await UserModel(tenant).findById(decoded.id).lean();
-      if (!user) {
-        throw new Error("User not found during token decode");
-      }
 
       const rbacService = new RBACService(tenant);
       const permissionData = await rbacService.getUserPermissionsForLogin(
@@ -299,9 +293,8 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
       );
 
       return {
-        ...user,
         ...permissionData,
-        userId: payload.id,
+        userId: decoded.id,
       };
     } catch (error) {
       logger.error(
@@ -441,9 +434,7 @@ class RoleOnlyTokenStrategy extends TokenStrategy {
     const permissionData = await rbacService.getUserPermissionsForLogin(
       decoded._id
     );
-    const UserModel = require("@models/User");
-    const user = await UserModel(tenant).findById(decoded._id).lean();
-    return { ...user, ...permissionData, userId: decoded._id };
+    return { ...permissionData, userId: decoded._id };
   }
 }
 
@@ -585,9 +576,7 @@ class OptimizedRoleOnlyTokenStrategy extends TokenStrategy {
     const permissionData = await rbacService.getUserPermissionsForLogin(
       decoded.id
     );
-    const UserModel = require("@models/User");
-    const user = await UserModel(tenant).findById(decoded.id).lean();
-    return { ...user, ...permissionData, userId: decoded.id };
+    return { ...permissionData, userId: decoded.id };
   }
 }
 

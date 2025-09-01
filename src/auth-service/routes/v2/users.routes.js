@@ -69,8 +69,8 @@ router.post(
  */
 router.post(
   "/login-legacy-compatible",
-  setLocalAuth,
-  authLocal,
+  userValidations.loginLegacyCompatible,
+  validate,
   userController.loginLegacyCompatible
 );
 
