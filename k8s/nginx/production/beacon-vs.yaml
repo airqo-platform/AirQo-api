@@ -196,7 +196,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: ~ ^/api/v[1-2]/beacon(?:/(.*))?$
+    - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
       action:
         proxy:
           upstream: beacon
