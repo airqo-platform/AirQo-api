@@ -9,7 +9,6 @@ from constants import (
     DataType,
     DeviceCategory,
 )
-from datetime import datetime
 from api.utils.utils import Utils
 import pandas as pd
 from google.cloud import bigquery

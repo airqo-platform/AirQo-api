@@ -83,6 +83,11 @@ class BaseConfig:
         "monthly": "month",
         "yearly": "year",
     }
+    download_export_time_fields = {
+        "weekly": "week",
+        "monthly": "month",
+        "yearly": "year",
+    }
     # Data sources
     @classmethod
     def data_sources(cls):
