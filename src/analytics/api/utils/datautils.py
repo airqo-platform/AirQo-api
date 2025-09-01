@@ -104,8 +104,6 @@ class DataUtils:
             drop_columns.append("datetime")
             sorting_cols.append("datetime")
 
-        # if dynamic_query:
-        # This currently being used for the data-downloads endpoint only
         raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
             raw_data, datatype, main_columns
         )
@@ -155,10 +153,6 @@ class DataUtils:
             networks = data["network"].unique().tolist()
             if "airqo" not in networks or len(networks) > 1:
                 required_columns.add("pm2_5")
-            # raw_value_columns = [f"{pollutant}_raw_value" for pollutant in pollutants]
-            # required_columns.update(raw_value_columns)
-        # else:
-        #     raw_value_columns = []
 
         missing = [col for col in required_columns if col not in data.columns]
         if missing:
@@ -168,17 +162,6 @@ class DataUtils:
         data[list(required_columns)] = data[list(required_columns)].apply(
             pd.to_numeric, errors="coerce"
         )
-
-        # if raw_value_columns:
-        #     # For mixed device data
-        #     condition = data[raw_value_columns].gt(0).all(axis=1)
-        #     data.loc[condition, "pm2_5"] = np.nan
-
-        #     drop_mask = data[raw_value_columns].isna() | (data[raw_value_columns] == 0)
-        #     drop_mask = drop_mask.all()
-        #     columns_to_drop = drop_mask[drop_mask].index.tolist()
-        #     if columns_to_drop:
-        #         data.drop(columns=columns_to_drop, inplace=True)
 
         zero_only_columns = data.columns[(data == 0).all()]
         data.drop(columns=zero_only_columns, inplace=True)
