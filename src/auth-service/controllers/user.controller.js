@@ -1035,7 +1035,14 @@ const createUser = {
         : req.query.tenant;
 
       if (req.auth.success === true) {
-        const user = await req.user.toAuthJSON();
+        // Explicitly use the 'legacy' token strategy for this endpoint
+        const token = await req.user.createToken("legacy");
+        const user = {
+          _id: req.user._id,
+          userName: req.user.userName,
+          token: `JWT ${token}`,
+          email: req.user.email,
+        };
         return res.status(httpStatus.OK).json(user);
       } else {
         if (req.auth.error) {
@@ -1066,7 +1073,14 @@ const createUser = {
         : req.query.tenant;
 
       if (req.auth.success === true) {
-        const user = await req.user.toAuthJSON();
+        // Explicitly use the 'legacy' token strategy for this endpoint
+        const token = await req.user.createToken("legacy");
+        const user = {
+          _id: req.user._id,
+          userName: req.user.userName,
+          token: `JWT ${token}`,
+          email: req.user.email,
+        };
         const currentDate = new Date();
 
         // Update last login and active status
