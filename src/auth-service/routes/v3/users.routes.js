@@ -104,7 +104,7 @@ router.post(
 router.post(
   "/generate-token",
   enhancedJWTAuth,
-  // requirePermissions(["USER_MANAGE", "TOKEN_GENERATE"]),
+  requirePermissions(["TOKEN_GENERATE"]),
   validate,
   userController.generateOptimizedToken
 );
@@ -132,7 +132,7 @@ router.post(
 router.get(
   "/analyze-tokens/:userId",
   enhancedJWTAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS", "TOKEN_ANALYZE"]),
+  requirePermissions(["SYSTEM_ADMIN"]),
   validate,
   userController.analyzeTokenStrategies
 );
@@ -193,7 +193,7 @@ router.get(
 router.get(
   "/groups/:grp_id/permissions",
   enhancedJWTAuth,
-  // requireGroupMembership("grp_id"),
+  requireGroupMembership("grp_id"),
   (req, res) => {
     req.query.contextId = req.params.grp_id;
     req.query.contextType = "group";
@@ -209,7 +209,7 @@ router.get(
 router.get(
   "/groups/:grp_id/members",
   enhancedJWTAuth,
-  // requireGroupPermissions(["USER_VIEW"], "grp_id"),
+  requireGroupPermissions(["USER_VIEW"], "grp_id"),
   async (req, res) => {
     try {
       const UserModel = require("@models/User");
@@ -326,7 +326,7 @@ router.get(
 router.get(
   "/networks/:network_id/permissions",
   enhancedJWTAuth,
-  // requireNetworkMembership("network_id"),
+  requireNetworkMembership("network_id"),
   (req, res) => {
     req.query.contextId = req.params.network_id;
     req.query.contextType = "network";
@@ -342,7 +342,7 @@ router.get(
 router.get(
   "/networks/:network_id/members",
   enhancedJWTAuth,
-  // requireNetworkPermissions(["USER_VIEW"], "network_id"),
+  requireNetworkPermissions(["USER_VIEW"], "network_id"),
   async (req, res) => {
     try {
       const UserModel = require("@models/User");
@@ -463,7 +463,7 @@ router.get(
 router.get(
   "/debug/permissions/:userId",
   enhancedJWTAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS"]),
+  requirePermissions(["SYSTEM_ADMIN"]),
   debugPermissions(),
   async (req, res) => {
     try {
@@ -497,7 +497,7 @@ router.get(
 router.get(
   "/admin/token-analytics",
   enhancedJWTAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS"]),
+  requirePermissions(["SYSTEM_ADMIN"]),
   async (req, res) => {
     try {
       const { tokenConfig } = require("@config/tokenStrategyConfig");
