@@ -194,9 +194,10 @@ class D3ChartDataResource(Resource):
                 extra_columns=extra_columns,
                 use_cache=True,
             )
+
             if not data.empty:
                 dashboardata = DashboardDataUtils()
-                data = dashboardata.processd3data(data)
+                data = dashboardata.processd3data(data, frequency)
             else:
                 data: list = []
 

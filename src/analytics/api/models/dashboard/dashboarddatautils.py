@@ -2,10 +2,14 @@ import pandas as pd
 from typing import Dict, List, Any
 from collections import defaultdict
 from api.utils.pollutants.pm_25 import get_pollutant_category, PM_COLOR_CATEGORY
+from config import BaseConfig as Config
+from constants import Frequency
 
 
 class DashboardDataUtils:
-    def processd3data(self, dataframe: pd.DataFrame) -> List[Dict]:
+    def processd3data(
+        self, dataframe: pd.DataFrame, frequency: Frequency
+    ) -> List[Dict]:
         """
         Processes sensor time-series data into a list of records formatted for D3 visualizations.
 
@@ -28,6 +32,9 @@ class DashboardDataUtils:
                 f"DataFrame must contain one of the following columns: {supported_pollutants}"
             )
 
+        time_column = Config.download_export_time_fields.get(
+            frequency.value, "datetime"
+        )
         drop_cols = [
             "device_name",
             "timestamp",
@@ -35,11 +42,16 @@ class DashboardDataUtils:
             "frequency",
             f"{pollutant_col}_calibrated_value",
         ]
+        if time_column != "datetime":
+            # convert datetime column to string datetime
+            dataframe[time_column] = dataframe[time_column].dt.strftime(
+                "%Y-%m-%d %H:%M:%SZ"
+            )
 
         renamed_dataframe = dataframe.rename(
             columns={
                 pollutant_col: "value",
-                "datetime": "time",
+                time_column: "time",
                 "site_name": "generated_name",
             }
         )
