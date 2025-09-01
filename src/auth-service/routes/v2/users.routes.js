@@ -55,7 +55,12 @@ router.use(userValidations.pagination);
  * @body {boolean} [includeDebugInfo] - Include debug information (dev only)
  * @query {string} [tenant] - Tenant identifier
  */
-router.post("/login-enhanced", validate, userController.loginEnhanced);
+router.post(
+  "/login-enhanced",
+  userValidations.loginEnhanced,
+  validate,
+  userController.loginEnhanced
+);
 
 /**
  * @route POST /api/v2/users/login-legacy-compatible
@@ -843,20 +848,6 @@ router.use("*", (req, res) => {
       "GET /groups/:grp_id/permissions",
       "GET /networks/:network_id/permissions",
     ],
-  });
-});
-
-// Global error handler for this router
-router.use((error, req, res, next) => {
-  console.error("User Routes Error:", error);
-
-  res.status(error.status || 500).json({
-    success: false,
-    message: error.message || "Internal server error in user routes",
-    ...(process.env.NODE_ENV === "development" && {
-      stack: error.stack,
-      details: error.details || {},
-    }),
   });
 });
 

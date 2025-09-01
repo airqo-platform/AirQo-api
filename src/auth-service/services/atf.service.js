@@ -118,7 +118,7 @@ class AbstractTokenFactory {
     if (decoded.oh) return TOKEN_STRATEGIES.OPTIMIZED_HASH;
     if (decoded.sf) return TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS;
     if (decoded.os === 1) return TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY;
-    if (decoded.d) return TOKEN_STRATEGIES.ULTRA_COMPRESSED;
+    if (decoded.uc === 1) return TOKEN_STRATEGIES.ULTRA_COMPRESSED;
     if (decoded.ph) return TOKEN_STRATEGIES.HASH_BASED;
     if (decoded.spf) return TOKEN_STRATEGIES.BIT_FLAGS;
     if (decoded.rs) return TOKEN_STRATEGIES.ROLE_ONLY;
@@ -257,35 +257,17 @@ class StandardTokenStrategy extends TokenStrategy {
 }
 
 class UltraCompressedTokenStrategy extends TokenStrategy {
-  async generateToken(user, tenant, options) {
+  async generateToken(user, tenant, options = {}) {
     try {
-      const RBACService = require("@services/rbac.service");
-      const rbacService = new RBACService(tenant);
-      const permissionData = await rbacService.getUserPermissionsForLogin(
-        user._id
-      );
-
-      // Use shorter keys for smaller payload
-      const payload = {
+      // This strategy creates a very small token containing only the user ID.
+      // All user data and permissions will be fetched from the database upon decoding.
+      // This is ideal for scenarios where token size is critical, but it introduces
+      // a database lookup for every token verification.
+      const tokenPayload = {
         id: user._id,
-        em: user.email,
-        f: user.firstName,
-        l: user.lastName,
-        p: permissionData.allPermissions,
-        sp: permissionData.systemPermissions,
-        gp: permissionData.groupPermissions,
-        np: permissionData.networkPermissions,
-        gm: permissionData.groupMemberships,
-        nm: permissionData.networkMemberships,
-        sa: permissionData.isSuperAdmin,
+        uc: 1, // Ultra Compressed marker
       };
 
-      const stringifiedPayload = JSON.stringify(payload);
-      const compressed = zlib
-        .deflateSync(stringifiedPayload)
-        .toString("base64");
-
-      const tokenPayload = { d: compressed };
       const jwtOptions = {
         expiresIn: options.expiresIn || "24h",
         ...options.jwtOptions,
@@ -293,34 +275,38 @@ class UltraCompressedTokenStrategy extends TokenStrategy {
 
       return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtOptions);
     } catch (error) {
-      logger.error(`Error generating ultra compressed token: ${error.message}`);
+      logger.error(
+        `Error generating ultra-compressed (ID-only) token: ${error.message}`
+      );
       throw error;
     }
   }
 
   async decodeToken(decoded, tenant) {
     try {
-      const compressed = Buffer.from(decoded.d, "base64");
-      const decompressed = zlib.inflateSync(compressed).toString();
-      const payload = JSON.parse(decompressed);
+      // On decode, we must fetch all user data from the database.
+      const UserModel = require("@models/User");
+      const RBACService = require("@services/rbac.service");
+
+      const user = await UserModel(tenant).findById(decoded.id).lean();
+      if (!user) {
+        throw new Error("User not found during token decode");
+      }
+
+      const rbacService = new RBACService(tenant);
+      const permissionData = await rbacService.getUserPermissionsForLogin(
+        decoded.id
+      );
 
       return {
-        ...payload,
-        _id: payload.id,
+        ...user,
+        ...permissionData,
         userId: payload.id,
-        email: payload.em,
-        firstName: payload.f,
-        lastName: payload.l,
-        permissions: payload.p,
-        systemPermissions: payload.sp,
-        groupPermissions: payload.gp,
-        networkPermissions: payload.np,
-        groupMemberships: payload.gm,
-        networkMemberships: payload.nm,
-        isSuperAdmin: payload.sa,
       };
     } catch (error) {
-      logger.error(`Error decoding ultra compressed token: ${error.message}`);
+      logger.error(
+        `Error decoding ultra-compressed (ID-only) token: ${error.message}`
+      );
       throw error;
     }
   }

@@ -4823,10 +4823,10 @@ const createUserModule = {
       if (!user) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            email: "No account found with this email address",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
@@ -4836,10 +4836,10 @@ const createUserModule = {
       if (!isPasswordValid) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            password: "Incorrect password",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }

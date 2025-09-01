@@ -1,6 +1,7 @@
 // users.validators.js
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
+const { TOKEN_STRATEGIES } = require("@services/atf.service");
 const ObjectId = mongoose.Types.ObjectId;
 
 const createInterestValidation = () => [
@@ -92,8 +93,58 @@ const deleteMobileUserData = [
 const login = [
   validateTenant,
   [
-    body("userName").exists().withMessage("the userName must be provided"),
-    body("password").exists().withMessage("the password must be provided"),
+    body("userName")
+      .exists()
+      .withMessage("the userName must be provided")
+      .bail()
+      .notEmpty()
+      .withMessage("userName should not be empty")
+      .trim(),
+    body("password")
+      .exists()
+      .withMessage("the password must be provided")
+      .bail()
+      .notEmpty()
+      .withMessage("password should not be empty"),
+  ],
+];
+
+const validStrategies = Object.values(TOKEN_STRATEGIES);
+
+const loginEnhanced = [
+  validateTenant,
+  [
+    body("email")
+      .exists()
+      .withMessage("email is required")
+      .bail()
+      .notEmpty()
+      .withMessage("email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("Invalid email format")
+      .trim(),
+    body("password")
+      .exists()
+      .withMessage("password is required")
+      .bail()
+      .notEmpty()
+      .withMessage("password should not be empty"),
+    body("preferredStrategy")
+      .optional()
+      .notEmpty()
+      .withMessage("preferredStrategy should not be empty if provided")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+    body("includeDebugInfo")
+      .optional()
+      .isBoolean()
+      .withMessage("includeDebugInfo must be a boolean"),
   ],
 ];
 
@@ -1036,6 +1087,7 @@ module.exports = {
   AirqoTenantOnly: validateAirqoTenantOnly,
   pagination,
   deleteMobileUserData,
+  loginEnhanced,
   login,
   emailLogin,
   emailAuth,

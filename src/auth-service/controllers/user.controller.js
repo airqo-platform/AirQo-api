@@ -46,6 +46,18 @@ function handleResponse({
   return res.status(status).json({ message, [key]: data, [errorKey]: errors });
 }
 
+const handleError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+  if (error instanceof HttpError) {
+    return next(error);
+  }
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: error.message,
+    })
+  );
+};
+
 const createUser = {
   listStatistics: async (req, res, next) => {
     try {
@@ -91,14 +103,7 @@ const createUser = {
       }
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listLogs: async (req, res, next) => {
@@ -129,15 +134,7 @@ const createUser = {
       }
     } catch (error) {
       logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   getUserStats: async (req, res, next) => {
@@ -181,15 +178,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listCache: async (req, res, next) => {
@@ -233,15 +222,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   list: async (req, res, next) => {
@@ -285,15 +266,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listUsersAndAccessRequests: async (req, res, next) => {
@@ -337,15 +310,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   googleCallback: async (req, res, next) => {
@@ -418,15 +383,7 @@ const createUser = {
        * const token = Cookies.get("access_token");
        */
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verify: async (req, res, next) => {
@@ -438,15 +395,7 @@ const createUser = {
         return;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verifyEmail: async (req, res, next) => {
@@ -490,15 +439,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   deleteMobileUserData: async (req, res, next) => {
@@ -542,15 +483,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   emailReport: async (req, res, next) => {
@@ -624,14 +557,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
   lookUpFirebaseUser: async (req, res, next) => {
@@ -679,15 +605,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   syncAnalyticsAndMobile: async (req, res, next) => {
@@ -726,15 +644,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   signUpWithFirebase: async (req, res, next) => {
@@ -781,15 +691,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   loginWithFirebase: async (req, res, next) => {
@@ -835,15 +737,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verifyFirebaseCustomToken: async (req, res, next) => {
@@ -888,15 +782,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   createFirebaseUser: async (req, res, next) => {
@@ -942,15 +828,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   sendFeedback: async (req, res, next) => {
@@ -996,15 +874,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   forgot: async (req, res, next) => {
@@ -1050,15 +920,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   register: async (req, res, next) => {
@@ -1105,15 +967,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   create: async (req, res, next) => {
@@ -1160,15 +1014,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   login: async (req, res, next) => {
@@ -1198,15 +1044,7 @@ const createUser = {
         throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   loginWithDetails: async (req, res, next) => {
@@ -1270,17 +1108,7 @@ const createUser = {
         throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   logout: async (req, res, next) => {
@@ -1323,14 +1151,7 @@ const createUser = {
       });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   guest: (req, res, next) => {
@@ -1363,15 +1184,7 @@ const createUser = {
           .json({ success: true, guestId: req.user.guestId });
       });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   delete: async (req, res, next) => {
@@ -1417,15 +1230,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   update: async (req, res, next) => {
@@ -1471,15 +1276,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   loginInViaEmail: async (req, res, next) => {
@@ -1527,15 +1324,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   emailAuth: async (req, res, next) => {
@@ -1588,15 +1377,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateForgottenPassword: async (req, res, next) => {
@@ -1640,15 +1421,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateKnownPassword: async (req, res, next) => {
@@ -1693,15 +1466,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   resetPasswordRequest: async (req, res, next) => {
@@ -1729,15 +1494,7 @@ const createUser = {
         .status(httpStatus.OK)
         .json({ success: true, message: result.message });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   resetPassword: async (req, res, next) => {
@@ -1771,15 +1528,7 @@ const createUser = {
         .json({ success: true, message: result.message });
     } catch (error) {
       logObject("error in controller", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
 
@@ -1815,15 +1564,7 @@ const createUser = {
         next(new HttpError(result.message, httpStatus.BAD_REQUEST));
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
 
@@ -1855,15 +1596,7 @@ const createUser = {
         next(new HttpError(result.message, httpStatus.BAD_REQUEST));
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
 
@@ -1910,15 +1643,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   reSubscribeToNewsLetter: async (req, res, next) => {
@@ -1964,15 +1689,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   unSubscribeFromNewsLetter: async (req, res, next) => {
@@ -2018,15 +1735,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   /***************************** notifications  ***********************/
@@ -2070,15 +1779,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   unSubscribeFromNotifications: async (req, res, next) => {
@@ -2121,15 +1822,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   checkNotificationStatus: async (req, res, next) => {
@@ -2172,15 +1865,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   getOrganizationBySlug: async (req, res, next) => {
@@ -2223,14 +1908,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2274,14 +1952,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
   cleanup: async (req, res, next) => {
@@ -2317,16 +1988,7 @@ const createUser = {
         return res.status(status).json(result);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
+      handleError(error, next);
     }
   },
   /**
@@ -2379,15 +2041,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Enhanced login controller error: ${error.message}`);
-      logObject("Enhanced login error", error);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2423,14 +2077,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Token generation controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2471,14 +2118,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Permission refresh controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2524,14 +2164,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Token analysis controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2582,14 +2215,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Context permissions controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2648,14 +2274,7 @@ const createUser = {
       logger.error(
         `🐛 Token strategy update controller error: ${error.message}`
       );
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2817,14 +2436,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Enhanced profile controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2891,14 +2503,7 @@ const createUser = {
       return handleResponse({ result, res });
     } catch (error) {
       logger.error(`🐛 Legacy login controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 };
