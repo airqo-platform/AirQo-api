@@ -32,8 +32,8 @@ class BigQueryApi:
         self.airqlouds_sites_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS_SITES)
         self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
-        self.all_time_grouping = {"hourly", "daily", "weekly", "monthly", "yearly"}
-        self.extra_time_grouping = {"weekly", "monthly", "yearly"}
+        self.all_time_grouping = Config.all_time_grouping
+        self.extra_time_grouping = Config.extra_time_grouping
         self.field_mappings = Config.FILTER_FIELD_MAPPING
 
     @property
@@ -377,7 +377,6 @@ class BigQueryApi:
         where_fields: Optional[Dict[str, Any]] = None,
         dynamic_query: Optional[bool] = False,
         use_cache: Optional[bool] = True,
-        cursor_field: Optional[str] = "timestamp",
         cursor_token: Optional[str] = None,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
@@ -407,6 +406,7 @@ class BigQueryApi:
         query_parameters = []
         filter_type, filter_value = next(iter(where_fields.items()))
         meta_data: Dict[str, Any] = {"total_count": 0, "has_more": False, "next": None}
+        cursor_field = Config.cursor_field.get(frequency.value, "timestamp")
 
         # Determine which query generation approach to use
         if not dynamic_query:
@@ -676,7 +676,7 @@ class BigQueryApi:
         table_name = Utils.table_name(table)
 
         # TODO Find a better way to do this.
-        if frequency.value in self.extra_time_grouping:
+        if frequency.value in (self.extra_time_grouping - {"daily"}):
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
                 f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime ",
@@ -723,6 +723,7 @@ class BigQueryApi:
         frequency: Frequency,
         decimal_places: float,
         table_name: str,
+        device_category: DeviceCategory,
     ):
         """
         Constructs a list of SQL expressions to apply rounding and optional averaging to columns for BigQuery queries.
@@ -738,7 +739,9 @@ class BigQueryApi:
         Returns:
             list: A list of SQL-safe strings representing the columns with rounding and optional averaging applied.
         """
-        if frequency.value in self.extra_time_grouping:
+        if frequency.value in self.extra_time_grouping or (
+            device_category.value == "bam" and frequency.value == "daily"
+        ):
             return [
                 f"ROUND(AVG({table_name}.{col}), {decimal_places}) AS {col}"
                 for col in mapping
@@ -850,13 +853,13 @@ class BigQueryApi:
                 .get(key, {})
                 .get(pollutant, [])
             )
-
             pollutant_columns_.extend(
                 self.get_averaging_columns(
                     pollutant_mapping,
                     frequency,
                     decimal_places,
                     table_name,
+                    device_category,
                 )
             )
 

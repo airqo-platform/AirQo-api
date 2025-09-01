@@ -74,6 +74,15 @@ class BaseConfig:
     BIGQUERY_COHORTS = env_var("BIGQUERY_COHORTS")
     DEVICES_SUMMARY_TABLE = env_var("DEVICES_SUMMARY_TABLE")
 
+    extra_time_grouping = {"daily", "weekly", "monthly", "yearly"}
+    all_time_grouping = {"hourly", "daily", "weekly", "monthly", "yearly"}
+    cursor_field = {
+        "hourly": "timestamp",
+        "daily": "timestamp",
+        "weekly": "week",
+        "monthly": "month",
+        "yearly": "year",
+    }
     # Data sources
     @classmethod
     def data_sources(cls):
@@ -98,6 +107,10 @@ class BaseConfig:
                 DeviceCategory.LOWCOST: {
                     Frequency.HOURLY: cls.BIGQUERY_HOURLY_DATA,
                     Frequency.DAILY: cls.BIGQUERY_DAILY_DATA,
+                },
+                DeviceCategory.BAM: {
+                    Frequency.HOURLY: cls.BIGQUERY_BAM_HOURLY_DATA,
+                    Frequency.DAILY: cls.BIGQUERY_BAM_HOURLY_DATA,
                 },
             },
             DataType.AVERAGED: {

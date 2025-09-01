@@ -64,7 +64,7 @@ class DataUtils:
 
         datasource = Config.data_sources()
 
-        if data_table_freq.value in {"weekly", "monthly", "yearly"}:
+        if data_table_freq.value in (Config.extra_time_grouping - {"daily"}):
             data_table_freq = Frequency.DAILY
 
         table = (
@@ -72,7 +72,6 @@ class DataUtils:
             .get(device_category, {})
             .get(data_table_freq, None)
         )
-
         if not table:
             logger.exception(
                 f"Wrong table information provided: {datatype}, {device_category}, {frequency}"
@@ -98,7 +97,7 @@ class DataUtils:
         if raw_data.empty:
             return pd.DataFrame(columns=expected_columns), metadata
         drop_columns = ["device_id"]
-        if frequency.value in {"weekly", "monthly", "yearly"}:
+        if frequency.value in (Config.extra_time_grouping - {"daily"}):
             frequency_ = frequency.value[:-2]
             sorting_cols.append(frequency_)
         else:
@@ -110,6 +109,7 @@ class DataUtils:
         raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
             raw_data, datatype, main_columns
         )
+
         raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
         raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
