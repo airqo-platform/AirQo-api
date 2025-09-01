@@ -735,6 +735,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -801,6 +803,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -855,6 +859,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -985,6 +991,8 @@ const createEvent = {
         },
       };
 
+      delete request.query.internal;
+
       const result = await createEventUtil.getBestAirQuality(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -1091,6 +1099,8 @@ const createEvent = {
         },
       };
 
+      delete request.query.internal;
+
       const result = await createEventUtil.readRecentWithFilter(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -1143,6 +1153,8 @@ const createEvent = {
         },
       };
 
+      delete request.query.internal;
+
       const result = await createEventUtil.listReadingAverages(request, next);
 
       if (isEmpty(result) || res.headersSent) {
@@ -1194,6 +1206,8 @@ const createEvent = {
           tenant: isEmpty(req.query.tenant) ? "airqo" : req.query.tenant,
         },
       };
+
+      delete request.query.internal;
 
       const result = await createEventUtil.signal(request, next);
 
@@ -1299,6 +1313,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1357,6 +1373,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1446,6 +1464,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1532,6 +1552,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1618,6 +1640,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1704,6 +1728,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1785,6 +1811,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1852,6 +1880,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1911,6 +1941,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -1970,6 +2002,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2028,6 +2062,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2085,6 +2121,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2142,6 +2180,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2199,6 +2239,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2248,6 +2290,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2298,6 +2342,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2356,6 +2402,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2412,6 +2460,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2464,6 +2514,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2516,6 +2568,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2595,6 +2649,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2674,6 +2730,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2755,6 +2813,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2835,6 +2895,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -2916,6 +2978,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -3000,6 +3064,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -3082,6 +3148,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -3163,6 +3231,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -3244,6 +3314,8 @@ const createEvent = {
       }
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       const defaultTenant = constants.DEFAULT_TENANT || "airqo";
       request.query.tenant = isEmpty(req.query.tenant)
         ? defaultTenant
@@ -3304,6 +3376,8 @@ const createEvent = {
       req.query.deployment_type = deploymentType;
 
       const request = req;
+      // Security: Prevent public requests from setting internal flag
+      delete request.query.internal;
       request.query.tenant = activeTenant;
       request.query.recent = "no";
       request.query.metadata =

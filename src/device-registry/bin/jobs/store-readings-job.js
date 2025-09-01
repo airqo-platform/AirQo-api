@@ -5,8 +5,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- /bin/jobs/store-readings-job`
 );
 const EventModel = require("@models/Event");
-const DeviceModel = require("@models/Device");
-const SiteModel = require("@models/Site");
 const ReadingModel = require("@models/Reading");
 const { logObject, logText } = require("@utils/shared");
 const asyncRetry = require("async-retry");
@@ -17,8 +15,6 @@ const NodeCache = require("node-cache");
 
 // Constants
 const TIMEZONE = moment.tz.guess();
-const INACTIVE_THRESHOLD = 5 * 60 * 60 * 1000; // 5 hours in milliseconds
-
 const JOB_NAME = "store-readings-job";
 const JOB_SCHEDULE = "30 * * * *"; // At minute 30 of every hour
 
@@ -34,96 +30,96 @@ function isDuplicateKeyError(error) {
   );
 }
 
-// Helper function to update entity status (previously undefined)
-async function updateEntityStatus(Model, filter, time, entityType) {
-  try {
-    const entity = await Model.findOne(filter);
-    if (entity) {
-      const isActive = isEntityActive(time);
-      const updateData = {
-        lastActive: moment(time)
-          .tz(TIMEZONE)
-          .toDate(),
-        isOnline: isActive,
-      };
-      await Model.updateOne(filter, { $set: updateData });
-    } else {
-      logger.warn(
-        `🙀🙀 ${entityType} not found with filter: ${stringify(filter)}`
-      );
-    }
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      return; // Silently ignore duplicate key errors
-    }
-    logger.error(
-      `🐛🐛 Error updating ${entityType}'s status: ${error.message}`
-    );
-    logger.error(`🐛🐛 Stack trace: ${error.stack}`);
-  }
-}
-
-// Helper function to check if entity is active
-function isEntityActive(time) {
+// Enhanced timestamp validation
+function validateTimestamp(time) {
   if (!time) {
-    return false;
+    return { isValid: false, reason: "null_or_undefined" };
   }
-  const currentTime = moment()
-    .tz(TIMEZONE)
-    .toDate();
-  const measurementTime = moment(time)
-    .tz(TIMEZONE)
-    .toDate();
-  return currentTime - measurementTime < INACTIVE_THRESHOLD;
+
+  const momentTime = moment(time);
+  if (!momentTime.isValid()) {
+    return { isValid: false, reason: "invalid_date_format" };
+  }
+
+  const now = moment().tz(TIMEZONE);
+  const timeDiff = now.diff(momentTime);
+
+  // Check for future timestamps (allow 5 minutes buffer for clock skew)
+  if (timeDiff < -5 * 60 * 1000) {
+    return {
+      isValid: false,
+      reason: "future_timestamp",
+      timeDiff: timeDiff,
+    };
+  }
+
+  // Check for extremely old timestamps (older than 30 days)
+  if (timeDiff > 30 * 24 * 60 * 60 * 1000) {
+    return {
+      isValid: false,
+      reason: "timestamp_too_old",
+      timeDiff: timeDiff,
+    };
+  }
+
+  return {
+    isValid: true,
+    validTime: momentTime.toDate(),
+    timeDiff: timeDiff,
+  };
 }
 
-// Batch processing manager
-class BatchProcessor {
+// Focused batch processor for readings only
+class ReadingsBatchProcessor {
   constructor(batchSize = 50) {
     this.batchSize = batchSize;
-    this.pendingAveragesQueue = new Map(); // site_id -> Promise
-    this.processingBatch = false;
+    this.pendingAveragesQueue = new Map();
+    this.processingMetrics = {
+      startTime: null,
+      endTime: null,
+      totalDocuments: 0,
+      readingsProcessed: 0,
+      readingsFailed: 0,
+      timestampValidationFailures: 0,
+      averageCalculationFailures: 0,
+    };
   }
 
   async processDocument(doc) {
     try {
-      const docTime = moment(doc.time).tz(TIMEZONE);
-      const updatePromises = [];
+      if (!this.processingMetrics.startTime) {
+        this.processingMetrics.startTime = new Date();
+      }
+      this.processingMetrics.totalDocuments++;
 
-      // Handle site and device status updates
-      if (doc.site_id) {
-        updatePromises.push(
-          updateEntityStatus(
-            SiteModel("airqo"),
-            { _id: doc.site_id },
-            docTime.toDate(),
-            "Site"
-          )
+      // Validate timestamp
+      const validationResult = validateTimestamp(doc.time);
+      if (!validationResult.isValid) {
+        logger.debug(
+          `⚠️ Skipping reading due to invalid timestamp: ${validationResult.reason} - ${doc.time}`
         );
+        this.processingMetrics.timestampValidationFailures++;
+        return;
       }
 
-      if (doc.device_id) {
-        updatePromises.push(
-          updateEntityStatus(
-            DeviceModel("airqo"),
-            { _id: doc.device_id },
-            docTime.toDate(),
-            "Device"
-          )
-        );
-      }
+      const docTime = validationResult.validTime;
 
-      // Wait for status updates
-      await Promise.all(updatePromises);
-
-      // Handle averages calculation with caching
+      // Handle averages calculation - don't let failures stop reading storage
       let averages = null;
       if (doc.site_id) {
-        averages = await this.getOrQueueAverages(doc.site_id.toString());
+        try {
+          averages = await this.getOrQueueAverages(doc.site_id.toString());
+        } catch (error) {
+          logger.debug(
+            `Failed to get averages for site ${doc.site_id}: ${error.message}`
+          );
+          this.processingMetrics.averageCalculationFailures++;
+          // Continue without averages
+        }
       }
 
-      // Prepare and save reading
-      const base = { time: docTime.toDate() };
+      // Prepare reading filter
+      const base = { time: docTime };
       let filter = null;
 
       if (doc.site_id) {
@@ -135,59 +131,65 @@ class BatchProcessor {
       }
 
       if (!filter) {
-        logger.warn(
-          `Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id) – would collapse on time only`
+        logger.debug(
+          `⚠️ Skipping reading: missing identity (no site_id, grid_id+device_id, or device_id)`
         );
+        this.processingMetrics.readingsFailed++;
         return;
       }
-      const { _id, ...updateDoc } = { ...doc, time: docTime.toDate() };
 
+      // Prepare update document
+      const { _id, ...updateDoc } = { ...doc, time: docTime };
       if (averages) {
         updateDoc.averages = averages;
       }
-      await ReadingModel("airqo").updateOne(
-        filter,
-        { $set: updateDoc },
-        {
-          upsert: true,
+
+      // Save reading
+      try {
+        await ReadingModel("airqo").updateOne(
+          filter,
+          { $set: updateDoc },
+          { upsert: true }
+        );
+        this.processingMetrics.readingsProcessed++;
+      } catch (error) {
+        if (isDuplicateKeyError(error)) {
+          // Silently count duplicates as successful
+          this.processingMetrics.readingsProcessed++;
+        } else {
+          logger.warn(`Failed to save reading: ${error.message}`);
+          this.processingMetrics.readingsFailed++;
         }
-      );
-    } catch (error) {
-      if (isDuplicateKeyError(error)) {
-        // Silently ignore duplicate key errors
-        return;
       }
-      logger.error(`🐛🐛 Error processing document: ${error.message}`);
-      throw error;
+    } catch (error) {
+      this.processingMetrics.readingsFailed++;
+      if (!isDuplicateKeyError(error)) {
+        logger.error(`🐛 Error processing document: ${error.message}`);
+      }
+      // Continue processing other documents
     }
   }
 
   async getOrQueueAverages(siteId) {
-    // Check cache first
-    // logObject("the siteId", siteId);
     const cachedAverages = siteAveragesCache.get(siteId);
     if (cachedAverages) {
       return cachedAverages;
     }
 
-    // If there's already a pending request for this site, return that promise
     if (this.pendingAveragesQueue.has(siteId)) {
       return this.pendingAveragesQueue.get(siteId);
     }
 
-    // Create new promise for this site
     const averagesPromise = this.calculateAverages(siteId);
     this.pendingAveragesQueue.set(siteId, averagesPromise);
 
     try {
       const averages = await averagesPromise;
-      // Cache the result
       if (averages) {
         siteAveragesCache.set(siteId, averages);
       }
       return averages;
     } finally {
-      // Clean up the queue
       this.pendingAveragesQueue.delete(siteId);
     }
   }
@@ -197,68 +199,52 @@ class BatchProcessor {
       const averages = await EventModel("airqo").getAirQualityAverages(siteId);
       return averages?.success ? averages.data : null;
     } catch (error) {
-      if (isDuplicateKeyError(error)) {
-        return null; // Silently ignore duplicate key errors
+      if (!isDuplicateKeyError(error)) {
+        logger.debug(
+          `Error calculating averages for site ${siteId}: ${error.message}`
+        );
       }
-      logger.error(
-        `🐛🐛 Error calculating averages for site ${siteId}: ${error.message}`
-      );
       return null;
     }
   }
-}
 
-// Helper function to update offline devices
-async function updateOfflineDevices(data) {
-  try {
-    const activeDeviceIds = new Set(data.map((doc) => doc.device_id));
-    const thresholdTime = moment()
-      .subtract(INACTIVE_THRESHOLD, "milliseconds")
-      .toDate();
+  getProcessingReport() {
+    this.processingMetrics.endTime = new Date();
 
-    await DeviceModel("airqo").updateMany(
-      {
-        _id: { $nin: Array.from(activeDeviceIds) },
-        lastActive: { $lt: thresholdTime },
+    const totalAttempted =
+      this.processingMetrics.readingsProcessed +
+      this.processingMetrics.readingsFailed;
+    const successRate =
+      totalAttempted > 0
+        ? Math.round(
+            (this.processingMetrics.readingsProcessed / totalAttempted) * 10000
+          ) / 100
+        : 0;
+
+    return {
+      summary: {
+        totalDocuments: this.processingMetrics.totalDocuments,
+        readingsProcessed: this.processingMetrics.readingsProcessed,
+        readingsFailed: this.processingMetrics.readingsFailed,
+        successRate: successRate,
+        processingDuration:
+          this.processingMetrics.endTime - this.processingMetrics.startTime,
       },
-      { $set: { isOnline: false } }
-    );
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      return; // Silently ignore duplicate key errors
-    }
-    logger.error(`🐛🐛 Error updating offline devices: ${error.message}`);
+      details: {
+        timestampValidationFailures: this.processingMetrics
+          .timestampValidationFailures,
+        averageCalculationFailures: this.processingMetrics
+          .averageCalculationFailures,
+        startTime: this.processingMetrics.startTime,
+        endTime: this.processingMetrics.endTime,
+      },
+    };
   }
 }
 
-// Helper function to update offline sites
-async function updateOfflineSites(data) {
-  try {
-    const activeSiteIds = new Set(
-      data.map((doc) => doc.site_id).filter(Boolean)
-    );
-    const thresholdTime = moment()
-      .subtract(INACTIVE_THRESHOLD, "milliseconds")
-      .toDate();
-
-    await SiteModel("airqo").updateMany(
-      {
-        _id: { $nin: Array.from(activeSiteIds) },
-        lastActive: { $lt: thresholdTime },
-      },
-      { $set: { isOnline: false } }
-    );
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      return; // Silently ignore duplicate key errors
-    }
-    logger.error(`🐛🐛 Error updating offline sites: ${error.message}`);
-  }
-}
-
-// Main function to fetch and store data
-async function fetchAndStoreDataIntoReadingsModel() {
-  const batchProcessor = new BatchProcessor(50);
+// Main function focused purely on readings
+async function fetchAndStoreReadings() {
+  const batchProcessor = new ReadingsBatchProcessor(50);
 
   try {
     const request = {
@@ -272,16 +258,17 @@ async function fetchAndStoreDataIntoReadingsModel() {
     };
     const filter = generateFilter.fetch(request);
 
+    logText("Starting readings processing job");
+
     let viewEventsResponse;
     try {
       viewEventsResponse = await EventModel("airqo").fetch(filter);
-      logText("Running the data insertion script");
     } catch (fetchError) {
       if (isDuplicateKeyError(fetchError)) {
         logText("Ignoring duplicate key error in fetch operation");
         return;
       }
-      logger.error(`🐛🐛 Error fetching events: ${stringify(fetchError)}`);
+      logger.error(`🐛 Error fetching events: ${stringify(fetchError)}`);
       return;
     }
 
@@ -289,13 +276,13 @@ async function fetchAndStoreDataIntoReadingsModel() {
       !viewEventsResponse?.success ||
       !Array.isArray(viewEventsResponse.data?.[0]?.data)
     ) {
-      logger.warn("🙀🙀 Invalid or empty response from EventModel.fetch()");
+      logger.warn("🙀 Invalid or empty response from EventModel.fetch()");
       return;
     }
 
     const data = viewEventsResponse.data[0].data;
     if (data.length === 0) {
-      logText("No Events found to insert into Readings");
+      logText("No Events found to process into Readings");
       return;
     }
 
@@ -306,7 +293,7 @@ async function fetchAndStoreDataIntoReadingsModel() {
     }
 
     for (const batch of batches) {
-      await Promise.all(
+      await Promise.allSettled(
         batch.map((doc) =>
           asyncRetry(
             async (bail) => {
@@ -314,29 +301,20 @@ async function fetchAndStoreDataIntoReadingsModel() {
                 await batchProcessor.processDocument(doc);
               } catch (error) {
                 if (isDuplicateKeyError(error)) {
-                  // Silently ignore duplicate key errors
-                  return;
+                  return; // Skip duplicates
                 }
                 if (error.name === "MongoError" && error.code !== 11000) {
-                  logger.error(
-                    `🐛🐛 MongoError -- fetchAndStoreDataIntoReadingsModel -- ${stringify(
-                      error
-                    )}`
-                  );
-                  throw error; // Retry non-duplicate errors
+                  throw error; // Retry non-duplicate database errors
                 }
-                // Log other errors but don't retry duplicate key errors
                 if (!isDuplicateKeyError(error)) {
-                  logger.error(
-                    `🐛🐛 Error processing document: ${error.message}`
-                  );
+                  logger.debug(`Error processing document: ${error.message}`);
                   throw error;
                 }
               }
             },
             {
-              retries: 3,
-              minTimeout: 1000,
+              retries: 2,
+              minTimeout: 500,
               factor: 2,
             }
           )
@@ -344,37 +322,42 @@ async function fetchAndStoreDataIntoReadingsModel() {
       );
     }
 
-    // Update offline devices and sites
-    await Promise.all([updateOfflineDevices(data), updateOfflineSites(data)]);
+    // Generate processing report
+    const report = batchProcessor.getProcessingReport();
 
-    logText("All data inserted successfully and offline devices updated");
+    // Simple success logging
+    if (report.summary.successRate >= 95) {
+      logText(
+        `✅ Readings processed successfully: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
+      );
+    } else {
+      logger.warn(
+        `⚠️ Readings processing completed with issues: ${report.summary.readingsProcessed}/${report.summary.totalDocuments} documents (${report.summary.successRate}% success rate)`
+      );
+      logger.info(`📊 Processing details: ${stringify(report.details)}`);
+    }
   } catch (error) {
     if (isDuplicateKeyError(error)) {
-      logText("Completed with some duplicate key errors (ignored)");
-      return;
+      logText(
+        "Readings processing completed with some duplicate entries (ignored)"
+      );
+    } else {
+      logger.error(`🐛 Error in readings processing: ${stringify(error)}`);
     }
-    logger.error(`🐛🐛 Internal Server Error ${stringify(error)}`);
   }
 }
 
 // Create and register the job
 const startJob = () => {
-  // Create the cron job instance 👇 THIS IS THE cronJobInstance!
-  const cronJobInstance = cron.schedule(
-    JOB_SCHEDULE,
-    fetchAndStoreDataIntoReadingsModel,
-    {
-      scheduled: true,
-      timezone: TIMEZONE,
-    }
-  );
+  const cronJobInstance = cron.schedule(JOB_SCHEDULE, fetchAndStoreReadings, {
+    scheduled: true,
+    timezone: TIMEZONE,
+  });
 
-  // Initialize global registry
   if (!global.cronJobs) {
     global.cronJobs = {};
   }
 
-  // Register for cleanup 👇 USING cronJobInstance HERE!
   global.cronJobs[JOB_NAME] = {
     job: cronJobInstance,
     stop: async () => {
@@ -386,18 +369,15 @@ const startJob = () => {
     },
   };
 
-  console.log(`✅ ${JOB_NAME} started`);
+  console.log(`✅ ${JOB_NAME} started - focused on readings storage`);
 };
 
 startJob();
 
 // Export for testing purposes
 module.exports = {
-  fetchAndStoreDataIntoReadingsModel,
-  BatchProcessor,
-  updateEntityStatus,
-  isEntityActive,
-  updateOfflineDevices,
-  updateOfflineSites,
+  fetchAndStoreReadings,
+  ReadingsBatchProcessor,
   isDuplicateKeyError,
+  validateTimestamp,
 };

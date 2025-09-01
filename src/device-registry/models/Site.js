@@ -366,6 +366,16 @@ const siteSchema = new Schema(
         default: null,
       },
     },
+    onlineStatusAccuracy: {
+      totalAttempts: { type: Number, default: 0 },
+      successfulUpdates: { type: Number, default: 0 },
+      failedUpdates: { type: Number, default: 0 },
+      lastUpdate: { type: Date },
+      lastSuccessfulUpdate: { type: Date },
+      lastFailureReason: { type: String },
+      successPercentage: { type: Number, default: 0 },
+      failurePercentage: { type: Number, default: 0 },
+    },
   },
   {
     timestamps: true,
@@ -576,6 +586,9 @@ siteSchema.methods = {
       distance_to_nearest_residential_road: this
         .distance_to_nearest_residential_road,
       nearest_tahmo_station: this.nearest_tahmo_station,
+      onlineStatusAccuracy: this.onlineStatusAccuracy,
+      weather_stations: this.weather_stations,
+      road_intensity: this.road_intensity,
     };
   },
   createSite(args) {

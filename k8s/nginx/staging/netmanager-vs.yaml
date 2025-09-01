@@ -63,7 +63,9 @@ spec:
   routes:
     - path: /
       action:
-        pass: platform-ui
+        redirect:
+          url: https://staging-vertex.airqo.net
+          code: 301      
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -191,11 +193,12 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json 
-    - path: ~ /api\/v[1-2]\/beacon
+                value: application/json
+    - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
       action:
         proxy:
           upstream: beacon
+          rewritePath: /$1
           responseHeaders:
             add:
               - name: Content-Type

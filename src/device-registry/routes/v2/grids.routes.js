@@ -5,7 +5,13 @@ const createGridController = require("@controllers/grid.controller");
 const gridsValidations = require("@validators/grids.validators");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
-const { headers, pagination, validate } = require("@validators/common");
+const {
+  headers,
+  pagination,
+  validate,
+  validateAndFixPolygon,
+  ensureClosedRing,
+} = require("@validators/common");
 
 router.use(headers);
 

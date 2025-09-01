@@ -57,6 +57,9 @@ spec:
     - name: spatial
       service: airqo-spatial-api-svc
       port: 5000  
+    - name: beacon
+      service: airqo-beacon-api-svc 
+      port: 8000        
   routes:
     - path: /
       action:
@@ -192,4 +195,13 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json       
+                value: application/json 
+    - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
+      action:
+        proxy:
+          upstream: beacon
+          rewritePath: /$1
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json                      
