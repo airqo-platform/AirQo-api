@@ -32,8 +32,8 @@ class BigQueryApi:
         self.airqlouds_sites_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS_SITES)
         self.devices_table = Utils.table_name(Config.BIGQUERY_DEVICES_DEVICES)
         self.airqlouds_table = Utils.table_name(Config.BIGQUERY_AIRQLOUDS)
-        self.all_time_grouping = {"hourly", "daily", "weekly", "monthly", "yearly"}
-        self.extra_time_grouping = {"weekly", "monthly", "yearly"}
+        self.all_time_grouping = Config.all_time_grouping
+        self.extra_time_grouping = Config.extra_time_grouping
         self.field_mappings = Config.FILTER_FIELD_MAPPING
 
     @property
@@ -370,43 +370,47 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
+        frequency: Frequency,
         network: Optional[DeviceNetwork] = None,
-        frequency: Optional[Frequency] = None,
         data_type: Optional[str] = None,
         columns: Optional[List] = None,
         where_fields: Optional[Dict[str, Any]] = None,
         dynamic_query: Optional[bool] = False,
         use_cache: Optional[bool] = True,
-        cursor_field: Optional[str] = "timestamp",
         cursor_token: Optional[str] = None,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
-        Queries data from a specified BigQuery table based on the provided parameters.
+        Queries data from a specified BigQuery table based on the provided parameters with pagination support.
 
         Args:
-            table(str): The name of the table from which to retrieve the data.
-            start_date_time(str): The start datetime for the data query in ISO format.
-            end_date_time(str): The end datetime for the data query in ISO format.
-            device_category(DeviceCategory): Category of device data to query.
-            network(DeviceNetwork, optional): An Enum representing the site ownership.
-            frequency(Frequency, optional): The frequency of the data.
-            data_type(str, optional): Type of data ('raw', 'calibrated', etc.).
-            columns(list, optional): A list of column names to include in the query.
-            where_fields(dict, optional): A dictionary of WHERE clause filters.
-            dynamic_query(bool, optional): Whether to use dynamic query generation.
-            use_cache(bool, optional): Whether to use cached query results.
-            cursor_field(str, optional): The field to use for cursor-based pagination.
-            cursor_value(str, optional): The value of the cursor for pagination.
+            table (str): The name of the table from which to retrieve the data.
+            start_date_time (str): The start datetime for the data query in ISO format.
+            end_date_time (str): The end datetime for the data query in ISO format.
+            device_category (DeviceCategory): Category of device data to query.
+            network (DeviceNetwork, optional): An Enum representing the site ownership.
+            frequency (Frequency, optional): The frequency of the data (raw, hourly, daily, etc.).
+            data_type (DataType, optional): Type of data (raw, calibrated, etc.).
+            columns (List[str], optional): A list of column names (pollutants) to include in the query.
+            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"airqlouds": ["airqloud1"]}.
+            dynamic_query (bool, optional): Whether to use dynamic query generation. Defaults to False.
+            use_cache (bool, optional): Whether to use cached query results. Defaults to True.
+            cursor_token (str, optional): Token for cursor-based pagination from a previous query. Defaults to None.
 
         Returns:
-            Tuple[pd.DataFrame, str]: A pandas DataFrame containing the queried data and
-            a string containing the next cursor value (or None if there's no more data).
+            Tuple[pd.DataFrame, Dict[str, Any]]: A pandas DataFrame containing the queried data and
+            a dictionary with metadata including pagination information:
+            {
+                "total_count": int,  # Number of rows in the current result set
+                "has_more": bool,    # Whether more data is available
+                "next": str or None  # Cursor token for the next page of results, or None if no more data
+            }
         """
         job_config = bigquery.QueryJobConfig()
         limits = int(Config.DATA_EXPORT_LIMIT)
         query_parameters = []
         filter_type, filter_value = next(iter(where_fields.items()))
         meta_data: Dict[str, Any] = {"total_count": 0, "has_more": False, "next": None}
+        cursor_field = Config.cursor_field.get(frequency.value, "timestamp")
 
         # Determine which query generation approach to use
         if not dynamic_query:
@@ -676,7 +680,7 @@ class BigQueryApi:
         table_name = Utils.table_name(table)
 
         # TODO Find a better way to do this.
-        if frequency.value in self.extra_time_grouping:
+        if frequency.value in (self.extra_time_grouping - {"daily"}):
             # Drop datetime alias
             pollutants_query = pollutants_query.replace(
                 f", FORMAT_DATETIME('%Y-%m-%d %H:%M:%SZ', {table_name}.timestamp) AS datetime ",
@@ -723,6 +727,7 @@ class BigQueryApi:
         frequency: Frequency,
         decimal_places: float,
         table_name: str,
+        device_category: DeviceCategory,
     ):
         """
         Constructs a list of SQL expressions to apply rounding and optional averaging to columns for BigQuery queries.
@@ -738,7 +743,9 @@ class BigQueryApi:
         Returns:
             list: A list of SQL-safe strings representing the columns with rounding and optional averaging applied.
         """
-        if frequency.value in self.extra_time_grouping:
+        if frequency.value in self.extra_time_grouping or (
+            device_category.value == "bam" and frequency.value == "daily"
+        ):
             return [
                 f"ROUND(AVG({table_name}.{col}), {decimal_places}) AS {col}"
                 for col in mapping
@@ -850,13 +857,13 @@ class BigQueryApi:
                 .get(key, {})
                 .get(pollutant, [])
             )
-
             pollutant_columns_.extend(
                 self.get_averaging_columns(
                     pollutant_mapping,
                     frequency,
                     decimal_places,
                     table_name,
+                    device_category,
                 )
             )
 
