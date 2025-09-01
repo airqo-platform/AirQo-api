@@ -160,14 +160,40 @@ const generateAlternativeRoleNames = async (
  */
 const manuallyPopulateRolePermissions = async (role, tenant) => {
   try {
-    if (!role || !role.role_permissions || role.role_permissions.length === 0) {
+    if (!role) {
+      logObject("⚠️ [DEBUG] No role provided to populate permissions");
+      return { role_permissions: [] };
+    }
+
+    if (!role.role_permissions || role.role_permissions.length === 0) {
+      logObject("✅ [DEBUG] Role has no permissions to populate");
+      return { ...role, role_permissions: [] };
+    }
+
+    // Validate permission IDs before querying
+    const validPermissionIds = role.role_permissions.filter((permId) => {
+      if (!permId) return false;
+      if (!mongoose.Types.ObjectId.isValid(permId)) {
+        logObject("⚠️ [DEBUG] Invalid permission ID:", permId);
+        return false;
+      }
+      return true;
+    });
+
+    if (validPermissionIds.length === 0) {
+      logObject("⚠️ [DEBUG] No valid permission IDs found");
       return { ...role, role_permissions: [] };
     }
 
     const permissions = await PermissionModel(tenant)
-      .find({ _id: { $in: role.role_permissions } })
+      .find({ _id: { $in: validPermissionIds } })
       .select("permission description")
       .lean();
+
+    logObject("✅ [DEBUG] Successfully populated permissions:", {
+      requested: validPermissionIds.length,
+      found: permissions.length,
+    });
 
     return {
       ...role,
@@ -175,6 +201,7 @@ const manuallyPopulateRolePermissions = async (role, tenant) => {
     };
   } catch (error) {
     logger.error(`Error populating role permissions: ${error.message}`);
+    logObject("❌ [DEBUG] Error in manuallyPopulateRolePermissions:", error);
     return { ...role, role_permissions: [] };
   }
 };
@@ -228,9 +255,20 @@ const findAssociatedIdForRole = async ({
       return null;
     }
 
-    // Fix 1: Remove ObjectId wrapper and add better error handling
-    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    logObject("📋 [DEBUG] RoleDetails found:", !!RoleDetails);
+    // Validate role_id format
+    if (!mongoose.Types.ObjectId.isValid(role_id)) {
+      logObject("❌ [DEBUG] Invalid role_id format:", role_id);
+      return null;
+    }
+
+    // Find role details with proper error handling
+    let RoleDetails;
+    try {
+      RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    } catch (dbError) {
+      logObject("❌ [DEBUG] Database error fetching role:", dbError.message);
+      return null;
+    }
 
     if (!RoleDetails) {
       logObject("❌ [DEBUG] Role not found for role_id:", role_id);
@@ -250,12 +288,21 @@ const findAssociatedIdForRole = async ({
         continue;
       }
 
-      // Fix 2: Add null checks before calling toString()
+      // Enhanced null checks and validation before comparison
       if (role.network && RoleDetails.network_id) {
         try {
-          if (role.network.toString() === RoleDetails.network_id.toString()) {
-            logObject("✅ [DEBUG] Found matching network:", role.network);
-            return role.network;
+          // Validate both IDs before comparison
+          if (
+            mongoose.Types.ObjectId.isValid(role.network) &&
+            mongoose.Types.ObjectId.isValid(RoleDetails.network_id)
+          ) {
+            const roleNetworkId = role.network.toString();
+            const roleDetailsNetworkId = RoleDetails.network_id.toString();
+
+            if (roleNetworkId === roleDetailsNetworkId) {
+              logObject("✅ [DEBUG] Found matching network:", role.network);
+              return role.network;
+            }
           }
         } catch (error) {
           logObject("❌ [DEBUG] Error comparing network IDs:", error.message);
@@ -264,9 +311,18 @@ const findAssociatedIdForRole = async ({
 
       if (role.group && RoleDetails.group_id) {
         try {
-          if (role.group.toString() === RoleDetails.group_id.toString()) {
-            logObject("✅ [DEBUG] Found matching group:", role.group);
-            return role.group;
+          // Validate both IDs before comparison
+          if (
+            mongoose.Types.ObjectId.isValid(role.group) &&
+            mongoose.Types.ObjectId.isValid(RoleDetails.group_id)
+          ) {
+            const roleGroupId = role.group.toString();
+            const roleDetailsGroupId = RoleDetails.group_id.toString();
+
+            if (roleGroupId === roleDetailsGroupId) {
+              logObject("✅ [DEBUG] Found matching group:", role.group);
+              return role.group;
+            }
           }
         } catch (error) {
           logObject("❌ [DEBUG] Error comparing group IDs:", error.message);
@@ -299,10 +355,18 @@ const isAssignedUserSuperAdmin = async ({
       return false;
     }
 
+    // Validate associatedId format
+    if (!mongoose.Types.ObjectId.isValid(associatedId)) {
+      logObject("❌ [DEBUG] Invalid associatedId format:", associatedId);
+      return false;
+    }
+
     if (!roles || !Array.isArray(roles) || roles.length === 0) {
       logObject("❌ [DEBUG] No roles provided or empty roles array");
       return false;
     }
+
+    const associatedIdStr = associatedId.toString();
 
     for (const role of roles) {
       if (!role) {
@@ -310,20 +374,20 @@ const isAssignedUserSuperAdmin = async ({
         continue;
       }
 
-      // Fix 3: Add null checks and better error handling
+      // Enhanced validation and null checks
       let isMatch = false;
 
       try {
-        if (
-          role.network &&
-          role.network.toString() === associatedId.toString()
-        ) {
-          isMatch = true;
-        } else if (
-          role.group &&
-          role.group.toString() === associatedId.toString()
-        ) {
-          isMatch = true;
+        if (role.network && mongoose.Types.ObjectId.isValid(role.network)) {
+          const roleNetworkStr = role.network.toString();
+          if (roleNetworkStr === associatedIdStr) {
+            isMatch = true;
+          }
+        } else if (role.group && mongoose.Types.ObjectId.isValid(role.group)) {
+          const roleGroupStr = role.group.toString();
+          if (roleGroupStr === associatedIdStr) {
+            isMatch = true;
+          }
         }
       } catch (error) {
         logObject("❌ [DEBUG] Error comparing role IDs:", error.message);
@@ -333,15 +397,21 @@ const isAssignedUserSuperAdmin = async ({
       if (isMatch) {
         logObject("🔍 [DEBUG] Found matching role, checking if super admin...");
 
-        // Fix 4: Remove ObjectId wrapper and add better validation
+        // Enhanced validation for role field
         if (!role.role) {
           logObject("⚠️ [DEBUG] Role has no role field:", role);
           continue;
         }
 
+        // Validate role ID format
+        if (!mongoose.Types.ObjectId.isValid(role.role)) {
+          logObject("⚠️ [DEBUG] Invalid role ID format:", role.role);
+          continue;
+        }
+
         try {
           const RoleDetails = await RoleModel(tenant)
-            .findById(role.role) // Remove ObjectId() wrapper
+            .findById(role.role)
             .lean();
 
           if (RoleDetails && RoleDetails.role_name) {
@@ -384,14 +454,27 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
       return false;
     }
 
+    // Validate role_id format
+    if (!mongoose.Types.ObjectId.isValid(role_id)) {
+      logObject("❌ [DEBUG] Invalid role_id format:", role_id);
+      return false;
+    }
+
+    const targetRoleIdStr = role_id.toString();
+
     const isAssigned = roles.some((role) => {
       if (isEmpty(role) || !role.role) {
         return false;
       }
 
+      // Validate role.role format
+      if (!mongoose.Types.ObjectId.isValid(role.role)) {
+        logObject("⚠️ [DEBUG] Invalid role.role format:", role.role);
+        return false;
+      }
+
       try {
         const roleIdStr = role.role.toString();
-        const targetRoleIdStr = role_id.toString();
         logObject("🔍 [DEBUG] Comparing roles:", {
           roleIdStr,
           targetRoleIdStr,
@@ -3321,17 +3404,35 @@ const rolePermissionUtil = {
         return null;
       }
 
+      // Validate groupId format
+      if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        logger.error(`❌ [DEBUG] Invalid groupId format: ${groupId}`);
+        return null;
+      }
+
       // Safely convert groupId to ObjectId
       let groupObjectId;
       try {
         groupObjectId = mongoose.Types.ObjectId(groupId);
       } catch (objectIdError) {
-        logger.error(`❌ [DEBUG] Invalid groupId format: ${groupId}`);
+        logger.error(
+          `❌ [DEBUG] Error creating ObjectId from groupId: ${groupId}`
+        );
         return null;
       }
 
-      // Find the group with error handling
-      const group = await GroupModel(tenant).findById(groupObjectId).lean();
+      // Find the group with enhanced error handling
+      let group;
+      try {
+        group = await GroupModel(tenant).findById(groupObjectId).lean();
+      } catch (dbError) {
+        logger.error(
+          "❌ [DEBUG] Database error fetching group:",
+          dbError.message
+        );
+        return null;
+      }
+
       if (!group) {
         logger.error("❌ [DEBUG] Group not found for ID:", groupId);
         return null;
@@ -3345,14 +3446,23 @@ const rolePermissionUtil = {
       // Safely handle group title with fallback
       const groupTitle = group.grp_title || "DEFAULT_GROUP";
 
-      // Sanitize organization name for role code
-      const organizationName = groupTitle
-        .toString()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "")
-        .substring(0, 50); // Limit length to prevent overly long role codes
+      // Sanitize organization name for role code with better validation
+      let organizationName;
+      try {
+        organizationName = groupTitle
+          .toString()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "")
+          .substring(0, 50);
+      } catch (sanitizeError) {
+        logObject(
+          "⚠️ [DEBUG] Error sanitizing group title:",
+          sanitizeError.message
+        );
+        organizationName = "DEFAULT_GROUP";
+      }
 
       // Ensure we have a valid organization name
       const finalOrgName = organizationName || "DEFAULT";
@@ -3360,13 +3470,21 @@ const rolePermissionUtil = {
 
       logObject("🔍 [DEBUG] Looking for role with code:", defaultRoleCode);
 
-      // Try to find existing default role
-      let role = await RoleModel(tenant)
-        .findOne({
-          role_code: defaultRoleCode,
-          group_id: groupObjectId,
-        })
-        .lean();
+      // Try to find existing default role with enhanced error handling
+      let role;
+      try {
+        role = await RoleModel(tenant)
+          .findOne({
+            role_code: defaultRoleCode,
+            group_id: groupObjectId,
+          })
+          .lean();
+      } catch (findError) {
+        logger.error(
+          "❌ [DEBUG] Error finding existing role:",
+          findError.message
+        );
+      }
 
       if (role) {
         logObject("✅ [DEBUG] Found existing default role:", {
@@ -3379,7 +3497,7 @@ const rolePermissionUtil = {
 
       logObject("🆕 [DEBUG] Default role not found, creating new one...");
 
-      // Create new default role
+      // Create new default role with enhanced error handling
       const roleDocument = {
         role_code: defaultRoleCode,
         role_name: defaultRoleCode,
@@ -3409,12 +3527,19 @@ const rolePermissionUtil = {
           );
 
           // Try to find the role that was created by another process
-          role = await RoleModel(tenant)
-            .findOne({
-              role_code: defaultRoleCode,
-              group_id: groupObjectId,
-            })
-            .lean();
+          try {
+            role = await RoleModel(tenant)
+              .findOne({
+                role_code: defaultRoleCode,
+                group_id: groupObjectId,
+              })
+              .lean();
+          } catch (findRetryError) {
+            logger.error(
+              "❌ [DEBUG] Error in retry search:",
+              findRetryError.message
+            );
+          }
 
           if (role) {
             logObject("✅ [DEBUG] Found role created by another process:", {
@@ -3423,18 +3548,24 @@ const rolePermissionUtil = {
             });
           } else {
             // Last resort - try to find any role with similar code
-            role = await RoleModel(tenant)
-              .findOne({
-                role_code: { $regex: new RegExp(finalOrgName, "i") },
-                group_id: groupObjectId,
-                role_name: { $regex: /DEFAULT_MEMBER/i },
-              })
-              .lean();
+            try {
+              role = await RoleModel(tenant)
+                .findOne({
+                  role_code: { $regex: new RegExp(finalOrgName, "i") },
+                  group_id: groupObjectId,
+                  role_name: { $regex: /DEFAULT_MEMBER/i },
+                })
+                .lean();
+            } catch (lastResortError) {
+              logger.error(
+                "❌ [DEBUG] Last resort search failed:",
+                lastResortError.message
+              );
+            }
 
             if (!role) {
-              logger.error(
-                `❌ [DEBUG] Failed to create or find default role after duplicate error: ${roleCreateError.message}`
-              );
+              const errorMsg = `Failed to create or find default role after duplicate error: ${roleCreateError.message}`;
+              logger.error(`❌ [DEBUG] ${errorMsg}`);
               throw new Error(
                 `Failed to create default role for group ${groupId}: ${roleCreateError.message}`
               );
@@ -3453,13 +3584,12 @@ const rolePermissionUtil = {
 
       // At this point, we should have a role (either newly created or found)
       if (!role) {
-        logger.error(
-          "❌ [DEBUG] No role available after creation/search process"
-        );
+        const errorMsg = "No role available after creation/search process";
+        logger.error(`❌ [DEBUG] ${errorMsg}`);
         throw new Error("Failed to obtain default role for group");
       }
 
-      // Assign default permissions to the role
+      // Assign default permissions to the role with enhanced error handling
       try {
         logObject("🔧 [DEBUG] Assigning default permissions to role...");
 
@@ -3480,10 +3610,18 @@ const rolePermissionUtil = {
 
         if (defaultPermissionNames.length > 0) {
           // Check which permissions actually exist in the database
-          const existingPermissions = await PermissionModel(tenant)
-            .find({ permission: { $in: defaultPermissionNames } })
-            .select("_id permission")
-            .lean();
+          let existingPermissions = [];
+          try {
+            existingPermissions = await PermissionModel(tenant)
+              .find({ permission: { $in: defaultPermissionNames } })
+              .select("_id permission")
+              .lean();
+          } catch (permFindError) {
+            logger.error(
+              "❌ [DEBUG] Error finding existing permissions:",
+              permFindError.message
+            );
+          }
 
           logObject("📋 [DEBUG] Found existing permissions:", {
             count: existingPermissions.length,
@@ -3500,12 +3638,12 @@ const rolePermissionUtil = {
           if (missingPermissions.length > 0) {
             logObject("⚠️ [DEBUG] Missing permissions:", missingPermissions);
 
-            // Try to create missing permissions
+            // Try to create missing permissions with enhanced error handling
             const permissionsToCreate = missingPermissions.map(
               (permission) => ({
                 permission: permission,
                 description: `Auto-created permission: ${permission}`,
-                group_id: groupObjectId, // Associate with the group
+                group_id: groupObjectId,
               })
             );
 
@@ -3528,14 +3666,21 @@ const rolePermissionUtil = {
               );
 
               // Re-fetch to get any permissions that were created
-              const refetchedPermissions = await PermissionModel(tenant)
-                .find({ permission: { $in: defaultPermissionNames } })
-                .select("_id permission")
-                .lean();
+              try {
+                const refetchedPermissions = await PermissionModel(tenant)
+                  .find({ permission: { $in: defaultPermissionNames } })
+                  .select("_id permission")
+                  .lean();
 
-              // Use the refetched permissions
-              existingPermissions.length = 0;
-              existingPermissions.push(...refetchedPermissions);
+                // Use the refetched permissions
+                existingPermissions.length = 0;
+                existingPermissions.push(...refetchedPermissions);
+              } catch (refetchError) {
+                logger.error(
+                  "❌ [DEBUG] Error refetching permissions:",
+                  refetchError.message
+                );
+              }
             }
           }
 
@@ -3548,24 +3693,33 @@ const rolePermissionUtil = {
               permissionCount: permissionIds.length,
             });
 
-            const updateResult = await RoleModel(tenant).findByIdAndUpdate(
-              role._id,
-              {
-                $addToSet: {
-                  role_permissions: {
-                    $each: permissionIds,
+            try {
+              const updateResult = await RoleModel(tenant).findByIdAndUpdate(
+                role._id,
+                {
+                  $addToSet: {
+                    role_permissions: {
+                      $each: permissionIds,
+                    },
                   },
                 },
-              },
-              { new: true }
-            );
+                { new: true }
+              );
 
-            if (updateResult) {
-              logObject("✅ [DEBUG] Successfully assigned permissions to role");
-              // Update our role object with the new permissions
-              role = updateResult;
-            } else {
-              logObject("⚠️ [DEBUG] Role update returned null");
+              if (updateResult) {
+                logObject(
+                  "✅ [DEBUG] Successfully assigned permissions to role"
+                );
+                // Update our role object with the new permissions
+                role = updateResult;
+              } else {
+                logObject("⚠️ [DEBUG] Role update returned null");
+              }
+            } catch (updateError) {
+              logger.error(
+                "❌ [DEBUG] Error updating role with permissions:",
+                updateError.message
+              );
             }
           } else {
             logObject("⚠️ [DEBUG] No permissions available to assign to role");
@@ -4021,15 +4175,31 @@ const rolePermissionUtil = {
         tenant,
       });
 
-      // Fix 1: Remove ObjectId() wrapper - let Mongoose handle the conversion
-      const user = await UserModel(tenant)
-        .findById(userId) // No ObjectId() wrapper
-        .lean(); // Start with just .lean(), no populate
+      // Validate inputs
+      if (!userId) {
+        logObject("❌ [DEBUG] No userId provided");
+        return null;
+      }
 
-      logObject(
-        "📋 [DEBUG] Basic user query result:",
-        user ? "FOUND" : "NOT FOUND"
-      );
+      if (!tenant) {
+        logObject("❌ [DEBUG] No tenant provided");
+        return null;
+      }
+
+      // Validate userId format
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        logObject("❌ [DEBUG] Invalid userId format:", userId);
+        return null;
+      }
+
+      // Get user with enhanced error handling
+      let user;
+      try {
+        user = await UserModel(tenant).findById(userId).lean();
+      } catch (dbError) {
+        logObject("❌ [DEBUG] Database error fetching user:", dbError.message);
+        return null;
+      }
 
       if (!user) {
         logObject("❌ [DEBUG] User not found with ID:", userId);
@@ -4048,33 +4218,51 @@ const rolePermissionUtil = {
         groupRolesCount: user.group_roles?.length || 0,
       });
 
-      // Fix 2: Build roles without populate for now (we'll add populate back later)
-      const networkRoles = (user.network_roles || []).map((nr) => ({
-        role_id: nr.role, // Just the ID, no populated data for now
-        network_id: nr.network, // Just the ID, no populated data for now
-        userType: nr.userType,
-        createdAt: nr.createdAt,
-      }));
+      // Build roles with enhanced validation
+      const networkRoles = (user.network_roles || [])
+        .filter((nr) => nr && typeof nr === "object") // Filter out invalid entries
+        .map((nr) => ({
+          role_id:
+            nr.role && mongoose.Types.ObjectId.isValid(nr.role)
+              ? nr.role
+              : null,
+          network_id:
+            nr.network && mongoose.Types.ObjectId.isValid(nr.network)
+              ? nr.network
+              : null,
+          userType: nr.userType,
+          createdAt: nr.createdAt,
+        }))
+        .filter((nr) => nr.role_id && nr.network_id); // Only include valid entries
 
-      const groupRoles = (user.group_roles || []).map((gr) => ({
-        role_id: gr.role, // Just the ID, no populated data for now
-        group_id: gr.group, // Just the ID, no populated data for now
-        userType: gr.userType,
-        createdAt: gr.createdAt,
-      }));
+      const groupRoles = (user.group_roles || [])
+        .filter((gr) => gr && typeof gr === "object") // Filter out invalid entries
+        .map((gr) => ({
+          role_id:
+            gr.role && mongoose.Types.ObjectId.isValid(gr.role)
+              ? gr.role
+              : null,
+          group_id:
+            gr.group && mongoose.Types.ObjectId.isValid(gr.group)
+              ? gr.group
+              : null,
+          userType: gr.userType,
+          createdAt: gr.createdAt,
+        }))
+        .filter((gr) => gr.role_id && gr.group_id); // Only include valid entries
 
       const summary = {
         user_id: userId,
         network_roles: {
           count: networkRoles.length,
           limit: ORGANISATIONS_LIMIT,
-          remaining: ORGANISATIONS_LIMIT - networkRoles.length,
+          remaining: Math.max(0, ORGANISATIONS_LIMIT - networkRoles.length),
           roles: networkRoles,
         },
         group_roles: {
           count: groupRoles.length,
           limit: ORGANISATIONS_LIMIT,
-          remaining: ORGANISATIONS_LIMIT - groupRoles.length,
+          remaining: Math.max(0, ORGANISATIONS_LIMIT - groupRoles.length),
           roles: groupRoles,
         },
         total_roles: networkRoles.length + groupRoles.length,
@@ -4121,6 +4309,23 @@ const rolePermissionUtil = {
 
       const userId = userIdFromQuery || userIdFromBody;
 
+      // Validate input IDs
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid user ID format",
+          })
+        );
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(role_id)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid role ID format",
+          })
+        );
+      }
+
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
         actualTenant
@@ -4133,10 +4338,19 @@ const rolePermissionUtil = {
         );
       }
 
-      const role = await RoleModel(actualTenant).findById(role_id).lean();
-      const roleExists = await RoleModel(actualTenant).exists({ _id: role_id });
+      // Enhanced role existence check
+      let role;
+      try {
+        role = await RoleModel(actualTenant).findById(role_id).lean();
+      } catch (roleError) {
+        return next(
+          new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: `Error fetching role: ${roleError.message}`,
+          })
+        );
+      }
 
-      if (!roleExists) {
+      if (!role) {
         return next(
           new HttpError("Role not found", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id} not found`,
@@ -4194,8 +4408,26 @@ const rolePermissionUtil = {
         );
       }
 
-      // Find the associated network/group ID
-      const userObject = await UserModel(actualTenant).findById(userId).lean();
+      // Find the associated network/group ID with enhanced error handling
+      let userObject;
+      try {
+        userObject = await UserModel(actualTenant).findById(userId).lean();
+      } catch (userError) {
+        return next(
+          new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: `Error fetching user: ${userError.message}`,
+          })
+        );
+      }
+
+      if (!userObject) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${userId} not found`,
+          })
+        );
+      }
+
       const userRoles = isNetworkRole
         ? userObject.network_roles
         : userObject.group_roles;
@@ -4244,8 +4476,7 @@ const rolePermissionUtil = {
         );
       }
 
-      // FIX: Better userType handling
-      // Define valid userType values (update these based on your schema)
+      // Enhanced userType handling
       const validUserTypes = [
         "guest",
         "member",
@@ -4253,7 +4484,7 @@ const rolePermissionUtil = {
         "super_admin",
         "viewer",
       ];
-      let assignedUserType = userType || "guest"; // Default to "guest"
+      let assignedUserType = userType || "guest";
 
       // Validate userType if provided
       if (userType && !validUserTypes.includes(userType)) {
@@ -4268,7 +4499,15 @@ const rolePermissionUtil = {
 
       logObject("🔍 [DEBUG] Assigning with userType:", assignedUserType);
 
-      // FIX: Use validated userType instead of hardcoded "guest"
+      // Validate associatedId before database operation
+      if (!mongoose.Types.ObjectId.isValid(associatedId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid associated ID format",
+          })
+        );
+      }
+
       const updateQuery = {
         $addToSet: {
           [isNetworkRole ? "network_roles" : "group_roles"]: {
@@ -4276,22 +4515,31 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: assignedUserType, // Use validated userType
+            userType: assignedUserType,
             createdAt: new Date(),
           },
         },
       };
 
-      // FIX: Use runValidators: false temporarily to bypass enum validation if needed
-      const updatedUser = await UserModel(actualTenant).findOneAndUpdate(
-        { _id: userId },
-        updateQuery,
-        {
-          new: true,
-          runValidators: false, // Temporarily disable validators to avoid enum issues
-          // Change to true once you've updated your schema enum values
-        }
-      );
+      // Enhanced database update with better error handling
+      let updatedUser;
+      try {
+        updatedUser = await UserModel(actualTenant).findOneAndUpdate(
+          { _id: userId },
+          updateQuery,
+          {
+            new: true,
+            runValidators: false, // Temporarily disable validators to avoid enum issues
+          }
+        );
+      } catch (updateError) {
+        logger.error("❌ [DEBUG] Database update error:", updateError.message);
+        return next(
+          new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: `Failed to assign user to role: ${updateError.message}`,
+          })
+        );
+      }
 
       if (!updatedUser) {
         return next(
@@ -4299,7 +4547,7 @@ const rolePermissionUtil = {
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: "Failed to assign user to role",
+              message: "Failed to assign user to role - update returned null",
             }
           )
         );
