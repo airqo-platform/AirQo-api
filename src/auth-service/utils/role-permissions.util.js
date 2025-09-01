@@ -1039,6 +1039,10 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
         description: "Deploy devices to sites",
       },
       {
+        permission: "DEVICE_CLAIM",
+        description: "Claim and unclaim devices for a user",
+      },
+      {
         permission: "DEVICE_RECALL",
         description: "Recall devices from deployment",
       },
@@ -1338,6 +1342,25 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
           "DASHBOARD_VIEW",
           "DATA_VIEW",
           "DATA_EXPORT",
+        ],
+      },
+      {
+        role_name: "AIRQO_DEFAULT_USER",
+        role_code: "AIRQO_DEFAULT_USER",
+        role_description: "Default role for all new AirQo users",
+        group_id: airqoGroup._id,
+        permissions: [
+          "DASHBOARD_VIEW",
+          "DATA_VIEW",
+          "ANALYTICS_VIEW",
+          "DATA_EXPORT",
+          "SITE_VIEW",
+          "DEVICE_VIEW",
+          "DEVICE_CLAIM",
+          "DEVICE_DEPLOY",
+          "NETWORK_VIEW",
+          "API_ACCESS",
+          "TOKEN_GENERATE",
         ],
       },
     ];

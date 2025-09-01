@@ -278,6 +278,8 @@ Follow these conventions for consistent permission naming:
 "MEMBER_REMOVE"; // Remove members
 "USER_MANAGEMENT"; // Manage users
 "ROLE_ASSIGNMENT"; // Assign roles
+"DEVICE_CLAIM"; // Claim and unclaim devices
+"DEVICE_DEPLOY"; // Deploy devices
 "ANALYTICS_VIEW"; // View analytics
 "SETTINGS_EDIT"; // Edit settings
 "SYSTEM_ADMIN"; // System administration

@@ -4731,6 +4731,60 @@ const createUserModule = {
     }
   },
   /**
+   * Ensures a user has the default AirQo role.
+   * This is a non-blocking operation, intended to be called in a fire-and-forget manner.
+   */
+  ensureDefaultAirqoRole: async (user, tenant) => {
+    try {
+      const GroupModel = require("@models/Group");
+      const RoleModel = require("@models/Role");
+      const UserModel = require("@models/User");
+
+      const airqoGroup = await GroupModel(tenant)
+        .findOne({ grp_title: "airqo" })
+        .lean();
+      if (!airqoGroup) {
+        logger.warn(
+          `[Default Role] AirQo group not found for tenant ${tenant}.`
+        );
+        return;
+      }
+
+      const defaultRole = await RoleModel(tenant)
+        .findOne({ role_code: "AIRQO_DEFAULT_USER" })
+        .lean();
+      if (!defaultRole) {
+        logger.warn(
+          `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}.`
+        );
+        return;
+      }
+
+      const userHasDefaultRole = user.group_roles.some(
+        (gr) => gr.role && gr.role.toString() === defaultRole._id.toString()
+      );
+
+      if (!userHasDefaultRole) {
+        await UserModel(tenant).findByIdAndUpdate(user._id, {
+          $addToSet: {
+            group_roles: {
+              group: airqoGroup._id,
+              role: defaultRole._id,
+              userType: "user",
+            },
+          },
+        });
+        logger.info(
+          `[Default Role] Assigned AIRQO_DEFAULT_USER role to user ${user.email}`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `[Default Role] Error ensuring default AirQo role for ${user.email}: ${error.message}`
+      );
+    }
+  },
+  /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
@@ -4859,26 +4913,27 @@ const createUserModule = {
       }
 
       // Update login statistics
-      const currentDate = new Date();
-      try {
-        await UserModel(dbTenant).findOneAndUpdate(
-          { _id: user._id },
-          {
-            $set: { lastLogin: currentDate, isActive: true },
-            $inc: { loginCount: 1 },
-            ...(user.analyticsVersion !== 3 && user.verified === false
-              ? { $set: { verified: true } }
-              : {}),
-          },
-          {
-            new: true,
-            upsert: false,
-            runValidators: true,
-          }
-        );
-      } catch (updateError) {
-        logger.error(`Login stats update error: ${updateError.message}`);
-      }
+      (async () => {
+        try {
+          const currentDate = new Date();
+          await UserModel(dbTenant).findOneAndUpdate(
+            { _id: user._id },
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              ...(user.analyticsVersion !== 3 && user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
+            },
+            { new: true, upsert: false, runValidators: true }
+          );
+          await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
+        } catch (updateError) {
+          logger.error(
+            `Login stats/roles update error: ${updateError.message}`
+          );
+        }
+      })();
 
       // Build comprehensive auth response
       const authResponse = {
@@ -4929,7 +4984,7 @@ const createUserModule = {
             : null,
 
         // Login metadata
-        lastLogin: currentDate,
+        lastLogin: new Date(),
         loginCount: (user.loginCount || 0) + 1,
 
         // Token metadata
@@ -5141,48 +5196,59 @@ const createUserModule = {
       if (userObj.group_roles?.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
-          group: groupsMap.get(groupRole.group.toString()) || groupRole.group,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(groupRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return groupRole.role;
-              })()
-            : groupRole.role,
+          group: groupRole.group
+            ? groupsMap.get(groupRole.group.toString()) || groupRole.group
+            : null,
+          role:
+            RoleModel && groupRole.role
+              ? (() => {
+                  const role = rolesMap.get(groupRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return groupRole.role;
+                })()
+              : groupRole.role,
         }));
       }
 
       if (userObj.network_roles?.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
-          network:
-            networksMap.get(networkRole.network.toString()) ||
-            networkRole.network,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(networkRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return networkRole.role;
-              })()
-            : networkRole.role,
+          network: networkRole.network
+            ? networksMap.get(networkRole.network.toString()) ||
+              networkRole.network
+            : null,
+          role:
+            RoleModel && networkRole.role
+              ? (() => {
+                  const role = rolesMap.get(networkRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return networkRole.role;
+                })()
+              : networkRole.role,
         }));
       }
 
@@ -5914,4 +5980,8 @@ const createUserModule = {
   },
 };
 
-module.exports = { ...createUserModule, generateNumericToken };
+module.exports = {
+  ...createUserModule,
+  generateNumericToken,
+  ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
+};
