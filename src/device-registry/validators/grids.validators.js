@@ -11,7 +11,14 @@ const { isValidObjectId } = require("mongoose");
 const constants = require("@config/constants");
 const { HttpError, logText } = require("@utils/shared");
 const httpStatus = require("http-status");
-const { validateNetwork, validateAdminLevels } = require("@validators/common");
+const {
+  validateNetwork,
+  validateAdminLevels,
+  validateAndFixPolygon,
+  ensureClosedRing,
+  validateCoordinates,
+  TOLERANCE_LEVELS,
+} = require("@validators/common");
 
 const validateCoordinate = (coordinate) => {
   const [longitude, latitude] = coordinate;
@@ -35,14 +42,19 @@ const validateCoordinate = (coordinate) => {
   }
 };
 
-const validatePolygonCoordinates = (value) => {
+const validateAndAutoFixPolygonCoordinatesLenient = (
+  value,
+  tolerance = TOLERANCE_LEVELS.NORMAL
+) => {
   if (!Array.isArray(value)) {
     throw new Error("Coordinates must be provided as an array");
   }
   if (value.length === 0) {
     throw new Error("At least one polygon must be provided");
   }
-  for (const polygon of value) {
+
+  for (let i = 0; i < value.length; i++) {
+    const polygon = value[i];
     if (!Array.isArray(polygon)) {
       throw new Error(
         "Each polygon must be provided as an array of coordinates"
@@ -51,22 +63,113 @@ const validatePolygonCoordinates = (value) => {
     if (polygon.length < 4) {
       throw new Error("Each polygon must have at least four coordinates");
     }
+
+    // Validate each coordinate
     for (const coordinate of polygon) {
       validateCoordinate(coordinate);
+    }
+
+    // Lenient closure check with configurable tolerance
+    const firstCoord = polygon[0];
+    const lastCoord = polygon[polygon.length - 1];
+
+    const longitudeDiff = Math.abs(firstCoord[0] - lastCoord[0]);
+    const latitudeDiff = Math.abs(firstCoord[1] - lastCoord[1]);
+
+    if (longitudeDiff > tolerance || latitudeDiff > tolerance) {
+      // Auto-fix by adding the first coordinate as the last
+      value[i] = ensureClosedRing(polygon);
+      logText(
+        `Auto-fixed polygon ring with tolerance ${tolerance}. ` +
+          `Differences: lng=${longitudeDiff.toFixed(
+            6
+          )}, lat=${latitudeDiff.toFixed(6)}. ` +
+          `Added closing coordinate: [${firstCoord[0]}, ${firstCoord[1]}]`
+      );
+    } else if (longitudeDiff > 0 || latitudeDiff > 0) {
+      // Coordinates are close enough - log but don't fix
+      logText(
+        `Polygon ring within tolerance ${tolerance}. ` +
+          `Differences: lng=${longitudeDiff.toFixed(
+            6
+          )}, lat=${latitudeDiff.toFixed(6)}`
+      );
     }
   }
   return true;
 };
 
-const validateMultiPolygonCoordinates = (value) => {
+const validateAndAutoFixMultiPolygonCoordinatesLenient = (
+  value,
+  tolerance = 0.001
+) => {
   if (!Array.isArray(value)) {
     throw new Error("Coordinates must be provided as an array");
   }
   if (value.length === 0) {
     throw new Error("At least one multipolygon must be provided");
   }
+
   for (const multipolygon of value) {
-    validatePolygonCoordinates(multipolygon);
+    validateAndAutoFixPolygonCoordinatesLenient(multipolygon, tolerance);
+  }
+  return true;
+};
+
+const validateAndAutoFixPolygonCoordinatesStrict = (value) => {
+  if (!Array.isArray(value)) {
+    throw new Error("Coordinates must be provided as an array");
+  }
+  if (value.length === 0) {
+    throw new Error("At least one polygon must be provided");
+  }
+
+  for (let i = 0; i < value.length; i++) {
+    const polygon = value[i];
+    if (!Array.isArray(polygon)) {
+      throw new Error(
+        "Each polygon must be provided as an array of coordinates"
+      );
+    }
+    if (polygon.length < 4) {
+      throw new Error("Each polygon must have at least four coordinates");
+    }
+
+    // Validate each coordinate
+    for (const coordinate of polygon) {
+      validateCoordinate(coordinate);
+    }
+
+    // Always fix any non-zero difference (MongoDB requires exact closure)
+    const firstCoord = polygon[0];
+    const lastCoord = polygon[polygon.length - 1];
+
+    const longitudeDiff = Math.abs(firstCoord[0] - lastCoord[0]);
+    const latitudeDiff = Math.abs(firstCoord[1] - lastCoord[1]);
+
+    if (longitudeDiff > 0 || latitudeDiff > 0) {
+      value[i] = ensureClosedRing(polygon);
+      logText(
+        `Auto-closed polygon ring. Differences: lng=${longitudeDiff.toFixed(
+          6
+        )}, lat=${latitudeDiff.toFixed(6)}.`
+      );
+    }
+  }
+  return true;
+};
+
+// Update MultiPolygon version as well
+const validateAndAutoFixMultiPolygonCoordinatesStrict = (value) => {
+  if (!Array.isArray(value)) {
+    throw new Error("Coordinates must be provided as an array");
+  }
+  if (value.length === 0) {
+    throw new Error("At least one multipolygon must be provided");
+  }
+
+  for (const multipolygon of value) {
+    validateAndAutoFixPolygonCoordinatesStrict(multipolygon);
   }
   return true;
 };
@@ -83,12 +186,6 @@ const commonValidations = {
       .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ],
-
-  pagination: (defaultLimit = 1000, maxLimit = 2000) => {
-    return (req, res, next) => {
-      // ... pagination logic (same as before)
-    };
-  },
 
   name: [
     body("name")
@@ -211,16 +308,18 @@ const commonValidations = {
       .bail()
       .isIn(["Polygon", "MultiPolygon"])
       .withMessage("the shape type must either be Polygon or MultiPolygon"),
+
     body("shape.coordinates")
       .exists()
       .withMessage("shape.coordinates should be provided")
       .bail()
       .custom((value, { req }) => {
         const shapeType = req.body.shape.type;
+
         if (shapeType === "Polygon") {
-          return validatePolygonCoordinates(value);
+          return validateAndAutoFixPolygonCoordinatesStrict(value);
         } else if (shapeType === "MultiPolygon") {
-          return validateMultiPolygonCoordinates(value);
+          return validateAndAutoFixMultiPolygonCoordinatesStrict(value);
         }
         return true;
       }),
@@ -735,7 +834,4 @@ const gridsValidations = {
   ],
 };
 
-module.exports = {
-  ...gridsValidations,
-  pagination: commonValidations.pagination,
-};
+module.exports = gridsValidations;

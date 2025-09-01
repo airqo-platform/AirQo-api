@@ -11,6 +11,12 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- grid-model`
 );
 const { getModelByTenant } = require("@config/database");
+
+const {
+  validatePolygonClosure,
+  TOLERANCE_LEVELS,
+} = require("@validators/common");
+
 const shapeSchema = new Schema(
   {
     type: {
@@ -149,6 +155,22 @@ gridSchema.pre("save", function(next) {
     delete this._id;
   }
   this.grid_codes = [this._id, this.name];
+
+  // Backup validation using geometry utility
+  if ((this.isModified("shape") || this.isNew) && this.shape) {
+    try {
+      const fixed = validateAndFixPolygon(this.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      this.shape = fixed;
+    } catch (error) {
+      return next(
+        new Error(
+          `Invalid polygon detected at model level - route validation may have been bypassed: ${error.message}`
+        )
+      );
+    }
+  }
+
   return next();
 });
 
@@ -157,6 +179,38 @@ gridSchema.pre("update", function(next) {
     delete this._id;
   }
   return next();
+});
+
+gridSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function(next) {
+  const update = this.getUpdate();
+
+  // Check if shape is being updated directly
+  if (update && update.shape) {
+    try {
+      const fixed = validateAndFixPolygon(update.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      update.shape = fixed;
+    } catch (error) {
+      return next(
+        new Error(`Invalid polygon in update operation: ${error.message}`)
+      );
+    }
+  }
+
+  // Check if using $set operator with shape
+  if (update && update.$set && update.$set.shape) {
+    try {
+      const fixed = validateAndFixPolygon(update.$set.shape);
+      validatePolygonClosure(fixed, TOLERANCE_LEVELS.STRICT);
+      update.$set.shape = fixed;
+    } catch (error) {
+      return next(
+        new Error(`Invalid polygon in $set update operation: ${error.message}`)
+      );
+    }
+  }
+
+  next();
 });
 
 gridSchema.plugin(uniqueValidator, {
