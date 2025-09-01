@@ -338,7 +338,10 @@ class TestDataUtils:
 
         mock_config.data_sources.return_value = {
             DataType.CALIBRATED: {
-                DeviceCategory.LOWCOST: {Frequency.DAILY: "project.dataset.daily_table"}
+                DeviceCategory.LOWCOST: {
+                    Frequency.DAILY: "project.dataset.daily_table",
+                    Frequency.WEEKLY: "project.dataset.weekly_table",
+                }
             }
         }
         mock_config.OPTIONAL_FIELDS = {

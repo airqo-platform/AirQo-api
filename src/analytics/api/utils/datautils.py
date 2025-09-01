@@ -83,8 +83,8 @@ class DataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=device_category,
-            network=device_network,
             frequency=frequency,
+            network=device_network,
             data_type=datatype,
             columns=main_columns,  # Columns of interest i.e pollutants
             where_fields=data_filter,

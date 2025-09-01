@@ -370,8 +370,8 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         device_category: DeviceCategory,
+        frequency: Frequency,
         network: Optional[DeviceNetwork] = None,
-        frequency: Optional[Frequency] = None,
         data_type: Optional[str] = None,
         columns: Optional[List] = None,
         where_fields: Optional[Dict[str, Any]] = None,
@@ -380,26 +380,30 @@ class BigQueryApi:
         cursor_token: Optional[str] = None,
     ) -> Tuple[pd.DataFrame, Dict]:
         """
-        Queries data from a specified BigQuery table based on the provided parameters.
+        Queries data from a specified BigQuery table based on the provided parameters with pagination support.
 
         Args:
-            table(str): The name of the table from which to retrieve the data.
-            start_date_time(str): The start datetime for the data query in ISO format.
-            end_date_time(str): The end datetime for the data query in ISO format.
-            device_category(DeviceCategory): Category of device data to query.
-            network(DeviceNetwork, optional): An Enum representing the site ownership.
-            frequency(Frequency, optional): The frequency of the data.
-            data_type(str, optional): Type of data ('raw', 'calibrated', etc.).
-            columns(list, optional): A list of column names to include in the query.
-            where_fields(dict, optional): A dictionary of WHERE clause filters.
-            dynamic_query(bool, optional): Whether to use dynamic query generation.
-            use_cache(bool, optional): Whether to use cached query results.
-            cursor_field(str, optional): The field to use for cursor-based pagination.
-            cursor_value(str, optional): The value of the cursor for pagination.
+            table (str): The name of the table from which to retrieve the data.
+            start_date_time (str): The start datetime for the data query in ISO format.
+            end_date_time (str): The end datetime for the data query in ISO format.
+            device_category (DeviceCategory): Category of device data to query.
+            network (DeviceNetwork, optional): An Enum representing the site ownership.
+            frequency (Frequency, optional): The frequency of the data (raw, hourly, daily, etc.).
+            data_type (DataType, optional): Type of data (raw, calibrated, etc.).
+            columns (List[str], optional): A list of column names (pollutants) to include in the query.
+            where_fields (Dict[str, List[str]], optional): A dictionary of filter type and values, e.g., {"devices": ["dev1", "dev2"]}, {"sites": ["site1", "site2"]}, {"airqlouds": ["airqloud1"]}.
+            dynamic_query (bool, optional): Whether to use dynamic query generation. Defaults to False.
+            use_cache (bool, optional): Whether to use cached query results. Defaults to True.
+            cursor_token (str, optional): Token for cursor-based pagination from a previous query. Defaults to None.
 
         Returns:
-            Tuple[pd.DataFrame, str]: A pandas DataFrame containing the queried data and
-            a string containing the next cursor value (or None if there's no more data).
+            Tuple[pd.DataFrame, Dict[str, Any]]: A pandas DataFrame containing the queried data and
+            a dictionary with metadata including pagination information:
+            {
+                "total_count": int,  # Number of rows in the current result set
+                "has_more": bool,    # Whether more data is available
+                "next": str or None  # Cursor token for the next page of results, or None if no more data
+            }
         """
         job_config = bigquery.QueryJobConfig()
         limits = int(Config.DATA_EXPORT_LIMIT)
