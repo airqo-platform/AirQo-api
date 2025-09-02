@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createChecklistController = require("@controllers/checklist.controller");
 const checklistValidations = require("@validators/checklist.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -36,8 +36,7 @@ router.get("/", checklistValidations.list, createChecklistController.list);
 router.delete(
   "/:user_id",
   checklistValidations.deleteChecklist,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createChecklistController.delete
 );
 

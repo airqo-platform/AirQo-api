@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createMaintenanceController = require("@controllers/maintenance.controller");
 const maintenanceValidations = require("@validators/maintenance.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -31,8 +31,7 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     maintenanceValidations.create,
-    setJWTAuth,
-    authJWT,
+    enhancedJWTAuth,
     createMaintenanceController.create
   );
 
@@ -40,8 +39,7 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     maintenanceValidations.update,
-    setJWTAuth,
-    authJWT,
+    enhancedJWTAuth,
     createMaintenanceController.update
   );
 
@@ -56,8 +54,7 @@ products.forEach((product) => {
     `/${product}`,
     setProductQueryParam(product),
     maintenanceValidations.deleteMaintenance,
-    setJWTAuth,
-    authJWT,
+    enhancedJWTAuth,
     createMaintenanceController.delete
   );
 });

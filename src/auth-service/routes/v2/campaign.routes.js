@@ -1,7 +1,7 @@
 const express = require("express");
 const CampaignController = require("@controllers/campaign.controller");
 const campaignValidations = require("@validators/campaign.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const router = express.Router();
 
@@ -23,8 +23,7 @@ router.use(campaignValidations.pagination(20, 100));
 router.post(
   "/create",
   campaignValidations.create,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.createCampaign
 );
 
@@ -32,8 +31,7 @@ router.post(
 router.get(
   "/list",
   campaignValidations.list,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.listCampaigns
 );
 
@@ -41,8 +39,7 @@ router.get(
 router.get(
   "/:id",
   campaignValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.getCampaign
 );
 
@@ -50,8 +47,7 @@ router.get(
 router.patch(
   "/:id/update",
   campaignValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.updateCampaign
 );
 
@@ -59,8 +55,7 @@ router.patch(
 router.delete(
   "/:id/delete",
   campaignValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.deleteCampaign
 );
 
@@ -68,8 +63,7 @@ router.delete(
 router.post(
   "/:id/updates",
   campaignValidations.createUpdate,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.createCampaignUpdate
 );
 
@@ -77,8 +71,7 @@ router.post(
 router.get(
   "/:id/updates",
   campaignValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.getCampaignUpdates
 );
 
@@ -86,8 +79,7 @@ router.get(
 router.get(
   "/stats",
   campaignValidations.tenantOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.getCampaignStats
 );
 
@@ -95,8 +87,7 @@ router.get(
 router.patch(
   "/:id/toggle-status",
   campaignValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.toggleCampaignStatus
 );
 
@@ -104,8 +95,7 @@ router.patch(
 router.get(
   "/:id/donations",
   campaignValidations.idOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.getCampaignDonations
 );
 
@@ -113,8 +103,7 @@ router.get(
 router.get(
   "/reports/campaign-report",
   campaignValidations.tenantOperation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   CampaignController.generateCampaignReport
 );
 

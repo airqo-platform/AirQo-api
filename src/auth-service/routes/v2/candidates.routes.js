@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createCandidateController = require("@controllers/candidate.controller");
 const candidateValidations = require("@validators/candidates.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -26,32 +26,28 @@ router.post(
 router.get(
   "/",
   candidateValidations.list,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createCandidateController.list
 );
 
 router.post(
   "/confirm",
   candidateValidations.confirm,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createCandidateController.confirm
 );
 
 router.delete(
   "/",
   candidateValidations.deleteCandidate,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createCandidateController.delete
 );
 
 router.put(
   "/",
   candidateValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createCandidateController.update
 );
 

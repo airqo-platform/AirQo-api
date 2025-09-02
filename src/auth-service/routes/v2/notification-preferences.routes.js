@@ -1,7 +1,7 @@
 const express = require("express");
 const NotificationPreferenceController = require("@controllers/notification-preferences.controller");
 const notificationPreferenceValidations = require("@validators/notification-preferences.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const router = express.Router();
 
@@ -23,8 +23,7 @@ router.use(notificationPreferenceValidations.pagination(20, 100));
 router.get(
   "/list",
   notificationPreferenceValidations.listValidation, // Changed from list to listValidation
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.list
 );
 
@@ -32,8 +31,7 @@ router.get(
 router.post(
   "/create",
   notificationPreferenceValidations.createValidation, // Changed from create to createValidation
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.create
 );
 
@@ -41,8 +39,7 @@ router.post(
 router.get(
   "/:preference_id",
   notificationPreferenceValidations.preferenceId, // Changed from idOperation
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.getById
 );
 
@@ -50,8 +47,7 @@ router.get(
 router.patch(
   "/:preference_id",
   notificationPreferenceValidations.updateValidation, // Changed from update to updateValidation
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.update
 );
 
@@ -59,8 +55,7 @@ router.patch(
 router.put(
   "/:preference_id/thresholds",
   notificationPreferenceValidations.updateThresholdsValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.updateThresholds
 );
 
@@ -68,8 +63,7 @@ router.put(
 router.put(
   "/:preference_id/quiet-hours",
   notificationPreferenceValidations.updateQuietHoursValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.updateQuietHours
 );
 
@@ -77,8 +71,7 @@ router.put(
 router.patch(
   "/:preference_id/toggle-notification",
   notificationPreferenceValidations.toggleNotificationValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.toggleNotificationType
 );
 
@@ -86,8 +79,7 @@ router.patch(
 router.delete(
   "/:preference_id",
   notificationPreferenceValidations.preferenceId, // Changed from idOperation
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.delete
 );
 
@@ -95,8 +87,7 @@ router.delete(
 router.get(
   "/:preference_id/history",
   notificationPreferenceValidations.historyValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.getNotificationHistory
 );
 
@@ -104,8 +95,7 @@ router.get(
 router.get(
   "/stats",
   notificationPreferenceValidations.statsValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.getNotificationStats
 );
 
@@ -113,8 +103,7 @@ router.get(
 router.get(
   "/reports/notification-report",
   notificationPreferenceValidations.reportValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.generateNotificationReport
 );
 
@@ -122,8 +111,7 @@ router.get(
 router.post(
   "/bulk-update",
   notificationPreferenceValidations.bulkUpdateValidation, // Changed
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   NotificationPreferenceController.bulkUpdate
 );
 

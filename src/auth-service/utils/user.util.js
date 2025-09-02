@@ -4790,7 +4790,7 @@ const createUserModule = {
     return (
       preferredStrategyFromRequest ||
       user.preferredTokenStrategy ||
-      constants.TOKEN_STRATEGIES.STANDARD
+      constants.TOKEN_STRATEGIES.LEGACY
     );
   },
   /**

@@ -3,10 +3,9 @@ const express = require("express");
 const router = express.Router();
 const migrationController = require("@controllers/migration.controller");
 const migrationValidations = require("@validators/migration.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
-router.use(setJWTAuth);
-router.use(authJWT);
+router.use(enhancedJWTAuth);
 
 // GET endpoints (safe to run anytime)
 router.get(

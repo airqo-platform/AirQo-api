@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const preferenceController = require("@controllers/preference.controller");
 const preferenceValidations = require("@validators/preferences.validators");
-const { authenticateJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -48,7 +48,7 @@ router.get("/", preferenceValidations.list, preferenceController.list);
 router.delete(
   "/:user_id",
   preferenceValidations.deletePreference,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.delete
 );
 
@@ -61,76 +61,76 @@ router.get(
 router.post(
   "/selected-sites",
   preferenceValidations.addSelectedSites,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.addSelectedSites
 );
 
 router.put(
   "/selected-sites/:site_id",
   preferenceValidations.updateSelectedSite,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateSelectedSite
 );
 
 router.delete(
   "/selected-sites/:site_id",
   preferenceValidations.deleteSelectedSite,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.deleteSelectedSite
 );
 
 router.get(
   "/recent/:user_id",
   preferenceValidations.getPreferenceByUserId,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getMostRecent
 );
 
 router.get(
   "/all/:user_id",
   preferenceValidations.getPreferenceByUserId,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.listAll
 );
 
 router.post(
   "/:deviceId/charts",
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceValidations.createChart,
   preferenceController.createChart
 );
 
 router.put(
   "/:deviceId/charts/:chartId",
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceValidations.updateChart,
   preferenceController.updateChart
 );
 
 router.delete(
   "/:deviceId/charts/:chartId",
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceValidations.deleteChart,
   preferenceController.deleteChart
 );
 
 router.get(
   "/:deviceId/charts",
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceValidations.getChartConfigurations,
   preferenceController.getChartConfigurations
 );
 
 router.post(
   "/:deviceId/charts/:chartId/copy",
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceValidations.copyChart,
   preferenceController.copyChart
 );
 
 router.get(
   "/:deviceId/charts/:chartId",
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceValidations.getChartConfigurationById,
   preferenceController.getChartConfigurationById
 );
@@ -144,14 +144,14 @@ router.get(
 router.get(
   "/theme/user/:user_id",
   preferenceValidations.getUserPersonalTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getUserPersonalTheme
 );
 
 router.put(
   "/theme/user/:user_id",
   preferenceValidations.updateUserPersonalTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateUserPersonalTheme
 );
 
@@ -159,14 +159,14 @@ router.put(
 router.get(
   "/theme/user/:user_id/group/:group_id",
   preferenceValidations.getUserGroupTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getUserGroupTheme
 );
 
 router.put(
   "/theme/user/:user_id/group/:group_id",
   preferenceValidations.updateUserGroupTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateUserGroupTheme
 );
 
@@ -174,14 +174,14 @@ router.put(
 router.get(
   "/theme/user/:user_id/group",
   preferenceValidations.getUserDefaultGroupTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getUserDefaultGroupTheme
 );
 
 router.put(
   "/theme/user/:user_id/group",
   preferenceValidations.updateUserDefaultGroupTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateUserDefaultGroupTheme
 );
 
@@ -189,14 +189,14 @@ router.put(
 router.get(
   "/theme/user/:user_id/network/:network_id",
   preferenceValidations.getUserNetworkTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getUserNetworkTheme
 );
 
 router.put(
   "/theme/user/:user_id/network/:network_id",
   preferenceValidations.updateUserNetworkTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateUserNetworkTheme
 );
 
@@ -204,14 +204,14 @@ router.put(
 router.get(
   "/theme/user/:user_id/network",
   preferenceValidations.getUserDefaultNetworkTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getUserDefaultNetworkTheme
 );
 
 router.put(
   "/theme/user/:user_id/network",
   preferenceValidations.updateUserDefaultNetworkTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateUserDefaultNetworkTheme
 );
 
@@ -223,14 +223,14 @@ router.put(
 router.get(
   "/theme/organization/group/:group_id",
   preferenceValidations.getGroupTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getGroupTheme
 );
 
 router.put(
   "/theme/organization/group/:group_id",
   preferenceValidations.updateGroupTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateGroupTheme
 );
 
@@ -238,14 +238,14 @@ router.put(
 router.get(
   "/theme/organization/network/:network_id",
   preferenceValidations.getNetworkTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getNetworkTheme
 );
 
 router.put(
   "/theme/organization/network/:network_id",
   preferenceValidations.updateNetworkTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.updateNetworkTheme
 );
 
@@ -257,14 +257,14 @@ router.put(
 router.get(
   "/theme/effective/:user_id",
   preferenceValidations.getEffectiveTheme,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.getEffectiveTheme
 );
 
 router.get(
   "/:user_id",
   preferenceValidations.getPreferenceByUserId,
-  authenticateJWT,
+  enhancedJWTAuth,
   preferenceController.list
 );
 

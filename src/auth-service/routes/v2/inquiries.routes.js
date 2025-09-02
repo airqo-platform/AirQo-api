@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createInquiryController = require("@controllers/inquiry.controller");
 const inquiryValidations = require("@validators/inquiries.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -26,24 +26,21 @@ router.post(
 router.get(
   "/",
   inquiryValidations.list,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createInquiryController.list
 );
 
 router.delete(
   "/",
   inquiryValidations.deleteInquiry,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createInquiryController.delete
 );
 
 router.put(
   "/",
   inquiryValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createInquiryController.update
 );
 

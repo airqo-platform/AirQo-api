@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createDefaultController = require("@controllers/default.controller");
 const defaultValidations = require("@validators/defaults.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -26,8 +26,7 @@ router.get("/", defaultValidations.list, createDefaultController.list);
 router.delete(
   "/",
   defaultValidations.deleteDefault,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createDefaultController.delete
 );
 
