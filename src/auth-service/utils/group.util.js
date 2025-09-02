@@ -230,7 +230,20 @@ const groupUtil = {
               joined: {
                 $dateToString: {
                   format: "%Y-%m-%d",
-                  date: { $ifNull: ["$group_roles.createdAt", "$_id"] },
+                  date: {
+                    $ifNull: [
+                      {
+                        $cond: {
+                          if: {
+                            $eq: [{ $type: "$group_roles.createdAt" }, "date"],
+                          },
+                          then: "$group_roles.createdAt",
+                          else: null,
+                        },
+                      },
+                      "$_id",
+                    ],
+                  },
                 },
               },
             },

@@ -125,7 +125,7 @@ router.delete(
 router.get(
   "/:groupSlug/dashboard",
   enhancedJWTAuth,
-  requireGroupPermissions(["DASHBOARD_VIEW", "GROUP_VIEW"], "groupSlug"),
+  requireGroupAccess(["DASHBOARD_VIEW", "GROUP_VIEW"]),
   groupController.getDashboard
 );
 
@@ -133,7 +133,7 @@ router.get(
 router.get(
   "/:groupSlug/members",
   enhancedJWTAuth,
-  requireGroupPermissions(["MEMBER_VIEW", "GROUP_VIEW"], "groupSlug"),
+  requireGroupAccess(["MEMBER_VIEW", "GROUP_VIEW"]),
   groupController.getMembers
 );
 
@@ -141,7 +141,7 @@ router.get(
 router.get(
   "/:groupSlug/settings",
   enhancedJWTAuth,
-  requireGroupPermissions(["SETTINGS_VIEW", "GROUP_VIEW"], "groupSlug"),
+  requireGroupAccess(["SETTINGS_VIEW", "GROUP_VIEW"]),
   groupController.getSettings
 );
 

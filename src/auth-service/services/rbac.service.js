@@ -956,12 +956,12 @@ class RBACService {
     try {
       const user = await this.getUserModel().findById(userId).lean();
       if (!user) return false;
-
+      const populatedUser = await this._populateUserRoleData(user);
       const userRoles = [];
 
       // Add user type as a role
-      userRoles.push(user.userType);
-      userRoles.push(user.privilege);
+      userRoles.push(populatedUser.userType);
+      userRoles.push(populatedUser.privilege);
 
       if (contextId && contextType) {
         // Context-specific role check
@@ -990,8 +990,8 @@ class RBACService {
         }
       } else {
         // Global role check - include all roles
-        if (user.group_roles) {
-          user.group_roles.forEach((gr) => {
+        if (populatedUser.group_roles) {
+          populatedUser.group_roles.forEach((gr) => {
             userRoles.push(gr.userType);
             if (gr.role && gr.role.role_name) {
               userRoles.push(gr.role.role_name);
@@ -999,8 +999,8 @@ class RBACService {
           });
         }
 
-        if (user.network_roles) {
-          user.network_roles.forEach((nr) => {
+        if (populatedUser.network_roles) {
+          populatedUser.network_roles.forEach((nr) => {
             userRoles.push(nr.userType);
             if (nr.role && nr.role.role_name) {
               userRoles.push(nr.role.role_name);
@@ -1027,6 +1027,25 @@ class RBACService {
       });
     } catch (error) {
       logger.error(`Error checking user role: ${error.message}`);
+      return false;
+    }
+  }
+
+  async isSuperAdminInContext(userId, contextId, contextType) {
+    try {
+      // A super admin in a specific context would have a role named like 'ORG_SUPER_ADMIN'
+      // or a role that has the 'SUPER_ADMIN' permission.
+      // Let's check for a role named 'SUPER_ADMIN' within the context.
+      return await this.hasRole(
+        userId,
+        ["SUPER_ADMIN"],
+        contextId,
+        contextType
+      );
+    } catch (error) {
+      logger.error(
+        `Error checking super admin status in context: ${error.message}`
+      );
       return false;
     }
   }

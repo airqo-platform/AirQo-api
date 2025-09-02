@@ -4,6 +4,7 @@ const RoleModel = require("@models/Role");
 const GroupModel = require("@models/Group");
 const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const RBACService = require("@services/rbac.service");
 const logger = require("log4js").getLogger(
@@ -68,9 +69,15 @@ const adminCheck = (options = {}) => {
       // Find the target group/network
       let targetContext;
       if (contextType === "group") {
-        const lookupField = useGroupTitle ? "grp_title" : "_id";
-        const lookupQuery = { [lookupField]: contextId };
-        targetContext = await GroupModel(tenant).findOne(lookupQuery);
+        let lookupQuery = {};
+        if (useGroupTitle) {
+          lookupQuery["grp_title"] = contextId;
+        } else if (mongoose.Types.ObjectId.isValid(contextId)) {
+          lookupQuery["_id"] = contextId;
+        } else {
+          lookupQuery["organization_slug"] = contextId;
+        }
+        targetContext = await GroupModel(tenant).findOne(lookupQuery).lean();
       } else {
         // Add network lookup logic here when NetworkModel is available
         return next(
