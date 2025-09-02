@@ -6,19 +6,6 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- abstract-token-factory`
 );
 
-const TOKEN_STRATEGIES = {
-  LEGACY: "legacy",
-  STANDARD: "standard",
-  ULTRA_COMPRESSED: "ultra_compressed",
-  COMPRESSED: "compressed",
-  HASH_BASED: "hash_based",
-  ROLE_ONLY: "role_only",
-  OPTIMIZED_HASH: "optimized_hash",
-  BIT_FLAGS: "bit_flags",
-  OPTIMIZED_BIT_FLAGS: "optimized_bit_flags",
-  OPTIMIZED_ROLE_ONLY: "optimized_role_only",
-};
-
 class AbstractTokenFactory {
   constructor(tenant = "airqo") {
     this.tenant = tenant;
@@ -31,43 +18,53 @@ class AbstractTokenFactory {
   }
 
   initializeStrategies() {
-    this.strategies.set(TOKEN_STRATEGIES.LEGACY, new LegacyTokenStrategy());
-    this.strategies.set(TOKEN_STRATEGIES.STANDARD, new StandardTokenStrategy());
     this.strategies.set(
-      TOKEN_STRATEGIES.ULTRA_COMPRESSED,
+      constants.TOKEN_STRATEGIES.LEGACY,
+      new LegacyTokenStrategy()
+    );
+    this.strategies.set(
+      constants.TOKEN_STRATEGIES.STANDARD,
+      new StandardTokenStrategy()
+    );
+    this.strategies.set(
+      constants.TOKEN_STRATEGIES.ULTRA_COMPRESSED,
       new UltraCompressedTokenStrategy()
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.COMPRESSED,
+      constants.TOKEN_STRATEGIES.COMPRESSED,
       new CompressedTokenStrategy()
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.HASH_BASED,
+      constants.TOKEN_STRATEGIES.HASH_BASED,
       new HashBasedTokenStrategy(this.permissionCache)
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.ROLE_ONLY,
+      constants.TOKEN_STRATEGIES.ROLE_ONLY,
       new RoleOnlyTokenStrategy()
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.OPTIMIZED_HASH,
+      constants.TOKEN_STRATEGIES.OPTIMIZED_HASH,
       new OptimizedHashTokenStrategy(this.permissionCache, this)
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.BIT_FLAGS,
+      constants.TOKEN_STRATEGIES.BIT_FLAGS,
       new BitFlagsTokenStrategy()
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS,
+      constants.TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS,
       new OptimizedBitFlagsTokenStrategy()
     );
     this.strategies.set(
-      TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY,
+      constants.TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY,
       new OptimizedRoleOnlyTokenStrategy()
     );
   }
 
-  async createToken(user, strategy = TOKEN_STRATEGIES.STANDARD, options = {}) {
+  async createToken(
+    user,
+    strategy = constants.TOKEN_STRATEGIES.LEGACY,
+    options = {}
+  ) {
     try {
       const tokenStrategy = this.strategies.get(strategy);
       if (!tokenStrategy) {
@@ -115,29 +112,29 @@ class AbstractTokenFactory {
       throw new Error("Invalid token payload structure");
     }
 
-    if (decoded.oh) return TOKEN_STRATEGIES.OPTIMIZED_HASH;
-    if (decoded.sf) return TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS;
-    if (decoded.os === 1) return TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY;
-    if (decoded.uc === 1) return TOKEN_STRATEGIES.ULTRA_COMPRESSED;
-    if (decoded.ph) return TOKEN_STRATEGIES.HASH_BASED;
-    if (decoded.spf) return TOKEN_STRATEGIES.BIT_FLAGS;
-    if (decoded.rs) return TOKEN_STRATEGIES.ROLE_ONLY;
+    if (decoded.oh) return constants.TOKEN_STRATEGIES.OPTIMIZED_HASH;
+    if (decoded.sf) return constants.TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS;
+    if (decoded.os === 1) return constants.TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY;
+    if (decoded.uc === 1) return constants.TOKEN_STRATEGIES.ULTRA_COMPRESSED;
+    if (decoded.ph) return constants.TOKEN_STRATEGIES.HASH_BASED;
+    if (decoded.spf) return constants.TOKEN_STRATEGIES.BIT_FLAGS;
+    if (decoded.rs) return constants.TOKEN_STRATEGIES.ROLE_ONLY;
     if (decoded.u && decoded.e && !decoded.username)
-      return TOKEN_STRATEGIES.COMPRESSED;
+      return constants.TOKEN_STRATEGIES.COMPRESSED;
 
     if (
       decoded.username &&
       (decoded.groupPermissions || decoded.networkPermissions)
     ) {
-      return TOKEN_STRATEGIES.STANDARD;
+      return constants.TOKEN_STRATEGIES.STANDARD;
     }
 
     // Fallback for older standard tokens
     if (decoded.username && decoded.allPermissions) {
-      return TOKEN_STRATEGIES.STANDARD;
+      return constants.TOKEN_STRATEGIES.STANDARD;
     }
 
-    return TOKEN_STRATEGIES.LEGACY;
+    return constants.TOKEN_STRATEGIES.LEGACY;
   }
 }
 
@@ -779,5 +776,4 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
 
 module.exports = {
   AbstractTokenFactory,
-  TOKEN_STRATEGIES,
 };

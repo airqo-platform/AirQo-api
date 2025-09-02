@@ -104,6 +104,7 @@ router.post(
 router.post(
   "/generate-token",
   enhancedJWTAuth,
+  userValidations.generateToken,
   requirePermissions(["TOKEN_GENERATE"]),
   validate,
   userController.generateOptimizedToken
@@ -119,6 +120,7 @@ router.post(
 router.post(
   "/refresh-permissions",
   enhancedJWTAuth,
+  userValidations.refreshPermissions,
   validate,
   userController.refreshPermissions
 );
@@ -132,6 +134,7 @@ router.post(
 router.get(
   "/analyze-tokens/:userId",
   enhancedJWTAuth,
+  userValidations.analyzeTokenStrategies,
   requirePermissions(["SYSTEM_ADMIN"]),
   validate,
   userController.analyzeTokenStrategies
@@ -147,6 +150,7 @@ router.get(
 router.put(
   "/token-strategy",
   enhancedJWTAuth,
+  userValidations.updateTokenStrategy,
   validate,
   userController.updateTokenStrategy
 );
@@ -166,6 +170,7 @@ router.put(
 router.get(
   "/context-permissions",
   enhancedJWTAuth,
+  userValidations.getContextPermissions,
   validate,
   userController.getContextPermissions
 );
@@ -463,7 +468,8 @@ router.get(
 router.get(
   "/debug/permissions/:userId",
   enhancedJWTAuth,
-  requirePermissions(["SYSTEM_ADMIN"]),
+  userValidations.debugPermissions,
+  requirePermissions(["SYSTEM_ADMIN"]), // Assuming SYSTEM_ADMIN can debug
   debugPermissions(),
   async (req, res) => {
     try {

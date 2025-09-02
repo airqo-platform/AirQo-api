@@ -2,11 +2,8 @@ const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
-const { AbstractTokenFactory } = require("@services/atf.service");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { tokenConfig } = require("@config/tokenStrategyConfig");
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
@@ -296,8 +293,8 @@ const UserSchema = new Schema(
     isActive: { type: Boolean, default: false },
     loginCount: { type: Number, default: 0 },
     duration: { type: Date, default: oneMonthFromNow },
-    network_roles: [networkRoleSchema], // or flexibleNetworkRoleSchema or openNetworkRoleSchema
-    group_roles: [groupRoleSchema], // or flexibleGroupRoleSchema or openGroupRoleSchema
+    network_roles: [flexibleNetworkRoleSchema], // networkRoleSchema or flexibleNetworkRoleSchema or openNetworkRoleSchema
+    group_roles: [flexibleGroupRoleSchema], // groupRoleSchema or flexibleGroupRoleSchema or openGroupRoleSchema
 
     permissions: [
       {
@@ -358,6 +355,11 @@ const UserSchema = new Schema(
     },
     google_id: { type: String, trim: true },
     timezone: { type: String, trim: true },
+    preferredTokenStrategy: {
+      type: String,
+      enum: Object.values(constants.TOKEN_STRATEGIES),
+      default: constants.TOKEN_STRATEGIES.LEGACY,
+    },
     subscriptionStatus: {
       type: String,
       enum: ["inactive", "active", "past_due", "cancelled"],
@@ -1552,6 +1554,7 @@ UserSchema.methods = {
       isActive: this.isActive,
       interests: this.interests,
       interestsDescription: this.interestsDescription,
+      preferredTokenStrategy: this.preferredTokenStrategy,
       loginCount: this.loginCount,
       timezone: this.timezone,
     };
@@ -1559,10 +1562,13 @@ UserSchema.methods = {
 };
 
 UserSchema.methods.createToken = async function (
-  strategy = tokenConfig.defaultStrategy,
+  // TODO: remove this legacy method and use the ATF service directly
+  strategy = constants.TOKEN_STRATEGIES.LEGACY,
   options = {}
 ) {
   try {
+    // Lazy require to prevent circular dependency issues at startup
+    const { AbstractTokenFactory } = require("@services/atf.service");
     const tokenFactory = new AbstractTokenFactory(this.tenant || "airqo");
     return await tokenFactory.createToken(this, strategy, options);
   } catch (error) {

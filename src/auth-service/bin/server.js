@@ -64,11 +64,14 @@ const initializeRBAC = async () => {
     if (result.success) {
       console.log("✅ RBAC initialization completed successfully");
       console.log(`📊 Setup summary:`, {
-        permissions_created: result.data.permissions_created || 0,
-        permissions_total: result.data.permissions_total || 0,
-        roles_processed: result.data.roles_processed || 0,
-        roles_successful: result.data.roles_successful || 0,
-        roles_failed: result.data.roles_failed || 0,
+        permissions_created: result.data.permissions_created,
+        permissions_updated: result.data.permissions_updated,
+        permissions_total: result.data.permissions_total,
+        system_roles_created: result.data.roles_created,
+        system_roles_updated: result.data.roles_updated,
+        system_roles_up_to_date: result.data.roles_up_to_date,
+        organization_roles_audited: result.data.organization_roles_audited,
+        roles_failed: result.data.roles_failed,
         super_admin_exists: result.data.airqo_super_admin_exists,
         super_admin_role_id: result.data.airqo_super_admin_role_id,
       });

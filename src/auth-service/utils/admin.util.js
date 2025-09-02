@@ -145,9 +145,17 @@ const admin = {
       );
 
       if (hasExistingRole) {
+        // Even if the user has the role, let's ensure the role itself is up-to-date with all permissions.
+        // The call to ensureSuperAdminRole should handle the sync.
+        // We just need to clear the user's cache to reflect any changes.
+        const RBACService = require("@services/rbac.service");
+        const rbacService = new RBACService(tenant);
+        rbacService.clearUserCache(targetUserId);
+
         return {
           success: true,
-          message: "User already has SUPER_ADMIN role",
+          message:
+            "User already has SUPER_ADMIN role. Permissions have been refreshed.",
           status: httpStatus.OK,
           data: {
             user_id: targetUserId,
@@ -156,7 +164,7 @@ const admin = {
             group: airqoGroup.grp_title,
             group_id: airqoGroup._id,
             tenant: tenant,
-            status: "already_assigned",
+            status: "already_assigned_and_refreshed",
             timestamp: new Date().toISOString(),
           },
         };

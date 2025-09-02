@@ -41,10 +41,7 @@ const {
 } = require("@utils/common");
 
 const RBACService = require("@services/rbac.service");
-const {
-  AbstractTokenFactory,
-  TOKEN_STRATEGIES,
-} = require("@services/atf.service");
+const { AbstractTokenFactory } = require("@services/atf.service");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -4784,16 +4781,27 @@ const createUserModule = {
       );
     }
   },
+
+  /**
+   * Determines the effective token strategy for a user.
+   * Priority: Request override > User preference > System default.
+   */
+  _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
+    return (
+      preferredStrategyFromRequest ||
+      user.preferredTokenStrategy ||
+      constants.TOKEN_STRATEGIES.STANDARD
+    );
+  },
   /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
     try {
-      const { email, password, tenant, preferredStrategy, includeDebugInfo } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { email, password, preferredStrategy, includeDebugInfo } = body;
+      const { tenant } = query;
 
       console.log("🔐 ENHANCED LOGIN:", {
         email,
@@ -4883,10 +4891,10 @@ const createUserModule = {
       });
 
       // Determine token strategy
-      const strategy =
-        preferredStrategy ||
-        user.preferredTokenStrategy ||
-        TOKEN_STRATEGIES.STANDARD;
+      const strategy = createUserModule._getEffectiveTokenStrategy(
+        user,
+        preferredStrategy
+      );
 
       console.log("🎯 Using token strategy:", strategy);
 
@@ -5011,7 +5019,7 @@ const createUserModule = {
                 ),
               },
               tokenCompressionRatio:
-                strategy !== TOKEN_STRATEGIES.LEGACY
+                strategy !== constants.TOKEN_STRATEGIES.LEGACY
                   ? (
                       (1 - Buffer.byteLength(token, "utf8") / 2000) *
                       100
@@ -5270,22 +5278,14 @@ const createUserModule = {
    */
   generateOptimizedToken: async (request, next) => {
     try {
-      const { userId, tenant, strategy, options } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
-
-      if (!userId) {
-        return {
-          success: false,
-          message: "User ID is required",
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy, options } = body;
+      const { tenant } = query;
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const tokenStrategy = strategy || TOKEN_STRATEGIES.STANDARD;
+      const tokenStrategy =
+        strategy || constants.TOKEN_STRATEGIES.ULTRA_COMPRESSED;
 
       const user = await UserModel(dbTenant).findById(userId).lean();
 
@@ -5339,11 +5339,10 @@ const createUserModule = {
    */
   refreshUserPermissions: async (request, next) => {
     try {
-      const { userId, tenant, strategy } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5414,11 +5413,10 @@ const createUserModule = {
    */
   analyzeTokenStrategies: async (request, next) => {
     try {
-      const { userId, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5456,7 +5454,7 @@ const createUserModule = {
           const token = await tokenFactory.createToken(populatedUser, strategy);
           const size = Buffer.byteLength(token, "utf8");
 
-          if (strategy === TOKEN_STRATEGIES.LEGACY) {
+          if (strategy === constants.TOKEN_STRATEGIES.LEGACY) {
             baselineSize = size;
           }
 
@@ -5512,11 +5510,10 @@ const createUserModule = {
    */
   getUserContextPermissions: async (request, next) => {
     try {
-      const { userId, contextId, contextType, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, contextId, contextType } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5572,11 +5569,10 @@ const createUserModule = {
    */
   updateTokenStrategy: async (request, next) => {
     try {
-      const { userId, strategy, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId || !strategy) {
         return {
@@ -5586,15 +5582,16 @@ const createUserModule = {
         };
       }
 
-      if (!Object.values(TOKEN_STRATEGIES).includes(strategy)) {
+      // Fix: Use constants.TOKEN_STRATEGIES instead ofconstants.TOKEN_STRATEGIES from ATF service
+      if (!Object.values(constants.TOKEN_STRATEGIES).includes(strategy)) {
         return {
           success: false,
           message: "Invalid token strategy",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            strategy: `Must be one of: ${Object.values(TOKEN_STRATEGIES).join(
-              ", "
-            )}`,
+            strategy: `Must be one of: ${Object.values(
+              constants.TOKEN_STRATEGIES
+            ).join(", ")}`,
           },
         };
       }
@@ -5651,8 +5648,8 @@ const createUserModule = {
     const recommended =
       strategies.find(
         ([strategy, _]) =>
-          strategy === TOKEN_STRATEGIES.COMPRESSED ||
-          strategy === TOKEN_STRATEGIES.HASH_BASED
+          strategy === constants.TOKEN_STRATEGIES.COMPRESSED ||
+          strategy === constants.TOKEN_STRATEGIES.HASH_BASED
       ) || smallest;
 
     return {

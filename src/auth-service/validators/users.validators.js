@@ -1,7 +1,7 @@
 // users.validators.js
 const { query, body, param, oneOf } = require("express-validator");
 const mongoose = require("mongoose");
-const { TOKEN_STRATEGIES } = require("@services/atf.service");
+const constants = require("@config/constants");
 const ObjectId = mongoose.Types.ObjectId;
 
 const createInterestValidation = () => [
@@ -131,7 +131,7 @@ const loginLegacyCompatible = [
   ],
 ];
 
-const validStrategies = Object.values(TOKEN_STRATEGIES);
+const validStrategies = Object.values(constants.TOKEN_STRATEGIES);
 
 const loginEnhanced = [
   validateTenant,
@@ -1104,6 +1104,134 @@ const userCleanup = [
   ],
 ];
 
+const generateToken = [
+  validateTenant,
+  [
+    body("userId")
+      .exists()
+      .withMessage("userId is required")
+      .bail()
+      .notEmpty()
+      .withMessage("userId should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    body("strategy")
+      .optional()
+      .notEmpty()
+      .withMessage("strategy should not be empty if provided")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+    body("options")
+      .optional()
+      .isObject()
+      .withMessage("options must be an object"),
+  ],
+];
+
+const updateTokenStrategy = [
+  validateTenant,
+  [
+    body("userId")
+      .optional()
+      .notEmpty()
+      .withMessage("userId should not be empty if provided")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    body("strategy")
+      .exists()
+      .withMessage("strategy is required")
+      .bail()
+      .notEmpty()
+      .withMessage("strategy should not be empty")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+  ],
+];
+
+const refreshPermissions = [
+  validateTenant,
+  [
+    body("userId")
+      .optional()
+      .notEmpty()
+      .withMessage("userId should not be empty if provided")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    body("strategy")
+      .optional()
+      .notEmpty()
+      .withMessage("strategy should not be empty if provided")
+      .bail()
+      .isIn(validStrategies)
+      .withMessage(
+        `Invalid token strategy provided. Valid strategies are: ${validStrategies.join(
+          ", "
+        )}`
+      ),
+  ],
+];
+
+const analyzeTokenStrategies = [
+  validateTenant,
+  [
+    param("userId")
+      .exists()
+      .withMessage("userId is required")
+      .bail()
+      .notEmpty()
+      .withMessage("userId should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+  ],
+];
+
+const getContextPermissions = [
+  validateTenant,
+  [
+    query("userId")
+      .optional()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+    query("contextId")
+      .optional()
+      .isMongoId()
+      .withMessage("contextId must be a valid Mongo ID"),
+    query("contextType")
+      .optional()
+      .isIn(["group", "network"])
+      .withMessage("contextType must be either 'group' or 'network'"),
+  ],
+];
+
+const debugPermissions = [
+  validateTenant,
+  [
+    param("userId")
+      .exists()
+      .withMessage("userId is required")
+      .bail()
+      .notEmpty()
+      .withMessage("userId should not be empty")
+      .bail()
+      .isMongoId()
+      .withMessage("userId must be a valid Mongo ID"),
+  ],
+];
+
 module.exports = {
   tenant: validateTenant,
   AirqoTenantOnly: validateAirqoTenantOnly,
@@ -1146,4 +1274,10 @@ module.exports = {
   getOrganizationBySlug,
   registerViaOrgSlug,
   userCleanup,
+  generateToken,
+  updateTokenStrategy,
+  refreshPermissions,
+  analyzeTokenStrategies,
+  getContextPermissions,
+  debugPermissions,
 };

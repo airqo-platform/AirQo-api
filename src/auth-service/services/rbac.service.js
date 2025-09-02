@@ -114,58 +114,48 @@ class RBACService {
         allPermissions.add(permission)
       );
 
-      // Check if super admin
-      const isSuperAdmin = this.isSuperAdmin(populatedUser);
-      if (isSuperAdmin) {
+      // Add direct user permissions
+      if (populatedUser.permissions && populatedUser.permissions.length > 0) {
         console.log(
-          "👑 Enhanced RBAC: User is super admin - adding ALL permissions"
+          `📋 Enhanced RBAC: Processing ${populatedUser.permissions.length} direct permissions`
         );
-        const superAdminPermissions = this.getAllSuperAdminPermissions();
-        superAdminPermissions.forEach((permission) =>
+        populatedUser.permissions.forEach((permObj) => {
+          if (permObj && permObj.permission) {
+            allPermissions.add(permObj.permission);
+          }
+        });
+      }
+
+      // Add group-based permissions
+      if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
+        console.log(
+          `🏢 Enhanced RBAC: Processing ${populatedUser.group_roles.length} group roles`
+        );
+        const groupPermissions = await this.getGroupPermissions(
+          populatedUser.group_roles
+        );
+        groupPermissions.forEach((permission) =>
           allPermissions.add(permission)
         );
-      } else {
-        // Add direct user permissions
-        if (populatedUser.permissions && populatedUser.permissions.length > 0) {
-          console.log(
-            `📋 Enhanced RBAC: Processing ${populatedUser.permissions.length} direct permissions`
-          );
-          populatedUser.permissions.forEach((permObj) => {
-            if (permObj && permObj.permission) {
-              allPermissions.add(permObj.permission);
-            }
-          });
-        }
-
-        // Add group-based permissions
-        if (populatedUser.group_roles && populatedUser.group_roles.length > 0) {
-          console.log(
-            `🏢 Enhanced RBAC: Processing ${populatedUser.group_roles.length} group roles`
-          );
-          const groupPermissions = await this.getGroupPermissions(
-            populatedUser.group_roles
-          );
-          groupPermissions.forEach((permission) =>
-            allPermissions.add(permission)
-          );
-        }
-
-        // Add network-based permissions
-        if (
-          populatedUser.network_roles &&
-          populatedUser.network_roles.length > 0
-        ) {
-          console.log(
-            `🌐 Enhanced RBAC: Processing ${populatedUser.network_roles.length} network roles`
-          );
-          const networkPermissions = await this.getNetworkPermissions(
-            populatedUser.network_roles
-          );
-          networkPermissions.forEach((permission) =>
-            allPermissions.add(permission)
-          );
-        }
       }
+
+      // Add network-based permissions
+      if (
+        populatedUser.network_roles &&
+        populatedUser.network_roles.length > 0
+      ) {
+        console.log(
+          `🌐 Enhanced RBAC: Processing ${populatedUser.network_roles.length} network roles`
+        );
+        const networkPermissions = await this.getNetworkPermissions(
+          populatedUser.network_roles
+        );
+        networkPermissions.forEach((permission) =>
+          allPermissions.add(permission)
+        );
+      }
+
+      const isSuperAdmin = this.isSuperAdmin(populatedUser);
 
       const finalPermissions = Array.from(allPermissions);
       console.log("🎯 Enhanced RBAC: FINAL PERMISSIONS:", {
@@ -233,7 +223,13 @@ class RBACService {
         console.log(
           "👑 Enhanced RBAC Context: Super admin - adding all system permissions"
         );
-        const superAdminPermissions = this.getAllSuperAdminPermissions();
+        const allSystemPermissions = await this.getPermissionModel()
+          .find({})
+          .select("permission")
+          .lean();
+        const superAdminPermissions = allSystemPermissions.map(
+          (p) => p.permission
+        );
         superAdminPermissions.forEach((permission) =>
           systemPermissions.add(permission)
         );

@@ -530,30 +530,19 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       .lean();
 
     if (existingRole) {
-      logObject(`🔄 Updating existing role: ${roleData.role_name}`);
-
-      // Get current role and manually populate permissions
-      const currentRole = await RoleModel(tenant)
-        .findById(existingRole._id)
-        .lean();
-
-      const currentRoleWithPermissions = await manuallyPopulateRolePermissions(
-        currentRole,
-        tenant
+      const currentPermissionIds = (existingRole.role_permissions || []).map(
+        (id) => id.toString()
       );
-      const currentPermissions =
-        currentRoleWithPermissions.role_permissions?.map((p) => p.permission) ||
-        [];
-      const newPermissions = roleData.permissions.filter(
-        (p) => !currentPermissions.includes(p)
-      );
+      const expectedPermissionIds = permissionIds.map((id) => id.toString());
 
-      if (newPermissions.length > 0) {
+      const arePermissionsSynced =
+        currentPermissionIds.length === expectedPermissionIds.length &&
+        currentPermissionIds.every((id) => expectedPermissionIds.includes(id));
+
+      if (!arePermissionsSynced) {
         logObject(
-          `📝 Adding ${newPermissions.length} new permissions to role ${roleData.role_name}:`,
-          newPermissions
+          `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`
         );
-
         const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
           existingRole._id,
           {
@@ -564,14 +553,13 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           },
           { new: true }
         );
-
         return {
           success: true,
           data: updatedRole,
-          message: `Role ${roleData.role_name} updated with new permissions`,
+          message: `Role ${roleData.role_name} permissions synchronized`,
           status: httpStatus.OK,
           role_name: roleData.role_name,
-          permissions_added: newPermissions,
+          permissions_synced: expectedPermissionIds.length,
         };
       } else {
         logObject(
@@ -580,7 +568,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
         return {
           success: true,
           data: existingRole,
-          message: `Role ${roleData.role_name} already up to date`,
+          message: `Role ${roleData.role_name} is already up to date`,
           status: httpStatus.OK,
           role_name: roleData.role_name,
         };
@@ -661,6 +649,9 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
   const roleCreationResults = [];
   let airqoSuperAdminExists = false;
   let airqoSuperAdminRoleId = null;
+  let rolesCreated = 0;
+  let rolesUpdated = 0;
+  let rolesUpToDate = 0;
 
   for (const roleData of rolesList) {
     try {
@@ -669,6 +660,14 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
       const result = await createOrUpdateRoleWithPermissionSync(tenant, data);
 
       if (result) {
+        if (result.message && result.message.includes("synchronized")) {
+          rolesUpdated++;
+        } else if (result.message && result.message.includes("created")) {
+          rolesCreated++;
+        } else if (result.message && result.message.includes("up to date")) {
+          rolesUpToDate++;
+        }
+
         roleCreationResults.push(result);
         if (
           result.data &&
@@ -689,6 +688,7 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
     roleCreationResults,
     airqoSuperAdminExists,
     airqoSuperAdminRoleId,
+    stats: { rolesCreated, rolesUpdated, rolesUpToDate },
   };
 };
 const auditAndSyncExistingRoles = async (tenant) => {
@@ -1255,10 +1255,8 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
     ];
 
     // Step 1: Synchronize all permissions defined in the list
-    const { createdPermissions, existingPermissions } = await syncPermissions(
-      tenant,
-      defaultPermissions
-    );
+    const { createdPermissions, existingPermissions, updatedPermissions } =
+      await syncPermissions(tenant, defaultPermissions);
 
     // Create AirQo organization if it doesn't exist
     const GroupModel = require("@models/Group");
@@ -1370,10 +1368,11 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       roleCreationResults,
       airqoSuperAdminExists,
       airqoSuperAdminRoleId,
+      stats: roleSyncStats,
     } = await syncAirqoRoles(tenant, defaultRoles, airqoGroup._id);
 
     // Step 3: Audit and sync permissions for existing non-system roles
-    await auditAndSyncExistingRoles(tenant);
+    const auditStats = await auditAndSyncExistingRoles(tenant);
 
     logText("🎉 Default permissions and roles setup completed successfully!");
 
@@ -1382,8 +1381,13 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       message: "Default permissions and roles setup completed successfully",
       data: {
         permissions_created: createdPermissions.length,
+        permissions_updated: updatedPermissions.length,
         permissions_existing: existingPermissions.length,
         permissions_total: defaultPermissions.length,
+        roles_created: roleSyncStats.rolesCreated,
+        roles_updated: roleSyncStats.rolesUpdated,
+        roles_up_to_date: roleSyncStats.rolesUpToDate,
+        organization_roles_audited: auditStats.rolesUpdated,
         roles_processed: defaultRoles.length,
         roles_successful: roleCreationResults.filter((r) => r.success).length,
         roles_failed: roleCreationResults.filter((r) => !r.success).length,

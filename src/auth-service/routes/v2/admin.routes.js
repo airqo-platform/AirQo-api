@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const createAdminController = require("@controllers/admin.controller");
 const adminValidations = require("@validators/admin.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -21,16 +21,14 @@ router.use(adminValidations.pagination);
 router.post(
   "/super-admin",
   adminValidations.setupSuperAdmin,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.setupSuperAdmin
 );
 
 router.post(
   "/super-admin/enhanced",
   adminValidations.enhancedSetupSuperAdmin,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.enhancedSetupSuperAdmin
 );
 
@@ -62,8 +60,7 @@ router.get(
 router.get(
   "/system-diagnostics",
   adminValidations.getSystemDiagnostics,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.getSystemDiagnostics
 );
 
@@ -71,8 +68,7 @@ router.post(
   "/bulk-operations",
   adminValidations.bulkAdminOperations,
   adminValidations.batchOperationValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.bulkAdminOperations
 );
 
@@ -80,32 +76,28 @@ router.get(
   "/audit/users",
   adminValidations.auditValidation,
   adminValidations.userSearchValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.auditUsers
 );
 
 router.get(
   "/audit/roles",
   adminValidations.auditValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.auditRoles
 );
 
 router.get(
   "/audit/permissions",
   adminValidations.auditValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.auditPermissions
 );
 
 router.post(
   "/maintenance/cache-clear",
   adminValidations.cacheManagement,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.clearCache
 );
 
@@ -113,16 +105,14 @@ router.post(
   "/maintenance/database-cleanup",
   adminValidations.databaseCleanup,
   adminValidations.validateProductionSafety,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.databaseCleanup
 );
 
 router.get(
   "/migration/deprecated-fields-status",
   adminValidations.auditValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.getDeprecatedFieldsStatus
 );
 
@@ -131,15 +121,13 @@ router.post(
   adminValidations.migrateDeprecatedFields,
   adminValidations.validateProductionSafety,
   adminValidations.batchOperationValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.migrateDeprecatedFields
 );
 
 router.get(
   "/config/current",
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createAdminController.getCurrentConfig
 );
 

@@ -3,11 +3,7 @@ const express = require("express");
 const router = express.Router();
 const groupController = require("@controllers/group.controller");
 const groupValidations = require("@validators/groups.validators");
-const {
-  setJWTAuth,
-  authJWT,
-  enhancedJWTAuth,
-} = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 
 // New RBAC middleware
 const {

@@ -1,6 +1,6 @@
 // config/tokenStrategyConfig.js
 
-const { TOKEN_STRATEGIES } = require("@services/atf.service");
+const { TOKEN_STRATEGIES } = require("@config/constants");
 
 class TokenStrategyConfig {
   constructor() {
@@ -229,5 +229,4 @@ const tokenConfig = new TokenStrategyConfig();
 module.exports = {
   tokenConfig,
   TokenStrategyConfig,
-  TOKEN_STRATEGIES,
 };
