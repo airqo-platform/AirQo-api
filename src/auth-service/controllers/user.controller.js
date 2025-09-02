@@ -1380,18 +1380,27 @@ const userController = {
   getEnhancedProfile: async (req, res, next) => {
     try {
       logger.info("Enhanced profile endpoint called");
-      const request = handleRequest(req, next);
-      if (!request) return;
+
+      // Check authentication first before handleRequest
       const userId = req.user?._id;
       if (!userId) {
+        logger.warn("Enhanced profile accessed without authentication", {
+          headers: req.headers.authorization ? "token present" : "no token",
+          user: req.user ? "user object exists" : "no user object",
+        });
+
         return next(
           new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
-            auth: "User must be authenticated",
+            auth: "User must be authenticated to access profile",
           })
         );
       }
 
+      const request = handleRequest(req, next);
+      if (!request) return;
+
       const { tenant } = request.query;
+
       console.log("👤 Enhanced profile requested:", {
         userId,
         tenant,
@@ -1399,7 +1408,7 @@ const userController = {
 
       // Get user permissions context
       const permissionsRequest = {
-        params: { user_id: userId },
+        body: { userId }, // Use body instead of params for getUserContextPermissions
         query: { tenant },
       };
 
@@ -1409,6 +1418,11 @@ const userController = {
       );
 
       if (!permissionsResult.success) {
+        logger.error("Failed to get user permissions for profile", {
+          userId,
+          tenant,
+          error: permissionsResult.message,
+        });
         return sendResponse(res, permissionsResult);
       }
 
@@ -1421,6 +1435,7 @@ const userController = {
         .lean();
 
       if (!basicUser) {
+        logger.warn("User not found for enhanced profile", { userId, tenant });
         return next(
           new HttpError("User not found", httpStatus.NOT_FOUND, {
             user: "User profile not found",
@@ -1501,13 +1516,13 @@ const userController = {
         // Context summary
         contextSummary: {
           totalPermissions:
-            permissionsResult.data.permissions.allPermissions?.length || 0,
+            permissionsResult.data.permissions?.allPermissions?.length || 0,
           groupMemberships:
-            permissionsResult.data.permissions.groupMemberships?.length || 0,
+            permissionsResult.data.permissions?.groupMemberships?.length || 0,
           networkMemberships:
-            permissionsResult.data.permissions.networkMemberships?.length || 0,
+            permissionsResult.data.permissions?.networkMemberships?.length || 0,
           isSuperAdmin:
-            permissionsResult.data.permissions.isSuperAdmin || false,
+            permissionsResult.data.permissions?.isSuperAdmin || false,
         },
       };
 
@@ -1521,7 +1536,22 @@ const userController = {
       return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Enhanced profile controller error: ${error.message}`);
-      handleError(error, next);
+      console.error("❌ Enhanced profile error details:", {
+        error: error.message,
+        stack: error.stack?.substring(0, 500),
+        userId: req.user?._id,
+        hasAuth: !!req.headers.authorization,
+      });
+
+      return next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: "Failed to retrieve enhanced profile",
+          }
+        )
+      );
     }
   },
 

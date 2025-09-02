@@ -5445,7 +5445,8 @@ const createUserModule = {
       );
 
       const tokenFactory = new AbstractTokenFactory(dbTenant);
-      const strategies = Object.values(TOKEN_STRATEGIES);
+      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES
+      const strategies = Object.values(constants.TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
 
@@ -5454,6 +5455,7 @@ const createUserModule = {
           const token = await tokenFactory.createToken(populatedUser, strategy);
           const size = Buffer.byteLength(token, "utf8");
 
+          // Fix: Use constants.TOKEN_STRATEGIES.LEGACY
           if (strategy === constants.TOKEN_STRATEGIES.LEGACY) {
             baselineSize = size;
           }
@@ -5648,6 +5650,7 @@ const createUserModule = {
     const recommended =
       strategies.find(
         ([strategy, _]) =>
+          // Fix: Use constants.TOKEN_STRATEGIES
           strategy === constants.TOKEN_STRATEGIES.COMPRESSED ||
           strategy === constants.TOKEN_STRATEGIES.HASH_BASED
       ) || smallest;

@@ -221,6 +221,17 @@ class TokenStrategyConfig {
       return "Poor - Use only if other strategies fail";
     }
   }
+
+  /**
+   * Exports the current configuration as a plain object
+   */
+  exportConfig() {
+    return {
+      defaultStrategy: this.defaultStrategy,
+      userStrategyOverrides: Object.fromEntries(this.userStrategyOverrides),
+      organizationStrategies: Object.fromEntries(this.organizationStrategies),
+    };
+  }
 }
 
 // Create singleton instance

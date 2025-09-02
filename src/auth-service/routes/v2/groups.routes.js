@@ -131,9 +131,9 @@ router.get(
 
 // Members management - requires member view permissions
 router.get(
-  "/:groupSlug/members",
+  "/:grp_id/members",
   enhancedJWTAuth,
-  // requireGroupAccess(["MEMBER_VIEW", "GROUP_VIEW"]),
+  requireGroupAccess(["MEMBER_VIEW", "GROUP_VIEW"]),
   groupController.getMembers
 );
 

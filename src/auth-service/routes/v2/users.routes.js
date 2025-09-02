@@ -206,119 +206,6 @@ router.get(
   }
 );
 
-/**
- * @route GET /api/v2/users/groups/:grp_id/members
- * @desc Get all members of a specific group with their roles
- * @access Private - Group members with USER_VIEW permission
- */
-router.get(
-  "/groups/:grp_id/members",
-  enhancedJWTAuth,
-  // requireGroupPermissions(["USER_VIEW"], "grp_id"),
-  async (req, res) => {
-    try {
-      const UserModel = require("@models/User");
-      const groupId = req.params.grp_id;
-      const tenant = req.query.tenant || "airqo";
-
-      // Get basic user data without populate
-      const users = await UserModel(tenant)
-        .find({ "group_roles.group": groupId })
-        .select("-password -resetPasswordToken -resetPasswordExpires")
-        .lean();
-
-      if (users.length === 0) {
-        return res.json({
-          success: true,
-          message: "No group members found",
-          data: {
-            groupId,
-            members: [],
-            totalMembers: 0,
-          },
-        });
-      }
-
-      // Manually populate group_roles.group and group_roles.role
-      const processedUsers = [];
-
-      for (const user of users) {
-        const processedUser = { ...user };
-
-        if (user.group_roles && user.group_roles.length > 0) {
-          // Get unique group and role IDs for this user
-          const groupIds = [...new Set(user.group_roles.map((gr) => gr.group))];
-          const roleIds = [
-            ...new Set(user.group_roles.map((gr) => gr.role).filter(Boolean)),
-          ];
-
-          // Fetch groups
-          let groups = [];
-          try {
-            const GroupModel = require("@models/Group");
-            groups = await GroupModel(tenant)
-              .find({ _id: { $in: groupIds } })
-              .select("grp_title grp_status")
-              .lean();
-          } catch (error) {
-            console.warn(`Could not fetch groups: ${error.message}`);
-          }
-
-          // Fetch roles
-          let roles = [];
-          try {
-            const RoleModel = require("@models/Role");
-            roles = await RoleModel(tenant)
-              .find({ _id: { $in: roleIds } })
-              .select("role_name role_permissions")
-              .lean();
-          } catch (error) {
-            console.warn(`Could not fetch roles: ${error.message}`);
-          }
-
-          // Map populated data back to group_roles
-          processedUser.group_roles = user.group_roles.map((groupRole) => ({
-            ...groupRole,
-            group:
-              groups.find(
-                (g) => g._id.toString() === groupRole.group.toString()
-              ) || groupRole.group,
-            role:
-              roles.find(
-                (r) => r._id.toString() === groupRole.role?.toString()
-              ) || groupRole.role,
-          }));
-        }
-
-        processedUsers.push(processedUser);
-      }
-
-      res.json({
-        success: true,
-        message: "Group members retrieved successfully",
-        data: {
-          groupId,
-          members: processedUsers.map((user) => ({
-            ...user,
-            groupRole: user.group_roles.find(
-              (gr) =>
-                gr.group._id?.toString() === groupId ||
-                gr.group.toString() === groupId
-            ),
-          })),
-          totalMembers: processedUsers.length,
-        },
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: "Failed to retrieve group members",
-        error: error.message,
-      });
-    }
-  }
-);
-
 // ================================
 // NETWORK-SPECIFIC ROUTES
 // ================================
@@ -503,7 +390,7 @@ router.get(
 router.get(
   "/admin/token-analytics",
   enhancedJWTAuth,
-  // requirePermissions(["ADMIN_FULL_ACCESS"]),
+  requirePermissions(["SYSTEM_ADMIN"]),
   async (req, res) => {
     try {
       const { tokenConfig } = require("@config/tokenStrategyConfig");
