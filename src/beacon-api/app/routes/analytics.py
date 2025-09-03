@@ -36,10 +36,9 @@ async def get_dashboard_summary(
     ).first() or 0
     
     # Site metrics
-    total_sites = db.exec(select(func.count(Site.id))).first() or 0
-    active_sites = db.exec(
-        select(func.count(Site.id)).where(Site.status == "active")
-    ).first() or 0
+    total_sites = db.exec(select(func.count(Site.site_key))).first() or 0
+    # All sites in dim_site are considered active
+    active_sites = total_sites
     
     # Recent data (last hour)
     one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -90,9 +89,9 @@ async def get_dashboard_summary(
     
     # Regional distribution
     regions = db.exec(
-        select(Site.region, func.count(Site.id))
-        .where(Site.region.is_not(None))
-        .group_by(Site.region)
+        select(Site.city, func.count(Site.site_key))
+        .where(Site.city.is_not(None))
+        .group_by(Site.city)
     ).all()
     
     return {
@@ -141,8 +140,8 @@ async def get_system_summary(
             "active": db.exec(select(func.count(Device.device_key)).where(Device.is_active == True)).first() or 0
         },
         "sites": {
-            "total": db.exec(select(func.count(Site.id))).first() or 0,
-            "active": db.exec(select(func.count(Site.id)).where(Site.status == "active")).first() or 0
+            "total": db.exec(select(func.count(Site.site_key))).first() or 0,
+            "active": db.exec(select(func.count(Site.site_key))).first() or 0  # All sites are active
         },
         "readings_today": db.exec(
             select(func.count(DeviceReading.reading_key)).where(
@@ -352,26 +351,47 @@ async def get_regional_analysis(
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
     
-    # Get unique regions
-    regions = db.exec(select(Site.region).distinct().where(Site.region.is_not(None))).all()
+    # Get unique cities (dim_site uses city instead of region)
+    cities = db.exec(select(Site.city).distinct().where(Site.city.is_not(None))).all()
     
     regional_stats = []
     
-    for region in regions:
-        # Get sites in region
-        sites = db.exec(select(Site).where(Site.region == region)).all()
-        site_ids = [s.id for s in sites]
+    for city in cities:
+        # Get sites in city
+        sites = db.exec(select(Site).where(Site.city == city)).all()
+        site_ids = [s.site_id for s in sites]
         
-        # For now, skip device filtering by site since we don't have site_id in Device model
-        # This would need to be joined through a location table
-        continue  # Skip regional analysis for now
+        # Get devices in this city (now that Device has site_id)
+        devices_in_city = db.exec(
+            select(Device).where(Device.site_id.in_(site_ids))
+        ).all() if site_ids else []
+        
+        # Get device keys for readings
+        device_keys = [d.device_key for d in devices_in_city]
+        
+        # Get readings for these devices
+        readings_count = db.exec(
+            select(func.count(DeviceReading.reading_key))
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.created_at >= start_date)
+            .where(DeviceReading.created_at <= end_date)
+        ).first() if device_keys else 0
+        
+        # Calculate average PM values
+        avg_pm25 = db.exec(
+            select(func.avg(DeviceReading.s1_pm2_5))
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.created_at >= start_date)
+            .where(DeviceReading.created_at <= end_date)
+            .where(DeviceReading.s1_pm2_5.is_not(None))
+        ).first() if device_keys else None
         
         regional_stats.append({
-            "region": region,
+            "city": city,
             "sites": len(sites),
-            "devices": len(devices),
-            "readings_count": len(readings),
-            "air_quality": {}
+            "devices": len(devices_in_city),
+            "readings_count": readings_count or 0,
+            "avg_pm2_5": round(avg_pm25, 2) if avg_pm25 else None
         })
     
     return {
@@ -409,10 +429,8 @@ async def get_system_health(
     ).first()
     
     # Site statistics
-    total_sites = db.exec(select(func.count(Site.id))).first()
-    active_sites = db.exec(
-        select(func.count(Site.id)).where(Site.status == "active")
-    ).first()
+    total_sites = db.exec(select(func.count(Site.site_key))).first()
+    active_sites = total_sites  # All sites in dim_site are active
     
     # Recent data statistics (last hour)
     one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)

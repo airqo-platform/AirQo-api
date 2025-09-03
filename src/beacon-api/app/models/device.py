@@ -6,6 +6,7 @@ from datetime import datetime
 class DeviceBase(SQLModel):
     device_id: str = Field(index=True, unique=True)
     device_name: str
+    site_id: Optional[str] = Field(default=None, index=True)
     network: Optional[str] = Field(default=None, index=True)
     category: Optional[str] = None
     is_active: bool = Field(default=False)
@@ -33,6 +34,7 @@ class DeviceCreate(DeviceBase):
 
 class DeviceUpdate(SQLModel):
     device_name: Optional[str] = None
+    site_id: Optional[str] = None
     network: Optional[str] = None
     category: Optional[str] = None
     is_active: Optional[bool] = None
