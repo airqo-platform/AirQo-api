@@ -704,92 +704,66 @@ const auditAndSyncExistingRoles = async (tenant) => {
 
     // Define standard permissions for each role type
     const rolePermissionTemplates = {
-      SUPER_ADMIN: [
-        "GROUP_MANAGEMENT",
-        "USER_MANAGEMENT",
-        "ROLE_ASSIGNMENT",
-        "SETTINGS_EDIT",
-        "ANALYTICS_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_DEPLOY",
-        "DEVICE_MAINTAIN",
-        "SITE_VIEW",
-        "SITE_CREATE",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-        "MEMBER_VIEW",
-        "MEMBER_INVITE",
-        "MEMBER_REMOVE",
-        "API_ACCESS",
-        "TOKEN_GENERATE",
-      ],
+      SUPER_ADMIN: constants.DEFAULTS.SUPER_ADMIN,
       ADMIN: [
-        "GROUP_VIEW",
-        "GROUP_EDIT",
-        "USER_MANAGEMENT",
-        "MEMBER_VIEW",
-        "MEMBER_INVITE",
-        "MEMBER_REMOVE",
-        "ROLE_VIEW",
-        "SETTINGS_VIEW",
-        "ANALYTICS_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_DEPLOY",
-        "DEVICE_MAINTAIN",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_EXPORT",
+        constants.GROUP_VIEW,
+        constants.GROUP_EDIT,
+        constants.USER_MANAGEMENT,
+        constants.MEMBER_VIEW,
+        constants.MEMBER_INVITE,
+        constants.MEMBER_REMOVE,
+        constants.ROLE_VIEW,
+        constants.SETTINGS_VIEW,
+        constants.ANALYTICS_VIEW,
+        constants.DEVICE_VIEW,
+        constants.DEVICE_DEPLOY,
+        constants.DEVICE_MAINTAIN,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.DATA_EXPORT,
       ],
       TECHNICIAN: [
-        "GROUP_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_DEPLOY",
-        "DEVICE_MAINTAIN",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "MEMBER_VIEW",
+        constants.GROUP_VIEW,
+        constants.DEVICE_VIEW,
+        constants.DEVICE_DEPLOY,
+        constants.DEVICE_MAINTAIN,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.MEMBER_VIEW,
       ],
       ANALYST: [
-        "GROUP_VIEW",
-        "ANALYTICS_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-        "DATA_COMPARE",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-        "MEMBER_VIEW",
+        constants.GROUP_VIEW,
+        constants.ANALYTICS_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.DATA_EXPORT,
+        constants.DATA_COMPARE,
+        constants.DEVICE_VIEW,
+        constants.SITE_VIEW,
+        constants.MEMBER_VIEW,
       ],
       DEVELOPER: [
-        "GROUP_VIEW",
-        "API_ACCESS",
-        "TOKEN_GENERATE",
-        "TOKEN_MANAGE",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
+        constants.GROUP_VIEW,
+        constants.API_ACCESS,
+        constants.TOKEN_GENERATE,
+        constants.TOKEN_MANAGE,
+        constants.DATA_VIEW,
+        constants.DATA_EXPORT,
+        constants.DEVICE_VIEW,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
       ],
       VIEWER: [
-        "GROUP_VIEW",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "MEMBER_VIEW",
+        constants.GROUP_VIEW,
+        constants.DEVICE_VIEW,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.MEMBER_VIEW,
       ],
-      DEFAULT_MEMBER: [
-        "GROUP_VIEW",
-        "MEMBER_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-      ],
+      DEFAULT_MEMBER: constants.DEFAULTS.DEFAULT_MEMBER,
     };
 
     // OPTIMIZATION: Fetch all possible permissions once
@@ -896,363 +870,10 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       `🚀 Setting up default permissions and roles for tenant: ${tenant}`
     );
 
-    const defaultPermissions = [
-      // === System Administration ===
-      {
-        permission: "SYSTEM_ADMIN",
-        description: "System-wide administrative access",
-      },
-      {
-        permission: "SUPER_ADMIN",
-        description: "Super administrator with all permissions",
-      },
-      {
-        permission: "DATABASE_ADMIN",
-        description: "Database administration access",
-      },
-
-      // === Organization Management ===
-      {
-        permission: "ORG_CREATE",
-        description: "Create new organizations",
-      },
-      {
-        permission: "ORG_VIEW",
-        description: "View organization information",
-      },
-      {
-        permission: "ORG_UPDATE",
-        description: "Update organization settings",
-      },
-      {
-        permission: "ORG_DELETE",
-        description: "Delete organizations",
-      },
-      {
-        permission: "ORG_APPROVE",
-        description: "Approve organization requests",
-      },
-      {
-        permission: "ORG_REJECT",
-        description: "Reject organization requests",
-      },
-
-      // === Group Management ===
-      {
-        permission: "GROUP_VIEW",
-        description: "View group information and basic details",
-      },
-      {
-        permission: "GROUP_CREATE",
-        description: "Create new groups",
-      },
-      {
-        permission: "GROUP_EDIT",
-        description: "Edit group settings and information",
-      },
-      {
-        permission: "GROUP_DELETE",
-        description: "Delete groups",
-      },
-      {
-        permission: "GROUP_MANAGEMENT",
-        description: "Full group management access",
-      },
-
-      // === User Management ===
-      {
-        permission: "USER_VIEW",
-        description: "View user information",
-      },
-      {
-        permission: "USER_CREATE",
-        description: "Create new users",
-      },
-      {
-        permission: "USER_EDIT",
-        description: "Edit user information",
-      },
-      {
-        permission: "USER_DELETE",
-        description: "Delete users",
-      },
-      {
-        permission: "USER_MANAGEMENT",
-        description: "Full user management access",
-      },
-      {
-        permission: "USER_INVITE",
-        description: "Invite new users to organization",
-      },
-
-      // === Member Management ===
-      {
-        permission: "MEMBER_VIEW",
-        description: "View organization members",
-      },
-      {
-        permission: "MEMBER_INVITE",
-        description: "Invite new members to organization",
-      },
-      {
-        permission: "MEMBER_REMOVE",
-        description: "Remove members from organization",
-      },
-      {
-        permission: "MEMBER_SEARCH",
-        description: "Search organization members",
-      },
-      {
-        permission: "MEMBER_EXPORT",
-        description: "Export member data",
-      },
-
-      // === Role and Permission Management ===
-      {
-        permission: "ROLE_VIEW",
-        description: "View roles and their permissions",
-      },
-      {
-        permission: "ROLE_CREATE",
-        description: "Create new roles",
-      },
-      {
-        permission: "ROLE_EDIT",
-        description: "Edit existing roles",
-      },
-      {
-        permission: "ROLE_DELETE",
-        description: "Delete roles",
-      },
-      {
-        permission: "ROLE_ASSIGNMENT",
-        description: "Assign roles to users",
-      },
-
-      // === Device Management (from requirements) ===
-      {
-        permission: "DEVICE_VIEW",
-        description: "View device information",
-      },
-      {
-        permission: "DEVICE_DEPLOY",
-        description: "Deploy devices to sites",
-      },
-      {
-        permission: "DEVICE_CLAIM",
-        description: "Claim and unclaim devices for a user",
-      },
-      {
-        permission: "DEVICE_RECALL",
-        description: "Recall devices from deployment",
-      },
-      {
-        permission: "DEVICE_MAINTAIN",
-        description: "Perform device maintenance",
-      },
-      {
-        permission: "DEVICE_UPDATE",
-        description: "Update device configuration",
-      },
-      {
-        permission: "DEVICE_DELETE",
-        description: "Delete device records",
-      },
-
-      // === Site Management ===
-      {
-        permission: "SITE_VIEW",
-        description: "View site information",
-      },
-      {
-        permission: "SITE_CREATE",
-        description: "Create new sites",
-      },
-      {
-        permission: "SITE_UPDATE",
-        description: "Update site information",
-      },
-      {
-        permission: "SITE_DELETE",
-        description: "Delete sites",
-      },
-
-      // === Dashboard and Analytics ===
-      {
-        permission: "DASHBOARD_VIEW",
-        description: "View dashboard",
-      },
-      {
-        permission: "ANALYTICS_VIEW",
-        description: "View analytics and reports",
-      },
-      {
-        permission: "ANALYTICS_EXPORT",
-        description: "Export analytics data",
-      },
-      {
-        permission: "DATA_VIEW",
-        description: "View data",
-      },
-      {
-        permission: "DATA_EXPORT",
-        description: "Export data",
-      },
-      {
-        permission: "DATA_COMPARE",
-        description: "Compare data across sources",
-      },
-
-      // === Settings and Configuration ===
-      {
-        permission: "SETTINGS_VIEW",
-        description: "View system and organization settings",
-      },
-      {
-        permission: "SETTINGS_EDIT",
-        description: "Edit system and organization settings",
-      },
-      {
-        permission: "GROUP_SETTINGS",
-        description: "Manage group-specific settings",
-      },
-
-      // === Content Management ===
-      {
-        permission: "CONTENT_VIEW",
-        description: "View content",
-      },
-      {
-        permission: "CONTENT_CREATE",
-        description: "Create content",
-      },
-      {
-        permission: "CONTENT_EDIT",
-        description: "Edit content",
-      },
-      {
-        permission: "CONTENT_DELETE",
-        description: "Delete content",
-      },
-      {
-        permission: "CONTENT_MODERATION",
-        description: "Moderate content",
-      },
-
-      // === Activity and Audit ===
-      {
-        permission: "ACTIVITY_VIEW",
-        description: "View activity logs",
-      },
-      {
-        permission: "AUDIT_VIEW",
-        description: "View audit trails",
-      },
-      {
-        permission: "AUDIT_EXPORT",
-        description: "Export audit logs",
-      },
-      {
-        permission: "REPORT_GENERATE",
-        description: "Generate reports",
-      },
-
-      // === API and Integration ===
-      {
-        permission: "API_ACCESS",
-        description: "Access API endpoints",
-      },
-      {
-        permission: "TOKEN_GENERATE",
-        description: "Generate API tokens",
-      },
-      {
-        permission: "TOKEN_MANAGE",
-        description: "Manage API tokens",
-      },
-
-      // === Network Management ===
-      {
-        permission: "NETWORK_VIEW",
-        description: "View network information",
-      },
-      {
-        permission: "NETWORK_CREATE",
-        description: "Create new networks",
-      },
-      {
-        permission: "NETWORK_EDIT",
-        description: "Edit network settings",
-      },
-      {
-        permission: "NETWORK_DELETE",
-        description: "Delete networks",
-      },
-      {
-        permission: "NETWORK_MANAGEMENT",
-        description: "Full network management access",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
-        description: "Legacy: Full device management for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_SITES",
-        description: "Legacy: Full site management for a network",
-      },
-      {
-        permission: "VIEW_AIR_QUALITY_FOR_NETWORK",
-        description: "Legacy: View air quality data for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_ROLES",
-        description: "Legacy: Full role management for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_USERS",
-        description: "Legacy: Full user management for a network",
-      },
-      {
-        permission: "MANAGE_NETWORK_SETTINGS",
-        description: "Legacy: Manage network-level settings",
-      },
-      {
-        permission: "VIEW_NETWORK_DASHBOARD",
-        description: "Legacy: View the main dashboard for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_DEVICES",
-        description: "Legacy: Full device management for a group",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_SITES",
-        description: "Legacy: Full site management for a group",
-      },
-      {
-        permission: "VIEW_AIR_QUALITY_FOR_GROUP",
-        description: "Legacy: View air quality data for a group",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_ROLES",
-        description: "Legacy: Full role management for a group",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_USERS",
-        description: "Legacy: Full user management for a group",
-      },
-      {
-        permission: "MANAGE_GROUP_SETTINGS",
-        description: "Legacy: Manage group-level settings",
-      },
-      {
-        permission: "VIEW_GROUP_DASHBOARD",
-        description: "Legacy: View the main dashboard for a group",
-      },
-      {
-        permission: "ACCESS_PLATFORM",
-        description: "Legacy: General access to the platform",
-      },
-    ];
+    const defaultPermissions = constants.ALL.map((p) => ({
+      permission: p,
+      description: p.replace(/_/g, " ").toLowerCase(),
+    }));
 
     // Step 1: Synchronize all permissions defined in the list
     const { createdPermissions, existingPermissions, updatedPermissions } =
@@ -1280,86 +901,21 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
         role_code: "AIRQO_SUPER_ADMIN",
         role_description: "AirQo Super Administrator with all permissions",
         group_id: airqoGroup._id,
-        permissions: [
-          "SUPER_ADMIN",
-          "SYSTEM_ADMIN",
-          "DATABASE_ADMIN",
-          "ORG_CREATE",
-          "ORG_VIEW",
-          "ORG_UPDATE",
-          "ORG_DELETE",
-          "ORG_APPROVE",
-          "ORG_REJECT",
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "AUDIT_VIEW",
-          "AUDIT_EXPORT",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_RECALL",
-          "DEVICE_MAINTAIN",
-          "DEVICE_UPDATE",
-          "DEVICE_DELETE",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "SITE_UPDATE",
-          "SITE_DELETE",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-          "TOKEN_MANAGE",
-          "NETWORK_MANAGEMENT",
-        ],
+        permissions: constants.DEFAULTS.SUPER_ADMIN,
       },
       {
         role_name: "AIRQO_ADMIN",
         role_code: "AIRQO_ADMIN",
         role_description: "AirQo Administrator",
         group_id: airqoGroup._id,
-        permissions: [
-          "ORG_VIEW",
-          "ORG_APPROVE",
-          "ORG_REJECT",
-          "GROUP_VIEW",
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "ROLE_VIEW",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-        ],
+        permissions: rolePermissionTemplates.ADMIN,
       },
       {
         role_name: "AIRQO_DEFAULT_USER",
         role_code: "AIRQO_DEFAULT_USER",
         role_description: "Default role for all new AirQo users",
         group_id: airqoGroup._id,
-        permissions: [
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "ANALYTICS_VIEW",
-          "DATA_EXPORT",
-          "SITE_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_CLAIM",
-          "DEVICE_DEPLOY",
-          "NETWORK_VIEW",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-        ],
+        permissions: constants.DEFAULTS.DEFAULT_USER,
       },
     ];
 
@@ -1586,60 +1142,17 @@ const createDefaultRolesForOrganization = async (
       {
         role_name: `${orgName}_SUPER_ADMIN`,
         role_description: `Super Administrator for ${organizationName}`,
-        permissions: [
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-        ],
+        permissions: constants.DEFAULTS.SUPER_ADMIN,
       },
       {
         role_name: `${orgName}_ADMIN`,
         role_description: `Administrator for ${organizationName}`,
-        permissions: [
-          "GROUP_VIEW",
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "ROLE_VIEW",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-        ],
+        permissions: rolePermissionTemplates.ADMIN,
       },
       {
         role_name: `${orgName}_DEFAULT_MEMBER`,
         role_description: `Default Member role for ${organizationName}`,
-        permissions: [
-          "GROUP_VIEW",
-          "MEMBER_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-        ],
+        permissions: constants.DEFAULTS.DEFAULT_MEMBER,
       },
     ];
 

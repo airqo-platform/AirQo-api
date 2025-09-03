@@ -582,99 +582,39 @@ class RBACService {
   }
 
   getAllSuperAdminPermissions() {
-    return [
-      // User Management
-      "USER_CREATE",
-      "USER_VIEW",
-      "USER_UPDATE",
-      "USER_DELETE",
-      "USER_MANAGE",
-
-      // Group Management
-      "GROUP_CREATE",
-      "GROUP_VIEW",
-      "GROUP_UPDATE",
-      "GROUP_DELETE",
-      "GROUP_MANAGE",
-      "GROUP_MEMBER_MANAGE",
-
-      // Network Management
-      "NETWORK_CREATE",
-      "NETWORK_VIEW",
-      "NETWORK_UPDATE",
-      "NETWORK_DELETE",
-      "NETWORK_MANAGE",
-      "NETWORK_MEMBER_MANAGE",
-
-      // Role & Permission Management
-      "ROLE_CREATE",
-      "ROLE_VIEW",
-      "ROLE_UPDATE",
-      "ROLE_DELETE",
-      "ROLE_MANAGE",
-      "PERMISSION_CREATE",
-      "PERMISSION_VIEW",
-      "PERMISSION_UPDATE",
-      "PERMISSION_DELETE",
-      "PERMISSION_MANAGE",
-
-      // System Management
-      "SYSTEM_CONFIGURE",
-      "SYSTEM_MONITOR",
-      "DASHBOARD_VIEW",
-      "ANALYTICS_VIEW",
-      "REPORTS_GENERATE",
-      "LOGS_VIEW",
-
-      // Data Management
-      "DATA_EXPORT",
-      "DATA_IMPORT",
-      "DATA_DELETE",
-      "DATA_BACKUP",
-      "DATA_RESTORE",
-
-      // Device Management (if applicable)
-      "DEVICE_CREATE",
-      "DEVICE_VIEW",
-      "DEVICE_UPDATE",
-      "DEVICE_DELETE",
-      "DEVICE_MANAGE",
-      "DEVICE_MONITOR",
-
-      // Site Management (if applicable)
-      "SITE_CREATE",
-      "SITE_VIEW",
-      "SITE_UPDATE",
-      "SITE_DELETE",
-      "SITE_MANAGE",
-
-      // Advanced Operations
-      "ADMIN_FULL_ACCESS",
-      "SUPER_ADMIN_ACTIONS",
-    ];
+    return constants.DEFAULTS.SUPER_ADMIN;
   }
 
   getDefaultPermissionsByUserType(userType) {
     const defaultPermissions = {
-      user: ["DASHBOARD_VIEW", "PROFILE_VIEW", "PROFILE_UPDATE"],
-      guest: ["DASHBOARD_VIEW"],
-      member: ["DASHBOARD_VIEW", "PROFILE_VIEW", "PROFILE_UPDATE", "DATA_VIEW"],
+      user: [
+        constants.DASHBOARD_VIEW,
+        constants.PROFILE_VIEW,
+        constants.PROFILE_UPDATE,
+      ],
+      guest: [constants.DASHBOARD_VIEW],
+      member: [
+        constants.DASHBOARD_VIEW,
+        constants.PROFILE_VIEW,
+        constants.PROFILE_UPDATE,
+        constants.DATA_VIEW,
+      ],
       admin: this.getAllSuperAdminPermissions(),
       super_admin: this.getAllSuperAdminPermissions(),
       moderator: [
-        "DASHBOARD_VIEW",
-        "USER_VIEW",
-        "GROUP_VIEW",
-        "NETWORK_VIEW",
-        "DATA_VIEW",
-        "REPORTS_VIEW",
+        constants.DASHBOARD_VIEW,
+        constants.USER_VIEW,
+        constants.GROUP_VIEW,
+        constants.NETWORK_VIEW,
+        constants.DATA_VIEW,
+        constants.REPORT_GENERATE,
       ],
-      viewer: ["DASHBOARD_VIEW", "DATA_VIEW"],
+      viewer: [constants.DASHBOARD_VIEW, constants.DATA_VIEW],
       contributor: [
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_CREATE",
-        "DATA_UPDATE",
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.DATA_CREATE,
+        constants.DATA_UPDATE,
       ],
     };
 

@@ -505,22 +505,8 @@ UserSchema.pre("save", async function (next) {
       }
 
       // 6. Set default permissions for new users
-      const DEFAULT_NEW_USER_PERMISSIONS = [
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "ANALYTICS_VIEW",
-        "DATA_EXPORT",
-        "SITE_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_CLAIM",
-        "DEVICE_DEPLOY",
-        "NETWORK_VIEW",
-        "API_ACCESS",
-        "TOKEN_GENERATE",
-      ];
-
       const permissions = await PermissionModel(tenant)
-        .find({ permission: { $in: DEFAULT_NEW_USER_PERMISSIONS } })
+        .find({ permission: { $in: constants.DEFAULTS.DEFAULT_USER } })
         .select("_id")
         .lean();
 

@@ -2271,13 +2271,13 @@ const groupUtil = {
   getManagerPermissions: async (tenant) => {
     try {
       const managerPermissionNames = [
-        "GROUP_MANAGEMENT",
-        "USER_MANAGEMENT",
-        "ROLE_ASSIGNMENT",
-        "GROUP_SETTINGS",
-        "VIEW_ANALYTICS",
-        "MEMBER_INVITES",
-        "CONTENT_MODERATION",
+        constants.GROUP_MANAGEMENT,
+        constants.USER_MANAGEMENT,
+        constants.ROLE_ASSIGNMENT,
+        constants.GROUP_SETTINGS,
+        constants.ANALYTICS_VIEW,
+        constants.MEMBER_INVITE,
+        constants.CONTENT_MODERATION,
       ];
 
       const permissions = await PermissionModel(tenant)
