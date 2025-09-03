@@ -5,6 +5,7 @@ const createAdminController = require("@controllers/admin.controller");
 const adminValidations = require("@validators/admin.validators");
 const constants = require("@config/constants");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { requirePermissions } = require("@middleware/permissionAuth");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -108,6 +109,14 @@ router.post(
   adminValidations.validateProductionSafety,
   enhancedJWTAuth,
   createAdminController.databaseCleanup
+);
+
+router.post(
+  "/maintenance/db/drop-index",
+  // Validation for collectionName, indexName, and secret is handled within the utility
+  enhancedJWTAuth,
+  requirePermissions([constants.DATABASE_ADMIN]),
+  createAdminController.dropIndex
 );
 
 router.get(

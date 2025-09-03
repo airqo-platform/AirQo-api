@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = require("mongoose").Types.ObjectId;
 const log4js = require("log4js");
+const mongoose = require("mongoose");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
@@ -1180,6 +1181,89 @@ const admin = {
     }
   },
 
+  dropIndex: async (request, next) => {
+    try {
+      const { collectionName, indexName, secret } = request.body;
+      const { tenant } = request.query;
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      if (!collectionName || !indexName) {
+        return {
+          success: false,
+          message:
+            "collectionName and indexName are required in the request body",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Get the tenant-specific database connection from an existing model
+      const tenantDbConnection = UserModel(tenant).db;
+      if (!tenantDbConnection) {
+        throw new Error(
+          `Could not get database connection for tenant: ${tenant}`
+        );
+      }
+      const db = tenantDbConnection.db;
+      const collections = await db.listCollections().toArray();
+      const collectionExists = collections.some(
+        (c) => c.name === collectionName
+      );
+
+      if (!collectionExists) {
+        return {
+          success: false,
+          message: `Collection '${collectionName}' not found.`,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const collection = db.collection(collectionName);
+      const indexExists = await collection.indexExists(indexName);
+
+      if (!indexExists) {
+        const allIndexes = await collection.indexes();
+        return {
+          success: false,
+          message: `Index '${indexName}' does not exist on collection '${collectionName}'.`,
+          status: httpStatus.NOT_FOUND,
+          data: { availableIndexes: allIndexes.map((i) => i.name) },
+        };
+      }
+
+      const result = await collection.dropIndex(indexName);
+
+      if (result) {
+        return {
+          success: true,
+          message: `Successfully dropped index '${indexName}' from collection '${collectionName}'.`,
+          status: httpStatus.OK,
+        };
+      } else {
+        throw new Error(
+          "Index drop operation failed to return a success status."
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Error dropping index: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   getDocs: async (request, next) => {
     try {
       const docsData = {
