@@ -34,7 +34,7 @@ const findGroupAssignmentIndex = (user, grp_id) => {
 
 // Improved getSuperAdminPermissions function
 const assignPermissionsToRole = async (tenant, role_id, next) => {
-  const superAdminPermissions = getSuperAdminPermissions(tenant);
+  const superAdminPermissions = constants.DEFAULTS.SUPER_ADMIN;
   const permissionIds = await getPermissionIds(
     tenant,
     superAdminPermissions,
@@ -53,23 +53,6 @@ const assignPermissionsToRole = async (tenant, role_id, next) => {
       { message: errorMessage }
     );
   }
-};
-
-const getSuperAdminPermissions = (tenant) => {
-  const superAdminPermissions = (
-    process.env[`SUPER_ADMIN_PERMISSIONS_${tenant.toUpperCase()}`] ||
-    process.env.SUPER_ADMIN_PERMISSIONS
-  )
-    ?.split(",")
-    .map((p) => p.trim())
-    .filter((p) => p); // Filter out empty strings
-
-  if (!superAdminPermissions || superAdminPermissions.length === 0) {
-    throw new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-      message: "SUPER_ADMIN_PERMISSIONS environment variable is not set",
-    });
-  }
-  return superAdminPermissions;
 };
 
 const getPermissionIds = async (tenant, permissions, next) => {
