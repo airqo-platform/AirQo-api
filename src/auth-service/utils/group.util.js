@@ -33,13 +33,8 @@ const findGroupAssignmentIndex = (user, grp_id) => {
 };
 
 // Improved getSuperAdminPermissions function
-const assignPermissionsToRole = async (tenant, role_id, next) => {
-  const superAdminPermissions = constants.DEFAULTS.SUPER_ADMIN;
-  const permissionIds = await getPermissionIds(
-    tenant,
-    superAdminPermissions,
-    next
-  );
+const assignPermissionsToRole = async (tenant, role_id, permissions, next) => {
+  const permissionIds = await getPermissionIds(tenant, permissions, next);
 
   try {
     await RoleModel(tenant).findByIdAndUpdate(role_id, {
@@ -857,8 +852,8 @@ const groupUtil = {
       const requestForRole = {
         query: { tenant },
         body: {
-          role_code: "SUPER_ADMIN",
-          role_name: "SUPER_ADMIN",
+          role_code: "ADMIN",
+          role_name: "ADMIN",
           group_id: grp_id,
         },
       };
@@ -889,7 +884,12 @@ const groupUtil = {
 
       try {
         // Attempt to assign permissions; error handling within this function
-        await assignPermissionsToRole(tenant, role_id, next);
+        await assignPermissionsToRole(
+          tenant,
+          role_id,
+          constants.DEFAULTS.DEFAULT_ADMIN,
+          next
+        );
 
         const updatedUser = await UserModel(tenant).findByIdAndUpdate(
           user._id,

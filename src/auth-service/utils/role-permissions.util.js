@@ -50,16 +50,20 @@ const generateRoleCode = (
  * Check if role code exists and suggest alternatives
  * @param {string} tenant - Tenant name
  * @param {string} baseRoleCode - Base role code to check
- * @param {string} groupId - Group ID for scoping
+ * @param {Object} scopeFilter - Filter for scoping (e.g., { group_id: '...' } or { network_id: '...' })
  * @returns {Promise<Object>} Result with available code or suggestions
  */
-const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
+const findAvailableRoleCode = async (
+  tenant,
+  baseRoleCode,
+  scopeFilter = {}
+) => {
   try {
     // Check if base code is available
     const existingRole = await RoleModel(tenant)
       .findOne({
         role_code: baseRoleCode,
-        ...(groupId && { group_id: groupId }),
+        ...scopeFilter,
       })
       .lean();
 
@@ -78,7 +82,7 @@ const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
       const altExists = await RoleModel(tenant)
         .findOne({
           role_code: alternativeCode,
-          ...(groupId && { group_id: groupId }),
+          ...scopeFilter,
         })
         .lean();
 
@@ -93,7 +97,7 @@ const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
     const timestampExists = await RoleModel(tenant)
       .findOne({
         role_code: timestampCode,
-        ...(groupId && { group_id: groupId }),
+        ...scopeFilter,
       })
       .lean();
 
@@ -705,24 +709,7 @@ const auditAndSyncExistingRoles = async (tenant) => {
     // Define standard permissions for each role type
     const rolePermissionTemplates = {
       SUPER_ADMIN: constants.DEFAULTS.SUPER_ADMIN,
-      ADMIN: [
-        constants.GROUP_VIEW,
-        constants.GROUP_EDIT,
-        constants.USER_MANAGEMENT,
-        constants.MEMBER_VIEW,
-        constants.MEMBER_INVITE,
-        constants.MEMBER_REMOVE,
-        constants.ROLE_VIEW,
-        constants.SETTINGS_VIEW,
-        constants.ANALYTICS_VIEW,
-        constants.DEVICE_VIEW,
-        constants.DEVICE_DEPLOY,
-        constants.DEVICE_MAINTAIN,
-        constants.SITE_VIEW,
-        constants.DASHBOARD_VIEW,
-        constants.DATA_VIEW,
-        constants.DATA_EXPORT,
-      ],
+      ADMIN: constants.DEFAULTS.DEFAULT_ADMIN,
       TECHNICIAN: [
         constants.GROUP_VIEW,
         constants.DEVICE_VIEW,
@@ -870,92 +857,66 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       `🚀 Setting up default permissions and roles for tenant: ${tenant}`
     );
 
+    // Step 1: Synchronize all permissions
     const defaultPermissions = constants.ALL.map((p) => ({
       permission: p,
       description: p.replace(/_/g, " ").toLowerCase(),
     }));
+    const permissionSyncResult = await syncPermissions(
+      tenant,
+      defaultPermissions
+    );
 
-    // Step 1: Synchronize all permissions defined in the list
-    const { createdPermissions, existingPermissions, updatedPermissions } =
-      await syncPermissions(tenant, defaultPermissions);
+    // Step 2: Ensure AirQo group exists
+    const airqoGroup = await getOrCreateAirqoGroup(tenant);
 
-    // Create AirQo organization if it doesn't exist
-    const GroupModel = require("@models/Group");
-    let airqoGroup = await GroupModel(tenant).findOne({
-      grp_title: { $regex: /^airqo$/i },
-    });
+    // Step 3: Synchronize core AirQo system roles
+    const defaultRoles = getDefaultAirqoRoles(airqoGroup._id);
+    const roleSyncResult = await syncAirqoRoles(
+      tenant,
+      defaultRoles,
+      airqoGroup._id
+    );
 
-    if (!airqoGroup) {
-      airqoGroup = await GroupModel(tenant).create({
-        grp_title: "AirQo",
-        grp_description: "AirQo Organization - System Administrator Group",
-        grp_status: "ACTIVE",
-        organization_slug: "airqo",
-      });
-      logText("✅ Created AirQo organization");
-    }
-
-    const defaultRoles = [
-      {
-        role_name: "AIRQO_SUPER_ADMIN",
-        role_code: "AIRQO_SUPER_ADMIN",
-        role_description: "AirQo Super Administrator with all permissions",
-        group_id: airqoGroup._id,
-        permissions: constants.DEFAULTS.SUPER_ADMIN,
-      },
-      {
-        role_name: "AIRQO_ADMIN",
-        role_code: "AIRQO_ADMIN",
-        role_description: "AirQo Administrator",
-        group_id: airqoGroup._id,
-        permissions: rolePermissionTemplates.ADMIN,
-      },
-      {
-        role_name: "AIRQO_DEFAULT_USER",
-        role_code: "AIRQO_DEFAULT_USER",
-        role_description: "Default role for all new AirQo users",
-        group_id: airqoGroup._id,
-        permissions: constants.DEFAULTS.DEFAULT_USER,
-      },
-    ];
-
-    // Step 2: Synchronize the core AirQo system roles
-    const {
-      roleCreationResults,
-      airqoSuperAdminExists,
-      airqoSuperAdminRoleId,
-      stats: roleSyncStats,
-    } = await syncAirqoRoles(tenant, defaultRoles, airqoGroup._id);
-
-    // Step 3: Audit and sync permissions for existing non-system roles
+    // Step 4: Audit and sync permissions for existing non-system roles
     const auditStats = await auditAndSyncExistingRoles(tenant);
 
     logText("🎉 Default permissions and roles setup completed successfully!");
 
+    // Step 5: Consolidate and return results
     return {
       success: true,
       message: "Default permissions and roles setup completed successfully",
       data: {
-        permissions_created: createdPermissions.length,
-        permissions_updated: updatedPermissions.length,
-        permissions_existing: existingPermissions.length,
-        permissions_total: defaultPermissions.length,
-        roles_created: roleSyncStats.rolesCreated,
-        roles_updated: roleSyncStats.rolesUpdated,
-        roles_up_to_date: roleSyncStats.rolesUpToDate,
-        organization_roles_audited: auditStats.rolesUpdated,
-        roles_processed: defaultRoles.length,
-        roles_successful: roleCreationResults.filter((r) => r.success).length,
-        roles_failed: roleCreationResults.filter((r) => !r.success).length,
-        role_errors: roleCreationResults
+        permissions: {
+          created: permissionSyncResult.createdPermissions.length,
+          updated: permissionSyncResult.updatedPermissions.length,
+          existing: permissionSyncResult.existingPermissions.length,
+          total: defaultPermissions.length,
+        },
+        roles: {
+          created: roleSyncResult.stats.rolesCreated,
+          updated: roleSyncResult.stats.rolesUpdated,
+          up_to_date: roleSyncResult.stats.rolesUpToDate,
+          processed: defaultRoles.length,
+          successful: roleSyncResult.roleCreationResults.filter(
+            (r) => r.success
+          ).length,
+          failed: roleSyncResult.roleCreationResults.filter((r) => !r.success)
+            .length,
+        },
+        audit: {
+          organization_roles_audited: auditStats.rolesUpdated,
+          permissions_added_to_roles: auditStats.permissionsAdded,
+        },
+        airqo_super_admin_exists: roleSyncResult.airqoSuperAdminExists,
+        airqo_super_admin_role_id: roleSyncResult.airqoSuperAdminRoleId,
+        role_errors: roleSyncResult.roleCreationResults
           .filter((r) => !r.success)
           .map((r) => ({
             role_name: r.role_name || "unknown",
             error: r.message || "unknown error",
           })),
-        organization: airqoGroup.grp_title,
-        airqo_super_admin_exists: airqoSuperAdminExists,
-        airqo_super_admin_role_id: airqoSuperAdminRoleId,
       },
     };
   } catch (error) {
@@ -1147,7 +1108,7 @@ const createDefaultRolesForOrganization = async (
       {
         role_name: `${orgName}_ADMIN`,
         role_description: `Administrator for ${organizationName}`,
-        permissions: rolePermissionTemplates.ADMIN,
+        permissions: constants.DEFAULTS.DEFAULT_ADMIN,
       },
       {
         role_name: `${orgName}_DEFAULT_MEMBER`,
@@ -1874,6 +1835,7 @@ const rolePermissionUtil = {
 
       let newBody = Object.assign({}, body);
       let organizationName;
+      let queryFilter = {};
 
       if (body.group_id) {
         const group = await GroupModel(tenant).findById(body.group_id);
@@ -1887,6 +1849,21 @@ const rolePermissionUtil = {
         organizationName = group.grp_title
           .toUpperCase()
           .replace(/[^A-Z0-9]/g, "_");
+        queryFilter = { group_id: body.group_id };
+      } else if (body.network_id) {
+        const NetworkModel = require("@models/Network");
+        const network = await NetworkModel(tenant).findById(body.network_id);
+        if (isEmpty(network)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: `Provided network ${body.network_id} is invalid, please crosscheck`,
+            })
+          );
+        }
+        organizationName = network.net_name
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_");
+        queryFilter = { network_id: body.network_id };
       } else {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
@@ -1904,6 +1881,7 @@ const rolePermissionUtil = {
       const existingRoleByName = await RoleModel(tenant)
         .findOne({
           role_name: finalRoleName,
+          ...queryFilter,
         })
         .lean();
 
@@ -1935,7 +1913,7 @@ const rolePermissionUtil = {
       const roleCodeCheck = await findAvailableRoleCode(
         tenant,
         baseRoleCode,
-        body.group_id
+        queryFilter
       );
 
       if (!roleCodeCheck.available) {

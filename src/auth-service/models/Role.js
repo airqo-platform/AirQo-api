@@ -21,7 +21,6 @@ const RoleSchema = new mongoose.Schema(
     role_name: {
       type: String,
       required: [true, "name is required"],
-      unique: true,
     },
     role_description: {
       type: String,
@@ -34,7 +33,6 @@ const RoleSchema = new mongoose.Schema(
     role_code: {
       type: String,
       trim: true,
-      unique: true,
     },
     network_id: {
       type: ObjectId,
@@ -66,13 +64,14 @@ RoleSchema.pre("update", function (next) {
   return next();
 });
 
-RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
 RoleSchema.index(
   { role_name: 1, role_code: 1, network_id: 1 },
   { unique: true }
 );
 RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
 RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
+RoleSchema.index({ role_name: 1, group_id: 1 }, { unique: true });
+RoleSchema.index({ role_code: 1, group_id: 1 }, { unique: true });
 
 RoleSchema.statics = {
   async register(args, next) {
