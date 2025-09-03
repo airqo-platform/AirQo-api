@@ -492,6 +492,211 @@ async def get_district_summary(
     }
 
 
+@router.get("/cities/{city}/analysis")
+async def get_comprehensive_city_analysis(
+    *,
+    db: Session = Depends(get_db),
+    city: str,
+    hours: int = Query(24, description="Hours to look back for metrics"),
+    include_site_details: bool = Query(False, description="Include individual site details")
+):
+    """
+    Get comprehensive analysis for a city including sites, devices, and data quality metrics
+    """
+    # Get all sites in the city
+    sites = db.exec(
+        select(Site).where(Site.city == city)
+    ).all()
+    
+    if not sites:
+        raise HTTPException(status_code=404, detail=f"No sites found in city: {city}")
+    
+    site_ids = [s.site_id for s in sites]
+    
+    # Get all devices in these sites
+    devices = db.exec(
+        select(Device).where(Device.site_id.in_(site_ids))
+    ).all()
+    
+    device_keys = [d.device_key for d in devices]
+    
+    # Calculate time window
+    end_time = datetime.now(timezone.utc)
+    start_time = end_time - timedelta(hours=hours)
+    
+    # Basic counts
+    total_sites = len(sites)
+    sites_with_devices = len(set(d.site_id for d in devices if d.site_id))
+    total_devices = len(devices)
+    online_devices = sum(1 for d in devices if d.is_online)
+    active_devices = sum(1 for d in devices if d.is_active)
+    
+    # Site categories distribution
+    site_categories = {}
+    districts_in_city = {}
+    for site in sites:
+        if site.site_category:
+            site_categories[site.site_category] = site_categories.get(site.site_category, 0) + 1
+        if site.district:
+            districts_in_city[site.district] = districts_in_city.get(site.district, 0) + 1
+    
+    # Device network distribution
+    device_networks = {}
+    device_categories = {}
+    for device in devices:
+        if device.network:
+            device_networks[device.network] = device_networks.get(device.network, 0) + 1
+        if device.category:
+            device_categories[device.category] = device_categories.get(device.category, 0) + 1
+    
+    # Initialize metrics
+    uptime_percentage = 0
+    data_completeness_stats = {"optimal": 0, "good": 0, "fair": 0, "poor": 0}
+    total_readings = 0
+    expected_readings = 0
+    avg_sensor_errors = 0
+    
+    if device_keys:
+        # Calculate uptime
+        status_records = db.exec(
+            select(
+                DeviceStatus.device_key,
+                func.count(DeviceStatus.status_key).label('total_checks'),
+                func.sum(func.cast(DeviceStatus.is_online, Integer)).label('online_checks')
+            )
+            .where(DeviceStatus.device_key.in_(device_keys))
+            .where(DeviceStatus.timestamp >= start_time)
+            .where(DeviceStatus.timestamp <= end_time)
+            .group_by(DeviceStatus.device_key)
+        ).all()
+        
+        if status_records:
+            total_uptime = sum(r.online_checks / r.total_checks * 100 for r in status_records if r.total_checks > 0)
+            uptime_percentage = round(total_uptime / len(status_records), 2) if status_records else 0
+        
+        # Calculate total readings and expected
+        expected_per_device_per_hour = 60  # Assuming 1-minute frequency
+        expected_readings = expected_per_device_per_hour * hours * total_devices
+        
+        total_readings = db.exec(
+            select(func.count(DeviceReading.reading_key))
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.timestamp >= start_time)
+            .where(DeviceReading.timestamp <= end_time)
+        ).first() or 0
+        
+        # Calculate sensor errors
+        sensor_error_count = db.exec(
+            select(
+                func.count(DeviceReading.reading_key).label('total'),
+                func.sum(
+                    func.cast(
+                        or_(
+                            DeviceReading.s1_pm2_5.is_(None),
+                            DeviceReading.s2_pm2_5.is_(None)
+                        ), 
+                        Integer
+                    )
+                ).label('errors')
+            )
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.timestamp >= start_time)
+            .where(DeviceReading.timestamp <= end_time)
+        ).first()
+        
+        if sensor_error_count and sensor_error_count.total > 0:
+            avg_sensor_errors = round((sensor_error_count.errors / sensor_error_count.total) * 100, 2)
+        
+        # Calculate completeness for each device
+        for device in devices:
+            device_readings = db.exec(
+                select(func.count(DeviceReading.reading_key))
+                .where(DeviceReading.device_key == device.device_key)
+                .where(DeviceReading.timestamp >= start_time)
+                .where(DeviceReading.timestamp <= end_time)
+            ).first() or 0
+            
+            device_expected = expected_per_device_per_hour * hours
+            completeness = calculate_completeness(device_expected, device_readings)
+            
+            if completeness["optimal"] > 0:
+                data_completeness_stats["optimal"] += 1
+            elif completeness["good"] > 0:
+                data_completeness_stats["good"] += 1
+            elif completeness["fair"] > 0:
+                data_completeness_stats["fair"] += 1
+            else:
+                data_completeness_stats["poor"] += 1
+        
+        # Convert to percentages
+        if total_devices > 0:
+            for key in data_completeness_stats:
+                data_completeness_stats[key] = round((data_completeness_stats[key] / total_devices) * 100, 2)
+    
+    # Site details if requested
+    site_details = []
+    if include_site_details:
+        for site in sites:
+            site_devices = [d for d in devices if d.site_id == site.site_id]
+            site_details.append({
+                "site_id": site.site_id,
+                "site_name": site.site_name,
+                "district": site.district,
+                "category": site.site_category,
+                "coordinates": {
+                    "latitude": site.latitude,
+                    "longitude": site.longitude
+                },
+                "device_count": len(site_devices),
+                "online_devices": sum(1 for d in site_devices if d.is_online),
+                "active_devices": sum(1 for d in site_devices if d.is_active)
+            })
+    
+    return {
+        "city": city,
+        "analysis_period": {
+            "hours": hours,
+            "start": start_time.isoformat(),
+            "end": end_time.isoformat()
+        },
+        "infrastructure_summary": {
+            "total_sites": total_sites,
+            "sites_with_devices": sites_with_devices,
+            "sites_without_devices": total_sites - sites_with_devices,
+            "site_coverage_percentage": round((sites_with_devices / total_sites * 100), 2) if total_sites > 0 else 0,
+            "total_devices": total_devices,
+            "average_devices_per_site": round(total_devices / total_sites, 2) if total_sites > 0 else 0
+        },
+        "device_status": {
+            "online": online_devices,
+            "offline": total_devices - online_devices,
+            "active": active_devices,
+            "inactive": total_devices - active_devices,
+            "online_percentage": round((online_devices / total_devices * 100), 2) if total_devices > 0 else 0,
+            "active_percentage": round((active_devices / total_devices * 100), 2) if total_devices > 0 else 0
+        },
+        "data_quality_metrics": {
+            "uptime_percentage": uptime_percentage,
+            "total_readings": total_readings,
+            "expected_readings": expected_readings,
+            "data_availability": round((total_readings / expected_readings * 100), 2) if expected_readings > 0 else 0,
+            "sensor_error_rate": avg_sensor_errors,
+            "completeness_distribution": data_completeness_stats
+        },
+        "geographic_distribution": {
+            "districts": districts_in_city,
+            "total_districts": len(districts_in_city)
+        },
+        "infrastructure_types": {
+            "site_categories": site_categories,
+            "device_networks": device_networks,
+            "device_categories": device_categories
+        },
+        "site_details": site_details if include_site_details else None,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
 @router.get("/cities/{city}/summary")
 async def get_city_summary(
     *,
@@ -500,7 +705,7 @@ async def get_city_summary(
     hours: int = Query(24, description="Hours to look back for metrics")
 ):
     """
-    Get summary statistics for all devices in a city
+    Get basic summary statistics for all devices in a city (legacy endpoint)
     """
     # Get all sites in the city
     sites = db.exec(

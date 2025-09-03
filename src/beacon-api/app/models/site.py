@@ -1,4 +1,5 @@
 from sqlmodel import Field, SQLModel
+from sqlalchemy import UniqueConstraint, Index
 from typing import Optional
 from datetime import datetime, timezone
 
@@ -15,12 +16,16 @@ class SiteBase(SQLModel):
     country: Optional[str] = "Uganda"
     data_provider: Optional[str] = None
     site_category: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
 
 
 class Site(SiteBase, table=True):
     __tablename__ = "dim_site"
+    __table_args__ = (
+        UniqueConstraint("site_id", name="uq_dim_site_site_id"),
+        Index("ix_dim_site_city_category", "city", "site_category"),
+    )
     
     site_key: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
