@@ -55,6 +55,21 @@ def valid_chart_data_request_line():
 
 
 @pytest.fixture
+def valid_chart_weekly_data_request_line():
+    """Return a valid chart data request for line chart."""
+    return {
+        "network": "airqo",
+        "startDate": "2023-01-01T00:00:00Z",
+        "endDate": "2023-01-02T00:00:00Z",
+        "sites": ["site_1", "site_2"],
+        "pollutant": "pm2_5",
+        "frequency": "weekly",
+        "chartType": "line",
+        "metaDataFields": ["site_id"],
+    }
+
+
+@pytest.fixture
 def valid_chart_data_request_pie():
     """Return a valid chart data request for pie chart."""
     return {
@@ -196,7 +211,64 @@ class TestD3ChartDataEndpoint:
             extra_columns=valid_chart_data_request_line["metaDataFields"],
             use_cache=True,
         )
-        mock_utils_instance.processd3data.assert_called_once_with(mock_chart_dataframe)
+        mock_utils_instance.processd3data.assert_called_once_with(
+            mock_chart_dataframe, Frequency.HOURLY
+        )
+        mock_utils_instance.d3_generate_pie_chart_data.assert_not_called()
+
+    @patch("api.views.v2.dashboard.get_validated_filter")
+    @patch("api.views.v2.dashboard.DataUtils.extract_data_from_bigquery")
+    @patch("api.views.v2.dashboard.DashboardDataUtils")
+    def test_d3_chart_weekly_data_line_success(
+        self,
+        mock_dashboard_utils,
+        mock_extract_data,
+        mock_validate,
+        app_client,
+        mock_chart_dataframe,
+        valid_chart_weekly_data_request_line,
+        processed_d3_data,
+    ):
+        mock_validate.return_value = ("sites", ["site_1", "site_2"], None)
+        mock_extract_data.return_value = (mock_chart_dataframe, {})
+
+        mock_utils_instance = MagicMock()
+        mock_dashboard_utils.return_value = mock_utils_instance
+        mock_utils_instance.processd3data.return_value = processed_d3_data
+
+        response = app_client.post(
+            "/api/v2/analytics/dashboard/chart/d3/data",
+            json=valid_chart_weekly_data_request_line,
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["status"] == "success"
+        assert data["message"] == "successfully retrieved d3 chart data"
+        assert data["data"] == processed_d3_data
+
+        mock_validate.assert_called_once()
+        valid_chart_weekly_data_request_line["startDate"] = datetime.fromisoformat(
+            valid_chart_weekly_data_request_line["startDate"].replace("Z", "+00:00")
+        )
+        valid_chart_weekly_data_request_line["endDate"] = datetime.fromisoformat(
+            valid_chart_weekly_data_request_line["endDate"].replace("Z", "+00:00")
+        )
+        mock_extract_data.assert_called_once_with(
+            DataType.CALIBRATED,
+            valid_chart_weekly_data_request_line["startDate"],
+            valid_chart_weekly_data_request_line["endDate"],
+            frequency=Frequency.WEEKLY,
+            dynamic_query=True,
+            device_category=DeviceCategory.LOWCOST,
+            main_columns=[valid_chart_weekly_data_request_line["pollutant"]],
+            data_filter={"sites": valid_chart_weekly_data_request_line["sites"]},
+            extra_columns=valid_chart_weekly_data_request_line["metaDataFields"],
+            use_cache=True,
+        )
+        mock_utils_instance.processd3data.assert_called_once_with(
+            mock_chart_dataframe, Frequency.WEEKLY
+        )
         mock_utils_instance.d3_generate_pie_chart_data.assert_not_called()
 
     @patch("api.views.v2.dashboard.get_validated_filter")
@@ -234,7 +306,9 @@ class TestD3ChartDataEndpoint:
 
         mock_validate.assert_called_once()
         mock_extract_data.assert_called_once()
-        mock_utils_instance.processd3data.assert_called_once_with(mock_chart_dataframe)
+        mock_utils_instance.processd3data.assert_called_once_with(
+            mock_chart_dataframe, Frequency.HOURLY
+        )
         mock_utils_instance.d3_generate_pie_chart_data.assert_called_once_with(
             processed_d3_data, valid_chart_data_request_pie["pollutant"]
         )
@@ -319,7 +393,7 @@ class TestD3ChartDataEndpoint:
 class TestDashboardDataUtils:
     def test_processd3data(self, mock_chart_dataframe):
         dashboard_utils = DashboardDataUtils()
-        result = dashboard_utils.processd3data(mock_chart_dataframe)
+        result = dashboard_utils.processd3data(mock_chart_dataframe, Frequency.HOURLY)
 
         assert isinstance(result, list)
         assert len(result) == 2
@@ -345,7 +419,7 @@ class TestDashboardDataUtils:
         dashboard_utils = DashboardDataUtils()
 
         with pytest.raises(ValueError) as excinfo:
-            dashboard_utils.processd3data(df)
+            dashboard_utils.processd3data(df, Frequency.HOURLY)
 
         assert "must contain one of the following columns" in str(excinfo.value)
 

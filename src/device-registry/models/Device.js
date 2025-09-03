@@ -321,6 +321,8 @@ const deviceSchema = new mongoose.Schema(
       lastUpdate: { type: Date },
       lastSuccessfulUpdate: { type: Date },
       lastFailureReason: { type: String },
+      successPercentage: { type: Number, default: 0 },
+      failurePercentage: { type: Number, default: 0 },
     },
   },
   {

@@ -64,7 +64,7 @@ class DataUtils:
 
         datasource = Config.data_sources()
 
-        if data_table_freq.value in {"weekly", "monthly", "yearly"}:
+        if data_table_freq.value in (Config.extra_time_grouping - {"daily"}):
             data_table_freq = Frequency.DAILY
 
         table = (
@@ -72,7 +72,6 @@ class DataUtils:
             .get(device_category, {})
             .get(data_table_freq, None)
         )
-
         if not table:
             logger.exception(
                 f"Wrong table information provided: {datatype}, {device_category}, {frequency}"
@@ -84,8 +83,8 @@ class DataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             device_category=device_category,
-            network=device_network,
             frequency=frequency,
+            network=device_network,
             data_type=datatype,
             columns=main_columns,  # Columns of interest i.e pollutants
             where_fields=data_filter,
@@ -98,18 +97,17 @@ class DataUtils:
         if raw_data.empty:
             return pd.DataFrame(columns=expected_columns), metadata
         drop_columns = ["device_id"]
-        if frequency.value in {"weekly", "monthly", "yearly"}:
+        if frequency.value in (Config.extra_time_grouping - {"daily"}):
             frequency_ = frequency.value[:-2]
             sorting_cols.append(frequency_)
         else:
             drop_columns.append("datetime")
             sorting_cols.append("datetime")
 
-        # if dynamic_query:
-        # This currently being used for the data-downloads endpoint only
         raw_data = DataUtils.drop_zero_rows_and_columns_data_cleaning(
             raw_data, datatype, main_columns
         )
+
         raw_data.sort_values(sorting_cols, ascending=True, inplace=True)
 
         raw_data = DataUtils.drop_unnecessary_columns_data_cleaning(
@@ -155,10 +153,6 @@ class DataUtils:
             networks = data["network"].unique().tolist()
             if "airqo" not in networks or len(networks) > 1:
                 required_columns.add("pm2_5")
-            # raw_value_columns = [f"{pollutant}_raw_value" for pollutant in pollutants]
-            # required_columns.update(raw_value_columns)
-        # else:
-        #     raw_value_columns = []
 
         missing = [col for col in required_columns if col not in data.columns]
         if missing:
@@ -168,17 +162,6 @@ class DataUtils:
         data[list(required_columns)] = data[list(required_columns)].apply(
             pd.to_numeric, errors="coerce"
         )
-
-        # if raw_value_columns:
-        #     # For mixed device data
-        #     condition = data[raw_value_columns].gt(0).all(axis=1)
-        #     data.loc[condition, "pm2_5"] = np.nan
-
-        #     drop_mask = data[raw_value_columns].isna() | (data[raw_value_columns] == 0)
-        #     drop_mask = drop_mask.all()
-        #     columns_to_drop = drop_mask[drop_mask].index.tolist()
-        #     if columns_to_drop:
-        #         data.drop(columns=columns_to_drop, inplace=True)
 
         zero_only_columns = data.columns[(data == 0).all()]
         data.drop(columns=zero_only_columns, inplace=True)
