@@ -26,7 +26,6 @@
 
     <style>
       :root {
-        /* Light-only tokens */
         --surface: #ffffff;
         --surface-2: #f7f9fc;
         --text: #0f172a; /* slate-900 */
@@ -53,25 +52,24 @@
 
       /* Navbar */
       .navbar {
-        background-color: #ffffff;
+        background-color: #fff;
         border-bottom: 1px solid var(--card-border);
       }
-      .navbar .navbar-brand {
+      .navbar-brand {
         font-weight: 700;
         letter-spacing: -0.01em;
         color: var(--primary-strong);
       }
-      .navbar .nav-link {
+      .nav-link {
         font-weight: 500;
-        color: #334155; /* slate-700 */
-      }
-      .navbar .nav-link:hover {
+        color: #334155;
+      } /* slate-700 */
+      .nav-link:hover {
         color: var(--primary-strong);
       }
 
       /* Hero */
       .hero {
-        position: relative;
         padding: clamp(3.5rem, 6vw, 6rem) 0 clamp(2rem, 3vw, 3rem);
         background: radial-gradient(
             1000px 520px at -10% -20%,
@@ -83,7 +81,7 @@
             rgba(59, 130, 246, 0.1) 0%,
             transparent 62%
           ),
-          linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+          linear-gradient(180deg, #fff 0%, #f8fafc 100%);
         border-bottom: 1px solid var(--card-border);
         text-align: center;
       }
@@ -159,13 +157,11 @@
         border-top: 1px solid var(--card-border);
       }
 
-      /* Focus */
+      /* Focus & motion */
       :focus-visible {
         outline: 2px solid var(--primary);
         outline-offset: 2px;
       }
-
-      /* Reduce motion */
       @media (prefers-reduced-motion: reduce) {
         * {
           animation: none !important;
@@ -180,41 +176,74 @@
     <nav class="navbar navbar-expand-lg sticky-top">
       <div class="container">
         <a class="navbar-brand" href="/website/">AirQo Portal</a>
+
         <button
           class="navbar-toggler"
           type="button"
           data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
-          aria-controls="navbarNav"
+          data-bs-target="#nav"
+          aria-controls="nav"
           aria-expanded="false"
           aria-label="Toggle navigation"
         >
           <span class="navbar-toggler-icon"></span>
         </button>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
+        <div class="collapse navbar-collapse" id="nav">
           <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
             <li class="nav-item">
               <a class="nav-link" href="/website/admin/">
-                <i class="bi bi-gear"></i>
-                <span class="ms-1">Admin Portal</span>
+                <i class="bi bi-gear"></i><span class="ms-1">Admin Portal</span>
               </a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/website/api/docs/">
-                <i class="bi bi-code-slash"></i>
-                <span class="ms-1">API Documentation</span>
+
+            <!-- Single source of truth for Docs links -->
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="docsDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="bi bi-code-slash"></i><span class="ms-1">Docs</span>
               </a>
+              <ul
+                class="dropdown-menu dropdown-menu-end"
+                aria-labelledby="docsDropdown"
+              >
+                <li>
+                  <a class="dropdown-item" href="/website/api/docs/"
+                    ><i class="bi bi-journal-code me-2"></i>API Docs</a
+                  >
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/website/api/swagger/"
+                    ><i class="bi bi-book me-2"></i>Swagger UI</a
+                  >
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/website/api/redoc/"
+                    ><i class="bi bi-file-text me-2"></i>ReDoc</a
+                  >
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/website/api/schema/"
+                    ><i class="bi bi-code me-2"></i>OpenAPI Schema</a
+                  >
+                </li>
+              </ul>
             </li>
+
             <li class="nav-item">
-              <!-- Updated: Website link (replaces AirQo Platform) -->
               <a
                 class="btn btn-soft btn-pill ms-lg-2"
                 href="https://airqo.net"
                 target="_blank"
                 rel="noopener"
               >
-                <i class="bi bi-globe"></i> <span class="ms-1">Website</span>
+                <i class="bi bi-globe"></i><span class="ms-1">Website</span>
               </a>
             </li>
           </ul>
@@ -232,13 +261,14 @@
           insights—built with Django REST Framework.
         </p>
         <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+          <!-- Single primary CTA -->
           <a href="/website/api/docs/" class="btn btn-primary btn-pill">
-            <i class="bi bi-book"></i><span class="ms-2">Open API Docs</span>
+            <i class="bi bi-journal-code"></i
+            ><span class="ms-2">Open API Docs</span>
           </a>
           <a href="/website/admin/" class="btn btn-soft btn-pill">
             <i class="bi bi-gear"></i><span class="ms-2">Admin Portal</span>
           </a>
-          <!-- Updated: Website link -->
           <a
             href="https://airqo.net"
             target="_blank"
@@ -291,13 +321,11 @@
                 Optimized queries, caching, and efficient pagination for fast
                 responses and minimal latency.
               </p>
-              <!-- Kept exactly as in your original -->
               <a
                 href="/website/api/docs/"
                 class="btn btn-outline-primary btn-sm btn-pill"
+                >View Docs</a
               >
-                View Docs
-              </a>
             </article>
           </div>
 
@@ -314,9 +342,8 @@
               <a
                 href="/website/admin/"
                 class="btn btn-outline-primary btn-sm btn-pill"
+                >Admin Panel</a
               >
-                Admin Panel
-              </a>
             </article>
           </div>
         </div>
@@ -353,8 +380,8 @@
                   target="_blank"
                   rel="noopener"
                 >
-                  <i class="bi bi-calendar-event"></i>
-                  <span class="ms-1">Events API</span>
+                  <i class="bi bi-calendar-event"></i
+                  ><span class="ms-1">Events API</span>
                 </a>
                 <a
                   href="/website/api/v2/team-members/"
@@ -362,8 +389,8 @@
                   target="_blank"
                   rel="noopener"
                 >
-                  <i class="bi bi-people"></i>
-                  <span class="ms-1">Team Members API</span>
+                  <i class="bi bi-people"></i
+                  ><span class="ms-1">Team Members API</span>
                 </a>
                 <a
                   href="/website/api/v2/publications/"
@@ -371,8 +398,8 @@
                   target="_blank"
                   rel="noopener"
                 >
-                  <i class="bi bi-journal-text"></i>
-                  <span class="ms-1">Publications API</span>
+                  <i class="bi bi-journal-text"></i
+                  ><span class="ms-1">Publications API</span>
                 </a>
                 <a
                   href="/website/api/v2/clean-air-resources/"
@@ -380,13 +407,14 @@
                   target="_blank"
                   rel="noopener"
                 >
-                  <i class="bi bi-wind"></i>
-                  <span class="ms-1">Clean Air Resources API</span>
+                  <i class="bi bi-wind"></i
+                  ><span class="ms-1">Clean Air Resources API</span>
                 </a>
               </div>
             </article>
           </div>
 
+          <!-- Keep a single doc CTA here to avoid repetition -->
           <div class="col-lg-6">
             <article class="card-quiet p-4 h-100">
               <div
@@ -399,36 +427,15 @@
                 Interactive testing, examples, and OpenAPI schemas for all v2
                 endpoints.
               </p>
-              <div class="d-grid gap-2">
-                <!-- Kept exactly as in your original -->
-                <a
-                  href="/website/api/docs/"
-                  class="btn btn-success btn-sm btn-pill"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <i class="bi bi-book"></i>
-                  <span class="ms-1">Swagger UI</span>
-                </a>
-                <a
-                  href="/website/api/redoc/"
-                  class="btn btn-success btn-sm btn-pill"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <i class="bi bi-file-text"></i>
-                  <span class="ms-1">ReDoc</span>
-                </a>
-                <a
-                  href="/website/api/schema/"
-                  class="btn btn-outline-success btn-sm btn-pill"
-                  target="_blank"
-                  rel="noopener"
-                >
-                  <i class="bi bi-code"></i>
-                  <span class="ms-1">OpenAPI Schema</span>
-                </a>
-              </div>
+              <a
+                href="/website/api/docs/"
+                class="btn btn-success btn-sm btn-pill"
+                target="_blank"
+                rel="noopener"
+              >
+                <i class="bi bi-journal-code"></i
+                ><span class="ms-1">Open API Docs</span>
+              </a>
             </article>
           </div>
         </div>
@@ -439,7 +446,6 @@
     <footer class="py-4">
       <div class="container">
         <nav class="d-flex flex-wrap justify-content-center gap-3 mb-2">
-          <!-- Updated: Website link -->
           <a
             class="link-secondary text-decoration-none"
             href="https://airqo.net"
