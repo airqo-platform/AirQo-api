@@ -43,6 +43,7 @@ class PressListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
             'created',
             'modified',
         ]
+    ref_name = 'PressListV2'
 
 
 class PressDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -84,3 +85,4 @@ class PressDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeria
             'modified',
             'is_deleted',
         ]
+    ref_name = 'PressDetailV2'

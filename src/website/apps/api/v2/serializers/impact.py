@@ -12,6 +12,8 @@ class ImpactNumberListSerializer(DynamicFieldsSerializerMixin, serializers.Model
     """
     class Meta:
         model = ImpactNumber
+        # Unique ref_name for v2 to prevent OpenAPI component collisions with v1
+        ref_name = 'ImpactNumberListV2'
         fields = [
             'id',
             'african_cities',
@@ -31,6 +33,8 @@ class ImpactNumberDetailSerializer(DynamicFieldsSerializerMixin, serializers.Mod
     """
     class Meta:
         model = ImpactNumber
+        # Unique ref_name for v2 to prevent OpenAPI component collisions with v1
+        ref_name = 'ImpactNumberDetailV2'
         fields = [
             'id',
             'african_cities',

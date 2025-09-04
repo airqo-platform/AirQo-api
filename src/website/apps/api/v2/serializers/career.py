@@ -23,6 +23,7 @@ class CareerListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerial
         model = Career
         fields = ['id', 'title', 'type', 'closing_date',
                   'apply_url', 'department', 'created', 'modified']
+    ref_name = 'CareerListV2'
 
 
 class CareerDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -31,3 +32,4 @@ class CareerDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeri
     class Meta:
         model = Career
         fields = '__all__'
+    ref_name = 'CareerDetailV2'

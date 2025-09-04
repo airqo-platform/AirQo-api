@@ -1,0 +1,75 @@
+{# Minimal fallback template for django_filters' browsable filter form #}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Filter form</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial;
+        margin: 1.5rem;
+        color: #111;
+      }
+      .card {
+        border: 1px solid #e1e4e8;
+        padding: 1rem;
+        border-radius: 6px;
+        background: #fff;
+        max-width: 900px;
+      }
+      a {
+        color: #0366d6;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 0.95rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Filter UI (minimal)</h2>
+      <p class="muted">
+        This is a lightweight fallback for the django-filters form used by the
+        DRF browsable API. The project did not ship the original template at
+        <code>django_filters/rest_framework/form.html</code>, so a minimal
+        helpful page is shown here instead.
+      </p>
+
+      <p>
+        To use filtering, add the appropriate query parameters to the request
+        URL (for example: <code>?search=term</code> or other filter names
+        exposed by the endpoint). See the API docs for the exact fields and
+        examples:
+      </p>
+
+      <ul>
+        <li>
+          <a href="/website/redoc/">Interactive API (Redoc)</a> — OpenAPI-driven
+          documentation.
+        </li>
+        <li>
+          <a href="/website/api/schema/">OpenAPI schema (raw)</a> —
+          machine-readable schema.
+        </li>
+        <li>
+          <a href="/website/api/docs/">API docs</a> — if available in your
+          environment.
+        </li>
+      </ul>
+
+      <p class="muted">
+        If you prefer the original django-filters UI, install a release of
+        <code>django-filter</code>
+        that ships the template, or copy your desired template into
+        <code>templates/django_filters/rest_framework/form.html</code> in this
+        project to customize the appearance.
+      </p>
+    </div>
+  </body>
+</html>

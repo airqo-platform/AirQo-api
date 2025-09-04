@@ -26,6 +26,7 @@ class ExternalTeamMemberListSerializer(serializers.ModelSerializer):
             'id', 'name', 'title', 'picture_url', 'twitter', 'linked_in',
             'order', 'created', 'modified'
         ]
+    ref_name = 'ExternalTeamMemberListV2'
 
 
 class ExternalTeamMemberDetailSerializer(serializers.ModelSerializer):
@@ -43,6 +44,7 @@ class ExternalTeamMemberDetailSerializer(serializers.ModelSerializer):
             'id', 'name', 'title', 'picture', 'picture_url', 'twitter', 'linked_in',
             'order', 'descriptions', 'created', 'modified', 'is_deleted'
         ]
+    ref_name = 'ExternalTeamMemberDetailV2'
 
 
 class ExternalTeamMemberBiographyListSerializer(serializers.ModelSerializer):
@@ -51,6 +53,7 @@ class ExternalTeamMemberBiographyListSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExternalTeamMemberBiography
         fields = ['id', 'description', 'order', 'member']
+    ref_name = 'ExternalTeamMemberBiographyListV2'
 
 
 class ExternalTeamMemberBiographyDetailSerializer(serializers.ModelSerializer):
@@ -59,3 +62,4 @@ class ExternalTeamMemberBiographyDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExternalTeamMemberBiography
         fields = '__all__'
+    ref_name = 'ExternalTeamMemberBiographyDetailV2'

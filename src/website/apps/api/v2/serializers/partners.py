@@ -22,6 +22,8 @@ class PartnerListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Partner
+        # Unique ref_name for v2 to avoid OpenAPI collisions with v1
+        ref_name = 'PartnerListV2'
         fields = [
             'id', 'partner_name', 'partner_image_url', 'partner_logo_url',
             'partner_link', 'type', 'type_display', 'website_category',
@@ -55,6 +57,8 @@ class PartnerDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Partner
+        # Unique ref_name for v2 to avoid OpenAPI collisions with v1
+        ref_name = 'PartnerDetailV2'
         fields = [
             'id', 'partner_name', 'partner_image', 'partner_image_url',
             'partner_logo', 'partner_logo_url', 'partner_link', 'type', 'type_display',
@@ -70,6 +74,8 @@ class PartnerDescriptionListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PartnerDescription
+        # Unique ref_name for v2 PartnerDescription list
+        ref_name = 'PartnerDescriptionListV2'
         fields = ['id', 'description', 'order', 'partner', 'partner_name']
 
 
@@ -78,4 +84,6 @@ class PartnerDescriptionDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PartnerDescription
+        # Unique ref_name for v2 PartnerDescription detail
+        ref_name = 'PartnerDescriptionDetailV2'
         fields = '__all__'

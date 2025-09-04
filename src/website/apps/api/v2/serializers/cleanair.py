@@ -39,6 +39,7 @@ class CleanAirResourceListSerializer(DynamicFieldsSerializerMixin, serializers.M
             'created',
             'modified',
         ]
+        ref_name = 'CleanairListV2'
 
 
 class CleanAirResourceDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -71,6 +72,7 @@ class CleanAirResourceDetailSerializer(DynamicFieldsSerializerMixin, serializers
             'modified',
             'is_deleted',
         ]
+        ref_name = 'CleanairDetailV2'
 
 
 class ForumEventListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):

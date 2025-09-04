@@ -24,6 +24,8 @@ class PublicationListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Publication
+        # Unique ref_name for v2 to avoid OpenAPI component name collisions
+        ref_name = 'PublicationListV2'
         fields = [
             'id', 'title', 'authors', 'category', 'category_display',
             'link', 'link_title', 'resource_file_url', 'has_file', 'has_link',
@@ -50,6 +52,8 @@ class PublicationDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Publication
+        # Unique ref_name for v2 to avoid OpenAPI component name collisions
+        ref_name = 'PublicationDetailV2'
         fields = [
             'id', 'title', 'authors', 'description', 'category', 'category_display',
             'link', 'link_title', 'resource_file', 'resource_file_url',

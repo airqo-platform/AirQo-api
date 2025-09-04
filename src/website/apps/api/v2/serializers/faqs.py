@@ -23,6 +23,7 @@ class FAQListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerialize
             'created_at',
             'updated_at',
         ]
+    ref_name = 'FAQListV2'
 
 
 class FAQDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -42,3 +43,4 @@ class FAQDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
             'created_at',
             'updated_at',
         ]
+    ref_name = 'FAQDetailV2'

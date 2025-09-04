@@ -14,6 +14,7 @@ class BoardMemberListSerializer(DynamicFieldsSerializerMixin, serializers.ModelS
         model = BoardMember
         fields = ['id', 'name', 'title', 'picture_url', 'twitter',
                   'linked_in', 'order', 'created', 'modified']
+    ref_name = 'BoardMemberListV2'
 
 
 class BoardMemberDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
@@ -26,3 +27,4 @@ class BoardMemberDetailSerializer(DynamicFieldsSerializerMixin, serializers.Mode
         model = BoardMember
         fields = ['id', 'name', 'title', 'picture_url', 'twitter',
                   'linked_in', 'order', 'created', 'modified', 'is_deleted']
+    ref_name = 'BoardMemberDetailV2'

@@ -15,6 +15,7 @@ class TagListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'name', 'highlights_count', 'created', 'modified']
+    ref_name = 'TagListV2'
 
 
 class TagDetailSerializer(serializers.ModelSerializer):
@@ -27,6 +28,7 @@ class TagDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = '__all__'
+    ref_name = 'TagDetailV2'
 
 
 class HighlightListSerializer(serializers.ModelSerializer):
@@ -46,6 +48,7 @@ class HighlightListSerializer(serializers.ModelSerializer):
             'id', 'title', 'image_url', 'link', 'link_title',
             'tag_names', 'order', 'created', 'modified'
         ]
+    ref_name = 'HighlightListV2'
 
 
 class HighlightDetailSerializer(serializers.ModelSerializer):
@@ -62,3 +65,4 @@ class HighlightDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'image', 'image_url', 'link', 'link_title',
             'tags', 'tags_data', 'order', 'created', 'modified', 'is_deleted'
         ]
+    ref_name = 'HighlightDetailV2'
