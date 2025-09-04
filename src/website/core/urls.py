@@ -80,10 +80,6 @@ urlpatterns = [
 
     # OpenAPI 3.0 Schema and Documentation (drf-spectacular) - V2 Only
     path('website/api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('website/api/docs/',
-         SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('website/api/redoc/',
-         SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
     # Legacy Swagger URLs (drf-yasg) - V2 Only
     re_path(
@@ -105,6 +101,23 @@ urlpatterns = [
     # Healthcheck route
     path('website/healthcheck/', healthcheck, name='healthcheck'),
 ]
+
+# Spectacular UI views - protect in production
+if settings.DEBUG:
+    urlpatterns += [
+        path('website/api/docs/',
+             SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+        path('website/api/redoc/',
+             SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    ]
+else:
+    # In production protect the UI docs behind the admin login (redirect)
+    urlpatterns += [
+        path('website/api/docs/', login_required(
+            SpectacularSwaggerView.as_view(url_name='schema')), name='swagger-ui'),
+        path('website/api/redoc/',
+             login_required(SpectacularRedocView.as_view(url_name='schema')), name='redoc'),
+    ]
 
 # Serve media files during development
 if settings.DEBUG:
