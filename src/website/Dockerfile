@@ -20,6 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the backend code into the container
 COPY . .
+# Normalize line endings for shell scripts (fix CRLF on Windows hosts)
+RUN sed -i 's/\r$//' /app/entrypoint.sh || true
 
 # Expose the port the Django app will run on
 EXPOSE 8000
