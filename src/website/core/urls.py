@@ -5,10 +5,11 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 
-# Swagger Imports
+# Swagger/OpenAPI Imports
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 # Import for custom error handlers
 from core import views as core_views
@@ -66,7 +67,17 @@ urlpatterns = [
     path('website/', include('apps.cleanair.urls')),
     path('website/', include('apps.africancities.urls')),
 
-    # Swagger URLs
+    # API endpoints (v1 & v2)
+    path('website/api/', include('apps.api.urls')),
+
+    # OpenAPI 3.0 Schema and Documentation (drf-spectacular)
+    path('website/api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('website/api/docs/',
+         SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('website/api/redoc/',
+         SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # Legacy Swagger URLs (drf-yasg)
     re_path(
         r'^swagger(?P<format>\.json|\.yaml)$',
         public_schema_view.without_ui(cache_timeout=0),

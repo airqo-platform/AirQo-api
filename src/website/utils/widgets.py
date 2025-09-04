@@ -1,7 +1,6 @@
 # backend/utils/widgets.py
 
 from django_quill.widgets import QuillWidget
-from django.conf import settings
 
 
 class CustomQuillWidget(QuillWidget):

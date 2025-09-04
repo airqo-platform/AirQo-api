@@ -1,8 +1,6 @@
 # serializers.py
 
-from django.conf import settings
 from rest_framework import serializers
-from cloudinary.utils import cloudinary_url
 from .models import (
     CleanAirResource, ForumEvent, Engagement, Partner, Program,
     Session, Support, Person, Objective, ForumResource,

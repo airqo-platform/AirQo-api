@@ -1,0 +1,2636 @@
+openapi: 3.0.2
+info:
+  title: ''
+  version: ''
+paths:
+  /website/press/:
+    get:
+      operationId: listPresses
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Press'
+          description: ''
+      tags:
+      - website
+    post:
+      operationId: createPress
+      description: ''
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Press'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Press'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Press'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Press'
+          description: ''
+      tags:
+      - website
+  /website/press/{id}/:
+    get:
+      operationId: retrievePress
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this Press Article.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Press'
+          description: ''
+      tags:
+      - website
+    put:
+      operationId: updatePress
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this Press Article.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Press'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Press'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Press'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Press'
+          description: ''
+      tags:
+      - website
+    patch:
+      operationId: partialUpdatePress
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this Press Article.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Press'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Press'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Press'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Press'
+          description: ''
+      tags:
+      - website
+    delete:
+      operationId: destroyPress
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this Press Article.
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+      tags:
+      - website
+  /website/impact-number/:
+    get:
+      operationId: listImpactNumberViewSets
+      description: A ViewSet to retrieve the single instance of ImpactNumber.
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+          description: ''
+      tags:
+      - website
+  /website/events/:
+    get:
+      operationId: listEventLists
+      description: A viewset that provides the standard actions for the Event model.
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventList'
+          description: ''
+      tags:
+      - website
+  /website/events/{id}/:
+    get:
+      operationId: retrieveEventDetail
+      description: A viewset that provides the standard actions for the Event model.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: ''
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+          description: ''
+      tags:
+      - website
+  /website/inquiries/:
+    get:
+      operationId: listInquiries
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inquiry'
+          description: ''
+      tags:
+      - website
+  /website/inquiries/{id}/:
+    get:
+      operationId: retrieveInquiry
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this inquiry.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inquiry'
+          description: ''
+      tags:
+      - website
+  /website/programs/:
+    get:
+      operationId: listPrograms
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Program'
+          description: ''
+      tags:
+      - website
+  /website/programs/{id}/:
+    get:
+      operationId: retrieveProgram
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this program.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Program'
+          description: ''
+      tags:
+      - website
+  /website/sessions/:
+    get:
+      operationId: listSessions
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+          description: ''
+      tags:
+      - website
+  /website/sessions/{id}/:
+    get:
+      operationId: retrieveSession
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this session.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+      tags:
+      - website
+  /website/partner-logos/:
+    get:
+      operationId: listPartnerLogos
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PartnerLogo'
+          description: ''
+      tags:
+      - website
+  /website/partner-logos/{id}/:
+    get:
+      operationId: retrievePartnerLogo
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this partner logo.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerLogo'
+          description: ''
+      tags:
+      - website
+  /website/resources/:
+    get:
+      operationId: listResources
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Resource'
+          description: ''
+      tags:
+      - website
+  /website/resources/{id}/:
+    get:
+      operationId: retrieveResource
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this resource.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+          description: ''
+      tags:
+      - website
+  /website/tags/:
+    get:
+      operationId: listTags
+      description: A viewset for viewing and editing Tag instances.
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+          description: ''
+      tags:
+      - website
+    post:
+      operationId: createTag
+      description: A viewset for viewing and editing Tag instances.
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tag'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Tag'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Tag'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+          description: ''
+      tags:
+      - website
+  /website/tags/{id}/:
+    get:
+      operationId: retrieveTag
+      description: A viewset for viewing and editing Tag instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this tag.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+          description: ''
+      tags:
+      - website
+    put:
+      operationId: updateTag
+      description: A viewset for viewing and editing Tag instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this tag.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tag'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Tag'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Tag'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+          description: ''
+      tags:
+      - website
+    patch:
+      operationId: partialUpdateTag
+      description: A viewset for viewing and editing Tag instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this tag.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Tag'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Tag'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Tag'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+          description: ''
+      tags:
+      - website
+    delete:
+      operationId: destroyTag
+      description: A viewset for viewing and editing Tag instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this tag.
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+      tags:
+      - website
+  /website/highlights/:
+    get:
+      operationId: listHighlights
+      description: A viewset for viewing and editing Highlight instances.
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Highlight'
+          description: ''
+      tags:
+      - website
+    post:
+      operationId: createHighlight
+      description: A viewset for viewing and editing Highlight instances.
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Highlight'
+          description: ''
+      tags:
+      - website
+  /website/highlights/{id}/:
+    get:
+      operationId: retrieveHighlight
+      description: A viewset for viewing and editing Highlight instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this highlight.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Highlight'
+          description: ''
+      tags:
+      - website
+    put:
+      operationId: updateHighlight
+      description: A viewset for viewing and editing Highlight instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this highlight.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Highlight'
+          description: ''
+      tags:
+      - website
+    patch:
+      operationId: partialUpdateHighlight
+      description: A viewset for viewing and editing Highlight instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this highlight.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Highlight'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Highlight'
+          description: ''
+      tags:
+      - website
+    delete:
+      operationId: destroyHighlight
+      description: A viewset for viewing and editing Highlight instances.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this highlight.
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+      tags:
+      - website
+  /website/careers/:
+    get:
+      operationId: listCareers
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Career'
+          description: ''
+      tags:
+      - website
+  /website/careers/{id}/:
+    get:
+      operationId: retrieveCareer
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this career.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Career'
+          description: ''
+      tags:
+      - website
+  /website/departments/:
+    get:
+      operationId: listDepartments
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+          description: ''
+      tags:
+      - website
+  /website/departments/{id}/:
+    get:
+      operationId: retrieveDepartment
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this department.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+          description: ''
+      tags:
+      - website
+  /website/publications/:
+    get:
+      operationId: listPublications
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Publication'
+          description: ''
+      tags:
+      - website
+    post:
+      operationId: createPublication
+      description: ''
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Publication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Publication'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Publication'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+          description: ''
+      tags:
+      - website
+  /website/publications/{id}/:
+    get:
+      operationId: retrievePublication
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this publication.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+          description: ''
+      tags:
+      - website
+    put:
+      operationId: updatePublication
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this publication.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Publication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Publication'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Publication'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+          description: ''
+      tags:
+      - website
+    patch:
+      operationId: partialUpdatePublication
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this publication.
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Publication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Publication'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Publication'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Publication'
+          description: ''
+      tags:
+      - website
+    delete:
+      operationId: destroyPublication
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this publication.
+        schema:
+          type: string
+      responses:
+        '204':
+          description: ''
+      tags:
+      - website
+  /website/team/:
+    get:
+      operationId: listMembers
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamMember'
+          description: ''
+      tags:
+      - website
+  /website/team/{id}/:
+    get:
+      operationId: retrieveMember
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this member.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMember'
+          description: ''
+      tags:
+      - website
+  /website/board-members/:
+    get:
+      operationId: listBoardMembers
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BoardMember'
+          description: ''
+      tags:
+      - website
+  /website/board-members/{id}/:
+    get:
+      operationId: retrieveBoardMember
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this board member.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardMember'
+          description: ''
+      tags:
+      - website
+  /website/:
+    get:
+      operationId: listFAQs
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FAQ'
+          description: ''
+      tags:
+      - website
+    post:
+      operationId: createFAQ
+      description: ''
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FAQ'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FAQ'
+          description: ''
+      tags:
+      - website
+  /website/external-team-members/:
+    get:
+      operationId: listExternalTeamMembers
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExternalTeamMember'
+          description: ''
+      tags:
+      - website
+  /website/external-team-members/{id}/:
+    get:
+      operationId: retrieveExternalTeamMember
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this external team member.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalTeamMember'
+          description: ''
+      tags:
+      - website
+  /website/partners/:
+    get:
+      operationId: listPartners
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Partner'
+          description: ''
+      tags:
+      - website
+  /website/partners/{id}/:
+    get:
+      operationId: retrievePartner
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this partner.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Partner'
+          description: ''
+      tags:
+      - website
+  /website/clean-air-resources/:
+    get:
+      operationId: listCleanAirResources
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CleanAirResource'
+          description: ''
+      tags:
+      - website
+  /website/clean-air-resources/{id}/:
+    get:
+      operationId: retrieveCleanAirResource
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this clean air resource.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanAirResource'
+          description: ''
+      tags:
+      - website
+  /website/forum-events/:
+    get:
+      operationId: listForumEvents
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ForumEvent'
+          description: ''
+      tags:
+      - website
+  /website/forum-events/{unique_title}/:
+    get:
+      operationId: retrieveForumEvent
+      description: ''
+      parameters:
+      - name: unique_title
+        in: path
+        required: true
+        description: ''
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForumEvent'
+          description: ''
+      tags:
+      - website
+  /website/forum-event-titles/:
+    get:
+      operationId: listForumEvents
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ForumEventTitle'
+          description: ''
+      tags:
+      - website
+  /website/african-countries/:
+    get:
+      operationId: listAfricanCountries
+      description: ''
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AfricanCity'
+          description: ''
+      tags:
+      - website
+  /website/african-countries/{id}/:
+    get:
+      operationId: retrieveAfricanCountry
+      description: ''
+      parameters:
+      - name: id
+        in: path
+        required: true
+        description: A unique integer value identifying this african country.
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AfricanCity'
+          description: ''
+      tags:
+      - website
+components:
+  schemas:
+    Press:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        article_title:
+          type: string
+          maxLength: 100
+        article_intro:
+          type: string
+          nullable: true
+          maxLength: 200
+        article_link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        date_published:
+          type: string
+          format: date
+        publisher_logo:
+          type: string
+          nullable: true
+        publisher_logo_url:
+          type: string
+          readOnly: true
+        website_category:
+          enum:
+          - airqo
+          - cleanair
+          type: string
+          nullable: true
+        article_tag:
+          enum:
+          - none
+          - featured
+          type: string
+          nullable: true
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - article_title
+      - date_published
+    EventList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        title_subtext:
+          type: string
+          maxLength: 90
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        start_time:
+          type: string
+          nullable: true
+        end_time:
+          type: string
+          nullable: true
+        event_tag:
+          type: string
+        event_image_url:
+          type: string
+          readOnly: true
+      required:
+      - title
+      - title_subtext
+      - start_date
+      - event_tag
+    EventDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        title_subtext:
+          type: string
+          maxLength: 90
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        start_time:
+          type: string
+          nullable: true
+        end_time:
+          type: string
+          nullable: true
+        registration_link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        website_category:
+          enum:
+          - airqo
+          - cleanair
+          type: string
+          nullable: true
+        event_tag:
+          type: string
+        event_category:
+          enum:
+          - none
+          - webinar
+          - workshop
+          - marathon
+          - conference
+          - summit
+          - commemoration
+          - in-person
+          - hybrid
+          type: string
+          nullable: true
+        event_image_url:
+          type: string
+          readOnly: true
+        background_image_url:
+          type: string
+          readOnly: true
+        location_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        location_link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        event_details:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        inquiries:
+          type: array
+          items:
+            type: object
+            properties:
+              inquiry:
+                type: string
+                maxLength: 80
+              role:
+                type: string
+                nullable: true
+                maxLength: 100
+              email:
+                type: string
+                format: email
+                maxLength: 254
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+            required:
+            - inquiry
+            - email
+          readOnly: true
+        programs:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              program_details:
+                type: string
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+              sessions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    session_title:
+                      type: string
+                      maxLength: 150
+                    start_time:
+                      type: string
+                    end_time:
+                      type: string
+                    venue:
+                      type: string
+                      nullable: true
+                      maxLength: 80
+                    session_details:
+                      type: string
+                    order:
+                      type: integer
+                      maximum: 2147483647
+                      minimum: -2147483648
+                  required:
+                  - session_title
+                  - start_time
+                  - end_time
+                readOnly: true
+            required:
+            - date
+          readOnly: true
+        partner_logos:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                maxLength: 70
+              partner_logo_url:
+                type: string
+                readOnly: true
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+            required:
+            - name
+          readOnly: true
+        resources:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+                maxLength: 100
+              link:
+                type: string
+                format: uri
+                nullable: true
+                maxLength: 200
+                pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+                  .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+                  ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF\
+                  0-9])?(?:\\.(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1\
+                  -\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\.?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\\
+                  s]*)?\\z"
+              resource_url:
+                type: string
+                readOnly: true
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+            required:
+            - title
+          readOnly: true
+      required:
+      - title
+      - title_subtext
+      - start_date
+      - event_tag
+    Inquiry:
+      type: object
+      properties:
+        inquiry:
+          type: string
+          maxLength: 80
+        role:
+          type: string
+          nullable: true
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - inquiry
+      - email
+    Program:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        program_details:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              session_title:
+                type: string
+                maxLength: 150
+              start_time:
+                type: string
+              end_time:
+                type: string
+              venue:
+                type: string
+                nullable: true
+                maxLength: 80
+              session_details:
+                type: string
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+            required:
+            - session_title
+            - start_time
+            - end_time
+          readOnly: true
+      required:
+      - date
+    Session:
+      type: object
+      properties:
+        session_title:
+          type: string
+          maxLength: 150
+        start_time:
+          type: string
+        end_time:
+          type: string
+        venue:
+          type: string
+          nullable: true
+          maxLength: 80
+        session_details:
+          type: string
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - session_title
+      - start_time
+      - end_time
+    PartnerLogo:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 70
+        partner_logo_url:
+          type: string
+          readOnly: true
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - name
+    Resource:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        resource_url:
+          type: string
+          readOnly: true
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - title
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 20
+      required:
+      - name
+    Highlight:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 110
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              name:
+                type: string
+                maxLength: 20
+            required:
+            - name
+          readOnly: true
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          writeOnly: true
+        image_url:
+          type: string
+          readOnly: true
+        link:
+          type: string
+          format: uri
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        link_title:
+          type: string
+          maxLength: 20
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - title
+      - tag_ids
+      - link
+    Career:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        department:
+          type: object
+          properties:
+            id:
+              type: integer
+              readOnly: true
+            name:
+              type: string
+              maxLength: 30
+          required:
+          - name
+          readOnly: true
+        descriptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              description:
+                type: string
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+              career:
+                type: integer
+                nullable: true
+            required:
+            - description
+          readOnly: true
+        bullets:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              name:
+                type: string
+                maxLength: 30
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+              bullet_points:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      readOnly: true
+                    point:
+                      type: string
+                    order:
+                      type: integer
+                      maximum: 2147483647
+                      minimum: -2147483648
+                  required:
+                  - point
+                readOnly: true
+            required:
+            - name
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+        modified:
+          type: string
+          format: date-time
+          readOnly: true
+        is_deleted:
+          type: boolean
+        title:
+          type: string
+          maxLength: 100
+        unique_title:
+          type: string
+          nullable: true
+          maxLength: 100
+        closing_date:
+          type: string
+          format: date-time
+        apply_url:
+          type: string
+          format: uri
+          maxLength: 250
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        type:
+          enum:
+          - full-time
+          - part-time
+          - contract
+          - temporary
+          - internship
+          - graduate-training
+          type: string
+      required:
+      - title
+      - closing_date
+      - apply_url
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 30
+      required:
+      - name
+    Publication:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        authors:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the publication
+        link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        resource_file_url:
+          type: string
+          readOnly: true
+        link_title:
+          type: string
+          nullable: true
+          maxLength: 100
+        category:
+          enum:
+          - research
+          - technical
+          - policy
+          - guide
+          - manual
+          type: string
+          nullable: true
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - title
+    TeamMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        title:
+          type: string
+          maxLength: 100
+        about:
+          type: string
+        picture_url:
+          type: string
+          readOnly: true
+        twitter:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 255
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        linked_in:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 255
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        descriptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              description:
+                type: string
+                nullable: true
+              member:
+                type: integer
+                nullable: true
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+          readOnly: true
+      required:
+      - name
+      - title
+    BoardMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        picture_url:
+          type: string
+          readOnly: true
+        descriptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              description:
+                type: string
+                nullable: true
+              member:
+                type: integer
+                nullable: true
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+        modified:
+          type: string
+          format: date-time
+          readOnly: true
+        is_deleted:
+          type: boolean
+        name:
+          type: string
+          maxLength: 100
+        title:
+          type: string
+          maxLength: 100
+        picture:
+          type: string
+          nullable: true
+        twitter:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 255
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        linked_in:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 255
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - name
+      - title
+    FAQ:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        question:
+          type: string
+          maxLength: 255
+        answer:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - question
+      - answer
+    ExternalTeamMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        title:
+          type: string
+          maxLength: 120
+        picture_url:
+          type: string
+          readOnly: true
+        twitter:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 255
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        linked_in:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 255
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        descriptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              description:
+                type: string
+                nullable: true
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+          readOnly: true
+      required:
+      - name
+      - title
+    Partner:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        partner_name:
+          type: string
+          maxLength: 200
+        partner_link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        website_category:
+          enum:
+          - airqo
+          - cleanair
+          type: string
+          nullable: true
+        type:
+          enum:
+          - partnership
+          - collaboration
+          - policy
+          - funder
+          - research
+          - ca-network
+          - ca-support
+          - ca-forum
+          - ca-private-sector
+          type: string
+          nullable: true
+        partner_logo_url:
+          type: string
+          readOnly: true
+        partner_image_url:
+          type: string
+          readOnly: true
+        descriptions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              description:
+                type: string
+                nullable: true
+              partner:
+                type: integer
+                nullable: true
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+          readOnly: true
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - partner_name
+    CleanAirResource:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        resource_file_url:
+          type: string
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+        modified:
+          type: string
+          format: date-time
+          readOnly: true
+        is_deleted:
+          type: boolean
+        resource_title:
+          type: string
+          maxLength: 120
+        resource_link:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        resource_file:
+          type: string
+          nullable: true
+        author_title:
+          type: string
+          nullable: true
+          maxLength: 40
+        resource_category:
+          enum:
+          - toolkit
+          - technical_report
+          - workshop_report
+          - research_publication
+          type: string
+        resource_authors:
+          type: string
+          maxLength: 200
+        order:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+      required:
+      - resource_title
+    ForumEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              forum_events:
+                type: array
+                items:
+                  type: integer
+              title:
+                type: string
+                description: Section title (optional)
+              content:
+                type: string
+                nullable: true
+              section_type:
+                enum:
+                - split
+                - column
+                type: string
+                description: Select whether this is a split section (title on left,
+                  content on right) or a column section.
+              reverse_order:
+                type: boolean
+                description: If checked, the layout for a split section will be reversed
+                  (content on left, title on right).
+              pages:
+                enum:
+                - about
+                - committee
+                - session
+                - speakers
+                - partners
+                - sponsorships
+                - logistics
+                - glossary
+                type: string
+                description: Select the page(s) where this section should be displayed.
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+            required:
+            - forum_events
+          readOnly: true
+        forum_resources:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              resource_sessions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      readOnly: true
+                    resource_files:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          file_url:
+                            type: string
+                            readOnly: true
+                          resource_summary:
+                            type: string
+                            nullable: true
+                          session:
+                            type: integer
+                            nullable: true
+                      readOnly: true
+                    created:
+                      type: string
+                      format: date-time
+                      readOnly: true
+                    modified:
+                      type: string
+                      format: date-time
+                      readOnly: true
+                    is_deleted:
+                      type: boolean
+                    session_title:
+                      type: string
+                      maxLength: 120
+                    order:
+                      type: integer
+                      maximum: 2147483647
+                      minimum: -2147483648
+                    forum_resource:
+                      type: integer
+                  required:
+                  - session_title
+                readOnly: true
+              created:
+                type: string
+                format: date-time
+                readOnly: true
+              modified:
+                type: string
+                format: date-time
+                readOnly: true
+              is_deleted:
+                type: boolean
+              resource_title:
+                type: string
+                maxLength: 120
+              resource_authors:
+                type: string
+                maxLength: 200
+              order:
+                type: integer
+                maximum: 2147483647
+                minimum: -2147483648
+              forum_event:
+                type: integer
+                nullable: true
+            required:
+            - resource_title
+          readOnly: true
+        engagement:
+          type: object
+          properties:
+            id:
+              type: integer
+              readOnly: true
+            objectives:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    readOnly: true
+                  created:
+                    type: string
+                    format: date-time
+                    readOnly: true
+                  modified:
+                    type: string
+                    format: date-time
+                    readOnly: true
+                  is_deleted:
+                    type: boolean
+                  title:
+                    type: string
+                    maxLength: 200
+                  details:
+                    type: string
+                    nullable: true
+                  engagement:
+                    type: integer
+                    nullable: true
+                required:
+                - title
+              readOnly: true
+            created:
+              type: string
+              format: date-time
+              readOnly: true
+            modified:
+              type: string
+              format: date-time
+              readOnly: true
+            is_deleted:
+              type: boolean
+            title:
+              type: string
+              maxLength: 200
+            forum_event:
+              type: integer
+              nullable: true
+          required:
+          - title
+          readOnly: true
+        partners:
+          type: string
+          readOnly: true
+        supports:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              created:
+                type: string
+                format: date-time
+                readOnly: true
+              modified:
+                type: string
+                format: date-time
+                readOnly: true
+              is_deleted:
+                type: boolean
+              query:
+                type: string
+                maxLength: 80
+              name:
+                type: string
+                maxLength: 70
+              role:
+                type: string
+                maxLength: 100
+              email:
+                type: string
+                format: email
+                maxLength: 254
+              event:
+                type: integer
+                nullable: true
+            required:
+            - query
+            - name
+            - email
+          readOnly: true
+        programs:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              sessions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      readOnly: true
+                    created:
+                      type: string
+                      format: date-time
+                      readOnly: true
+                    modified:
+                      type: string
+                      format: date-time
+                      readOnly: true
+                    is_deleted:
+                      type: boolean
+                    start_time:
+                      type: string
+                      nullable: true
+                    end_time:
+                      type: string
+                      nullable: true
+                    session_title:
+                      type: string
+                      maxLength: 150
+                    session_details:
+                      type: string
+                    program:
+                      type: integer
+                      nullable: true
+                    authored_by:
+                      type: integer
+                      nullable: true
+                  required:
+                  - session_title
+                readOnly: true
+              created:
+                type: string
+                format: date-time
+                readOnly: true
+              modified:
+                type: string
+                format: date-time
+                readOnly: true
+              is_deleted:
+                type: boolean
+              title:
+                type: string
+                maxLength: 100
+              sub_text:
+                type: string
+                nullable: true
+              forum_event:
+                type: integer
+                nullable: true
+              authored_by:
+                type: integer
+                nullable: true
+            required:
+            - title
+          readOnly: true
+        persons:
+          type: string
+          readOnly: true
+        background_image_url:
+          type: string
+          readOnly: true
+        created:
+          type: string
+          format: date-time
+          readOnly: true
+        modified:
+          type: string
+          format: date-time
+          readOnly: true
+        is_deleted:
+          type: boolean
+        title:
+          type: string
+          maxLength: 100
+        title_subtext:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        start_time:
+          type: string
+          nullable: true
+        end_time:
+          type: string
+          nullable: true
+        introduction:
+          type: string
+          nullable: true
+        speakers_text_section:
+          type: string
+          nullable: true
+        committee_text_section:
+          type: string
+          nullable: true
+        partners_text_section:
+          type: string
+          nullable: true
+        registration_link:
+          type: string
+          format: uri
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+        schedule_details:
+          type: string
+          nullable: true
+        registration_details:
+          type: string
+          nullable: true
+        sponsorship_opportunities_about:
+          type: string
+          nullable: true
+        sponsorship_opportunities_schedule:
+          type: string
+          nullable: true
+        sponsorship_opportunities_partners:
+          type: string
+          nullable: true
+        sponsorship_packages:
+          type: string
+          nullable: true
+        travel_logistics_vaccination_details:
+          type: string
+          nullable: true
+        travel_logistics_visa_details:
+          type: string
+          nullable: true
+        travel_logistics_accommodation_details:
+          type: string
+          nullable: true
+        glossary_details:
+          type: string
+          nullable: true
+        unique_title:
+          type: string
+          maxLength: 100
+        background_image:
+          type: string
+          nullable: true
+        location_name:
+          type: string
+          maxLength: 100
+        location_link:
+          type: string
+          format: uri
+          maxLength: 200
+          pattern: "^(?:[a-z0-9.+-]*)://(?:[^\\s:@/]+(?::[^\\s:@/]*)?@)?(?:(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)(?:\\\
+            .(?:0|25[0-5]|2[0-4][0-9]|1[0-9]?[0-9]?|[1-9][0-9]?)){3}|\\[[0-9a-f:.]+\\\
+            ]|([a-z\xA1-\uFFFF0-9](?:[a-z\xA1-\uFFFF0-9-]{0,61}[a-z\xA1-\uFFFF0-9])?(?:\\\
+            .(?!-)[a-z\xA1-\uFFFF0-9-]{1,63}(?<!-))*\\.(?!-)(?:[a-z\xA1-\uFFFF-]{2,63}|xn--[a-z0-9]{1,59})(?<!-)\\\
+            .?|localhost))(?::[0-9]{1,5})?(?:[/?#][^\\s]*)?\\z"
+      required:
+      - start_date
+    ForumEventTitle:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        unique_title:
+          type: string
+          maxLength: 100
+    AfricanCity:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        country_name:
+          type: string
+          maxLength: 100
+        country_flag_url:
+          type: string
+          readOnly: true
+        city:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                readOnly: true
+              city_name:
+                type: string
+                maxLength: 100
+              content:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      readOnly: true
+                    title:
+                      type: string
+                      maxLength: 150
+                    description:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            readOnly: true
+                          paragraph:
+                            type: string
+                        required:
+                        - paragraph
+                      readOnly: true
+                    image:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            readOnly: true
+                          image_url:
+                            type: string
+                            readOnly: true
+                      readOnly: true
+                  required:
+                  - title
+                readOnly: true
+            required:
+            - city_name
+          readOnly: true
+      required:
+      - country_name

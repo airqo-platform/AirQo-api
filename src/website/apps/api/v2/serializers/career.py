@@ -1,0 +1,33 @@
+# Career app serializers
+from rest_framework import serializers
+from apps.career.models import Career, Department
+from ..utils import DynamicFieldsSerializerMixin
+
+
+class DepartmentListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ['id', 'name']
+
+
+class DepartmentDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'created', 'modified', 'is_deleted']
+
+
+class CareerListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
+    department = DepartmentListSerializer(read_only=True)
+
+    class Meta:
+        model = Career
+        fields = ['id', 'title', 'type', 'closing_date',
+                  'apply_url', 'department', 'created', 'modified']
+
+
+class CareerDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
+    department = DepartmentDetailSerializer(read_only=True)
+
+    class Meta:
+        model = Career
+        fields = '__all__'

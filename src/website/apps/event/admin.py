@@ -1,10 +1,21 @@
 from django.contrib import admin
-import nested_admin
+from typing import TYPE_CHECKING
 from django.utils.html import format_html
+
+if TYPE_CHECKING:
+    # Provide symbols to static type checkers
+    from nested_admin import NestedTabularInline, NestedStackedInline, NestedModelAdmin  # type: ignore
+else:
+    try:
+        from nested_admin import NestedTabularInline, NestedStackedInline, NestedModelAdmin  # type: ignore
+    except Exception:
+        # Fallbacks for runtime if nested_admin isn't available
+        NestedTabularInline = admin.TabularInline  # type: ignore
+        NestedStackedInline = admin.StackedInline  # type: ignore
+        NestedModelAdmin = admin.ModelAdmin  # type: ignore
 import logging
 
-from django.core.exceptions import ValidationError  # Import ValidationError
-# Import IntegrityError for database errors
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from .models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 
@@ -14,7 +25,7 @@ logger = logging.getLogger(__name__)
 # -------- Inline Classes --------
 
 
-class InquiryInline(nested_admin.NestedTabularInline):
+class InquiryInline(NestedTabularInline):
     model = Inquiry
     extra = 0
     sortable_field_name = 'order'
@@ -22,25 +33,25 @@ class InquiryInline(nested_admin.NestedTabularInline):
     ordering = ['order']
 
 
-class PartnerLogoInline(nested_admin.NestedTabularInline):
+class PartnerLogoInline(NestedTabularInline):
     model = PartnerLogo
     extra = 0
     sortable_field_name = 'order'
     fields = ('name', 'partner_logo', 'order', 'preview_logo')
     readonly_fields = ('preview_logo',)
 
+    @admin.display(description="Preview Logo")
     def preview_logo(self, obj):
         return preview_image(obj.partner_logo, obj.name, "Partner Logo", (100, 150))
 
-    preview_logo.short_description = "Preview Logo"
 
-
-class ResourceInline(nested_admin.NestedTabularInline):
+class ResourceInline(NestedTabularInline):
     model = Resource
     extra = 0
     fields = ('title', 'link', 'resource', 'order', 'download_link')
     readonly_fields = ('download_link',)
 
+    @admin.display(description="Resource Download Link")
     def download_link(self, obj):
         if not obj.resource:
             return "No resource uploaded."
@@ -54,10 +65,10 @@ class ResourceInline(nested_admin.NestedTabularInline):
                 f"Error generating download link for Resource '{obj.title}': {e}")
             return "Error generating link."
 
-    download_link.short_description = "Resource Download Link"
+    # description is provided via @admin.display
 
 
-class SessionInline(nested_admin.NestedTabularInline):
+class SessionInline(NestedTabularInline):
     model = Session
     extra = 0
     fields = ('session_title', 'start_time', 'end_time',
@@ -66,7 +77,7 @@ class SessionInline(nested_admin.NestedTabularInline):
     ordering = ['order']
 
 
-class ProgramInline(nested_admin.NestedStackedInline):
+class ProgramInline(NestedStackedInline):
     model = Program
     extra = 0
     fields = ('date', 'program_details', 'order')
@@ -95,7 +106,7 @@ def preview_image(image_field, obj_name, alt_text, max_dimensions):
 
 
 @admin.register(Event)
-class EventAdmin(nested_admin.NestedModelAdmin):
+class EventAdmin(NestedModelAdmin):
     list_display = (
         'title',
         'start_date',
@@ -135,15 +146,15 @@ class EventAdmin(nested_admin.NestedModelAdmin):
         }),
     )
 
+    @admin.display(description="Event Image")
     def preview_event_image(self, obj):
         """Preview event image."""
         return preview_image(obj.event_image, obj.title, "Event Image", (150, 300))
-    preview_event_image.short_description = "Event Image"
 
+    @admin.display(description="Background Image")
     def preview_background_image(self, obj):
         """Preview background image."""
         return preview_image(obj.background_image, obj.title, "Background Image", (150, 300))
-    preview_background_image.short_description = "Background Image"
 
     def save_model(self, request, obj, form, change):
         """Override save_model to handle image uploads and database errors gracefully."""

@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'nested_admin',
     'drf_yasg',
+    'drf_spectacular',
     'django_quill',
 
     # Custom Apps
@@ -221,6 +222,34 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# ---------------------------------------------------------
+# DRF Spectacular (OpenAPI 3.0) Settings
+# ---------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AirQo Website API',
+    'DESCRIPTION': 'API documentation for AirQo Website - providing access to air quality data, events, team information, publications, and more.',
+    'VERSION': '2.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': r'/website/api/v[0-9]',
+    'SERVERS': [
+        {'url': 'http://127.0.0.1:8000', 'description': 'Development server'},
+        {'url': 'https://website-api.airqo.net',
+            'description': 'Production server'},
+    ],
+    'TAGS': [
+        {'name': 'v1', 'description': 'Legacy API endpoints (v1)'},
+        {'name': 'v2',
+            'description': 'Enhanced API endpoints (v2) with improved performance and features'},
+        {'name': 'Team', 'description': 'Team member and biography endpoints'},
+        {'name': 'Events', 'description': 'Event management and listing endpoints'},
+        {'name': 'Publications', 'description': 'Research publications and resources'},
+        {'name': 'Clean Air', 'description': 'Clean air resources and forum events'},
+        {'name': 'Partners', 'description': 'Organization partners and descriptions'},
     ],
 }
 
