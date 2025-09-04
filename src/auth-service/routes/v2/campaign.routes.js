@@ -2,19 +2,9 @@ const express = require("express");
 const CampaignController = require("@controllers/campaign.controller");
 const campaignValidations = require("@validators/campaign.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
 
 const router = express.Router();
-
-// CORS headers middleware
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
 
 router.use(headers);
 router.use(campaignValidations.pagination(20, 100));

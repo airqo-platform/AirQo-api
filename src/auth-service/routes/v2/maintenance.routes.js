@@ -4,16 +4,7 @@ const router = express.Router();
 const createMaintenanceController = require("@controllers/maintenance.controller");
 const maintenanceValidations = require("@validators/maintenance.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
-
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
+const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
 router.use(maintenanceValidations.pagination);

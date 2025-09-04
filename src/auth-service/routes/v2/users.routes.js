@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
-const { validate } = require("@validators/common");
+const { validate, headers, pagination } = require("@validators/common");
 const {
   setLocalAuth,
   setGoogleAuth,
@@ -27,16 +27,6 @@ const {
   requireNetworkMembership,
   debugPermissions,
 } = require("@middleware/permissionAuth");
-
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
 
 router.use(headers);
 router.use(userValidations.pagination);

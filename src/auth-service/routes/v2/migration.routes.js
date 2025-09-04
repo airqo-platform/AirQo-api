@@ -4,6 +4,8 @@ const router = express.Router();
 const migrationController = require("@controllers/migration.controller");
 const migrationValidations = require("@validators/migration.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
+router.use(headers);
 
 router.use(enhancedJWTAuth);
 

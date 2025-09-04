@@ -4,16 +4,8 @@ const router = express.Router();
 const createPermissionController = require("@controllers/permission.controller");
 const permissionValidations = require("@validators/permissions.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
 router.use(headers);
 router.use(permissionValidations.pagination);
 

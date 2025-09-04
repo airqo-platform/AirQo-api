@@ -2,19 +2,8 @@ const express = require("express");
 const NotificationPreferenceController = require("@controllers/notification-preferences.controller");
 const notificationPreferenceValidations = require("@validators/notification-preferences.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
-
+const { validate, headers, pagination } = require("@validators/common");
 const router = express.Router();
-
-// CORS headers middleware
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
 
 router.use(headers);
 router.use(notificationPreferenceValidations.pagination(20, 100));
