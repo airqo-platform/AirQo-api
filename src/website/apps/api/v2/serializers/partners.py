@@ -37,6 +37,7 @@ class PartnerDescriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = PartnerDescription
         fields = ['id', 'description', 'order', 'partner']
+        ref_name = 'PartnerDescriptionSerializerV2'
 
 
 class PartnerDetailSerializer(serializers.ModelSerializer):

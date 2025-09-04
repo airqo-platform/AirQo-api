@@ -1,4 +1,14 @@
 
+"""
+CleanAir app admin configuration
+
+This module configures the admin interface for both:
+1. Clean Air Resources (standalone clean air content)
+2. Clean Air Forum (forum events, resources, sessions, etc.)
+
+The forum-related models are grouped separately for better organization.
+"""
+
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -35,7 +45,25 @@ import logging
 # Configure logger
 logger = logging.getLogger(__name__)
 
-# Inline Classes
+# =============================================================================
+# ADMIN GROUPS - Custom admin configurations for better organization
+# =============================================================================
+
+# Create custom admin site instances for better grouping
+
+
+class CleanAirForumAdminSite(admin.AdminSite):
+    site_header = 'Clean Air Forum Administration'
+    site_title = 'Clean Air Forum Admin'
+    index_title = 'Clean Air Forum Management'
+
+
+# Initialize the custom admin site
+forum_admin_site = CleanAirForumAdminSite(name='clean_air_forum_admin')
+
+# =============================================================================
+# INLINE CLASSES
+# =============================================================================
 
 
 class ObjectiveInline(NestedTabularInline):
@@ -70,26 +98,55 @@ class ResourceSessionInline(NestedTabularInline):
     inlines = [ResourceFileInline]
 
 
+class PartnerInline(NestedTabularInline):
+    model = Partner
+    extra = 0
+
+
+class ProgramInline(NestedTabularInline):
+    model = Program
+    inlines = [SessionInline]
+    extra = 0
+
+
 class ForumResourceInline(NestedTabularInline):
     model = ForumResource
     inlines = [ResourceSessionInline]
     extra = 0
 
 
-# Admin Classes
+# =============================================================================
+# CLEAN AIR RESOURCES ADMIN - Standalone resources
+# =============================================================================
 @admin.register(CleanAirResource)
 class CleanAirResourceAdmin(admin.ModelAdmin):
-    """Enhanced Clean Air Resource Admin with status badges and SEO features"""
+    """Clean Air Resources Admin - Standalone air quality resources"""
 
     list_display = ('resource_title_preview', 'resource_category_badge',
-                    'author_title', 'status_badge', 'order', 'created_date')
+                    'author_title', 'order', 'created_date')
     list_filter = ('resource_category', 'author_title', 'created', 'modified')
-    search_fields = ('resource_title', 'author_title', 'resource_description')
-    readonly_fields = ('author_title', 'created', 'modified', 'id')
+    search_fields = ('resource_title', 'author_title')
+    readonly_fields = ('created', 'modified', 'id')
     list_per_page = 25
     date_hierarchy = 'created'
     ordering = ['order', 'resource_title']
     list_editable = ('order',)
+
+    fieldsets = (
+        ('Resource Information', {
+            'fields': ('resource_title', 'resource_category', 'resource_authors', 'author_title')
+        }),
+        ('Content & Links', {
+            'fields': ('resource_link', 'resource_file')
+        }),
+        ('Display Options', {
+            'fields': ('order',)
+        }),
+        ('Metadata', {
+            'fields': ('id', 'created', 'modified'),
+            'classes': ('collapse',)
+        }),
+    )
 
     # Custom actions
     actions = ['mark_featured', 'mark_archived', 'reset_order']

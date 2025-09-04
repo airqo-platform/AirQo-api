@@ -11,6 +11,7 @@ class ExternalTeamMemberBiographySerializer(serializers.ModelSerializer):
     class Meta:
         model = ExternalTeamMemberBiography
         fields = ['id', 'description', 'order', 'member']
+        ref_name = 'ExternalTeamMemberBiographySerializerV2'
 
 
 class ExternalTeamMemberListSerializer(serializers.ModelSerializer):

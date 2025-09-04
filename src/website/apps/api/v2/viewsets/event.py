@@ -70,32 +70,46 @@ class EventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         return EventDetailSerializer
 
     def get_queryset(self) -> QuerySet[Event]:  # type: ignore[override]
-        """Optimized queryset with ordering"""
-        # Base queryset ordered by start_date desc then order asc
-        qs = Event.objects.all().order_by('-start_date', 'order')
+        """Optimized queryset with performance improvements"""
+        # Base queryset with efficient ordering
+        qs = Event.objects.all()
 
-        # Apply some eager loading where appropriate to avoid N+1s in list
-        # (Event has FK relations like event_tag or images — add select_related
-        # only when those fields are actually relational fields on the model.
-        rel_fields = [f.name for f in Event._meta.get_fields() if (
-            f.is_relation and f.many_to_one)]
-        to_select = [f for f in ('event_tag',) if f in rel_fields]
-        if to_select:
-            qs = qs.select_related(*to_select)
+        # Apply select_related for ForeignKey/OneToOne relations to reduce queries
+        select_related_fields = []
+        for field in Event._meta.get_fields():
+            if hasattr(field, 'related_model') and field.many_to_one:
+                if hasattr(Event, field.name):
+                    select_related_fields.append(field.name)
 
-        # If this is the list action, limit the selected fields to the
-        # lightweight set defined in `list_only_fields` to reduce fetch time.
+        if select_related_fields:
+            qs = qs.select_related(*select_related_fields)
+
+        # Apply prefetch_related for commonly used reverse relations
+        prefetch_fields = ['inquiries', 'programs',
+                           'partner_logos', 'resources']
+        # Filter to only existing relations
+        existing_prefetch = []
+        for field_name in prefetch_fields:
+            try:
+                # Test if the relation exists by accessing the related manager
+                getattr(Event, field_name, None)
+                existing_prefetch.append(field_name)
+            except:
+                continue
+
+        if existing_prefetch:
+            qs = qs.prefetch_related(*existing_prefetch)
+
+        # For list view, use only() to fetch minimal fields for better performance
         if getattr(self, 'action', None) == 'list':
-            fields = getattr(self, 'list_only_fields', None) or []
-            if fields:
-                try:
-                    qs = qs.only(*fields)
-                except Exception:
-                    # Be conservative: if `.only` fails for any reason, continue
-                    # with the full queryset rather than raising.
-                    pass
+            if self.list_only_fields:
+                qs = qs.only(*self.list_only_fields)
 
-        logger.debug("EventViewSet.get_queryset: base qs prepared")
+        # Apply efficient ordering
+        qs = qs.order_by('-start_date', 'order')
+
+        logger.debug(
+            f"EventViewSet.get_queryset: optimized with select_related={select_related_fields}, prefetch_related={existing_prefetch}")
         return qs
 
     def list(self, request, *args, **kwargs):

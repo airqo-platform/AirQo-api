@@ -8,12 +8,14 @@ class DepartmentListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSe
     class Meta:
         model = Department
         fields = ['id', 'name']
+        ref_name = 'DepartmentListSerializerV2'
 
 
 class DepartmentDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = ['id', 'name', 'created', 'modified', 'is_deleted']
+        ref_name = 'DepartmentDetailSerializerV2'
 
 
 class CareerListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):

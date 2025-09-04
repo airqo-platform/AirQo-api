@@ -80,6 +80,7 @@ class EventListSerializer(serializers.ModelSerializer):
             'event_tag',
             'event_image_url',
         ]
+        ref_name = 'EventListV1'
 
     def get_event_image_url(self, obj):
         if obj.event_image:
@@ -121,6 +122,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'partner_logos',
             'resources',
         ]
+        ref_name = 'EventDetailV1'
 
     def get_event_image_url(self, obj):
         if obj.event_image:

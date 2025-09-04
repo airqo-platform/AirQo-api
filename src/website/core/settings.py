@@ -163,13 +163,51 @@ if DATABASE_URL:
             ssl_require=True
         )
     }
+    # Add PostgreSQL-specific connection options
+    if 'postgresql' in DATABASE_URL:
+        DATABASES['default']['OPTIONS'] = {
+            'sslmode': 'require',
+        }
+    elif 'mysql' in DATABASE_URL:
+        DATABASES['default']['OPTIONS'] = {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+            'autocommit': True,
+        }
 else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 600,
+            }
         }
     }
+
+# ---------------------------------------------------------
+# Cache Configuration
+# ---------------------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'airqo-website-cache',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Cache time for different types of data
+CACHE_TTL = {
+    'default': 300,      # 5 minutes
+    'static_content': 3600,  # 1 hour for relatively static content
+    'dynamic_content': 60,   # 1 minute for dynamic content
+    'list_views': 300,       # 5 minutes for list views
+    'detail_views': 600,     # 10 minutes for detail views
+}
 
 # ---------------------------------------------------------
 # Password Validation
@@ -224,6 +262,14 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/day',
+        'user': '5000/day'
+    }
 }
 
 # ---------------------------------------------------------

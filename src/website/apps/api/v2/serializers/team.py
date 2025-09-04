@@ -12,6 +12,7 @@ class MemberBiographySerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberBiography
         fields = ['id', 'description', 'order', 'member']
+        ref_name = 'MemberBiographySerializerV2'
 
 
 class MemberListSerializer(serializers.ModelSerializer):
@@ -60,6 +61,7 @@ class MemberBiographyListSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberBiography
         fields = ['id', 'description', 'order', 'member', 'member_name']
+        ref_name = 'MemberBiographyListSerializerV2'
 
 
 class MemberBiographyDetailSerializer(serializers.ModelSerializer):
@@ -68,3 +70,4 @@ class MemberBiographyDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberBiography
         fields = '__all__'
+        ref_name = 'MemberBiographyDetailSerializerV2'

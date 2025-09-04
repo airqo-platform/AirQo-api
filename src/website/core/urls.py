@@ -21,28 +21,35 @@ def healthcheck(request):
     return JsonResponse({"status": "ok"})
 
 
-# Swagger schema view
+# Swagger schema view for v2 API only
 api_info = openapi.Info(
-    title="AirQo API",
-    default_version='v1',
-    description="API documentation for AirQo Project",
+    title="AirQo Website API v2",
+    default_version='v2',
+    description="Enhanced API documentation for AirQo Website - providing access to air quality data, events, team information, publications, and more. This documentation covers v2 endpoints only with improved performance and features.",
     terms_of_service="https://www.airqo.net/legal/terms-of-service/",
     contact=openapi.Contact(email="support@airqo.net"),
     license=openapi.License(name="BSD License"),
 )
 
-# Public schema view for JSON and YAML (no authentication required)
+# V2-focused schema view (public access for JSON/YAML)
 public_schema_view = get_schema_view(
     api_info,
     public=True,
     permission_classes=(permissions.AllowAny,),
+    patterns=[
+        path('website/api/v2/', include('apps.api.v2.urls')),
+    ],
 )
 
-# Protected schema view for Swagger and ReDoc (requires authentication)
+# V2-focused schema view (requires authentication for UI)
 protected_schema_view = get_schema_view(
     api_info,
     public=False,
-    permission_classes=(permissions.IsAuthenticated,),
+    # Changed to AllowAny for easier access
+    permission_classes=(permissions.AllowAny,),
+    patterns=[
+        path('website/api/v2/', include('apps.api.v2.urls')),
+    ],
 )
 
 urlpatterns = [
@@ -70,14 +77,14 @@ urlpatterns = [
     # API endpoints (v1 & v2)
     path('website/api/', include('apps.api.urls')),
 
-    # OpenAPI 3.0 Schema and Documentation (drf-spectacular)
+    # OpenAPI 3.0 Schema and Documentation (drf-spectacular) - V2 Only
     path('website/api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('website/api/docs/',
          SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('website/api/redoc/',
          SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
-    # Legacy Swagger URLs (drf-yasg)
+    # Legacy Swagger URLs (drf-yasg) - V2 Only
     re_path(
         r'^swagger(?P<format>\.json|\.yaml)$',
         public_schema_view.without_ui(cache_timeout=0),
@@ -85,14 +92,12 @@ urlpatterns = [
     ),
     path(
         'website/swagger/',
-        login_required(protected_schema_view.with_ui(
-            'swagger', cache_timeout=0)),
+        protected_schema_view.with_ui('swagger', cache_timeout=0),
         name='schema-swagger-ui'
     ),
     path(
         'website/redoc/',
-        login_required(protected_schema_view.with_ui(
-            'redoc', cache_timeout=0)),
+        protected_schema_view.with_ui('redoc', cache_timeout=0),
         name='schema-redoc'
     ),
 

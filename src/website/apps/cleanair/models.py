@@ -42,8 +42,10 @@ class CleanAirResource(BaseModel):
     resource_authors = models.CharField(max_length=200, default="AirQo")
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
+        verbose_name = "Clean Air Resource"
+        verbose_name_plural = "Clean Air Resources"
 
     def __str__(self):
         return self.resource_title
@@ -97,8 +99,10 @@ class ForumEvent(BaseModel):
     location_link = models.URLField(blank=True)
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
+        verbose_name = "Forum Event"
+        verbose_name_plural = "Clean Air Forum Events"
 
     def __str__(self):
         return self.title
@@ -240,7 +244,7 @@ class Objective(BaseModel):
     )
     order = models.PositiveIntegerField(default=0, blank=False, null=False)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -277,14 +281,18 @@ class Partner(BaseModel):
         on_delete=models.SET_NULL
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
         # If no specific events are selected, interpret that as "All Events"
+        # Use getattr to access the Django-generated helper method safely for
+        # static type checkers. Fall back to the raw category value if the
+        # helper isn't available in this analysis environment.
+        category_display = getattr(self, 'get_category_display', lambda: self.category)()
         if self.forum_events.count() == 0:
-            return f"All Events - {self.get_category_display()} - {self.name}"
-        return f"{self.get_category_display()} - {self.name}"
+            return f"All Events - {category_display} - {self.name}"
+        return f"{category_display} - {self.name}"
 
 
 class Program(BaseModel):
@@ -299,7 +307,7 @@ class Program(BaseModel):
         'auth.User', related_name='cleanair_program_authored_by', null=True, blank=True, on_delete=models.SET_NULL
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -319,7 +327,7 @@ class Session(BaseModel):
         'auth.User', related_name='cleanair_session_authored_by', null=True, blank=True, on_delete=models.SET_NULL
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -336,7 +344,7 @@ class Support(BaseModel):
         ForumEvent, null=True, blank=True, related_name="supports", on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -374,7 +382,7 @@ class Person(BaseModel):
         related_name="persons"
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', 'name']
 
     def __str__(self):
@@ -402,7 +410,7 @@ class ForumResource(BaseModel):
         'ForumEvent', null=True, blank=True, related_name="forum_resources", on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
 
     def __str__(self):
@@ -412,11 +420,11 @@ class ForumResource(BaseModel):
 class ResourceSession(BaseModel):
     session_title = models.CharField(max_length=120)
     forum_resource = models.ForeignKey(
-        'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE, default=1
+    'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE
     )
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
 
     def __str__(self):
@@ -433,11 +441,11 @@ class ResourceFile(BaseModel):
         blank=True
     )
     session = models.ForeignKey(
-        'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True, default=1
+    'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True
     )
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
 
     def __str__(self):

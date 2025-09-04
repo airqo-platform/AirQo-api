@@ -102,6 +102,7 @@ class ForumEventListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSe
 
     class Meta:
         model = ForumEvent
+        ref_name = 'ForumEventListSerializerV2'
         fields = [
             'id',
             'title',
@@ -149,6 +150,7 @@ class ForumEventDetailSerializer(DynamicFieldsSerializerMixin, serializers.Model
 
     class Meta:
         model = ForumEvent
+        ref_name = 'ForumEventDetailSerializerV2'
         fields = [
             'id',
             'title',
