@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 
 # Swagger/OpenAPI Imports
 from rest_framework import permissions
+from rest_framework.permissions import IsAuthenticated
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
@@ -45,8 +46,8 @@ public_schema_view = get_schema_view(
 protected_schema_view = get_schema_view(
     api_info,
     public=False,
-    # Changed to AllowAny for easier access
-    permission_classes=(permissions.AllowAny,),
+    # Require authentication for the protected UI views
+    permission_classes=(IsAuthenticated,),
     patterns=[
         path('website/api/v2/', include('apps.api.v2.urls')),
     ],

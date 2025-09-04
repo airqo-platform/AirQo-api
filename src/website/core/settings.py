@@ -284,7 +284,7 @@ SPECTACULAR_SETTINGS = {
     'SCHEMA_PATH_PREFIX': r'/website/api/v[0-9]',
     'SERVERS': [
         {'url': 'http://127.0.0.1:8000', 'description': 'Development server'},
-        {'url': 'https://website-api.airqo.net',
+        {'url': 'https://platform.airqo.net',
             'description': 'Production server'},
     ],
     'TAGS': [
