@@ -84,7 +84,9 @@ class AbstractTokenFactory {
   async decodeToken(token) {
     try {
       const cleanToken = token.replace("JWT ", "");
-      const decoded = jwt.verify(cleanToken, constants.JWT_SECRET);
+      const decoded = jwt.verify(cleanToken, constants.JWT_SECRET, {
+        algorithms: ["HS256"],
+      });
 
       const strategy = this.detectTokenStrategy(decoded);
       const tokenStrategy = this.strategies.get(strategy);
@@ -155,11 +157,11 @@ class LegacyTokenStrategy extends TokenStrategy {
       const rbacService = new RBACService(tenant);
 
       const permissions = await rbacService.getUserPermissions(user._id);
-      const roles = [user.userType, user.privilege];
+      const roles = [user.userType, user.privilege].filter(Boolean);
 
-      if (user.group_roles && user.group_roles.length > 0) {
+      if (Array.isArray(user.group_roles) && user.group_roles.length > 0) {
         user.group_roles.forEach((groupRole) => {
-          if (groupRole.role && groupRole.role.role_name) {
+          if (groupRole?.role?.role_name) {
             roles.push(groupRole.role.role_name);
           }
         });
@@ -168,7 +170,7 @@ class LegacyTokenStrategy extends TokenStrategy {
       const tokenPayload = {
         _id: user._id,
         username: user.userName,
-        roles: [...new Set(roles)],
+        roles: [...new Set(roles.filter(Boolean))],
         permissions: permissions,
         firstName: user.firstName,
         lastName: user.lastName,
@@ -184,7 +186,10 @@ class LegacyTokenStrategy extends TokenStrategy {
         ...options.jwtOptions,
       };
 
-      return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtOptions);
+      return jwt.sign(tokenPayload, constants.JWT_SECRET, {
+        algorithm: "HS256",
+        ...jwtOptions,
+      });
     } catch (error) {
       logger.error(`Error generating legacy token: ${error.message}`);
       throw error;
@@ -237,7 +242,10 @@ class StandardTokenStrategy extends TokenStrategy {
         ...options.jwtOptions,
       };
 
-      return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtOptions);
+      return jwt.sign(tokenPayload, constants.JWT_SECRET, {
+        algorithm: "HS256",
+        ...jwtOptions,
+      });
     } catch (error) {
       logger.error(`Error generating standard token: ${error.message}`);
       throw error;
@@ -691,7 +699,11 @@ class OptimizedBitFlagsTokenStrategy extends TokenStrategy {
 
   decodePermissions(flagsString) {
     if (!flagsString) return [];
-    const flags = BigInt("0x" + parseInt(flagsString, 36).toString(16));
+    let flags = 0n;
+    for (const ch of flagsString.toLowerCase()) {
+      const digit = BigInt(parseInt(ch, 36));
+      flags = flags * 36n + digit;
+    }
     const permissions = [];
     Object.entries(this.permissionBits).forEach(([permission, bit]) => {
       if ((flags & bit) === bit) {
