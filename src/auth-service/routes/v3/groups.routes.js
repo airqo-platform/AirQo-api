@@ -41,6 +41,7 @@ if (process.env.NODE_ENV !== "production") {
 router.post(
   "/populate-slugs",
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.GROUP_MANAGEMENT]),
   groupValidations.populateSlugs,
   groupController.populateSlugs
 );

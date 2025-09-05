@@ -3,9 +3,19 @@ const httpStatus = require("http-status");
 const { HttpError } = require("@utils/shared");
 const log4js = require("log4js");
 const constants = require("@config/constants");
-const EnhancedRBACService = require("@services/rbac.service");
+const RBACService = require("@services/rbac.service");
 
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- permission-auth`);
+
+/**
+ * Normalizes permission strings for consistent comparison.
+ */
+function normalizePerms(perms) {
+  const arr = Array.isArray(perms) ? perms : [perms];
+  return arr.map((p) =>
+    (typeof p === "string" ? p : String(p)).replace(/:/g, "_").toUpperCase()
+  );
+}
 
 /**
  * Check if user has required permissions (global across all groups/networks)
@@ -25,26 +35,14 @@ const requirePermissions = (requiredPermissions, options = {}) => {
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
-
-      const requiredPerms = Array.isArray(requiredPermissions)
-        ? requiredPermissions
-        : [requiredPermissions];
-
-      // Normalize permissions for consistent comparison
-      const normalizedRequiredPerms = requiredPerms.map((perm) => {
-        if (perm.includes(":")) {
-          return perm.replace(":", "_").toUpperCase();
-        }
-        return perm.toUpperCase();
-      });
+      const rbacService = getRBACService(tenant);
+      const normalizedRequiredPerms = normalizePerms(requiredPermissions);
 
       const hasPermission = await rbacService.hasPermission(
         user._id,
         normalizedRequiredPerms,
         requireAll
       );
-
       if (!hasPermission) {
         const userPermissions = await rbacService.getUserPermissions(user._id);
 
@@ -129,7 +127,7 @@ const requireGroupPermissions = (
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       // Check if user is a member of the group first
       const isGroupMember = await rbacService.isGroupMember(user._id, groupId);
@@ -145,13 +143,11 @@ const requireGroupPermissions = (
         );
       }
 
-      const requiredPerms = Array.isArray(requiredPermissions)
-        ? requiredPermissions
-        : [requiredPermissions];
+      const normalizedRequiredPerms = normalizePerms(requiredPermissions);
 
       const hasPermission = await rbacService.hasPermission(
         user._id,
-        requiredPerms,
+        normalizedRequiredPerms,
         requireAll,
         groupId,
         "group"
@@ -167,7 +163,7 @@ const requireGroupPermissions = (
         logger.warn(
           `Group permission denied for user ${user.email} (ID: ${
             user._id
-          }) in group ${groupId}: Required ${requiredPerms.join(
+          }) in group ${groupId}: Required ${normalizedRequiredPerms.join(
             requireAll ? " AND " : " OR "
           )}, but user has ${userPermissions.join(", ") || "none"}`
         );
@@ -178,7 +174,7 @@ const requireGroupPermissions = (
             httpStatus.FORBIDDEN,
             {
               message: "You don't have the required permissions in this group",
-              required: requiredPerms,
+              required: normalizedRequiredPerms,
               userPermissions: userPermissions,
               groupId: groupId,
               requiresAll: requireAll,
@@ -243,7 +239,7 @@ const requireNetworkPermissions = (
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       // Check if user is a member of the network first
       const isNetworkMember = await rbacService.isNetworkMember(
@@ -262,13 +258,11 @@ const requireNetworkPermissions = (
         );
       }
 
-      const requiredPerms = Array.isArray(requiredPermissions)
-        ? requiredPermissions
-        : [requiredPermissions];
+      const normalizedRequiredPerms = normalizePerms(requiredPermissions);
 
       const hasPermission = await rbacService.hasPermission(
         user._id,
-        requiredPerms,
+        normalizedRequiredPerms,
         requireAll,
         networkId,
         "network"
@@ -284,7 +278,7 @@ const requireNetworkPermissions = (
         logger.warn(
           `Network permission denied for user ${user.email} (ID: ${
             user._id
-          }) in network ${networkId}: Required ${requiredPerms.join(
+          }) in network ${networkId}: Required ${normalizedRequiredPerms.join(
             requireAll ? " AND " : " OR "
           )}, but user has ${userPermissions.join(", ") || "none"}`
         );
@@ -296,7 +290,7 @@ const requireNetworkPermissions = (
             {
               message:
                 "You don't have the required permissions in this network",
-              required: requiredPerms,
+              required: normalizedRequiredPerms,
               userPermissions: userPermissions,
               networkId: networkId,
               requiresAll: requireAll,
@@ -348,7 +342,7 @@ const requireRoles = (
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       // If contextId is a parameter name, get it from req.params
       let actualContextId = contextId;
@@ -420,7 +414,7 @@ const requireGroupMembership = (groupIdParam = "grp_id") => {
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       const isGroupMember = await rbacService.isGroupMember(user._id, groupId);
       const isSuperAdmin = await rbacService.hasRole(user._id, [
@@ -466,7 +460,7 @@ const requireGroupManager = (groupIdParam = "grp_id") => {
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       const isGroupManager = await rbacService.isGroupManager(
         user._id,
@@ -515,7 +509,7 @@ const requireNetworkMembership = (networkIdParam = "network_id") => {
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       const isNetworkMember = await rbacService.isNetworkMember(
         user._id,
@@ -564,7 +558,7 @@ const requireNetworkManager = (networkIdParam = "network_id") => {
         );
       }
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       const isNetworkManager = await rbacService.isNetworkManager(
         user._id,
@@ -620,7 +614,7 @@ const requireResourceOwnership = (resourceFetcher, ownerExtractor) => {
 
       const ownerId = ownerExtractor(resource);
 
-      const rbacService = new EnhancedRBACService(tenant);
+      const rbacService = getRBACService(tenant);
       const isSuperAdmin = await rbacService.hasRole(user._id, [
         "SUPER_ADMIN",
         "super_admin",
@@ -661,7 +655,7 @@ const debugPermissions = () => {
       const user = req.user;
       if (user && user._id) {
         const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-        const rbacService = new EnhancedRBACService(tenant);
+        const rbacService = getRBACService(tenant);
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
         logger.info(`[DEBUG] User permissions for ${user.email}:`, debugInfo);
@@ -679,7 +673,10 @@ const debugPermissions = () => {
             "X-User-Network-Roles",
             JSON.stringify(debugInfo.networkMemberships)
           );
-          res.set("X-Token-Strategy", req.tokenStrategy);
+          res.set(
+            "X-Token-Strategy",
+            (req.user && req.user._tokenStrategy) || "unknown"
+          );
         }
       }
 
@@ -692,10 +689,22 @@ const debugPermissions = () => {
 };
 
 /**
- * Get Enhanced RBAC service instance
+ * Get RBAC service instance, with per-tenant pooling to avoid timer leaks.
  */
-const getEnhancedRBACService = (tenant = constants.DEFAULT_TENANT) => {
-  return new EnhancedRBACService(tenant);
+const __rbacInstances = new Map();
+const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
+  if (!__rbacInstances.has(tenant)) {
+    const inst = new RBACService(tenant);
+    // Unref the timer so it doesn't hold the event loop open
+    if (
+      inst.cleanupInterval &&
+      typeof inst.cleanupInterval.unref === "function"
+    ) {
+      inst.cleanupInterval.unref();
+    }
+    __rbacInstances.set(tenant, inst);
+  }
+  return __rbacInstances.get(tenant);
 };
 
 module.exports = {
@@ -717,5 +726,7 @@ module.exports = {
 
   // Utility middleware
   debugPermissions,
-  getEnhancedRBACService,
+  getRBACService,
+  // Alias for backward compatibility
+  getEnhancedRBACService: getRBACService,
 };
