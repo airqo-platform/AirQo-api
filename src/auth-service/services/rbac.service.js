@@ -15,6 +15,12 @@ class RBACService {
     this.cleanupInterval = setInterval(() => {
       this.cleanExpiredCache();
     }, 5 * 60 * 1000);
+    if (
+      this.cleanupInterval &&
+      typeof this.cleanupInterval.unref === "function"
+    ) {
+      this.cleanupInterval.unref();
+    }
   }
 
   destroy() {
@@ -532,17 +538,15 @@ class RBACService {
         }
 
         // Check role name
-        if (
-          gr.role &&
-          gr.role.role_name &&
-          typeof gr.role.role_name === "string" &&
-          gr.role.role_name.toLowerCase().includes("super")
-        ) {
-          console.log(
-            "✅ Enhanced RBAC: Super admin via group role name:",
-            gr.role.role_name
-          );
-          return true;
+        if (gr.role && typeof gr.role.role_name === "string") {
+          const rn = gr.role.role_name.trim().toUpperCase();
+          if (rn === "SUPER_ADMIN") {
+            console.log(
+              "✅ Enhanced RBAC: Super admin via group role name:",
+              gr.role.role_name
+            );
+            return true;
+          }
         }
 
         return false;
@@ -599,7 +603,9 @@ class RBACService {
         constants.PROFILE_UPDATE,
         constants.DATA_VIEW,
       ],
-      admin: this.getAllSuperAdminPermissions(),
+      admin: constants.DEFAULTS.DEFAULT_ADMIN
+        ? constants.DEFAULTS.DEFAULT_ADMIN
+        : this.getAllSuperAdminPermissions(),
       super_admin: this.getAllSuperAdminPermissions(),
       moderator: [
         constants.DASHBOARD_VIEW,
@@ -662,19 +668,19 @@ class RBACService {
         userPermissions = await this.getUserPermissions(userId);
       }
 
-      const permissions = Array.isArray(requiredPermissions)
-        ? requiredPermissions
-        : [requiredPermissions];
-
-      if (requireAll) {
-        return permissions.every((permission) =>
-          userPermissions.includes(permission)
-        );
-      } else {
-        return permissions.some((permission) =>
-          userPermissions.includes(permission)
-        );
-      }
+      const toKey = (p) =>
+        (typeof p === "string" ? p : String(p))
+          .replace(/:/g, "_")
+          .toUpperCase();
+      const needed = (
+        Array.isArray(requiredPermissions)
+          ? requiredPermissions
+          : [requiredPermissions]
+      ).map(toKey);
+      const userSet = new Set((userPermissions || []).map(toKey));
+      return requireAll
+        ? needed.every((p) => userSet.has(p))
+        : needed.some((p) => userSet.has(p));
     } catch (error) {
       logger.error(`Error checking user permission: ${error.message}`);
       return false;
@@ -950,16 +956,11 @@ class RBACService {
         : [requiredRoles];
 
       return roles.some((role) => {
-        const normalizedRole = role.toUpperCase();
-        return userRoles.some((userRole) => {
-          if (!userRole) return false;
-          const normalizedUserRole = userRole.toUpperCase();
-          return (
-            normalizedUserRole === normalizedRole ||
-            normalizedUserRole.includes(normalizedRole) ||
-            normalizedRole.includes(normalizedUserRole)
-          );
-        });
+        const normalizedRole = String(role).trim().toUpperCase();
+        return userRoles.some(
+          (userRole) =>
+            userRole && String(userRole).trim().toUpperCase() === normalizedRole
+        );
       });
     } catch (error) {
       logger.error(`Error checking user role: ${error.message}`);
