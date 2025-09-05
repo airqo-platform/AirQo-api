@@ -3994,21 +3994,14 @@ const rolePermissionUtil = {
         );
       }
 
-      // Enhanced userType handling
-      const validUserTypes = [
-        "guest",
-        "member",
-        "admin",
-        "super_admin",
-        "viewer",
-      ];
+      const VALID_USER_TYPES = constants.VALID_USER_TYPES;
       let assignedUserType = userType || "guest";
 
       // Validate userType if provided
-      if (userType && !validUserTypes.includes(userType)) {
+      if (userType && !VALID_USER_TYPES.includes(userType)) {
         return next(
           new HttpError("Invalid User Type", httpStatus.BAD_REQUEST, {
-            message: `Invalid userType: ${userType}. Valid values are: ${validUserTypes.join(
+            message: `Invalid userType: ${userType}. Valid values are: ${VALID_USER_TYPES.join(
               ", "
             )}`,
           })
@@ -4047,7 +4040,7 @@ const rolePermissionUtil = {
           updateQuery,
           {
             new: true,
-            runValidators: false, // Temporarily disable validators to avoid enum issues
+            runValidators: true,
           }
         );
       } catch (updateError) {

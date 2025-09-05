@@ -13,16 +13,6 @@ const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- user-model`
 );
-const validUserTypes = [
-  "user",
-  "guest",
-  "member",
-  "admin",
-  "super_admin",
-  "viewer",
-  "contributor",
-  "moderator",
-];
 const { mailer, stringify } = require("@utils/common");
 const ORGANISATIONS_LIMIT = 6;
 const { logObject, logText, logElement, HttpError } = require("@utils/shared");
@@ -418,12 +408,14 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
+const VALID_USER_TYPES = constants.VALID_USER_TYPES;
+
 UserSchema.path("network_roles.userType").validate(function (value) {
-  return validUserTypes.includes(value);
+  return VALID_USER_TYPES.includes(value);
 }, "Invalid userType value");
 
 UserSchema.path("group_roles.userType").validate(function (value) {
-  return validUserTypes.includes(value);
+  return VALID_USER_TYPES.includes(value);
 }, "Invalid userType value");
 
 UserSchema.pre("save", async function (next) {
