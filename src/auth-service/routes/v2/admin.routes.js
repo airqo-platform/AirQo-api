@@ -16,6 +16,7 @@ router.post(
   "/super-admin",
   adminValidations.setupSuperAdmin,
   enhancedJWTAuth,
+  requirePermissions([constants.SUPER_ADMIN, constants.SYSTEM_ADMIN]),
   createAdminController.setupSuperAdmin
 );
 
@@ -23,6 +24,7 @@ router.post(
   "/super-admin/enhanced",
   adminValidations.enhancedSetupSuperAdmin,
   enhancedJWTAuth,
+  requirePermissions([constants.SUPER_ADMIN, constants.SYSTEM_ADMIN]),
   createAdminController.enhancedSetupSuperAdmin
 );
 
@@ -55,6 +57,7 @@ router.get(
   "/system-diagnostics",
   adminValidations.getSystemDiagnostics,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.getSystemDiagnostics
 );
 
@@ -63,6 +66,7 @@ router.post(
   adminValidations.bulkAdminOperations,
   adminValidations.batchOperationValidation,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.bulkAdminOperations
 );
 
@@ -71,6 +75,7 @@ router.get(
   adminValidations.auditValidation,
   adminValidations.userSearchValidation,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditUsers
 );
 
@@ -78,6 +83,7 @@ router.get(
   "/audit/roles",
   adminValidations.auditValidation,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditRoles
 );
 
@@ -85,6 +91,7 @@ router.get(
   "/audit/permissions",
   adminValidations.auditValidation,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditPermissions
 );
 
@@ -92,6 +99,7 @@ router.post(
   "/maintenance/cache-clear",
   adminValidations.cacheManagement,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.clearCache
 );
 
@@ -100,14 +108,15 @@ router.post(
   adminValidations.databaseCleanup,
   adminValidations.validateProductionSafety,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.DATABASE_ADMIN]),
   createAdminController.databaseCleanup
 );
 
 router.post(
   "/maintenance/db/drop-index",
-  // Validation for collectionName, indexName, and secret is handled within the utility
   enhancedJWTAuth,
   requirePermissions([constants.DATABASE_ADMIN]),
+  adminValidations.validateProductionSafety,
   createAdminController.dropIndex
 );
 
@@ -115,6 +124,7 @@ router.get(
   "/migration/deprecated-fields-status",
   adminValidations.auditValidation,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.getDeprecatedFieldsStatus
 );
 
@@ -124,12 +134,14 @@ router.post(
   adminValidations.validateProductionSafety,
   adminValidations.batchOperationValidation,
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.migrateDeprecatedFields
 );
 
 router.get(
   "/config/current",
   enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.getCurrentConfig
 );
 
