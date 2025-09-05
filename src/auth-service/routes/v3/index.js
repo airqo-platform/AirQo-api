@@ -157,7 +157,10 @@ router.get("/health", (req, res) => {
       total: totalRoutes,
       loaded: loadedCount,
       failed: failedCount,
-      successRate: `${Math.round((loadedCount / totalRoutes) * 100)}%`,
+      successRate:
+        totalRoutes > 0
+          ? `${Math.round((loadedCount / totalRoutes) * 100)}%`
+          : "N/A",
     },
     loadedRoutes: routeStatus.loaded.map((route) => ({
       name: route.name,
@@ -178,7 +181,7 @@ router.get("/health", (req, res) => {
     environment: process.env.NODE_ENV || "development",
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    mountPoint: "/api/v3",
+    mountPoint: req.baseUrl || "/api/v3/users",
   });
 });
 
@@ -187,7 +190,7 @@ router.get("/routes", (req, res) => {
   res.json({
     service: "auth-service",
     timestamp: new Date().toISOString(),
-    mountPoint: "/api/v3",
+    mountPoint: req.baseUrl || "/api/v3/users",
     routes: authRoutes.map(({ path, route, name, description }) => {
       const isLoaded = routeStatus.loaded.some((r) => r.name === name);
       const isFailed = routeStatus.failed.some((r) => r.name === name);
@@ -198,7 +201,9 @@ router.get("/routes", (req, res) => {
         module: route,
         description,
         status: isLoaded ? "loaded" : isFailed ? "failed" : "unknown",
-        fullEndpoint: `/api/v3${path === "/" ? "" : path}`,
+        fullEndpoint: `${req.baseUrl || "/api/v3/users"}${
+          path === "/" ? "" : path
+        }`,
         category: getCategoryForRoute(name),
       };
     }),
