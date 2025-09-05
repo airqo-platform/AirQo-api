@@ -127,10 +127,7 @@ require("@bin/jobs/token-expiration-job");
 require("@bin/jobs/incomplete-profile-job");
 require("@bin/jobs/preferences-log-job");
 require("@bin/jobs/preferences-update-job");
-// require("@bin/jobs/update-user-activities-job");
 require("@bin/jobs/profile-picture-update-job");
-const { startRoleInitJob } = require("@bin/jobs/role-init-job");
-startRoleInitJob();
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
@@ -270,24 +267,29 @@ app.use((req, res, next) => {
 });
 
 app.use(function (err, req, res, next) {
+  const status = err.status || err.statusCode || 500;
   // Log server errors as activities for authenticated users
-  if (err.status >= 500 && req.user) {
+  if (status >= 500 && req.user) {
     try {
       const { logActivity } = require("@utils/common");
-      logActivity({
-        email: req.user.email || "system",
-        userName: req.user.userName || "system",
-        tenant: req.query.tenant || req.headers.tenant || "airqo",
-        user_id: req.user._id,
-        action: "server_error",
-        description: `Server error: ${err.message}`,
-        payload: {
-          stack: err.stack,
-          endpoint: req.originalUrl,
-          method: req.method,
-          statusCode: err.status,
-        },
-      });
+      Promise.resolve(
+        logActivity({
+          email: req.user.email || "system",
+          userName: req.user.userName || "system",
+          tenant: req.query.tenant || req.headers.tenant || "airqo",
+          user_id: req.user._id,
+          action: "server_error",
+          description: `Server error: ${err.message}`,
+          payload: {
+            stack: err.stack,
+            endpoint: req.originalUrl,
+            method: req.method,
+            statusCode: status,
+          },
+        })
+      ).catch((e) =>
+        logger.error(`Failed to log server error activity: ${e.message}`)
+      );
     } catch (logError) {
       logger.error(`Failed to log server error activity: ${logError.message}`);
     }

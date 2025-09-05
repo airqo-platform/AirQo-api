@@ -1433,9 +1433,9 @@ function authJWT(req, res, next) {
 
 const enhancedJWTAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("JWT ")) {
+    const authHeader = req.headers.authorization || "";
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
           message: "No valid authorization token provided",
@@ -1443,18 +1443,19 @@ const enhancedJWTAuth = async (req, res, next) => {
       );
     }
 
-    const token = authHeader.replace("JWT ", "");
-    const tenant =
+    const token = match[2].trim();
+    const tenantRaw =
       req.query.tenant ||
       req.body.tenant ||
       constants.DEFAULT_TENANT ||
       "airqo";
+    const tenant = String(tenantRaw).toLowerCase();
 
     const tokenFactory = new AbstractTokenFactory(tenant);
     const decodedUser = await tokenFactory.decodeToken(token);
 
     const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
-    const user = await UserModel(tenant).findById(userId);
+    const user = await UserModel(tenant).findById(userId).lean();
 
     if (!user) {
       return next(
@@ -1464,10 +1465,10 @@ const enhancedJWTAuth = async (req, res, next) => {
       );
     }
 
-    // Attach comprehensive user object to request
+    // Attach DB-backed user and token claims separately to avoid shadowing DB values
     req.user = {
-      ...user.toObject(),
-      ...decodedUser, // This will add permissions, roles, etc. from the token
+      ...user,
+      ...decodedUser,
     };
 
     next();
