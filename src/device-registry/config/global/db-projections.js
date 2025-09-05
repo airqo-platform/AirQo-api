@@ -194,11 +194,7 @@ class ProjectionFactory {
           latest_deployment_activity: "$latest_deployment_activity",
           latest_maintenance_activity: "$latest_maintenance_activity",
           total_activities: {
-            $cond: {
-              if: { $isArray: "$activities" },
-              then: { $size: "$activities" },
-              else: 0,
-            },
+            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
         },
         exclusion: {
@@ -316,11 +312,7 @@ class ProjectionFactory {
             $arrayElemAt: ["$latest_maintenance_activity", 0],
           },
           total_activities: {
-            $cond: {
-              if: { $isArray: "$activities" },
-              then: { $size: "$activities" },
-              else: 0,
-            },
+            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
         },
         exclusion: {
