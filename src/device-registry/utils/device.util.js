@@ -52,113 +52,16 @@ const deviceUtil = {
       const { id } = req.params;
       const { tenant } = req.query;
 
-      // Enhanced device retrieval with activities
-      const device = await DeviceModel(tenant.toLowerCase()).aggregate([
-        { $match: { _id: new ObjectId(id) } },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$device", "$$deviceName"] },
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 10 },
-            ],
-            as: "activities",
-          },
-        },
-        {
-          $lookup: {
-            from: "activities",
-            let: { deviceName: "$name" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$device", "$$deviceName"] },
-                      { $eq: ["$activityType", "deployment"] },
-                    ],
-                  },
-                },
-              },
-              { $sort: { createdAt: -1 } },
-              { $limit: 1 },
-            ],
-            as: "latest_deployment_activity",
-          },
-        },
-        {
-          $lookup: {
-            from: "sites",
-            localField: "site_id",
-            foreignField: "_id",
-            as: "site",
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            long_name: 1,
-            device_number: 1,
-            serial_number: 1,
-            network: 1,
-            category: 1,
-            deployment_type: 1,
-            mobility: 1,
-            isActive: 1,
-            status: 1,
-            claim_status: 1,
-            owner_id: 1,
-            latitude: 1,
-            longitude: 1,
-            mountType: 1,
-            powerType: 1,
-            height: 1,
-            elevation: 1,
-            groups: 1,
-            description: 1,
-            createdAt: 1,
-            lastActive: 1,
-            isOnline: 1,
-            site: { $arrayElemAt: ["$site", 0] },
-            activities: {
-              $map: {
-                input: "$activities",
-                as: "activity",
-                in: {
-                  _id: "$$activity._id",
-                  activityType: "$$activity.activityType",
-                  date: "$$activity.date",
-                  description: "$$activity.description",
-                  maintenanceType: "$$activity.maintenanceType",
-                  recallType: "$$activity.recallType",
-                  nextMaintenance: "$$activity.nextMaintenance",
-                  createdAt: "$$activity.createdAt",
-                  tags: "$$activity.tags",
-                },
-              },
-            },
-            latest_deployment: {
-              $arrayElemAt: ["$latest_deployment_activity", 0],
-            },
-          },
-        },
-      ]);
+      const device = await DeviceModel(tenant.toLowerCase()).findById(id);
 
-      if (!device || device.length === 0) {
+      if (!device) {
         throw new HttpError("Device not found", httpStatus.NOT_FOUND);
       }
 
       return {
         success: true,
         message: "Device details fetched successfully",
-        data: device[0],
+        data: device,
         status: httpStatus.OK,
       };
     } catch (error) {
