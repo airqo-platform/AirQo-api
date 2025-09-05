@@ -5,6 +5,7 @@ const {
   extractErrorsFromRequest,
   logObject,
   logText,
+  stringify,
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const tokenUtil = require("@utils/token.util");
@@ -31,13 +32,14 @@ const handleRequest = (req, next) => {
 };
 
 const handleError = (error, next) => {
-  logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
+  logger.error(`🐛🐛 Internal Server Error`, error?.stack || error);
   if (error instanceof HttpError) {
     return next(error);
   }
+  const expose = process.env.NODE_ENV !== "production";
   next(
     new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
-      message: error.message,
+      message: expose ? error.message : "An unexpected error occurred",
     })
   );
 };
@@ -140,9 +142,8 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
       const userDetails = await req.user.toAuthJSON();
-      logger.info(`userDetails -- ${JSON.stringify(userDetails)}`);
       const token = userDetails.token;
-      logger.info(`the user token after login with Google is : ${token}`);
+      logger.info("Google login succeeded for user", { userId: req.user._id });
 
       // Update user fields
       const currentDate = new Date();
