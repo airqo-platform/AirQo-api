@@ -4733,12 +4733,8 @@ const createUserModule = {
    */
   ensureDefaultAirqoRole: async (user, tenant) => {
     try {
-      const GroupModel = require("@models/Group");
-      const RoleModel = require("@models/Role");
-      const UserModel = require("@models/User");
-
       const airqoGroup = await GroupModel(tenant)
-        .findOne({ grp_title: "airqo" })
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
         .lean();
       if (!airqoGroup) {
         logger.warn(
@@ -4757,8 +4753,13 @@ const createUserModule = {
         return;
       }
 
-      const userHasDefaultRole = user.group_roles.some(
-        (gr) => gr.role && gr.role.toString() === defaultRole._id.toString()
+      const roles = Array.isArray(user.group_roles) ? user.group_roles : [];
+      const userHasDefaultRole = roles.some(
+        (gr) =>
+          gr.role &&
+          gr.group &&
+          gr.role.toString() === defaultRole._id.toString() &&
+          gr.group.toString() === airqoGroup._id.toString()
       );
 
       if (!userHasDefaultRole) {
