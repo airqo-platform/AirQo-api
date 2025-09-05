@@ -9,7 +9,7 @@ from dag_docs import (
     extract_store_devices_data_in_temp_store,
     extract_store_sites_data_in_temp_store,
 )
-from airqo_etl_utils.constants import MetaDataType
+from airqo_etl_utils.constants import MetaDataType, DeviceNetwork
 from airqo_etl_utils.config import configuration as Config
 from airqo_etl_utils.commons import upload_dataframe_to_gcs
 
@@ -185,11 +185,11 @@ def meta_data_update_microservice_sites_meta_data():
 
     @task()
     def refresh_airqlouds() -> None:
-        MetaDataUtils.refresh_airqlouds()
+        MetaDataUtils.refresh_airqlouds(DeviceNetwork.AIRQO)
 
     @task()
     def refresh_grids() -> None:
-        MetaDataUtils.refresh_grids()
+        MetaDataUtils.refresh_grids(DeviceNetwork.AIRQO)
 
     update_nearest_weather_stations()
     update_distance_measures()
