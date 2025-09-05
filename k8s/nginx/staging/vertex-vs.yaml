@@ -191,12 +191,14 @@ spec:
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json 
-    - path: ~ /api\/v[1-2]\/beacon
+                value: application/json
+    - path: ~ ^/api\/v[1-2]\/beacon(?:/(.*))?$
       action:
         proxy:
           upstream: beacon
+          rewritePath: /$1
           responseHeaders:
             add:
               - name: Content-Type
-                value: application/json                 
+                value: application/json
+              

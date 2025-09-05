@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.deps import get_db, CommonQueryParams
 from app.models import Site, SiteRead, SiteCreate, SiteUpdate, Device, DeviceReading
 from app.crud import site as site_crud
-from app.configs.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,43 +16,38 @@ router = APIRouter()
 async def get_site_count(
     *,
     db: Session = Depends(get_db),
-    region: Optional[str] = None,
+    city: Optional[str] = None,
     district: Optional[str] = None,
-    status: Optional[str] = None
+    site_category: Optional[str] = None
 ):
     """
     Get total site count with optional filters
     """
-    query = select(func.count(Site.id))
+    query = select(func.count(Site.site_key))
     
-    if region:
-        query = query.where(Site.region == region)
+    if city:
+        query = query.where(Site.city == city)
     if district:
         query = query.where(Site.district == district)
-    if status:
-        query = query.where(Site.status == status)
+    if site_category:
+        query = query.where(Site.site_category == site_category)
     
     total_count = db.exec(query).first()
     
-    # Get active vs inactive
-    active_count = db.exec(
-        select(func.count(Site.id)).where(Site.status == "active")
-    ).first()
-    
-    inactive_count = db.exec(
-        select(func.count(Site.id)).where(Site.status != "active")
-    ).first()
+    # All sites in dim_site are considered active
+    active_count = total_count
+    inactive_count = 0
     
     return {
         "total": total_count or 0,
         "active": active_count or 0,
-        "inactive": inactive_count or 0,
+        "inactive": inactive_count,
         "filters_applied": {
-            "region": region,
+            "city": city,
             "district": district,
-            "status": status
+            "site_category": site_category
         },
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -65,30 +59,44 @@ async def get_site_statistics(
     """
     Get comprehensive site statistics
     """
-    total_sites = db.exec(select(func.count(Site.id))).first() or 0
-    active_sites = db.exec(
-        select(func.count(Site.id)).where(Site.status == "active")
+    total_sites = db.exec(select(func.count(Site.site_key))).first() or 0
+    active_sites = total_sites  # All sites in dim_site are considered active
+    
+    # Sites with devices through dim_device.site_id
+    sites_with_devices = db.exec(
+        select(func.count(func.distinct(Device.site_id)))
+        .where(Device.site_id.is_not(None))
     ).first() or 0
     
-    # Sites with devices - currently not linked in Device model
-    sites_with_devices = 0  # Device model doesn't have site_id field
-    
-    # Sites by region
-    regions = db.exec(
-        select(Site.region, func.count(Site.id))
-        .where(Site.region.is_not(None))
-        .group_by(Site.region)
+    # Sites by city
+    cities = db.exec(
+        select(Site.city, func.count(Site.site_key))
+        .where(Site.city.is_not(None))
+        .group_by(Site.city)
     ).all()
     
-    # Sites by type
-    site_types = db.exec(
-        select(Site.site_type, func.count(Site.id))
-        .group_by(Site.site_type)
+    # Sites by district
+    districts = db.exec(
+        select(Site.district, func.count(Site.site_key))
+        .where(Site.district.is_not(None))
+        .group_by(Site.district)
     ).all()
     
-    # Average devices per site - currently not available
-    device_counts = []
-    avg_devices = 0
+    # Sites by category
+    site_categories = db.exec(
+        select(Site.site_category, func.count(Site.site_key))
+        .where(Site.site_category.is_not(None))
+        .group_by(Site.site_category)
+    ).all()
+    
+    # Average devices per site
+    device_counts = db.exec(
+        select(Device.site_id, func.count(Device.device_key))
+        .where(Device.site_id.is_not(None))
+        .group_by(Device.site_id)
+    ).all()
+    
+    avg_devices = sum(count for _, count in device_counts) / len(device_counts) if device_counts else 0
     
     return {
         "summary": {
@@ -98,17 +106,18 @@ async def get_site_statistics(
             "with_devices": sites_with_devices,
             "without_devices": total_sites - sites_with_devices
         },
-        "by_region": {region: count for region, count in regions},
-        "by_type": {site_type: count for site_type, count in site_types if site_type},
+        "by_city": {city: count for city, count in cities},
+        "by_district": {district: count for district, count in districts},
+        "by_category": {cat: count for cat, count in site_categories},
         "device_distribution": {
             "average_devices_per_site": round(avg_devices, 2),
             "total_device_count": sum(count for _, count in device_counts)
         },
         "percentages": {
-            "active_rate": round((active_sites / total_sites * 100), 2) if total_sites > 0 else 0,
+            "active_rate": 100.0,  # All sites are active
             "coverage_rate": round((sites_with_devices / total_sites * 100), 2) if total_sites > 0 else 0
         },
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -117,21 +126,21 @@ async def get_sites(
     *,
     db: Session = Depends(get_db),
     common: CommonQueryParams = Depends(),
-    region: Optional[str] = None,
+    city: Optional[str] = None,
     district: Optional[str] = None,
-    status: Optional[str] = None
+    site_category: Optional[str] = None
 ):
     """
     Get list of sites with optional filters
     """
     query = select(Site)
     
-    if region:
-        query = query.where(Site.region == region)
+    if city:
+        query = query.where(Site.city == city)
     if district:
         query = query.where(Site.district == district)
-    if status:
-        query = query.where(Site.status == status)
+    if site_category:
+        query = query.where(Site.site_category == site_category)
     
     query = query.offset(common.skip).limit(common.limit)
     
@@ -141,8 +150,12 @@ async def get_sites(
     result = []
     for site in sites:
         site_dict = site.dict()
-        # Device count - currently not linked
-        site_dict["device_count"] = 0
+        # Get device count from dim_device
+        device_count = db.exec(
+            select(func.count(Device.device_key))
+            .where(Device.site_id == site.site_id)
+        ).first() or 0
+        site_dict["device_count"] = device_count
         result.append(SiteRead(**site_dict))
     
     return result
@@ -161,9 +174,14 @@ async def get_site(
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
     
-    # Add device count - currently not linked
+    # Get device count from dim_device
+    device_count = db.exec(
+        select(func.count(Device.device_key))
+        .where(Device.site_id == site.site_id)
+    ).first() or 0
+    
     site_dict = site.dict()
-    site_dict["device_count"] = 0
+    site_dict["device_count"] = device_count
     
     return SiteRead(**site_dict)
 
@@ -178,7 +196,7 @@ async def create_site(
     Create new site
     """
     # Check if site already exists
-    existing = site_crud.get(db, id=site_in.id)
+    existing = site_crud.get(db, id=site_in.site_id)
     if existing:
         raise HTTPException(status_code=400, detail="Site ID already exists")
     
@@ -209,9 +227,14 @@ async def update_site(
     
     site = site_crud.update(db, db_obj=site, obj_in=site_in)
     
-    # Add device count - currently not linked
+    # Get device count from dim_device
+    device_count = db.exec(
+        select(func.count(Device.device_key))
+        .where(Device.site_id == site.site_id)
+    ).first() or 0
+    
     site_dict = site.dict()
-    site_dict["device_count"] = 0
+    site_dict["device_count"] = device_count
     
     return SiteRead(**site_dict)
 
@@ -229,8 +252,17 @@ async def delete_site(
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
     
-    # Check if site has devices - currently not linked
-    device_count = 0
+    # Check if site has devices
+    active_device_count = db.exec(
+        select(func.count(Device.device_key))
+        .where(Device.site_id == site_id)
+    ).first() or 0
+    
+    if active_device_count > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete site with {active_device_count} active device(s)"
+        )
     
     site_crud.remove(db, id=site_id)
     return {"message": "Site deleted successfully"}
@@ -244,14 +276,21 @@ async def get_site_devices(
     common: CommonQueryParams = Depends()
 ):
     """
-    Get all devices for a site
+    Get all devices for a site through dim_location
     """
     site = site_crud.get(db, id=site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
     
-    # Devices not linked to sites in current model
-    devices = []
+    # Get devices linked to this site through dim_device.site_id
+    devices = db.exec(
+        select(Device)
+        .where(Device.site_id == site_id)
+        .offset(common.skip)
+        .limit(common.limit)
+    ).all()
+    
+    devices = [device.dict() for device in devices]
     
     return {
         "site_id": site_id,
@@ -275,38 +314,85 @@ async def get_site_performance(
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
     
-    # Devices not linked to sites in current model
+    # Get device keys for this site
+    device_keys = db.exec(
+        select(Device.device_key)
+        .where(Device.site_id == site_id)
+    ).all()
+    
+    # Calculate time range
+    end_time = datetime.now(timezone.utc)
+    start_time = end_time - timedelta(days=days)
+    
+    # Get aggregated readings for all devices at this site
+    if device_keys:
+        avg_pm25 = db.exec(
+            select(func.avg(DeviceReading.s1_pm2_5))
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.timestamp >= start_time)
+            .where(DeviceReading.timestamp <= end_time)
+            .where(DeviceReading.s1_pm2_5.is_not(None))
+        ).first()
+        
+        avg_pm10 = db.exec(
+            select(func.avg(DeviceReading.s1_pm10))
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.timestamp >= start_time)
+            .where(DeviceReading.timestamp <= end_time)
+            .where(DeviceReading.s1_pm10.is_not(None))
+        ).first()
+        
+        reading_count = db.exec(
+            select(func.count(DeviceReading.reading_key))
+            .where(DeviceReading.device_key.in_(device_keys))
+            .where(DeviceReading.timestamp >= start_time)
+            .where(DeviceReading.timestamp <= end_time)
+        ).first() or 0
+    else:
+        avg_pm25 = None
+        avg_pm10 = None
+        reading_count = 0
+    
     return {
         "site_id": site_id,
         "site_name": site.site_name,
-        "message": "Device-site linkage not available in current model",
+        "period": {
+            "days": days,
+            "start": start_time.isoformat(),
+            "end": end_time.isoformat()
+        },
+        "device_count": len(device_keys),
+        "metrics": {
+            "avg_pm2_5": round(avg_pm25, 2) if avg_pm25 else None,
+            "avg_pm10": round(avg_pm10, 2) if avg_pm10 else None,
+            "total_readings": reading_count
+        },
         "site_info": {
-            "region": site.region,
+            "city": site.city,
             "district": site.district,
-            "site_type": site.site_type,
+            "category": site.site_category,
             "coordinates": {
                 "latitude": site.latitude,
-                "longitude": site.longitude,
-                "altitude": site.altitude
+                "longitude": site.longitude
             }
         }
     }
 
 
-@router.get("/regions/list")
-async def get_regions(
+@router.get("/cities/list")
+async def get_cities(
     *,
     db: Session = Depends(get_db)
 ):
     """
-    Get list of unique regions
+    Get list of unique cities
     """
-    query = select(Site.region).distinct().where(Site.region.is_not(None))
-    regions = db.exec(query).scalars().all()
+    query = select(Site.city).distinct().where(Site.city.is_not(None))
+    cities = db.exec(query).all()
     
     return {
-        "count": len(regions),
-        "regions": sorted(regions)
+        "count": len(cities),
+        "cities": sorted(cities)
     }
 
 
@@ -314,20 +400,37 @@ async def get_regions(
 async def get_districts(
     *,
     db: Session = Depends(get_db),
-    region: Optional[str] = None
+    city: Optional[str] = None
 ):
     """
-    Get list of unique districts, optionally filtered by region
+    Get list of unique districts, optionally filtered by city
     """
     query = select(Site.district).distinct().where(Site.district.is_not(None))
     
-    if region:
-        query = query.where(Site.region == region)
+    if city:
+        query = query.where(Site.city == city)
     
-    districts = db.exec(query).scalars().all()
+    districts = db.exec(query).all()
     
     return {
         "count": len(districts),
-        "region": region,
+        "city": city,
         "districts": sorted(districts)
+    }
+
+
+@router.get("/categories/list")
+async def get_categories(
+    *,
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of unique site categories
+    """
+    query = select(Site.site_category).distinct().where(Site.site_category.is_not(None))
+    categories = db.exec(query).all()
+    
+    return {
+        "count": len(categories),
+        "categories": sorted(categories)
     }
