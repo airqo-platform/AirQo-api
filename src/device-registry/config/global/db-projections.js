@@ -130,7 +130,7 @@ class ProjectionFactory {
         exclusion: { nothing: 0 },
       },
 
-      // SITES
+      // SITES - Enhanced with activities
       sites: {
         inclusion: {
           _id: 1,
@@ -189,6 +189,17 @@ class ProjectionFactory {
           site_category: 1,
           lastActive: 1,
           isOnline: 1,
+          // Enhanced activities fields
+          activities: "$activities",
+          latest_deployment_activity: "$latest_deployment_activity",
+          latest_maintenance_activity: "$latest_maintenance_activity",
+          total_activities: {
+            $cond: {
+              if: { $isArray: "$activities" },
+              then: { $size: "$activities" },
+              else: 0,
+            },
+          },
         },
         exclusion: {
           "airqlouds.location": 0,
@@ -238,10 +249,17 @@ class ProjectionFactory {
           "grids.createdAt": 0,
           "grids.updatedAt": 0,
           "grids.__v": 0,
+          // Activities exclusions for summary path
+          "activities.user_id": 0,
+          "activities.host_id": 0,
+          "activities.network": 0,
+          "activities.groups": 0,
+          "activities.activity_codes": 0,
+          "activities.updatedAt": 0,
         },
       },
 
-      // DEVICES
+      // DEVICES - Enhanced with activities
       devices: {
         inclusion: {
           _id: 1,
@@ -289,6 +307,21 @@ class ProjectionFactory {
           previous_sites: 1,
           site: { $arrayElemAt: ["$site", 0] },
           host: { $arrayElemAt: ["$host", 0] },
+          // Enhanced activities fields
+          activities: "$activities",
+          latest_deployment: {
+            $arrayElemAt: ["$latest_deployment_activity", 0],
+          },
+          latest_maintenance: {
+            $arrayElemAt: ["$latest_maintenance_activity", 0],
+          },
+          total_activities: {
+            $cond: {
+              if: { $isArray: "$activities" },
+              then: { $size: "$activities" },
+              else: 0,
+            },
+          },
         },
         exclusion: {
           "site.lat_long": 0,
@@ -413,6 +446,13 @@ class ProjectionFactory {
           "assigned_grid.updatedAt": 0,
           "assigned_grid.__v": 0,
           "assigned_grid.network": 0,
+          // Activities exclusions for summary/public paths
+          "activities.user_id": 0,
+          "activities.host_id": 0,
+          "activities.network": 0,
+          "activities.groups": 0,
+          "activities.activity_codes": 0,
+          "activities.updatedAt": 0,
         },
       },
 
@@ -833,7 +873,7 @@ class ProjectionFactory {
         },
       },
 
-      // SITES path strategies
+      // SITES path strategies - Enhanced with activities exclusions
       sites: {
         summary: {
           additionalExclusions: {
@@ -910,6 +950,13 @@ class ProjectionFactory {
             "grids.visibility": 0,
             "grids.shape_update_history": 0,
             "grids.activeMobileDevices": 0,
+            // Activities exclusions for summary
+            "activities.activity_codes": 0,
+            "activities.user_id": 0,
+            "activities.host_id": 0,
+            "activities.network": 0,
+            "activities.groups": 0,
+            "activities.updatedAt": 0,
           },
         },
         public: {
@@ -949,11 +996,15 @@ class ProjectionFactory {
             devices: 0,
             airqlouds: 0,
             weather_stations: 0,
+            activities: 0,
+            latest_deployment_activity: 0,
+            latest_maintenance_activity: 0,
+            total_activities: 0,
           },
         },
       },
 
-      // DEVICES path strategies
+      // DEVICES path strategies - Enhanced with activities exclusions
       devices: {
         summary: {
           additionalExclusions: {
@@ -972,8 +1023,14 @@ class ProjectionFactory {
             maintenance_date: 0,
             access_code: 0,
             height: 0,
-
             host: 0,
+            // Activities exclusions for summary
+            "activities.activity_codes": 0,
+            "activities.user_id": 0,
+            "activities.host_id": 0,
+            "activities.network": 0,
+            "activities.groups": 0,
+            "activities.updatedAt": 0,
           },
         },
         public: {
@@ -1011,6 +1068,10 @@ class ProjectionFactory {
             status: 0,
             previous_sites: 0,
             long_name: 0,
+            activities: 0,
+            latest_deployment: 0,
+            latest_maintenance: 0,
+            total_activities: 0,
           },
         },
       },

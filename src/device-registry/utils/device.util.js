@@ -52,16 +52,113 @@ const deviceUtil = {
       const { id } = req.params;
       const { tenant } = req.query;
 
-      const device = await DeviceModel(tenant.toLowerCase()).findById(id);
+      // Enhanced device retrieval with activities
+      const device = await DeviceModel(tenant.toLowerCase()).aggregate([
+        { $match: { _id: new ObjectId(id) } },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$device", "$$deviceName"] },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 10 },
+            ],
+            as: "activities",
+          },
+        },
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$activityType", "deployment"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: "latest_deployment_activity",
+          },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            long_name: 1,
+            device_number: 1,
+            serial_number: 1,
+            network: 1,
+            category: 1,
+            deployment_type: 1,
+            mobility: 1,
+            isActive: 1,
+            status: 1,
+            claim_status: 1,
+            owner_id: 1,
+            latitude: 1,
+            longitude: 1,
+            mountType: 1,
+            powerType: 1,
+            height: 1,
+            elevation: 1,
+            groups: 1,
+            description: 1,
+            createdAt: 1,
+            lastActive: 1,
+            isOnline: 1,
+            site: { $arrayElemAt: ["$site", 0] },
+            activities: {
+              $map: {
+                input: "$activities",
+                as: "activity",
+                in: {
+                  _id: "$$activity._id",
+                  activityType: "$$activity.activityType",
+                  date: "$$activity.date",
+                  description: "$$activity.description",
+                  maintenanceType: "$$activity.maintenanceType",
+                  recallType: "$$activity.recallType",
+                  nextMaintenance: "$$activity.nextMaintenance",
+                  createdAt: "$$activity.createdAt",
+                  tags: "$$activity.tags",
+                },
+              },
+            },
+            latest_deployment: {
+              $arrayElemAt: ["$latest_deployment_activity", 0],
+            },
+          },
+        },
+      ]);
 
-      if (!device) {
+      if (!device || device.length === 0) {
         throw new HttpError("Device not found", httpStatus.NOT_FOUND);
       }
 
       return {
         success: true,
         message: "Device details fetched successfully",
-        data: device,
+        data: device[0],
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -583,17 +680,176 @@ const deviceUtil = {
       if (!isEmpty(path)) {
         filter.path = path;
       }
-      const responseFromListDevice = await DeviceModel(tenant).list(
-        {
-          filter,
-          limit,
-          skip,
-        },
-        next
-      );
-      return responseFromListDevice;
+
+      // Enhanced aggregation pipeline with activities lookup
+      const pipeline = await DeviceModel(tenant)
+        .aggregate([
+          { $match: filter },
+          {
+            $lookup: {
+              from: "sites",
+              localField: "site_id",
+              foreignField: "_id",
+              as: "site",
+            },
+          },
+          {
+            $lookup: {
+              from: "hosts",
+              localField: "host_id",
+              foreignField: "_id",
+              as: "host",
+            },
+          },
+          {
+            $lookup: {
+              from: "sites",
+              localField: "previous_sites",
+              foreignField: "_id",
+              as: "previous_sites",
+            },
+          },
+          {
+            $lookup: {
+              from: "cohorts",
+              localField: "cohorts",
+              foreignField: "_id",
+              as: "cohorts",
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "site.grids",
+              foreignField: "_id",
+              as: "grids",
+            },
+          },
+          {
+            $lookup: {
+              from: "grids",
+              localField: "grid_id",
+              foreignField: "_id",
+              as: "assigned_grid",
+            },
+          },
+          // New activities lookup for devices
+          {
+            $lookup: {
+              from: "activities",
+              let: { deviceName: "$name" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$device", "$$deviceName"] },
+                  },
+                },
+                { $sort: { createdAt: -1 } },
+                { $limit: 10 }, // Get last 10 activities
+              ],
+              as: "activities",
+            },
+          },
+          {
+            $lookup: {
+              from: "activities",
+              let: { deviceName: "$name" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$device", "$$deviceName"] },
+                        { $eq: ["$activityType", "deployment"] },
+                      ],
+                    },
+                  },
+                },
+                { $sort: { createdAt: -1 } },
+                { $limit: 1 },
+              ],
+              as: "latest_deployment_activity",
+            },
+          },
+          {
+            $lookup: {
+              from: "activities",
+              let: { deviceName: "$name" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$device", "$$deviceName"] },
+                        { $eq: ["$activityType", "maintenance"] },
+                      ],
+                    },
+                  },
+                },
+                { $sort: { createdAt: -1 } },
+                { $limit: 1 },
+              ],
+              as: "latest_maintenance_activity",
+            },
+          },
+          { $sort: { createdAt: -1 } },
+          {
+            $project: {
+              ...constants.DEVICES_INCLUSION_PROJECTION,
+              activities: {
+                $map: {
+                  input: "$activities",
+                  as: "activity",
+                  in: {
+                    _id: "$$activity._id",
+                    activityType: "$$activity.activityType",
+                    date: "$$activity.date",
+                    description: "$$activity.description",
+                    maintenanceType: "$$activity.maintenanceType",
+                    recallType: "$$activity.recallType",
+                    nextMaintenance: "$$activity.nextMaintenance",
+                    createdAt: "$$activity.createdAt",
+                    tags: "$$activity.tags",
+                  },
+                },
+              },
+              latest_deployment: {
+                $arrayElemAt: ["$latest_deployment_activity", 0],
+              },
+              latest_maintenance: {
+                $arrayElemAt: ["$latest_maintenance_activity", 0],
+              },
+            },
+          },
+          {
+            $project: constants.DEVICES_EXCLUSION_PROJECTION(
+              filter.path ? filter.path : "none"
+            ),
+          },
+          { $skip: skip || 0 },
+          { $limit: limit || 1000 },
+        ])
+        .allowDiskUse(true);
+
+      const response = pipeline;
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message: "successfully retrieved the device details",
+          data: response,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: true,
+          message: "no device details exist for this search, please crosscheck",
+          status: httpStatus.OK,
+          data: [],
+        };
+      }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
+      logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
       next(
         new HttpError(
           "Internal Server Error",
