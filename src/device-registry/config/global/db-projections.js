@@ -916,7 +916,6 @@ class ProjectionFactory {
             landform_90: 0,
             weather_stations: 0,
             greenness: 0,
-            createdAt: 0,
             "devices.visibility": 0,
             "devices.mobility": 0,
             "devices.device_codes": 0,
@@ -965,7 +964,6 @@ class ProjectionFactory {
             "grids.visibility": 0,
             "grids.shape_update_history": 0,
             "grids.activeMobileDevices": 0,
-            // Activities exclusions for summary
             "activities.activity_codes": 0,
             "activities.user_id": 0,
             "activities.host_id": 0,
@@ -1039,7 +1037,6 @@ class ProjectionFactory {
             access_code: 0,
             height: 0,
             host: 0,
-            // Activities exclusions for summary
             "activities.activity_codes": 0,
             "activities.user_id": 0,
             "activities.host_id": 0,
