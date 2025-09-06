@@ -75,7 +75,10 @@ const adminCheck = (options = {}) => {
         } else if (mongoose.Types.ObjectId.isValid(contextId)) {
           lookupQuery["_id"] = contextId;
         } else {
-          lookupQuery["organization_slug"] = contextId;
+          lookupQuery["$or"] = [
+            { grp_slug: contextId },
+            { organization_slug: contextId },
+          ];
         }
         targetContext = await GroupModel(tenant).findOne(lookupQuery).lean();
       } else {

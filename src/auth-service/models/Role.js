@@ -64,14 +64,36 @@ RoleSchema.pre("update", function (next) {
   return next();
 });
 
+// Uniqueness when network scoped
 RoleSchema.index(
-  { role_name: 1, role_code: 1, network_id: 1 },
-  { unique: true }
+  { role_name: 1, network_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
+  }
 );
-RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
-RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
-RoleSchema.index({ role_name: 1, group_id: 1 }, { unique: true });
-RoleSchema.index({ role_code: 1, group_id: 1 }, { unique: true });
+RoleSchema.index(
+  { role_code: 1, network_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { network_id: { $exists: true, $ne: null } },
+  }
+);
+// Uniqueness when group scoped
+RoleSchema.index(
+  { role_name: 1, group_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { group_id: { $exists: true, $ne: null } },
+  }
+);
+RoleSchema.index(
+  { role_code: 1, group_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { group_id: { $exists: true, $ne: null } },
+  }
+);
 
 RoleSchema.statics = {
   async register(args, next) {

@@ -208,6 +208,7 @@ const groupUtil = {
               joined: {
                 $dateToString: {
                   format: "%Y-%m-%d",
+                  // biome-ignore lint/suspicious/noThenProperty: MongoDB $cond uses a "then" key by design
                   date: {
                     $ifNull: [
                       {
@@ -219,7 +220,7 @@ const groupUtil = {
                           else: null,
                         },
                       },
-                      "$_id",
+                      { $ifNull: ["$createdAt", { $toDate: "$_id" }] },
                     ],
                   },
                 },

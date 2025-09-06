@@ -1183,7 +1183,7 @@ const admin = {
 
   dropIndex: async (request, next) => {
     try {
-      const { collectionName, indexName, secret } = request.body;
+      const { collectionName, indexName, secret, confirm } = request.body;
       const { tenant } = request.query;
 
       if (!validateSetupSecret(secret)) {
@@ -1204,6 +1204,28 @@ const admin = {
         };
       }
 
+      if (
+        typeof collectionName !== "string" ||
+        typeof indexName !== "string" ||
+        !collectionName.trim() ||
+        !indexName.trim()
+      ) {
+        return {
+          success: false,
+          message: "collectionName and indexName must be non-empty strings",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (process.env.NODE_ENV === "production" && confirm !== "DROP_INDEX") {
+        return {
+          success: false,
+          message:
+            "Destructive operation requires confirm=DROP_INDEX in production",
+          status: httpStatus.FORBIDDEN,
+        };
+      }
+
       // Get the tenant-specific database connection from an existing model
       const tenantDbConnection = UserModel(tenant).db;
       if (!tenantDbConnection) {
@@ -1221,7 +1243,7 @@ const admin = {
         return {
           success: false,
           message: `Collection '${collectionName}' not found.`,
-          status: httpStatus.BAD_REQUEST,
+          status: httpStatus.NOT_FOUND,
         };
       }
 
@@ -1238,6 +1260,11 @@ const admin = {
         };
       }
 
+      logger.warn(
+        `[DB INDEX DROP] tenant=${tenant} collection=${collectionName} index=${indexName} actor=${
+          request.user?.email || request.user?._id
+        }`
+      );
       const result = await collection.dropIndex(indexName);
 
       if (result) {
