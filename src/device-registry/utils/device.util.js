@@ -50,7 +50,7 @@ const deviceUtil = {
   getDeviceById: async (req, next) => {
     try {
       const { id } = req.params;
-      const { tenant } = req.query;
+      const { tenant, maxActivities = 500 } = req.query; // Make limit configurable
 
       // Use aggregation pipeline to include activities
       const devicePipeline = await DeviceModel(tenant.toLowerCase()).aggregate([
@@ -93,7 +93,7 @@ const deviceUtil = {
             as: "assigned_grid",
           },
         },
-        // Lookup all activities for this device
+        // Lookup all activities for this device with field projection and optional limit
         {
           $lookup: {
             from: "activities",
@@ -110,6 +110,25 @@ const deviceUtil = {
                 },
               },
               { $sort: { createdAt: -1 } },
+              // Project only essential fields to reduce payload size
+              {
+                $project: {
+                  _id: 1,
+                  activityType: 1,
+                  date: 1,
+                  description: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                  device: 1,
+                  device_id: 1,
+                  site_id: 1,
+                },
+              },
+              // Optionally limit number of activities returned
+              ...(maxActivities ? [{ $limit: parseInt(maxActivities) }] : []),
             ],
             as: "activities",
           },
@@ -130,7 +149,6 @@ const deviceUtil = {
 
       const device = devicePipeline[0];
 
-      // Process all activity logic in JavaScript for reliability
       if (device.activities && device.activities.length > 0) {
         // Group activities by type and get latest for each type
         const activitiesByType = {};
@@ -165,19 +183,27 @@ const deviceUtil = {
           latestActivitiesByType.recallment ||
           null;
 
-        // Apply field filtering to activities
+        // Since we already projected essential fields, we can simplify this filtering
+        // Just remove any remaining unwanted fields that might have slipped through
         device.activities = device.activities.map((activity) => {
           const {
             groups,
             activity_codes,
             updatedAt,
             __v,
+            firstName,
+            lastName,
+            email,
+            userName,
+            user_id,
+            host_id,
+            network,
             ...filteredActivity
           } = activity;
           return filteredActivity;
         });
 
-        // Filter latest activities
+        // Filter latest activities by type
         Object.keys(device.latest_activities_by_type).forEach(
           (activityType) => {
             const activity = device.latest_activities_by_type[activityType];
@@ -186,6 +212,13 @@ const deviceUtil = {
               activity_codes,
               updatedAt,
               __v,
+              firstName,
+              lastName,
+              email,
+              userName,
+              user_id,
+              host_id,
+              network,
               ...filtered
             } = activity;
             device.latest_activities_by_type[activityType] = filtered;
@@ -199,6 +232,13 @@ const deviceUtil = {
             activity_codes,
             updatedAt,
             __v,
+            firstName,
+            lastName,
+            email,
+            userName,
+            user_id,
+            host_id,
+            network,
             ...filtered
           } = device.latest_deployment_activity;
           device.latest_deployment_activity = filtered;
@@ -210,6 +250,13 @@ const deviceUtil = {
             activity_codes,
             updatedAt,
             __v,
+            firstName,
+            lastName,
+            email,
+            userName,
+            user_id,
+            host_id,
+            network,
             ...filtered
           } = device.latest_maintenance_activity;
           device.latest_maintenance_activity = filtered;
@@ -221,6 +268,13 @@ const deviceUtil = {
             activity_codes,
             updatedAt,
             __v,
+            firstName,
+            lastName,
+            email,
+            userName,
+            user_id,
+            host_id,
+            network,
             ...filtered
           } = device.latest_recall_activity;
           device.latest_recall_activity = filtered;

@@ -667,7 +667,6 @@ siteSchema.statics = {
       if (!isEmpty(filter.path)) {
         delete filter.path;
       }
-
       if (!isEmpty(filter.dashboard)) {
         delete filter.dashboard;
       }
@@ -695,13 +694,17 @@ siteSchema.statics = {
           foreignField: "_id",
           as: "airqlouds",
         })
+
         .lookup({
           from: "activities",
-          localField: "_id",
-          foreignField: "site_id",
+          let: { siteId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+            { $sort: { createdAt: -1 } },
+          ],
           as: "activities",
-          pipeline: [{ $sort: { createdAt: -1 } }],
         })
+
         .lookup({
           from: "activities",
           let: { siteId: "$_id" },
@@ -721,6 +724,7 @@ siteSchema.statics = {
           ],
           as: "latest_deployment_activity",
         })
+
         .lookup({
           from: "activities",
           let: { siteId: "$_id" },
@@ -740,6 +744,7 @@ siteSchema.statics = {
           ],
           as: "latest_maintenance_activity",
         })
+
         .lookup({
           from: "activities",
           let: { siteId: "$_id" },
@@ -764,6 +769,7 @@ siteSchema.statics = {
           ],
           as: "latest_recall_activity",
         })
+
         .lookup({
           from: "activities",
           let: { siteId: "$_id" },
@@ -783,6 +789,7 @@ siteSchema.statics = {
           ],
           as: "site_creation_activity",
         })
+
         .addFields({
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],

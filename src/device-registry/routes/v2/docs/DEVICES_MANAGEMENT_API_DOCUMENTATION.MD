@@ -411,7 +411,7 @@ All endpoints require proper tenant validation through query parameters or heade
 ```json
 {
   "device_name": "aq_device_001",
-  "claim_token": "abc123def456",
+  "claim_token": "EXAMPLE_CLAIM_TOKEN",
   "user_id": "60f1b2e4d4a5c123456789ab"
 }
 ```
@@ -717,8 +717,8 @@ Returns PNG image data with Content-Type: image/png
 
 ```json
 {
-  "writeKey": "THINGSPEAK_WRITE_KEY_123456",
-  "readKey": "THINGSPEAK_READ_KEY_789012"
+  "writeKey": "EXAMPLE_THINGSPEAK_WRITE_KEY",
+  "readKey": "EXAMPLE_THINGSPEAK_READ_KEY"
 }
 ```
 
@@ -731,8 +731,8 @@ Returns PNG image data with Content-Type: image/png
   "updated_device": {
     "_id": "60f1b2e4d4a5c123456789ab",
     "name": "aq_device_001",
-    "writeKey": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMAAAAAAA",
-    "readKey": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMBBBBBB"
+    "writeKey": "EXAMPLE_ENCRYPTED_KEY",
+    "readKey": "EXAMPLE_ENCRYPTED_KEY"
   }
 }
 ```
@@ -747,7 +747,7 @@ Returns PNG image data with Content-Type: image/png
 
 ```json
 {
-  "encrypted_key": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMAAAAAAA"
+  "encrypted_key": "EXAMPLE_ENCRYPTED_KEY"
 }
 ```
 
@@ -757,7 +757,7 @@ Returns PNG image data with Content-Type: image/png
 {
   "success": true,
   "message": "successfully decrypted the text",
-  "decrypted_key": "THINGSPEAK_WRITE_KEY_123456"
+  "decrypted_key": "EXAMPLE_THINGSPEAK_WRITE_KEY"
 }
 ```
 
@@ -784,11 +784,11 @@ Returns PNG image data with Content-Type: image/png
 ```json
 [
   {
-    "encrypted_key": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMAAAAAAA",
+    "encrypted_key": "EXAMPLE_ENCRYPTED_KEY",
     "device_number": 12345
   },
   {
-    "encrypted_key": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMBBBBBB",
+    "encrypted_key": "EXAMPLE_ENCRYPTED_KEY",
     "device_number": 12346
   }
 ]
@@ -802,14 +802,14 @@ Returns PNG image data with Content-Type: image/png
   "message": "successfully decrypted the provided keys",
   "decrypted_keys": [
     {
-      "encrypted_key": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMAAAAAAA",
+      "encrypted_key": "EXAMPLE_ENCRYPTED_KEY",
       "device_number": 12345,
-      "decrypted_key": "THINGSPEAK_WRITE_KEY_123456"
+      "decrypted_key": "EXAMPLE_THINGSPEAK_WRITE_KEY"
     },
     {
-      "encrypted_key": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRrAF/MSUERMMBBBBBB",
+      "encrypted_key": "EXAMPLE_ENCRYPTED_KEY",
       "device_number": 12346,
-      "decrypted_key": "THINGSPEAK_READ_KEY_789012"
+      "decrypted_key": "EXAMPLE_THINGSPEAK_READ_KEY"
     }
   ]
 }
@@ -917,16 +917,16 @@ Returns PNG image data with Content-Type: image/png
   "message": "Device prepared for shipping successfully",
   "device_preparation": {
     "device_name": "aq_device_001",
-    "claim_token": "abc123def456789",
+    "claim_token": "EXAMPLE_CLAIM_TOKEN",
     "token_type": "hex",
     "qr_code_data": {
       "device_id": "aq_device_001",
-      "claim_url": "https://platform.airqo.net/claim-device?id=aq_device_001&token=abc123def456789"
+      "claim_url": "https://platform.airqo.net/claim-device?id=aq_device_001&token=EXAMPLE_CLAIM_TOKEN"
     },
     "qr_code_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
     "label_data": {
       "device_name": "aq_device_001",
-      "claim_token": "abc123def456789",
+      "claim_token": "EXAMPLE_CLAIM_TOKEN",
       "instructions": "Scan QR code to claim device"
     },
     "shipping_prepared_at": "2024-01-15T10:30:00.000Z"
@@ -965,17 +965,17 @@ Returns PNG image data with Content-Type: image/png
     "successful_preparations": [
       {
         "device_name": "aq_device_001",
-        "claim_token": "SMART-OCEAN-2024",
+        "claim_token": "EXAMPLE_CLAIM_TOKEN",
         "token_type": "readable"
       },
       {
         "device_name": "aq_device_002",
-        "claim_token": "CLOUD-RIVER-2024",
+        "claim_token": "EXAMPLE_CLAIM_TOKEN",
         "token_type": "readable"
       },
       {
         "device_name": "aq_device_003",
-        "claim_token": "BRIGHT-FOREST-2024",
+        "claim_token": "EXAMPLE_CLAIM_TOKEN",
         "token_type": "readable"
       }
     ],
@@ -1012,7 +1012,7 @@ Returns PNG image data with Content-Type: image/png
         "name": "aq_device_001",
         "long_name": "AirQo Device 001",
         "claim_status": "unclaimed",
-        "claim_token": "abc123def456",
+        "claim_token": "EXAMPLE_CLAIM_TOKEN",
         "shipping_prepared_at": "2024-01-15T10:30:00.000Z",
         "owner_id": null,
         "claimed_at": null
@@ -1029,7 +1029,7 @@ Returns PNG image data with Content-Type: image/png
         {
           "name": "aq_device_001",
           "claim_status": "unclaimed",
-          "claim_token": "abc123def456"
+          "claim_token": "EXAMPLE_CLAIM_TOKEN"
         }
       ],
       "claimed_devices": [],
@@ -1069,7 +1069,7 @@ Returns PNG image data with Content-Type: image/png
       {
         "device_name": "aq_device_001",
         "device_long_name": "AirQo Device 001",
-        "claim_token": "abc123def456",
+        "claim_token": "EXAMPLE_CLAIM_TOKEN",
         "qr_code_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
         "instructions": "Scan QR code to claim device",
         "label_id": "LABEL-001-2024"
@@ -1077,7 +1077,7 @@ Returns PNG image data with Content-Type: image/png
       {
         "device_name": "aq_device_002",
         "device_long_name": "AirQo Device 002",
-        "claim_token": "def789ghi012",
+        "claim_token": "EXAMPLE_CLAIM_TOKEN",
         "qr_code_image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgBB...",
         "instructions": "Scan QR code to claim device",
         "label_id": "LABEL-002-2024"
@@ -1305,7 +1305,6 @@ The system supports three device categories:
 
 - **`unclaimed`**: Device is available for claiming
 - **`claimed`**: Device has been claimed by a user
-- **`deployed`**: Device is deployed and operational
 
 ## Device Status Values
 

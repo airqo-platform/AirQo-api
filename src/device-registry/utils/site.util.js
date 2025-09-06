@@ -32,7 +32,7 @@ const createSite = {
   getSiteById: async (req, next) => {
     try {
       const { id } = req.params;
-      const { tenant } = req.query;
+      const { tenant, maxActivities = 500 } = req.query;
 
       // Use aggregation pipeline to include activities and devices
       const sitePipeline = await SiteModel(tenant.toLowerCase()).aggregate([
@@ -50,24 +50,17 @@ const createSite = {
               {
                 $project: {
                   _id: 1,
-                  cohorts: 1,
-                  groups: 1,
-                  authRequired: 1,
-                  isOnline: 1,
-                  device_codes: 1,
-                  previous_sites: 1,
+                  name: 1,
+                  long_name: 1,
+                  serial_number: 1,
                   status: 1,
                   category: 1,
                   isActive: 1,
-                  long_name: 1,
                   network: 1,
                   description: 1,
-                  serial_number: 1,
-                  name: 1,
                   createdAt: 1,
                   latitude: 1,
                   longitude: 1,
-                  grids: 1,
                 },
               },
             ],
@@ -98,7 +91,27 @@ const createSite = {
             localField: "_id",
             foreignField: "site_id",
             as: "activities",
-            pipeline: [{ $sort: { createdAt: -1 } }],
+            pipeline: [
+              { $sort: { createdAt: -1 } },
+              {
+                $project: {
+                  _id: 1,
+                  activityType: 1,
+                  date: 1,
+                  description: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                  device: 1,
+                  device_id: 1,
+                  site_id: 1,
+                },
+              },
+              // Optionally limit number of activities returned
+              ...(maxActivities ? [{ $limit: parseInt(maxActivities) }] : []),
+            ],
           },
         },
         // Add simple computed fields only
