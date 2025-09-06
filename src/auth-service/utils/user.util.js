@@ -623,31 +623,48 @@ const createUserModule = {
   update: async (request, next) => {
     try {
       const { query, body, params } = request;
-      const { tenant } = {
-        ...body,
-        ...query,
-        ...params,
-      };
-      const update = body;
+      const { tenant } = { ...body, ...query, ...params };
 
-      if (!isEmpty(update.password)) {
-        delete update.password;
-      }
-      if (!isEmpty(update._id)) {
-        delete update._id;
+      // 1. Create a sanitized copy of the body for the database update.
+      const sanitizedUpdate = { ...body };
+
+      // Sanitize the 'interests' field.
+      if ("interests" in sanitizedUpdate && sanitizedUpdate.interests === "") {
+        sanitizedUpdate.interests = [];
       }
 
+      // Fields that should never be updated via this endpoint.
+      // These are either immutable or managed by other dedicated endpoints.
+      delete sanitizedUpdate.password;
+      delete sanitizedUpdate._id;
+      delete sanitizedUpdate.user_id; // Often passed in body, but filter is used
+      delete sanitizedUpdate.id; // Alias for _id
+      delete sanitizedUpdate.email; // Email should not be changed here
+      delete sanitizedUpdate.userName; // Username should not be changed here
+
+      // 2. Generate the filter to find the user.
       const filter = generateFilter.users(request, next);
       const user = await UserModel(tenant.toLowerCase())
-        .find(filter)
+        .findOne(filter) // findOne is more appropriate here
         .lean()
         .select("email firstName lastName");
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "User not found" },
+        };
+      }
+
+      // 3. Perform the database modification.
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
       ).modify(
         {
           filter,
-          update,
+          update: sanitizedUpdate,
         },
         next
       );
@@ -655,7 +672,12 @@ const createUserModule = {
       logObject("responseFromModifyUser", responseFromModifyUser);
 
       if (responseFromModifyUser.success === true) {
-        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        // 4. Prepare the payload for the email notification.
+        // This uses the same sanitized data sent to the DB, ensuring consistency.
+        const emailUpdatePayload = { ...sanitizedUpdate };
+
+        // The API response will contain the full, updated user object.
+        const apiResponseData = responseFromModifyUser.data.toJSON();
 
         if (
           constants.ENVIRONMENT &&
@@ -664,27 +686,32 @@ const createUserModule = {
           return {
             success: true,
             message: responseFromModifyUser.message,
-            data: responseFromModifyUser.data,
+            data: apiResponseData,
           };
         } else {
-          const email = user[0].email;
-          const firstName = user[0].firstName;
-          const lastName = user[0].lastName;
+          const { email, firstName, lastName } = user;
 
           const responseFromSendEmail = await mailer.update(
-            { email, firstName, lastName, updatedUserDetails },
+            {
+              email,
+              firstName,
+              lastName,
+              updatedUserDetails: emailUpdatePayload,
+            },
             next
           );
-          if (responseFromSendEmail) {
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: responseFromModifyUser.message,
-                data: responseFromModifyUser.data,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              return responseFromSendEmail;
-            }
+
+          if (responseFromSendEmail && responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: apiResponseData,
+            };
+          } else if (
+            responseFromSendEmail &&
+            responseFromSendEmail.success === false
+          ) {
+            return responseFromSendEmail;
           } else {
             logger.error("mailer.update did not return a response");
             return next(
@@ -696,7 +723,8 @@ const createUserModule = {
             );
           }
         }
-      } else if (responseFromModifyUser.success === false) {
+      } else {
+        // Pass the structured error from modify directly to the controller
         return responseFromModifyUser;
       }
     } catch (error) {
@@ -711,6 +739,7 @@ const createUserModule = {
       );
     }
   },
+
   lookUpFirebaseUser: async (request, next) => {
     try {
       const { body } = request;
