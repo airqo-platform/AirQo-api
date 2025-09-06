@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const guestUserController = require("@controllers/guest-user.controller");
 const guestUserValidations = require("@validators/guest-user.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
 const { validate, headers } = require("@validators/common");
 
 router.use(headers);
@@ -16,40 +16,35 @@ router.post(
 );
 router.post(
   "/convert",
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   validate,
   guestUserController.convertGuest
 );
 router.get(
   "/",
   guestUserValidations.list,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   validate,
   guestUserController.list
 );
 router.put(
   "/:id",
   guestUserValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   validate,
   guestUserController.update
 );
 router.delete(
   "/:id",
   guestUserValidations.delete,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   validate,
   guestUserController.delete
 );
 router.get(
   "/:id",
   guestUserValidations.getOne,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   validate,
   guestUserController.getOne
 );
