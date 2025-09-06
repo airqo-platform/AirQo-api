@@ -52,15 +52,203 @@ const deviceUtil = {
       const { id } = req.params;
       const { tenant } = req.query;
 
-      const device = await DeviceModel(tenant.toLowerCase()).findById(id);
+      // Use aggregation pipeline to include activities
+      const devicePipeline = await DeviceModel(tenant.toLowerCase()).aggregate([
+        {
+          $match: { _id: id },
+        },
+        // Lookup sites
+        {
+          $lookup: {
+            from: "sites",
+            localField: "site_id",
+            foreignField: "_id",
+            as: "site",
+          },
+        },
+        // Lookup hosts
+        {
+          $lookup: {
+            from: "hosts",
+            localField: "host_id",
+            foreignField: "_id",
+            as: "host",
+          },
+        },
+        // Lookup cohorts
+        {
+          $lookup: {
+            from: "cohorts",
+            localField: "cohorts",
+            foreignField: "_id",
+            as: "cohorts",
+          },
+        },
+        // Lookup grids
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grid_id",
+            foreignField: "_id",
+            as: "assigned_grid",
+          },
+        },
+        // Lookup all activities for this device
+        {
+          $lookup: {
+            from: "activities",
+            let: { deviceName: "$name", deviceId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$device", "$$deviceName"] },
+                      { $eq: ["$device_id", "$$deviceId"] },
+                    ],
+                  },
+                },
+              },
+              { $sort: { createdAt: -1 } },
+            ],
+            as: "activities",
+          },
+        },
+        // Add simple computed fields only
+        {
+          $addFields: {
+            total_activities: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+          },
+        },
+      ]);
 
-      if (!device) {
+      if (!devicePipeline || devicePipeline.length === 0) {
         throw new HttpError("Device not found", httpStatus.NOT_FOUND);
+      }
+
+      const device = devicePipeline[0];
+
+      // Process all activity logic in JavaScript for reliability
+      if (device.activities && device.activities.length > 0) {
+        // Group activities by type and get latest for each type
+        const activitiesByType = {};
+        const latestActivitiesByType = {};
+
+        device.activities.forEach((activity) => {
+          const type = activity.activityType || "unknown";
+
+          // Count activities by type
+          activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+          // Track latest activity by type
+          if (
+            !latestActivitiesByType[type] ||
+            new Date(activity.createdAt) >
+              new Date(latestActivitiesByType[type].createdAt)
+          ) {
+            latestActivitiesByType[type] = activity;
+          }
+        });
+
+        device.activities_by_type = activitiesByType;
+        device.latest_activities_by_type = latestActivitiesByType;
+
+        // Maintain backward compatibility
+        device.latest_deployment_activity =
+          latestActivitiesByType.deployment || null;
+        device.latest_maintenance_activity =
+          latestActivitiesByType.maintenance || null;
+        device.latest_recall_activity =
+          latestActivitiesByType.recall ||
+          latestActivitiesByType.recallment ||
+          null;
+
+        // Apply field filtering to activities
+        device.activities = device.activities.map((activity) => {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filteredActivity
+          } = activity;
+          return filteredActivity;
+        });
+
+        // Filter latest activities
+        Object.keys(device.latest_activities_by_type).forEach(
+          (activityType) => {
+            const activity = device.latest_activities_by_type[activityType];
+            const {
+              groups,
+              activity_codes,
+              updatedAt,
+              __v,
+              ...filtered
+            } = activity;
+            device.latest_activities_by_type[activityType] = filtered;
+          }
+        );
+
+        // Filter backward compatibility fields
+        if (device.latest_deployment_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = device.latest_deployment_activity;
+          device.latest_deployment_activity = filtered;
+        }
+
+        if (device.latest_maintenance_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = device.latest_maintenance_activity;
+          device.latest_maintenance_activity = filtered;
+        }
+
+        if (device.latest_recall_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = device.latest_recall_activity;
+          device.latest_recall_activity = filtered;
+        }
+      } else {
+        device.activities_by_type = {};
+        device.latest_activities_by_type = {};
+        device.latest_deployment_activity = null;
+        device.latest_maintenance_activity = null;
+        device.latest_recall_activity = null;
+      }
+
+      // Filter assigned_grid to show only required fields
+      if (device.assigned_grid && device.assigned_grid.length > 0) {
+        const grid = device.assigned_grid[0];
+        device.assigned_grid = {
+          _id: grid._id,
+          name: grid.name,
+          admin_level: grid.admin_level,
+          long_name: grid.long_name,
+        };
+      } else {
+        device.assigned_grid = null;
       }
 
       return {
         success: true,
-        message: "Device details fetched successfully",
+        message: "Device details with activities fetched successfully",
         data: device,
         status: httpStatus.OK,
       };

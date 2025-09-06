@@ -695,6 +695,99 @@ siteSchema.statics = {
           foreignField: "_id",
           as: "airqlouds",
         })
+        .lookup({
+          from: "activities",
+          localField: "_id",
+          foreignField: "site_id",
+          as: "activities",
+          pipeline: [{ $sort: { createdAt: -1 } }],
+        })
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "deployment"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_deployment_activity",
+        })
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "maintenance"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_maintenance_activity",
+        })
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    {
+                      $or: [
+                        { $eq: ["$activityType", "recall"] },
+                        { $eq: ["$activityType", "recallment"] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_recall_activity",
+        })
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "site-creation"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: 1 } },
+            { $limit: 1 },
+          ],
+          as: "site_creation_activity",
+        })
+        .addFields({
+          total_activities: {
+            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+          },
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
@@ -706,7 +799,81 @@ siteSchema.statics = {
 
       const response = await pipeline;
 
+      // Process activities for consistency
       if (!isEmpty(response)) {
+        response.forEach((site) => {
+          // Process latest activities to extract single objects
+          site.latest_deployment_activity =
+            site.latest_deployment_activity &&
+            site.latest_deployment_activity.length > 0
+              ? site.latest_deployment_activity[0]
+              : null;
+
+          site.latest_maintenance_activity =
+            site.latest_maintenance_activity &&
+            site.latest_maintenance_activity.length > 0
+              ? site.latest_maintenance_activity[0]
+              : null;
+
+          site.latest_recall_activity =
+            site.latest_recall_activity &&
+            site.latest_recall_activity.length > 0
+              ? site.latest_recall_activity[0]
+              : null;
+
+          site.site_creation_activity =
+            site.site_creation_activity &&
+            site.site_creation_activity.length > 0
+              ? site.site_creation_activity[0]
+              : null;
+
+          // Create activities by type mapping
+          if (site.activities && site.activities.length > 0) {
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            site.activities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = activity;
+              }
+            });
+
+            site.activities_by_type = activitiesByType;
+            site.latest_activities_by_type = latestActivitiesByType;
+
+            // Create device activity summary
+            const deviceActivitySummary = site.devices.map((device) => {
+              const deviceActivities = site.activities.filter(
+                (activity) =>
+                  activity.device === device.name ||
+                  (activity.device_id &&
+                    activity.device_id.toString() === device._id.toString())
+              );
+              return {
+                device_id: device._id,
+                device_name: device.name,
+                activity_count: deviceActivities.length,
+              };
+            });
+            site.device_activity_summary = deviceActivitySummary;
+          } else {
+            site.activities_by_type = {};
+            site.latest_activities_by_type = {};
+            site.device_activity_summary = site.devices.map((device) => ({
+              device_id: device._id,
+              device_name: device.name,
+              activity_count: 0,
+            }));
+          }
+        });
+
         return {
           success: true,
           message: "successfully retrieved the site details",
@@ -775,6 +942,59 @@ siteSchema.statics = {
           foreignField: "_id",
           as: "airqlouds",
         })
+        // Simplified activity lookups
+        .lookup({
+          from: "activities",
+          localField: "_id",
+          foreignField: "site_id",
+          as: "activities",
+        })
+        // Simple latest deployment lookup
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "deployment"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_deployment_activity",
+        })
+        // Simple latest maintenance lookup
+        .lookup({
+          from: "activities",
+          let: { siteId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$site_id", "$$siteId"] },
+                    { $eq: ["$activityType", "maintenance"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "latest_maintenance_activity",
+        })
+        // Simple computed fields only
+        .addFields({
+          total_activities: {
+            $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+          },
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
@@ -786,7 +1006,48 @@ siteSchema.statics = {
 
       const response = await pipeline;
 
+      // Process activities in JavaScript for consistency
       if (!isEmpty(response)) {
+        response.forEach((site) => {
+          // Process latest activities to extract single objects
+          site.latest_deployment_activity =
+            site.latest_deployment_activity &&
+            site.latest_deployment_activity.length > 0
+              ? site.latest_deployment_activity[0]
+              : null;
+
+          site.latest_maintenance_activity =
+            site.latest_maintenance_activity &&
+            site.latest_maintenance_activity.length > 0
+              ? site.latest_maintenance_activity[0]
+              : null;
+
+          // Create activities by type mapping
+          if (site.activities && site.activities.length > 0) {
+            const activitiesByType = {};
+            const latestActivitiesByType = {};
+
+            site.activities.forEach((activity) => {
+              const type = activity.activityType || "unknown";
+              activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+              if (
+                !latestActivitiesByType[type] ||
+                new Date(activity.createdAt) >
+                  new Date(latestActivitiesByType[type].createdAt)
+              ) {
+                latestActivitiesByType[type] = activity;
+              }
+            });
+
+            site.activities_by_type = activitiesByType;
+            site.latest_activities_by_type = latestActivitiesByType;
+          } else {
+            site.activities_by_type = {};
+            site.latest_activities_by_type = {};
+          }
+        });
+
         return {
           success: true,
           message: "successfully retrieved the site details",

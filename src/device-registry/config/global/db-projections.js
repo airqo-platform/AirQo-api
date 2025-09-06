@@ -189,10 +189,19 @@ class ProjectionFactory {
           site_category: 1,
           lastActive: 1,
           isOnline: 1,
-          // Enhanced activities fields
           activities: "$activities",
-          latest_deployment_activity: "$latest_deployment_activity",
-          latest_maintenance_activity: "$latest_maintenance_activity",
+          latest_deployment_activity: {
+            $arrayElemAt: ["$latest_deployment_activity", 0],
+          },
+          latest_maintenance_activity: {
+            $arrayElemAt: ["$latest_maintenance_activity", 0],
+          },
+          latest_recall_activity: {
+            $arrayElemAt: ["$latest_recall_activity", 0],
+          },
+          site_creation_activity: {
+            $arrayElemAt: ["$site_creation_activity", 0],
+          },
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
           },
@@ -245,13 +254,16 @@ class ProjectionFactory {
           "grids.createdAt": 0,
           "grids.updatedAt": 0,
           "grids.__v": 0,
-          // Activities exclusions for summary path
           "activities.user_id": 0,
           "activities.host_id": 0,
           "activities.network": 0,
           "activities.groups": 0,
           "activities.activity_codes": 0,
           "activities.updatedAt": 0,
+          "activities.groups": 0,
+          "activities.activity_codes": 0,
+          "activities.updatedAt": 0,
+          "activities.__v": 0,
         },
       },
 
@@ -303,13 +315,15 @@ class ProjectionFactory {
           previous_sites: 1,
           site: { $arrayElemAt: ["$site", 0] },
           host: { $arrayElemAt: ["$host", 0] },
-          // Enhanced activities fields
           activities: "$activities",
-          latest_deployment: {
+          latest_deployment_activity: {
             $arrayElemAt: ["$latest_deployment_activity", 0],
           },
-          latest_maintenance: {
+          latest_maintenance_activity: {
             $arrayElemAt: ["$latest_maintenance_activity", 0],
+          },
+          latest_recall_activity: {
+            $arrayElemAt: ["$latest_recall_activity", 0],
           },
           total_activities: {
             $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
@@ -445,10 +459,20 @@ class ProjectionFactory {
           "activities.groups": 0,
           "activities.activity_codes": 0,
           "activities.updatedAt": 0,
+          "assigned_grid.shape": 0,
+          "assigned_grid.grid_tags": 0,
+          "assigned_grid.grid_codes": 0,
+          "assigned_grid.centers": 0,
+          "assigned_grid.sites": 0,
+          "assigned_grid.createdAt": 0,
+          "assigned_grid.updatedAt": 0,
+          "assigned_grid.__v": 0,
+          "assigned_grid.network": 0,
+          "assigned_grid.visibility": 0,
+          "assigned_grid.description": 0,
         },
       },
 
-      // Add all other base projections here...
       cohorts: {
         inclusion: {
           network: 1,
@@ -469,7 +493,6 @@ class ProjectionFactory {
           },
         },
         exclusion: {
-          // All the base exclusions for cohorts
           nothing: 0,
           "devices.ISP": 0,
           "devices.device_manufacturer": 0,
