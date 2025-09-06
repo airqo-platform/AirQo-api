@@ -2,8 +2,8 @@
 const express = require("express");
 const router = express.Router();
 const groupController = require("@controllers/group.controller");
-const constants = require("@config/constants");
 const groupValidations = require("@validators/groups.validators");
+const constants = require("@config/constants");
 const { enhancedJWTAuth } = require("@middleware/passport");
 
 // New RBAC middleware
@@ -41,7 +41,7 @@ if (process.env.NODE_ENV !== "production") {
 router.post(
   "/populate-slugs",
   enhancedJWTAuth,
-  requirePermissions(["SYSTEM_ADMIN"]),
+  requirePermissions([constants.SYSTEM_ADMIN, constants.GROUP_MANAGEMENT]),
   groupValidations.populateSlugs,
   groupController.populateSlugs
 );
@@ -50,7 +50,6 @@ router.post(
 router.put(
   "/:grp_id/slug",
   enhancedJWTAuth,
-  requirePermissions(["SYSTEM_ADMIN"]),
   groupValidations.updateSlug,
   groupController.updateSlug
 );

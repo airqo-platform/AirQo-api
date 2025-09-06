@@ -1,12 +1,14 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const createUserUtil = require("@utils/user.util");
+const { AbstractTokenFactory } = require("@services/atf.service");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
+const PermissionModel = require("@models/Permission");
 const { mailer, stringify, winstonLogger } = require("@utils/common");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
@@ -240,6 +242,34 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         }
+
+        // Fire-and-forget permission update
+        (async () => {
+          try {
+            const DEFAULT_PERMISSIONS = constants.DEFAULT_NEW_USER_PERMISSIONS;
+            const existingPermissions = await PermissionModel(
+              tenant.toLowerCase()
+            )
+              .find({ permission: { $in: DEFAULT_PERMISSIONS } })
+              .select("_id")
+              .lean();
+
+            if (existingPermissions.length > 0) {
+              const permissionIds = existingPermissions.map((p) => p._id);
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                {
+                  $addToSet: { permissions: { $each: permissionIds } },
+                }
+              );
+              logger.info(`Updated default permissions for user ${user.email}`);
+            }
+          } catch (permError) {
+            logger.error(
+              `Error updating default permissions for user ${user.email}: ${permError.message}`
+            );
+          }
+        })();
         const currentDate = new Date();
 
         try {
@@ -422,6 +452,34 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         }
+
+        // Fire-and-forget permission update
+        (async () => {
+          try {
+            const DEFAULT_PERMISSIONS = constants.DEFAULT_NEW_USER_PERMISSIONS;
+            const existingPermissions = await PermissionModel(
+              tenant.toLowerCase()
+            )
+              .find({ permission: { $in: DEFAULT_PERMISSIONS } })
+              .select("_id")
+              .lean();
+
+            if (existingPermissions.length > 0) {
+              const permissionIds = existingPermissions.map((p) => p._id);
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                {
+                  $addToSet: { permissions: { $each: permissionIds } },
+                }
+              );
+              logger.info(`Updated default permissions for user ${user.email}`);
+            }
+          } catch (permError) {
+            logger.error(
+              `Error updating default permissions for user ${user.email}: ${permError.message}`
+            );
+          }
+        })();
 
         const currentDate = new Date();
 
@@ -1373,6 +1431,57 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+const enhancedJWTAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "No valid authorization token provided",
+        })
+      );
+    }
+
+    const token = match[2].trim();
+    const tenantRaw =
+      req.query.tenant ||
+      req.body.tenant ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
+    const tenant = String(tenantRaw).toLowerCase();
+
+    const tokenFactory = new AbstractTokenFactory(tenant);
+    const decodedUser = await tokenFactory.decodeToken(token);
+
+    const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
+    const user = await UserModel(tenant).findById(userId).lean();
+
+    if (!user) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "User no longer exists",
+        })
+      );
+    }
+
+    // Attach DB-backed user and token claims separately to avoid shadowing DB values
+    req.user = {
+      ...user,
+      ...decodedUser,
+    };
+
+    next();
+  } catch (error) {
+    logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    return next(
+      new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+        message: "Invalid or expired token",
+      })
+    );
+  }
+};
+
 function authenticateJWT(req, res, next) {
   try {
     if (req.body && req.body.user_id) {
@@ -1406,5 +1515,6 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  enhancedJWTAuth,
   authenticateJWT,
 };

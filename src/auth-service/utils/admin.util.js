@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = require("mongoose").Types.ObjectId;
 const log4js = require("log4js");
+const mongoose = require("mongoose");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
@@ -145,9 +146,17 @@ const admin = {
       );
 
       if (hasExistingRole) {
+        // Even if the user has the role, let's ensure the role itself is up-to-date with all permissions.
+        // The call to ensureSuperAdminRole should handle the sync.
+        // We just need to clear the user's cache to reflect any changes.
+        const RBACService = require("@services/rbac.service");
+        const rbacService = new RBACService(tenant);
+        rbacService.clearUserCache(targetUserId);
+
         return {
           success: true,
-          message: "User already has SUPER_ADMIN role",
+          message:
+            "User already has SUPER_ADMIN role. Permissions have been refreshed.",
           status: httpStatus.OK,
           data: {
             user_id: targetUserId,
@@ -156,7 +165,7 @@ const admin = {
             group: airqoGroup.grp_title,
             group_id: airqoGroup._id,
             tenant: tenant,
-            status: "already_assigned",
+            status: "already_assigned_and_refreshed",
             timestamp: new Date().toISOString(),
           },
         };
@@ -1172,6 +1181,116 @@ const admin = {
     }
   },
 
+  dropIndex: async (request, next) => {
+    try {
+      const { collectionName, indexName, secret, confirm } = request.body;
+      const { tenant } = request.query;
+
+      if (!validateSetupSecret(secret)) {
+        return {
+          success: false,
+          message: "Invalid setup secret",
+          status: httpStatus.FORBIDDEN,
+          errors: { message: "Authentication failed" },
+        };
+      }
+
+      if (!collectionName || !indexName) {
+        return {
+          success: false,
+          message:
+            "collectionName and indexName are required in the request body",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (
+        typeof collectionName !== "string" ||
+        typeof indexName !== "string" ||
+        !collectionName.trim() ||
+        !indexName.trim()
+      ) {
+        return {
+          success: false,
+          message: "collectionName and indexName must be non-empty strings",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (process.env.NODE_ENV === "production" && confirm !== "DROP_INDEX") {
+        return {
+          success: false,
+          message:
+            "Destructive operation requires confirm=DROP_INDEX in production",
+          status: httpStatus.FORBIDDEN,
+        };
+      }
+
+      // Get the tenant-specific database connection from an existing model
+      const tenantDbConnection = UserModel(tenant).db;
+      if (!tenantDbConnection) {
+        throw new Error(
+          `Could not get database connection for tenant: ${tenant}`
+        );
+      }
+      const db = tenantDbConnection.db;
+      const collections = await db.listCollections().toArray();
+      const collectionExists = collections.some(
+        (c) => c.name === collectionName
+      );
+
+      if (!collectionExists) {
+        return {
+          success: false,
+          message: `Collection '${collectionName}' not found.`,
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+
+      const collection = db.collection(collectionName);
+      const indexExists = await collection.indexExists(indexName);
+
+      if (!indexExists) {
+        const allIndexes = await collection.indexes();
+        return {
+          success: false,
+          message: `Index '${indexName}' does not exist on collection '${collectionName}'.`,
+          status: httpStatus.NOT_FOUND,
+          data: { availableIndexes: allIndexes.map((i) => i.name) },
+        };
+      }
+
+      logger.warn(
+        `[DB INDEX DROP] tenant=${tenant} collection=${collectionName} index=${indexName} actor=${
+          request.user?.email || request.user?._id
+        }`
+      );
+      const result = await collection.dropIndex(indexName);
+
+      if (result) {
+        return {
+          success: true,
+          message: `Successfully dropped index '${indexName}' from collection '${collectionName}'.`,
+          status: httpStatus.OK,
+        };
+      } else {
+        throw new Error(
+          "Index drop operation failed to return a success status."
+        );
+      }
+    } catch (error) {
+      logger.error(`🐛🐛 Error dropping index: ${error.message}`);
+      next(
+        new HttpError(
+          "Internal Server Error",
+          httpStatus.INTERNAL_SERVER_ERROR,
+          {
+            message: error.message,
+          }
+        )
+      );
+    }
+  },
   getDocs: async (request, next) => {
     try {
       const docsData = {

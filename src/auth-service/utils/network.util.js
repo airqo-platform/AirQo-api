@@ -236,8 +236,8 @@ const createNetwork = {
         requestForRole.query = {};
         requestForRole.query.tenant = tenant;
         requestForRole.body = {
-          role_code: "SUPER_ADMIN",
-          role_name: "SUPER_ADMIN",
+          role_code: "ADMIN",
+          role_name: "ADMIN",
           network_id: net_id,
         };
 
@@ -267,34 +267,27 @@ const createNetwork = {
           }
 
           logObject(
-            "constants.SUPER_ADMIN_PERMISSIONS",
-            constants.SUPER_ADMIN_PERMISSIONS
+            "constants.DEFAULTS.DEFAULT_ADMIN",
+            constants.DEFAULTS.DEFAULT_ADMIN
           );
 
-          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
-            ? constants.SUPER_ADMIN_PERMISSIONS
-            : [];
-          const trimmedPermissions = superAdminPermissions.map((permission) =>
-            permission.trim()
-          );
-
-          const uniquePermissions = [...new Set(trimmedPermissions)];
+          const adminPermissions = constants.DEFAULTS.DEFAULT_ADMIN;
 
           const existingPermissionIds = await PermissionModel(tenant)
             .find({
-              permission: { $in: uniquePermissions },
+              permission: { $in: adminPermissions },
             })
             .distinct("_id");
 
           const existingPermissionNames = await PermissionModel(tenant)
             .find({
-              permission: { $in: uniquePermissions },
+              permission: { $in: adminPermissions },
             })
             .distinct("permission");
 
           logObject("existingPermissionIds", existingPermissionIds);
 
-          const newPermissionDocuments = uniquePermissions
+          const newPermissionDocuments = adminPermissions
             .filter(
               (permission) => !existingPermissionNames.includes(permission)
             )

@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const userController = require("@controllers/user.controller");
 const userValidations = require("@validators/users.validators");
-const { validate, headers, pagination } = require("@validators/common");
+const constants = require("@config/constants");
 const {
   setLocalAuth,
   setGoogleAuth,
@@ -28,6 +28,8 @@ const {
   debugPermissions,
 } = require("@middleware/permissionAuth");
 
+const { validate, headers, pagination } = require("@validators/common");
+
 router.use(headers);
 router.use(userValidations.pagination);
 
@@ -47,6 +49,7 @@ router.use(userValidations.pagination);
  */
 router.post(
   "/login-enhanced",
+  rateLimiter.login,
   userValidations.loginEnhanced,
   validate,
   userController.loginEnhanced
@@ -59,6 +62,7 @@ router.post(
  */
 router.post(
   "/login-legacy-compatible",
+  rateLimiter.login,
   userValidations.loginLegacyCompatible,
   validate,
   userController.loginLegacyCompatible
@@ -74,7 +78,7 @@ router.post(
 router.post(
   "/admin/cleanup",
   enhancedJWTAuth,
-  requirePermissions(["SYSTEM_ADMIN"]),
+  requirePermissions([constants.SYSTEM_ADMIN]),
   userValidations.userCleanup,
   userController.cleanup
 );
@@ -95,7 +99,7 @@ router.post(
   "/generate-token",
   enhancedJWTAuth,
   userValidations.generateToken,
-  requirePermissions(["TOKEN_GENERATE"]),
+  requirePermissions([constants.TOKEN_GENERATE]),
   validate,
   userController.generateOptimizedToken
 );
@@ -125,7 +129,7 @@ router.get(
   "/analyze-tokens/:userId",
   enhancedJWTAuth,
   userValidations.analyzeTokenStrategies,
-  requirePermissions(["SYSTEM_ADMIN"]),
+  requirePermissions([constants.SYSTEM_ADMIN]),
   validate,
   userController.analyzeTokenStrategies
 );
@@ -161,6 +165,11 @@ router.get(
   "/context-permissions",
   enhancedJWTAuth,
   userValidations.getContextPermissions,
+  (req, res, next) => {
+    const target = req.query.userId || req.body?.userId;
+    if (!target || target.toString() === req.user._id.toString()) return next();
+    return requirePermissions([constants.USER_VIEW])(req, res, next);
+  },
   validate,
   userController.getContextPermissions
 );
@@ -188,7 +197,7 @@ router.get(
 router.get(
   "/groups/:grp_id/permissions",
   enhancedJWTAuth,
-  // requireGroupMembership("grp_id"),
+  requireGroupMembership("grp_id"),
   (req, res) => {
     req.query.contextId = req.params.grp_id;
     req.query.contextType = "group";
@@ -208,7 +217,7 @@ router.get(
 router.get(
   "/networks/:network_id/permissions",
   enhancedJWTAuth,
-  // requireNetworkMembership("network_id"),
+  requireNetworkMembership("network_id"),
   (req, res) => {
     req.query.contextId = req.params.network_id;
     req.query.contextType = "network";
@@ -224,7 +233,7 @@ router.get(
 router.get(
   "/networks/:network_id/members",
   enhancedJWTAuth,
-  // requireNetworkPermissions(["USER_VIEW"], "network_id"),
+  requireNetworkPermissions([constants.USER_VIEW], "network_id"),
   async (req, res) => {
     try {
       const UserModel = require("@models/User");
@@ -346,7 +355,7 @@ router.get(
   "/debug/permissions/:userId",
   enhancedJWTAuth,
   userValidations.debugPermissions,
-  requirePermissions(["SYSTEM_ADMIN"]),
+  requirePermissions([constants.SYSTEM_ADMIN]),
   debugPermissions(),
   async (req, res) => {
     try {
@@ -380,7 +389,7 @@ router.get(
 router.get(
   "/admin/token-analytics",
   enhancedJWTAuth,
-  requirePermissions(["SYSTEM_ADMIN"]),
+  requirePermissions([constants.SYSTEM_ADMIN]),
   async (req, res) => {
     try {
       const { tokenConfig } = require("@config/tokenStrategyConfig");
@@ -451,6 +460,7 @@ router.get(
 
 router.post(
   "/loginUser",
+  rateLimiter.login,
   userValidations.login,
   setLocalAuth,
   authLocal,
@@ -459,6 +469,7 @@ router.post(
 
 router.post(
   "/login",
+  rateLimiter.login,
   userValidations.login,
   setLocalAuth,
   authLocal,
@@ -467,6 +478,7 @@ router.post(
 
 router.post(
   "/login-with-details",
+  rateLimiter.login,
   userValidations.login,
   setLocalAuth,
   authLocal,
@@ -480,13 +492,11 @@ router.get(
   userController.logout
 );
 
-router.post(
-  "/guest",
-  userValidations.tenant,
-  setGuestToken,
-  authGuest,
-  userController.guest
-);
+// Issue a guest token
+router.post("/guest/token", userValidations.tenant, setGuestToken);
+
+// Consume a provided guest token to establish session/context
+router.post("/guest", userValidations.tenant, authGuest, userController.guest);
 
 router.post(
   "/emailLogin",
@@ -630,6 +640,7 @@ router.delete(
   "/",
   userValidations.deleteUser,
   enhancedJWTAuth,
+  requirePermissions([constants.USER_DELETE]),
   userController.delete
 );
 
@@ -637,6 +648,7 @@ router.delete(
   "/:user_id",
   userValidations.deleteUserById,
   enhancedJWTAuth,
+  requirePermissions([constants.USER_DELETE]),
   userController.delete
 );
 
@@ -708,6 +720,11 @@ router.get(
   "/:user_id",
   userValidations.getUser,
   enhancedJWTAuth,
+  (req, res, next) => {
+    if (req.params.user_id.toString() === req.user._id.toString())
+      return next();
+    return requirePermissions([constants.USER_VIEW])(req, res, next);
+  },
   userController.list
 );
 

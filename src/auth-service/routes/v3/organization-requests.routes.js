@@ -4,10 +4,10 @@ const router = express.Router();
 const organizationRequestController = require("@controllers/organization-request.controller");
 const organizationRequestValidations = require("@validators/organization-requests.validators");
 const { enhancedJWTAuth } = require("@middleware/passport");
-const { validate, headers, pagination } = require("@validators/common");
 const { requireSystemAdmin } = require("@middleware/adminAccess");
 const rateLimit = require("express-rate-limit");
 const onboardingLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
 router.use(organizationRequestValidations.pagination);

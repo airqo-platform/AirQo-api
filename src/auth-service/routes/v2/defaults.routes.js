@@ -3,17 +3,9 @@ const express = require("express");
 const router = express.Router();
 const createDefaultController = require("@controllers/default.controller");
 const defaultValidations = require("@validators/defaults.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
 router.use(headers);
 router.use(defaultValidations.pagination);
 
@@ -26,8 +18,7 @@ router.get("/", defaultValidations.list, createDefaultController.list);
 router.delete(
   "/",
   defaultValidations.deleteDefault,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createDefaultController.delete
 );
 

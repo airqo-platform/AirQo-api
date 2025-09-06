@@ -10,9 +10,13 @@ const urls = require("./urls");
 const emailTemplates = require("./email-templates");
 const firebase = require("./firebase");
 const permissions = require("./permissions");
+const { TOKEN_STRATEGIES } = require("./token-strategies");
+const VALID_USER_TYPES = require("./user-types");
 
 const configurations = {
   ...dbProjections,
+  TOKEN_STRATEGIES,
+  VALID_USER_TYPES,
   ...permissions,
   ...envs,
   ...mappings,
