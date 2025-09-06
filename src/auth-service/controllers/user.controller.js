@@ -200,8 +200,6 @@ const userController = {
   },
   verify: async (req, res, next) => {
     try {
-      logger.info("..................................");
-      logger.info("user verify......");
       if (!res.headersSent) {
         res.status(httpStatus.OK).send("this token is valid");
         return;
