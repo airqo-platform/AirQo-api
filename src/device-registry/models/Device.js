@@ -757,7 +757,11 @@ deviceSchema.statics = {
 
       let maxActivities = 500;
       if (!isEmpty(filter.maxActivities)) {
-        maxActivities = parseInt(filter.maxActivities, 10);
+        const rawMax = Number(filter.maxActivities);
+        if (Number.isFinite(rawMax) && rawMax > 0) {
+          maxActivities = Math.min(rawMax, 1000);
+        }
+        delete filter.maxActivities;
       }
 
       const pipeline = await this.aggregate()
