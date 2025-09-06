@@ -673,7 +673,10 @@ siteSchema.statics = {
       if (!isEmpty(filter.summary)) {
         delete filter.summary;
       }
-
+      let maxActivities = 500;
+      if (!isEmpty(filter.maxActivities)) {
+        maxActivities = parseInt(filter.maxActivities, 10);
+      }
       const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
@@ -701,6 +704,23 @@ siteSchema.statics = {
           pipeline: [
             { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
             { $sort: { createdAt: -1 } },
+            {
+              $project: {
+                _id: 1,
+                site_id: 1,
+                device_id: 1,
+                device: 1,
+                activityType: 1,
+                maintenanceType: 1,
+                recallType: 1,
+                date: 1,
+                description: 1,
+                nextMaintenance: 1,
+                createdAt: 1,
+                tags: 1,
+              },
+            },
+            { $limit: maxActivities },
           ],
           as: "activities",
         })

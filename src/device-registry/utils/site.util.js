@@ -88,10 +88,9 @@ const createSite = {
         {
           $lookup: {
             from: "activities",
-            localField: "_id",
-            foreignField: "site_id",
-            as: "activities",
+            let: { siteId: "$_id" },
             pipeline: [
+              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
               { $sort: { createdAt: -1 } },
               {
                 $project: {
@@ -109,9 +108,9 @@ const createSite = {
                   site_id: 1,
                 },
               },
-              // Optionally limit number of activities returned
               ...(maxActivities ? [{ $limit: parseInt(maxActivities) }] : []),
             ],
+            as: "activities",
           },
         },
         // Add simple computed fields only
