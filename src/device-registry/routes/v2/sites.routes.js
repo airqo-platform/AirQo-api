@@ -34,7 +34,7 @@ router.get(
   "/summary",
   validateTenant,
   validateSiteQueryParams,
-  pagination(),
+  pagination(100, 500),
   siteController.listSummary
 );
 router.get(

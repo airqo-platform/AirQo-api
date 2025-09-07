@@ -142,7 +142,7 @@ router.get(
   "/summary",
   validateTenant,
   validateListDevices,
-  pagination(),
+  pagination(100, 500),
   deviceController.listSummary
 );
 
