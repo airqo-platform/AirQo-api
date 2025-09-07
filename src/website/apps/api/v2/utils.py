@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Union
 from rest_framework import serializers
 from rest_framework.fields import empty
 
+import bleach
+
 
 class DynamicFieldsSerializerMixin:
     """
@@ -85,12 +87,13 @@ class SanitizedHTMLField(serializers.CharField):
         # Convert to string if needed
         data = str(data)
 
-        # Basic HTML sanitization - remove common dangerous tags
-        # For production, consider using bleach or similar
-        import re
-        clean_data = re.sub(r'<script.*?>.*?</script>', '',
-                            data, flags=re.IGNORECASE | re.DOTALL)
-        clean_data = re.sub(r'<.*?>', '', clean_data)  # Strip all HTML tags
+        # Sanitize HTML using bleach (handles tricky end-tags and proper parsing)
+        clean_data = bleach.clean(
+            data,
+            tags=self.allowed_tags,
+            attributes=self.allowed_attributes,
+            strip=True,
+        )
 
         return super().to_internal_value(clean_data)
 
