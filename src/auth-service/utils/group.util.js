@@ -1198,33 +1198,6 @@ const groupUtil = {
         return;
       }
 
-      // Get user to check current assignments
-      const user = await UserModel(tenant).findById(user_id).lean();
-      if (!user) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "User not found",
-          })
-        );
-        return;
-      }
-
-      // Check if already assigned (with safe access)
-      const userGroupRoles = user.group_roles || [];
-      const isAlreadyAssigned = userGroupRoles.some(
-        (role) =>
-          role && role.group && role.group.toString() === grp_id.toString()
-      );
-
-      if (isAlreadyAssigned) {
-        return {
-          success: true,
-          message: "User is already assigned to this group",
-          data: user,
-          status: httpStatus.OK,
-        };
-      }
-
       // Get default group role with error handling
       let defaultGroupRole;
       try {
