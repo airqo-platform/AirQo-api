@@ -28,14 +28,20 @@ const logger = log4js.getLogger(
 
 const setLocalOptions = (req, res, next) => {
   try {
-    const userName = req.body && req.body.userName;
+    const rawUserName = req.body && req.body.userName;
+    const userName =
+      typeof rawUserName === "string" ? rawUserName.trim() : rawUserName;
+    if (typeof userName === "string") {
+      // normalize for downstream consumers
+      req.body.userName = userName;
+    }
 
     // The validator library expects a string.
     // We check for existence first, then validate.
     if (
       !userName ||
       typeof userName !== "string" ||
-      Validator.isEmpty(userName.trim())
+      Validator.isEmpty(userName)
     ) {
       throw new HttpError(
         "the userName field is missing or empty",
@@ -45,7 +51,7 @@ const setLocalOptions = (req, res, next) => {
 
     const authenticationFields = {};
     // Use the trimmed value for validation
-    if (Validator.isEmail(userName.trim())) {
+    if (Validator.isEmail(userName)) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
     } else {
@@ -111,11 +117,12 @@ const useLocalStrategy = (tenant, req, res, next) => {
       const { usernameField } = localOptions.authenticationFields;
       logElement("the username field", usernameField);
       if (usernameField === "email") {
-        req.body.email = req.body.userName;
+        req.body.email = String(req.body.userName).trim();
         logText("we are using email");
         return useEmailWithLocalStrategy(tenant, req, res, next);
       } else if (usernameField === "userName") {
         logText("we are using username");
+        req.body.userName = String(req.body.userName).trim();
         return useUsernameWithLocalStrategy(tenant, req, res, next);
       }
     }
@@ -1317,7 +1324,10 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
  * @param {*} next
  */
 const setLocalStrategy = (tenant, req, res, next) => {
-  passport.use("user-local", useLocalStrategy(tenant, req, res, next));
+  const strategy = useLocalStrategy(tenant, req, res, next);
+  if (strategy) {
+    passport.use("user-local", strategy);
+  }
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
