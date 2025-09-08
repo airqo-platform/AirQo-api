@@ -153,6 +153,21 @@ class ConditionalImageField(models.Field):
         # and forward everything to the underlying field instance.
         return self.field_instance.contribute_to_class(cls, name, *args, **kwargs)
 
+    def deconstruct(self):
+        """Proxy deconstruct to the underlying field instance so migrations
+        serialize the real field class and arguments instead of this wrapper.
+        """
+        try:
+            return self.field_instance.deconstruct()
+        except AttributeError:
+            # Fallback: return this wrapper's path and empty args/kwargs.
+            path = f"{self.__class__.__module__}.{self.__class__.__name__}"
+            return (path, [], {})
+
+    def __getattr__(self, name):
+        # Proxy unknown attributes to the underlying field instance.
+        return getattr(self.field_instance, name)
+
     def __get__(self, instance, owner):
         return self.field_instance.__get__(instance, owner)
 
@@ -192,6 +207,20 @@ class ConditionalFileField(models.Field):
         # Accept *args to match different Django versions' signatures
         # and forward everything to the underlying field instance.
         return self.field_instance.contribute_to_class(cls, name, *args, **kwargs)
+
+    def deconstruct(self):
+        """Proxy deconstruct to the underlying field instance so migrations
+        serialize the real field class and arguments instead of this wrapper.
+        """
+        try:
+            return self.field_instance.deconstruct()
+        except AttributeError:
+            path = f"{self.__class__.__module__}.{self.__class__.__name__}"
+            return (path, [], {})
+
+    def __getattr__(self, name):
+        # Proxy unknown attributes to the underlying field instance.
+        return getattr(self.field_instance, name)
 
     def __get__(self, instance, owner):
         return self.field_instance.__get__(instance, owner)

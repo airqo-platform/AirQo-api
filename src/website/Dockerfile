@@ -59,7 +59,8 @@ RUN mkdir -p /app/staticfiles /app/logs \
     && find /app -name "__pycache__" -type d -exec rm -rf {} + || true \
     && sed -i 's/\r$//' /app/entrypoint.sh \
     && chmod +x /app/entrypoint.sh \
-    && chown -R appuser:appgroup /app
+    && chown -R appuser:appgroup /app \
+    && chmod -R 755 /app/staticfiles /app/logs
 
 # Switch to non-root user
 USER appuser
