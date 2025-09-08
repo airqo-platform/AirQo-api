@@ -28,17 +28,24 @@ const logger = log4js.getLogger(
 
 const setLocalOptions = (req, res, next) => {
   try {
-    const userName = req.body.userName;
+    const userName = req.body && req.body.userName;
 
-    if (Validator.isEmpty(userName)) {
+    // The validator library expects a string.
+    // We check for existence first, then validate.
+    if (
+      !userName ||
+      typeof userName !== "string" ||
+      Validator.isEmpty(userName.trim())
+    ) {
       throw new HttpError(
-        "the userName field is missing",
+        "the userName field is missing or empty",
         httpStatus.BAD_REQUEST
       );
     }
 
     const authenticationFields = {};
-    if (Validator.isEmail(userName)) {
+    // Use the trimmed value for validation
+    if (Validator.isEmail(userName.trim())) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
     } else {
@@ -89,23 +96,36 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req, res, next);
-  logObject("the localOptions", localOptions);
-  if (localOptions.success === true) {
-    logText("success state is true");
-    let { usernameField } = localOptions.authenticationFields;
-    logElement("the username field", usernameField);
-    if (usernameField === "email") {
-      req.body.email = req.body.userName;
-      logText("we are using email");
-      return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField === "userName") {
-      logText("we are using username");
-      return useUsernameWithLocalStrategy(tenant, req, res, next);
+  try {
+    const localOptions = setLocalOptions(req, res, next);
+    logObject("the localOptions", localOptions);
+
+    // If setLocalOptions calls next(error), it returns undefined.
+    // The error is already passed to the express error handler, so we just stop.
+    if (!localOptions) {
+      return;
     }
-  } else if (localOptions.success === false) {
-    logText("success state is false");
-    return localOptions;
+
+    if (localOptions.success === true) {
+      logText("success state is true");
+      const { usernameField } = localOptions.authenticationFields;
+      logElement("the username field", usernameField);
+      if (usernameField === "email") {
+        req.body.email = req.body.userName;
+        logText("we are using email");
+        return useEmailWithLocalStrategy(tenant, req, res, next);
+      } else if (usernameField === "userName") {
+        logText("we are using username");
+        return useUsernameWithLocalStrategy(tenant, req, res, next);
+      }
+    }
+  } catch (error) {
+    logger.error(`Critical error in useLocalStrategy: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
