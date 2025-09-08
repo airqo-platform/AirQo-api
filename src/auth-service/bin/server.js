@@ -270,29 +270,21 @@ app.use(function (err, req, res, next) {
   const status = err.status || err.statusCode || 500;
   // Log server errors as activities for authenticated users
   if (status >= 500 && req.user) {
-    try {
-      const { logActivity } = require("@utils/common");
-      Promise.resolve(
-        logActivity({
-          email: req.user.email || "system",
-          userName: req.user.userName || "system",
-          tenant: req.query.tenant || req.headers.tenant || "airqo",
-          user_id: req.user._id,
-          action: "server_error",
-          description: `Server error: ${err.message}`,
-          payload: {
-            stack: err.stack,
-            endpoint: req.originalUrl,
-            method: req.method,
-            statusCode: status,
-          },
-        })
-      ).catch((e) =>
-        logger.error(`Failed to log server error activity: ${e.message}`)
-      );
-    } catch (logError) {
-      logger.error(`Failed to log server error activity: ${logError.message}`);
-    }
+    // The logActivity function was causing errors, replaced with direct logging.
+    logger.error("Server error activity", {
+      email: req.user.email || "system",
+      userName: req.user.userName || "system",
+      tenant: req.query.tenant || req.headers.tenant || "airqo",
+      user_id: req.user._id,
+      action: "server_error",
+      description: `Server error: ${err.message}`,
+      payload: {
+        stack: err.stack,
+        endpoint: req.originalUrl,
+        method: req.method,
+        statusCode: status,
+      },
+    });
   }
 
   if (!res.headersSent) {

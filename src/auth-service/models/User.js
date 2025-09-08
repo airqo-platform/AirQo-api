@@ -376,11 +376,9 @@ const UserSchema = new Schema(
       type: Date,
     },
     currentPlanDetails: {
-      type: {
-        priceId: String,
-        currency: String,
-        billingCycle: String, // 'monthly', 'annual', etc.
-      },
+      priceId: String,
+      currency: String,
+      billingCycle: String, // 'monthly', 'annual', etc.
     },
     // Add after the existing fields, before the timestamps
     interests: {
