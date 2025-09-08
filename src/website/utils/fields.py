@@ -10,18 +10,18 @@ from cloudinary.models import CloudinaryField
 
 logger = logging.getLogger(__name__)
 
-# Maximum size for uploaded images in bytes (10MB)
-MAX_IMAGE_SIZE = 10 * 1024 * 1024
+# Maximum size for uploaded images in bytes (25MB)
+MAX_IMAGE_SIZE = 25 * 1024 * 1024
 
 
 def validate_image_format(file):
     """
-    Validate that the file is a valid image and does not exceed 10MB.
+    Validate that the file is a valid image and does not exceed 25MB.
     Allowed extensions are handled by FileExtensionValidator in the field definition.
     """
     if file.size > MAX_IMAGE_SIZE:
         raise ValidationError(
-            f"Image size must not exceed 10MB. Current size: {file.size/1024/1024:.2f}MB.")
+            f"Image size must not exceed 25MB. Current size: {file.size/1024/1024:.2f}MB.")
 
     # Check if file is an actual image
     # get_image_dimensions will raise an error if not a valid image
@@ -148,8 +148,24 @@ class ConditionalImageField(models.Field):
         self.field_instance = field_class(**field_kwargs)
         super().__init__(*args, **kwargs)
 
-    def contribute_to_class(self, cls, name, **kwargs):
-        self.field_instance.contribute_to_class(cls, name, **kwargs)
+    def contribute_to_class(self, cls, name, *args, **kwargs):
+        # Accept *args to match different Django versions' signatures
+        # and forward everything to the underlying field instance.
+        return self.field_instance.contribute_to_class(cls, name, *args, **kwargs)
+
+    def deconstruct(self):
+        """Proxy deconstruct to the underlying field instance so migrations
+        serialize the real field class and arguments instead of this wrapper.
+        """
+        try:
+            return self.field_instance.deconstruct()
+        except AttributeError:
+            # Safe fallback to Django's expected deconstruct signature (4-tuple).
+            return super().deconstruct()
+
+    def __getattr__(self, name):
+        # Proxy unknown attributes to the underlying field instance.
+        return getattr(self.field_instance, name)
 
     def __get__(self, instance, owner):
         return self.field_instance.__get__(instance, owner)
@@ -186,8 +202,24 @@ class ConditionalFileField(models.Field):
         self.field_instance = field_class(**field_kwargs)
         super().__init__(*args, **kwargs)
 
-    def contribute_to_class(self, cls, name, **kwargs):
-        self.field_instance.contribute_to_class(cls, name, **kwargs)
+    def contribute_to_class(self, cls, name, *args, **kwargs):
+        # Accept *args to match different Django versions' signatures
+        # and forward everything to the underlying field instance.
+        return self.field_instance.contribute_to_class(cls, name, *args, **kwargs)
+
+    def deconstruct(self):
+        """Proxy deconstruct to the underlying field instance so migrations
+        serialize the real field class and arguments instead of this wrapper.
+        """
+        try:
+            return self.field_instance.deconstruct()
+        except AttributeError:
+            # Safe fallback to Django's expected deconstruct signature (4-tuple).
+            return super().deconstruct()
+
+    def __getattr__(self, name):
+        # Proxy unknown attributes to the underlying field instance.
+        return getattr(self.field_instance, name)
 
     def __get__(self, instance, owner):
         return self.field_instance.__get__(instance, owner)

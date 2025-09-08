@@ -178,7 +178,9 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            # Allow overriding the sqlite file location (useful for Docker named volumes).
+            # Set SQLITE_PATH to e.g. /app/data/db.sqlite3 in the container environment.
+            'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
             'OPTIONS': {
                 'timeout': 600,
             }
@@ -350,9 +352,16 @@ QUILL_CONFIGS = {
 # ---------------------------------------------------------
 # File Upload Settings
 # ---------------------------------------------------------
-# Increase these values as needed to handle larger uploads
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
+# Increase these values to handle larger uploads (up to 25MB)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 MB
+FILE_UPLOAD_TEMP_DIR = None  # Use system default temp directory
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
+
+# Additional upload configurations
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000  # Maximum number of fields in form data
+DATA_UPLOAD_MAX_NUMBER_FILES = 100    # Maximum number of files in upload
 
 # ---------------------------------------------------------
 # SSL and Proxy Settings (if behind a reverse proxy)

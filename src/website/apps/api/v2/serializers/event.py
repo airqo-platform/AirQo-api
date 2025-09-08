@@ -38,12 +38,19 @@ class EventListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_virtual(self, obj):
-        # Check if location indicates virtual event. Guard against None.
-        location = getattr(obj, 'location_name', None)
-        if not location:
+        # Check if location indicates virtual event. Be defensive: handle None and non-str values.
+        try:
+            location = getattr(obj, 'location_name', None)
+            if location is None:
+                return False
+            location_text = str(location)
+            if not location_text:
+                return False
+            location_text = location_text.lower()
+            return any(k in location_text for k in ('virtual', 'online', 'zoom'))
+        except Exception:
+            # In case of unexpected types, return False rather than raising.
             return False
-        location_text = str(location).lower()
-        return 'virtual' in location_text or 'online' in location_text or 'zoom' in location_text
 
     class Meta:
         model = Event
@@ -85,11 +92,17 @@ class EventDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeria
 
     @extend_schema_field(serializers.BooleanField())
     def get_is_virtual(self, obj):
-        location = getattr(obj, 'location_name', None)
-        if not location:
+        try:
+            location = getattr(obj, 'location_name', None)
+            if location is None:
+                return False
+            location_text = str(location)
+            if not location_text:
+                return False
+            location_text = location_text.lower()
+            return any(k in location_text for k in ('virtual', 'online', 'zoom'))
+        except Exception:
             return False
-        location_text = str(location).lower()
-        return 'virtual' in location_text or 'online' in location_text or 'zoom' in location_text
 
     class Meta:
         model = Event

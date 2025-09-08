@@ -1,16 +1,30 @@
-version: "3.8"
 services:
   web:
     image: airqo-website:local
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     env_file:
       - .env
     ports:
       - "8000:8000"
+    environment:
+      - SQLITE_PATH=/app/data/db.sqlite3
     volumes:
-      - ./db.sqlite3:/app/db.sqlite3
-      - ./staticfiles:/app/staticfiles
+      - dbdata:/app/data:rw
+      - staticfiles:/app/staticfiles:rw
+      - logs:/app/logs:rw
     restart: unless-stopped
     container_name: airqo-website-local
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check", "--deploy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  staticfiles:
+  logs:
+  dbdata:

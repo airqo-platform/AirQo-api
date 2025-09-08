@@ -25,6 +25,13 @@ media/
 # Log files
 *.log
 
+# Local caches and tool directories
+.pytest_cache/
+.ruff_cache/
+
+# Application logs directory
+logs/
+
 # IDE and editor settings
 .vscode/
 .idea/

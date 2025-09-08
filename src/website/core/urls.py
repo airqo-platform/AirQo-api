@@ -37,8 +37,9 @@ public_schema_view = get_schema_view(
     api_info,
     public=True,
     permission_classes=(permissions.AllowAny,),
+    # Use the main API urlpatterns so the generated schema includes v1 and v2
     patterns=[
-        path('website/api/v2/', include('apps.api.v2.urls')),
+        path('website/api/', include('apps.api.urls')),
     ],
 )
 
@@ -49,7 +50,7 @@ protected_schema_view = get_schema_view(
     # Require authentication for the protected UI views
     permission_classes=(IsAuthenticated,),
     patterns=[
-        path('website/api/v2/', include('apps.api.v2.urls')),
+        path('website/api/', include('apps.api.urls')),
     ],
 )
 
@@ -79,22 +80,30 @@ urlpatterns = [
     path('website/api/', include('apps.api.urls')),
 
     # OpenAPI 3.0 Schema and Documentation (drf-spectacular) - V2 Only
-    path('website/api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    # Protect documentation endpoints: require Django login so unauthenticated
+    # requests are redirected to the login page.
+    path('website/api/schema/',
+         login_required(SpectacularAPIView.as_view()), name='schema'),
 
-    # Legacy Swagger URLs (drf-yasg) - V2 Only
+    # Legacy Swagger URLs (drf-yasg) - expose under /website/api/swagger/
     re_path(
-        r'^swagger(?P<format>\.json|\.yaml)$',
-        public_schema_view.without_ui(cache_timeout=0),
+        r'^website/api/swagger(?P<format>\.json|\.yaml)$',
+        # JSON/YAML schema should also require login and redirect to Django login
+        login_required(public_schema_view.without_ui(cache_timeout=0)),
         name='schema-json'
     ),
     path(
-        'website/swagger/',
-        protected_schema_view.with_ui('swagger', cache_timeout=0),
+        'website/api/swagger/',
+        # Require login to view the Swagger UI; unauthenticated users will be
+        # redirected to the Django login page.
+        login_required(protected_schema_view.with_ui(
+            'swagger', cache_timeout=0)),
         name='schema-swagger-ui'
     ),
     path(
-        'website/redoc/',
-        protected_schema_view.with_ui('redoc', cache_timeout=0),
+        'website/api/swagger/redoc/',
+        login_required(protected_schema_view.with_ui(
+            'redoc', cache_timeout=0)),
         name='schema-redoc'
     ),
 
