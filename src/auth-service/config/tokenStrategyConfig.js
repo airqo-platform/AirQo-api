@@ -1,6 +1,6 @@
 // config/tokenStrategyConfig.js
 
-const { TOKEN_STRATEGIES } = require("@services/enhancedTokenFactory.service");
+const { TOKEN_STRATEGIES } = require("@config/constants");
 
 class TokenStrategyConfig {
   constructor() {
@@ -17,7 +17,6 @@ class TokenStrategyConfig {
     // Set organization-specific default strategies
     this.organizationStrategies.set("airqo", TOKEN_STRATEGIES.STANDARD);
     this.organizationStrategies.set("kcca", TOKEN_STRATEGIES.COMPRESSED);
-    this.organizationStrategies.set("unep", TOKEN_STRATEGIES.HASH_BASED);
 
     // Initialize performance tracking
     this.performanceMetrics.set("tokenGenerationTime", new Map());
@@ -224,138 +223,13 @@ class TokenStrategyConfig {
   }
 
   /**
-   * Get configuration for specific use case
-   */
-  getConfigForUseCase(useCase) {
-    const useCaseConfigs = {
-      "mobile-app": {
-        strategy: TOKEN_STRATEGIES.COMPRESSED,
-        reason: "Optimized for mobile bandwidth constraints",
-        fallback: TOKEN_STRATEGIES.HASH_BASED,
-      },
-      "api-integration": {
-        strategy: TOKEN_STRATEGIES.STANDARD,
-        reason: "Balance of features and compatibility",
-        fallback: TOKEN_STRATEGIES.LEGACY,
-      },
-      microservices: {
-        strategy: TOKEN_STRATEGIES.HASH_BASED,
-        reason: "Minimal payload for service-to-service calls",
-        fallback: TOKEN_STRATEGIES.COMPRESSED,
-      },
-      "web-dashboard": {
-        strategy: TOKEN_STRATEGIES.STANDARD,
-        reason: "Full feature set for interactive applications",
-        fallback: TOKEN_STRATEGIES.COMPRESSED,
-      },
-      "iot-devices": {
-        strategy: TOKEN_STRATEGIES.ULTRA_COMPRESSED,
-        reason: "Minimal bandwidth usage for constrained devices",
-        fallback: TOKEN_STRATEGIES.HASH_BASED,
-      },
-      "admin-panel": {
-        strategy: TOKEN_STRATEGIES.STANDARD,
-        reason: "Complete permission set for administrative functions",
-        fallback: TOKEN_STRATEGIES.LEGACY,
-      },
-    };
-
-    return (
-      useCaseConfigs[useCase] || {
-        strategy: this.defaultStrategy,
-        reason: "Default configuration",
-        fallback: TOKEN_STRATEGIES.LEGACY,
-      }
-    );
-  }
-
-  /**
-   * Export current configuration
+   * Exports the current configuration as a plain object
    */
   exportConfig() {
     return {
       defaultStrategy: this.defaultStrategy,
+      userStrategyOverrides: Object.fromEntries(this.userStrategyOverrides),
       organizationStrategies: Object.fromEntries(this.organizationStrategies),
-      userOverrides: Object.fromEntries(this.userStrategyOverrides),
-      performanceMetrics: this.getPerformanceMetrics(),
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  /**
-   * Import configuration
-   */
-  importConfig(config) {
-    if (config.defaultStrategy) {
-      this.setDefaultStrategy(config.defaultStrategy);
-    }
-
-    if (config.organizationStrategies) {
-      for (const [org, strategy] of Object.entries(
-        config.organizationStrategies
-      )) {
-        this.setOrganizationStrategy(org, strategy);
-      }
-    }
-
-    if (config.userOverrides) {
-      for (const [userId, strategy] of Object.entries(config.userOverrides)) {
-        this.setUserStrategyOverride(userId, strategy);
-      }
-    }
-
-    console.log("📥 Token strategy configuration imported successfully");
-  }
-
-  /**
-   * Reset to defaults
-   */
-  reset() {
-    this.defaultStrategy = TOKEN_STRATEGIES.STANDARD;
-    this.userStrategyOverrides.clear();
-    this.organizationStrategies.clear();
-    this.performanceMetrics.clear();
-    this.initializeDefaults();
-    console.log("🔄 Token strategy configuration reset to defaults");
-  }
-
-  /**
-   * Get strategy migration recommendations
-   */
-  getMigrationRecommendations() {
-    return {
-      currentDefaults: {
-        global: this.defaultStrategy,
-        organizations: Object.fromEntries(this.organizationStrategies),
-      },
-      recommendations: [
-        {
-          from: TOKEN_STRATEGIES.LEGACY,
-          to: TOKEN_STRATEGIES.STANDARD,
-          reason: "Improved organization support with backward compatibility",
-          impact: "Low - maintains existing functionality",
-        },
-        {
-          from: TOKEN_STRATEGIES.STANDARD,
-          to: TOKEN_STRATEGIES.COMPRESSED,
-          reason: "Reduced token size with same functionality",
-          impact: "Medium - requires client updates for field name changes",
-        },
-        {
-          from: TOKEN_STRATEGIES.COMPRESSED,
-          to: TOKEN_STRATEGIES.HASH_BASED,
-          reason: "Further size reduction with external storage",
-          impact: "High - requires cache infrastructure",
-        },
-      ],
-      migrationSteps: [
-        "1. Enable parallel token generation with new strategy",
-        "2. Update client applications to handle new token format",
-        "3. Monitor performance metrics and error rates",
-        "4. Gradually migrate user preferences",
-        "5. Update default strategy once stable",
-        "6. Deprecate old strategy after full migration",
-      ],
     };
   }
 }
@@ -366,5 +240,4 @@ const tokenConfig = new TokenStrategyConfig();
 module.exports = {
   tokenConfig,
   TokenStrategyConfig,
-  TOKEN_STRATEGIES,
 };

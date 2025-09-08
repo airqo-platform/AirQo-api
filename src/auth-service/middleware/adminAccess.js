@@ -1,13 +1,14 @@
-// middleware/enhancedAdminAccess.js
+// middleware/adminAccess.js
 const httpStatus = require("http-status");
 const RoleModel = require("@models/Role");
 const GroupModel = require("@models/Group");
 const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
+const mongoose = require("mongoose");
 const isEmpty = require("is-empty");
 const RBACService = require("@services/rbac.service");
 const logger = require("log4js").getLogger(
-  `${constants.ENVIRONMENT} -- enhanced-admin-access`
+  `${constants.ENVIRONMENT} -- admin-access`
 );
 
 /**
@@ -16,7 +17,7 @@ const logger = require("log4js").getLogger(
  * @param {Object} options - Configuration options
  * @returns {Function} Express middleware
  */
-const enhancedAdminCheck = (options = {}) => {
+const adminCheck = (options = {}) => {
   const {
     contextType = "group", // 'group' or 'network'
     idParam = "grp_id", // Parameter name for context ID
@@ -68,9 +69,18 @@ const enhancedAdminCheck = (options = {}) => {
       // Find the target group/network
       let targetContext;
       if (contextType === "group") {
-        const lookupField = useGroupTitle ? "grp_title" : "_id";
-        const lookupQuery = { [lookupField]: contextId };
-        targetContext = await GroupModel(tenant).findOne(lookupQuery);
+        let lookupQuery = {};
+        if (useGroupTitle) {
+          lookupQuery["grp_title"] = contextId;
+        } else if (mongoose.Types.ObjectId.isValid(contextId)) {
+          lookupQuery["_id"] = contextId;
+        } else {
+          lookupQuery["$or"] = [
+            { grp_slug: contextId },
+            { organization_slug: contextId },
+          ];
+        }
+        targetContext = await GroupModel(tenant).findOne(lookupQuery).lean();
       } else {
         // Add network lookup logic here when NetworkModel is available
         return next(
@@ -223,7 +233,7 @@ const enhancedAdminCheck = (options = {}) => {
  * @returns {Function} Express middleware
  */
 const requireGroupAdmin = (options = {}) => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
@@ -244,7 +254,7 @@ const requireGroupAccess = (
   requiredPermissions = ["GROUP_VIEW"],
   options = {}
 ) => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: "grp_id",
     fallbackIdParams: ["groupSlug", "grp_slug"],
@@ -261,7 +271,7 @@ const requireGroupAccess = (
  * @returns {Function} Express middleware
  */
 const requireGroupUserManagement = (groupIdParam = "grp_id") => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
@@ -276,7 +286,7 @@ const requireGroupUserManagement = (groupIdParam = "grp_id") => {
  * @returns {Function} Express middleware
  */
 const requireGroupSettings = (groupIdParam = "grp_id") => {
-  return enhancedAdminCheck({
+  return adminCheck({
     contextType: "group",
     idParam: groupIdParam,
     requireSuperAdmin: false,
@@ -296,7 +306,7 @@ const legacyAdminCheck = async (req, res, next) => {
       req.path.includes("/organization-requests") ||
       req.originalUrl.includes("/organization-requests")
     ) {
-      return enhancedAdminCheck({
+      return adminCheck({
         contextType: "group",
         idParam: "grp_id",
         useGroupTitle: true,
@@ -327,7 +337,7 @@ const legacyAdminCheck = async (req, res, next) => {
       req.body.useGroupTitle === true ||
       !groupSlug.match(/^[0-9a-fA-F]{24}$/); // If it's not a valid ObjectId, assume it's a title
 
-    return enhancedAdminCheck({
+    return adminCheck({
       contextType: "group",
       idParam: "grp_id",
       useGroupTitle,
@@ -444,7 +454,7 @@ const debugAdminAccess = () => {
 };
 
 module.exports = {
-  enhancedAdminCheck,
+  adminCheck,
   requireGroupAdmin,
   requireGroupAccess,
   requireGroupUserManagement,

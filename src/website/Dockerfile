@@ -1,31 +1,76 @@
-# Use Python 3.11-slim as the base image
-FROM python:3.11-slim
+# Multi-stage build for maximum optimization
+# Stage 1: Build dependencies
+FROM python:3.11-alpine AS builder
+
+# Build args for optimization
+ARG PYTHONDONTWRITEBYTECODE=1
+ARG PYTHONUNBUFFERED=1
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=${PYTHONDONTWRITEBYTECODE} \
+    PYTHONUNBUFFERED=${PYTHONUNBUFFERED} \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Set the working directory inside the container
+# Install build dependencies (minimal set)
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    linux-headers \
+    && pip install --upgrade pip
+
+# Copy requirements first for better caching
+COPY requirements.txt /tmp/
+RUN pip install --user --no-warn-script-location -r /tmp/requirements.txt \
+    && find /root/.local -type d -name "__pycache__" -exec rm -rf {} + || true
+
+# Stage 2: Production image (Alpine-based)
+FROM python:3.11-alpine AS production
+
+# Runtime environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/home/appuser/.local/bin:$PATH" \
+    PYTHONPATH="/home/appuser/.local/lib/python3.11/site-packages"
+
+# Install minimal runtime dependencies
+RUN apk add --no-cache \
+    libpq \
+    wget \
+    && addgroup -g 1000 appgroup \
+    && adduser -u 1000 -D -G appgroup appuser
+
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    && apt-get clean
+# Copy Python packages from builder to appuser home directory
+COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
 
-# Copy requirements file and install dependencies
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements file for reference
+COPY --chown=appuser:appgroup requirements.txt .
 
-# Copy the rest of the backend code into the container
-COPY . .
+# Copy application code
+COPY --chown=appuser:appgroup . .
 
-# Expose the port the Django app will run on
+# Create directories and fix permissions in single layer
+RUN mkdir -p /app/staticfiles /app/logs \
+    && find /app -name "*.pyc" -delete \
+    && find /app -name "__pycache__" -type d -exec rm -rf {} + || true \
+    && sed -i 's/\r$//' /app/entrypoint.sh \
+    && chmod +x /app/entrypoint.sh \
+    && chown -R appuser:appgroup /app \
+    && chmod -R 755 /app/staticfiles /app/logs
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
 EXPOSE 8000
 
-# Add execution permissions to entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# Optimized health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=2 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/website/healthcheck/ || exit 1
 
-# Set the entrypoint for the container
+# Set entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
