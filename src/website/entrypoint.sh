@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+# Use POSIX shell strict mode for predictable failures
+set -euo pipefail
 
 # Run Django migrations
 echo "Running migrations..."

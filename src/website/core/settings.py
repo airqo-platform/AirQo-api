@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'nested_admin',
     'drf_yasg',
+    'drf_spectacular',
     'django_quill',
 
     # Custom Apps
@@ -162,13 +163,51 @@ if DATABASE_URL:
             ssl_require=True
         )
     }
+    # Add PostgreSQL-specific connection options
+    if 'postgresql' in DATABASE_URL:
+        DATABASES['default']['OPTIONS'] = {
+            'sslmode': 'require',
+        }
+    elif 'mysql' in DATABASE_URL:
+        DATABASES['default']['OPTIONS'] = {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+            'autocommit': True,
+        }
 else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 600,
+            }
         }
     }
+
+# ---------------------------------------------------------
+# Cache Configuration
+# ---------------------------------------------------------
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'airqo-website-cache',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Cache time for different types of data
+CACHE_TTL = {
+    'default': 300,      # 5 minutes
+    'static_content': 3600,  # 1 hour for relatively static content
+    'dynamic_content': 60,   # 1 minute for dynamic content
+    'list_views': 300,       # 5 minutes for list views
+    'detail_views': 600,     # 10 minutes for detail views
+}
 
 # ---------------------------------------------------------
 # Password Validation
@@ -221,6 +260,42 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/day',
+        'user': '5000/day'
+    }
+}
+
+# ---------------------------------------------------------
+# DRF Spectacular (OpenAPI 3.0) Settings
+# ---------------------------------------------------------
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AirQo Website API',
+    'DESCRIPTION': 'API documentation for AirQo Website - providing access to air quality data, events, team information, publications, and more.',
+    'VERSION': '2.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': r'/website/api/v[0-9]',
+    'SERVERS': [
+        {'url': 'http://127.0.0.1:8000', 'description': 'Development server'},
+        {'url': 'https://platform.airqo.net',
+            'description': 'Production server'},
+    ],
+    'TAGS': [
+        {'name': 'v1', 'description': 'Legacy API endpoints (v1)'},
+        {'name': 'v2',
+            'description': 'Enhanced API endpoints (v2) with improved performance and features'},
+        {'name': 'Team', 'description': 'Team member and biography endpoints'},
+        {'name': 'Events', 'description': 'Event management and listing endpoints'},
+        {'name': 'Publications', 'description': 'Research publications and resources'},
+        {'name': 'Clean Air', 'description': 'Clean air resources and forum events'},
+        {'name': 'Partners', 'description': 'Organization partners and descriptions'},
     ],
 }
 

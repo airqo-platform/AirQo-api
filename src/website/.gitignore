@@ -30,6 +30,8 @@ media/
 .idea/
 *.sublime-workspace
 *.sublime-project
+.github/
+var/
 
 # OS generated files
 .DS_Store

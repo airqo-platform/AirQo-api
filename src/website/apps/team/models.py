@@ -19,7 +19,7 @@ class Member(BaseModel):
     linked_in = models.URLField(max_length=255, null=True, blank=True)
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', 'name']
 
     def __str__(self):
@@ -42,8 +42,8 @@ class MemberBiography(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', 'id']
 
     def __str__(self):
-        return f"Description {self.id}"
+        return f"Description {self.pk if self.pk else 'New'}"

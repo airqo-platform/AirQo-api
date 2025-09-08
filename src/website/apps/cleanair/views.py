@@ -42,7 +42,11 @@ class ForumEventViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ForumEventTitlesView(generics.ListAPIView):
-    queryset = ForumEvent.objects.all().only('id', 'title', 'unique_title')
+    # Include all fields used in the lightweight serializer to avoid extra queries
+    queryset = ForumEvent.objects.all().only(
+        'id', 'title', 'unique_title', 'background_image',
+        'start_date', 'end_date', 'start_time', 'end_time', 'location_name'
+    )
     serializer_class = ForumEventTitleSerializer
     permission_classes = [AllowAny]
 
