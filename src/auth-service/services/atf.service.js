@@ -83,8 +83,13 @@ class AbstractTokenFactory {
 
   async decodeToken(token) {
     try {
-      const cleanToken = token.replace("JWT ", "");
-      const decoded = jwt.verify(cleanToken, constants.JWT_SECRET, {
+      // The token passed here should already be clean (without "Bearer " or "JWT ").
+      // The previous line `const cleanToken = token.replace("JWT ", "");` was redundant and could cause issues.
+      if (!token || typeof token !== "string") {
+        throw new Error("Invalid token provided for decoding");
+      }
+
+      const decoded = jwt.verify(token, constants.JWT_SECRET, {
         algorithms: ["HS256"],
       });
 
@@ -104,7 +109,12 @@ class AbstractTokenFactory {
         _decodedAt: new Date().toISOString(),
       };
     } catch (error) {
-      logger.error(`Error decoding token: ${error.message}`);
+      // Log the specific JWT error for better debugging
+      if (error.name === "JsonWebTokenError") {
+        logger.error(`JWT Error: ${error.message}`);
+      } else {
+        logger.error(`Error decoding token: ${error.message}`);
+      }
       throw error;
     }
   }
