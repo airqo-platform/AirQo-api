@@ -8,6 +8,7 @@ const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
 const ThemeSchema = require("@models/ThemeSchema");
+const PermissionModel = require("@models/Permission");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/database");
 const logger = require("log4js").getLogger(

@@ -1433,17 +1433,34 @@ function authJWT(req, res, next) {
 
 const enhancedJWTAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization || "";
-    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
-    if (!match) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
       return next(
         new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-          message: "No valid authorization token provided",
+          message: "Authorization header is missing",
+        })
+      );
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match || !match[2]) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message:
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
         })
       );
     }
 
     const token = match[2].trim();
+    if (!token) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Token is missing from Authorization header",
+        })
+      );
+    }
+
     const tenantRaw =
       req.query.tenant ||
       req.body.tenant ||
@@ -1455,6 +1472,14 @@ const enhancedJWTAuth = async (req, res, next) => {
     const decodedUser = await tokenFactory.decodeToken(token);
 
     const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
+    if (!userId) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Invalid token: User identifier not found in token payload",
+        })
+      );
+    }
+
     const user = await UserModel(tenant).findById(userId).lean();
 
     if (!user) {
@@ -1474,9 +1499,16 @@ const enhancedJWTAuth = async (req, res, next) => {
     next();
   } catch (error) {
     logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    // Provide a more specific error message based on the JWT error type
+    let errorMessage = "Invalid or expired token";
+    if (error.name === "JsonWebTokenError") {
+      errorMessage = `Invalid token: ${error.message}`;
+    } else if (error.name === "TokenExpiredError") {
+      errorMessage = "Token has expired";
+    }
     return next(
       new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
-        message: "Invalid or expired token",
+        message: errorMessage,
       })
     );
   }
