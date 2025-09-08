@@ -160,9 +160,8 @@ class ConditionalImageField(models.Field):
         try:
             return self.field_instance.deconstruct()
         except AttributeError:
-            # Fallback: return this wrapper's path and empty args/kwargs.
-            path = f"{self.__class__.__module__}.{self.__class__.__name__}"
-            return (path, [], {})
+            # Safe fallback to Django's expected deconstruct signature (4-tuple).
+            return super().deconstruct()
 
     def __getattr__(self, name):
         # Proxy unknown attributes to the underlying field instance.
@@ -215,8 +214,8 @@ class ConditionalFileField(models.Field):
         try:
             return self.field_instance.deconstruct()
         except AttributeError:
-            path = f"{self.__class__.__module__}.{self.__class__.__name__}"
-            return (path, [], {})
+            # Safe fallback to Django's expected deconstruct signature (4-tuple).
+            return super().deconstruct()
 
     def __getattr__(self, name):
         # Proxy unknown attributes to the underlying field instance.

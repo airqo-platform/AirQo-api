@@ -9,8 +9,10 @@ services:
       - .env
     ports:
       - "8000:8000"
+    environment:
+      - SQLITE_PATH=/app/data/db.sqlite3
     volumes:
-      - ./db.sqlite3:/app/db.sqlite3:rw
+      - dbdata:/app/data:rw
       - staticfiles:/app/staticfiles:rw
       - logs:/app/logs:rw
     restart: unless-stopped
@@ -25,3 +27,4 @@ services:
 volumes:
   staticfiles:
   logs:
+  dbdata:

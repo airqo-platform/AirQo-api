@@ -178,7 +178,9 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
+            # Allow overriding the sqlite file location (useful for Docker named volumes).
+            # Set SQLITE_PATH to e.g. /app/data/db.sqlite3 in the container environment.
+            'NAME': os.getenv('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
             'OPTIONS': {
                 'timeout': 600,
             }
