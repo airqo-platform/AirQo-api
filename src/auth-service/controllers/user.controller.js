@@ -394,8 +394,6 @@ const userController = {
     }
   },
   login: async (req, res, next) => {
-    logger.info("..................................");
-    logger.info("user login......");
     try {
       const request = handleRequest(req, next);
       if (!request) return;
