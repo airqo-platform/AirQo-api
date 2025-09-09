@@ -13,9 +13,10 @@ from ..filters.press import PressFilterSet
 from ..pagination import StandardPageNumberPagination
 from ..permissions import DefaultAPIPermission
 from ..utils import OptimizedQuerySetMixin
+from ..mixins import SlugModelViewSetMixin
 
 
-class PressViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class PressViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Press model
 
@@ -26,6 +27,7 @@ class PressViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     - Search across title and intro fields
     - Ordering by publication date, order, and other fields
     - Dynamic field selection via ?fields= and ?omit=
+    - Privacy-friendly slug-based URLs
 
     Special endpoints:
     - /recent/ - Get recent press articles (last 30 days)

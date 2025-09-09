@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     'apps.partners',
     'apps.board',
     'apps.team',
+    'apps.api',  # V2 API with universal slug support
 ]
 
 # ---------------------------------------------------------

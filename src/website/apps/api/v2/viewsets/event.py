@@ -7,6 +7,7 @@ Special features for event app as per requirements:
 - Virtual vs venue fields
 - Registration counts
 - Calendar-friendly fields
+- Universal slug support for privacy-friendly URLs
 """
 from django.utils import timezone
 from typing import Optional
@@ -20,6 +21,7 @@ from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Res
 from ..filters.event import EventFilter, InquiryFilter, ProgramFilter, SessionFilter, PartnerLogoFilter, ResourceFilter
 from ..pagination import StandardPageNumberPagination, StandardCursorPagination
 from ..permissions import DefaultAPIPermission
+from ..mixins import SlugModelViewSetMixin, OptimizedQuerySetMixin
 from ..serializers.event import (
     EventListSerializer, EventDetailSerializer,
     InquiryListSerializer, InquiryDetailSerializer,
@@ -35,14 +37,22 @@ from django.db import connection
 logger = logging.getLogger(__name__)
 
 
-class EventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class EventViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
-    Event ViewSet with special date hierarchy and event status filtering
+    Event ViewSet with universal slug support and special date hierarchy
+
+    Special features:
+    - Privacy-friendly slug URLs (e.g., /events/clean-air-summit-2025/)
+    - Automatic ID hiding when slugs exist
+    - Backward compatibility with ID-based URLs
+    - Date hierarchy and event status filtering
 
     Special actions:
     - upcoming/ - Get upcoming events
     - past/ - Get past events  
     - calendar/ - Get events in calendar format
+    - by-slug/<slug>/ - Explicit slug lookup
+    - <slug|id>/identifiers/ - Get all identifiers for an event
     """
     queryset = Event.objects.all()
     permission_classes = [DefaultAPIPermission]
@@ -56,6 +66,11 @@ class EventViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['start_date', 'end_date',
                        'title', 'order', 'created', 'modified']
     ordering = ['-start_date', 'order']
+    
+    # Slug configuration
+    slug_filter_fields = ['slug']  # Event uses standard slug field
+    select_related_fields = []  # No foreign keys to optimize
+    prefetch_related_fields = ['sessions', 'programs', 'resources', 'partner_logos']
     pagination_class = StandardPageNumberPagination
     # Limit fields retrieved for list action to speed up list serialization
     list_only_fields = [
