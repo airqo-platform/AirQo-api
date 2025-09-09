@@ -647,6 +647,10 @@ UserSchema.statics = {
             logger.error(`🐛🐛 Internal Server Error -- ${error.message}`);
           }
         }
+      } else if (err instanceof HttpError) {
+        message = err.message;
+        status = err.statusCode;
+        response = err.errors || { message: err.message };
       } else if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
