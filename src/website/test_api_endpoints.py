@@ -52,14 +52,22 @@ def test_endpoints():
             if status == 200:
                 print(f"✅ {description:25} | {url:35} | Status: {status}")
 
-                # Try to parse JSON response
-                try:
-                    data = response.json()
-                    if 'count' in data:
-                        print(f"   📊 Count: {data['count']} items")
-                    elif isinstance(data, dict) and len(data) > 0:
-                        print(f"   📄 Keys: {list(data.keys())[:5]}")
-                except:
+                # Try to parse JSON response safely
+                content_type = getattr(
+                    response, "headers", {}).get("Content-Type", "")
+                if "json" in content_type.lower():
+                    try:
+                        data = response.json() if hasattr(response, "json") else json.loads(
+                            response.content.decode("utf-8")
+                        )
+                    except ValueError as exc:
+                        print(f"   ⚠️ JSON parse error: {exc}")
+                    else:
+                        if isinstance(data, dict) and "count" in data:
+                            print(f"   📊 Count: {data['count']} items")
+                        elif isinstance(data, dict) and data:
+                            print(f"   📄 Keys: {list(data.keys())[:5]}")
+                else:
                     print(
                         f"   📄 Response length: {len(response.content)} bytes")
 
@@ -67,7 +75,7 @@ def test_endpoints():
                 print(f"❌ {description:25} | {url:35} | Status: {status}")
                 all_passed = False
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"💥 {description:25} | {url:35} | Error: {str(e)[:50]}")
             all_passed = False
 
@@ -93,22 +101,29 @@ def test_endpoints():
 
     for url, description in slug_tests:
         try:
-            # Test POST with empty list - disable CSRF for testing
-            response = client.post(url,
-                                   data=json.dumps({'identifiers': []}),
-                                   content_type='application/json',
-                                   HTTP_X_CSRFTOKEN='test')
+            # Test POST with empty list (CSRF checks disabled via Client)
+            response = client.post(
+                url,
+                data=json.dumps({'identifiers': []}),
+                content_type='application/json',
+            )
             status = response.status_code
 
             if status == 200:
                 print(f"✅ {description:30} | Status: {status}")
-                data = response.json()
-                if 'results' in data:
-                    print(f"   📊 Results: {len(data['results'])} items")
+                try:
+                    data = response.json() if hasattr(response, "json") else json.loads(
+                        response.content.decode("utf-8")
+                    )
+                except ValueError as exc:
+                    print(f"   ⚠️ JSON parse error: {exc}")
+                else:
+                    if isinstance(data, dict) and 'results' in data:
+                        print(f"   📊 Results: {len(data['results'])} items")
             else:
                 print(f"❌ {description:30} | Status: {status}")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"💥 {description:30} | Error: {str(e)[:50]}")
 
     print("=" * 50)
@@ -129,21 +144,24 @@ def test_endpoints():
             print("✅ Anonymous GET allowed (or resource missing) — OK")
         else:
             print("⚠️ Unexpected status for anonymous GET")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"💥 Error during anonymous GET: {str(e)[:100]}")
 
     # 2) Anonymous POST to bulk-identifiers should be denied (403/401 or CSRF failure)
     bulk_url = '/website/api/v2/events/bulk-identifiers/'
     try:
-        r = client.post(bulk_url,
-                        data=json.dumps({'identifiers': ['testing-2025']}),
-                        content_type='application/json')
+        r = client.post(
+            bulk_url,
+            data=json.dumps({'identifiers': ['testing-2025']}),
+            content_type='application/json',
+        )
         print(f"POST {bulk_url} -> Status: {r.status_code}")
-        if r.status_code == 200:
-            print("❌ Anonymous POST succeeded (unexpected)")
+        if r.status_code in (401, 403):
+            print("✅ Anonymous POST denied (expected)")
         else:
-            print("✅ Anonymous POST did not succeed (expected)")
-    except Exception as e:
+            print("❌ Anonymous POST not denied as expected "
+                  f"(got {r.status_code}; expected 401/403)")
+    except Exception as e:  # noqa: BLE001
         print(f"💥 Error during anonymous POST: {str(e)[:100]}")
 
     print("=" * 50)
