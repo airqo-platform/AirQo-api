@@ -63,5 +63,4 @@ class MemberBiographyFilter(filters.FilterSet):
         fields = {
             'description': ['icontains'],
             'order': ['exact', 'gte', 'lte'],
-            'member': ['exact'],
         }

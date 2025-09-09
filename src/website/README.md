@@ -28,6 +28,20 @@ A high-performance, scalable REST API backend for the AirQo website, providing a
 - 🔄 **OpenAPI 3.0 Schema** - Machine-readable API specifications
 - 🧪 **Live Testing** - Test endpoints directly from documentation
 
+### 🔗 Universal Slug System (NEW!)
+
+- 🔐 **Privacy-Friendly URLs** - Slug-based identifiers instead of numeric IDs
+- 🔍 **Universal Lookup** - Works across all models that support slugs
+- 🎯 **Bulk Operations** - Process multiple identifiers efficiently
+- ⚡ **Automatic Generation** - Management command for bulk slug creation
+
+### ✅ Production-Ready Quality
+
+- 🛡️ **Type Safety** - Full type annotations for better code quality
+- 🔧 **Error-Free Codebase** - All critical errors resolved
+- 🧪 **Tested Endpoints** - Comprehensive API endpoint validation
+- 📊 **Performance Monitoring** - Query optimization and response time tracking
+
 ## 🏗️ Architecture
 
 ### Apps Structure
@@ -187,6 +201,67 @@ GET /website/api/v2/events/?page=2&page_size=20
 # Cursor-based pagination (for large datasets)
 GET /website/api/v2/events/?cursor=cD0yMDI0LTEyLTA0
 ```
+
+#### 🔗 Universal Slug System
+
+The V2 API includes a sophisticated slug-based lookup system for privacy-friendly URLs:
+
+```bash
+# Retrieve by slug instead of ID
+GET /website/api/v2/events/annual-air-quality-summit-2024/
+GET /website/api/v2/publications/air-quality-monitoring-report/
+GET /website/api/v2/team-members/john-doe/
+
+# Bulk identifier operations
+POST /website/api/v2/events/bulk-identifiers/
+{
+  "identifiers": ["slug1", "slug2", "id3"]
+}
+
+# Direct slug lookups
+GET /website/api/v2/events/by-slug/my-event-slug/
+```
+
+**Benefits:**
+- ✅ Privacy-friendly (no exposure of sequential IDs)  
+- ✅ SEO-optimized URLs
+- ✅ Human-readable identifiers
+- ✅ Automatic fallback to ID when slug not available
+
+## 🛠️ Management Commands
+
+### Universal Slug Generation
+
+Generate slugs for all models that support them:
+
+```bash
+# Generate slugs for all models (dry run)
+python manage.py generate_all_slugs --dry-run --verbose
+
+# Generate slugs for specific apps
+python manage.py generate_all_slugs --apps event publications team
+
+# Generate slugs for specific models
+python manage.py generate_all_slugs --models Event Publication Press
+
+# Force regeneration (even if slugs exist)
+python manage.py generate_all_slugs --force --batch-size 50
+
+# Full options
+python manage.py generate_all_slugs \
+    --apps event publications \
+    --batch-size 100 \
+    --force \
+    --verbose
+```
+
+**Options:**
+- `--dry-run`: Preview changes without saving
+- `--apps`: Target specific Django apps
+- `--models`: Target specific model names  
+- `--batch-size`: Process in batches (default: 100)
+- `--force`: Regenerate existing slugs
+- `--verbose`: Show detailed progress
 
 ### Example API Calls
 

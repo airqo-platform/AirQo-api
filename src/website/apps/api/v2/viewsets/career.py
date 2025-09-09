@@ -9,6 +9,7 @@ from ..filters.career import CareerFilterSet, DepartmentFilterSet
 from ..pagination import StandardPageNumberPagination
 from ..permissions import DefaultAPIPermission
 from ..utils import OptimizedQuerySetMixin
+from ..mixins import SlugModelViewSetMixin
 
 
 class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
@@ -25,7 +26,7 @@ class DepartmentViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
         return DepartmentListSerializer if self.action == 'list' else DepartmentDetailSerializer
 
 
-class CareerViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class CareerViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Career.objects.all()
     permission_classes = [DefaultAPIPermission]
     pagination_class = StandardPageNumberPagination

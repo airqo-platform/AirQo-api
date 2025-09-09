@@ -4,6 +4,7 @@ Permission classes for v2 API (scaffolding - disabled by default)
 Security scaffolding that can be toggled on when needed.
 Currently defaults to AllowAny to maintain open access.
 """
+from rest_framework import permissions
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 import logging
@@ -11,13 +12,33 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class DefaultAPIPermission(AllowAny):
+class DefaultAPIPermission(permissions.BasePermission):
     """
-    Default permission class - currently allows all access.
+    Default permission for v2 API:
 
-    TODO: When security is enabled, switch to more restrictive permissions.
+    - Allow read-only access (GET, HEAD, OPTIONS) to anyone.
+    - Require authentication for write operations (POST, PUT, PATCH, DELETE).
+
+    This preserves the "open endpoints" policy for read operations while
+    enforcing auth for destructive actions.
     """
-    pass
+
+    def has_permission(self, request, view) -> bool:  # type: ignore[override]
+        # Allow safe methods for anonymous users
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        # Require an authenticated user for write operations
+        user = getattr(request, 'user', None)
+        return bool(user and getattr(user, 'is_authenticated', False))
+
+    def has_object_permission(self, request, view, obj) -> bool:  # type: ignore[override]
+        # Same behavior at the object level
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        user = getattr(request, 'user', None)
+        return bool(user and getattr(user, 'is_authenticated', False))
 
 
 class IsAuthenticatedOrReadOnlyPermission(IsAuthenticatedOrReadOnly):
@@ -100,3 +121,14 @@ def get_throttle_classes(throttle_type='disabled'):
         list: Throttle classes to use
     """
     return THROTTLE_CLASSES.get(throttle_type, THROTTLE_CLASSES['disabled'])
+
+
+# Backward-compatible alias used by v2 mixins
+class ReadOnlyOrAuthenticated(DefaultAPIPermission):
+    """Backward-compatible name for the default v2 permission skeleton.
+
+    Kept as an explicit class to allow imports like
+    `from ..v2.permissions import ReadOnlyOrAuthenticated` used in
+    mixins and other v2 modules.
+    """
+    pass
