@@ -3,6 +3,7 @@ const SubscriptionModel = require("@models/Subscription");
 const VerifyTokenModel = require("@models/VerifyToken");
 const AccessRequestModel = require("@models/AccessRequest");
 const RoleModel = require("@models/Role");
+const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const bcrypt = require("bcrypt");
@@ -4744,13 +4745,42 @@ const createUserModule = {
       }
 
       const defaultRole = await RoleModel(tenant)
-        .findOne({ role_code: "AIRQO_DEFAULT_USER" })
+        .findOne({
+          role_code: "AIRQO_DEFAULT_USER",
+          group_id: airqoGroup._id,
+        })
         .lean();
       if (!defaultRole) {
         logger.warn(
           `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}.`
         );
-        return;
+        try {
+          const defaultPermissions = await PermissionModel(tenant)
+            .find({ permission: { $in: constants.DEFAULTS.DEFAULT_USER } })
+            .select("_id")
+            .lean();
+
+          const permissionIds = defaultPermissions.map((p) => p._id);
+
+          const newRoleData = {
+            role_name: "AIRQO_DEFAULT_USER",
+            role_code: "AIRQO_DEFAULT_USER",
+            role_description: "Default role for new AirQo users",
+            role_permissions: permissionIds,
+            group_id: airqoGroup._id,
+            role_status: "ACTIVE",
+          };
+
+          defaultRole = await RoleModel(tenant).create(newRoleData);
+          logger.info(
+            `[Default Role] Successfully created AIRQO_DEFAULT_USER role for tenant ${tenant}.`
+          );
+        } catch (error) {
+          logger.error(
+            `[Default Role] Failed to create AIRQO_DEFAULT_USER role: ${error.message}`
+          );
+          return; // exit if creation fails
+        }
       }
 
       const roles = Array.isArray(user.group_roles) ? user.group_roles : [];
