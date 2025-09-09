@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.templatetags.static import static as static_url
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.generic.base import RedirectView
@@ -62,9 +63,14 @@ urlpatterns = [
     # Admin panel
     path('website/admin/', admin.site.urls),
 
-    # Favicon - redirect root favicon requests to the admin static favicon
-    # Browsers commonly request /favicon.ico; redirect to the static file
-    path('favicon.ico', RedirectView.as_view(url=settings.STATIC_URL + 'admin/images/favicon.ico'), name='favicon'),
+    # Favicon - redirect /favicon.ico to a project-provided static asset (301)
+    # Use the Django static helper to build the correct asset path and
+    # make the redirect permanent so browsers cache it.
+    path(
+        'favicon.ico',
+        RedirectView.as_view(url=static_url('favicon.ico'), permanent=True),
+        name='favicon'
+    ),
 
     # API routes from custom apps with specific prefixes
     path('website/', include('apps.press.urls')),
