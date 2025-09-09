@@ -29,6 +29,7 @@ const {
   redisDelAsync,
   redisSetWithTTLAsync,
 } = require("@config/redis");
+const { tokenConfig } = require("@config/tokenStrategyConfig");
 
 const log4js = require("log4js");
 const GroupModel = require("@models/Group");
@@ -4833,10 +4834,10 @@ const createUserModule = {
    * Priority: Request override > User preference > System default.
    */
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
-    return (
-      preferredStrategyFromRequest ||
-      user.preferredTokenStrategy ||
-      constants.TOKEN_STRATEGIES.LEGACY
+    return tokenConfig.getStrategyForUser(
+      user._id,
+      preferredStrategyFromRequest || user.preferredTokenStrategy,
+      user.organization
     );
   },
   /**

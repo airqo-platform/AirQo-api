@@ -10,6 +10,7 @@ const TOKEN_STRATEGIES = {
   BIT_FLAGS: "bit_flags",
   OPTIMIZED_BIT_FLAGS: "optimized_bit_flags",
   OPTIMIZED_ROLE_ONLY: "optimized_role_only",
+  NO_ROLES_AND_PERMISSIONS: "no_roles_and_permissions",
 };
 
 module.exports = {

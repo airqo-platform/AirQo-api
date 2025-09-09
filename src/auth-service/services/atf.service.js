@@ -58,6 +58,10 @@ class AbstractTokenFactory {
       constants.TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY,
       new OptimizedRoleOnlyTokenStrategy()
     );
+    this.strategies.set(
+      constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+      new NoRolesAndPermissionsTokenStrategy()
+    );
   }
 
   async createToken(
@@ -124,6 +128,8 @@ class AbstractTokenFactory {
       throw new Error("Invalid token payload structure");
     }
 
+    if (decoded.nrp === 1)
+      return constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
     if (decoded.oh) return constants.TOKEN_STRATEGIES.OPTIMIZED_HASH;
     if (decoded.sf) return constants.TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS;
     if (decoded.os === 1) return constants.TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY;
@@ -267,6 +273,51 @@ class StandardTokenStrategy extends TokenStrategy {
       ...decoded,
       userId: decoded._id,
       permissions: decoded.allPermissions || decoded.systemPermissions || [],
+    };
+  }
+}
+
+class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
+  async generateToken(user, tenant, options) {
+    try {
+      const tokenPayload = {
+        _id: user._id,
+        username: user.userName,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        userType: user.userType,
+        organization: user.organization,
+        long_organization: user.long_organization,
+        privilege: user.privilege,
+        nrp: 1, // Marker for this strategy
+      };
+
+      const jwtOptions = {
+        expiresIn: options.expiresIn || "24h",
+        ...options.jwtOptions,
+      };
+
+      return jwt.sign(tokenPayload, constants.JWT_SECRET, {
+        algorithm: "HS256",
+        ...jwtOptions,
+      });
+    } catch (error) {
+      logger.error(
+        `Error generating NoRolesAndPermissions token: ${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  async decodeToken(decoded, tenant) {
+    // The token doesn't have permissions, so we just return the basic user info.
+    // The permissions will be in the response body, not the token.
+    return {
+      ...decoded,
+      userId: decoded._id,
+      permissions: [], // Explicitly empty
+      roles: [], // Explicitly empty
     };
   }
 }
