@@ -15,7 +15,7 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "baseline_frequency",
+    "name": "baseline_resolution",
     "type": "STRING",
     "mode": "REQUIRED",
     "description": "Frequency of baseline calculation, e.g., 'Hourly', 'Weekly'. Must be a string representing the interval in minutes."
@@ -34,6 +34,11 @@
   },
   {
     "name": "device_category",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "data_type",
     "type": "STRING",
     "mode": "REQUIRED"
   },
@@ -174,13 +179,13 @@
     "description": "Standard deviation of pollutant measurements within the baseline window."
   },
   {
-    "name": "min",
+    "name": "minimum",
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "Minimum pollutant measurement observed in the baseline window."
   },
   {
-    "name": "max",
+    "name": "maximum",
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "Maximum pollutant measurement observed in the baseline window."
@@ -192,15 +197,15 @@
     "description": "Version of the baseline computation logic used (for reproducibility), formatted as semantic versioning (e.g., '1.0.0')."
   },
   {
-    "name": "region_min",
+    "name": "site_minimum",
     "type": "FLOAT",
     "mode": "NULLABLE",
-    "description": "Minimum pollutant value considered for the region (used for ECDF binning)."
+    "description": "Minimum pollutant value considered for the site (used for ECDF binning)."
   },
   {
-    "name": "region_max",
+    "name": "site_maximum",
     "type": "FLOAT",
     "mode": "NULLABLE",
-    "description": "Maximum pollutant value considered for the region (used for ECDF binning)."
+    "description": "Maximum pollutant value considered for the site (used for ECDF binning)."
   }
 ]
