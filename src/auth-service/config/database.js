@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 mongoose.set("useNewUrlParser", true);
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
-mongoose.set("debug", false);
+mongoose.set("debug", process.env.NODE_ENV === "development");
 const constants = require("./constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- config-database`);
