@@ -323,7 +323,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         } catch (error) {
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
-        // Role check and fix
+        // Ensure user's default role is correctly assigned before proceeding
         await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
         winstonLogger.info(
           `successful login through ${service ? service : "unknown"} service`,
@@ -537,7 +537,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
         }
 
-        // Fire-and-forget role check and fix
+        // Ensure user's default role is correctly assigned before proceeding
         await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
         winstonLogger.info(
@@ -1261,7 +1261,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
         logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
       }
 
-      // Role check and fix
+      // Ensure user's default role is correctly assigned before proceeding
       await createUserUtil.ensureDefaultAirqoRole(user, tenant.toLowerCase());
 
       winstonLogger.info(userAction, {

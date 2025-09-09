@@ -96,14 +96,11 @@ const initializeRBAC = async () => {
     console.error(
       "🚨 Halting application startup due to invalid RBAC configuration in permissions.js"
     );
-    // In a real application, you might want to exit the process
-    // process.exit(1);
-    // For now, we'll just prevent initialization.
-    return;
+    throw new Error(
+      `Invalid RBAC configuration: ${permissionFileErrors.join("; ")}`
+    );
   }
   console.log("✅ RBAC configuration file health check passed.");
-
-  rbacInitialized = true; // Set flag immediately to prevent race conditions
 
   try {
     console.log("🚀 Initializing default permissions and roles...");
@@ -121,6 +118,7 @@ const initializeRBAC = async () => {
         role_errors,
       } = result.data;
       console.log("✅ RBAC initialization completed successfully.");
+      rbacInitialized = true; // Set flag after successful initialization
       console.log(
         `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`
       );

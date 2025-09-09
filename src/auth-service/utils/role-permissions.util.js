@@ -603,6 +603,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           success: true,
           data: updatedRole,
           message: `Role ${roleData.role_name} permissions synchronized`,
+          action: "updated",
           status: httpStatus.OK,
           role_name: roleData.role_name,
           permissions_synced: expectedPermissionIds.length,
@@ -615,6 +616,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           success: true,
           data: existingRole,
           message: `Role ${roleData.role_name} is already up to date`,
+          action: "unchanged",
           status: httpStatus.OK,
           role_name: roleData.role_name,
         };
@@ -636,6 +638,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
         success: true,
         data: newRole,
         message: `Role ${roleData.role_name} created successfully`,
+        action: "created",
         status: httpStatus.OK,
         role_name: roleData.role_name,
       };
@@ -734,14 +737,16 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
 
   for (const result of roleCreationResults) {
     if (result && result.success) {
-      if (result.message) {
-        if (result.message.includes("synchronized")) {
+      switch (result.action) {
+        case "updated":
           rolesUpdated++;
-        } else if (result.message.includes("created")) {
+          break;
+        case "created":
           rolesCreated++;
-        } else if (result.message.includes("up to date")) {
+          break;
+        case "unchanged":
           rolesUpToDate++;
-        }
+          break;
       }
 
       if (

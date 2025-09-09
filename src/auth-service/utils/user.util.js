@@ -4780,8 +4780,12 @@ const createUserModule = {
           `[Role Fix] Successfully assigned default role to user ${user.email} who had a null role.`
         );
       }
-      // Case 2: User is part of the "airqo" organization but not yet in the group_roles array.
-      else if (!airqoGroupAssignment && user.organization === "airqo") {
+      // Case 2: User is part of the "airqo" organization but not yet in the group_roles array. This is case-insensitive.
+      else if (
+        !airqoGroupAssignment &&
+        (user.organization || user.long_organization || "").toLowerCase() ===
+          "airqo"
+      ) {
         logger.info(
           `[Default Role] User ${user.email} belongs to AirQo org but is not in the group. Assigning default role.`
         );
