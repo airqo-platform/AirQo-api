@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
+const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
 var uniqueValidator = require("mongoose-unique-validator");
 const constants = require("@config/constants");

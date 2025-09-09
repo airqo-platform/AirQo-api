@@ -5,7 +5,7 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- unknown-ip-model`);
 const { getModelByTenant } = require("@config/database");
-const ObjectId = mongoose.Types.ObjectId;
+const ObjectId = mongoose.Schema.Types.ObjectId;
 const { logObject } = require("@utils/shared");
 const {
   createSuccessResponse,
