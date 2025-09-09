@@ -121,3 +121,14 @@ def get_throttle_classes(throttle_type='disabled'):
         list: Throttle classes to use
     """
     return THROTTLE_CLASSES.get(throttle_type, THROTTLE_CLASSES['disabled'])
+
+
+# Backward-compatible alias used by v2 mixins
+class ReadOnlyOrAuthenticated(DefaultAPIPermission):
+    """Backward-compatible name for the default v2 permission skeleton.
+
+    Kept as an explicit class to allow imports like
+    `from ..v2.permissions import ReadOnlyOrAuthenticated` used in
+    mixins and other v2 modules.
+    """
+    pass

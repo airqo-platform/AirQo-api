@@ -1,7 +1,7 @@
 """
 Universal mixins for slug-based lookup across all V2 endpoints
 """
-from typing import Any, List, Optional, Dict
+from typing import Any, List, Optional, Dict, ClassVar, Tuple
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, QuerySet
 from django.http import Http404
@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
+from ..v2.permissions import ReadOnlyOrAuthenticated
 
 
 class SlugModelViewSetMixin:
@@ -18,9 +19,12 @@ class SlugModelViewSetMixin:
     
     This mixin should be used with ModelViewSet classes.
     """
-    lookup_field = 'slug'  # Default to slug lookup
-    lookup_url_kwarg = 'slug'
-    slug_filter_fields = ['slug']  # Fields to search for slugs
+    # Permissions: read-only for unauthenticated; auth required for write ops
+    permission_classes = [ReadOnlyOrAuthenticated]  # type: ignore[var-annotated]
+    # Lookup config
+    lookup_field: ClassVar[str] = 'slug'
+    lookup_url_kwarg: ClassVar[str] = 'slug'
+    slug_filter_fields: ClassVar[Tuple[str, ...]] = ('slug',)
     
     # Type annotations for attributes that will be provided by ModelViewSet
     kwargs: Dict[str, Any]
@@ -43,15 +47,16 @@ class SlugModelViewSetMixin:
                 pass
         
         # Strategy 2: Try slug lookup (primary method)
-        filter_q = Q()
-        for field in self.slug_filter_fields:
-            if hasattr(self.get_queryset().model, field):  # type: ignore
+        queryset = self.get_queryset()  # type: ignore
+        model = queryset.model  # type: ignore
+        slug_fields = [f for f in self.slug_filter_fields if hasattr(model, f)]
+        if slug_fields:
+            filter_q = Q(**{slug_fields[0]: lookup_value})
+            for field in slug_fields[1:]:
                 filter_q |= Q(**{field: lookup_value})
-        
-        if filter_q:
             try:
-                return self.get_queryset().get(filter_q)  # type: ignore
-            except self.get_queryset().model.DoesNotExist:  # type: ignore
+                return queryset.get(filter_q)  # type: ignore
+            except model.DoesNotExist:  # type: ignore
                 pass
         
         # Strategy 3: If model has custom identifier fields, try them
@@ -76,24 +81,19 @@ class SlugModelViewSetMixin:
             )
         
         # Build filter query for slug fields
-        filter_q = Q()
-        for field in self.slug_filter_fields:
-            if hasattr(self.get_queryset().model, field):  # type: ignore
-                filter_q |= Q(**{field: slug})
-        
-        if not filter_q:
-            return Response(
-                {'error': 'Model does not support slug lookup'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+        queryset = self.get_queryset()  # type: ignore
+        model = queryset.model  # type: ignore
+        slug_fields = [f for f in self.slug_filter_fields if hasattr(model, f)]
+        if not slug_fields:
+            return Response({'error': 'Model does not support slug lookup'}, status=status.HTTP_400_BAD_REQUEST)
+        filter_q = Q(**{slug_fields[0]: slug})
+        for field in slug_fields[1:]:
+            filter_q |= Q(**{field: slug})
+
         try:
-            obj = self.get_queryset().get(filter_q)  # type: ignore
-        except self.get_queryset().model.DoesNotExist:  # type: ignore
-            return Response(
-                {'error': f'Object not found with slug: {slug}'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
+            obj = queryset.get(filter_q)  # type: ignore
+        except model.DoesNotExist:  # type: ignore
+            return Response({'error': f'Object not found with slug: {slug}'}, status=status.HTTP_404_NOT_FOUND)
         
         serializer = self.get_serializer(obj)  # type: ignore
         return Response(serializer.data)
@@ -166,20 +166,28 @@ class SlugModelViewSetMixin:
         
         results = []
         for identifier in identifiers[:50]:  # Limit to 50 for performance
-            try:
-                # Try to find object by identifier
-                filter_q = Q(pk=identifier) if str(identifier).isdigit() else Q()
-                
-                # Add slug filters
-                for field in self.slug_filter_fields:
-                    if hasattr(self.get_queryset().model, field):  # type: ignore
-                        filter_q |= Q(**{field: identifier})
-                
-                if hasattr(self.get_queryset().model, 'unique_title'):  # type: ignore
-                    filter_q |= Q(unique_title=identifier)
-                
-                obj = self.get_queryset().get(filter_q)  # type: ignore
-                
+            queryset = self.get_queryset()  # type: ignore
+            model = queryset.model  # type: ignore
+            obj = None
+
+            # 1) ID precedence
+            if str(identifier).isdigit():
+                obj = queryset.filter(pk=int(identifier)).first()
+
+            # 2) Slug fields precedence
+            if obj is None:
+                slug_fields = [f for f in self.slug_filter_fields if hasattr(model, f)]
+                if slug_fields:
+                    q = Q(**{slug_fields[0]: identifier})
+                    for f in slug_fields[1:]:
+                        q |= Q(**{f: identifier})
+                    obj = queryset.filter(q).first()
+
+            # 3) Custom identifier
+            if obj is None and hasattr(model, 'unique_title'):
+                obj = queryset.filter(unique_title=identifier).first()
+
+            if obj:
                 results.append({
                     'input': identifier,
                     'found': True,
@@ -187,13 +195,8 @@ class SlugModelViewSetMixin:
                     'public_identifier': obj.get_public_identifier() if hasattr(obj, 'get_public_identifier') else str(getattr(obj, 'id', 'unknown')),
                     'api_url': obj.get_absolute_url() if hasattr(obj, 'get_absolute_url') else None,
                 })
-                
-            except self.get_queryset().model.DoesNotExist:  # type: ignore
-                results.append({
-                    'input': identifier,
-                    'found': False,
-                    'error': 'Not found'
-                })
+            else:
+                results.append({'input': identifier, 'found': False, 'error': 'Not found'})
         
         return Response({
             'results': results,
