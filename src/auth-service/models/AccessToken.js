@@ -1,4 +1,4 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 
 const ObjectId = mongoose.ObjectId;
 const isEmpty = require("is-empty");

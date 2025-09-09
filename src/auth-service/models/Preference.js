@@ -1,4 +1,4 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = mongoose.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");

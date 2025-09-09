@@ -9,7 +9,7 @@ const AccessTokenModel = require("@models/AccessToken");
 const VerifyTokenModel = require("@models/VerifyToken");
 const UserModel = require("@models/User");
 const httpStatus = require("http-status");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const accessCodeGenerator = require("generate-password");
 const { logObject, logText, HttpError } = require("@utils/shared");
 const {
