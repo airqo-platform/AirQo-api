@@ -7,7 +7,7 @@ const PermissionModel = require("@models/Permission");
 const { LogModel } = require("@models/log");
 const NetworkModel = require("@models/Network");
 const bcrypt = require("bcrypt");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -4732,6 +4732,7 @@ const createUserModule = {
    * Ensures a user has the default AirQo role.
    * This is a non-blocking operation, intended to be called in a fire-and-forget manner.
    */
+
   ensureDefaultAirqoRole: async (user, tenant) => {
     try {
       const airqoGroup = await GroupModel(tenant)
@@ -4744,62 +4745,66 @@ const createUserModule = {
         return;
       }
 
-      let defaultRole = await RoleModel(tenant)
-        .findOne({
-          role_code: "AIRQO_DEFAULT_USER",
-          group_id: airqoGroup._id,
-        })
-        .lean();
-      if (!defaultRole) {
-        logger.warn(
-          `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}. Attempting to create it.`
-        );
-        try {
-          const defaultPermissions = await PermissionModel(tenant)
-            .find({ permission: { $in: constants.DEFAULTS.DEFAULT_USER } })
-            .select("_id")
-            .lean();
-
-          const permissionIds = defaultPermissions.map((p) => p._id);
-
-          const newRoleData = {
-            role_name: "AIRQO_DEFAULT_USER",
-            role_code: "AIRQO_DEFAULT_USER",
-            role_description: "Default role for new AirQo users",
-            role_permissions: permissionIds,
-            group_id: airqoGroup._id,
-            role_status: "ACTIVE",
-          };
-
-          // Atomic upsert to avoid duplicates during concurrent logins
-          defaultRole = await RoleModel(tenant)
-            .findOneAndUpdate(
-              { role_code: "AIRQO_DEFAULT_USER", group_id: airqoGroup._id },
-              { $setOnInsert: newRoleData },
-              { new: true, upsert: true }
-            )
-            .lean();
-          logger.info(
-            `[Default Role] Ensured AIRQO_DEFAULT_USER role exists for tenant ${tenant}.`
-          );
-        } catch (error) {
-          logger.error(
-            `[Default Role] Failed to create AIRQO_DEFAULT_USER role: ${error.message}`
-          );
-          return; // exit if creation fails
-        }
-      }
-
-      const roles = Array.isArray(user.group_roles) ? user.group_roles : [];
-      const userHasDefaultRole = roles.some(
-        (gr) =>
-          gr.role &&
-          gr.group &&
-          gr.role.toString() === defaultRole._id.toString() &&
-          gr.group.toString() === airqoGroup._id.toString()
+      // Find any assignment for the AirQo group, even if the role is null.
+      const airqoGroupAssignment = (user.group_roles || []).find(
+        (gr) => gr.group && gr.group.toString() === airqoGroup._id.toString()
       );
 
-      if (!userHasDefaultRole) {
+      // Case 1: User is in the group but has a null/undefined role. This is the case to fix.
+      if (airqoGroupAssignment && !airqoGroupAssignment.role) {
+        logger.warn(
+          `[Role Fix] User ${user.email} is in AirQo group but has a null role. Attempting to fix.`
+        );
+
+        const defaultRole = await RoleModel(tenant)
+          .findOne({
+            role_code: "AIRQO_DEFAULT_USER",
+            group_id: airqoGroup._id,
+          })
+          .lean();
+
+        if (!defaultRole) {
+          logger.error(
+            `[Role Fix] Cannot fix user ${user.email} - AIRQO_DEFAULT_USER role not found.`
+          );
+          return;
+        }
+
+        // Atomically update the specific group_roles entry that has a null role.
+        await UserModel(tenant).updateOne(
+          { _id: user._id, "group_roles.group": airqoGroup._id },
+          { $set: { "group_roles.$.role": defaultRole._id } }
+        );
+
+        logger.info(
+          `[Role Fix] Successfully assigned default role to user ${user.email} who had a null role.`
+        );
+      }
+      // Case 2: User is part of the "airqo" organization but not yet in the group_roles array. This is case-insensitive.
+      else if (
+        !airqoGroupAssignment &&
+        (user.organization || user.long_organization || "").toLowerCase() ===
+          "airqo"
+      ) {
+        logger.info(
+          `[Default Role] User ${user.email} belongs to AirQo org but is not in the group. Assigning default role.`
+        );
+
+        const defaultRole = await RoleModel(tenant)
+          .findOne({
+            role_code: "AIRQO_DEFAULT_USER",
+            group_id: airqoGroup._id,
+          })
+          .lean();
+
+        if (!defaultRole) {
+          logger.error(
+            `[Default Role] Cannot assign role to ${user.email} - AIRQO_DEFAULT_USER role not found.`
+          );
+          return;
+        }
+
+        // Add the user to the group with the default role.
         await UserModel(tenant).findByIdAndUpdate(user._id, {
           $addToSet: {
             group_roles: {
@@ -4809,8 +4814,11 @@ const createUserModule = {
             },
           },
         });
+      }
+      // Case 3: User is in the group and already has a valid role. Do nothing.
+      else if (airqoGroupAssignment && airqoGroupAssignment.role) {
         logger.info(
-          `[Default Role] Assigned AIRQO_DEFAULT_USER role to user ${user.email}`
+          `[Default Role] User ${user.email} already has a valid role in the AirQo group. No action needed.`
         );
       }
     } catch (error) {

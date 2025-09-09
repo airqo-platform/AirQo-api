@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { mailer, generateFilter } = require("@utils/common");
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- create-request-util`
