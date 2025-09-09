@@ -4,7 +4,7 @@ const { TOKEN_STRATEGIES } = require("@config/constants");
 
 class TokenStrategyConfig {
   constructor() {
-    this.defaultStrategy = TOKEN_STRATEGIES.STANDARD;
+    this.defaultStrategy = TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
     this.userStrategyOverrides = new Map();
     this.organizationStrategies = new Map();
     this.performanceMetrics = new Map();
@@ -15,7 +15,10 @@ class TokenStrategyConfig {
 
   initializeDefaults() {
     // Set organization-specific default strategies
-    this.organizationStrategies.set("airqo", TOKEN_STRATEGIES.STANDARD);
+    this.organizationStrategies.set(
+      "airqo",
+      TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS
+    );
     this.organizationStrategies.set("kcca", TOKEN_STRATEGIES.COMPRESSED);
 
     // Initialize performance tracking
