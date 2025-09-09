@@ -318,6 +318,9 @@ class DataApi:
                             ),
                             "device_category": device.pop("category", None),
                             "device_manufacturer": network_name,
+                            "device_maintenance": self.__get_device_maintenance_activity(
+                                device
+                            ),
                             **device,
                         }
                         for device in response.get("devices", [])
@@ -328,6 +331,33 @@ class DataApi:
                 continue
 
         return devices
+
+    def __get_device_maintenance_activity(
+        self, device: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        Retrieve the latest maintenance or deployment activity date for a specific device.
+
+        Args:
+            device (Dict[str, Any]): A dictionary representing the device, which includes its latest activities by type.
+
+        Returns:
+            Optional[str]: The date of the latest maintenance or deployment activity as a string, or None if no activities are found.
+
+        Notes:
+            - The method first checks for maintenance activities. If none are found, it falls back to deployment activities.
+            - If no activities are available, the method returns None.
+        """
+        try:
+            activities = device.get("latest_activities_by_type", {}).get("maintenance")
+            if not activities:
+                activities = device.get("latest_activities_by_type", {}).get(
+                    "deployment"
+                )
+            return activities.get("date") if activities else None
+        except Exception as e:
+            logger.exception(f"Failed to fetch maintenance activities: {e}")
+            return None
 
     def get_thingspeak_read_keys(self, devices: pd.DataFrame) -> Dict[int, str]:
         """

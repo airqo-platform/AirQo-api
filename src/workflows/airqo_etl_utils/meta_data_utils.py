@@ -47,6 +47,7 @@ class MetaDataUtils:
                 "device_category",
                 "mountType",
                 "mobility",
+                "device_maintenance",
             ]
         ]
         devices.rename(
