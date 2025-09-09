@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 mongoose.set("debug", process.env.NODE_ENV !== "production");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
