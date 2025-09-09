@@ -24,19 +24,19 @@ const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
  * @returns {Promise<Object>} The AirQo group document.
  */
 const getOrCreateAirqoGroup = async (tenant) => {
-  let airqoGroup = await GroupModel(tenant)
-    .findOne({ grp_title: { $regex: /^airqo$/i } })
-    .lean();
-
-  if (!airqoGroup) {
-    logger.info(`AirQo group not found for tenant ${tenant}, creating it...`);
-    airqoGroup = await GroupModel(tenant).create({
+  const query = { organization_slug: "airqo" };
+  const update = {
+    $setOnInsert: {
       grp_title: "AirQo",
       grp_description: "The default AirQo organization group",
       grp_status: "ACTIVE",
       organization_slug: "airqo",
-    });
-  }
+    },
+  };
+  const options = { new: true, upsert: true };
+  const airqoGroup = await GroupModel(tenant)
+    .findOneAndUpdate(query, update, options)
+    .lean();
   return airqoGroup;
 };
 
