@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.views.generic.base import RedirectView
 
 # Swagger/OpenAPI Imports
 from rest_framework import permissions
@@ -60,6 +61,10 @@ urlpatterns = [
 
     # Admin panel
     path('website/admin/', admin.site.urls),
+
+    # Favicon - redirect root favicon requests to the admin static favicon
+    # Browsers commonly request /favicon.ico; redirect to the static file
+    path('favicon.ico', RedirectView.as_view(url=settings.STATIC_URL + 'admin/images/favicon.ico'), name='favicon'),
 
     # API routes from custom apps with specific prefixes
     path('website/', include('apps.press.urls')),
