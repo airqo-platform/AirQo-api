@@ -886,8 +886,9 @@ const auditAndSyncExistingRoles = async (tenant) => {
 const updateTenantSettingsWithDefaultRoles = async (tenant) => {
   try {
     const airqoGroup = await getOrCreateAirqoGroup(tenant);
+    const defaultRoleCodes = ["AIRQO_DEFAULT_MEMBER", "AIRQO_DEFAULT_USER"];
     const defaultUserRole = await RoleModel(tenant)
-      .findOne({ role_code: "AIRQO_DEFAULT_USER" })
+      .findOne({ role_code: { $in: defaultRoleCodes } })
       .lean();
 
     if (defaultUserRole) {

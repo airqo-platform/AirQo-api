@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 mongoose.set("useNewUrlParser", true);
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
-mongoose.set("debug", process.env.NODE_ENV === "development");
+// mongoose.set("debug", process.env.NODE_ENV === "development");
 const constants = require("./constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- config-database`);
@@ -196,14 +196,22 @@ const connectToMongoDB = () => {
     queryDB = createQueryConnection();
     setupConnectionHandlers(queryDB, "query");
 
-    const handleDBInitialization = () => {
+    const handleDBInitialization = async () => {
       console.log("✅ MongoDB connected, proceeding with initializations...");
-      initializeRBAC().catch((err) => {
-        console.error(
+      try {
+        await initializeRBAC();
+      } catch (err) {
+        logger.fatal(
           "❌ RBAC initialization failed on connection:",
           err.message
         );
-      });
+        if (
+          process.env.NODE_ENV !== "test" &&
+          process.env.ALLOW_RBAC_STARTUP_ERRORS !== "true"
+        ) {
+          process.exit(1);
+        }
+      }
     };
 
     // Listen to the 'open' event on the query database connection
