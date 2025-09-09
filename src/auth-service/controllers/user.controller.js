@@ -1155,8 +1155,6 @@ const userController = {
    */
   loginEnhanced: async (req, res, next) => {
     try {
-      logger.info("Enhanced login endpoint called");
-      logger.info(`Request body -- ${JSON.stringify(req.body)}`);
       const request = handleRequest(req, next);
       if (!request) return;
 

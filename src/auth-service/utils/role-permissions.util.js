@@ -19,6 +19,61 @@ const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 // ===== HELPER FUNCTIONS =====
 
 /**
+ * Ensures the default "AirQo" group exists, creating it if necessary.
+ * @param {string} tenant - The tenant identifier.
+ * @returns {Promise<Object>} The AirQo group document.
+ */
+const getOrCreateAirqoGroup = async (tenant) => {
+  const query = { organization_slug: "airqo" };
+  const update = {
+    $setOnInsert: {
+      grp_title: "AirQo",
+      grp_description: "The default AirQo organization group",
+      grp_status: "ACTIVE",
+      organization_slug: "airqo",
+    },
+  };
+  const options = { new: true, upsert: true };
+  const airqoGroup = await GroupModel(tenant)
+    .findOneAndUpdate(query, update, options)
+    .lean();
+  return airqoGroup;
+};
+
+/**
+ * Returns the default role definitions for the AirQo organization.
+ * @param {ObjectId} airqoGroupId - The ID of the AirQo group.
+ * @returns {Array<Object>} An array of role definition objects.
+ */
+const getDefaultAirqoRoles = (airqoGroupId) => {
+  return [
+    {
+      role_name: "AIRQO_SUPER_ADMIN",
+      role_code: "AIRQO_SUPER_ADMIN",
+      role_description: "AirQo Super Administrator with all permissions",
+      permissions: constants.DEFAULTS.SUPER_ADMIN,
+      group_id: airqoGroupId,
+    },
+    {
+      role_name: "AIRQO_ADMIN",
+      role_code: "AIRQO_ADMIN",
+      role_description: "Default Administrator role for the AirQo organization",
+      permissions: constants.DEFAULTS.DEFAULT_ADMIN,
+      group_id: airqoGroupId,
+    },
+    {
+      role_name: "AIRQO_DEFAULT_USER",
+      role_code: "AIRQO_DEFAULT_USER",
+      role_description: "Default role for new AirQo users",
+      permissions: constants.DEFAULTS.DEFAULT_USER,
+      group_id: airqoGroupId,
+    },
+  ];
+};
+
+// ===== HELPER FUNCTIONS =====
+
+/**
  * Generate standardized role code from role name and organization
  * @param {string} roleName - The base role name
  * @param {string} organizationName - The organization name
@@ -2832,22 +2887,61 @@ const rolePermissionUtil = {
       const { role_id, tenant, permissions } = { ...body, ...query, ...params };
 
       const role = await RoleModel(tenant).findById(role_id);
+      if (!Array.isArray(permissions) || permissions.length === 0) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message:
+              "permissions must be a non-empty array of ObjectId strings",
+          })
+        );
+      }
+
       if (!role) {
-        next(
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id.toString()} Not Found`,
           })
         );
       }
 
+      // Validate that all provided permission IDs are valid before querying the database.
+      const validPermissionIds = [];
+      const invalidPermissionIds = [];
+      for (const id of permissions) {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          validPermissionIds.push(ObjectId(id));
+        } else {
+          invalidPermissionIds.push(id);
+        }
+      }
+
+      if (invalidPermissionIds.length > 0) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: `Invalid permission IDs provided: ${invalidPermissionIds.join(
+              ", "
+            )}`,
+          })
+        );
+      }
+
       const permissionsResponse = await PermissionModel(tenant).find({
-        _id: { $in: permissions.map((id) => ObjectId(id)) },
+        _id: { $in: validPermissionIds },
       });
 
-      if (permissionsResponse.length !== permissions.length) {
-        next(
+      const foundIds = new Set(
+        permissionsResponse.map((p) => p._id.toString())
+      );
+      const requestedIds = new Set(
+        validPermissionIds.map((id) => id.toString())
+      );
+      const missingFromDb = [...requestedIds].filter((id) => !foundIds.has(id));
+      if (missingFromDb.length > 0) {
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: "not all provided permissions exist, please crosscheck",
+            message: `Not all provided permissions exist. Missing: ${missingFromDb.join(
+              ", "
+            )}`,
           })
         );
       }
@@ -2856,43 +2950,40 @@ const rolePermissionUtil = {
         permission.toString()
       );
 
-      logObject("assignedPermissions", assignedPermissions);
-
-      const alreadyAssigned = permissions.filter((permission) =>
-        assignedPermissions.includes(permission)
+      const toAddIds = validPermissionIds.filter(
+        (id) => !assignedPermissions.includes(id.toString())
+      );
+      const skipped = validPermissionIds.filter((id) =>
+        assignedPermissions.includes(id.toString())
       );
 
-      logObject("alreadyAssigned", alreadyAssigned);
-
-      if (alreadyAssigned.length > 0) {
-        next(
-          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
-            message: `Some permissions already assigned to the Role ${role_id.toString()}, they include: ${alreadyAssigned.join(
-              ","
-            )}`,
-          })
+      let updatedRole = role;
+      if (toAddIds.length > 0) {
+        updatedRole = await RoleModel(tenant).findOneAndUpdate(
+          { _id: role_id },
+          { $addToSet: { role_permissions: { $each: toAddIds } } },
+          { new: true }
         );
       }
-      const updatedRole = await RoleModel(tenant).findOneAndUpdate(
-        { _id: role_id },
-        { $addToSet: { role_permissions: { $each: permissions } } },
-        { new: true }
-      );
 
-      if (!isEmpty(updatedRole)) {
-        return {
-          success: true,
-          message: "Permissions added successfully",
-          status: httpStatus.OK,
-          data: updatedRole,
-        };
-      } else if (isEmpty(updatedRole)) {
-        next(
+      if (isEmpty(updatedRole)) {
+        return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
             message: "unable to update Role",
           })
         );
       }
+      return {
+        success: true,
+        message:
+          toAddIds.length === 0
+            ? "No changes: all provided permissions were already assigned"
+            : `Permissions added successfully (${toAddIds.length} added${
+                skipped.length ? `, ${skipped.length} skipped` : ""
+              })`,
+        status: httpStatus.OK,
+        data: updatedRole,
+      };
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
       next(
