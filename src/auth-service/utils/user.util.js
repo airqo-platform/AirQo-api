@@ -4744,7 +4744,7 @@ const createUserModule = {
         return;
       }
 
-      const defaultRole = await RoleModel(tenant)
+      let defaultRole = await RoleModel(tenant)
         .findOne({
           role_code: "AIRQO_DEFAULT_USER",
           group_id: airqoGroup._id,
@@ -4752,7 +4752,7 @@ const createUserModule = {
         .lean();
       if (!defaultRole) {
         logger.warn(
-          `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}.`
+          `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}. Attempting to create it.`
         );
         try {
           const defaultPermissions = await PermissionModel(tenant)
@@ -4771,9 +4771,16 @@ const createUserModule = {
             role_status: "ACTIVE",
           };
 
-          defaultRole = await RoleModel(tenant).create(newRoleData);
+          // Atomic upsert to avoid duplicates during concurrent logins
+          defaultRole = await RoleModel(tenant)
+            .findOneAndUpdate(
+              { role_code: "AIRQO_DEFAULT_USER", group_id: airqoGroup._id },
+              { $setOnInsert: newRoleData },
+              { new: true, upsert: true }
+            )
+            .lean();
           logger.info(
-            `[Default Role] Successfully created AIRQO_DEFAULT_USER role for tenant ${tenant}.`
+            `[Default Role] Ensured AIRQO_DEFAULT_USER role exists for tenant ${tenant}.`
           );
         } catch (error) {
           logger.error(
