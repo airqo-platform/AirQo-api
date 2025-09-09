@@ -3,7 +3,7 @@ const Schema = mongoose.Schema;
 const validator = require("validator");
 const bcrypt = require("bcrypt");
 const constants = require("@config/constants");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.Types.ObjectId;
 const isEmpty = require("is-empty");
 const saltRounds = constants.SALT_ROUNDS;
 const httpStatus = require("http-status");
@@ -504,7 +504,9 @@ UserSchema.pre("save", async function (next) {
       if (permissions.length > 0) {
         const permissionIds = permissions.map((p) => p._id);
         // Use Set to ensure uniqueness and avoid adding duplicates
-        const existingPermissionIds = this.permissions.map((p) => p.toString());
+        const existingPermissionIds = (this.permissions || []).map((p) =>
+          p.toString()
+        );
         const combinedPermissions = [
           ...new Set([
             ...existingPermissionIds,
