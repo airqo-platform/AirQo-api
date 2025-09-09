@@ -1,26 +1,44 @@
 """
 Event app serializers for v2 API
 
-Special features for event app as per requirements:
+Special features    class Meta:
+        model = Event
+        fields = [
+            # Model fields
+            'id', 'title', 'title_subtext', 'start_date', 'end_date',
+            'start_time', 'end_time', 'event_tag', 'event_tag_display',
+            'event_image_url', 'location_name', 'event_status', 'is_virtual',
+            'registration_link', 'order', 'created', 'modified',
+            # Slug fields (SerializerMethodFields from mixin)
+        ]
+        ref_name = 'EventListV2'pp as per requirements:
+- Universal slug support with privacy-friendly URLs
 - Date hierarchy
 - Event type filtering 
 - Virtual vs venue fields
 - Registration counts
 - Calendar-friendly fields
+- Automatic ID hiding when slugs exist
 """
 from rest_framework import serializers
 from apps.event.models import Event, Inquiry, Program, Session, PartnerLogo, Resource
 from ..utils import DynamicFieldsSerializerMixin
+from ..serializers.mixins import ListSerializerMixin, DetailSerializerMixin
 from drf_spectacular.utils import extend_schema_field
 
 
-class EventListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
-    """List serializer for Event - optimized for listing"""
+class EventListSerializer(ListSerializerMixin, DynamicFieldsSerializerMixin, serializers.ModelSerializer):
+    """List serializer for Event - optimized for listing with slug support"""
     event_tag_display = serializers.CharField(
         source='get_event_tag_display', read_only=True)
     event_image_url = serializers.SerializerMethodField()
     event_status = serializers.SerializerMethodField()
     is_virtual = serializers.SerializerMethodField()
+    
+    # Slug fields for privacy-friendly URLs
+    public_identifier = serializers.SerializerMethodField()
+    api_url = serializers.SerializerMethodField()
+    has_slug = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_event_image_url(self, obj):
@@ -52,25 +70,58 @@ class EventListSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeriali
             # In case of unexpected types, return False rather than raising.
             return False
 
+    def get_public_identifier(self, obj):
+        """Get the public identifier (slug or fallback)"""
+        return obj.slug if obj.slug else str(obj.id)
+    
+    def get_api_url(self, obj):
+        """Get the API URL for the object"""
+        if hasattr(obj, 'get_absolute_url'):
+            return obj.get_absolute_url()
+        identifier = obj.slug if obj.slug else obj.id
+        return f"/website/api/v2/events/{identifier}/"
+    
+    def get_has_slug(self, obj):
+        """Check if object has a slug"""
+        return bool(obj.slug)
+    
+    def to_representation(self, instance):
+        """Override to conditionally hide ID for privacy"""
+        data = super().to_representation(instance)
+        
+        # Hide ID if slug exists for privacy
+        if instance.slug:
+            data.pop('id', None)
+        
+        return data
+
     class Meta:
         model = Event
         fields = [
+            # Model fields
             'id', 'title', 'title_subtext', 'start_date', 'end_date',
             'start_time', 'end_time', 'event_tag', 'event_tag_display',
             'event_image_url', 'location_name', 'event_status', 'is_virtual',
-            'registration_link', 'order', 'created', 'modified'
+            'registration_link', 'order', 'created', 'modified',
+            # Slug fields (SerializerMethodFields)
+            'public_identifier', 'api_url', 'has_slug'
         ]
         ref_name = 'EventListV2'
 
 
-class EventDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSerializer):
-    """Detail serializer for Event with all related data"""
+class EventDetailSerializer(DetailSerializerMixin, DynamicFieldsSerializerMixin, serializers.ModelSerializer):
+    """Detail serializer for Event with all related data and slug support"""
     event_tag_display = serializers.CharField(
         source='get_event_tag_display', read_only=True)
     event_image_url = serializers.SerializerMethodField()
     background_image_url = serializers.SerializerMethodField()
     event_status = serializers.SerializerMethodField()
     is_virtual = serializers.SerializerMethodField()
+    
+    # Slug fields for privacy-friendly URLs
+    public_identifier = serializers.SerializerMethodField()
+    api_url = serializers.SerializerMethodField()
+    has_slug = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_event_image_url(self, obj):
@@ -104,9 +155,34 @@ class EventDetailSerializer(DynamicFieldsSerializerMixin, serializers.ModelSeria
         except Exception:
             return False
 
+    def get_public_identifier(self, obj):
+        """Get the public identifier (slug or fallback)"""
+        return obj.slug if obj.slug else str(obj.id)
+    
+    def get_api_url(self, obj):
+        """Get the API URL for the object"""
+        if hasattr(obj, 'get_absolute_url'):
+            return obj.get_absolute_url()
+        identifier = obj.slug if obj.slug else obj.id
+        return f"/website/api/v2/events/{identifier}/"
+    
+    def get_has_slug(self, obj):
+        """Check if object has a slug"""
+        return bool(obj.slug)
+    
+    def to_representation(self, instance):
+        """Override to conditionally hide ID for privacy"""
+        data = super().to_representation(instance)
+        
+        # Hide ID if slug exists for privacy
+        if instance.slug:
+            data.pop('id', None)
+        
+        return data
+
     class Meta:
         model = Event
-        fields = '__all__'
+        exclude = ['is_deleted']  # Include all fields except soft delete flag
         ref_name = 'EventDetailV2'
 
 
