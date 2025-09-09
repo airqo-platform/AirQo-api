@@ -1,5 +1,5 @@
 from django.db import models
-from utils.models import BaseModel
+from utils.models import BaseModel, SlugBaseModel
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 
@@ -11,7 +11,7 @@ class Department(BaseModel):
         return f"{self.name} Department"
 
 
-class Career(BaseModel):
+class Career(SlugBaseModel):
     class JobTypes(models.TextChoices):
         FullTime = "full-time", "Full Time"
         PartTime = "part-time", "Part Time"
@@ -19,6 +19,12 @@ class Career(BaseModel):
         Temporary = "temporary", "Temporary"
         Internship = "internship", "Internship"
         GraduateTraining = "graduate-training", "Graduate Training"
+
+    # Slug configuration
+    SLUG_SOURCE_FIELD = 'title'
+    SLUG_USE_DATE = False  # Jobs typically don't need year
+    SLUG_USE_LOCATION = False
+    SLUG_MAX_LENGTH = 70
 
     title = models.CharField(max_length=100)
     unique_title = models.CharField(max_length=100, null=True, blank=True)
@@ -59,32 +65,33 @@ class JobDescription(BaseModel):
     description = models.TextField()
     order = models.IntegerField(default=1)
     career = models.ForeignKey(
-        Career,
+        'Career',
         null=True,
         blank=True,
         related_name="descriptions",
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
-        return f"JobDescription {self.id}"
+        instance_id = getattr(self, 'id', None)
+        return f"JobDescription {instance_id}" if instance_id else "JobDescription"
 
 
 class BulletDescription(BaseModel):
     name = models.CharField(max_length=30)
     order = models.IntegerField(default=1)
     career = models.ForeignKey(
-        Career,
+        'Career',
         null=True,
         blank=True,
         related_name="bullets",
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -102,8 +109,9 @@ class BulletPoint(BaseModel):
         on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
-        return f"BulletPoint - {self.id}"
+        instance_id = getattr(self, 'id', None)
+        return f"BulletPoint - {instance_id}" if instance_id else "BulletPoint"

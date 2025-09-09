@@ -13,9 +13,10 @@ from ..serializers.team import (
     MemberBiographyListSerializer, MemberBiographyDetailSerializer
 )
 from ..utils import OptimizedQuerySetMixin
+from ..mixins import SlugModelViewSetMixin
 
 
-class MemberViewSet(OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
+class MemberViewSet(SlugModelViewSetMixin, OptimizedQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for Member
 
