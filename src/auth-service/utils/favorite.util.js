@@ -282,13 +282,13 @@ const favorites = {
         const found = favorite_places.some((favorite) => {
           return (
             favorite.place_id === item.place_id &&
-            favorite.firebase_user_id === item.firebase_user_id
+            item.firebase_user_id === authenticatedUserId
           );
         });
         return !found;
       });
 
-      // Delete extra favorites
+      // Delete extra favorites using authenticated user ID
       let deletionSummary = {
         deleted: 0,
         failed: 0,
@@ -297,14 +297,11 @@ const favorites = {
 
       for (const favorite of extra_favorite_places) {
         try {
-          const deleteResponse = await FavoriteModel(
-            tenant.toLowerCase()
-          ).remove({
-            filter: {
-              firebase_user_id: favorite.firebase_user_id,
-              place_id: favorite.place_id,
-            },
-          });
+          const deleteResponse = await favorites.deleteFavoriteForUser(
+            lowerTenant,
+            authenticatedUserId,
+            favorite.place_id
+          );
 
           if (deleteResponse.success) {
             deletionSummary.deleted++;
@@ -314,7 +311,7 @@ const favorites = {
               `Failed to delete extra favorite: ${favorite.place_id}`
             );
             logger.error(
-              `Failed to delete extra favorite: ${JSON.stringify(favorite)}`
+              `Failed to delete extra favorite for user ${authenticatedUserId}: ${favorite.place_id}`
             );
           }
         } catch (error) {
@@ -323,15 +320,13 @@ const favorites = {
             `Error deleting extra favorite: ${favorite.place_id} - ${error.message}`
           );
           logger.error(
-            `Error deleting extra favorite: ${JSON.stringify(
-              favorite
-            )}, Error: ${error.message}`
+            `Error deleting extra favorite for user ${authenticatedUserId}: ${favorite.place_id}, Error: ${error.message}`
           );
         }
       }
 
       // Get final synchronized favorites
-      const finalListResponse = await FavoriteModel(tenant.toLowerCase()).list({
+      const finalListResponse = await FavoriteModel(lowerTenant).list({
         filter,
       });
       let synchronizedFavorites = finalListResponse.success
