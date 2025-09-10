@@ -384,13 +384,20 @@ const requireSystemAdmin = () => {
       );
 
       if (!hasPermission) {
-        const userPermissions = await rbacService.getUserPermissions(user._id);
+        const userPermissionsRaw = await rbacService.getUserPermissions(
+          user._id
+        );
+        const userPermissions = Array.isArray(userPermissionsRaw)
+          ? userPermissionsRaw
+          : [];
         logger.warn(
           `System admin access denied for user ${user.email} (ID: ${
             user._id
           }): Required ANY of ${requiredPermissions.join(
             " OR "
-          )}, but user has ${userPermissions.join(", ") || "none"}`
+          )}, but user has ${
+            userPermissions.length ? userPermissions.join(", ") : "none"
+          }`
         );
 
         return next(

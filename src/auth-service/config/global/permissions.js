@@ -322,4 +322,16 @@ const permissionsExport = {
   DEFAULT_MEMBER_PERMISSIONS,
 };
 
-module.exports = permissionsExport;
+module.exports = {
+  // Back-compat nested export
+  PERMISSIONS: {
+    ...PERMISSIONS,
+    ALL: ALL_PERMISSIONS,
+    DEFAULT_ROLE_DEFINITIONS,
+    DEFAULTS,
+    DEFAULT_NETWORK_MEMBER_PERMISSIONS,
+    DEFAULT_MEMBER_PERMISSIONS,
+  },
+  // New flat export
+  ...permissionsExport,
+};
