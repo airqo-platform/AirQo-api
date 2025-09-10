@@ -1,4 +1,6 @@
 // config/global/permissions.js
+
+// Step 1: Define all base permissions
 const PERMISSIONS = {
   // System & Admin
   SYSTEM_ADMIN: "SYSTEM_ADMIN",
@@ -120,8 +122,8 @@ const PERMISSIONS = {
   ACCESS_PLATFORM: "ACCESS_PLATFORM",
 };
 
-// Create a flat array of all permissions for easy iteration
-PERMISSIONS.ALL = Object.values(PERMISSIONS).filter(
+// Step 2: Create derived constants from the base permissions
+const ALL_PERMISSIONS = Object.values(PERMISSIONS).filter(
   (v) => typeof v === "string"
 );
 
@@ -130,7 +132,7 @@ const DEFAULT_ROLE_DEFINITIONS = {
     role_name: "AIRQO_SUPER_ADMIN",
     role_code: "AIRQO_SUPER_ADMIN",
     role_description: "AirQo Super Administrator with all permissions",
-    permissions: PERMISSIONS.ALL.filter(
+    permissions: ALL_PERMISSIONS.filter(
       (p) =>
         ![
           "ACCESS_PLATFORM",
@@ -138,6 +140,31 @@ const DEFAULT_ROLE_DEFINITIONS = {
           "VIEW_AIR_QUALITY_FOR_NETWORK",
         ].includes(p)
     ),
+  },
+  SYSTEM_ADMIN: {
+    role_name: "SYSTEM_ADMIN",
+    role_code: "SYSTEM_ADMIN",
+    role_description:
+      "System Administrator with platform-wide administrative privileges",
+    permissions: [
+      PERMISSIONS.SYSTEM_ADMIN,
+      PERMISSIONS.SYSTEM_CONFIGURE,
+      PERMISSIONS.SYSTEM_MONITOR,
+      PERMISSIONS.ADMIN_FULL_ACCESS,
+      PERMISSIONS.ORG_APPROVE,
+      PERMISSIONS.ORG_REJECT,
+      PERMISSIONS.ORG_VIEW,
+      PERMISSIONS.USER_MANAGEMENT,
+      PERMISSIONS.ROLE_VIEW,
+      PERMISSIONS.ROLE_CREATE,
+      PERMISSIONS.ROLE_EDIT,
+      PERMISSIONS.ROLE_DELETE,
+      PERMISSIONS.ROLE_ASSIGNMENT,
+      PERMISSIONS.TOKEN_MANAGE,
+      PERMISSIONS.TOKEN_ANALYZE,
+      PERMISSIONS.AUDIT_VIEW,
+      PERMISSIONS.SETTINGS_EDIT,
+    ],
   },
   AIRQO_ADMIN: {
     role_name: "AIRQO_ADMIN",
@@ -255,16 +282,14 @@ const DEFAULT_ROLE_DEFINITIONS = {
   },
 };
 
-PERMISSIONS.DEFAULTS = {
+const DEFAULTS = {
   SUPER_ADMIN: DEFAULT_ROLE_DEFINITIONS.AIRQO_SUPER_ADMIN.permissions,
   DEFAULT_ADMIN: DEFAULT_ROLE_DEFINITIONS.AIRQO_ADMIN.permissions,
   DEFAULT_USER: DEFAULT_ROLE_DEFINITIONS.AIRQO_DEFAULT_USER.permissions,
   DEFAULT_MEMBER: DEFAULT_ROLE_DEFINITIONS.DEFAULT_MEMBER.permissions,
 };
 
-PERMISSIONS.DEFAULT_ROLE_DEFINITIONS = DEFAULT_ROLE_DEFINITIONS;
-
-PERMISSIONS.DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
+const DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
   PERMISSIONS.DASHBOARD_VIEW,
   PERMISSIONS.DATA_VIEW,
   PERMISSIONS.ANALYTICS_VIEW,
@@ -278,7 +303,7 @@ PERMISSIONS.DEFAULT_NETWORK_MEMBER_PERMISSIONS = [
   PERMISSIONS.TOKEN_GENERATE,
 ];
 
-PERMISSIONS.DEFAULT_MEMBER_PERMISSIONS = [
+const DEFAULT_MEMBER_PERMISSIONS = [
   PERMISSIONS.GROUP_VIEW,
   PERMISSIONS.MEMBER_VIEW,
   PERMISSIONS.DASHBOARD_VIEW,
@@ -287,4 +312,26 @@ PERMISSIONS.DEFAULT_MEMBER_PERMISSIONS = [
   PERMISSIONS.SITE_VIEW,
 ];
 
-module.exports = PERMISSIONS;
+// Step 3: Assemble the final export object
+const permissionsExport = {
+  ...PERMISSIONS,
+  ALL: ALL_PERMISSIONS,
+  DEFAULT_ROLE_DEFINITIONS,
+  DEFAULTS,
+  DEFAULT_NETWORK_MEMBER_PERMISSIONS,
+  DEFAULT_MEMBER_PERMISSIONS,
+};
+
+module.exports = {
+  // Back-compat nested export
+  PERMISSIONS: {
+    ...PERMISSIONS,
+    ALL: ALL_PERMISSIONS,
+    DEFAULT_ROLE_DEFINITIONS,
+    DEFAULTS,
+    DEFAULT_NETWORK_MEMBER_PERMISSIONS,
+    DEFAULT_MEMBER_PERMISSIONS,
+  },
+  // New flat export
+  ...permissionsExport,
+};

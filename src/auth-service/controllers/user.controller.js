@@ -568,8 +568,6 @@ const userController = {
   },
   update: async (req, res, next) => {
     try {
-      logger.info(".................................................");
-      logger.info("inside user update................");
       const request = handleRequest(req, next);
       if (!request) return;
       const result = await userUtil.update(request, next);

@@ -2,6 +2,7 @@
 const httpStatus = require("http-status");
 const RoleModel = require("@models/Role");
 const GroupModel = require("@models/Group");
+const PermissionModel = require("@models/Permission");
 const { HttpError } = require("@utils/shared");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
@@ -372,23 +373,43 @@ const requireSystemAdmin = () => {
 
       const rbacService = new RBACService(tenant);
 
-      // Check if user has system-wide super admin role
-      const hasSystemAdminRole = await rbacService.hasRole(user._id, [
-        "SUPER_ADMIN",
-        "SYSTEM_ADMIN",
-      ]);
+      // Check if user has system-wide admin permissions
+      const requiredPermissions = [
+        constants.SUPER_ADMIN,
+        constants.SYSTEM_ADMIN,
+      ];
+      const hasPermission = await rbacService.hasPermission(
+        user._id,
+        requiredPermissions
+      );
 
-      if (!hasSystemAdminRole) {
+      if (!hasPermission) {
+        const userPermissionsRaw = await rbacService.getUserPermissions(
+          user._id
+        );
+        const userPermissions = Array.isArray(userPermissionsRaw)
+          ? userPermissionsRaw
+          : [];
         logger.warn(
-          `System admin access denied for user ${user.email} (ID: ${user._id}): No system admin role`
+          `System admin access denied for user ${user.email} (ID: ${
+            user._id
+          }): Required ANY of ${requiredPermissions.join(
+            " OR "
+          )}, but user has ${
+            userPermissions.length ? userPermissions.join(", ") : "none"
+          }`
         );
 
         return next(
           new HttpError(
-            "Access denied: System admin access required",
+            `Access denied. Required permissions: [${requiredPermissions.join(
+              " or "
+            )}]`,
             httpStatus.FORBIDDEN,
             {
               message: "You don't have system administrator access",
+              required: requiredPermissions,
+              userPermissions: userPermissions,
             }
           )
         );

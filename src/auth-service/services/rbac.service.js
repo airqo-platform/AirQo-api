@@ -494,90 +494,48 @@ class RBACService {
   isSuperAdmin(user) {
     if (!user) return false;
 
-    console.log("🔍 Enhanced RBAC: Checking super admin status:", {
-      privilege: user.privilege,
-      userType: user.userType,
-      organization: user.organization,
-    });
-
-    // Check various super admin indicators
-    if (user.privilege === "super_admin" || user.privilege === "super-admin") {
-      console.log("✅ Enhanced RBAC: Super admin via privilege");
+    // Check direct privilege/userType with strict matching
+    const priv = String(user.privilege || "")
+      .trim()
+      .toUpperCase();
+    if (priv === "SUPER_ADMIN" || priv.endsWith("_SUPER_ADMIN")) {
+      return true;
+    }
+    const ut = String(user.userType || "")
+      .trim()
+      .toUpperCase();
+    if (ut === "SUPER_ADMIN" || ut.endsWith("_SUPER_ADMIN")) {
       return true;
     }
 
-    if (user.userType === "admin" || user.userType === "super_admin") {
-      console.log("✅ Enhanced RBAC: Super admin via userType");
-      return true;
-    }
-
-    // Check if user has super admin role in groups or networks
+    // Check group roles for names like 'AIRQO_SUPER_ADMIN'
     if (user.group_roles && user.group_roles.length > 0) {
-      console.log(
-        "🔍 Enhanced RBAC: Checking group roles for super admin:",
-        user.group_roles.length
-      );
-      const hasSuperAdminGroupRole = user.group_roles.some((gr, index) => {
-        if (!gr) {
-          console.log(
-            `⚠️ Enhanced RBAC: Group role ${index} is null/undefined`
-          );
-          return false;
-        }
-
-        console.log(`🔍 Enhanced RBAC: Group role ${index}:`, {
-          userType: gr.userType,
-          role_name: gr.role?.role_name,
-          role_id: gr.role?._id,
-        });
-
-        // Check userType
-        if (gr.userType === "super_admin") {
-          console.log("✅ Enhanced RBAC: Super admin via group userType");
-          return true;
-        }
-
-        // Check role name
-        if (gr.role && typeof gr.role.role_name === "string") {
+      const hasSuperAdminGroupRole = user.group_roles.some((gr) => {
+        if (gr && gr.role && typeof gr.role.role_name === "string") {
           const rn = gr.role.role_name.trim().toUpperCase();
-          if (rn === "SUPER_ADMIN") {
-            console.log(
-              "✅ Enhanced RBAC: Super admin via group role name:",
-              gr.role.role_name
-            );
+          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
             return true;
           }
         }
-
         return false;
       });
       if (hasSuperAdminGroupRole) {
-        console.log("✅ Enhanced RBAC: Super admin via group role");
         return true;
       }
     }
 
+    // Check network roles for names like 'NETWORK_SUPER_ADMIN'
     if (user.network_roles && user.network_roles.length > 0) {
       const hasSuperAdminNetworkRole = user.network_roles.some((nr) => {
-        if (!nr) return false;
-
-        // Check userType
-        if (nr.userType === "super_admin") return true;
-
-        // Check role name
-        if (
-          nr.role &&
-          nr.role.role_name &&
-          typeof nr.role.role_name === "string" &&
-          nr.role.role_name.toLowerCase().includes("super")
-        ) {
-          return true;
+        if (nr && nr.role && typeof nr.role.role_name === "string") {
+          const rn = nr.role.role_name.trim().toUpperCase();
+          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
+            return true;
+          }
         }
-
         return false;
       });
       if (hasSuperAdminNetworkRole) {
-        console.log("✅ Enhanced RBAC: Super admin via network role");
         return true;
       }
     }
