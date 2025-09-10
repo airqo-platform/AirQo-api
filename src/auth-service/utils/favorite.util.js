@@ -131,9 +131,21 @@ const favorites = {
       };
 
       // Get current favorites for the user
-      let unsynced_favorite_places = (
-        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
-      ).data;
+      const listResponse = await FavoriteModel(tenant.toLowerCase()).list({
+        filter,
+      });
+      if (!listResponse.success) {
+        return {
+          success: false,
+          message: "Failed to retrieve current favorites",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: listResponse.errors || {
+            message: "Failed to retrieve favorites",
+          },
+        };
+      }
+
+      let unsynced_favorite_places = listResponse.data || [];
 
       // Remove _id for comparison
       unsynced_favorite_places = unsynced_favorite_places.map(
@@ -142,51 +154,59 @@ const favorites = {
 
       // Handle empty favorite_places - delete all existing favorites
       if (favorite_places.length === 0) {
-        // Parallel deletion of all favorites without passing 'next'
-        const deletionResults = await Promise.allSettled(
-          unsynced_favorite_places.map((favorite) =>
-            FavoriteModel(tenant.toLowerCase()).remove({ filter: favorite })
-          )
-        );
+        let deletionSummary = {
+          deleted: 0,
+          failed: 0,
+          errors: [],
+        };
 
-        // Log any deletion failures
-        const failures = [];
-        deletionResults.forEach((result, index) => {
-          if (result.status === "rejected") {
-            const error = `Failed to delete favorite: ${JSON.stringify(
-              unsynced_favorite_places[index]
-            )}, Error: ${result.reason}`;
-            logger.error(error);
-            failures.push(error);
+        // Delete all existing favorites sequentially to avoid overwhelming the DB
+        for (const favorite of unsynced_favorite_places) {
+          try {
+            const deleteResponse = await FavoriteModel(
+              tenant.toLowerCase()
+            ).remove({
+              filter: {
+                firebase_user_id: favorite.firebase_user_id,
+                place_id: favorite.place_id,
+              },
+            });
+
+            if (deleteResponse.success) {
+              deletionSummary.deleted++;
+            } else {
+              deletionSummary.failed++;
+              deletionSummary.errors.push(
+                `Failed to delete favorite: ${favorite.place_id}`
+              );
+              logger.error(
+                `Failed to delete favorite: ${JSON.stringify(favorite)}`
+              );
+            }
+          } catch (error) {
+            deletionSummary.failed++;
+            deletionSummary.errors.push(
+              `Error deleting favorite: ${favorite.place_id} - ${error.message}`
+            );
+            logger.error(
+              `Error deleting favorite: ${JSON.stringify(favorite)}, Error: ${
+                error.message
+              }`
+            );
           }
-        });
-
-        // If all deletions failed, throw error once
-        if (failures.length === deletionResults.length) {
-          next(
-            new HttpError(
-              "Failed to delete favorites",
-              httpStatus.INTERNAL_SERVER_ERROR,
-              { errors: failures }
-            )
-          );
-          return;
         }
 
+        // Return success even if some deletions failed, but include summary
         return {
           success: true,
-          message: "All favorite places removed",
+          message: "Favorite places removal completed",
           data: [],
           status: httpStatus.OK,
-          summary: {
-            deleted: deletionResults.filter((r) => r.status === "fulfilled")
-              .length,
-            failed: failures.length,
-          },
+          summary: deletionSummary,
         };
       }
 
-      // Find missing favorites
+      // Find missing favorites that need to be created
       const missing_favorite_places = favorite_places.filter((item) => {
         const found = unsynced_favorite_places.some((favorite) => {
           return (
@@ -197,68 +217,67 @@ const favorites = {
         return !found;
       });
 
-      // Create missing favorites in parallel with proper error handling
-      let createResults = [];
-      if (missing_favorite_places.length > 0) {
-        createResults = await Promise.allSettled(
-          missing_favorite_places.map(async (favorite) => {
-            try {
-              // Check if favorite already exists (race condition protection)
-              const existingFavorite = await FavoriteModel(
-                tenant.toLowerCase()
-              ).findOne({
-                firebase_user_id: favorite.firebase_user_id,
-                place_id: favorite.place_id,
-              });
+      // Create missing favorites with proper error handling
+      let createSummary = {
+        created: 0,
+        failed: 0,
+        errors: [],
+      };
 
-              if (!existingFavorite) {
-                return await FavoriteModel(tenant.toLowerCase()).register(
-                  favorite,
-                  next
-                );
-              }
+      for (const favorite of missing_favorite_places) {
+        try {
+          // Check if favorite already exists (race condition protection)
+          const existingFavorite = await FavoriteModel(
+            tenant.toLowerCase()
+          ).findOne({
+            firebase_user_id: favorite.firebase_user_id,
+            place_id: favorite.place_id,
+          });
 
-              return {
-                success: true,
-                message: "Favorite already exists",
-                data: existingFavorite,
-              };
-            } catch (error) {
-              // Handle duplicate key error
-              if (error.code === 11000) {
-                logger.info(
-                  `Favorite already exists for place_id: ${favorite.place_id}, firebase_user_id: ${favorite.firebase_user_id}`
-                );
-                return {
-                  success: true,
-                  message: "Favorite already exists (duplicate key)",
-                  data: favorite,
-                };
-              }
-              throw error;
+          if (!existingFavorite) {
+            const createResponse = await FavoriteModel(
+              tenant.toLowerCase()
+            ).register(favorite);
+
+            if (createResponse.success) {
+              createSummary.created++;
+            } else {
+              createSummary.failed++;
+              createSummary.errors.push(
+                `Failed to create favorite: ${favorite.place_id}`
+              );
+              logger.error(
+                `Failed to create favorite: ${JSON.stringify(favorite)}`
+              );
             }
-          })
-        );
-
-        // Log results
-        createResults.forEach((result, index) => {
-          if (result.status === "rejected") {
-            logger.error(
-              `Failed to create favorite: ${JSON.stringify(
-                missing_favorite_places[index]
-              )}, Error: ${result.reason}`
+          } else {
+            // Favorite already exists, count as success but don't increment created
+            logger.info(
+              `Favorite already exists for place_id: ${favorite.place_id}`
             );
-          } else if (result.value?.success) {
-            // logger.info(
-            //   `Successfully processed favorite: ${JSON.stringify(
-            //     missing_favorite_places[index]
-            //   )}`
-            // );
           }
-        });
+        } catch (error) {
+          // Handle duplicate key error gracefully
+          if (error.code === 11000) {
+            logger.info(
+              `Favorite already exists for place_id: ${favorite.place_id}, firebase_user_id: ${favorite.firebase_user_id}`
+            );
+            // Don't count this as a failure since the favorite exists
+          } else {
+            createSummary.failed++;
+            createSummary.errors.push(
+              `Error creating favorite: ${favorite.place_id} - ${error.message}`
+            );
+            logger.error(
+              `Error creating favorite: ${JSON.stringify(favorite)}, Error: ${
+                error.message
+              }`
+            );
+          }
+        }
       }
 
-      // Find extra favorites to delete
+      // Find extra favorites that need to be deleted
       const extra_favorite_places = unsynced_favorite_places.filter((item) => {
         const found = favorite_places.some((favorite) => {
           return (
@@ -269,78 +288,90 @@ const favorites = {
         return !found;
       });
 
-      // Delete extra favorites in parallel
-      let deleteResults = [];
-      if (extra_favorite_places.length > 0) {
-        deleteResults = await Promise.allSettled(
-          extra_favorite_places.map((favorite) =>
-            FavoriteModel(tenant.toLowerCase()).remove(
-              {
-                filter: {
-                  firebase_user_id: favorite.firebase_user_id,
-                  place_id: favorite.place_id,
-                },
-              },
-              next
-            )
-          )
-        );
+      // Delete extra favorites
+      let deletionSummary = {
+        deleted: 0,
+        failed: 0,
+        errors: [],
+      };
 
-        // Log deletion results
-        deleteResults.forEach((result, index) => {
-          if (result.status === "rejected") {
+      for (const favorite of extra_favorite_places) {
+        try {
+          const deleteResponse = await FavoriteModel(
+            tenant.toLowerCase()
+          ).remove({
+            filter: {
+              firebase_user_id: favorite.firebase_user_id,
+              place_id: favorite.place_id,
+            },
+          });
+
+          if (deleteResponse.success) {
+            deletionSummary.deleted++;
+          } else {
+            deletionSummary.failed++;
+            deletionSummary.errors.push(
+              `Failed to delete extra favorite: ${favorite.place_id}`
+            );
             logger.error(
-              `Failed to delete extra favorite: ${JSON.stringify(
-                extra_favorite_places[index]
-              )}, Error: ${result.reason}`
+              `Failed to delete extra favorite: ${JSON.stringify(favorite)}`
             );
           }
-        });
+        } catch (error) {
+          deletionSummary.failed++;
+          deletionSummary.errors.push(
+            `Error deleting extra favorite: ${favorite.place_id} - ${error.message}`
+          );
+          logger.error(
+            `Error deleting extra favorite: ${JSON.stringify(
+              favorite
+            )}, Error: ${error.message}`
+          );
+        }
       }
 
       // Get final synchronized favorites
-      let synchronizedFavorites = (
-        await FavoriteModel(tenant.toLowerCase()).list({ filter }, next)
-      ).data;
+      const finalListResponse = await FavoriteModel(tenant.toLowerCase()).list({
+        filter,
+      });
+      let synchronizedFavorites = finalListResponse.success
+        ? finalListResponse.data
+        : [];
 
-      // Check for any failed operations
-      const failedCreates = createResults.filter(
-        (r) => r.status === "rejected"
-      ).length;
-      const failedDeletes = deleteResults.filter(
-        (r) => r.status === "rejected"
-      ).length;
+      // Determine overall success
+      const hasFailures =
+        createSummary.failed > 0 || deletionSummary.failed > 0;
 
-      if (failedCreates > 0 || failedDeletes > 0) {
+      if (hasFailures) {
         logger.warn(
-          `Sync completed with issues - Failed creates: ${failedCreates}, Failed deletes: ${failedDeletes}`
+          `Sync completed with issues - Failed creates: ${createSummary.failed}, Failed deletes: ${deletionSummary.failed}`
         );
       }
 
       return {
-        success: true,
-        message: "Favorites Synchronized",
+        success: true, // Return success even with some failures for partial sync
+        message: hasFailures
+          ? "Favorites synchronized with some issues"
+          : "Favorites synchronized successfully",
         data: synchronizedFavorites,
         status: httpStatus.OK,
         summary: {
-          created: createResults.filter(
-            (r) => r.status === "fulfilled" && r.value?.success
-          ).length,
-          deleted: deleteResults.filter(
-            (r) => r.status === "fulfilled" && r.value?.success
-          ).length,
-          failed: failedCreates + failedDeletes,
+          created: createSummary.created,
+          deleted: deletionSummary.deleted,
+          failed: createSummary.failed + deletionSummary.failed,
+          errors: [...createSummary.errors, ...deletionSummary.errors],
         },
       };
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
+      logger.error(
+        `🐛🐛 Internal Server Error in syncFavorites: ${error.message}`
       );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
     }
   },
 };
