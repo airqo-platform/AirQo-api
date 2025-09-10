@@ -1,5 +1,8 @@
 from unittest.mock import MagicMock, patch
 import pandas as pd
+import unittest
+import numpy as np
+from datetime import datetime, timezone
 from google.api_core import exceptions as google_api_exceptions
 import pytest
 from airqo_etl_utils.datautils import DataUtils
@@ -393,3 +396,112 @@ class Test_BigQuery:
 
         mock_bigquery_api.query_data.assert_called_once()
         mock_data_validation_utils.remove_outliers_fix_types.assert_not_called()
+
+
+class TestComputeDeviceSiteMetadata(unittest.TestCase):
+    @patch("airqo_etl_utils.datautils.BigQueryApi")
+    def test_compute_device_site_metadata_success(self, MockBigQueryApi):
+        """Test successful computation of device site metadata."""
+        mock_bigquery_api = MockBigQueryApi.return_value
+        mock_bigquery_api.fetch_max_min_values.return_value = pd.DataFrame(
+            {
+                "pollutant": ["pm2_5", "pm10"],
+                "minimum": [10.0, 20.0],
+                "maximum": [50.0, 80.0],
+                "average": [30.0, 50.0],
+                "sample_count": [100, 100],
+            }
+        )
+
+        entity = {
+            "device_id": "test_device",
+            "site_id": "test_site",
+            "device_maintenance": "2023-01-01T00:00:00Z",
+            "offset_date": np.nan,
+        }
+        result = DataUtils.compute_device_site_metadata(
+            table="test_table",
+            unique_id="device_id",
+            entity=entity,
+            column={"pm2_5": ["pm2_5"], "pm10": ["pm10"]},
+        )
+
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertEqual(len(result), 2)
+        self.assertIn("pollutant", result.columns)
+        self.assertIn("minimum", result.columns)
+        self.assertIn("maximum", result.columns)
+        self.assertIn("offset_date", result.columns)
+        self.assertEqual(result.iloc[0]["pollutant"], "pm2_5")
+        self.assertEqual(result.iloc[1]["pollutant"], "pm10")
+
+    @patch("airqo_etl_utils.datautils.BigQueryApi")
+    def test_compute_device_site_metadata_empty_data(self, MockBigQueryApi):
+        """Test handling of empty data from BigQuery."""
+        mock_bigquery_api = MockBigQueryApi.return_value
+        mock_bigquery_api.fetch_max_min_values.return_value = pd.DataFrame()
+
+        entity = {
+            "device_id": "test_device",
+            "site_id": "test_site",
+            "device_maintenance": "2023-01-01T00:00:00Z",
+            "offset_date": np.nan,
+        }
+        result = DataUtils.compute_device_site_metadata(
+            table="test_table",
+            unique_id="device_id",
+            entity=entity,
+            column={"pm2_5": ["pm2_5"]},
+        )
+
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertTrue(result.empty)
+
+    @patch("airqo_etl_utils.datautils.BigQueryApi")
+    def test_compute_device_site_metadata_future_end_date(self, MockBigQueryApi):
+        """Test when end_date is in the future, should return empty DataFrame."""
+        mock_bigquery_api = MockBigQueryApi.return_value
+        # No need to mock fetch_max_min_values since it should not be called
+
+        entity = {
+            "device_id": "test_device",
+            "site_id": "test_site",
+            "device_maintenance": (
+                datetime.now(timezone.utc) - pd.Timedelta(days=10)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "offset_date": np.nan,
+        }
+        result = DataUtils.compute_device_site_metadata(
+            table="test_table",
+            unique_id="device_id",
+            entity=entity,
+            column={"pm2_5": ["pm2_5"]},
+        )
+
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertTrue(result.empty)
+
+    @patch("airqo_etl_utils.datautils.DataUtils.compute_device_site_metadata")
+    def test_compute_device_site_metadata_invalid_entity(self, mock_compute_metadata):
+        """Test with invalid entity data (missing required fields)."""
+        entity = {
+            "device_id": "test_device",
+            # Missing device_maintenance
+        }
+        mock_compute_metadata.return_value = pd.DataFrame()
+
+        result = DataUtils.compute_device_site_metadata(
+            table="test_table",
+            unique_id="device_id",
+            entity=entity,
+            column={"pm2_5": ["pm2_5"]},
+        )
+
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertTrue(result.empty)
+        mock_compute_metadata.assert_called_once_with(
+            table="test_table",
+            unique_id="device_id",
+            entity=entity,
+            column={"pm2_5": ["pm2_5"]},
+        )
