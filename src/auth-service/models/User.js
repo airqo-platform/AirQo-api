@@ -349,7 +349,7 @@ const UserSchema = new Schema(
     preferredTokenStrategy: {
       type: String,
       enum: Object.values(constants.TOKEN_STRATEGIES),
-      default: constants.TOKEN_STRATEGIES.LEGACY,
+      default: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
     },
     subscriptionStatus: {
       type: String,

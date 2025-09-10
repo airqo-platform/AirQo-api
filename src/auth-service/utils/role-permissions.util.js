@@ -662,7 +662,10 @@ const syncPermissions = async (tenant, permissionsList) => {
   for (const permissionData of permissionsList) {
     try {
       const existingPermission = await PermissionModel(tenant)
-        .findOne({ permission: permissionData.permission })
+        .findOne({
+          permission: permissionData.permission,
+          network_id: { $in: [null, undefined] },
+        })
         .lean();
 
       if (!existingPermission) {
