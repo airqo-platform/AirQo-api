@@ -3,6 +3,7 @@ import pandas as pd
 import json
 from pathlib import Path
 import os
+from datetime import datetime, timedelta, timezone
 from confluent_kafka import KafkaException
 from typing import List, Dict, Any, Union, Tuple, Optional
 import ast
@@ -303,6 +304,68 @@ class DataUtils:
                 return data
         else:
             logger.info(f"No data returned from {device.name} for the given date range")
+
+    @staticmethod
+    def compute_device_site_metadata(
+        table: str, unique_id: str, entity: Dict[str, Any], column: Dict[str, Any]
+    ) -> pd.DataFrame:
+        """
+        Computes metadata for devices or sites based on the specified parameters.
+
+        This method retrieves and processes metadata for a given device or site, using the provided table, unique identifier, and column.
+        It calculates the metadata within a 30-day window starting from the most recent maintenance or offset date.
+
+        Args:
+            table(str): The BigQuery table to query for metadata.
+            unique_id(str): The unique identifier for the entity (e.g., "device_id" or "site_id").
+            entity(Dict[str, Any]): A dictionary containing entity details, including:
+                - "device_maintenance" (str): The last maintenance date.
+                - "offset_date" (str): The previous offset date.
+                - The unique identifier (e.g., "device_id" or "site_id").
+            column(str): The column to compute metadata for (e.g., pollutant type).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed metadata. If the end date is in the future, an empty DataFrame is returned.
+        """
+        device_maintenance = entity.get("device_maintenance")
+        device_previous_offset = entity.get("offset_date")
+        start_date = max(
+            device_maintenance,
+            device_maintenance
+            if np.isnan(device_previous_offset)
+            else device_previous_offset,
+        )
+        entity_id = entity.get(unique_id)
+        extra_id = entity.get("site_id") if unique_id == "device_id" else None
+        end_date = str_to_date(start_date) + timedelta(days=30)
+
+        if end_date > datetime.today():
+            logger.info(f"End date {end_date} cannot be in the future.")
+            return pd.DataFrame()
+
+        end_date = date_to_str(end_date)
+        big_query_api = BigQueryApi()
+
+        data = big_query_api.fetch_max_min_values(
+            table=table,
+            start_date_time=start_date,
+            end_date_time=end_date,
+            unique_id=unique_id,
+            filter=entity_id,
+            pollutant=column,
+        )
+        if not data.empty:
+            data["offset_date"] = end_date
+            data[unique_id] = entity_id
+            if extra_id:
+                data["site_id"] = extra_id
+            data["created"] = datetime.now(timezone.utc)
+            data.dropna(
+                inplace=True,
+                how="any",
+                subset=["pollutant", "minimum", "maximum", "average"],
+            )
+        return data
 
     @staticmethod
     def load_cached_data(local_file_path: str, file_name: str) -> pd.DataFrame:
@@ -1781,6 +1844,51 @@ class DataUtils:
         except Exception as e:
             logger.exception(
                 f"An unexpected error occurred during column retrieval: {e}"
+            )
+        return None, []
+
+    def _get_metadata_table(
+        metadata_type: MetaDataType,
+        category: Union[DeviceCategory, MetaDataType],
+    ) -> Tuple[Optional[str], List[str]]:
+        """
+        Retrieve the BigQuery metadata table name and its column names based on the given parameters.
+
+        This function determines the appropriate metadata table and its schema for the specified metadata type
+        and category. It queries the BigQuery API to fetch the column names for the table.
+
+        Args:
+            metadata_type (MetaDataType): The type of metadata to retrieve (e.g., DEVICES, SITES).
+            category (Union[DeviceCategory, MetaDataType]): The category or metadata type.
+
+        Returns:
+            Tuple[Optional[str], List[str]]:
+                - The table name (str) if found, otherwise None.
+                - A list of column names (List[str]) if found, otherwise an empty list.
+
+        Raises:
+            KeyError: If the combination of metadata_type and category does not exist in the configuration.
+            Exception: Logs and handles unexpected errors during table or column retrieval.
+
+        Notes:
+            - The `Config.MetaDataStore` dictionary is used to map metadata types and categories to table names.
+            - If the table name is not found or an error occurs, the function returns `None` and an empty list.
+        """
+        bigquery = BigQueryApi()
+        try:
+            datasource = Config.MetaDataStore
+            table = datasource.get(metadata_type)
+            if isinstance(table, dict):
+                table = table.get(category)
+            cols = bigquery.get_columns(table=table)
+            return table, cols
+        except KeyError:
+            logger.exception(
+                f"Invalid combination of metadata_type: {metadata_type} and category: {category}"
+            )
+        except Exception as e:
+            logger.exception(
+                f"An unexpected error occurred during table or column retrieval: {e}"
             )
         return None, []
 
