@@ -328,8 +328,12 @@ class DataUtils:
         Returns:
             pd.DataFrame: A DataFrame containing the computed metadata. If the end date is in the future, an empty DataFrame is returned.
         """
-        device_maintenance = entity.get("device_maintenance")
-        device_previous_offset = entity.get("offset_date")
+        device_maintenance = entity.get("device_maintenance", None)
+        if device_maintenance is None or pd.isna(device_maintenance):
+            logger.info("Device maintenance date is missing or invalid.")
+            return pd.DataFrame()
+
+        device_previous_offset = entity.get("offset_date", None)
         start_date = max(
             device_maintenance,
             device_maintenance
