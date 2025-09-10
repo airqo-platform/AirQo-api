@@ -56,9 +56,13 @@ const requirePermissions = (requiredPermissions, options = {}) => {
           )}, but user has ${userPermissions.join(", ") || "none"}`
         );
 
+        const requiredPermsString = normalizedRequiredPerms.join(
+          requireAll ? " and " : " or "
+        );
+
         return next(
           new HttpError(
-            "Access denied: Insufficient permissions",
+            `Access denied. Required permissions: [${requiredPermsString}]`,
             httpStatus.FORBIDDEN,
             {
               message:
@@ -168,9 +172,13 @@ const requireGroupPermissions = (
           )}, but user has ${userPermissions.join(", ") || "none"}`
         );
 
+        const requiredPermsString = normalizedRequiredPerms.join(
+          requireAll ? " and " : " or "
+        );
+
         return next(
           new HttpError(
-            "Access denied: Insufficient group permissions",
+            `Access denied for this group. Required permissions: [${requiredPermsString}]`,
             httpStatus.FORBIDDEN,
             {
               message: "You don't have the required permissions in this group",
@@ -283,9 +291,13 @@ const requireNetworkPermissions = (
           )}, but user has ${userPermissions.join(", ") || "none"}`
         );
 
+        const requiredPermsString = normalizedRequiredPerms.join(
+          requireAll ? " and " : " or "
+        );
+
         return next(
           new HttpError(
-            "Access denied: Insufficient network permissions",
+            `Access denied for this network. Required permissions: [${requiredPermsString}]`,
             httpStatus.FORBIDDEN,
             {
               message:
