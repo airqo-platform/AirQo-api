@@ -102,6 +102,11 @@ class Config:
 
     # Data Checks
     BIGQUERY_GX_RESULTS_TABLE = os.getenv("BIGQUERY_GX_RESULTS_TABLE")
+    BIGQUERY_GX_MEASUREMENTS_BASELINE = os.getenv("BIGQUERY_GX_MEASUREMENTS_BASELINE")
+    BIGQUERY_GX_DEVICE_COMPUTED_METADATA = os.getenv(
+        "BIGQUERY_GX_DEVICE_COMPUTED_METADATA"
+    )
+    BIGQUERY_GX_SITE_COMPUTED_METADATA = os.getenv("BIGQUERY_GX_SITE_COMPUTED_METADATA")
 
     # AirQo
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
@@ -479,6 +484,10 @@ class Config:
         BIGQUERY_DAILY_FORECAST_EVENTS_TABLE: "daily_24_hourly_forecasts.json",
         BIGQUERY_OPENWEATHERMAP_TABLE: "openweathermap_hourly_data.json",
         BIGQUERY_SATELLITE_COPERNICUS_RAW_EVENTS_TABLE: "satelite_airquality_data_copernicus_temp.json",
+        BIGQUERY_GX_RESULTS_TABLE: "airqo_data_quality_checks.json",
+        BIGQUERY_GX_MEASUREMENTS_BASELINE: "measurements_baseline.json",
+        BIGQUERY_GX_DEVICE_COMPUTED_METADATA: "device_computed_metadata.json",
+        BIGQUERY_GX_SITE_COMPUTED_METADATA: "site_computed_metadata.json",
         "all": None,
     }
     DataSource = {
@@ -518,6 +527,43 @@ class Config:
             DeviceNetwork.URBANBETTER: {
                 MetaDataType.SENSORPOSITIONS: SENSOR_POSITIONS_TABLE
             }
+        },
+    }
+
+    COMMON_POLLUTANT_MAPPING = {
+        "bam": {
+            "raw": {
+                "pm2_5": ["realtime_conc", "hourly_conc", "short_time_conc"],
+            },
+            "averaged": {"pm2_5": ["pm2_5"]},
+        },
+        "lowcost": {
+            "raw": {
+                "pm2_5": ["s1_pm2_5", "s2_pm2_5"],
+                "pm10": ["s1_pm10", "s2_pm10"],
+            },
+            "averaged": {
+                "pm2_5": ["pm2_5_calibrated_value"],
+            },
+        },
+        "mobile": {
+            "raw": {
+                "pm2_5": ["s1_pm2_5", "s2_pm2_5"],
+                "pm10": ["s1_pm10", "s2_pm10"],
+            }
+        },
+    }
+
+    MetaDataStore = {
+        MetaDataType.DEVICES: BIGQUERY_DEVICES_TABLE,
+        MetaDataType.SITES: BIGQUERY_SITES_TABLE,
+        MetaDataType.AIRQLOUDS: BIGQUERY_AIRQLOUDS_TABLE,
+        MetaDataType.GRIDS: BIGQUERY_GRIDS_TABLE,
+        MetaDataType.COHORTS: BIGQUERY_COHORTS_TABLE,
+        MetaDataType.SENSORPOSITIONS: SENSOR_POSITIONS_TABLE,
+        MetaDataType.DATAQUALITYCHECKS: {
+            MetaDataType.DEVICES: BIGQUERY_GX_DEVICE_COMPUTED_METADATA,
+            MetaDataType.SITES: BIGQUERY_GX_SITE_COMPUTED_METADATA,
         },
     }
 
