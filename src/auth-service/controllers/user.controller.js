@@ -402,8 +402,7 @@ const userController = {
 
       if (req.auth.success === true) {
         // Use the user's preferred strategy or a default
-        const strategy =
-          req.user.preferredTokenStrategy || constants.TOKEN_STRATEGIES.LEGACY;
+        const strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
 
         logObject("Preferred token strategy", strategy);
 
@@ -434,8 +433,8 @@ const userController = {
     }
   },
   loginWithDetails: async (req, res, next) => {
-    logger.info("..................................");
-    logger.info("user login with details......");
+    // logger.info("..................................");
+    // logger.info("user login with details......");
     try {
       const request = handleRequest(req, next);
       if (!request) return;
@@ -444,8 +443,7 @@ const userController = {
 
       if (req.auth.success === true) {
         const tokenFactory = new AbstractTokenFactory(tenant);
-        const strategy =
-          req.user.preferredTokenStrategy || constants.TOKEN_STRATEGIES.LEGACY;
+        const strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
 
         // We need the populated user object for some token strategies
         const populatedUser = await userUtil._populateUserDataManually(
@@ -1169,15 +1167,15 @@ const userController = {
       console.log("🔐 Enhanced login controller processing:", {
         email: request.body.email,
         tenant: request.query.tenant,
-        strategy: request.body.preferredStrategy,
+        strategy: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
         debug: request.body.includeDebugInfo,
       });
 
       const result = await userUtil.loginWithEnhancedTokens(request, next);
 
       if (result.success) {
-        logger.info("Enhanced login successful");
-        console.log("✅ Enhanced login successful in controller");
+        // logger.info("Enhanced login successful");
+        // console.log("✅ Enhanced login successful in controller");
       } else {
         logger.info("Enhanced login failed");
         console.log("❌ Enhanced login failed in controller:", result.message);
@@ -1560,8 +1558,9 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // Force legacy strategy for backward compatibility
-      request.body.preferredStrategy = "legacy";
+      // Force default strategy for backward compatibility
+      request.body.preferredStrategy =
+        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
 
       console.log("🔄 Legacy compatible login requested:", {
         email: request.body.email,

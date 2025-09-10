@@ -4818,9 +4818,9 @@ const createUserModule = {
       }
       // Case 3: User is in the group and already has a valid role. Do nothing.
       else if (airqoGroupAssignment && airqoGroupAssignment.role) {
-        logger.info(
-          `[Default Role] User ${user.email} already has a valid role in the AirQo group. No action needed.`
-        );
+        // logger.info(
+        //   `[Default Role] User ${user.email} already has a valid role in the AirQo group. No action needed.`
+        // );
       }
     } catch (error) {
       logger.error(
@@ -4836,7 +4836,8 @@ const createUserModule = {
   _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
     return tokenConfig.getStrategyForUser(
       user._id,
-      preferredStrategyFromRequest || user.preferredTokenStrategy,
+      preferredStrategyFromRequest ||
+        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       user.organization
     );
   },
