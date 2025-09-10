@@ -1558,8 +1558,9 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      // Force legacy strategy for backward compatibility
-      request.body.preferredStrategy = "no_roles_and_permissions";
+      // Force default strategy for backward compatibility
+      request.body.preferredStrategy =
+        constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
 
       console.log("🔄 Legacy compatible login requested:", {
         email: request.body.email,

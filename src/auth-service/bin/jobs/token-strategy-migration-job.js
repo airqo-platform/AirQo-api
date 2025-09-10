@@ -12,7 +12,7 @@ const BATCH_SIZE = 100;
 
 let isJobRunning = false;
 
-const migrateTokenStrategiesToDefault = async () => {
+const migrateTokenStrategiesToDefault = async (tenant) => {
   if (isJobRunning) {
     logger.warn(
       "Token strategy migration job is already running. Skipping this execution."
@@ -21,6 +21,7 @@ const migrateTokenStrategiesToDefault = async () => {
   }
   isJobRunning = true;
 
+  const tenantId = tenant || constants.DEFAULT_TENANT || "airqo";
   try {
     logger.info(
       "🚀 Starting token strategy migration job to update users to default..."
@@ -44,7 +45,7 @@ const migrateTokenStrategiesToDefault = async () => {
 
     while (hasMore) {
       // Find a batch of users with non-default strategies
-      const usersToUpdate = await UserModel("airqo")
+      const usersToUpdate = await UserModel(tenantId)
         .find(filter)
         .limit(BATCH_SIZE)
         .select("_id")
@@ -58,12 +59,15 @@ const migrateTokenStrategiesToDefault = async () => {
       const userIds = usersToUpdate.map((user) => user._id);
 
       // Perform the update for the batch
-      const result = await UserModel("airqo").updateMany(
+      const result = await UserModel(tenantId).updateMany(
         { _id: { $in: userIds } },
         update
       );
 
-      const updatedCount = result.nModified || 0;
+      const updatedCount =
+        (typeof result.modifiedCount === "number"
+          ? result.modifiedCount
+          : result.nModified) || 0;
       totalUpdated += updatedCount;
 
       logger.info(
@@ -97,7 +101,7 @@ const jobName = "token-strategy-migration-job";
 
 global.cronJobs[jobName] = cron.schedule(
   schedule,
-  migrateTokenStrategiesToDefault,
+  () => migrateTokenStrategiesToDefault(),
   {
     scheduled: true,
     timezone: "Africa/Nairobi",

@@ -665,6 +665,7 @@ const syncPermissions = async (tenant, permissionsList) => {
         .findOne({
           permission: permissionData.permission,
           network_id: { $in: [null, undefined] },
+          group_id: { $in: [null, undefined] },
         })
         .lean();
 

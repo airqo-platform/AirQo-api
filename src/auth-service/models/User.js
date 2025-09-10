@@ -1559,8 +1559,8 @@ UserSchema.methods = {
 };
 
 UserSchema.methods.createToken = async function (
-  // TODO: remove this legacy method and use the ATF service directly
-  strategy = constants.TOKEN_STRATEGIES.LEGACY,
+  // Use the new default strategy. Can be overridden by passing a different strategy.
+  strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
   options = {}
 ) {
   try {

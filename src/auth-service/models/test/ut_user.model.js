@@ -2,6 +2,7 @@ require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
+const jwt = require("jsonwebtoken");
 const chaiAsPromised = require("chai-as-promised");
 const mongoose = require("mongoose");
 const UserModel = require("@models/User");
@@ -185,78 +186,70 @@ describe("UserSchema instance methods", () => {
   });
 
   describe("createToken()", () => {
-    it("should create a valid JWT token for a user", async () => {
-      const fakeUser = {
-        _id: "fakeUserId",
+    it("should create a valid JWT token with the default 'no_roles_and_permissions' strategy", async () => {
+      // Sample user document
+      const user = new (UserModel("airqo"))({
+        _id: new mongoose.Types.ObjectId(),
         firstName: "John",
         lastName: "Doe",
-        userName: "johndoe",
+        userName: "john_doe",
         email: "john@example.com",
-        organization: "TestOrg",
-        long_organization: "TestLongOrg",
+        password: "password123",
+        organization: "AirQo",
+        long_organization: "AirQo Long",
         privilege: "user",
-        role: "UserRole",
-        country: "US",
-        profilePicture: "profile.jpg",
-        phoneNumber: "1234567890",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        rateLimit: 100,
-        networks: ["Network1", "Network2"],
-      };
-
-      // Stub UserModel.list method to return a fake user
-      const listStub = sinon.stub(UserModel("airqo"), "list").resolves({
-        success: true,
-        data: [fakeUser],
+        userType: "user",
       });
 
-      // Mock logger.error to track errors (optional)
-      const errorLog = sinon.stub(console, "error");
+      // Call the createToken method without specifying a strategy
+      const token = await user.createToken();
 
-      try {
-        const userSchema = new UserSchema(); // Create an instance of UserSchema
-        userSchema._id = "fakeUserId"; // Set the user ID
+      // Assertions
+      expect(token).to.be.a("string");
 
-        const token = await userSchema.createToken();
+      // Verify the token content
+      const decodedToken = jwt.verify(token, constants.JWT_SECRET);
+      expect(decodedToken).to.have.property("_id", user._id.toString());
+      expect(decodedToken).to.have.property("username", user.userName);
+      expect(decodedToken).to.have.property("firstName", user.firstName);
+      expect(decodedToken).to.have.property("lastName", user.lastName);
+      expect(decodedToken).to.have.property("email", user.email);
+      expect(decodedToken).to.have.property("privilege", user.privilege);
+      expect(decodedToken).to.have.property("nrp", 1); // Marker for the strategy
+      expect(decodedToken).to.not.have.property("roles");
+      expect(decodedToken).to.not.have.property("permissions");
+      expect(decodedToken).to.have.property("iat");
+      expect(decodedToken).to.have.property("exp");
+    });
 
-        // Verify that UserModel.list was called with the correct filter
-        expect(listStub.calledOnce).to.be.true;
-        expect(listStub.firstCall.args[0]).to.deep.equal({ _id: "fakeUserId" });
+    it("should create a valid JWT token with the 'legacy' strategy when specified", async () => {
+      // Sample user document
+      const user = new (UserModel("airqo"))({
+        _id: new mongoose.Types.ObjectId(),
+        firstName: "Jane",
+        lastName: "Doe",
+        userName: "jane_doe",
+        email: "jane@example.com",
+        password: "password123",
+        privilege: "user",
+        userType: "user",
+      });
 
-        // Verify that the token is a string
-        expect(token).to.be.a("string");
+      // Call the createToken method specifying the legacy strategy
+      const token = await user.createToken(constants.TOKEN_STRATEGIES.LEGACY);
 
-        // Verify the token content (you may adjust this based on your actual token generation)
-        const decodedToken = jwt.verify(token, constants.JWT_SECRET);
+      // Assertions
+      expect(token).to.be.a("string");
 
-        expect(decodedToken).to.deep.equal({
-          _id: fakeUser._id,
-          firstName: fakeUser.firstName,
-          lastName: fakeUser.lastName,
-          userName: fakeUser.userName,
-          email: fakeUser.email,
-          organization: fakeUser.organization,
-          long_organization: fakeUser.long_organization,
-          privilege: fakeUser.privilege,
-          role: fakeUser.role,
-          country: fakeUser.country,
-          profilePicture: fakeUser.profilePicture,
-          phoneNumber: fakeUser.phoneNumber,
-          createdAt: fakeUser.createdAt,
-          updatedAt: fakeUser.updatedAt,
-          rateLimit: fakeUser.rateLimit,
-          networks: fakeUser.networks,
-        });
-      } catch (error) {
-        // Handle any unexpected errors
-        console.error(error);
-        throw error;
-      } finally {
-        // Restore the stubs and mocks
-        listStub.restore();
-        errorLog.restore();
-      }
+      // Verify the token content
+      const decodedToken = jwt.verify(token, constants.JWT_SECRET);
+      expect(decodedToken).to.have.property("_id", user._id.toString());
+      expect(decodedToken).to.have.property("username", user.userName);
+      expect(decodedToken).to.have.property("roles").that.is.an("array");
+      expect(decodedToken).to.have.property("permissions").that.is.an("array");
+      expect(decodedToken).to.not.have.property("nrp");
+      expect(decodedToken).to.have.property("iat");
+      expect(decodedToken).to.have.property("exp");
     });
   });
 
