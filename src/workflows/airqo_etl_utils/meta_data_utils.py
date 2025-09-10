@@ -1,19 +1,24 @@
 import pandas as pd
+import os
 import ast
 from typing import Optional, Callable, List, Dict, Any
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from airqo_etl_utils.data_api import DataApi
 from .bigquery_api import BigQueryApi
-from .constants import DeviceNetwork
 from .datautils import DataUtils
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
-from .constants import MetaDataType
+from .constants import MetaDataType, DataType, DeviceCategory, Frequency, DeviceNetwork
+from .config import configuration as Config
 
 import logging
 
 logger = logging.getLogger("airflow.task")
+
+cpu_count = os.cpu_count() or 2
+max_workers = min(20, cpu_count * 10)
 
 
 class MetaDataUtils:
@@ -62,6 +67,90 @@ class MetaDataUtils:
         devices["last_updated"] = datetime.now(timezone.utc)
 
         return devices
+
+    @staticmethod
+    def compute_device_site_metadata(
+        data_type: DataType,
+        device_category: DeviceCategory,
+        metadata_type: MetaDataType,
+        frequency: Frequency,
+    ) -> pd.DataFrame:
+        """
+        Computes additional metadata for devices or sites based on the specified parameters.
+
+        This function retrieves metadata for devices or sites, merges it with recent readings,
+        and computes additional metadata using a thread pool for parallel processing.
+
+        Args:
+            data_type (DataType): The type of data to process (e.g., air quality, weather).
+            device_category (DeviceCategory): The category of the device (e.g., LOWCOST, GENERAL).
+            metadata_type (MetaDataType): The type of metadata to compute (e.g., DEVICES, SITES).
+            frequency (Frequency): The frequency of the data (e.g., hourly, daily).
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the computed metadata.
+        """
+        big_query_api = BigQueryApi()
+        exclude_column = "site_id" if metadata_type == MetaDataType.DEVICES else None
+        device_category_ = (
+            DeviceCategory.GENERAL
+            if device_category == DeviceCategory.LOWCOST
+            else None
+        )
+
+        metadata_method = {
+            MetaDataType.DEVICES: MetaDataUtils.extract_devices,
+            MetaDataType.SITES: MetaDataUtils.extract_sites,
+        }
+        unique_id = "device_id" if metadata_type == MetaDataType.DEVICES else "site_id"
+
+        # Retrieve metadata table and columns
+        metadata_table, cols = DataUtils._get_metadata_table(
+            MetaDataType.DATAQUALITYCHECKS, metadata_type
+        )
+        entities = metadata_method.get(metadata_type)()
+        entities = entities[(entities.network == "airqo") & (entities.deployed == True)]
+
+        # Fetch recent readings and merge with entities
+        recent_readings = big_query_api.fetch_most_recent_record(
+            metadata_table, unique_id, offset_column="offset_date", columns=cols
+        )
+        if exclude_column:
+            recent_readings.drop(columns=[exclude_column], inplace=True)
+        entities = pd.merge(entities, recent_readings, how="left", on=unique_id)
+
+        # Compute additional metadata
+        computed_data = []
+        data_table, _ = DataUtils._get_table(data_type, device_category_, frequency)
+        pollutants = Config.COMMON_POLLUTANT_MAPPING.get(device_category.str, {}).get(
+            data_type.str, None
+        )
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    DataUtils.compute_device_site_metadata,
+                    data_table,
+                    unique_id,
+                    entity,
+                    pollutants,
+                )
+                for _, entity in entities.iterrows()
+            ]
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result is not None:
+                    computed_data.append(result)
+
+        computed_data = (
+            pd.concat(computed_data, ignore_index=True)
+            if computed_data
+            else pd.DataFrame()
+        )
+        if not computed_data.empty:
+            computed_data["resolution"] = frequency.str
+        return computed_data
 
     @staticmethod
     def extract_airqlouds_from_api(

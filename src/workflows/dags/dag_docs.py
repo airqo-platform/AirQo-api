@@ -189,3 +189,16 @@ Data Destinations:
 - BigQuery: data quality tables (staging/production)
 - <a href="https://airqo.africa/" target="_blank">AirQo</a>
 """
+
+compute_store_devices_metadata_doc = """
+### AirQo devices computed metadata
+#### Purpose
+Compute and store metadata for devices in bigquery
+#### Notes
+
+Data sources:
+- BigQuery: devices
+Data Destinations:
+- BigQuery: data quality tables (staging/production)
+- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+"""

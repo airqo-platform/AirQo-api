@@ -526,7 +526,12 @@ class Config:
         DataType.EXTRAS: {
             DeviceNetwork.URBANBETTER: {
                 MetaDataType.SENSORPOSITIONS: SENSOR_POSITIONS_TABLE
-            }
+            },
+            DeviceNetwork.AIRQO: {
+                MetaDataType.DEVICES: BIGQUERY_GX_DEVICE_COMPUTED_METADATA,
+                MetaDataType.SITES: BIGQUERY_GX_SITE_COMPUTED_METADATA,
+                MetaDataType.DATAQUALITYCHECKS: BIGQUERY_GX_RESULTS_TABLE,
+            },
         },
     }
 
