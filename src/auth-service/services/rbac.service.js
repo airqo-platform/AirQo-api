@@ -494,13 +494,17 @@ class RBACService {
   isSuperAdmin(user) {
     if (!user) return false;
 
-    // Check direct privilege for backward compatibility
-    if (user.privilege && user.privilege.toUpperCase().includes("SUPER")) {
+    // Check direct privilege/userType with strict matching
+    const priv = String(user.privilege || "")
+      .trim()
+      .toUpperCase();
+    if (priv === "SUPER_ADMIN" || priv.endsWith("_SUPER_ADMIN")) {
       return true;
     }
-
-    // Check userType for flexibility
-    if (user.userType && user.userType.toUpperCase().includes("SUPER")) {
+    const ut = String(user.userType || "")
+      .trim()
+      .toUpperCase();
+    if (ut === "SUPER_ADMIN" || ut.endsWith("_SUPER_ADMIN")) {
       return true;
     }
 
@@ -509,7 +513,7 @@ class RBACService {
       const hasSuperAdminGroupRole = user.group_roles.some((gr) => {
         if (gr && gr.role && typeof gr.role.role_name === "string") {
           const rn = gr.role.role_name.trim().toUpperCase();
-          if (rn.includes("SUPER_ADMIN")) {
+          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
             return true;
           }
         }
@@ -525,7 +529,7 @@ class RBACService {
       const hasSuperAdminNetworkRole = user.network_roles.some((nr) => {
         if (nr && nr.role && typeof nr.role.role_name === "string") {
           const rn = nr.role.role_name.trim().toUpperCase();
-          if (rn.includes("SUPER_ADMIN")) {
+          if (rn === "SUPER_ADMIN" || rn.endsWith("_SUPER_ADMIN")) {
             return true;
           }
         }
