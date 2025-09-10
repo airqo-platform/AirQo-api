@@ -191,14 +191,24 @@ Data Destinations:
 """
 
 compute_store_devices_metadata_doc = """
-### AirQo devices computed metadata
+### AirQo Devices Computed Metadata
 #### Purpose
-Compute and store metadata for devices in bigquery
-#### Notes
+Compute and store metadata for devices in BigQuery.
 
-Data sources:
-- BigQuery: devices
-Data Destinations:
-- BigQuery: data quality tables (staging/production)
-- <a href="https://airqo.africa/" target="_blank">AirQo</a>
+This pipeline computes additional metadata for AirQo devices, such as pollutant statistics (minimum, maximum, average) over a 30-day window, based on recent maintenance or offset dates. The computed metadata is then stored in BigQuery for further analysis and reporting.
+
+#### Notes
+- The computation uses the `compute_device_site_metadata` method to process metadata for each device.
+- The pipeline is scheduled to run daily to ensure metadata is up-to-date.
+
+#### Data Sources:
+- BigQuery: `averaged_data.hourly_device_measurements` (for pollutant data)
+- BigQuery: `data_quality.devices_computed_metadata` (for device details and recent readings)
+
+#### Data Destinations:
+- BigQuery: `data_quality.devices_computed_metadata` (staging/production)
+
+#### References:
+- `compute_device_site_metadata` method in `datautils.py` (#sym:compute_device_site_metadata)
+- `compute_store_devices_metadata` DAG in `meta_data.py` (#sym:compute_store_devices_metadata)
 """
