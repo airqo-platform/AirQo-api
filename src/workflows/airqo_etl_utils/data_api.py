@@ -1,13 +1,9 @@
-import os
 from typing import List, Dict, Any, Generator, Tuple, Optional
-
 import pandas as pd
-
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from urllib.parse import urlencode
-from http.client import HTTPResponse
 import simplejson
 import urllib3
 from urllib3.util.retry import Retry

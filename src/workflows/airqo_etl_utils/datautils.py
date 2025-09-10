@@ -22,6 +22,7 @@ from .constants import (
     DataSource,
     DataType,
     MetaDataType,
+    ColumnDataType,
 )
 from .message_broker_utils import MessageBrokerUtils
 
@@ -1541,8 +1542,9 @@ class DataUtils:
             data_type (DataType): The type of data (e.g., raw, averaged or processed).
             device_category (DeviceCategory): The category of the device (e.g., BAM, low-cost).
             frequency (Frequency): The data frequency (e.g., raw, hourly, daily).
-            device_network(DeviceNetwork):
-            extra_type(Any):
+            device_network (DeviceNetwork): The network the device is connected to.
+            metadata_type (Optional[str]): The type of metadata to include (if any).
+            extra_type (Any): Any additional type information.
 
         Returns:
             pd.DataFrame: A DataFrame formatted for BigQuery with required columns populated.
@@ -1552,11 +1554,19 @@ class DataUtils:
             KeyError: If the combination of data_type, device_category, and frequency is invalid.
             Exception: For unexpected errors during column retrieval or data processing.
         """
-        data["timestamp"] = pd.to_datetime(data["timestamp"], errors="coerce")
-        data.dropna(subset=["timestamp"], inplace=True)
+        big_query_api = BigQueryApi()
         table, cols = DataUtils._get_table(
             datatype, device_category, frequency, device_network, extra_type
         )
+        timestamp_columns = big_query_api.get_columns(
+            table=table, column_type=[ColumnDataType.TIMESTAMP]
+        )
+        for col in timestamp_columns:
+            data[col] = pd.to_datetime(data[col], errors="coerce")
+
+        if "timestamp" in data.columns:
+            data.dropna(subset=["timestamp"], inplace=True)
+
         data = DataValidationUtils.fill_missing_columns(data=data, cols=cols)
         data = DataValidationUtils.remove_outliers_fix_types(data)
         return data[cols], table
