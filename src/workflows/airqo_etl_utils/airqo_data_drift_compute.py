@@ -3,8 +3,8 @@ import numpy as np
 from scipy.stats import ks_2samp
 import json
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Union
+from datetime import datetime
+from typing import Dict, Any, Optional
 
 
 class AirQoDataDriftCompute:
@@ -39,19 +39,16 @@ class AirQoDataDriftCompute:
     def compute_baseline(
         cls,
         df_raw: pd.DataFrame,
-        device_id: str,
+        device: str,
         pollutant: str,
         window_start: datetime,
         window_end: datetime,
         baseline_table: Any,
-        region_min: float = 0,
-        region_max: float = 1000,
-        ecdf_bins_count: int = 100,
-        network: str = "airqo",
-        site_id: str = None,
-        baseline_frequency: str = "Hourly",
-        device_number: int = None,
-        device_category: str = "sensor",
+        region_min: Optional[float] = 0,
+        region_max: Optional[float] = 1000,
+        ecdf_bins_count: Optional[int] = 100,
+        baseline_frequency: Optional[str] = "Hourly",
+        device_number: Optional[int] = None,
     ) -> str:
         """
         Compute baseline statistics and ECDF bins for a device and pollutant.
@@ -129,13 +126,13 @@ class AirQoDataDriftCompute:
 
         baseline_id = str(uuid.uuid4())
         baseline_row = {
-            "network": network,
+            "network": device.network,
             "timestamp": window_end.isoformat(),
-            "site_id": site_id,
+            "site_id": device.site_id,
             "baseline_frequency": baseline_frequency,
             "device_number": device_number,
-            "device_id": device_id,
-            "device_category": device_category,
+            "device_id": device.id,
+            "device_category": device.device_category,
             "baseline_id": baseline_id,
             "pollutant": pollutant,
             "window_start": window_start.isoformat(),
