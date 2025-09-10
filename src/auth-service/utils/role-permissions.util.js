@@ -920,6 +920,80 @@ const updateTenantSettingsWithDefaultRoles = async (tenant) => {
  * Setup default permissions and roles for the system
  * Called at application startup
  */
+const getGlobalRoles = () => {
+  return Object.values(constants.DEFAULT_ROLE_DEFINITIONS)
+    .filter(
+      (roleDef) =>
+        !roleDef.role_name.startsWith("AIRQO_") &&
+        !roleDef.group_id &&
+        !roleDef.network_id
+    )
+    .map((roleDef) => ({
+      ...roleDef,
+    }));
+};
+
+const syncGlobalRoles = async (tenant, rolesList) => {
+  const roleProcessingPromises = rolesList.map((roleData) => {
+    return (async () => {
+      try {
+        logger.info(`[RBAC Setup] Syncing global role: ${roleData.role_name}`);
+        const result = await createOrUpdateRoleWithPermissionSync(
+          tenant,
+          roleData
+        );
+        if (!result) {
+          logger.error(
+            `[RBAC Setup] Failed to sync global role ${roleData.role_name}. Result was empty.`
+          );
+          return {
+            success: false,
+            role_name: roleData.role_name,
+            message: "Empty result from sync function",
+          };
+        }
+        return result;
+      } catch (error) {
+        logger.error(
+          `Error creating/updating global role ${roleData.role_name}: ${error.message}`
+        );
+        return {
+          success: false,
+          role_name: roleData.role_name,
+          message: error.message,
+        };
+      }
+    })();
+  });
+
+  const roleCreationResults = await Promise.all(roleProcessingPromises);
+
+  let rolesCreated = 0;
+  let rolesUpdated = 0;
+  let rolesUpToDate = 0;
+
+  for (const result of roleCreationResults) {
+    if (result && result.success) {
+      switch (result.action) {
+        case "updated":
+          rolesUpdated++;
+          break;
+        case "created":
+          rolesCreated++;
+          break;
+        case "unchanged":
+          rolesUpToDate++;
+          break;
+      }
+    }
+  }
+
+  return {
+    roleCreationResults,
+    stats: { rolesCreated, rolesUpdated, rolesUpToDate },
+  };
+};
+
 const setupDefaultPermissions = async (tenant = "airqo") => {
   try {
     logText(
@@ -940,12 +1014,16 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
     const airqoGroup = await getOrCreateAirqoGroup(tenant);
 
     // Step 3: Synchronize core AirQo system roles
-    const defaultRoles = getDefaultAirqoRoles(airqoGroup._id);
-    const roleSyncResult = await syncAirqoRoles(
+    const defaultAirqoRoles = getDefaultAirqoRoles(airqoGroup._id);
+    const airqoRoleSyncResult = await syncAirqoRoles(
       tenant,
-      defaultRoles,
+      defaultAirqoRoles,
       airqoGroup._id
     );
+
+    // Step 3.5: Synchronize global roles (like SYSTEM_ADMIN)
+    const globalRoles = getGlobalRoles();
+    const globalRoleSyncResult = await syncGlobalRoles(tenant, globalRoles);
 
     // Step 4: Audit and sync permissions for existing non-system roles
     const auditStats = await auditAndSyncExistingRoles(tenant);
@@ -955,7 +1033,7 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
 
     logText("🎉 Default permissions and roles setup completed successfully!");
 
-    // Step 5: Consolidate and return results
+    // Step 6: Consolidate and return results
     return {
       success: true,
       message: "Default permissions and roles setup completed successfully",
@@ -966,29 +1044,50 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
           existing: permissionSyncResult.existingPermissions.length,
           total: allPermissionsList.length,
         },
-        roles: {
-          created: roleSyncResult.stats.rolesCreated,
-          updated: roleSyncResult.stats.rolesUpdated,
-          up_to_date: roleSyncResult.stats.rolesUpToDate,
-          processed: defaultRoles.length,
-          successful: roleSyncResult.roleCreationResults.filter(
+        airqo_roles: {
+          created: airqoRoleSyncResult.stats.rolesCreated,
+          updated: airqoRoleSyncResult.stats.rolesUpdated,
+          up_to_date: airqoRoleSyncResult.stats.rolesUpToDate,
+          processed: defaultAirqoRoles.length,
+          successful: airqoRoleSyncResult.roleCreationResults.filter(
             (r) => r.success
           ).length,
-          failed: roleSyncResult.roleCreationResults.filter((r) => !r.success)
-            .length,
+          failed: airqoRoleSyncResult.roleCreationResults.filter(
+            (r) => !r.success
+          ).length,
+        },
+        global_roles: {
+          created: globalRoleSyncResult.stats.rolesCreated,
+          updated: globalRoleSyncResult.stats.rolesUpdated,
+          up_to_date: globalRoleSyncResult.stats.rolesUpToDate,
+          processed: globalRoles.length,
+          successful: globalRoleSyncResult.roleCreationResults.filter(
+            (r) => r.success
+          ).length,
+          failed: globalRoleSyncResult.roleCreationResults.filter(
+            (r) => !r.success
+          ).length,
         },
         audit: {
           organization_roles_audited: auditStats.rolesUpdated,
           permissions_added_to_roles: auditStats.permissionsAdded,
         },
-        airqo_super_admin_exists: roleSyncResult.airqoSuperAdminExists,
-        airqo_super_admin_role_id: roleSyncResult.airqoSuperAdminRoleId,
-        role_errors: roleSyncResult.roleCreationResults
-          .filter((r) => !r.success)
-          .map((r) => ({
-            role_name: r.role_name || "unknown",
-            error: r.message || "unknown error",
-          })),
+        airqo_super_admin_exists: airqoRoleSyncResult.airqoSuperAdminExists,
+        airqo_super_admin_role_id: airqoRoleSyncResult.airqoSuperAdminRoleId,
+        role_errors: [
+          ...airqoRoleSyncResult.roleCreationResults
+            .filter((r) => !r.success)
+            .map((r) => ({
+              role_name: r.role_name || "unknown",
+              error: r.message || "unknown error",
+            })),
+          ...globalRoleSyncResult.roleCreationResults
+            .filter((r) => !r.success)
+            .map((r) => ({
+              role_name: r.role_name || "unknown",
+              error: r.message || "unknown error",
+            })),
+        ],
       },
     };
   } catch (error) {
