@@ -3,6 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const jwt = require("jsonwebtoken");
+const constants = require("@config/constants");
 const chaiAsPromised = require("chai-as-promised");
 const mongoose = require("mongoose");
 const UserModel = require("@models/User");
