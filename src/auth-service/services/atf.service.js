@@ -288,6 +288,7 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
         lastName: user.lastName || null,
         userName: user.userName || null,
         email: user.email || null,
+        nrp: 1,
         organization: user.organization || null,
         long_organization: user.long_organization || null,
         privilege: user.privilege || null,
@@ -300,14 +301,21 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
         updatedAt: user.updatedAt
           ? moment(user.updatedAt).format("YYYY-MM-DD HH:mm:ss")
           : null,
-        rateLimit: user.rateLimit || null,
+        rateLimit: user.rateLimit ?? null,
         lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
       };
 
+      const { jwtOptions = {} } = options || {};
+      // Strip expiration-related inputs and ignore external algorithm to prevent mismatches.
+      const {
+        expiresIn,
+        exp,
+        algorithm: _ignoredAlg,
+        ...cleanJwtOptions
+      } = jwtOptions;
       const jwtSignOptions = {
-        algorithm: "HS256",
-        // expiresIn is intentionally omitted to match the old token's behavior (no 'exp' field)
-        ...options.jwtOptions,
+        ...cleanJwtOptions,
+        algorithm: "HS256", // keep in sync with decodeToken() verification
       };
 
       return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtSignOptions);
