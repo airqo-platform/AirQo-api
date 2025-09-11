@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 mongoose.set("useNewUrlParser", true);
 mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
-mongoose.set("debug", false);
+// mongoose.set("debug", process.env.NODE_ENV === "development");
 const constants = require("./constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- config-database`);
@@ -30,6 +30,128 @@ const options = {
   serverSelectionTimeoutMS: 3600000,
 };
 
+let rbacInitialized = false; // Flag to ensure RBAC initialization runs only once
+
+const validatePermissionsFile = () => {
+  const { ALL, DEFAULT_ROLE_DEFINITIONS } = require("@config/constants");
+  const errors = [];
+
+  if (!ALL || !Array.isArray(ALL) || ALL.length === 0) {
+    errors.push("PERMISSIONS.ALL array is missing, empty, or invalid.");
+  }
+
+  if (
+    !DEFAULT_ROLE_DEFINITIONS ||
+    typeof DEFAULT_ROLE_DEFINITIONS !== "object" ||
+    Object.keys(DEFAULT_ROLE_DEFINITIONS).length === 0
+  ) {
+    errors.push(
+      "PERMISSIONS.DEFAULT_ROLE_DEFINITIONS object is missing or empty."
+    );
+    // Stop further checks if the main object is missing
+    return errors;
+  }
+
+  for (const [roleKey, roleDef] of Object.entries(DEFAULT_ROLE_DEFINITIONS)) {
+    if (!roleDef.role_name || typeof roleDef.role_name !== "string") {
+      errors.push(`Role '${roleKey}' is missing a valid 'role_name'.`);
+    }
+    if (!roleDef.role_code || typeof roleDef.role_code !== "string") {
+      errors.push(`Role '${roleKey}' is missing a valid 'role_code'.`);
+    }
+    if (
+      !roleDef.role_description ||
+      typeof roleDef.role_description !== "string"
+    ) {
+      errors.push(`Role '${roleKey}' is missing a valid 'role_description'.`);
+    }
+    if (!roleDef.permissions || !Array.isArray(roleDef.permissions)) {
+      errors.push(`Role '${roleKey}' is missing a valid 'permissions' array.`);
+    } else {
+      // Check if all permissions in the role definition exist in PERMISSIONS.ALL
+      for (const perm of roleDef.permissions) {
+        if (!ALL.includes(perm)) {
+          errors.push(
+            `Role '${roleKey}' contains an undefined permission: '${perm}'.`
+          );
+        }
+      }
+    }
+  }
+
+  return errors;
+};
+
+const initializeRBAC = async () => {
+  if (rbacInitialized) {
+    console.log("⏭️  RBAC system already initialized. Skipping.");
+    return;
+  }
+
+  // Health check for the permissions file
+  const permissionFileErrors = validatePermissionsFile();
+  if (permissionFileErrors.length > 0) {
+    console.error("❌ CRITICAL RBAC CONFIGURATION ERROR:");
+    permissionFileErrors.forEach((err) => console.error(`   - ${err}`));
+    console.error(
+      "🚨 Halting application startup due to invalid RBAC configuration in permissions.js"
+    );
+    throw new Error(
+      `Invalid RBAC configuration: ${permissionFileErrors.join("; ")}`
+    );
+  }
+  console.log("✅ RBAC configuration file health check passed.");
+
+  try {
+    console.log("🚀 Initializing default permissions and roles...");
+    const rolePermissionsUtil = require("@utils/role-permissions.util");
+    // The setupDefaultPermissions function is designed to be idempotent.
+    // It will create what's missing and update what's changed.
+    const result = await rolePermissionsUtil.setupDefaultPermissions("airqo");
+
+    if (result && result.success && result.data) {
+      const {
+        permissions,
+        airqo_roles,
+        global_roles,
+        audit,
+        airqo_super_admin_exists,
+        role_errors,
+      } = result.data;
+      console.log("✅ RBAC initialization completed successfully.");
+      rbacInitialized = true; // Set flag after successful initialization
+      if (permissions) {
+        console.log(
+          `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`
+        );
+      }
+      if (airqo_roles) {
+        console.log(
+          `   📊 AirQo Roles: ${airqo_roles.created} created, ${airqo_roles.updated} updated, ${airqo_roles.up_to_date} up-to-date.`
+        );
+      }
+      console.log(
+        `   📊 Audit: ${audit.organization_roles_audited} org roles audited, ${audit.permissions_added_to_roles} permissions added.`
+      );
+      console.log(`   👑 Super Admin Role Exists: ${airqo_super_admin_exists}`);
+      if (role_errors && role_errors.length > 0) {
+        console.warn("   ⚠️ Some role creation issues occurred:");
+        role_errors.forEach((error) => {
+          console.warn(`      - ${error.role_name}: ${error.error}`);
+        });
+      }
+    } else {
+      console.error(
+        "❌ RBAC initialization failed:",
+        result ? result.message : "Unknown error"
+      );
+    }
+  } catch (error) {
+    logger.error(`🐛🐛 RBAC Initialization Error -- ${error.message}`);
+    rbacInitialized = false; // Allow retry on next start if it fails
+  }
+};
+
 // Create separate connection instances for command and query
 const createCommandConnection = () =>
   mongoose.createConnection(COMMAND_URI, {
@@ -46,10 +168,11 @@ const createQueryConnection = () =>
 // Connection storage
 let commandDB = null;
 let queryDB = null;
+let isConnected = false;
 
 const setupConnectionHandlers = (db, dbType) => {
   db.on("open", () => {
-    // logger.info(`Connected to ${dbType} database`);
+    logger.info(`Connected to ${dbType} database`);
   });
 
   db.on("error", (err) => {
@@ -62,6 +185,13 @@ const setupConnectionHandlers = (db, dbType) => {
 };
 
 const connectToMongoDB = () => {
+  if (isConnected) {
+    logger.info(
+      "MongoDB connections are already established. Skipping re-initialization."
+    );
+    return { commandDB, queryDB };
+  }
+
   try {
     // Connect to command database
     commandDB = createCommandConnection();
@@ -71,6 +201,40 @@ const connectToMongoDB = () => {
     queryDB = createQueryConnection();
     setupConnectionHandlers(queryDB, "query");
 
+    const handleDBInitialization = async () => {
+      console.log("✅ MongoDB connected, proceeding with initializations...");
+      try {
+        await initializeRBAC();
+        // Also run the token migration job now that DB is ready
+        const {
+          migrateTokenStrategiesToDefault,
+        } = require("@bin/jobs/token-strategy-migration-job");
+        // Also run the token migration job now that DB is ready
+        console.log("🚀 Kicking off token strategy migration on startup...");
+        migrateTokenStrategiesToDefault().catch((err) => {
+          logger.error(`Startup migration failed: ${err.message}`);
+        });
+      } catch (err) {
+        logger.fatal(
+          "❌ RBAC initialization failed on connection:",
+          err.message
+        );
+        if (
+          process.env.NODE_ENV !== "test" &&
+          process.env.ALLOW_RBAC_STARTUP_ERRORS !== "true"
+        ) {
+          process.exit(1);
+        }
+      }
+    };
+
+    // Listen to the 'open' event on the query database connection
+    if (queryDB.readyState === 1) {
+      handleDBInitialization();
+    } else {
+      queryDB.on("open", handleDBInitialization);
+    }
+
     // Error handling for the Node process
     process.on("unhandledRejection", (reason, p) => {
       logger.error("Unhandled Rejection at: Promise", p, "reason:", reason);
@@ -79,6 +243,8 @@ const connectToMongoDB = () => {
     process.on("uncaughtException", (err) => {
       logger.error("There was an uncaught error", err);
     });
+
+    isConnected = true;
 
     return { commandDB, queryDB };
   } catch (error) {

@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-mongoose.set("debug", process.env.NODE_ENV !== "production");
 const ObjectId = mongoose.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");

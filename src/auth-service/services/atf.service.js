@@ -2,6 +2,7 @@
 const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
 const zlib = require("zlib");
+const moment = require("moment-timezone");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- abstract-token-factory`
 );
@@ -58,11 +59,15 @@ class AbstractTokenFactory {
       constants.TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY,
       new OptimizedRoleOnlyTokenStrategy()
     );
+    this.strategies.set(
+      constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+      new NoRolesAndPermissionsTokenStrategy()
+    );
   }
 
   async createToken(
     user,
-    strategy = constants.TOKEN_STRATEGIES.LEGACY,
+    strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
     options = {}
   ) {
     try {
@@ -124,6 +129,8 @@ class AbstractTokenFactory {
       throw new Error("Invalid token payload structure");
     }
 
+    if (decoded.nrp === 1)
+      return constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
     if (decoded.oh) return constants.TOKEN_STRATEGIES.OPTIMIZED_HASH;
     if (decoded.sf) return constants.TOKEN_STRATEGIES.OPTIMIZED_BIT_FLAGS;
     if (decoded.os === 1) return constants.TOKEN_STRATEGIES.OPTIMIZED_ROLE_ONLY;
@@ -267,6 +274,68 @@ class StandardTokenStrategy extends TokenStrategy {
       ...decoded,
       userId: decoded._id,
       permissions: decoded.allPermissions || decoded.systemPermissions || [],
+    };
+  }
+}
+
+class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
+  async generateToken(user, tenant, options) {
+    try {
+      // Replicate the old token structure precisely for backward compatibility
+      const tokenPayload = {
+        _id: user._id,
+        firstName: user.firstName || null,
+        lastName: user.lastName || null,
+        userName: user.userName || null,
+        email: user.email || null,
+        nrp: 1,
+        organization: user.organization || null,
+        long_organization: user.long_organization || null,
+        privilege: user.privilege || null,
+        country: user.country || null,
+        profilePicture: user.profilePicture || null,
+        phoneNumber: user.phoneNumber || null,
+        createdAt: user.createdAt
+          ? moment(user.createdAt).format("YYYY-MM-DD HH:mm:ss")
+          : null,
+        updatedAt: user.updatedAt
+          ? moment(user.updatedAt).format("YYYY-MM-DD HH:mm:ss")
+          : null,
+        rateLimit: user.rateLimit ?? null,
+        lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
+      };
+
+      const { jwtOptions = { expiresIn: options.expiresIn || "24h" } } =
+        options || {};
+      // Strip expiration-related inputs and ignore external algorithm to prevent mismatches.
+      const {
+        // expiresIn,
+        // exp,
+        algorithm: _ignoredAlg,
+        ...cleanJwtOptions
+      } = jwtOptions;
+      const jwtSignOptions = {
+        ...cleanJwtOptions,
+        algorithm: "HS256", // keep in sync with decodeToken() verification
+      };
+
+      return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtSignOptions);
+    } catch (error) {
+      logger.error(
+        `Error generating NoRolesAndPermissions token: ${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  async decodeToken(decoded, tenant) {
+    // The token doesn't have permissions, so we just return the basic user info.
+    // The permissions will be in the response body, not the token.
+    return {
+      ...decoded,
+      userId: decoded._id,
+      permissions: [], // Explicitly empty
+      roles: [], // Explicitly empty
     };
   }
 }

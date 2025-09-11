@@ -10,6 +10,13 @@ const logger = require("log4js").getLogger(
 const { logObject } = require("@utils/shared");
 
 class RBACMigrationUtility {
+  normalizeName(name) {
+    if (!name || typeof name !== "string") {
+      return "";
+    }
+    return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+  }
+
   constructor(tenant = "airqo") {
     this.tenant = tenant;
     this.results = {
@@ -249,7 +256,10 @@ class RBACMigrationUtility {
    * @param {boolean} dryRun - Whether to actually create roles
    */
   async createGroupDefaultRoles(group, dryRun = false) {
-    const organizationName = group.grp_title.toUpperCase();
+    const organizationName =
+      this.normalizeName(group.grp_title) ||
+      this.normalizeName(group.organization_slug) ||
+      `GROUP_${group._id.toString().slice(-6).toUpperCase()}`;
 
     const defaultRoles = [
       {
@@ -429,9 +439,11 @@ class RBACMigrationUtility {
               // Get group from our pre-fetched map
               const group = groupMap.get(groupRole.group.toString());
               if (group) {
-                const organizationName = group.grp_title.toUpperCase();
+                const organizationName = this.normalizeName(group.grp_title);
                 const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
-                const roleKey = `${groupRole.group}_${defaultRoleName}`;
+                const roleKey = `${groupRole.group}_${this.normalizeName(
+                  defaultRoleName
+                )}`;
                 const defaultRole = roleMap.get(roleKey);
 
                 if (defaultRole) {
@@ -503,7 +515,7 @@ class RBACMigrationUtility {
         return null;
       }
 
-      const organizationName = group.grp_title.toUpperCase();
+      const organizationName = this.normalizeName(group.grp_title);
       const defaultRoleName = `${organizationName}_DEFAULT_MEMBER`;
 
       const defaultRole = await RoleModel(this.tenant)

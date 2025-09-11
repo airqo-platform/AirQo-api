@@ -9,8 +9,8 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const ObjectId = require("mongoose").Types.ObjectId;
-const log4js = require("log4js");
 const mongoose = require("mongoose");
+const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- admin-util`);
 
 const SETUP_SECRET = constants.ADMIN_SETUP_SECRET;
