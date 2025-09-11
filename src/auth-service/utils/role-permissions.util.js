@@ -73,18 +73,25 @@ const generateRoleCode = (
   if (existingRoleCode && existingRoleCode.trim()) {
     const transformedRoleCode =
       convertToUpperCaseWithUnderscore(existingRoleCode);
-    return organizationName
-      ? `${organizationName}_${transformedRoleCode}`
-      : transformedRoleCode;
+    // Prevent double-prefixing
+    if (
+      organizationName &&
+      !transformedRoleCode.startsWith(`${organizationName}_`)
+    ) {
+      return `${organizationName}_${transformedRoleCode}`;
+    }
+    return transformedRoleCode;
   }
 
   // Auto-generate from role_name
   const transformedRoleName = convertToUpperCaseWithUnderscore(roleName);
-  return organizationName
-    ? transformedRoleName.startsWith(`${organizationName}_`)
-      ? transformedRoleName
-      : `${organizationName}_${transformedRoleName}`
-    : transformedRoleName;
+  if (
+    organizationName &&
+    !transformedRoleName.startsWith(`${organizationName}_`)
+  ) {
+    return `${organizationName}_${transformedRoleName}`;
+  }
+  return transformedRoleName;
 };
 
 /**
@@ -815,11 +822,21 @@ const auditAndSyncExistingRoles = async (tenant) => {
     for (const role of rolesWithPermissions) {
       try {
         // Determine role type from role name
+        // Updated logic: Check both role_name and role_code for a match
         let roleType = null;
         for (const [type, permissions] of Object.entries(
           rolePermissionTemplates
         )) {
-          if (role.role_name.includes(type)) {
+          // Check if role_name or role_code ends with the type (e.g., "_ADMIN")
+          if (
+            (role.role_name && role.role_name.endsWith(`_${type}`)) ||
+            (role.role_code && role.role_code.endsWith(`_${type}`))
+          ) {
+            roleType = type;
+            break;
+          }
+          // Fallback for exact match (e.g., "ADMIN")
+          if (role.role_name === type || role.role_code === type) {
             roleType = type;
             break;
           }
@@ -2328,22 +2345,25 @@ const rolePermissionUtil = {
         );
       }
 
-      const updateQuery = {
-        $addToSet: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            ...(isNetworkRole
-              ? { network: associatedId }
-              : { group: associatedId }),
-            role: role_id,
-            userType: user_type || "guest",
-            createdAt: new Date(),
-          },
-        },
-      };
-
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userObject._id },
-        updateQuery,
+        {
+          $pull: {
+            [isNetworkRole ? "network_roles" : "group_roles"]: {
+              [isNetworkRole ? "network" : "group"]: associatedId,
+            },
+          },
+          $addToSet: {
+            [isNetworkRole ? "network_roles" : "group_roles"]: {
+              ...(isNetworkRole
+                ? { network: associatedId }
+                : { group: associatedId }),
+              role: role_id,
+              userType: user_type || "guest",
+              createdAt: new Date(),
+            },
+          },
+        },
         { new: true, runValidators: true }
       );
 
@@ -2374,6 +2394,7 @@ const rolePermissionUtil = {
       );
     }
   },
+
   assignManyUsersToRole: async (request, next) => {
     try {
       const { query, params, body } = request;
@@ -2474,16 +2495,24 @@ const rolePermissionUtil = {
           continue;
         }
 
-        const updateQuery = {
-          $set: {
-            [isNetworkRole ? "network_roles" : "group_roles"]: {
-              [isNetworkRole ? "network" : "group"]: associatedId,
-              role: role_id,
+        await UserModel(tenant).updateOne(
+          { _id: user._id },
+          {
+            $pull: {
+              [isNetworkRole ? "network_roles" : "group_roles"]: {
+                [isNetworkRole ? "network" : "group"]: associatedId,
+              },
             },
-          },
-        };
-
-        await UserModel(tenant).updateOne({ _id: user._id }, updateQuery);
+            $addToSet: {
+              [isNetworkRole ? "network_roles" : "group_roles"]: {
+                [isNetworkRole ? "network" : "group"]: associatedId,
+                role: role_id,
+                userType: (body && body.user_type) || "guest",
+                createdAt: new Date(),
+              },
+            },
+          }
+        );
 
         assignUserPromises.push(null);
       }
@@ -2535,6 +2564,7 @@ const rolePermissionUtil = {
       );
     }
   },
+
   listUsersWithRole: async (request, next) => {
     try {
       logText("listUsersWithRole...");
