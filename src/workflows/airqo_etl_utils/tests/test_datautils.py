@@ -505,3 +505,128 @@ class TestComputeDeviceSiteMetadata(unittest.TestCase):
             entity=entity,
             column={"pm2_5": ["pm2_5"]},
         )
+
+        class TestExtractMostRecentRecord(unittest.TestCase):
+            @patch("airqo_etl_utils.datautils.BigQueryApi")
+            @patch("airqo_etl_utils.datautils.DataUtils._get_metadata_table")
+            def test_extract_most_recent_record_success(
+                self, mock_get_metadata_table, MockBigQueryApi
+            ):
+                """Test successful extraction of the most recent record."""
+                mock_bigquery_api = MockBigQueryApi.return_value
+                mock_get_metadata_table.return_value = (
+                    "test_table",
+                    ["col1", "col2", "col3"],
+                )
+                mock_bigquery_api.fetch_most_recent_record.return_value = pd.DataFrame(
+                    {"col1": [1], "col2": ["value"], "col3": [datetime.now()]}
+                )
+
+                result, cols = DataUtils.extract_most_recent_record(
+                    metadata_type=MetaDataType.DATAQUALITYCHECKS,
+                    unique_id="test_id",
+                    offset_column="col3",
+                )
+
+                self.assertIsInstance(result, pd.DataFrame)
+                self.assertEqual(len(result), 1)
+                self.assertEqual(cols, ["col1", "col2", "col3"])
+                mock_get_metadata_table.assert_called_once_with(
+                    MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
+                )
+                mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+                    "test_table",
+                    "test_id",
+                    offset_column="col3",
+                    columns=["col1", "col2", "col3"],
+                )
+
+            @patch("airqo_etl_utils.datautils.BigQueryApi")
+            @patch("airqo_etl_utils.datautils.DataUtils._get_metadata_table")
+            def test_extract_most_recent_record_empty_data(
+                self, mock_get_metadata_table, MockBigQueryApi
+            ):
+                """Test handling of empty data returned from BigQuery."""
+                mock_bigquery_api = MockBigQueryApi.return_value
+                mock_get_metadata_table.return_value = (
+                    "test_table",
+                    ["col1", "col2", "col3"],
+                )
+                mock_bigquery_api.fetch_most_recent_record.return_value = pd.DataFrame()
+
+                result, cols = DataUtils.extract_most_recent_record(
+                    metadata_type=MetaDataType.DATAQUALITYCHECKS,
+                    unique_id="test_id",
+                    offset_column="col3",
+                )
+
+                self.assertIsInstance(result, pd.DataFrame)
+                self.assertTrue(result.empty)
+                self.assertEqual(cols, ["col1", "col2", "col3"])
+                mock_get_metadata_table.assert_called_once_with(
+                    MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
+                )
+                mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+                    "test_table",
+                    "test_id",
+                    offset_column="col3",
+                    columns=["col1", "col2", "col3"],
+                )
+
+            @patch("airqo_etl_utils.datautils.BigQueryApi")
+            @patch("airqo_etl_utils.datautils.DataUtils._get_metadata_table")
+            def test_extract_most_recent_record_table_not_found(
+                self, mock_get_metadata_table, MockBigQueryApi
+            ):
+                """Test when metadata table is not found."""
+                mock_get_metadata_table.return_value = (None, None)
+
+                with pytest.raises(
+                    ValueError,
+                    match="No metadata table found for the given metadata type.",
+                ):
+                    DataUtils.extract_most_recent_record(
+                        metadata_type=MetaDataType.DATAQUALITYCHECKS,
+                        unique_id="test_id",
+                        offset_column="col3",
+                    )
+
+                mock_get_metadata_table.assert_called_once_with(
+                    MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
+                )
+                MockBigQueryApi.return_value.fetch_most_recent_record.assert_not_called()
+
+            @patch("airqo_etl_utils.datautils.BigQueryApi")
+            @patch("airqo_etl_utils.datautils.DataUtils._get_metadata_table")
+            def test_extract_most_recent_record_query_error(
+                self, mock_get_metadata_table, MockBigQueryApi
+            ):
+                """Test handling of errors during BigQuery query execution."""
+                mock_bigquery_api = MockBigQueryApi.return_value
+                mock_get_metadata_table.return_value = (
+                    "test_table",
+                    ["col1", "col2", "col3"],
+                )
+                mock_bigquery_api.fetch_most_recent_record.side_effect = Exception(
+                    "Query failed"
+                )
+
+                with pytest.raises(
+                    Exception,
+                    match="Query failed",
+                ):
+                    DataUtils.extract_most_recent_record(
+                        metadata_type=MetaDataType.DATAQUALITYCHECKS,
+                        unique_id="test_id",
+                        offset_column="col3",
+                    )
+
+                mock_get_metadata_table.assert_called_once_with(
+                    MetaDataType.DATAQUALITYCHECKS, MetaDataType.DATAQUALITYCHECKS
+                )
+                mock_bigquery_api.fetch_most_recent_record.assert_called_once_with(
+                    "test_table",
+                    "test_id",
+                    offset_column="col3",
+                    columns=["col1", "col2", "col3"],
+                )
