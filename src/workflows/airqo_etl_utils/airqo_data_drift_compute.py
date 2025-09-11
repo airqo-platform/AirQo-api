@@ -4,7 +4,8 @@ from scipy.stats import ks_2samp
 import json
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+from .constants import Frequency
 
 
 class AirQoDataDriftCompute:
@@ -13,14 +14,39 @@ class AirQoDataDriftCompute:
     Provides methods for ECDF bin generation, baseline computation, and drift comparison.
     """
 
-    MIN_HOUR_COVERAGE: float = 0.75  # 75%
+    MIN_HOUR_COVERAGE: float = 0.5  # 50%
     COOLDOWN_HOURS: int = 48
     BASELINE_WINDOW_DAYS: int = 30
     ECDF_BINS: int = 100
+    EXPECTED_SAMPLES_PER_HOUR = 20
 
-    @staticmethod
+    @classmethod
+    def calculate_expected_sample_count(cls, resolution: Frequency) -> int:
+        """
+        Calculate the minimum valid hours required for baseline computation based on resolution.
+        Args:
+            resolution (Frequency): Frequency enum value (WEEKLY or MONTHLY).
+        Returns:
+            int: Minimum valid hours required.
+        """
+        valid_hours = 0
+        match resolution:
+            case Frequency.RAW:
+                valid_hours = int(
+                    (cls.BASELINE_WINDOW_DAYS * cls.EXPECTED_SAMPLES_PER_HOUR) * 24
+                )
+            case Frequency.HOURLY:
+                valid_hours = int((cls.BASELINE_WINDOW_DAYS / 30) * 24)
+            case Frequency.WEEKLY:
+                valid_hours = int((cls.BASELINE_WINDOW_DAYS / 4) * 24)
+            case Frequency.MONTHLY:
+                valid_hours = int(cls.BASELINE_WINDOW_DAYS * 24)
+
+        return valid_hours
+
+    @classmethod
     def get_region_bins(
-        region_min: float, region_max: float, n_bins: int = 100
+        cls, region_min: float, region_max: float, n_bins: int = 100
     ) -> np.ndarray:
         """
         Generate bin edges for ECDF using region-wide min and max values.
@@ -38,125 +64,122 @@ class AirQoDataDriftCompute:
     @classmethod
     def compute_baseline(
         cls,
-        df_raw: pd.DataFrame,
-        device: str,
-        pollutant: str,
+        data: pd.DataFrame,
+        device: Dict[str, Any],
+        pollutants: List[str],
+        resolution: Frequency,
         window_start: datetime,
         window_end: datetime,
-        baseline_table: Any,
         region_min: Optional[float] = 0,
         region_max: Optional[float] = 1000,
         ecdf_bins_count: Optional[int] = 100,
-        baseline_frequency: Optional[str] = "Hourly",
-        device_number: Optional[int] = None,
-    ) -> str:
+    ) -> List[Dict[str, Any]]:
         """
-        Compute baseline statistics and ECDF bins for a device and pollutant.
+        Compute baseline statistics and ECDF bins for a device and one or more pollutants.
         Fields match measurements_baseline.json schema.
 
         Args:
-            df_raw (pd.DataFrame): DataFrame with ['timestamp','value','qc_flag'].
-            device_id (str): Device identifier.
-            pollutant (str): Pollutant name.
+            data (pd.DataFrame): DataFrame with device air quality measurements.
+            device (Dict[str, Any]): Device dictionary with device metadata.
+            pollutants (List[str]): List of pollutant names.
             window_start (datetime): Start of baseline window.
             window_end (datetime): End of baseline window.
-            baseline_table (Any): Table-like object with .insert(dict) method.
             region_min (float): Region-wide minimum value.
             region_max (float): Region-wide maximum value.
             ecdf_bins_count (int): Number of ECDF bins.
-            network (str): Network name.
-            site_id (str): Site identifier.
-            baseline_frequency (str): Frequency of baseline calculation.
-            device_number (int): Device number.
-            device_category (str): Device category.
         Returns:
-            str: Baseline ID.
+            List[Dict[str, Any]]: List of baseline statistics and metadata, one per pollutant.
         Raises:
             ValueError: If insufficient data for baseline.
         """
-        df = df_raw[
-            (df_raw["timestamp"] >= window_start)
-            & (df_raw["timestamp"] < window_end)
-            & (~df_raw["qc_flag"])
-        ]
 
-        sample_count = len(df)
-        expected_samples = (
-            window_end - window_start
-        ).total_seconds() / 60  # assuming 1-min frequency
-        sample_coverage_pct = (
-            sample_count / expected_samples * 100 if expected_samples > 0 else 0.0
+        sample_count: int = data.shape[1]
+        expected_samples: int = cls.calculate_expected_sample_count(resolution)
+        sample_coverage_pct: float = (
+            (sample_count / expected_samples) * 100 if expected_samples > 0 else 0.0
         )
 
-        # hourly coverage check
-        df = df.copy()
-        df["hour"] = df["timestamp"].dt.floor("H")
-        hourly_counts = df.groupby("hour").size()
-        valid_hours = int((hourly_counts >= (60 * cls.MIN_HOUR_COVERAGE)).sum())
+        valid_sample_count: int = expected_samples * cls.MIN_HOUR_COVERAGE
 
-        if sample_count < 2000 or valid_hours < (cls.BASELINE_WINDOW_DAYS * 0.5 * 24):
+        if sample_count < valid_sample_count:
             raise ValueError("Insufficient data for baseline")
 
         # quantiles
-        quantiles = np.percentile(
-            df["value"].values, [1, 5, 10, 25, 50, 75, 90, 95, 99]
-        ).tolist()
-        q_map = dict(
-            zip(
-                ["p1", "p5", "p10", "p25", "p50", "p75", "p90", "p95", "p99"], quantiles
-            )
-        )
-
-        # region-based ECDF bins
-        vals = df["value"].values
-        bin_edges = cls.get_region_bins(region_min, region_max, ecdf_bins_count)
-        hist, edges = np.histogram(vals, bins=bin_edges)
-        cum = (
-            np.cumsum(hist) / float(hist.sum())
-            if hist.sum() > 0
-            else np.zeros_like(hist)
-        )
-        ecdf_bins = [
-            {
-                "bin_center": float((edges[i] + edges[i + 1]) / 2),
-                "cum_pct": float(cum[i]),
-            }
-            for i in range(len(hist))
+        quantile_names: List[str] = [
+            "p1",
+            "p5",
+            "p10",
+            "p25",
+            "p50",
+            "p75",
+            "p90",
+            "p95",
+            "p99",
         ]
+        q_map: Dict[str, Dict[str, float]] = {}
+        for pollutant in pollutants:
+            quantile_values = np.percentile(
+                data[pollutant].values, [1, 5, 10, 25, 50, 75, 90, 95, 99]
+            ).tolist()
+            q_map[pollutant] = dict(zip(quantile_names, quantile_values))
+
+        # region-based ECDF bins for multiple pollutants
+        ecdf_bins: Dict[str, List[Dict[str, float]]] = {}
+        bin_edges = cls.get_region_bins(region_min, region_max, ecdf_bins_count)
+
+        for pollutant in pollutants:
+            vals = data[pollutant].dropna().values  # Ensure no NaN values
+            hist, edges = np.histogram(vals, bins=bin_edges)
+            cum = (
+                np.cumsum(hist) / float(hist.sum())
+                if hist.sum() > 0
+                else np.zeros_like(hist)
+            )
+            ecdf_bins[pollutant] = [
+                {
+                    "bin_center": float((edges[i] + edges[i + 1]) / 2),
+                    "cum_pct": float(cum[i]),
+                }
+                for i in range(len(hist))
+            ]
 
         baseline_id = str(uuid.uuid4())
-        baseline_row = {
-            "network": device.network,
-            "timestamp": window_end.isoformat(),
-            "site_id": device.site_id,
-            "baseline_frequency": baseline_frequency,
-            "device_number": device_number,
-            "device_id": device.id,
-            "device_category": device.device_category,
-            "baseline_id": baseline_id,
-            "pollutant": pollutant,
-            "window_start": window_start.isoformat(),
-            "window_end": window_end.isoformat(),
-            "sample_count": int(sample_count),
-            "sample_coverage_pct": float(sample_coverage_pct),
-            "valid_hours": int(valid_hours),
-            "quantiles": q_map,
-            "ecdf_bins": ecdf_bins,
-            "mean": float(df["value"].mean()),
-            "stddev": float(df["value"].std()),
-            "min": float(df["value"].min()),
-            "max": float(df["value"].max()),
-            "baseline_version": "1.0.1",
-            "region_min": float(region_min),
-            "region_max": float(region_max),
-        }
-
-        baseline_table.insert(baseline_row)
-        return baseline_id
+        # The baseline_id can be unique but multi-pollutant in this case considers a device having two sensors measuring the same thing and not actually two different pollutants.
+        # Logic can be modified to handle multiple/different pollutants later.
+        # When this is done, consider updating and or automating the baseline version changes to enable tracking
+        baseline_rows: List[Dict[str, Any]] = []
+        for pollutant in pollutants:
+            baseline_row = {
+                "network": device["network"],
+                "timestamp": window_end.isoformat(),
+                "device_id": device["device_id"],
+                "site_id": device["site_id"],
+                "baseline_frequency": resolution,
+                "device_number": device["device_number"],
+                "device_category": device["device_category"],
+                "baseline_id": baseline_id,
+                "pollutant": pollutant,
+                "window_start": window_start.isoformat(),
+                "window_end": window_end.isoformat(),
+                "sample_count": int(sample_count),
+                "sample_coverage_pct": float(sample_coverage_pct),
+                "valid_hours": int(valid_sample_count),
+                "quantiles": q_map[pollutant],
+                "ecdf_bins": ecdf_bins[pollutant],
+                "mean": float(data[pollutant].mean()),
+                "stddev": float(data[pollutant].std()),
+                "min": float(data[pollutant].min()),
+                "max": float(data[pollutant].max()),
+                "baseline_version": "1.0.1",
+                "region_min": float(region_min),
+                "region_max": float(region_max),
+            }
+            baseline_rows.append(baseline_row)
+        return baseline_rows
 
     @staticmethod
     def compare_with_raw(
-        current_df: pd.DataFrame,
+        data: pd.DataFrame,
         baseline_raw_values: np.ndarray,
         baseline_row: Dict[str, Any],
     ) -> Dict[str, float]:
@@ -170,7 +193,7 @@ class AirQoDataDriftCompute:
         Returns:
             dict: KS statistic, p-value, delta_median, delta_p90.
         """
-        curr_vals = current_df["value"].values
+        curr_vals = data["value"].values
         ks_stat, p_value = ks_2samp(baseline_raw_values, curr_vals)
 
         baseline_q = json.loads(baseline_row["quantiles"])
