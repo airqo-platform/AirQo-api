@@ -73,18 +73,25 @@ const generateRoleCode = (
   if (existingRoleCode && existingRoleCode.trim()) {
     const transformedRoleCode =
       convertToUpperCaseWithUnderscore(existingRoleCode);
-    return organizationName
-      ? `${organizationName}_${transformedRoleCode}`
-      : transformedRoleCode;
+    // Prevent double-prefixing
+    if (
+      organizationName &&
+      !transformedRoleCode.startsWith(`${organizationName}_`)
+    ) {
+      return `${organizationName}_${transformedRoleCode}`;
+    }
+    return transformedRoleCode;
   }
 
   // Auto-generate from role_name
   const transformedRoleName = convertToUpperCaseWithUnderscore(roleName);
-  return organizationName
-    ? transformedRoleName.startsWith(`${organizationName}_`)
-      ? transformedRoleName
-      : `${organizationName}_${transformedRoleName}`
-    : transformedRoleName;
+  if (
+    organizationName &&
+    !transformedRoleName.startsWith(`${organizationName}_`)
+  ) {
+    return `${organizationName}_${transformedRoleName}`;
+  }
+  return transformedRoleName;
 };
 
 /**
@@ -2328,6 +2335,15 @@ const rolePermissionUtil = {
         );
       }
 
+      // Atomically remove any existing role for this context before adding the new one
+      await UserModel(tenant).findByIdAndUpdate(userObject._id, {
+        $pull: {
+          [isNetworkRole ? "network_roles" : "group_roles"]: {
+            [isNetworkRole ? "network" : "group"]: associatedId,
+          },
+        },
+      });
+
       const updateQuery = {
         $addToSet: {
           [isNetworkRole ? "network_roles" : "group_roles"]: {
@@ -2374,6 +2390,7 @@ const rolePermissionUtil = {
       );
     }
   },
+
   assignManyUsersToRole: async (request, next) => {
     try {
       const { query, params, body } = request;
@@ -2474,16 +2491,30 @@ const rolePermissionUtil = {
           continue;
         }
 
-        const updateQuery = {
-          $set: {
-            [isNetworkRole ? "network_roles" : "group_roles"]: {
-              [isNetworkRole ? "network" : "group"]: associatedId,
-              role: role_id,
+        // Atomically remove any existing role for this context before adding the new one
+        await UserModel(tenant).updateOne(
+          { _id: user._id },
+          {
+            $pull: {
+              [isNetworkRole ? "network_roles" : "group_roles"]: {
+                [isNetworkRole ? "network" : "group"]: associatedId,
+              },
             },
-          },
-        };
+          }
+        );
 
-        await UserModel(tenant).updateOne({ _id: user._id }, updateQuery);
+        // Then, add the new role to the set
+        await UserModel(tenant).updateOne(
+          { _id: user._id },
+          {
+            $addToSet: {
+              [isNetworkRole ? "network_roles" : "group_roles"]: {
+                [isNetworkRole ? "network" : "group"]: associatedId,
+                role: role_id,
+              },
+            },
+          }
+        );
 
         assignUserPromises.push(null);
       }
@@ -2535,6 +2566,7 @@ const rolePermissionUtil = {
       );
     }
   },
+
   listUsersWithRole: async (request, next) => {
     try {
       logText("listUsersWithRole...");

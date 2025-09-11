@@ -4746,17 +4746,53 @@ const createUserModule = {
         return;
       }
 
-      // Find any assignment for the AirQo group, even if the role is null.
-      const airqoGroupAssignment = (user.group_roles || []).find(
+      const userGroupRoles = user.group_roles || [];
+      const airqoGroupAssignment = userGroupRoles.find(
         (gr) => gr.group && gr.group.toString() === airqoGroup._id.toString()
       );
 
-      // Case 1: User is in the group but has a null/undefined role. This is the case to fix.
+      const deprecatedRoleNames = [
+        "AIRQO_DEFAULT_PRODUCTION",
+        "AIRQO_AIRQO_ADMIN",
+      ]; // Add other old roles here
+      const deprecatedRoles = await RoleModel(tenant)
+        .find({ role_name: { $in: deprecatedRoleNames } })
+        .select("_id")
+        .lean();
+      const deprecatedRoleIds = deprecatedRoles.map((r) => r._id.toString());
+
+      let needsUpdate = false;
+      const updateQuery = { $set: {}, $pull: {}, $unset: {} };
+
+      // Cleanup: Remove deprecated roles
+      const rolesToRemove = userGroupRoles.filter(
+        (gr) => gr.role && deprecatedRoleIds.includes(gr.role.toString())
+      );
+
+      if (rolesToRemove.length > 0) {
+        updateQuery.$pull = {
+          group_roles: { role: { $in: deprecatedRoleIds } },
+        };
+        needsUpdate = true;
+        logger.info(
+          `[Role Cleanup] User ${user.email} has deprecated roles. Scheduling for removal.`
+        );
+      }
+
+      // Cleanup: Unset legacy 'privilege' field
+      if (user.privilege) {
+        updateQuery.$unset.privilege = "";
+        needsUpdate = true;
+        logger.info(
+          `[Role Cleanup] User ${user.email} has legacy 'privilege' field. Scheduling for removal.`
+        );
+      }
+
+      // Logic to fix users with a null role in the AirQo group
       if (airqoGroupAssignment && !airqoGroupAssignment.role) {
         logger.warn(
           `[Role Fix] User ${user.email} is in AirQo group but has a null role. Attempting to fix.`
         );
-
         const defaultRole = await RoleModel(tenant)
           .findOne({
             role_code: "AIRQO_DEFAULT_USER",
@@ -4764,33 +4800,29 @@ const createUserModule = {
           })
           .lean();
 
-        if (!defaultRole) {
+        if (defaultRole) {
+          // This is a more complex update, handle it separately
+          await UserModel(tenant).updateOne(
+            { _id: user._id, "group_roles.group": airqoGroup._id },
+            { $set: { "group_roles.$.role": defaultRole._id } }
+          );
+          logger.info(
+            `[Role Fix] Successfully assigned default role to user ${user.email} who had a null role.`
+          );
+        } else {
           logger.error(
             `[Role Fix] Cannot fix user ${user.email} - AIRQO_DEFAULT_USER role not found.`
           );
-          return;
         }
-
-        // Atomically update the specific group_roles entry that has a null role.
-        await UserModel(tenant).updateOne(
-          { _id: user._id, "group_roles.group": airqoGroup._id },
-          { $set: { "group_roles.$.role": defaultRole._id } }
-        );
-
-        logger.info(
-          `[Role Fix] Successfully assigned default role to user ${user.email} who had a null role.`
-        );
       }
-      // Case 2: User is part of the "airqo" organization but not yet in the group_roles array. This is case-insensitive.
+      // Logic to add default role if user belongs to "airqo" org but has no assignment
       else if (
         !airqoGroupAssignment &&
-        (user.organization || user.long_organization || "").toLowerCase() ===
-          "airqo"
+        (user.organization || "").toLowerCase() === "airqo"
       ) {
         logger.info(
           `[Default Role] User ${user.email} belongs to AirQo org but is not in the group. Assigning default role.`
         );
-
         const defaultRole = await RoleModel(tenant)
           .findOne({
             role_code: "AIRQO_DEFAULT_USER",
@@ -4798,29 +4830,34 @@ const createUserModule = {
           })
           .lean();
 
-        if (!defaultRole) {
-          logger.error(
-            `[Default Role] Cannot assign role to ${user.email} - AIRQO_DEFAULT_USER role not found.`
-          );
-          return;
-        }
-
-        // Add the user to the group with the default role.
-        await UserModel(tenant).findByIdAndUpdate(user._id, {
-          $addToSet: {
+        if (defaultRole) {
+          updateQuery.$addToSet = {
             group_roles: {
               group: airqoGroup._id,
               role: defaultRole._id,
               userType: "user",
             },
-          },
-        });
+          };
+          needsUpdate = true;
+        } else {
+          logger.error(
+            `[Default Role] Cannot assign role to ${user.email} - AIRQO_DEFAULT_USER role not found.`
+          );
+        }
       }
-      // Case 3: User is in the group and already has a valid role. Do nothing.
-      else if (airqoGroupAssignment && airqoGroupAssignment.role) {
-        // logger.info(
-        //   `[Default Role] User ${user.email} already has a valid role in the AirQo group. No action needed.`
-        // );
+
+      // Execute the combined update if needed
+      if (needsUpdate) {
+        // Clean up empty update operations
+        if (Object.keys(updateQuery.$set).length === 0) delete updateQuery.$set;
+        if (Object.keys(updateQuery.$pull).length === 0)
+          delete updateQuery.$pull;
+        if (Object.keys(updateQuery.$unset).length === 0)
+          delete updateQuery.$unset;
+
+        if (Object.keys(updateQuery).length > 0) {
+          await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
+        }
       }
     } catch (error) {
       logger.error(
