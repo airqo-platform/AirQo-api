@@ -12,6 +12,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class OpenAPIPermission(AllowAny):
+    """
+    Completely open permission for v2 API endpoints.
+    Allows all operations (GET, POST, PUT, PATCH, DELETE) for all users.
+    """
+    pass
+
+
 class DefaultAPIPermission(permissions.BasePermission):
     """
     Default permission for v2 API:
@@ -32,7 +40,8 @@ class DefaultAPIPermission(permissions.BasePermission):
         user = getattr(request, 'user', None)
         return bool(user and getattr(user, 'is_authenticated', False))
 
-    def has_object_permission(self, request, view, obj) -> bool:  # type: ignore[override]
+    # type: ignore[override]
+    def has_object_permission(self, request, view, obj):
         # Same behavior at the object level
         if request.method in permissions.SAFE_METHODS:
             return True
@@ -86,9 +95,10 @@ class StandardUserThrottle(UserRateThrottle):
 
 # Permission class mapping for easy toggling
 PERMISSION_CLASSES = {
-    'default': [DefaultAPIPermission],
+    'default': [DefaultAPIPermission],  # Read open, write requires auth
     'auth_required': [IsAuthenticatedOrReadOnlyPermission],
     'api_key': [APIKeyPermission],
+    'fully_open': [OpenAPIPermission],  # Completely open access
 }
 
 THROTTLE_CLASSES = {

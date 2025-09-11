@@ -81,7 +81,8 @@ urlpatterns = [
     path('website/', include('apps.publications.urls')),
     path('website/', include('apps.team.urls')),
     path('website/', include('apps.board.urls')),
-    path('website/', include('apps.faqs.urls')),
+    # Fixed: added faq/ prefix
+    path('website/faq/', include('apps.faqs.urls')),
     path('website/', include('apps.externalteams.urls')),
     path('website/', include('apps.partners.urls')),
     path('website/', include('apps.cleanair.urls')),

@@ -4,7 +4,8 @@ Utility functions and classes for v2 API
 from typing import Any, Dict, List, Optional, Union
 from rest_framework import serializers
 from rest_framework.fields import empty
-
+from utils.delta_to_html import delta_to_html
+import json
 import bleach
 
 
@@ -65,7 +66,7 @@ class SanitizedHTMLField(serializers.CharField):
     ALLOWED_TAGS = [
         'p', 'br', 'strong', 'em', 'u', 'ol', 'ul', 'li',
         'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'blockquote', 'code', 'pre'
+        'blockquote', 'code', 'pre', 'a'  # Added 'a' tag for links
     ]
 
     ALLOWED_ATTRIBUTES = {
@@ -78,6 +79,39 @@ class SanitizedHTMLField(serializers.CharField):
         self.allowed_tags = allowed_tags or self.ALLOWED_TAGS
         self.allowed_attributes = allowed_attributes or self.ALLOWED_ATTRIBUTES
         super().__init__(**kwargs)
+
+    def to_representation(self, value) -> Any:
+        """Convert QuillField data to sanitized HTML for API output"""
+        if not value:
+            return ""
+
+        # Handle QuillField content (JSON Delta format)
+        try:
+            # If this is a FieldQuill-like object (from django_quill), prefer its html
+            if hasattr(value, 'html'):
+                html_content = getattr(value, 'html') or ''
+            # If value is a string, try to parse as JSON (Quill Delta) or treat as HTML
+            elif isinstance(value, str):
+                if value.strip().startswith('{'):
+                    html_content = delta_to_html(value)
+                else:
+                    html_content = value
+            else:
+                # Handle dict/object (already parsed Delta)
+                html_content = delta_to_html(value)
+
+            # Sanitize the HTML content
+            clean_html = bleach.clean(
+                html_content,
+                tags=self.allowed_tags,
+                attributes=self.allowed_attributes,
+                strip=True,
+            )
+            return clean_html
+
+        except (json.JSONDecodeError, TypeError, ValueError):
+            # Fallback: treat as plain text and escape
+            return bleach.clean(str(value), tags=[], strip=True)
 
     def to_internal_value(self, data) -> Any:
         """Sanitize HTML when receiving data"""
