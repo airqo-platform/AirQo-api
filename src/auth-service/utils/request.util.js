@@ -146,6 +146,14 @@ const createAccessRequest = {
       const inviterEmail = inviter.email;
       const inviterId = inviter._id;
 
+      if (!ObjectId.isValid(inviterId)) {
+        next(
+          new HttpError("Authentication Error", httpStatus.UNAUTHORIZED, {
+            message: "Invalid inviter id in token.",
+          })
+        );
+        return;
+      }
       const inviterDetails = await UserModel(tenant).findById(inviterId).lean();
       if (isEmpty(inviterDetails)) {
         next(
