@@ -915,10 +915,14 @@ class RBACService {
 
       return roles.some((role) => {
         const normalizedRole = String(role).trim().toUpperCase();
-        return userRoles.some(
-          (userRole) =>
-            userRole && String(userRole).trim().toUpperCase() === normalizedRole
-        );
+        return userRoles.some((userRole) => {
+          if (!userRole) return false;
+          const normalizedUserRole = String(userRole).trim().toUpperCase();
+          return (
+            normalizedUserRole === normalizedRole ||
+            normalizedUserRole.endsWith(`_${normalizedRole}`)
+          );
+        });
       });
     } catch (error) {
       logger.error(`Error checking user role: ${error.message}`);

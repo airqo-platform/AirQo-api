@@ -8,6 +8,22 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- group-network-auth`
 );
 
+const __rbacInstances = new Map();
+const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
+  if (!__rbacInstances.has(tenant)) {
+    const inst = new RBACService(tenant);
+    // Unref the timer so it doesn't hold the event loop open
+    if (
+      inst.cleanupInterval &&
+      typeof inst.cleanupInterval.unref === "function"
+    ) {
+      inst.cleanupInterval.unref();
+    }
+    __rbacInstances.set(tenant, inst);
+  }
+  return __rbacInstances.get(tenant);
+};
+
 /**
  * Middleware to check if user has group manager access
  * @param {string} groupIdParam - Parameter name containing group ID
@@ -36,7 +52,7 @@ const requireGroupManagerAccess = (groupIdParam = "grp_id") => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       // Check if user is group manager
       const isGroupManager = await rbacService.isGroupManager(
@@ -134,26 +150,23 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
-      // Check if user has admin-level permissions
-      const hasAdminPermissions = await rbacService.hasPermission(
+      // Use the dedicated, unambiguous check for system-wide super admin
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
+      if (isSystemSuperAdmin) {
+        return next(); // System super admin bypasses further checks
+      }
+
+      // Also check for organization-specific admin roles
+      const isGroupAdmin = await rbacService.hasRole(
         user._id,
-        ["GROUP_ADMIN", "USER_ADMIN", "SYSTEM_ADMIN"],
-        false, // any of these permissions
+        ["GROUP_ADMIN"],
         groupId,
         "group"
       );
 
-      // Check if user has admin-level roles
-      const hasAdminRole = await rbacService.hasRole(
-        user._id,
-        ["SUPER_ADMIN", "GROUP_ADMIN"],
-        groupId,
-        "group"
-      );
-
-      if (!hasAdminPermissions && !hasAdminRole) {
+      if (!isGroupAdmin) {
         logger.warn(
           `Group admin access denied for user ${user.email} (ID: ${user._id}) in group ${groupId}: No admin permissions/roles`
         );
@@ -173,8 +186,8 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
       // Store group admin context
       req.groupAdminContext = {
         groupId,
-        hasAdminPermissions,
-        hasAdminRole,
+        isSystemSuperAdmin,
+        isGroupAdmin,
         userPermissions: await rbacService.getUserPermissionsInContext(
           user._id,
           groupId,
@@ -195,7 +208,6 @@ const requireGroupAdminAccess = (groupIdParam = "grp_id") => {
     }
   };
 };
-
 /**
  * Middleware to check if user has super admin access across all groups
  * @returns {Function} Express middleware
@@ -212,22 +224,12 @@ const requireSuperAdminAccess = async (req, res, next) => {
         })
       );
     }
+    const rbacService = getRBACService(tenant);
 
-    const rbacService = new RBACService(tenant);
+    // Use the dedicated, unambiguous check for system-wide super admin
+    const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
 
-    // Check if user has super admin role across all contexts
-    const hasSuperAdminRole = await rbacService.hasRole(user._id, [
-      "SUPER_ADMIN",
-    ]);
-
-    // Check if user has super admin permissions
-    const hasSuperAdminPermissions = await rbacService.hasPermission(
-      user._id,
-      ["SUPER_ADMIN", "SYSTEM_ADMIN", "FULL_ACCESS"],
-      false // require ANY permission
-    );
-
-    if (!hasSuperAdminRole && !hasSuperAdminPermissions) {
+    if (!isSystemSuperAdmin) {
       logger.warn(
         `Super admin access denied for user ${user.email} (ID: ${user._id}): No super admin role or permissions`
       );
@@ -246,8 +248,7 @@ const requireSuperAdminAccess = async (req, res, next) => {
 
     // Store super admin context
     req.superAdminContext = {
-      hasSuperAdminRole,
-      hasSuperAdminPermissions,
+      isSystemSuperAdmin,
       allPermissions: await rbacService.getUserPermissions(user._id),
     };
 
@@ -290,7 +291,7 @@ const requireGroupMemberManagementAccess = (groupIdParam = "grp_id") => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       // Check if user has member management permissions
       const hasMemberManagePermission = await rbacService.hasPermission(
@@ -360,7 +361,7 @@ const isVerifiedGroupMember = async (user, groupId, tenant) => {
       return false;
     }
 
-    const rbacService = new RBACService(tenant);
+    const rbacService = getRBACService(tenant);
 
     // Check group membership
     const isGroupMember = await rbacService.isGroupMember(user._id, groupId);
@@ -392,7 +393,7 @@ const isVerifiedNetworkMember = async (user, networkId, tenant) => {
       return false;
     }
 
-    const rbacService = new RBACService(tenant);
+    const rbacService = getRBACService(tenant);
 
     // Check network membership
     const isNetworkMember = await rbacService.isNetworkMember(
@@ -432,7 +433,7 @@ const requireMultipleGroupAccess = (
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
       const accessResults = [];
 
       for (const groupId of groupIds) {
@@ -504,7 +505,7 @@ const debugGroupNetworkAccess = () => {
       const user = req.user;
       if (user && user._id) {
         const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-        const rbacService = new RBACService(tenant);
+        const rbacService = getRBACService(tenant);
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 
@@ -548,7 +549,7 @@ const requireOrganizationContext = (options = {}) => {
     allowSuperAdmin = true,
   } = options;
 
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       const token = req.user;
 
@@ -590,13 +591,17 @@ const requireOrganizationContext = (options = {}) => {
         return next();
       }
 
+      const rbacService = getRBACService(token.tenant || "airqo");
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(
+        token._id
+      );
+
       const userContext = {
         hasCurrentContext: !!token.currentContext?.id,
         currentContextId: token.currentContext?.id,
         hasFullAccess: !!token.fullAccess?.groups,
         availableGroups: Object.keys(token.fullAccess?.groups || {}),
-        isSuperAdmin:
-          token.isSuperAdmin || token.roles?.includes("SUPER_ADMIN"),
+        isSuperAdmin: isSystemSuperAdmin,
       };
 
       // Super admin bypass
@@ -712,7 +717,7 @@ const requireOrganizationContextEnhanced = (options = {}) => {
     allowSuperAdmin = true,
   } = options;
 
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
       const token = req.user;
 
@@ -774,6 +779,11 @@ const requireOrganizationContextEnhanced = (options = {}) => {
         return next();
       }
 
+      const rbacService = getRBACService(token.tenant || "airqo");
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(
+        token._id
+      );
+
       // Enhanced user context analysis
       const userContext = {
         hasCurrentContext: !!token.currentContext?.id,
@@ -782,8 +792,7 @@ const requireOrganizationContextEnhanced = (options = {}) => {
         availableGroups: Object.keys(token.fullAccess?.groups || {}),
         hasRoles: !!token.roles?.length,
         userRoles: token.roles || [],
-        isSuperAdmin:
-          token.isSuperAdmin || token.roles?.includes("SUPER_ADMIN"),
+        isSuperAdmin: isSystemSuperAdmin,
       };
 
       debugInfo.userContext = userContext;

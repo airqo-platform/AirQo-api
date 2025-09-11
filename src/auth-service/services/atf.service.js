@@ -305,11 +305,12 @@ class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
         lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
       };
 
-      const { jwtOptions = {} } = options || {};
+      const { jwtOptions = { expiresIn: options.expiresIn || "24h" } } =
+        options || {};
       // Strip expiration-related inputs and ignore external algorithm to prevent mismatches.
       const {
-        expiresIn,
-        exp,
+        // expiresIn,
+        // exp,
         algorithm: _ignoredAlg,
         ...cleanJwtOptions
       } = jwtOptions;
