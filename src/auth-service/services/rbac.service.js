@@ -945,6 +945,47 @@ class RBACService {
     }
   }
 
+  async isSystemSuperAdmin(userId) {
+    try {
+      const user = await this.getUserModel().findById(userId).lean();
+      if (!user) return false;
+
+      // A system super admin is defined as a user having the AIRQO_SUPER_ADMIN role
+      // within the main "airqo" group.
+
+      if (!user.group_roles || user.group_roles.length === 0) {
+        return false;
+      }
+
+      // Find the AirQo group ID
+      const airqoGroup = await this.getGroupModel()
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .select("_id")
+        .lean();
+
+      if (!airqoGroup) return false;
+
+      // Check if the user has the AIRQO_SUPER_ADMIN role in that specific group
+      const airqoSuperAdminRole = await this.getRoleModel()
+        .findOne({ role_code: "AIRQO_SUPER_ADMIN", group_id: airqoGroup._id })
+        .select("_id")
+        .lean();
+
+      if (!airqoSuperAdminRole) return false;
+
+      return user.group_roles.some(
+        (gr) =>
+          gr.group.toString() === airqoGroup._id.toString() &&
+          gr.role.toString() === airqoSuperAdminRole._id.toString()
+      );
+    } catch (error) {
+      logger.error(
+        `Error checking system super admin status: ${error.message}`
+      );
+      return false;
+    }
+  }
+
   async isGroupMember(userId, groupId) {
     try {
       const user = await this.getUserModel().findById(userId).lean();
@@ -1024,6 +1065,33 @@ class RBACService {
       logger.error(
         `Error getting user permissions in context: ${error.message}`
       );
+      return [];
+    }
+  }
+
+  async getUserRolesInContext(userId, contextId, contextType) {
+    try {
+      const contextData = await this.getUserPermissionsByContext(userId);
+      let roles = [];
+
+      if (contextType === "group") {
+        const membership = contextData.groupMemberships.find(
+          (m) => m.group.id === contextId.toString()
+        );
+        if (membership && membership.role) {
+          roles.push(membership.role.name);
+        }
+      } else if (contextType === "network") {
+        const membership = contextData.networkMemberships.find(
+          (m) => m.network.id === contextId.toString()
+        );
+        if (membership && membership.role) {
+          roles.push(membership.role.name);
+        }
+      }
+      return roles;
+    } catch (error) {
+      logger.error(`Error getting user roles in context: ${error.message}`);
       return [];
     }
   }

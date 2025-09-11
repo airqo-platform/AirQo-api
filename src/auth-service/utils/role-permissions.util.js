@@ -17,6 +17,13 @@ const logger = log4js.getLogger(
 );
 const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 
+const normalizeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+};
+
 // ===== HELPER FUNCTIONS =====
 
 /**
@@ -663,16 +670,14 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
 
 const syncPermissions = async (tenant, permissionsList) => {
   const createdPermissions = [];
-  const existingPermissions = [];
   const updatedPermissions = [];
+  const existingPermissions = [];
 
   for (const permissionData of permissionsList) {
     try {
       const existingPermission = await PermissionModel(tenant)
         .findOne({
           permission: permissionData.permission,
-          network_id: { $in: [null, undefined] },
-          group_id: { $in: [null, undefined] },
         })
         .lean();
 
@@ -681,10 +686,14 @@ const syncPermissions = async (tenant, permissionsList) => {
           permissionData
         );
         createdPermissions.push(newPermission);
-        logObject(`✅ Created permission: ${permissionData.permission}`);
+        logger.debug(`✅ Created permission: ${permissionData.permission}`);
       } else {
         existingPermissions.push(existingPermission);
-        if (existingPermission.description !== permissionData.description) {
+        // Update description if it has changed
+        if (
+          permissionData.description &&
+          existingPermission.description !== permissionData.description
+        ) {
           const updated = await PermissionModel(tenant).findByIdAndUpdate(
             existingPermission._id,
             { description: permissionData.description },
@@ -692,14 +701,17 @@ const syncPermissions = async (tenant, permissionsList) => {
           );
           updatedPermissions.push(updated);
           logObject(
-            `🔄 Updated permission description: ${permissionData.permission}`
+            `🔄 Updated permission description for: ${permissionData.permission}`
           );
         }
       }
     } catch (error) {
-      logger.error(
-        `Error syncing permission ${permissionData.permission}: ${error.message}`
-      );
+      // Only log errors that are not duplicate key errors, which are expected.
+      if (error.code !== 11000) {
+        logger.error(
+          `Error syncing permission ${permissionData.permission}: ${error.message}`
+        );
+      }
     }
   }
   return { createdPermissions, existingPermissions, updatedPermissions };
@@ -709,7 +721,7 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
   const roleProcessingPromises = rolesList.map((roleData) => {
     return (async () => {
       try {
-        logger.info(
+        logger.debug(
           `[RBAC Setup] Syncing role: ${roleData.role_name} for group ${airqoGroupId}`
         );
         const data = { ...roleData, group_id: airqoGroupId };
@@ -954,7 +966,7 @@ const syncGlobalRoles = async (tenant, rolesList) => {
   const roleProcessingPromises = rolesList.map((roleData) => {
     return (async () => {
       try {
-        logger.info(`[RBAC Setup] Syncing global role: ${roleData.role_name}`);
+        logger.debug(`[RBAC Setup] Syncing global role: ${roleData.role_name}`);
         const result = await createOrUpdateRoleWithPermissionSync(
           tenant,
           roleData
@@ -1285,7 +1297,7 @@ const createDefaultRolesForOrganization = async (
   tenant = "airqo"
 ) => {
   try {
-    const orgName = organizationName.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    const orgName = normalizeName(organizationName);
 
     // Use the new centralized definitions
     const roleTemplates = [
@@ -2038,9 +2050,7 @@ const rolePermissionUtil = {
             })
           );
         }
-        organizationName = group.grp_title
-          .toUpperCase()
-          .replace(/[^A-Z0-9]/g, "_");
+        organizationName = normalizeName(group.grp_title);
         queryFilter = { group_id: body.group_id };
       } else if (body.network_id) {
         const NetworkModel = require("@models/Network");
@@ -2052,9 +2062,7 @@ const rolePermissionUtil = {
             })
           );
         }
-        organizationName = network.net_name
-          .toUpperCase()
-          .replace(/[^A-Z0-9]/g, "_");
+        organizationName = normalizeName(network.net_name);
         queryFilter = { network_id: body.network_id };
       } else {
         return next(

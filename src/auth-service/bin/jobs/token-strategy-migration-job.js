@@ -95,7 +95,7 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
           : result.nModified) || 0;
       totalUpdated += updatedCount;
 
-      logger.info(`Batch processed: ${updatedCount} users updated.`);
+      logger.debug(`Batch processed: ${updatedCount} users updated.`);
     }
 
     if (totalUpdated > 0) {
