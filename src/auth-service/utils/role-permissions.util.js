@@ -663,16 +663,14 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
 
 const syncPermissions = async (tenant, permissionsList) => {
   const createdPermissions = [];
-  const existingPermissions = [];
   const updatedPermissions = [];
+  const existingPermissions = [];
 
   for (const permissionData of permissionsList) {
     try {
       const existingPermission = await PermissionModel(tenant)
         .findOne({
           permission: permissionData.permission,
-          network_id: { $in: [null, undefined] },
-          group_id: { $in: [null, undefined] },
         })
         .lean();
 
@@ -681,10 +679,14 @@ const syncPermissions = async (tenant, permissionsList) => {
           permissionData
         );
         createdPermissions.push(newPermission);
-        logObject(`✅ Created permission: ${permissionData.permission}`);
+        logger.debug(`✅ Created permission: ${permissionData.permission}`);
       } else {
         existingPermissions.push(existingPermission);
-        if (existingPermission.description !== permissionData.description) {
+        // Update description if it has changed
+        if (
+          permissionData.description &&
+          existingPermission.description !== permissionData.description
+        ) {
           const updated = await PermissionModel(tenant).findByIdAndUpdate(
             existingPermission._id,
             { description: permissionData.description },
@@ -692,14 +694,17 @@ const syncPermissions = async (tenant, permissionsList) => {
           );
           updatedPermissions.push(updated);
           logObject(
-            `🔄 Updated permission description: ${permissionData.permission}`
+            `🔄 Updated permission description for: ${permissionData.permission}`
           );
         }
       }
     } catch (error) {
-      logger.error(
-        `Error syncing permission ${permissionData.permission}: ${error.message}`
-      );
+      // Only log errors that are not duplicate key errors, which are expected.
+      if (error.code !== 11000) {
+        logger.error(
+          `Error syncing permission ${permissionData.permission}: ${error.message}`
+        );
+      }
     }
   }
   return { createdPermissions, existingPermissions, updatedPermissions };
@@ -709,7 +714,7 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
   const roleProcessingPromises = rolesList.map((roleData) => {
     return (async () => {
       try {
-        logger.info(
+        logger.debug(
           `[RBAC Setup] Syncing role: ${roleData.role_name} for group ${airqoGroupId}`
         );
         const data = { ...roleData, group_id: airqoGroupId };
@@ -954,7 +959,7 @@ const syncGlobalRoles = async (tenant, rolesList) => {
   const roleProcessingPromises = rolesList.map((roleData) => {
     return (async () => {
       try {
-        logger.info(`[RBAC Setup] Syncing global role: ${roleData.role_name}`);
+        logger.debug(`[RBAC Setup] Syncing global role: ${roleData.role_name}`);
         const result = await createOrUpdateRoleWithPermissionSync(
           tenant,
           roleData

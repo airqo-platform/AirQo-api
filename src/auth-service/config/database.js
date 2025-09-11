@@ -109,22 +109,27 @@ const initializeRBAC = async () => {
     // It will create what's missing and update what's changed.
     const result = await rolePermissionsUtil.setupDefaultPermissions("airqo");
 
-    if (result && result.success) {
+    if (result && result.success && result.data) {
       const {
         permissions,
-        roles,
+        airqo_roles,
+        global_roles,
         audit,
         airqo_super_admin_exists,
         role_errors,
       } = result.data;
       console.log("✅ RBAC initialization completed successfully.");
       rbacInitialized = true; // Set flag after successful initialization
-      console.log(
-        `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`
-      );
-      console.log(
-        `   📊 Roles: ${roles.created} created, ${roles.updated} updated, ${roles.up_to_date} up-to-date.`
-      );
+      if (permissions) {
+        console.log(
+          `   📊 Permissions: ${permissions.created} created, ${permissions.updated} updated, ${permissions.existing} existing.`
+        );
+      }
+      if (airqo_roles) {
+        console.log(
+          `   📊 AirQo Roles: ${airqo_roles.created} created, ${airqo_roles.updated} updated, ${airqo_roles.up_to_date} up-to-date.`
+        );
+      }
       console.log(
         `   📊 Audit: ${audit.organization_roles_audited} org roles audited, ${audit.permissions_added_to_roles} permissions added.`
       );
