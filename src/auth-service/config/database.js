@@ -13,6 +13,9 @@ const {
   HttpError,
   extractErrorsFromRequest,
 } = require("@utils/shared");
+const {
+  migrateTokenStrategiesToDefault,
+} = require("@bin/jobs/token-strategy-migration-job");
 
 const COMMAND_URI = constants.COMMAND_MONGO_URI || constants.MONGO_URI || "";
 const QUERY_URI = constants.QUERY_MONGO_URI || constants.MONGO_URI || "";
@@ -200,6 +203,11 @@ const connectToMongoDB = () => {
       console.log("✅ MongoDB connected, proceeding with initializations...");
       try {
         await initializeRBAC();
+        // Also run the token migration job now that DB is ready
+        console.log("🚀 Kicking off token strategy migration on startup...");
+        migrateTokenStrategiesToDefault().catch((err) => {
+          logger.error(`Startup migration failed: ${err.message}`);
+        });
       } catch (err) {
         logger.fatal(
           "❌ RBAC initialization failed on connection:",
