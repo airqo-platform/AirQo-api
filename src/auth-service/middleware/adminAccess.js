@@ -12,6 +12,22 @@ const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- admin-access`
 );
 
+const __rbacInstances = new Map();
+const getRBACService = (tenant = constants.DEFAULT_TENANT) => {
+  if (!__rbacInstances.has(tenant)) {
+    const inst = new RBACService(tenant);
+    // Unref the timer so it doesn't hold the event loop open
+    if (
+      inst.cleanupInterval &&
+      typeof inst.cleanupInterval.unref === "function"
+    ) {
+      inst.cleanupInterval.unref();
+    }
+    __rbacInstances.set(tenant, inst);
+  }
+  return __rbacInstances.get(tenant);
+};
+
 /**
  * Enhanced admin access middleware that replaces the old adminCheck
  * Supports multiple identification methods and flexible permission checking
@@ -65,7 +81,13 @@ const adminCheck = (options = {}) => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
+
+      // Always allow the system-wide super admin
+      const isSystemSuperAdmin = await rbacService.hasRole(user._id, [
+        "AIRQO_SUPER_ADMIN",
+      ]);
+      if (isSystemSuperAdmin) return next();
 
       // Find the target group/network
       let targetContext;
@@ -142,8 +164,8 @@ const adminCheck = (options = {}) => {
       let accessReason = "";
 
       if (requireSuperAdmin && isSuperAdminInContext) {
-        accessGranted = true;
-        accessReason = "Super admin in context";
+        accessGranted = true; // This now refers to the org-specific super admin
+        accessReason = "Organization super admin";
       } else if (
         !requireSuperAdmin &&
         (hasAllowedRole || hasRequiredPermissions)
@@ -155,7 +177,7 @@ const adminCheck = (options = {}) => {
       }
 
       if (!accessGranted) {
-        const userPermissions = await rbacService.getUserPermissionsInContext(
+        const userRolesInContext = await rbacService.getUserRolesInContext(
           user._id,
           targetContext._id,
           contextType
@@ -164,13 +186,13 @@ const adminCheck = (options = {}) => {
         logger.warn(
           `Admin access denied for user ${user.email} (ID: ${
             user._id
-          }) in ${contextType} ${contextId}: Required ${
+          }) in ${contextType} ${targetContext._id}: Required ${
             requireSuperAdmin
-              ? "SUPER_ADMIN role"
+              ? "organization SUPER_ADMIN role"
               : `roles: ${allowedRoles.join(
                   ", "
                 )} or permissions: ${requiredPermissions.join(", ")}`
-          }, but user has permissions: ${userPermissions.join(", ") || "none"}`
+          }, but user has roles: [${userRolesInContext.join(", ") || "none"}]`
         );
 
         return next(
@@ -178,12 +200,8 @@ const adminCheck = (options = {}) => {
             message: `This action requires ${
               requireSuperAdmin ? "super administrator" : "administrator"
             } privileges in this ${contextType}`,
-            required: {
-              roles: allowedRoles,
-              permissions: requiredPermissions,
-              requireSuperAdmin,
-            },
-            userPermissions,
+            required: { roles: allowedRoles, permissions: requiredPermissions },
+            userRoles: userRolesInContext,
           })
         );
       }
@@ -371,7 +389,7 @@ const requireSystemAdmin = () => {
         );
       }
 
-      const rbacService = new RBACService(tenant);
+      const rbacService = getRBACService(tenant);
 
       // Check if user has system-wide admin permissions
       const requiredPermissions = [
@@ -442,7 +460,7 @@ const debugAdminAccess = () => {
       const user = req.user;
       if (user && user._id) {
         const tenant = req.query.tenant || constants.DEFAULT_TENANT;
-        const rbacService = new RBACService(tenant);
+        const rbacService = getRBACService(tenant);
 
         const debugInfo = await rbacService.debugUserPermissions(user._id);
 

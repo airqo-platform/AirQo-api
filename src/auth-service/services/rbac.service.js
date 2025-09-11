@@ -1028,6 +1028,33 @@ class RBACService {
     }
   }
 
+  async getUserRolesInContext(userId, contextId, contextType) {
+    try {
+      const contextData = await this.getUserPermissionsByContext(userId);
+      let roles = [];
+
+      if (contextType === "group") {
+        const membership = contextData.groupMemberships.find(
+          (m) => m.group.id === contextId.toString()
+        );
+        if (membership && membership.role) {
+          roles.push(membership.role.name);
+        }
+      } else if (contextType === "network") {
+        const membership = contextData.networkMemberships.find(
+          (m) => m.network.id === contextId.toString()
+        );
+        if (membership && membership.role) {
+          roles.push(membership.role.name);
+        }
+      }
+      return roles;
+    } catch (error) {
+      logger.error(`Error getting user roles in context: ${error.message}`);
+      return [];
+    }
+  }
+
   // Cache management methods
   clearCache() {
     this.rolePermissionCache.clear();
