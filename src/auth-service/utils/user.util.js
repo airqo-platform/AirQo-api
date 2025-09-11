@@ -4818,11 +4818,32 @@ const createUserModule = {
               desiredRole = defaultUserRole;
             }
           } else {
-            const orgName = normalizeName(group.grp_title);
-            const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
-            desiredRole = await RoleModel(tenant)
-              .findOne({ role_code: defaultMemberRoleCode, group_id: groupId })
+            const possibleRoles = await RoleModel(tenant)
+              .find({ group_id: mongoose.Types.ObjectId(groupId) })
               .lean();
+            const present = new Set(
+              assignments.map((a) => a.role && a.role.toString())
+            );
+            const prefer = (suffix) =>
+              possibleRoles.find(
+                (r) =>
+                  r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+              );
+            desiredRole =
+              prefer("_SUPER_ADMIN") ||
+              prefer("_ADMIN") ||
+              prefer("_MANAGER") ||
+              prefer("_DEFAULT_MEMBER");
+
+            if (!desiredRole) {
+              const orgName = normalizeName(group.grp_title);
+              const defaultMember = possibleRoles.find(
+                (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+              );
+              desiredRole =
+                defaultMember ||
+                possibleRoles.find((r) => present.has(r._id.toString()));
+            }
           }
 
           if (desiredRole) {
@@ -4864,14 +4885,32 @@ const createUserModule = {
           const network = await NetworkModel(tenant).findById(networkId).lean();
           if (!network) continue;
 
-          const orgName = normalizeName(network.net_name);
-          const defaultMemberRoleCode = `${orgName}_DEFAULT_MEMBER`;
-          const desiredRole = await RoleModel(tenant)
-            .findOne({
-              role_code: defaultMemberRoleCode,
-              network_id: networkId,
-            })
+          const possibleRoles = await RoleModel(tenant)
+            .find({ network_id: mongoose.Types.ObjectId(networkId) })
             .lean();
+          const present = new Set(
+            assignments.map((a) => a.role && a.role.toString())
+          );
+          const prefer = (suffix) =>
+            possibleRoles.find(
+              (r) =>
+                r.role_code?.endsWith(suffix) && present.has(r._id.toString())
+            );
+          let desiredRole =
+            prefer("_SUPER_ADMIN") ||
+            prefer("_ADMIN") ||
+            prefer("_MANAGER") ||
+            prefer("_DEFAULT_MEMBER");
+
+          if (!desiredRole) {
+            const orgName = normalizeName(network.net_name);
+            const defaultMember = possibleRoles.find(
+              (r) => r.role_code === `${orgName}_DEFAULT_MEMBER`
+            );
+            desiredRole =
+              defaultMember ||
+              possibleRoles.find((r) => present.has(r._id.toString()));
+          }
 
           if (desiredRole) {
             finalNetworkRoles = finalNetworkRoles.filter(
@@ -4946,12 +4985,42 @@ const createUserModule = {
       }
 
       // --- 5. Compare final arrays with originals to see if an update is needed ---
+      const canonicalize = (arr, type) =>
+        (arr || [])
+          .map((a) => ({
+            ctx:
+              type === "group"
+                ? a.group?.toString?.()
+                : a.network?.toString?.(),
+            role: a.role?.toString?.(),
+            userType: a.userType || "user",
+          }))
+          .filter((x) => x.ctx && x.role)
+          .sort(
+            (x, y) => x.ctx.localeCompare(y.ctx) || x.role.localeCompare(y.role)
+          );
+
+      const originalGroupCanon = canonicalize(user.group_roles, "group");
+      const finalGroupCanon = canonicalize(finalGroupRoles, "group");
+      const originalNetCanon = canonicalize(user.network_roles, "network");
+      const finalNetCanon = canonicalize(finalNetworkRoles, "network");
+
       if (
-        JSON.stringify(user.group_roles || []) !==
-          JSON.stringify(finalGroupRoles) ||
-        JSON.stringify(user.network_roles || []) !==
-          JSON.stringify(finalNetworkRoles)
+        JSON.stringify(originalGroupCanon) !==
+          JSON.stringify(finalGroupCanon) ||
+        JSON.stringify(originalNetCanon) !== JSON.stringify(finalNetCanon)
       ) {
+        // keep DB arrays deterministically ordered as well
+        finalGroupRoles = finalGroupRoles.sort(
+          (a, b) =>
+            a.group.toString().localeCompare(b.group.toString()) ||
+            a.role.toString().localeCompare(b.role.toString())
+        );
+        finalNetworkRoles = finalNetworkRoles.sort(
+          (a, b) =>
+            a.network.toString().localeCompare(b.network.toString()) ||
+            a.role.toString().localeCompare(b.role.toString())
+        );
         updateQuery.$set = {
           group_roles: finalGroupRoles,
           network_roles: finalNetworkRoles,
