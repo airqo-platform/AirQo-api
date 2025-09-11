@@ -66,7 +66,7 @@ class AbstractTokenFactory {
 
   async createToken(
     user,
-    strategy = constants.TOKEN_STRATEGIES.LEGACY,
+    strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
     options = {}
   ) {
     try {
