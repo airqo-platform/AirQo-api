@@ -5014,17 +5014,15 @@ const createUserModule = {
           (gr) => gr.role && deprecatedRoleIds.some((id) => id.equals(gr.role))
         );
         if (hasDeprecated) {
-          if (!updateQuery.$pull.group_roles) {
-            updateQuery.$pull.group_roles = {};
+          const deprecatedCond = { role: { $in: deprecatedRoleIds } };
+          if (updateQuery.$pull.group_roles) {
+            // Combine existing condition (by group) with deprecated removal using $or
+            updateQuery.$pull.group_roles = updateQuery.$pull.group_roles.$or
+              ? { $or: [...updateQuery.$pull.group_roles.$or, deprecatedCond] }
+              : { $or: [updateQuery.$pull.group_roles, deprecatedCond] };
+          } else {
+            updateQuery.$pull.group_roles = deprecatedCond;
           }
-          const existingPullRoles =
-            updateQuery.$pull.group_roles.role &&
-            updateQuery.$pull.group_roles.role.$in
-              ? updateQuery.$pull.group_roles.role.$in
-              : [];
-          updateQuery.$pull.group_roles.role = {
-            $in: [...new Set([...existingPullRoles, ...deprecatedRoleIds])],
-          };
           needsUpdate = true;
           logger.info(
             `[Role Cleanup] User ${user.email} has deprecated roles. Scheduling for removal.`
