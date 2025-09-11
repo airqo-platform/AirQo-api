@@ -35,14 +35,6 @@ require("@bin/jobs/incomplete-profile-job");
 require("@bin/jobs/preferences-log-job");
 require("@bin/jobs/preferences-update-job");
 require("@bin/jobs/profile-picture-update-job");
-const {
-  migrateTokenStrategiesToDefault,
-} = require("@bin/jobs/token-strategy-migration-job");
-// Run migration on startup without blocking the server
-// console.log("🚀 Kicking off token strategy migration on startup...");
-// migrateTokenStrategiesToDefault().catch((err) => {
-//   logger.error(`Startup migration failed: ${err.message}`);
-// });
 
 // Initialize log4js with SAFE configuration
 const log4js = require("log4js");
