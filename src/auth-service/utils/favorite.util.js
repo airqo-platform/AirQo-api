@@ -126,14 +126,46 @@ const favorites = {
         ...params,
       };
 
+      // Validate and normalize inputs
+      const lowerTenant = (tenant || "").toLowerCase();
+      if (!lowerTenant) {
+        return {
+          success: false,
+          message: "Tenant is required",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Tenant parameter is missing or empty" },
+        };
+      }
+
+      // Get authenticated user ID (prioritize from JWT/auth context)
+      const authenticatedUserId =
+        request.user?.firebase_user_id || firebase_user_id;
+      if (!authenticatedUserId) {
+        return {
+          success: false,
+          message: "User authentication required",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "firebase_user_id is missing or user not authenticated",
+          },
+        };
+      }
+
+      if (!Array.isArray(favorite_places)) {
+        return {
+          success: false,
+          message: "Invalid favorite_places format",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "favorite_places must be an array" },
+        };
+      }
+
       let filter = {
-        firebase_user_id: firebase_user_id,
+        firebase_user_id: authenticatedUserId,
       };
 
       // Get current favorites for the user
-      const listResponse = await FavoriteModel(tenant.toLowerCase()).list({
-        filter,
-      });
+      const listResponse = await FavoriteModel(lowerTenant).list({ filter });
       if (!listResponse.success) {
         return {
           success: false,
@@ -153,21 +185,19 @@ const favorites = {
       );
 
       // Handle empty favorite_places - delete all existing favorites
-      if (favorite_places.length === 0) {
+      if (Array.isArray(favorite_places) && favorite_places.length === 0) {
         let deletionSummary = {
           deleted: 0,
           failed: 0,
           errors: [],
         };
 
-        // Delete all existing favorites sequentially to avoid overwhelming the DB
+        // Delete all existing favorites sequentially using authenticated user ID
         for (const favorite of unsynced_favorite_places) {
           try {
-            const deleteResponse = await FavoriteModel(
-              tenant.toLowerCase()
-            ).remove({
+            const deleteResponse = await FavoriteModel(lowerTenant).remove({
               filter: {
-                firebase_user_id: favorite.firebase_user_id,
+                firebase_user_id: authenticatedUserId,
                 place_id: favorite.place_id,
               },
             });
@@ -180,7 +210,7 @@ const favorites = {
                 `Failed to delete favorite: ${favorite.place_id}`
               );
               logger.error(
-                `Failed to delete favorite: ${JSON.stringify(favorite)}`
+                `Failed to delete favorite for user ${authenticatedUserId}: ${favorite.place_id}`
               );
             }
           } catch (error) {
@@ -189,9 +219,7 @@ const favorites = {
               `Error deleting favorite: ${favorite.place_id} - ${error.message}`
             );
             logger.error(
-              `Error deleting favorite: ${JSON.stringify(favorite)}, Error: ${
-                error.message
-              }`
+              `Error deleting favorite for user ${authenticatedUserId}: ${favorite.place_id}, Error: ${error.message}`
             );
           }
         }
@@ -211,13 +239,13 @@ const favorites = {
         const found = unsynced_favorite_places.some((favorite) => {
           return (
             favorite.place_id === item.place_id &&
-            favorite.firebase_user_id === item.firebase_user_id
+            favorite.firebase_user_id === authenticatedUserId
           );
         });
         return !found;
       });
 
-      // Create missing favorites with proper error handling
+      // Create missing favorites with proper error handling using authenticated user ID
       let createSummary = {
         created: 0,
         failed: 0,
@@ -226,18 +254,22 @@ const favorites = {
 
       for (const favorite of missing_favorite_places) {
         try {
-          // Check if favorite already exists (race condition protection)
-          const existingFavorite = await FavoriteModel(
-            tenant.toLowerCase()
-          ).findOne({
-            firebase_user_id: favorite.firebase_user_id,
+          // Check if favorite already exists using authenticated user ID
+          const existingFavorite = await FavoriteModel(lowerTenant).findOne({
+            firebase_user_id: authenticatedUserId,
             place_id: favorite.place_id,
           });
 
           if (!existingFavorite) {
-            const createResponse = await FavoriteModel(
-              tenant.toLowerCase()
-            ).register(favorite);
+            // Override client-provided firebase_user_id with authenticated user ID
+            const securePayload = {
+              ...favorite,
+              firebase_user_id: authenticatedUserId,
+            };
+
+            const createResponse = await FavoriteModel(lowerTenant).register(
+              securePayload
+            );
 
             if (createResponse.success) {
               createSummary.created++;
@@ -247,20 +279,20 @@ const favorites = {
                 `Failed to create favorite: ${favorite.place_id}`
               );
               logger.error(
-                `Failed to create favorite: ${JSON.stringify(favorite)}`
+                `Failed to create favorite for user ${authenticatedUserId}: ${favorite.place_id}`
               );
             }
           } else {
             // Favorite already exists, count as success but don't increment created
             logger.info(
-              `Favorite already exists for place_id: ${favorite.place_id}`
+              `Favorite already exists for place_id: ${favorite.place_id}, user: ${authenticatedUserId}`
             );
           }
         } catch (error) {
           // Handle duplicate key error gracefully
           if (error.code === 11000) {
             logger.info(
-              `Favorite already exists for place_id: ${favorite.place_id}, firebase_user_id: ${favorite.firebase_user_id}`
+              `Favorite already exists for place_id: ${favorite.place_id}, firebase_user_id: ${authenticatedUserId}`
             );
             // Don't count this as a failure since the favorite exists
           } else {
@@ -269,9 +301,7 @@ const favorites = {
               `Error creating favorite: ${favorite.place_id} - ${error.message}`
             );
             logger.error(
-              `Error creating favorite: ${JSON.stringify(favorite)}, Error: ${
-                error.message
-              }`
+              `Error creating favorite for user ${authenticatedUserId}: ${favorite.place_id}, Error: ${error.message}`
             );
           }
         }
@@ -297,11 +327,12 @@ const favorites = {
 
       for (const favorite of extra_favorite_places) {
         try {
-          const deleteResponse = await favorites.deleteFavoriteForUser(
-            lowerTenant,
-            authenticatedUserId,
-            favorite.place_id
-          );
+          const deleteResponse = await FavoriteModel(lowerTenant).remove({
+            filter: {
+              firebase_user_id: authenticatedUserId,
+              place_id: favorite.place_id,
+            },
+          });
 
           if (deleteResponse.success) {
             deletionSummary.deleted++;
