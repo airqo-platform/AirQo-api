@@ -141,16 +141,25 @@ const userController = {
         );
       const request = handleRequest(req, next);
       if (!request) return;
-      const userDetails = await req.user.toAuthJSON();
+
+      // --- FIX: Perform role cleanup and other updates on login ---
+      await userUtil.ensureDefaultAirqoRole(req.user, request.query.tenant);
+
+      // --- FIX: Re-fetch the user to get the cleaned-up data before generating the token ---
+      const freshUser = await UserModel(request.query.tenant).findById(
+        req.user._id
+      );
+
+      const userDetails = await freshUser.toAuthJSON();
       const token = userDetails.token;
       logger.info("Google login succeeded for user", { userId: req.user._id });
 
-      // Update user fields
-      const currentDate = new Date();
-      try {
-        await UserModel(request.query.tenant)
-          .findOneAndUpdate(
-            { _id: req.user._id },
+      // Fire-and-forget: Update user stats without blocking the login response.
+      (async () => {
+        try {
+          const currentDate = new Date();
+          await UserModel(request.query.tenant).findByIdAndUpdate(
+            req.user._id,
             {
               $set: { lastLogin: currentDate, isActive: true },
               $inc: { loginCount: 1 },
@@ -159,14 +168,13 @@ const userController = {
                 : {}),
             },
             { new: true, upsert: false, runValidators: true }
-          )
-          .then(() => {})
-          .catch((error) => {
-            logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
-          });
-      } catch (error) {
-        logger.error(`🐛🐛 Internal Server Error -- ${stringify(error)}`);
-      }
+          );
+        } catch (error) {
+          logger.error(
+            `🐛🐛 Google login stats update error -- ${stringify(error)}`
+          );
+        }
+      })();
 
       // Set the token as an HTTP-only cookie
       res.cookie("access_token", token, {
@@ -179,25 +187,17 @@ const userController = {
         res.cookie("temp_access_token", token, {
           httpOnly: false, // Set to false for debugging
           secure: true, // But keep secure: true (if using HTTPS)
-          // maxAge: 60 * 1000, //Expires in 60 seconds.
         });
       }
 
       res.redirect(
         `${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}/xyz/Home?success=google`
       );
-
-      /***
-       * in the FRONTEND, access the cookie:
-       * ==================================
-       * npm install js-cookie
-       * import Cookies from "js-cookie";
-       * const token = Cookies.get("access_token");
-       */
     } catch (error) {
       handleError(error, next);
     }
   },
+
   verify: async (req, res, next) => {
     try {
       if (!res.headersSent) {

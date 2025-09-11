@@ -17,6 +17,13 @@ const logger = log4js.getLogger(
 );
 const ORGANISATIONS_LIMIT = constants.ORGANISATIONS_LIMIT || 6;
 
+const normalizeName = (name) => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  return name.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+};
+
 // ===== HELPER FUNCTIONS =====
 
 /**
@@ -2043,9 +2050,7 @@ const rolePermissionUtil = {
             })
           );
         }
-        organizationName = group.grp_title
-          .toUpperCase()
-          .replace(/[^A-Z0-9]/g, "_");
+        organizationName = normalizeName(group.grp_title);
         queryFilter = { group_id: body.group_id };
       } else if (body.network_id) {
         const NetworkModel = require("@models/Network");
@@ -2057,9 +2062,7 @@ const rolePermissionUtil = {
             })
           );
         }
-        organizationName = network.net_name
-          .toUpperCase()
-          .replace(/[^A-Z0-9]/g, "_");
+        organizationName = normalizeName(network.net_name);
         queryFilter = { network_id: body.network_id };
       } else {
         return next(
