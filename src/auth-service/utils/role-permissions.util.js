@@ -1297,7 +1297,7 @@ const createDefaultRolesForOrganization = async (
   tenant = "airqo"
 ) => {
   try {
-    const orgName = organizationName.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+    const orgName = normalizeName(organizationName);
 
     // Use the new centralized definitions
     const roleTemplates = [

@@ -945,6 +945,47 @@ class RBACService {
     }
   }
 
+  async isSystemSuperAdmin(userId) {
+    try {
+      const user = await this.getUserModel().findById(userId).lean();
+      if (!user) return false;
+
+      // A system super admin is defined as a user having the AIRQO_SUPER_ADMIN role
+      // within the main "airqo" group.
+
+      if (!user.group_roles || user.group_roles.length === 0) {
+        return false;
+      }
+
+      // Find the AirQo group ID
+      const airqoGroup = await this.getGroupModel()
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .select("_id")
+        .lean();
+
+      if (!airqoGroup) return false;
+
+      // Check if the user has the AIRQO_SUPER_ADMIN role in that specific group
+      const airqoSuperAdminRole = await this.getRoleModel()
+        .findOne({ role_code: "AIRQO_SUPER_ADMIN", group_id: airqoGroup._id })
+        .select("_id")
+        .lean();
+
+      if (!airqoSuperAdminRole) return false;
+
+      return user.group_roles.some(
+        (gr) =>
+          gr.group.toString() === airqoGroup._id.toString() &&
+          gr.role.toString() === airqoSuperAdminRole._id.toString()
+      );
+    } catch (error) {
+      logger.error(
+        `Error checking system super admin status: ${error.message}`
+      );
+      return false;
+    }
+  }
+
   async isGroupMember(userId, groupId) {
     try {
       const user = await this.getUserModel().findById(userId).lean();

@@ -84,9 +84,7 @@ const adminCheck = (options = {}) => {
       const rbacService = getRBACService(tenant);
 
       // Always allow the system-wide super admin
-      const isSystemSuperAdmin = await rbacService.hasRole(user._id, [
-        "AIRQO_SUPER_ADMIN",
-      ]);
+      const isSystemSuperAdmin = await rbacService.isSystemSuperAdmin(user._id);
       if (isSystemSuperAdmin) return next();
 
       // Find the target group/network
