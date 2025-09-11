@@ -2,6 +2,7 @@
 const jwt = require("jsonwebtoken");
 const constants = require("@config/constants");
 const zlib = require("zlib");
+const moment = require("moment-timezone");
 const logger = require("log4js").getLogger(
   `${constants.ENVIRONMENT} -- abstract-token-factory`
 );
@@ -280,28 +281,44 @@ class StandardTokenStrategy extends TokenStrategy {
 class NoRolesAndPermissionsTokenStrategy extends TokenStrategy {
   async generateToken(user, tenant, options) {
     try {
+      // Replicate the old token structure precisely for backward compatibility
       const tokenPayload = {
         _id: user._id,
-        username: user.userName,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        userType: user.userType,
-        organization: user.organization,
-        long_organization: user.long_organization,
-        privilege: user.privilege,
-        nrp: 1, // Marker for this strategy
+        firstName: user.firstName || null,
+        lastName: user.lastName || null,
+        userName: user.userName || null,
+        email: user.email || null,
+        nrp: 1,
+        organization: user.organization || null,
+        long_organization: user.long_organization || null,
+        privilege: user.privilege || null,
+        country: user.country || null,
+        profilePicture: user.profilePicture || null,
+        phoneNumber: user.phoneNumber || null,
+        createdAt: user.createdAt
+          ? moment(user.createdAt).format("YYYY-MM-DD HH:mm:ss")
+          : null,
+        updatedAt: user.updatedAt
+          ? moment(user.updatedAt).format("YYYY-MM-DD HH:mm:ss")
+          : null,
+        rateLimit: user.rateLimit ?? null,
+        lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
       };
 
-      const jwtOptions = {
-        expiresIn: options.expiresIn || "24h",
-        ...options.jwtOptions,
+      const { jwtOptions = {} } = options || {};
+      // Strip expiration-related inputs and ignore external algorithm to prevent mismatches.
+      const {
+        expiresIn,
+        exp,
+        algorithm: _ignoredAlg,
+        ...cleanJwtOptions
+      } = jwtOptions;
+      const jwtSignOptions = {
+        ...cleanJwtOptions,
+        algorithm: "HS256", // keep in sync with decodeToken() verification
       };
 
-      return jwt.sign(tokenPayload, constants.JWT_SECRET, {
-        algorithm: "HS256",
-        ...jwtOptions,
-      });
+      return jwt.sign(tokenPayload, constants.JWT_SECRET, jwtSignOptions);
     } catch (error) {
       logger.error(
         `Error generating NoRolesAndPermissions token: ${error.message}`
