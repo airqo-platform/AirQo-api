@@ -200,8 +200,14 @@ class BigQueryApi:
             integers=integer_columns,
             timestamps=date_time_columns,
         )
+        # Ensure this does not raise an exception for complex data types i.e objects like lists and dicts
+        # TODO : Handle complex data types properly
+        try:
+            dataframe.drop_duplicates(keep="first", inplace=True)
+        except Exception as e:
+            logger.exception(f"Error formatting complex data types: {e}")
 
-        return dataframe.drop_duplicates(keep="first")
+        return dataframe
 
     def get_columns(
         self,
