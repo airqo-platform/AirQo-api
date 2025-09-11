@@ -398,100 +398,28 @@ const userController = {
       const request = handleRequest(req, next);
       if (!request) return;
 
-      const { tenant } = request.query;
-
       if (req.auth.success === true) {
-        // Use the user's preferred strategy or a default
-        const strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
-
-        logObject("Preferred token strategy", strategy);
-
-        const tokenFactory = new AbstractTokenFactory(tenant);
-
-        // We need the populated user object for some token strategies
-        const populatedUser = await userUtil._populateUserDataManually(
-          req.user,
-          tenant
-        );
-
-        const token = await tokenFactory.createToken(populatedUser, strategy);
-
-        const user = {
-          _id: req.user._id,
-          userName: req.user.userName,
-          token: `JWT ${token}`,
-          email: req.user.email,
-          firstName: req.user.firstName,
-          lastName: req.user.lastName,
-        };
-        return res.status(httpStatus.OK).json(user);
-      } else {
-        throw new HttpError(req.auth.message, req.auth.status);
-      }
-    } catch (error) {
-      handleError(error, next);
-    }
-  },
-  loginWithDetails: async (req, res, next) => {
-    // logger.info("..................................");
-    // logger.info("user login with details......");
-    try {
-      const request = handleRequest(req, next);
-      if (!request) return;
-
-      const { tenant } = request.query;
-
-      if (req.auth.success === true) {
-        const tokenFactory = new AbstractTokenFactory(tenant);
-        const strategy = constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS;
-
-        // We need the populated user object for some token strategies
-        const populatedUser = await userUtil._populateUserDataManually(
-          req.user,
-          tenant
-        );
-
-        const token = await tokenFactory.createToken(populatedUser, strategy);
-        const user = {
-          _id: req.user._id,
-          userName: req.user.userName,
-          token: `JWT ${token}`,
-          email: req.user.email,
-        };
-
-        const currentDate = new Date();
-
-        // Update last login and active status
-        await UserModel(tenant).findByIdAndUpdate(user._id, {
-          lastLogin: currentDate,
-          isActive: true,
-        });
-
-        // Get detailed user information
-        const detailedUserRequest = {
-          query: {
-            tenant: request.query.tenant,
-          },
-          params: {
-            user_id: user._id,
-          },
-        };
-
-        const userDetails = await userUtil.getDetailedUserInfo(
-          detailedUserRequest,
+        // Centralize login logic by using the enhanced utility
+        const enhancedLoginResult = await userUtil.loginWithEnhancedTokens(
+          request,
           next
         );
 
-        if (userDetails.success === true) {
-          return res.status(httpStatus.OK).json({
-            ...user,
-            details: userDetails.data[0],
-          });
+        if (enhancedLoginResult.success) {
+          const { data } = enhancedLoginResult;
+          // Format the response to match the simple legacy format
+          const userResponse = {
+            _id: data._id,
+            userName: data.userName,
+            token: data.token,
+            email: data.email,
+            firstName: data.firstName,
+            lastName: data.lastName,
+          };
+          return res.status(httpStatus.OK).json(userResponse);
         } else {
-          throw new HttpError(
-            "Failed to fetch user details",
-            httpStatus.INTERNAL_SERVER_ERROR
-          );
+          // Pass along the error from the utility
+          return sendResponse(res, enhancedLoginResult);
         }
       } else {
         throw new HttpError(req.auth.message, req.auth.status);
@@ -500,6 +428,43 @@ const userController = {
       handleError(error, next);
     }
   },
+  loginWithDetails: async (req, res, next) => {
+    try {
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      if (req.auth.success === true) {
+        // Centralize login logic by using the enhanced utility
+        const enhancedLoginResult = await userUtil.loginWithEnhancedTokens(
+          request,
+          next
+        );
+
+        if (enhancedLoginResult.success) {
+          const { data } = enhancedLoginResult;
+          // The enhanced response is already very detailed.
+          // We can format it to match the old structure or return the new, richer object.
+          // Returning the new object is an enhancement.
+          const response = {
+            _id: data._id,
+            userName: data.userName,
+            token: data.token,
+            email: data.email,
+            details: data, // The entire enhanced object becomes the 'details'
+          };
+          return res.status(httpStatus.OK).json(response);
+        } else {
+          // Pass along the error from the utility
+          return sendResponse(res, enhancedLoginResult);
+        }
+      } else {
+        throw new HttpError(req.auth.message, req.auth.status);
+      }
+    } catch (error) {
+      handleError(error, next);
+    }
+  },
+
   logout: async (req, res, next) => {
     try {
       logger.info("..................................");

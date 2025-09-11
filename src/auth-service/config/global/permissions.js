@@ -133,12 +133,7 @@ const DEFAULT_ROLE_DEFINITIONS = {
     role_code: "AIRQO_SUPER_ADMIN",
     role_description: "AirQo Super Administrator with all permissions",
     permissions: ALL_PERMISSIONS.filter(
-      (p) =>
-        ![
-          "ACCESS_PLATFORM",
-          "VIEW_AIR_QUALITY_FOR_GROUP",
-          "VIEW_AIR_QUALITY_FOR_NETWORK",
-        ].includes(p)
+      (p) => !["ACCESS_PLATFORM"].includes(p)
     ),
   },
   SYSTEM_ADMIN: {

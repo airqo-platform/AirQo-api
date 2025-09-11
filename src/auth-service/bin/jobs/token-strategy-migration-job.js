@@ -3,6 +3,7 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const { stringify } = require("@utils/common");
+const RoleModel = require("@models/Role");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- token-strategy-migration-job`
@@ -24,13 +25,30 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
   const tenantId = tenant || constants.DEFAULT_TENANT || "airqo";
   try {
     logger.info(
-      "🚀 Starting token strategy migration job to update users to default..."
+      "🚀 Starting data migration job (token strategy, legacy fields & roles)..."
     );
 
+    const deprecatedRoleNames = [
+      "AIRQO_DEFAULT_PRODUCTION",
+      "AIRQO_AIRQO_ADMIN",
+    ];
+    const deprecatedRoles = await RoleModel(tenantId)
+      .find({ role_name: { $in: deprecatedRoleNames } })
+      .select("_id")
+      .lean();
+    const deprecatedRoleIds = deprecatedRoles.map((r) => r._id);
+
     const filter = {
-      preferredTokenStrategy: {
-        $ne: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
-      },
+      $or: [
+        {
+          preferredTokenStrategy: {
+            $ne: constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
+          },
+        },
+        { privilege: { $exists: true } },
+        { "group_roles.role": { $in: deprecatedRoleIds } },
+        { "network_roles.role": { $in: deprecatedRoleIds } },
+      ],
     };
 
     const update = {
@@ -38,13 +56,20 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
         preferredTokenStrategy:
           constants.TOKEN_STRATEGIES.NO_ROLES_AND_PERMISSIONS,
       },
+      $unset: {
+        privilege: "",
+      },
+      $pull: {
+        group_roles: { role: { $in: deprecatedRoleIds } },
+        network_roles: { role: { $in: deprecatedRoleIds } },
+      },
     };
 
     let totalUpdated = 0;
     let hasMore = true;
 
     while (hasMore) {
-      // Find a batch of users with non-default strategies
+      // Find a batch of users needing updates
       const usersToUpdate = await UserModel(tenantId)
         .find(filter)
         .limit(BATCH_SIZE)
@@ -70,9 +95,7 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
           : result.nModified) || 0;
       totalUpdated += updatedCount;
 
-      logger.info(
-        `Batch processed: ${updatedCount} users updated to default strategy.`
-      );
+      logger.info(`Batch processed: ${updatedCount} users updated.`);
     }
 
     if (totalUpdated > 0) {
@@ -80,14 +103,10 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
         `✅ Migration complete! Total users updated: ${totalUpdated}`
       );
     } else {
-      logger.info(
-        "✅ All users are already on the default token strategy. No migration needed."
-      );
+      logger.info("✅ All users are already up-to-date. No migration needed.");
     }
   } catch (error) {
-    logger.error(
-      `🐛🐛 Error during token strategy migration: ${stringify(error)}`
-    );
+    logger.error(`🐛🐛 Error during data migration: ${stringify(error)}`);
   } finally {
     isJobRunning = false;
   }
