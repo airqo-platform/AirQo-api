@@ -53,6 +53,12 @@ if (isDevelopment()) {
         level: "ERROR",
         appender: "errorFile",
       },
+      // Add a log level filter for Slack alerts
+      slackAlerts: {
+        type: "logLevelFilter",
+        appender: "slack",
+        level: "WARN", // Only send WARN, ERROR, FATAL to Slack
+      },
     },
     categories: {
       default: { appenders: [], level: "info" },
@@ -65,16 +71,15 @@ if (isDevelopment()) {
   // Only add Slack appender if configuration is complete
   if (hasSlackConfig) {
     try {
-      config.appenders.alerts = {
+      config.appenders.slack = {
         type: "@log4js-node/slack",
         token: constants.SLACK_TOKEN,
         channel_id: constants.SLACK_CHANNEL,
         username: constants.SLACK_USERNAME,
       };
 
-      // Add alerts to relevant categories
-      config.categories.default.appenders.push("alerts");
-      config.categories.error.appenders.push("alerts");
+      // Add the filtered alerts to the default category. It will catch all levels.
+      config.categories.default.appenders.push("slackAlerts");
 
       console.log("✅ Slack appender configured successfully");
     } catch (error) {
