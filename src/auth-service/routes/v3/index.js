@@ -92,186 +92,33 @@ const routeStatus = {
   failed: [],
 };
 
-// Define all auth service routes - NOTE: paths are relative to /api/v2
+// Define all auth service routes - NOTE: paths are relative to /api/v3
 const authRoutes = [
   {
     path: "/networks",
-    route: "@routes/v2/networks.routes",
+    route: "@routes/v3/networks.routes",
     name: "networks",
     description: "Network management operations",
   },
-  {
-    path: "/permissions",
-    route: "@routes/v2/permissions.routes",
-    name: "permissions",
-    description: "User permission management",
-  },
-  {
-    path: "/favorites",
-    route: "@routes/v2/favorites.routes",
-    name: "favorites",
-    description: "User favorites management",
-  },
-  {
-    path: "/roles",
-    route: "@routes/v2/roles.routes",
-    name: "roles",
-    description: "Role-based access control",
-  },
-  {
-    path: "/admin",
-    route: "@routes/v2/admin.routes",
-    name: "admin",
-    description: "Admin setup utilities (development)",
-  },
-  {
-    path: "/migrations",
-    route: "@routes/v2/migration.routes",
-    name: "migrations",
-    description: "Migration utilities for deprecated fields",
-  },
-  {
-    path: "/inquiries",
-    route: "@routes/v2/inquiries.routes",
-    name: "inquiries",
-    description: "User inquiries and support",
-  },
-  {
-    path: "/analytics",
-    route: "@routes/v2/analytics.routes",
-    name: "analytics",
-    description: "Authentication analytics",
-  },
-  {
-    path: "/candidates",
-    route: "@routes/v2/candidates.routes",
-    name: "candidates",
-    description: "User candidate management",
-  },
-  {
-    path: "/requests",
-    route: "@routes/v2/requests.routes",
-    name: "requests",
-    description: "Authentication requests",
-  },
-  {
-    path: "/defaults",
-    route: "@routes/v2/defaults.routes",
-    name: "defaults",
-    description: "Default settings management",
-  },
-  {
-    path: "/checklist",
-    route: "@routes/v2/checklist.routes",
-    name: "checklist",
-    description: "Authentication checklist operations",
-  },
-  {
-    path: "/preferences",
-    route: "@routes/v2/preferences.routes",
-    name: "preferences",
-    description: "User preferences management",
-  },
+
   {
     path: "/org-requests",
-    route: "@routes/v2/organization-requests.routes",
+    route: "@routes/v3/organization-requests.routes",
     name: "org-requests",
     description: "Organization request management",
   },
-  {
-    path: "/notification-preferences",
-    route: "@routes/v2/notification-preferences.routes",
-    name: "notification-preferences",
-    description: "Notification preferences management",
-  },
-  {
-    path: "/maintenances",
-    route: "@routes/v2/maintenance.routes",
-    name: "maintenances",
-    description: "System maintenance operations",
-  },
-  {
-    path: "/surveys",
-    route: "@routes/v2/surveys.routes",
-    name: "surveys",
-    description: "User surveys management",
-  },
-  {
-    path: "/types",
-    route: "@routes/v2/types.routes",
-    name: "types",
-    description: "Type definitions and management",
-  },
-  {
-    path: "/tokens",
-    route: "@routes/v2/tokens.routes",
-    name: "tokens",
-    description: "Token management and authentication",
-  },
-  {
-    path: "/clients",
-    route: "@routes/v2/clients.routes",
-    name: "clients",
-    description: "OAuth client management",
-  },
-  {
-    path: "/scopes",
-    route: "@routes/v2/scopes.routes",
-    name: "scopes",
-    description: "OAuth scope management",
-  },
-  {
-    path: "/departments",
-    route: "@routes/v2/departments.routes",
-    name: "departments",
-    description: "Department management",
-  },
-  {
-    path: "/transactions",
-    route: "@routes/v2/transactions.routes",
-    name: "transactions",
-    description: "Transaction tracking and management",
-  },
-  {
-    path: "/campaigns",
-    route: "@routes/v2/campaign.routes",
-    name: "campaigns",
-    description: "Campaign management operations",
-  },
+
   {
     path: "/groups",
-    route: "@routes/v2/groups.routes",
+    route: "@routes/v3/groups.routes",
     name: "groups",
     description: "User group management",
   },
-  {
-    path: "/locationHistory",
-    route: "@routes/v2/location-history.routes",
-    name: "locationHistory",
-    description: "User location history tracking",
-  },
-  {
-    path: "/searchHistory",
-    route: "@routes/v2/search-history.routes",
-    name: "searchHistory",
-    description: "User search history management",
-  },
-  {
-    path: "/guests",
-    route: "@routes/v2/guests.routes",
-    name: "guests",
-    description: "Guest user management",
-  },
-  {
-    path: "/tenant-settings",
-    route: "@routes/v2/tenant-settings.routes",
-    name: "tenant-settings",
-    description: "Multi-tenant settings management",
-  },
+
   // MAIN USERS ROUTE - mounted at root "/" - should be last to avoid catching other routes
   {
     path: "/",
-    route: "@routes/v2/users.routes",
+    route: "@routes/v3/users.routes",
     name: "users",
     description: "Core user management (catch-all)",
   },
@@ -310,7 +157,10 @@ router.get("/health", (req, res) => {
       total: totalRoutes,
       loaded: loadedCount,
       failed: failedCount,
-      successRate: `${Math.round((loadedCount / totalRoutes) * 100)}%`,
+      successRate:
+        totalRoutes > 0
+          ? `${Math.round((loadedCount / totalRoutes) * 100)}%`
+          : "N/A",
     },
     loadedRoutes: routeStatus.loaded.map((route) => ({
       name: route.name,
@@ -331,7 +181,7 @@ router.get("/health", (req, res) => {
     environment: process.env.NODE_ENV || "development",
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-    mountPoint: "/api/v2",
+    mountPoint: req.baseUrl || "/api/v3/users",
   });
 });
 
@@ -340,7 +190,7 @@ router.get("/routes", (req, res) => {
   res.json({
     service: "auth-service",
     timestamp: new Date().toISOString(),
-    mountPoint: "/api/v2",
+    mountPoint: req.baseUrl || "/api/v3/users",
     routes: authRoutes.map(({ path, route, name, description }) => {
       const isLoaded = routeStatus.loaded.some((r) => r.name === name);
       const isFailed = routeStatus.failed.some((r) => r.name === name);
@@ -351,7 +201,9 @@ router.get("/routes", (req, res) => {
         module: route,
         description,
         status: isLoaded ? "loaded" : isFailed ? "failed" : "unknown",
-        fullEndpoint: `/api/v2${path === "/" ? "" : path}`,
+        fullEndpoint: `${req.baseUrl || "/api/v3/users"}${
+          path === "/" ? "" : path
+        }`,
         category: getCategoryForRoute(name),
       };
     }),
@@ -408,13 +260,13 @@ if (routeStatus.failed.length > 0) {
     );
   }
 } else {
-  logInfo("🎉 All v2 authentication routes loaded successfully!");
+  logInfo("🎉 All v3 authentication routes loaded successfully!");
 }
 
 // Log the actual endpoint mappings for clarity
 logInfo("📍 Auth service endpoint mappings:");
 routeStatus.loaded.forEach((route) => {
-  const fullPath = `/api/v2${route.path === "/" ? "" : route.path}`;
+  const fullPath = `/api/v3${route.path === "/" ? "" : route.path}`;
   logInfo(`   ${route.name}: ${fullPath}`);
 });
 

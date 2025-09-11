@@ -1,6 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
-const ObjectId = mongoose.Types.ObjectId;
+const ObjectId = mongoose.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -284,11 +284,11 @@ const PreferenceSchema = new mongoose.Schema(
         ref: "site",
       },
     ],
-    selected_sites: [{ type: siteSchema }],
-    selected_grids: [{ type: gridSchema }],
-    selected_devices: [{ type: deviceSchema }],
-    selected_cohorts: [{ type: cohortSchema }],
-    selected_airqlouds: [{ type: airqloudSchema }],
+    selected_sites: [siteSchema],
+    selected_grids: [gridSchema],
+    selected_devices: [deviceSchema],
+    selected_cohorts: [cohortSchema],
+    selected_airqlouds: [airqloudSchema],
     device_ids: [
       {
         type: ObjectId,

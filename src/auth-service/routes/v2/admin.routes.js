@@ -3,17 +3,11 @@ const express = require("express");
 const router = express.Router();
 const createAdminController = require("@controllers/admin.controller");
 const adminValidations = require("@validators/admin.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const constants = require("@config/constants");
+const { enhancedJWTAuth } = require("@middleware/passport");
+const { requirePermissions } = require("@middleware/permissionAuth");
 
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-  next();
-};
+const { validate, headers, pagination } = require("@validators/common");
 
 router.use(headers);
 router.use(adminValidations.pagination);
@@ -21,16 +15,16 @@ router.use(adminValidations.pagination);
 router.post(
   "/super-admin",
   adminValidations.setupSuperAdmin,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SUPER_ADMIN, constants.SYSTEM_ADMIN]),
   createAdminController.setupSuperAdmin
 );
 
 router.post(
   "/super-admin/enhanced",
   adminValidations.enhancedSetupSuperAdmin,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SUPER_ADMIN, constants.SYSTEM_ADMIN]),
   createAdminController.enhancedSetupSuperAdmin
 );
 
@@ -62,8 +56,8 @@ router.get(
 router.get(
   "/system-diagnostics",
   adminValidations.getSystemDiagnostics,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.getSystemDiagnostics
 );
 
@@ -71,8 +65,8 @@ router.post(
   "/bulk-operations",
   adminValidations.bulkAdminOperations,
   adminValidations.batchOperationValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.bulkAdminOperations
 );
 
@@ -80,32 +74,32 @@ router.get(
   "/audit/users",
   adminValidations.auditValidation,
   adminValidations.userSearchValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditUsers
 );
 
 router.get(
   "/audit/roles",
   adminValidations.auditValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditRoles
 );
 
 router.get(
   "/audit/permissions",
   adminValidations.auditValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.AUDIT_VIEW]),
   createAdminController.auditPermissions
 );
 
 router.post(
   "/maintenance/cache-clear",
   adminValidations.cacheManagement,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.clearCache
 );
 
@@ -113,16 +107,24 @@ router.post(
   "/maintenance/database-cleanup",
   adminValidations.databaseCleanup,
   adminValidations.validateProductionSafety,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN, constants.DATABASE_ADMIN]),
   createAdminController.databaseCleanup
+);
+
+router.post(
+  "/maintenance/db/drop-index",
+  enhancedJWTAuth,
+  requirePermissions([constants.DATABASE_ADMIN]),
+  adminValidations.validateProductionSafety,
+  createAdminController.dropIndex
 );
 
 router.get(
   "/migration/deprecated-fields-status",
   adminValidations.auditValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.getDeprecatedFieldsStatus
 );
 
@@ -131,15 +133,15 @@ router.post(
   adminValidations.migrateDeprecatedFields,
   adminValidations.validateProductionSafety,
   adminValidations.batchOperationValidation,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.migrateDeprecatedFields
 );
 
 router.get(
   "/config/current",
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
+  requirePermissions([constants.SYSTEM_ADMIN]),
   createAdminController.getCurrentConfig
 );
 

@@ -1,12 +1,14 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const createUserUtil = require("@utils/user.util");
+const { AbstractTokenFactory } = require("@services/atf.service");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserModel = require("@models/User");
 const AccessTokenModel = require("@models/AccessToken");
 const constants = require("@config/constants");
+const PermissionModel = require("@models/Permission");
 const { mailer, stringify, winstonLogger } = require("@utils/common");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
@@ -26,16 +28,29 @@ const logger = log4js.getLogger(
 
 const setLocalOptions = (req, res, next) => {
   try {
-    const userName = req.body.userName;
+    const rawUserName = req.body && req.body.userName;
+    const userName =
+      typeof rawUserName === "string" ? rawUserName.trim() : rawUserName;
+    if (typeof userName === "string") {
+      // normalize for downstream consumers
+      req.body.userName = userName;
+    }
 
-    if (Validator.isEmpty(userName)) {
+    // The validator library expects a string.
+    // We check for existence first, then validate.
+    if (
+      !userName ||
+      typeof userName !== "string" ||
+      Validator.isEmpty(userName)
+    ) {
       throw new HttpError(
-        "the userName field is missing",
+        "the userName field is missing or empty",
         httpStatus.BAD_REQUEST
       );
     }
 
     const authenticationFields = {};
+    // Use the trimmed value for validation
     if (Validator.isEmail(userName)) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
@@ -87,23 +102,37 @@ const jwtOpts = {
  * @returns
  */
 const useLocalStrategy = (tenant, req, res, next) => {
-  let localOptions = setLocalOptions(req, res, next);
-  logObject("the localOptions", localOptions);
-  if (localOptions.success === true) {
-    logText("success state is true");
-    let { usernameField } = localOptions.authenticationFields;
-    logElement("the username field", usernameField);
-    if (usernameField === "email") {
-      req.body.email = req.body.userName;
-      logText("we are using email");
-      return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField === "userName") {
-      logText("we are using username");
-      return useUsernameWithLocalStrategy(tenant, req, res, next);
+  try {
+    const localOptions = setLocalOptions(req, res, next);
+    logObject("the localOptions", localOptions);
+
+    // If setLocalOptions calls next(error), it returns undefined.
+    // The error is already passed to the express error handler, so we just stop.
+    if (!localOptions) {
+      return;
     }
-  } else if (localOptions.success === false) {
-    logText("success state is false");
-    return localOptions;
+
+    if (localOptions.success === true) {
+      logText("success state is true");
+      const { usernameField } = localOptions.authenticationFields;
+      logElement("the username field", usernameField);
+      if (usernameField === "email") {
+        req.body.email = String(req.body.userName).trim();
+        logText("we are using email");
+        return useEmailWithLocalStrategy(tenant, req, res, next);
+      } else if (usernameField === "userName") {
+        logText("we are using username");
+        req.body.userName = String(req.body.userName).trim();
+        return useUsernameWithLocalStrategy(tenant, req, res, next);
+      }
+    }
+  } catch (error) {
+    logger.error(`Critical error in useLocalStrategy: ${error.message}`);
+    next(
+      new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+        message: error.message,
+      })
+    );
   }
 };
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
@@ -240,6 +269,34 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         }
+
+        // Fire-and-forget permission update
+        (async () => {
+          try {
+            const DEFAULT_PERMISSIONS = constants.DEFAULT_NEW_USER_PERMISSIONS;
+            const existingPermissions = await PermissionModel(
+              tenant.toLowerCase()
+            )
+              .find({ permission: { $in: DEFAULT_PERMISSIONS } })
+              .select("_id")
+              .lean();
+
+            if (existingPermissions.length > 0) {
+              const permissionIds = existingPermissions.map((p) => p._id);
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                {
+                  $addToSet: { permissions: { $each: permissionIds } },
+                }
+              );
+              logger.info(`Updated default permissions for user ${user.email}`);
+            }
+          } catch (permError) {
+            logger.error(
+              `Error updating default permissions for user ${user.email}: ${permError.message}`
+            );
+          }
+        })();
         const currentDate = new Date();
 
         try {
@@ -422,6 +479,34 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             );
           }
         }
+
+        // Fire-and-forget permission update
+        (async () => {
+          try {
+            const DEFAULT_PERMISSIONS = constants.DEFAULT_NEW_USER_PERMISSIONS;
+            const existingPermissions = await PermissionModel(
+              tenant.toLowerCase()
+            )
+              .find({ permission: { $in: DEFAULT_PERMISSIONS } })
+              .select("_id")
+              .lean();
+
+            if (existingPermissions.length > 0) {
+              const permissionIds = existingPermissions.map((p) => p._id);
+              await UserModel(tenant.toLowerCase()).findByIdAndUpdate(
+                user._id,
+                {
+                  $addToSet: { permissions: { $each: permissionIds } },
+                }
+              );
+              logger.info(`Updated default permissions for user ${user.email}`);
+            }
+          } catch (permError) {
+            logger.error(
+              `Error updating default permissions for user ${user.email}: ${permError.message}`
+            );
+          }
+        })();
 
         const currentDate = new Date();
 
@@ -1239,7 +1324,10 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
  * @param {*} next
  */
 const setLocalStrategy = (tenant, req, res, next) => {
-  passport.use("user-local", useLocalStrategy(tenant, req, res, next));
+  const strategy = useLocalStrategy(tenant, req, res, next);
+  if (strategy) {
+    passport.use("user-local", strategy);
+  }
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
@@ -1373,6 +1461,89 @@ function authJWT(req, res, next) {
   passport.authenticate("jwt", { session: false })(req, res, next);
 }
 
+const enhancedJWTAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Authorization header is missing",
+        })
+      );
+    }
+
+    const match = authHeader.match(/^(JWT|Bearer)\s+(.+)$/i);
+    if (!match || !match[2]) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message:
+            "Invalid Authorization header format. Expected 'Bearer <token>' or 'JWT <token>'",
+        })
+      );
+    }
+
+    const token = match[2].trim();
+    if (!token) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Token is missing from Authorization header",
+        })
+      );
+    }
+
+    const tenantRaw =
+      req.query.tenant ||
+      req.body.tenant ||
+      constants.DEFAULT_TENANT ||
+      "airqo";
+    const tenant = String(tenantRaw).toLowerCase();
+
+    const tokenFactory = new AbstractTokenFactory(tenant);
+    const decodedUser = await tokenFactory.decodeToken(token);
+
+    const userId = decodedUser.userId || decodedUser.id || decodedUser._id;
+    if (!userId) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "Invalid token: User identifier not found in token payload",
+        })
+      );
+    }
+
+    const user = await UserModel(tenant).findById(userId).lean();
+
+    if (!user) {
+      return next(
+        new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+          message: "User no longer exists",
+        })
+      );
+    }
+
+    // Attach DB-backed user and token claims separately to avoid shadowing DB values
+    req.user = {
+      ...user,
+      ...decodedUser,
+    };
+
+    next();
+  } catch (error) {
+    logger.error(`Enhanced JWT Auth Error: ${error.message}`);
+    // Provide a more specific error message based on the JWT error type
+    let errorMessage = "Invalid or expired token";
+    if (error.name === "JsonWebTokenError") {
+      errorMessage = `Invalid token: ${error.message}`;
+    } else if (error.name === "TokenExpiredError") {
+      errorMessage = "Token has expired";
+    }
+    return next(
+      new HttpError("Unauthorized", httpStatus.UNAUTHORIZED, {
+        message: errorMessage,
+      })
+    );
+  }
+};
+
 function authenticateJWT(req, res, next) {
   try {
     if (req.body && req.body.user_id) {
@@ -1406,5 +1577,6 @@ module.exports = {
   authGoogle,
   authGoogleCallback,
   authGuest,
+  enhancedJWTAuth,
   authenticateJWT,
 };

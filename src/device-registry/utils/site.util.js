@@ -32,51 +32,247 @@ const createSite = {
   getSiteById: async (req, next) => {
     try {
       const { id } = req.params;
-      const { tenant } = req.query;
+      const { tenant, maxActivities = 500 } = req.query;
 
-      const site = await SiteModel(tenant.toLowerCase())
-        .findById(id)
-        .lean(); // Use lean() for faster query
+      // Use aggregation pipeline to include activities and devices
+      const sitePipeline = await SiteModel(tenant.toLowerCase()).aggregate([
+        {
+          $match: { _id: id },
+        },
+        // Lookup devices associated with the site
+        {
+          $lookup: {
+            from: "devices",
+            localField: "_id",
+            foreignField: "site_id",
+            as: "devices",
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  name: 1,
+                  long_name: 1,
+                  serial_number: 1,
+                  status: 1,
+                  category: 1,
+                  isActive: 1,
+                  network: 1,
+                  description: 1,
+                  createdAt: 1,
+                  latitude: 1,
+                  longitude: 1,
+                },
+              },
+            ],
+          },
+        },
+        // Lookup grids
+        {
+          $lookup: {
+            from: "grids",
+            localField: "grids",
+            foreignField: "_id",
+            as: "grids",
+          },
+        },
+        // Lookup airqlouds
+        {
+          $lookup: {
+            from: "airqlouds",
+            localField: "airqlouds",
+            foreignField: "_id",
+            as: "airqlouds",
+          },
+        },
+        // Lookup all activities for this site
+        {
+          $lookup: {
+            from: "activities",
+            let: { siteId: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$site_id", "$$siteId"] } } },
+              { $sort: { createdAt: -1 } },
+              {
+                $project: {
+                  _id: 1,
+                  activityType: 1,
+                  date: 1,
+                  description: 1,
+                  maintenanceType: 1,
+                  recallType: 1,
+                  nextMaintenance: 1,
+                  createdAt: 1,
+                  tags: 1,
+                  device: 1,
+                  device_id: 1,
+                  site_id: 1,
+                },
+              },
+              ...(maxActivities ? [{ $limit: parseInt(maxActivities) }] : []),
+            ],
+            as: "activities",
+          },
+        },
+        // Add simple computed fields only
+        {
+          $addFields: {
+            total_activities: {
+              $cond: [{ $isArray: "$activities" }, { $size: "$activities" }, 0],
+            },
+            total_devices: {
+              $cond: [{ $isArray: "$devices" }, { $size: "$devices" }, 0],
+            },
+          },
+        },
+      ]);
 
-      if (!site) {
-        throw new HttpError("site not found", httpStatus.NOT_FOUND);
+      if (!sitePipeline || sitePipeline.length === 0) {
+        throw new HttpError("Site not found", httpStatus.NOT_FOUND);
       }
 
-      // Define the device projection
-      const deviceProjection = {
-        _id: 1,
-        cohorts: 1,
-        groups: 1,
-        authRequired: 1,
-        isOnline: 1,
-        device_codes: 1,
-        previous_sites: 1,
-        status: 1,
-        category: 1,
-        isActive: 1,
-        long_name: 1,
-        network: 1,
-        description: 1,
-        serial_number: 1,
-        name: 1,
-        createdAt: 1,
-        latitude: 1,
-        longitude: 1,
-        grids: 1,
-      };
+      const site = sitePipeline[0];
 
-      // Fetch devices associated with the site, applying the projection
-      const DeviceModel = require("@models/Device"); // Import Device model here to avoid circular dependency
-      const devices = await DeviceModel(tenant.toLowerCase())
-        .find({ site_id: id }, deviceProjection)
-        .lean(); // Use lean() for faster query
+      // Process all activity logic in JavaScript for reliability
+      if (site.activities && site.activities.length > 0) {
+        // Group activities by type and get latest for each type
+        const activitiesByType = {};
+        const latestActivitiesByType = {};
 
-      const siteWithDevices = { ...site, devices };
+        site.activities.forEach((activity) => {
+          const type = activity.activityType || "unknown";
+
+          // Count activities by type
+          activitiesByType[type] = (activitiesByType[type] || 0) + 1;
+
+          // Track latest activity by type
+          if (
+            !latestActivitiesByType[type] ||
+            new Date(activity.createdAt) >
+              new Date(latestActivitiesByType[type].createdAt)
+          ) {
+            latestActivitiesByType[type] = activity;
+          }
+        });
+
+        site.activities_by_type = activitiesByType;
+        site.latest_activities_by_type = latestActivitiesByType;
+
+        // Maintain backward compatibility
+        site.latest_deployment_activity =
+          latestActivitiesByType.deployment || null;
+        site.latest_maintenance_activity =
+          latestActivitiesByType.maintenance || null;
+        site.latest_recall_activity =
+          latestActivitiesByType.recall ||
+          latestActivitiesByType.recallment ||
+          null;
+        site.site_creation_activity =
+          latestActivitiesByType["site-creation"] || null;
+
+        // Create device activity summary
+        const deviceActivitySummary = site.devices.map((device) => {
+          const deviceActivities = site.activities.filter(
+            (activity) =>
+              activity.device === device.name ||
+              (activity.device_id &&
+                activity.device_id.toString() === device._id.toString())
+          );
+          return {
+            device_id: device._id,
+            device_name: device.name,
+            activity_count: deviceActivities.length,
+          };
+        });
+        site.device_activity_summary = deviceActivitySummary;
+
+        // Apply field filtering to activities
+        site.activities = site.activities.map((activity) => {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filteredActivity
+          } = activity;
+          return filteredActivity;
+        });
+
+        // Filter latest activities
+        Object.keys(site.latest_activities_by_type).forEach((activityType) => {
+          const activity = site.latest_activities_by_type[activityType];
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = activity;
+          site.latest_activities_by_type[activityType] = filtered;
+        });
+
+        // Filter backward compatibility fields
+        if (site.latest_deployment_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = site.latest_deployment_activity;
+          site.latest_deployment_activity = filtered;
+        }
+
+        if (site.latest_maintenance_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = site.latest_maintenance_activity;
+          site.latest_maintenance_activity = filtered;
+        }
+
+        if (site.latest_recall_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = site.latest_recall_activity;
+          site.latest_recall_activity = filtered;
+        }
+
+        if (site.site_creation_activity) {
+          const {
+            groups,
+            activity_codes,
+            updatedAt,
+            __v,
+            ...filtered
+          } = site.site_creation_activity;
+          site.site_creation_activity = filtered;
+        }
+      } else {
+        site.activities_by_type = {};
+        site.latest_activities_by_type = {};
+        site.device_activity_summary = site.devices.map((device) => ({
+          device_id: device._id,
+          device_name: device.name,
+          activity_count: 0,
+        }));
+        site.latest_deployment_activity = null;
+        site.latest_maintenance_activity = null;
+        site.latest_recall_activity = null;
+        site.site_creation_activity = null;
+      }
 
       return {
         success: true,
-        message: "site details fetched successfully",
-        data: siteWithDevices,
+        message:
+          "Site details with activities and devices fetched successfully",
+        data: site,
         status: httpStatus.OK,
       };
     } catch (error) {

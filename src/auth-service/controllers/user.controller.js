@@ -1,26 +1,51 @@
 const httpStatus = require("http-status");
 const userUtil = require("@utils/user.util");
 const {
-  logObject,
-  logText,
-  logElement,
   HttpError,
   extractErrorsFromRequest,
+  logObject,
+  logText,
+  stringify,
 } = require("@utils/shared");
 const isEmpty = require("is-empty");
 const tokenUtil = require("@utils/token.util");
 const constants = require("@config/constants");
+const { AbstractTokenFactory } = require("@services/atf.service");
 const log4js = require("log4js");
 const UserModel = require("@models/User");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- user controller`);
 
-function handleResponse({
-  result,
-  key = "data",
-  errorKey = "errors",
-  res,
-} = {}) {
-  if (!result) {
+const handleRequest = (req, next) => {
+  const errors = extractErrorsFromRequest(req);
+  if (errors) {
+    next(new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors));
+    return null;
+  }
+  const request = req;
+  request.body = request.body || {};
+  request.query = request.query || {};
+  const defaultTenant = constants.DEFAULT_TENANT || "airqo";
+  request.query.tenant = isEmpty(req.query.tenant)
+    ? defaultTenant
+    : req.query.tenant;
+  return request;
+};
+
+const handleError = (error, next) => {
+  logger.error(`🐛🐛 Internal Server Error`, error?.stack || error);
+  if (error instanceof HttpError) {
+    return next(error);
+  }
+  const expose = process.env.NODE_ENV !== "production";
+  next(
+    new HttpError("Internal Server Error", httpStatus.INTERNAL_SERVER_ERROR, {
+      message: expose ? error.message : "An unexpected error occurred",
+    })
+  );
+};
+
+const sendResponse = (res, result, dataKey = "data") => {
+  if (isEmpty(result) || res.headersSent) {
     return;
   }
 
@@ -28,345 +53,97 @@ function handleResponse({
   const defaultStatus = isSuccess
     ? httpStatus.OK
     : httpStatus.INTERNAL_SERVER_ERROR;
+  const status = result.status || defaultStatus;
 
-  const defaultMessage = isSuccess
-    ? "Operation Successful"
-    : "Internal Server Error";
+  if (isSuccess) {
+    return res.status(status).json({
+      success: true,
+      message: result.message,
+      [dataKey]: result.data,
+    });
+  }
 
-  const status = result.status !== undefined ? result.status : defaultStatus;
-  const message =
-    result.message !== undefined ? result.message : defaultMessage;
-  const data = result.data !== undefined ? result.data : [];
-  const errors = isSuccess
-    ? undefined
-    : result.errors !== undefined
-    ? result.errors
-    : { message: "Internal Server Error" };
+  return res.status(status).json({
+    success: false,
+    message: result.message,
+    errors: result.errors || { message: "Internal Server Error" },
+  });
+};
 
-  return res.status(status).json({ message, [key]: data, [errorKey]: errors });
-}
-
-const createUser = {
+const userController = {
   listStatistics: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { tenant } = request.query;
       const result = await userUtil.listStatistics(tenant, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          users_stats: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: {
-            message: result.errors
-              ? result.errors
-              : { message: "Internal Server Error" },
-          },
-        });
-      }
+      sendResponse(res, result, "users_stats");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listLogs: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.listLogs(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      } else {
-        handleResponse({
-          result,
-          key: "users_stats",
-          res,
-        });
-      }
+      sendResponse(res, result, "users_stats");
     } catch (error) {
-      logObject("error", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   getUserStats: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.getUserStats(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      logObject("result", result);
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          users_stats: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
+      sendResponse(res, result, "users_stats");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listCache: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.listCache(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          users: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
+      sendResponse(res, result, "users");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   list: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.list(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          users: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
+      sendResponse(res, result, "users");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   listUsersAndAccessRequests: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.listUsersAndAccessRequests(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          users: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
+      sendResponse(res, result, "users");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   googleCallback: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
+      if (errors)
+        return next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const userDetails = await req.user.toAuthJSON();
-      logObject("userDetails", userDetails);
       const token = userDetails.token;
-      logger.info(`the user token after login with Google is : ${token}`);
+      logger.info("Google login succeeded for user", { userId: req.user._id });
 
       // Update user fields
       const currentDate = new Date();
@@ -418,139 +195,39 @@ const createUser = {
        * const token = Cookies.get("access_token");
        */
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verify: async (req, res, next) => {
     try {
-      logText("..................................");
-      logText("user verify......");
       if (!res.headersSent) {
         res.status(httpStatus.OK).send("this token is valid");
         return;
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verifyEmail: async (req, res, next) => {
     try {
-      logText("we are verifying the email.....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      logger.info("we are verifying the email.....");
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await tokenUtil.verifyEmail(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "email verified sucessfully",
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   deleteMobileUserData: async (req, res, next) => {
     try {
-      logText("We are deleting the app data.....");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      logger.info("We are deleting the app data.....");
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.deleteMobileUserData(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: "Data deleted sucessfully",
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "internal server errors" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   emailReport: async (req, res, next) => {
@@ -595,644 +272,199 @@ const createUser = {
         );
       }
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
       request.pdfFile = pdfFile; // Attach files to the request object
       request.csvFile = csvFile;
-
       const result = await userUtil.emailReport(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success) {
-        const status = result.status || httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: "Report Emailed successfully",
-        });
-      } else {
-        const status = result.status || httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors || { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
   lookUpFirebaseUser: async (req, res, next) => {
     try {
       const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
+      if (errors)
+        return next(
           new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
         );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.lookUpFirebaseUser(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result[0].success === true) {
-        const status = result[0].status ? result[0].status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result[0].message,
-          user: result[0].data,
-          exists: true,
-          status: "exists",
-        });
-      } else if (result[0].success === false) {
-        const status = result[0].status
-          ? result[0].status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: "User does not exist",
-          exists: false,
-          errors: result[0].errors
-            ? result[0].errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result[0], "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   syncAnalyticsAndMobile: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.syncAnalyticsAndMobile(request, next);
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json(result);
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: "Unable to sync Analytics and Mobile Accounts",
-          exists: false,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   signUpWithFirebase: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.signUpWithFirebase(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          user: result.data,
-          exists: true,
-          status: "exists",
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: "Unable to signup with Firebase",
-          exists: false,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   loginWithFirebase: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.loginWithFirebase(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          ...result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: "Unable to login with Firebase",
-          exists: false,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   verifyFirebaseCustomToken: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.verifyFirebaseCustomToken(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          ...result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: "Unable to login with Firebase",
-          exists: false,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   createFirebaseUser: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.createFirebaseUser(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result[0].success === true) {
-        const status = result[0].status ? result[0].status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result[0].message,
-          user: result[0].data[0],
-          exists: true,
-          status: "exists",
-        });
-      } else if (result[0].success === false) {
-        const status = result[0].status
-          ? result[0].status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result[0].message,
-          errors: result[0].errors
-            ? result[0].errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result[0], "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   sendFeedback: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.sendFeedback(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "successfully responded to email",
-          status,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          status,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   forgot: async (req, res, next) => {
-    logText("...........................................");
-    logText("forgot password...");
+    logger.info("...........................................");
+    logger.info("forgot password...");
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.forgotPassword(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          response: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result, "response");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   register: async (req, res, next) => {
-    logText("..................................................");
-    logText("register user.............");
+    logger.info("..................................................");
+    logger.info("register user.............");
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.register(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          user: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Errors" },
-          error: result.error ? result.error : "Internal Server Errors",
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   create: async (req, res, next) => {
-    logText("..................................................");
-    logText("create user.............");
+    logger.info("..................................................");
+    logger.info("create user.............");
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.create(request, next);
-
-      // Check if result exists and headers haven't been sent
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          user: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : [{ message: "Internal Server Errors" }],
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   login: async (req, res, next) => {
-    logText("..................................");
-    logText("user login......");
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const { tenant } = request.query;
 
       if (req.auth.success === true) {
-        const user = await req.user.toAuthJSON();
+        // Use the user's preferred strategy or a default
+        const strategy =
+          req.user.preferredTokenStrategy || constants.TOKEN_STRATEGIES.LEGACY;
+
+        logObject("Preferred token strategy", strategy);
+
+        const tokenFactory = new AbstractTokenFactory(tenant);
+
+        // We need the populated user object for some token strategies
+        const populatedUser = await userUtil._populateUserDataManually(
+          req.user,
+          tenant
+        );
+
+        const token = await tokenFactory.createToken(populatedUser, strategy);
+
+        const user = {
+          _id: req.user._id,
+          userName: req.user.userName,
+          token: `JWT ${token}`,
+          email: req.user.email,
+          firstName: req.user.firstName,
+          lastName: req.user.lastName,
+        };
         return res.status(httpStatus.OK).json(user);
       } else {
-        if (req.auth.error) {
-          throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
-        }
-        throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
+        throw new HttpError(req.auth.message, req.auth.status);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   loginWithDetails: async (req, res, next) => {
-    logText("..................................");
-    logText("user login with details......");
+    logger.info("..................................");
+    logger.info("user login with details......");
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
+      const request = handleRequest(req, next);
+      if (!request) return;
 
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const { tenant } = request.query;
 
       if (req.auth.success === true) {
-        const user = await req.user.toAuthJSON();
+        const tokenFactory = new AbstractTokenFactory(tenant);
+        const strategy =
+          req.user.preferredTokenStrategy || constants.TOKEN_STRATEGIES.LEGACY;
+
+        // We need the populated user object for some token strategies
+        const populatedUser = await userUtil._populateUserDataManually(
+          req.user,
+          tenant
+        );
+
+        const token = await tokenFactory.createToken(populatedUser, strategy);
+        const user = {
+          _id: req.user._id,
+          userName: req.user.userName,
+          token: `JWT ${token}`,
+          email: req.user.email,
+        };
+
         const currentDate = new Date();
 
         // Update last login and active status
-        await UserModel("airqo").findByIdAndUpdate(user._id, {
+        await UserModel(tenant).findByIdAndUpdate(user._id, {
           lastLogin: currentDate,
           isActive: true,
         });
@@ -1264,41 +496,18 @@ const createUser = {
           );
         }
       } else {
-        if (req.auth.error) {
-          throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
-        }
-        throw new HttpError(req.auth.message, httpStatus.BAD_REQUEST);
+        throw new HttpError(req.auth.message, req.auth.status);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   logout: async (req, res, next) => {
     try {
-      logText("..................................");
-      logText("user logout......");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("..................................");
+      logger.info("user logout......");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       return res
         .status(httpStatus.NOT_IMPLEMENTED)
@@ -1306,7 +515,6 @@ const createUser = {
 
       req.logout((err) => {
         if (err) {
-          logObject("err,err");
           logger.error(`Error during logout: ${JSON.stringify(err)}`);
           next(
             new HttpError(
@@ -1323,33 +531,15 @@ const createUser = {
       });
     } catch (error) {
       logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   guest: (req, res, next) => {
     try {
-      logText("..................................");
-      logText("user guest login......");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      logger.info("..................................");
+      logger.info("user guest login......");
+      const request = handleRequest(req, next);
+      if (!request) return;
       req.session.guest = true;
       req.session.save((err) => {
         if (err) {
@@ -1363,345 +553,78 @@ const createUser = {
           .json({ success: true, guestId: req.user.guestId });
       });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   delete: async (req, res, next) => {
     try {
-      logText(".................................................");
-      logText("inside delete user............");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      logger.info(".................................................");
+      logger.info("inside delete user............");
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.delete(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message ? result.message : "Operation Successful",
-          user: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message ? result.message : "Internal Server Error",
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   update: async (req, res, next) => {
     try {
-      logText(".................................................");
-      logText("inside user update................");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      logger.info(".................................................");
+      logger.info("inside user update................");
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.update(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          user: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   loginInViaEmail: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       request.query.purpose = "login";
       const result = await userUtil.generateSignInWithEmailLink(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          login_link: result.data.link,
-          token: result.data.token,
-          email: result.data.email,
-          emailLinkCode: result.data.emailLinkCode,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   emailAuth: async (req, res, next) => {
     try {
-      const { params } = req;
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
+      const { params } = request;
       request.query.purpose = "auth";
       if (params.purpose) {
         request.query.purpose = params.purpose;
       }
-
       const result = await userUtil.generateSignInWithEmailLink(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          token: result.data.token,
-          auth_link: result.data.link,
-          auth_code: result.data.emailLinkCode,
-          email: result.data.email,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result);
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateForgottenPassword: async (req, res, next) => {
     try {
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.updateForgottenPassword(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "successfully updated the password",
-          user: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   updateKnownPassword: async (req, res, next) => {
     try {
-      logText("update known password............");
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        next(
-          new HttpError("bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-        return;
-      }
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
-
+      logger.info("update known password............");
+      const request = handleRequest(req, next);
+      if (!request) return;
       const result = await userUtil.updateKnownPassword(request, next);
-
-      if (isEmpty(result) || res.headersSent) {
-        return;
-      }
-
-      if (result.success === true) {
-        const status = result.status ? result.status : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: result.message,
-          user: result.data,
-        });
-      } else if (result.success === false) {
-        const status = result.status
-          ? result.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: result.message,
-          errors: result.errors
-            ? result.errors
-            : { message: "Internal Server Error" },
-        });
-      }
+      sendResponse(res, result, "user");
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   resetPasswordRequest: async (req, res, next) => {
@@ -1729,15 +652,7 @@ const createUser = {
         .status(httpStatus.OK)
         .json({ success: true, message: result.message });
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   resetPassword: async (req, res, next) => {
@@ -1771,15 +686,7 @@ const createUser = {
         .json({ success: true, message: result.message });
     } catch (error) {
       logObject("error in controller", error);
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
 
@@ -1815,15 +722,7 @@ const createUser = {
         next(new HttpError(result.message, httpStatus.BAD_REQUEST));
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
 
@@ -1855,15 +754,7 @@ const createUser = {
         next(new HttpError(result.message, httpStatus.BAD_REQUEST));
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
 
@@ -1910,15 +801,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   reSubscribeToNewsLetter: async (req, res, next) => {
@@ -1964,15 +847,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   unSubscribeFromNewsLetter: async (req, res, next) => {
@@ -2018,15 +893,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   /***************************** notifications  ***********************/
@@ -2070,15 +937,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   unSubscribeFromNotifications: async (req, res, next) => {
@@ -2121,15 +980,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   checkNotificationStatus: async (req, res, next) => {
@@ -2172,15 +1023,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
-      return;
+      handleError(error, next);
     }
   },
   getOrganizationBySlug: async (req, res, next) => {
@@ -2223,14 +1066,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2274,14 +1110,7 @@ const createUser = {
         });
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
   cleanup: async (req, res, next) => {
@@ -2317,16 +1146,7 @@ const createUser = {
         return res.status(status).json(result);
       }
     } catch (error) {
-      logger.error(`🐛🐛 Internal Server Error ${error.message}`);
-      next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          {
-            message: error.message,
-          }
-        )
-      );
+      handleError(error, next);
     }
   },
   /**
@@ -2335,21 +1155,10 @@ const createUser = {
    */
   loginEnhanced: async (req, res, next) => {
     try {
-      logText("Enhanced login endpoint called");
-      logObject("Request body", req.body);
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Enhanced login endpoint called");
+      logger.info(`Request body -- ${JSON.stringify(req.body)}`);
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       // Add debug info flag if in development
       if (
@@ -2369,25 +1178,17 @@ const createUser = {
       const result = await userUtil.loginWithEnhancedTokens(request, next);
 
       if (result.success) {
-        logText("Enhanced login successful");
+        logger.info("Enhanced login successful");
         console.log("✅ Enhanced login successful in controller");
       } else {
-        logText("Enhanced login failed");
+        logger.info("Enhanced login failed");
         console.log("❌ Enhanced login failed in controller:", result.message);
       }
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Enhanced login controller error: ${error.message}`);
-      logObject("Enhanced login error", error);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2397,20 +1198,9 @@ const createUser = {
    */
   generateOptimizedToken: async (req, res, next) => {
     try {
-      logText("Generate optimized token endpoint called");
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Generate optimized token endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       console.log("🔧 Token generation requested:", {
         userId: request.body.userId,
@@ -2420,17 +1210,10 @@ const createUser = {
 
       const result = await userUtil.generateOptimizedToken(request, next);
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Token generation controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2440,20 +1223,9 @@ const createUser = {
    */
   refreshPermissions: async (req, res, next) => {
     try {
-      logText("Refresh permissions endpoint called");
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Refresh permissions endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       console.log("🔄 Permission refresh requested:", {
         userId: request.body.userId || request.user?._id,
@@ -2468,17 +1240,10 @@ const createUser = {
 
       const result = await userUtil.refreshUserPermissions(request, next);
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Permission refresh controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2488,20 +1253,9 @@ const createUser = {
    */
   analyzeTokenStrategies: async (req, res, next) => {
     try {
-      logText("Token analysis endpoint called");
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Token analysis endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       // Get userId from params
       request.body.userId = req.params.userId || req.user?._id;
@@ -2521,17 +1275,10 @@ const createUser = {
 
       const result = await userUtil.analyzeTokenStrategies(request, next);
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Token analysis controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2541,20 +1288,9 @@ const createUser = {
    */
   getContextPermissions: async (req, res, next) => {
     try {
-      logText("Context permissions endpoint called");
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Context permissions endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       // Get parameters from various sources
       request.body.userId =
@@ -2579,17 +1315,10 @@ const createUser = {
 
       const result = await userUtil.getUserContextPermissions(request, next);
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Context permissions controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2599,20 +1328,9 @@ const createUser = {
    */
   updateTokenStrategy: async (req, res, next) => {
     try {
-      logText("Update token strategy endpoint called");
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Update token strategy endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       // Use userId from body or from authenticated user
       if (!request.body.userId && request.user?._id) {
@@ -2643,19 +1361,12 @@ const createUser = {
 
       const result = await userUtil.updateTokenStrategy(request, next);
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(
         `🐛 Token strategy update controller error: ${error.message}`
       );
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 
@@ -2665,28 +1376,27 @@ const createUser = {
    */
   getEnhancedProfile: async (req, res, next) => {
     try {
-      logText("Enhanced profile endpoint called");
+      logger.info("Enhanced profile endpoint called");
 
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
+      // Check authentication first before handleRequest
       const userId = req.user?._id;
       if (!userId) {
+        logger.warn("Enhanced profile accessed without authentication", {
+          headers: req.headers.authorization ? "token present" : "no token",
+          user: req.user ? "user object exists" : "no user object",
+        });
+
         return next(
           new HttpError("Authentication required", httpStatus.UNAUTHORIZED, {
-            auth: "User must be authenticated",
+            auth: "User must be authenticated to access profile",
           })
         );
       }
 
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      const tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      const request = handleRequest(req, next);
+      if (!request) return;
+
+      const { tenant } = request.query;
 
       console.log("👤 Enhanced profile requested:", {
         userId,
@@ -2694,18 +1404,23 @@ const createUser = {
       });
 
       // Get user permissions context
-      const request = {
-        body: { userId },
+      const permissionsRequest = {
+        body: { userId }, // Use body instead of params for getUserContextPermissions
         query: { tenant },
       };
 
       const permissionsResult = await userUtil.getUserContextPermissions(
-        request,
+        permissionsRequest,
         next
       );
 
       if (!permissionsResult.success) {
-        return handleResponse({ result: permissionsResult, res });
+        logger.error("Failed to get user permissions for profile", {
+          userId,
+          tenant,
+          error: permissionsResult.message,
+        });
+        return sendResponse(res, permissionsResult);
       }
 
       const UserModel = require("@models/User");
@@ -2717,6 +1432,7 @@ const createUser = {
         .lean();
 
       if (!basicUser) {
+        logger.warn("User not found for enhanced profile", { userId, tenant });
         return next(
           new HttpError("User not found", httpStatus.NOT_FOUND, {
             user: "User profile not found",
@@ -2797,13 +1513,13 @@ const createUser = {
         // Context summary
         contextSummary: {
           totalPermissions:
-            permissionsResult.data.permissions.allPermissions?.length || 0,
+            permissionsResult.data.permissions?.allPermissions?.length || 0,
           groupMemberships:
-            permissionsResult.data.permissions.groupMemberships?.length || 0,
+            permissionsResult.data.permissions?.groupMemberships?.length || 0,
           networkMemberships:
-            permissionsResult.data.permissions.networkMemberships?.length || 0,
+            permissionsResult.data.permissions?.networkMemberships?.length || 0,
           isSuperAdmin:
-            permissionsResult.data.permissions.isSuperAdmin || false,
+            permissionsResult.data.permissions?.isSuperAdmin || false,
         },
       };
 
@@ -2814,15 +1530,23 @@ const createUser = {
         status: httpStatus.OK,
       };
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Enhanced profile controller error: ${error.message}`);
+      console.error("❌ Enhanced profile error details:", {
+        error: error.message,
+        stack: error.stack?.substring(0, 500),
+        userId: req.user?._id,
+        hasAuth: !!req.headers.authorization,
+      });
 
       return next(
         new HttpError(
           "Internal Server Error",
           httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
+          {
+            message: "Failed to retrieve enhanced profile",
+          }
         )
       );
     }
@@ -2834,20 +1558,9 @@ const createUser = {
    */
   loginLegacyCompatible: async (req, res, next) => {
     try {
-      logText("Legacy compatible login endpoint called");
-
-      const errors = extractErrorsFromRequest(req);
-      if (errors) {
-        return next(
-          new HttpError("Bad request errors", httpStatus.BAD_REQUEST, errors)
-        );
-      }
-
-      const request = req;
-      const defaultTenant = constants.DEFAULT_TENANT || "airqo";
-      request.query.tenant = isEmpty(req.query.tenant)
-        ? defaultTenant
-        : req.query.tenant;
+      logger.info("Legacy compatible login endpoint called");
+      const request = handleRequest(req, next);
+      if (!request) return;
 
       // Force legacy strategy for backward compatibility
       request.body.preferredStrategy = "legacy";
@@ -2885,22 +1598,15 @@ const createUser = {
           data: legacyResponse,
         };
 
-        return handleResponse({ result: legacyResult, res });
+        return sendResponse(res, legacyResult);
       }
 
-      return handleResponse({ result, res });
+      return sendResponse(res, result);
     } catch (error) {
       logger.error(`🐛 Legacy login controller error: ${error.message}`);
-
-      return next(
-        new HttpError(
-          "Internal Server Error",
-          httpStatus.INTERNAL_SERVER_ERROR,
-          { message: error.message }
-        )
-      );
+      handleError(error, next);
     }
   },
 };
 
-module.exports = createUser;
+module.exports = userController;

@@ -3,57 +3,44 @@ const express = require("express");
 const router = express.Router();
 const createScopeController = require("@controllers/scope.controller");
 const scopeValidations = require("@validators/scopes.validators");
-const { setJWTAuth, authJWT } = require("@middleware/passport");
+const { enhancedJWTAuth } = require("@middleware/passport");
+const { validate, headers, pagination } = require("@validators/common");
 
-const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
-};
 router.use(headers);
 router.use(scopeValidations.pagination);
 
 router.get(
   "/",
   scopeValidations.list,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createScopeController.list
 );
 
 router.post(
   "/",
   scopeValidations.create,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createScopeController.create
 );
 
 router.put(
   "/:scope_id",
   scopeValidations.update,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createScopeController.update
 );
 
 router.delete(
   "/:scope_id",
   scopeValidations.deleteScope,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createScopeController.delete
 );
 
 router.get(
   "/:scope_id",
   scopeValidations.getById,
-  setJWTAuth,
-  authJWT,
+  enhancedJWTAuth,
   createScopeController.list
 );
 

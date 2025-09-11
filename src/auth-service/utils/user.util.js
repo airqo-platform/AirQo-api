@@ -40,11 +40,8 @@ const {
   generateDateFormatWithoutHrs,
 } = require("@utils/common");
 
-const EnhancedRBACService = require("@services/enhancedRBAC.service");
-const {
-  EnhancedTokenFactory,
-  TOKEN_STRATEGIES,
-} = require("@services/enhancedTokenFactory.service");
+const RBACService = require("@services/rbac.service");
+const { AbstractTokenFactory } = require("@services/atf.service");
 
 function generateNumericToken(length) {
   const charset = "0123456789";
@@ -4731,15 +4728,81 @@ const createUserModule = {
     }
   },
   /**
+   * Ensures a user has the default AirQo role.
+   * This is a non-blocking operation, intended to be called in a fire-and-forget manner.
+   */
+  ensureDefaultAirqoRole: async (user, tenant) => {
+    try {
+      const airqoGroup = await GroupModel(tenant)
+        .findOne({ grp_title: { $regex: /^airqo$/i } })
+        .lean();
+      if (!airqoGroup) {
+        logger.warn(
+          `[Default Role] AirQo group not found for tenant ${tenant}.`
+        );
+        return;
+      }
+
+      const defaultRole = await RoleModel(tenant)
+        .findOne({ role_code: "AIRQO_DEFAULT_USER" })
+        .lean();
+      if (!defaultRole) {
+        logger.warn(
+          `[Default Role] AIRQO_DEFAULT_USER role not found for tenant ${tenant}.`
+        );
+        return;
+      }
+
+      const roles = Array.isArray(user.group_roles) ? user.group_roles : [];
+      const userHasDefaultRole = roles.some(
+        (gr) =>
+          gr.role &&
+          gr.group &&
+          gr.role.toString() === defaultRole._id.toString() &&
+          gr.group.toString() === airqoGroup._id.toString()
+      );
+
+      if (!userHasDefaultRole) {
+        await UserModel(tenant).findByIdAndUpdate(user._id, {
+          $addToSet: {
+            group_roles: {
+              group: airqoGroup._id,
+              role: defaultRole._id,
+              userType: "user",
+            },
+          },
+        });
+        logger.info(
+          `[Default Role] Assigned AIRQO_DEFAULT_USER role to user ${user.email}`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `[Default Role] Error ensuring default AirQo role for ${user.email}: ${error.message}`
+      );
+    }
+  },
+
+  /**
+   * Determines the effective token strategy for a user.
+   * Priority: Request override > User preference > System default.
+   */
+  _getEffectiveTokenStrategy: (user, preferredStrategyFromRequest) => {
+    return (
+      preferredStrategyFromRequest ||
+      user.preferredTokenStrategy ||
+      constants.TOKEN_STRATEGIES.LEGACY
+    );
+  },
+  /**
    * Enhanced login with comprehensive role/permission data and optimized tokens
    */
   loginWithEnhancedTokens: async (request, next) => {
     try {
-      const { email, password, tenant, preferredStrategy, includeDebugInfo } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { email, password, preferredStrategy, includeDebugInfo } = body;
+      const { tenant } = query;
 
       console.log("🔐 ENHANCED LOGIN:", {
         email,
@@ -4769,10 +4832,10 @@ const createUserModule = {
       if (!user) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            email: "No account found with this email address",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
@@ -4782,10 +4845,10 @@ const createUserModule = {
       if (!isPasswordValid) {
         return {
           success: false,
-          message: "Invalid credentials",
+          message: "Invalid login credentials provided",
           status: httpStatus.UNAUTHORIZED,
           errors: {
-            password: "Incorrect password",
+            credentials: "The email or password you entered is incorrect.",
           },
         };
       }
@@ -4812,7 +4875,7 @@ const createUserModule = {
       }
 
       // Initialize RBAC service
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       // Get comprehensive permission data
       console.log("🔍 Getting comprehensive permissions for user:", user._id);
@@ -4829,15 +4892,15 @@ const createUserModule = {
       });
 
       // Determine token strategy
-      const strategy =
-        preferredStrategy ||
-        user.preferredTokenStrategy ||
-        TOKEN_STRATEGIES.STANDARD;
+      const strategy = createUserModule._getEffectiveTokenStrategy(
+        user,
+        preferredStrategy
+      );
 
       console.log("🎯 Using token strategy:", strategy);
 
       // Initialize token factory
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
 
       const populatedUser = await createUserModule._populateUserDataManually(
         user,
@@ -4859,26 +4922,27 @@ const createUserModule = {
       }
 
       // Update login statistics
-      const currentDate = new Date();
-      try {
-        await UserModel(dbTenant).findOneAndUpdate(
-          { _id: user._id },
-          {
-            $set: { lastLogin: currentDate, isActive: true },
-            $inc: { loginCount: 1 },
-            ...(user.analyticsVersion !== 3 && user.verified === false
-              ? { $set: { verified: true } }
-              : {}),
-          },
-          {
-            new: true,
-            upsert: false,
-            runValidators: true,
-          }
-        );
-      } catch (updateError) {
-        logger.error(`Login stats update error: ${updateError.message}`);
-      }
+      (async () => {
+        try {
+          const currentDate = new Date();
+          await UserModel(dbTenant).findOneAndUpdate(
+            { _id: user._id },
+            {
+              $set: { lastLogin: currentDate, isActive: true },
+              $inc: { loginCount: 1 },
+              ...(user.analyticsVersion !== 3 && user.verified === false
+                ? { $set: { verified: true } }
+                : {}),
+            },
+            { new: true, upsert: false, runValidators: true }
+          );
+          await createUserModule.ensureDefaultAirqoRole(user, dbTenant);
+        } catch (updateError) {
+          logger.error(
+            `Login stats/roles update error: ${updateError.message}`
+          );
+        }
+      })();
 
       // Build comprehensive auth response
       const authResponse = {
@@ -4929,7 +4993,7 @@ const createUserModule = {
             : null,
 
         // Login metadata
-        lastLogin: currentDate,
+        lastLogin: new Date(),
         loginCount: (user.loginCount || 0) + 1,
 
         // Token metadata
@@ -4956,7 +5020,7 @@ const createUserModule = {
                 ),
               },
               tokenCompressionRatio:
-                strategy !== TOKEN_STRATEGIES.LEGACY
+                strategy !== constants.TOKEN_STRATEGIES.LEGACY
                   ? (
                       (1 - Buffer.byteLength(token, "utf8") / 2000) *
                       100
@@ -5141,48 +5205,59 @@ const createUserModule = {
       if (userObj.group_roles?.length > 0) {
         userObj.group_roles = userObj.group_roles.map((groupRole) => ({
           ...groupRole,
-          group: groupsMap.get(groupRole.group.toString()) || groupRole.group,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(groupRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return groupRole.role;
-              })()
-            : groupRole.role,
+          group: groupRole.group
+            ? groupsMap.get(groupRole.group.toString()) || groupRole.group
+            : null,
+          role:
+            RoleModel && groupRole.role
+              ? (() => {
+                  const role = rolesMap.get(groupRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return groupRole.role;
+                })()
+              : groupRole.role,
         }));
       }
 
       if (userObj.network_roles?.length > 0) {
         userObj.network_roles = userObj.network_roles.map((networkRole) => ({
           ...networkRole,
-          network:
-            networksMap.get(networkRole.network.toString()) ||
-            networkRole.network,
-          role: RoleModel
-            ? (() => {
-                const role = rolesMap.get(networkRole.role.toString());
-                if (role) {
-                  return {
-                    ...role,
-                    role_permissions: rolePermissions.filter((rp) =>
-                      role.role_permissions?.some(
-                        (rpId) => rpId.toString() === rp._id.toString()
-                      )
-                    ),
-                  };
-                }
-                return networkRole.role;
-              })()
-            : networkRole.role,
+          network: networkRole.network
+            ? networksMap.get(networkRole.network.toString()) ||
+              networkRole.network
+            : null,
+          role:
+            RoleModel && networkRole.role
+              ? (() => {
+                  const role = rolesMap.get(networkRole.role.toString());
+                  if (role) {
+                    return {
+                      ...role,
+                      role_permissions: role.role_permissions
+                        ? rolePermissions.filter((rp) =>
+                            role.role_permissions.some(
+                              (rpId) =>
+                                rpId && rpId.toString() === rp._id.toString()
+                            )
+                          )
+                        : [],
+                    };
+                  }
+                  return networkRole.role;
+                })()
+              : networkRole.role,
         }));
       }
 
@@ -5204,22 +5279,14 @@ const createUserModule = {
    */
   generateOptimizedToken: async (request, next) => {
     try {
-      const { userId, tenant, strategy, options } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
-
-      if (!userId) {
-        return {
-          success: false,
-          message: "User ID is required",
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy, options } = body;
+      const { tenant } = query;
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const tokenStrategy = strategy || TOKEN_STRATEGIES.STANDARD;
+      const tokenStrategy =
+        strategy || constants.TOKEN_STRATEGIES.ULTRA_COMPRESSED;
 
       const user = await UserModel(dbTenant).findById(userId).lean();
 
@@ -5237,7 +5304,7 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
       const token = await tokenFactory.createToken(
         populatedUser,
         tokenStrategy,
@@ -5273,11 +5340,10 @@ const createUserModule = {
    */
   refreshUserPermissions: async (request, next) => {
     try {
-      const { userId, tenant, strategy } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5290,7 +5356,7 @@ const createUserModule = {
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
 
       // Clear cache for this user
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
       rbacService.clearUserCache(userId);
 
       // Get fresh permissions
@@ -5311,7 +5377,7 @@ const createUserModule = {
           const populatedUser =
             await createUserModule._populateUserDataManually(user, dbTenant);
 
-          const tokenFactory = new EnhancedTokenFactory(dbTenant);
+          const tokenFactory = new AbstractTokenFactory(dbTenant);
           newToken = await tokenFactory.createToken(populatedUser, strategy);
           tokenInfo = {
             token: `JWT ${newToken}`,
@@ -5348,11 +5414,10 @@ const createUserModule = {
    */
   analyzeTokenStrategies: async (request, next) => {
     try {
-      const { userId, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5380,8 +5445,9 @@ const createUserModule = {
         dbTenant
       );
 
-      const tokenFactory = new EnhancedTokenFactory(dbTenant);
-      const strategies = Object.values(TOKEN_STRATEGIES);
+      const tokenFactory = new AbstractTokenFactory(dbTenant);
+      // Fix: Use constants.TOKEN_STRATEGIES instead of TOKEN_STRATEGIES
+      const strategies = Object.values(constants.TOKEN_STRATEGIES);
       const results = {};
       let baselineSize = 0;
 
@@ -5390,7 +5456,8 @@ const createUserModule = {
           const token = await tokenFactory.createToken(populatedUser, strategy);
           const size = Buffer.byteLength(token, "utf8");
 
-          if (strategy === TOKEN_STRATEGIES.LEGACY) {
+          // Fix: Use constants.TOKEN_STRATEGIES.LEGACY
+          if (strategy === constants.TOKEN_STRATEGIES.LEGACY) {
             baselineSize = size;
           }
 
@@ -5446,11 +5513,10 @@ const createUserModule = {
    */
   getUserContextPermissions: async (request, next) => {
     try {
-      const { userId, contextId, contextType, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, contextId, contextType } = body;
+      const { tenant } = query;
 
       if (!userId) {
         return {
@@ -5461,7 +5527,7 @@ const createUserModule = {
       }
 
       const dbTenant = tenant || constants.DEFAULT_TENANT || "airqo";
-      const rbacService = new EnhancedRBACService(dbTenant);
+      const rbacService = new RBACService(dbTenant);
 
       let permissions;
       if (contextId && contextType) {
@@ -5506,11 +5572,10 @@ const createUserModule = {
    */
   updateTokenStrategy: async (request, next) => {
     try {
-      const { userId, strategy, tenant } = {
-        ...request.body,
-        ...request.query,
-        ...request.params,
-      };
+      const body = request.body || {};
+      const query = request.query || {};
+      const { userId, strategy } = body;
+      const { tenant } = query;
 
       if (!userId || !strategy) {
         return {
@@ -5520,15 +5585,16 @@ const createUserModule = {
         };
       }
 
-      if (!Object.values(TOKEN_STRATEGIES).includes(strategy)) {
+      // Fix: Use constants.TOKEN_STRATEGIES instead ofconstants.TOKEN_STRATEGIES from ATF service
+      if (!Object.values(constants.TOKEN_STRATEGIES).includes(strategy)) {
         return {
           success: false,
           message: "Invalid token strategy",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            strategy: `Must be one of: ${Object.values(TOKEN_STRATEGIES).join(
-              ", "
-            )}`,
+            strategy: `Must be one of: ${Object.values(
+              constants.TOKEN_STRATEGIES
+            ).join(", ")}`,
           },
         };
       }
@@ -5585,8 +5651,9 @@ const createUserModule = {
     const recommended =
       strategies.find(
         ([strategy, _]) =>
-          strategy === TOKEN_STRATEGIES.COMPRESSED ||
-          strategy === TOKEN_STRATEGIES.HASH_BASED
+          // Fix: Use constants.TOKEN_STRATEGIES
+          strategy === constants.TOKEN_STRATEGIES.COMPRESSED ||
+          strategy === constants.TOKEN_STRATEGIES.HASH_BASED
       ) || smallest;
 
     return {
@@ -5914,4 +5981,8 @@ const createUserModule = {
   },
 };
 
-module.exports = { ...createUserModule, generateNumericToken };
+module.exports = {
+  ...createUserModule,
+  generateNumericToken,
+  ensureDefaultAirqoRole: createUserModule.ensureDefaultAirqoRole,
+};

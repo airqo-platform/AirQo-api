@@ -18,7 +18,7 @@ This RBAC system provides comprehensive role and permission management for appli
 
 1. **RBACService** (`services/rbac.service.js`): Core service handling all RBAC operations
 2. **Permission Auth Middleware** (`middleware/permissionAuth.js`): Permission-based access control
-3. **Enhanced Admin Middleware** (`middleware/enhancedAdminAccess.js`): Advanced admin access control
+3. **Enhanced Admin Middleware** (`middleware/adminAccess.js`): Advanced admin access control
 4. **Group/Network Auth** (`middleware/groupNetworkAuth.js`): Specialized middleware for group/network operations
 
 ### Data Model
@@ -148,7 +148,7 @@ router.put(
 const {
   requireGroupAdmin,
   requireGroupAccess,
-} = require("@middleware/enhancedAdminAccess");
+} = require("@middleware/adminAccess");
 
 // Require group admin access (super admin role)
 router.delete("/groups/:grp_id", requireGroupAdmin(), controller.deleteGroup);
@@ -221,7 +221,7 @@ Ensure all new files are in place:
 
 - `services/rbac.service.js`
 - `middleware/permissionAuth.js`
-- `middleware/enhancedAdminAccess.js`
+- `middleware/adminAccess.js`
 - `middleware/groupNetworkAuth.js`
 
 ### Step 2: Replace adminCheck Middleware
@@ -236,7 +236,7 @@ router.put(
 );
 
 // New - Option 1: Drop-in replacement
-const { adminCheck } = require("@middleware/enhancedAdminAccess"); // Uses legacy compatibility
+const { adminCheck } = require("@middleware/adminAccess"); // Uses legacy compatibility
 router.put(
   "/:grp_id/enhanced-set-manager/:user_id",
   adminCheck,
@@ -244,7 +244,7 @@ router.put(
 );
 
 // New - Option 2: Use specific middleware (recommended)
-const { requireGroupAdmin } = require("@middleware/enhancedAdminAccess");
+const { requireGroupAdmin } = require("@middleware/adminAccess");
 router.put(
   "/:grp_id/enhanced-set-manager/:user_id",
   requireGroupAdmin(),
@@ -278,6 +278,8 @@ Follow these conventions for consistent permission naming:
 "MEMBER_REMOVE"; // Remove members
 "USER_MANAGEMENT"; // Manage users
 "ROLE_ASSIGNMENT"; // Assign roles
+"DEVICE_CLAIM"; // Claim and unclaim devices
+"DEVICE_DEPLOY"; // Deploy devices
 "ANALYTICS_VIEW"; // View analytics
 "SETTINGS_EDIT"; // Edit settings
 "SYSTEM_ADMIN"; // System administration

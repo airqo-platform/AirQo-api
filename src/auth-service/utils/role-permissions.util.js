@@ -9,7 +9,7 @@ const { generateFilter } = require("@utils/common");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const RBACService = require("@services/rbac.service");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- role-permissions util`
@@ -50,16 +50,20 @@ const generateRoleCode = (
  * Check if role code exists and suggest alternatives
  * @param {string} tenant - Tenant name
  * @param {string} baseRoleCode - Base role code to check
- * @param {string} groupId - Group ID for scoping
+ * @param {Object} scopeFilter - Filter for scoping (e.g., { group_id: '...' } or { network_id: '...' })
  * @returns {Promise<Object>} Result with available code or suggestions
  */
-const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
+const findAvailableRoleCode = async (
+  tenant,
+  baseRoleCode,
+  scopeFilter = {}
+) => {
   try {
     // Check if base code is available
     const existingRole = await RoleModel(tenant)
       .findOne({
         role_code: baseRoleCode,
-        ...(groupId && { group_id: groupId }),
+        ...scopeFilter,
       })
       .lean();
 
@@ -78,7 +82,7 @@ const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
       const altExists = await RoleModel(tenant)
         .findOne({
           role_code: alternativeCode,
-          ...(groupId && { group_id: groupId }),
+          ...scopeFilter,
         })
         .lean();
 
@@ -93,7 +97,7 @@ const findAvailableRoleCode = async (tenant, baseRoleCode, groupId = null) => {
     const timestampExists = await RoleModel(tenant)
       .findOne({
         role_code: timestampCode,
-        ...(groupId && { group_id: groupId }),
+        ...scopeFilter,
       })
       .lean();
 
@@ -160,14 +164,40 @@ const generateAlternativeRoleNames = async (
  */
 const manuallyPopulateRolePermissions = async (role, tenant) => {
   try {
-    if (!role || !role.role_permissions || role.role_permissions.length === 0) {
+    if (!role) {
+      logObject("⚠️ [DEBUG] No role provided to populate permissions");
+      return { role_permissions: [] };
+    }
+
+    if (!role.role_permissions || role.role_permissions.length === 0) {
+      logObject("✅ [DEBUG] Role has no permissions to populate");
+      return { ...role, role_permissions: [] };
+    }
+
+    // Validate permission IDs before querying
+    const validPermissionIds = role.role_permissions.filter((permId) => {
+      if (!permId) return false;
+      if (!mongoose.Types.ObjectId.isValid(permId)) {
+        logObject("⚠️ [DEBUG] Invalid permission ID:", permId);
+        return false;
+      }
+      return true;
+    });
+
+    if (validPermissionIds.length === 0) {
+      logObject("⚠️ [DEBUG] No valid permission IDs found");
       return { ...role, role_permissions: [] };
     }
 
     const permissions = await PermissionModel(tenant)
-      .find({ _id: { $in: role.role_permissions } })
+      .find({ _id: { $in: validPermissionIds } })
       .select("permission description")
       .lean();
+
+    logObject("✅ [DEBUG] Successfully populated permissions:", {
+      requested: validPermissionIds.length,
+      found: permissions.length,
+    });
 
     return {
       ...role,
@@ -175,6 +205,7 @@ const manuallyPopulateRolePermissions = async (role, tenant) => {
     };
   } catch (error) {
     logger.error(`Error populating role permissions: ${error.message}`);
+    logObject("❌ [DEBUG] Error in manuallyPopulateRolePermissions:", error);
     return { ...role, role_permissions: [] };
   }
 };
@@ -228,9 +259,20 @@ const findAssociatedIdForRole = async ({
       return null;
     }
 
-    // Fix 1: Remove ObjectId wrapper and add better error handling
-    const RoleDetails = await RoleModel(tenant).findById(role_id).lean();
-    logObject("📋 [DEBUG] RoleDetails found:", !!RoleDetails);
+    // Validate role_id format
+    if (!mongoose.Types.ObjectId.isValid(role_id)) {
+      logObject("❌ [DEBUG] Invalid role_id format:", role_id);
+      return null;
+    }
+
+    // Find role details with proper error handling
+    let RoleDetails;
+    try {
+      RoleDetails = await RoleModel(tenant).findById(role_id).lean();
+    } catch (dbError) {
+      logObject("❌ [DEBUG] Database error fetching role:", dbError.message);
+      return null;
+    }
 
     if (!RoleDetails) {
       logObject("❌ [DEBUG] Role not found for role_id:", role_id);
@@ -250,12 +292,21 @@ const findAssociatedIdForRole = async ({
         continue;
       }
 
-      // Fix 2: Add null checks before calling toString()
+      // Enhanced null checks and validation before comparison
       if (role.network && RoleDetails.network_id) {
         try {
-          if (role.network.toString() === RoleDetails.network_id.toString()) {
-            logObject("✅ [DEBUG] Found matching network:", role.network);
-            return role.network;
+          // Validate both IDs before comparison
+          if (
+            mongoose.Types.ObjectId.isValid(role.network) &&
+            mongoose.Types.ObjectId.isValid(RoleDetails.network_id)
+          ) {
+            const roleNetworkId = role.network.toString();
+            const roleDetailsNetworkId = RoleDetails.network_id.toString();
+
+            if (roleNetworkId === roleDetailsNetworkId) {
+              logObject("✅ [DEBUG] Found matching network:", role.network);
+              return role.network;
+            }
           }
         } catch (error) {
           logObject("❌ [DEBUG] Error comparing network IDs:", error.message);
@@ -264,9 +315,18 @@ const findAssociatedIdForRole = async ({
 
       if (role.group && RoleDetails.group_id) {
         try {
-          if (role.group.toString() === RoleDetails.group_id.toString()) {
-            logObject("✅ [DEBUG] Found matching group:", role.group);
-            return role.group;
+          // Validate both IDs before comparison
+          if (
+            mongoose.Types.ObjectId.isValid(role.group) &&
+            mongoose.Types.ObjectId.isValid(RoleDetails.group_id)
+          ) {
+            const roleGroupId = role.group.toString();
+            const roleDetailsGroupId = RoleDetails.group_id.toString();
+
+            if (roleGroupId === roleDetailsGroupId) {
+              logObject("✅ [DEBUG] Found matching group:", role.group);
+              return role.group;
+            }
           }
         } catch (error) {
           logObject("❌ [DEBUG] Error comparing group IDs:", error.message);
@@ -299,10 +359,18 @@ const isAssignedUserSuperAdmin = async ({
       return false;
     }
 
+    // Validate associatedId format
+    if (!mongoose.Types.ObjectId.isValid(associatedId)) {
+      logObject("❌ [DEBUG] Invalid associatedId format:", associatedId);
+      return false;
+    }
+
     if (!roles || !Array.isArray(roles) || roles.length === 0) {
       logObject("❌ [DEBUG] No roles provided or empty roles array");
       return false;
     }
+
+    const associatedIdStr = associatedId.toString();
 
     for (const role of roles) {
       if (!role) {
@@ -310,20 +378,20 @@ const isAssignedUserSuperAdmin = async ({
         continue;
       }
 
-      // Fix 3: Add null checks and better error handling
+      // Enhanced validation and null checks
       let isMatch = false;
 
       try {
-        if (
-          role.network &&
-          role.network.toString() === associatedId.toString()
-        ) {
-          isMatch = true;
-        } else if (
-          role.group &&
-          role.group.toString() === associatedId.toString()
-        ) {
-          isMatch = true;
+        if (role.network && mongoose.Types.ObjectId.isValid(role.network)) {
+          const roleNetworkStr = role.network.toString();
+          if (roleNetworkStr === associatedIdStr) {
+            isMatch = true;
+          }
+        } else if (role.group && mongoose.Types.ObjectId.isValid(role.group)) {
+          const roleGroupStr = role.group.toString();
+          if (roleGroupStr === associatedIdStr) {
+            isMatch = true;
+          }
         }
       } catch (error) {
         logObject("❌ [DEBUG] Error comparing role IDs:", error.message);
@@ -333,15 +401,21 @@ const isAssignedUserSuperAdmin = async ({
       if (isMatch) {
         logObject("🔍 [DEBUG] Found matching role, checking if super admin...");
 
-        // Fix 4: Remove ObjectId wrapper and add better validation
+        // Enhanced validation for role field
         if (!role.role) {
           logObject("⚠️ [DEBUG] Role has no role field:", role);
           continue;
         }
 
+        // Validate role ID format
+        if (!mongoose.Types.ObjectId.isValid(role.role)) {
+          logObject("⚠️ [DEBUG] Invalid role ID format:", role.role);
+          continue;
+        }
+
         try {
           const RoleDetails = await RoleModel(tenant)
-            .findById(role.role) // Remove ObjectId() wrapper
+            .findById(role.role)
             .lean();
 
           if (RoleDetails && RoleDetails.role_name) {
@@ -384,14 +458,27 @@ const isRoleAlreadyAssigned = (roles, role_id) => {
       return false;
     }
 
+    // Validate role_id format
+    if (!mongoose.Types.ObjectId.isValid(role_id)) {
+      logObject("❌ [DEBUG] Invalid role_id format:", role_id);
+      return false;
+    }
+
+    const targetRoleIdStr = role_id.toString();
+
     const isAssigned = roles.some((role) => {
       if (isEmpty(role) || !role.role) {
         return false;
       }
 
+      // Validate role.role format
+      if (!mongoose.Types.ObjectId.isValid(role.role)) {
+        logObject("⚠️ [DEBUG] Invalid role.role format:", role.role);
+        return false;
+      }
+
       try {
         const roleIdStr = role.role.toString();
-        const targetRoleIdStr = role_id.toString();
         logObject("🔍 [DEBUG] Comparing roles:", {
           roleIdStr,
           targetRoleIdStr,
@@ -447,30 +534,19 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
       .lean();
 
     if (existingRole) {
-      logObject(`🔄 Updating existing role: ${roleData.role_name}`);
-
-      // Get current role and manually populate permissions
-      const currentRole = await RoleModel(tenant)
-        .findById(existingRole._id)
-        .lean();
-
-      const currentRoleWithPermissions = await manuallyPopulateRolePermissions(
-        currentRole,
-        tenant
+      const currentPermissionIds = (existingRole.role_permissions || []).map(
+        (id) => id.toString()
       );
-      const currentPermissions =
-        currentRoleWithPermissions.role_permissions?.map((p) => p.permission) ||
-        [];
-      const newPermissions = roleData.permissions.filter(
-        (p) => !currentPermissions.includes(p)
-      );
+      const expectedPermissionIds = permissionIds.map((id) => id.toString());
 
-      if (newPermissions.length > 0) {
+      const arePermissionsSynced =
+        currentPermissionIds.length === expectedPermissionIds.length &&
+        currentPermissionIds.every((id) => expectedPermissionIds.includes(id));
+
+      if (!arePermissionsSynced) {
         logObject(
-          `📝 Adding ${newPermissions.length} new permissions to role ${roleData.role_name}:`,
-          newPermissions
+          `📝 Permissions for role ${roleData.role_name} are out of sync. Updating...`
         );
-
         const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
           existingRole._id,
           {
@@ -481,14 +557,13 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
           },
           { new: true }
         );
-
         return {
           success: true,
           data: updatedRole,
-          message: `Role ${roleData.role_name} updated with new permissions`,
+          message: `Role ${roleData.role_name} permissions synchronized`,
           status: httpStatus.OK,
           role_name: roleData.role_name,
-          permissions_added: newPermissions,
+          permissions_synced: expectedPermissionIds.length,
         };
       } else {
         logObject(
@@ -497,7 +572,7 @@ const createOrUpdateRoleWithPermissionSync = async (tenant, roleData) => {
         return {
           success: true,
           data: existingRole,
-          message: `Role ${roleData.role_name} already up to date`,
+          message: `Role ${roleData.role_name} is already up to date`,
           status: httpStatus.OK,
           role_name: roleData.role_name,
         };
@@ -578,6 +653,9 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
   const roleCreationResults = [];
   let airqoSuperAdminExists = false;
   let airqoSuperAdminRoleId = null;
+  let rolesCreated = 0;
+  let rolesUpdated = 0;
+  let rolesUpToDate = 0;
 
   for (const roleData of rolesList) {
     try {
@@ -586,6 +664,14 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
       const result = await createOrUpdateRoleWithPermissionSync(tenant, data);
 
       if (result) {
+        if (result.message && result.message.includes("synchronized")) {
+          rolesUpdated++;
+        } else if (result.message && result.message.includes("created")) {
+          rolesCreated++;
+        } else if (result.message && result.message.includes("up to date")) {
+          rolesUpToDate++;
+        }
+
         roleCreationResults.push(result);
         if (
           result.data &&
@@ -606,6 +692,7 @@ const syncAirqoRoles = async (tenant, rolesList, airqoGroupId) => {
     roleCreationResults,
     airqoSuperAdminExists,
     airqoSuperAdminRoleId,
+    stats: { rolesCreated, rolesUpdated, rolesUpToDate },
   };
 };
 const auditAndSyncExistingRoles = async (tenant) => {
@@ -621,92 +708,49 @@ const auditAndSyncExistingRoles = async (tenant) => {
 
     // Define standard permissions for each role type
     const rolePermissionTemplates = {
-      SUPER_ADMIN: [
-        "GROUP_MANAGEMENT",
-        "USER_MANAGEMENT",
-        "ROLE_ASSIGNMENT",
-        "SETTINGS_EDIT",
-        "ANALYTICS_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_DEPLOY",
-        "DEVICE_MAINTAIN",
-        "SITE_VIEW",
-        "SITE_CREATE",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-        "MEMBER_VIEW",
-        "MEMBER_INVITE",
-        "MEMBER_REMOVE",
-        "API_ACCESS",
-        "TOKEN_GENERATE",
-      ],
-      ADMIN: [
-        "GROUP_VIEW",
-        "GROUP_EDIT",
-        "USER_MANAGEMENT",
-        "MEMBER_VIEW",
-        "MEMBER_INVITE",
-        "MEMBER_REMOVE",
-        "ROLE_VIEW",
-        "SETTINGS_VIEW",
-        "ANALYTICS_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_DEPLOY",
-        "DEVICE_MAINTAIN",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-      ],
+      SUPER_ADMIN: constants.DEFAULTS.SUPER_ADMIN,
+      ADMIN: constants.DEFAULTS.DEFAULT_ADMIN,
       TECHNICIAN: [
-        "GROUP_VIEW",
-        "DEVICE_VIEW",
-        "DEVICE_DEPLOY",
-        "DEVICE_MAINTAIN",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "MEMBER_VIEW",
+        constants.GROUP_VIEW,
+        constants.DEVICE_VIEW,
+        constants.DEVICE_DEPLOY,
+        constants.DEVICE_MAINTAIN,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.MEMBER_VIEW,
       ],
       ANALYST: [
-        "GROUP_VIEW",
-        "ANALYTICS_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-        "DATA_COMPARE",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-        "MEMBER_VIEW",
+        constants.GROUP_VIEW,
+        constants.ANALYTICS_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.DATA_EXPORT,
+        constants.DATA_COMPARE,
+        constants.DEVICE_VIEW,
+        constants.SITE_VIEW,
+        constants.MEMBER_VIEW,
       ],
       DEVELOPER: [
-        "GROUP_VIEW",
-        "API_ACCESS",
-        "TOKEN_GENERATE",
-        "TOKEN_MANAGE",
-        "DATA_VIEW",
-        "DATA_EXPORT",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
+        constants.GROUP_VIEW,
+        constants.API_ACCESS,
+        constants.TOKEN_GENERATE,
+        constants.TOKEN_MANAGE,
+        constants.DATA_VIEW,
+        constants.DATA_EXPORT,
+        constants.DEVICE_VIEW,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
       ],
       VIEWER: [
-        "GROUP_VIEW",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "MEMBER_VIEW",
+        constants.GROUP_VIEW,
+        constants.DEVICE_VIEW,
+        constants.SITE_VIEW,
+        constants.DASHBOARD_VIEW,
+        constants.DATA_VIEW,
+        constants.MEMBER_VIEW,
       ],
-      DEFAULT_MEMBER: [
-        "GROUP_VIEW",
-        "MEMBER_VIEW",
-        "DASHBOARD_VIEW",
-        "DATA_VIEW",
-        "DEVICE_VIEW",
-        "SITE_VIEW",
-      ],
+      DEFAULT_MEMBER: constants.DEFAULTS.DEFAULT_MEMBER,
     };
 
     // OPTIMIZATION: Fetch all possible permissions once
@@ -813,483 +857,66 @@ const setupDefaultPermissions = async (tenant = "airqo") => {
       `🚀 Setting up default permissions and roles for tenant: ${tenant}`
     );
 
-    const defaultPermissions = [
-      // === System Administration ===
-      {
-        permission: "SYSTEM_ADMIN",
-        description: "System-wide administrative access",
-      },
-      {
-        permission: "SUPER_ADMIN",
-        description: "Super administrator with all permissions",
-      },
-      {
-        permission: "DATABASE_ADMIN",
-        description: "Database administration access",
-      },
-
-      // === Organization Management ===
-      {
-        permission: "ORG_CREATE",
-        description: "Create new organizations",
-      },
-      {
-        permission: "ORG_VIEW",
-        description: "View organization information",
-      },
-      {
-        permission: "ORG_UPDATE",
-        description: "Update organization settings",
-      },
-      {
-        permission: "ORG_DELETE",
-        description: "Delete organizations",
-      },
-      {
-        permission: "ORG_APPROVE",
-        description: "Approve organization requests",
-      },
-      {
-        permission: "ORG_REJECT",
-        description: "Reject organization requests",
-      },
-
-      // === Group Management ===
-      {
-        permission: "GROUP_VIEW",
-        description: "View group information and basic details",
-      },
-      {
-        permission: "GROUP_CREATE",
-        description: "Create new groups",
-      },
-      {
-        permission: "GROUP_EDIT",
-        description: "Edit group settings and information",
-      },
-      {
-        permission: "GROUP_DELETE",
-        description: "Delete groups",
-      },
-      {
-        permission: "GROUP_MANAGEMENT",
-        description: "Full group management access",
-      },
-
-      // === User Management ===
-      {
-        permission: "USER_VIEW",
-        description: "View user information",
-      },
-      {
-        permission: "USER_CREATE",
-        description: "Create new users",
-      },
-      {
-        permission: "USER_EDIT",
-        description: "Edit user information",
-      },
-      {
-        permission: "USER_DELETE",
-        description: "Delete users",
-      },
-      {
-        permission: "USER_MANAGEMENT",
-        description: "Full user management access",
-      },
-      {
-        permission: "USER_INVITE",
-        description: "Invite new users to organization",
-      },
-
-      // === Member Management ===
-      {
-        permission: "MEMBER_VIEW",
-        description: "View organization members",
-      },
-      {
-        permission: "MEMBER_INVITE",
-        description: "Invite new members to organization",
-      },
-      {
-        permission: "MEMBER_REMOVE",
-        description: "Remove members from organization",
-      },
-      {
-        permission: "MEMBER_SEARCH",
-        description: "Search organization members",
-      },
-      {
-        permission: "MEMBER_EXPORT",
-        description: "Export member data",
-      },
-
-      // === Role and Permission Management ===
-      {
-        permission: "ROLE_VIEW",
-        description: "View roles and their permissions",
-      },
-      {
-        permission: "ROLE_CREATE",
-        description: "Create new roles",
-      },
-      {
-        permission: "ROLE_EDIT",
-        description: "Edit existing roles",
-      },
-      {
-        permission: "ROLE_DELETE",
-        description: "Delete roles",
-      },
-      {
-        permission: "ROLE_ASSIGNMENT",
-        description: "Assign roles to users",
-      },
-
-      // === Device Management (from requirements) ===
-      {
-        permission: "DEVICE_VIEW",
-        description: "View device information",
-      },
-      {
-        permission: "DEVICE_DEPLOY",
-        description: "Deploy devices to sites",
-      },
-      {
-        permission: "DEVICE_RECALL",
-        description: "Recall devices from deployment",
-      },
-      {
-        permission: "DEVICE_MAINTAIN",
-        description: "Perform device maintenance",
-      },
-      {
-        permission: "DEVICE_UPDATE",
-        description: "Update device configuration",
-      },
-      {
-        permission: "DEVICE_DELETE",
-        description: "Delete device records",
-      },
-
-      // === Site Management ===
-      {
-        permission: "SITE_VIEW",
-        description: "View site information",
-      },
-      {
-        permission: "SITE_CREATE",
-        description: "Create new sites",
-      },
-      {
-        permission: "SITE_UPDATE",
-        description: "Update site information",
-      },
-      {
-        permission: "SITE_DELETE",
-        description: "Delete sites",
-      },
-
-      // === Dashboard and Analytics ===
-      {
-        permission: "DASHBOARD_VIEW",
-        description: "View dashboard",
-      },
-      {
-        permission: "ANALYTICS_VIEW",
-        description: "View analytics and reports",
-      },
-      {
-        permission: "ANALYTICS_EXPORT",
-        description: "Export analytics data",
-      },
-      {
-        permission: "DATA_VIEW",
-        description: "View data",
-      },
-      {
-        permission: "DATA_EXPORT",
-        description: "Export data",
-      },
-      {
-        permission: "DATA_COMPARE",
-        description: "Compare data across sources",
-      },
-
-      // === Settings and Configuration ===
-      {
-        permission: "SETTINGS_VIEW",
-        description: "View system and organization settings",
-      },
-      {
-        permission: "SETTINGS_EDIT",
-        description: "Edit system and organization settings",
-      },
-      {
-        permission: "GROUP_SETTINGS",
-        description: "Manage group-specific settings",
-      },
-
-      // === Content Management ===
-      {
-        permission: "CONTENT_VIEW",
-        description: "View content",
-      },
-      {
-        permission: "CONTENT_CREATE",
-        description: "Create content",
-      },
-      {
-        permission: "CONTENT_EDIT",
-        description: "Edit content",
-      },
-      {
-        permission: "CONTENT_DELETE",
-        description: "Delete content",
-      },
-      {
-        permission: "CONTENT_MODERATION",
-        description: "Moderate content",
-      },
-
-      // === Activity and Audit ===
-      {
-        permission: "ACTIVITY_VIEW",
-        description: "View activity logs",
-      },
-      {
-        permission: "AUDIT_VIEW",
-        description: "View audit trails",
-      },
-      {
-        permission: "AUDIT_EXPORT",
-        description: "Export audit logs",
-      },
-      {
-        permission: "REPORT_GENERATE",
-        description: "Generate reports",
-      },
-
-      // === API and Integration ===
-      {
-        permission: "API_ACCESS",
-        description: "Access API endpoints",
-      },
-      {
-        permission: "TOKEN_GENERATE",
-        description: "Generate API tokens",
-      },
-      {
-        permission: "TOKEN_MANAGE",
-        description: "Manage API tokens",
-      },
-
-      // === Network Management ===
-      {
-        permission: "NETWORK_VIEW",
-        description: "View network information",
-      },
-      {
-        permission: "NETWORK_CREATE",
-        description: "Create new networks",
-      },
-      {
-        permission: "NETWORK_EDIT",
-        description: "Edit network settings",
-      },
-      {
-        permission: "NETWORK_DELETE",
-        description: "Delete networks",
-      },
-      {
-        permission: "NETWORK_MANAGEMENT",
-        description: "Full network management access",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_DEVICES",
-        description: "Legacy: Full device management for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_SITES",
-        description: "Legacy: Full site management for a network",
-      },
-      {
-        permission: "VIEW_AIR_QUALITY_FOR_NETWORK",
-        description: "Legacy: View air quality data for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_ROLES",
-        description: "Legacy: Full role management for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_NETWORK_USERS",
-        description: "Legacy: Full user management for a network",
-      },
-      {
-        permission: "MANAGE_NETWORK_SETTINGS",
-        description: "Legacy: Manage network-level settings",
-      },
-      {
-        permission: "VIEW_NETWORK_DASHBOARD",
-        description: "Legacy: View the main dashboard for a network",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_DEVICES",
-        description: "Legacy: Full device management for a group",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_SITES",
-        description: "Legacy: Full site management for a group",
-      },
-      {
-        permission: "VIEW_AIR_QUALITY_FOR_GROUP",
-        description: "Legacy: View air quality data for a group",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_ROLES",
-        description: "Legacy: Full role management for a group",
-      },
-      {
-        permission: "CREATE_UPDATE_AND_DELETE_GROUP_USERS",
-        description: "Legacy: Full user management for a group",
-      },
-      {
-        permission: "MANAGE_GROUP_SETTINGS",
-        description: "Legacy: Manage group-level settings",
-      },
-      {
-        permission: "VIEW_GROUP_DASHBOARD",
-        description: "Legacy: View the main dashboard for a group",
-      },
-      {
-        permission: "ACCESS_PLATFORM",
-        description: "Legacy: General access to the platform",
-      },
-    ];
-
-    // Step 1: Synchronize all permissions defined in the list
-    const { createdPermissions, existingPermissions } = await syncPermissions(
+    // Step 1: Synchronize all permissions
+    const defaultPermissions = constants.ALL.map((p) => ({
+      permission: p,
+      description: p.replace(/_/g, " ").toLowerCase(),
+    }));
+    const permissionSyncResult = await syncPermissions(
       tenant,
       defaultPermissions
     );
 
-    // Create AirQo organization if it doesn't exist
-    const GroupModel = require("@models/Group");
-    let airqoGroup = await GroupModel(tenant).findOne({
-      grp_title: { $regex: /^airqo$/i },
-    });
+    // Step 2: Ensure AirQo group exists
+    const airqoGroup = await getOrCreateAirqoGroup(tenant);
 
-    if (!airqoGroup) {
-      airqoGroup = await GroupModel(tenant).create({
-        grp_title: "AirQo",
-        grp_description: "AirQo Organization - System Administrator Group",
-        grp_status: "ACTIVE",
-        organization_slug: "airqo",
-      });
-      logText("✅ Created AirQo organization");
-    }
+    // Step 3: Synchronize core AirQo system roles
+    const defaultRoles = getDefaultAirqoRoles(airqoGroup._id);
+    const roleSyncResult = await syncAirqoRoles(
+      tenant,
+      defaultRoles,
+      airqoGroup._id
+    );
 
-    const defaultRoles = [
-      {
-        role_name: "AIRQO_SUPER_ADMIN",
-        role_code: "AIRQO_SUPER_ADMIN",
-        role_description: "AirQo Super Administrator with all permissions",
-        group_id: airqoGroup._id,
-        permissions: [
-          "SUPER_ADMIN",
-          "SYSTEM_ADMIN",
-          "DATABASE_ADMIN",
-          "ORG_CREATE",
-          "ORG_VIEW",
-          "ORG_UPDATE",
-          "ORG_DELETE",
-          "ORG_APPROVE",
-          "ORG_REJECT",
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "AUDIT_VIEW",
-          "AUDIT_EXPORT",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_RECALL",
-          "DEVICE_MAINTAIN",
-          "DEVICE_UPDATE",
-          "DEVICE_DELETE",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "SITE_UPDATE",
-          "SITE_DELETE",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-          "TOKEN_MANAGE",
-          "NETWORK_MANAGEMENT",
-        ],
-      },
-      {
-        role_name: "AIRQO_ADMIN",
-        role_code: "AIRQO_ADMIN",
-        role_description: "AirQo Administrator",
-        group_id: airqoGroup._id,
-        permissions: [
-          "ORG_VIEW",
-          "ORG_APPROVE",
-          "ORG_REJECT",
-          "GROUP_VIEW",
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "ROLE_VIEW",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-        ],
-      },
-    ];
-
-    // Step 2: Synchronize the core AirQo system roles
-    const {
-      roleCreationResults,
-      airqoSuperAdminExists,
-      airqoSuperAdminRoleId,
-    } = await syncAirqoRoles(tenant, defaultRoles, airqoGroup._id);
-
-    // Step 3: Audit and sync permissions for existing non-system roles
-    await auditAndSyncExistingRoles(tenant);
+    // Step 4: Audit and sync permissions for existing non-system roles
+    const auditStats = await auditAndSyncExistingRoles(tenant);
 
     logText("🎉 Default permissions and roles setup completed successfully!");
 
+    // Step 5: Consolidate and return results
     return {
       success: true,
       message: "Default permissions and roles setup completed successfully",
       data: {
-        permissions_created: createdPermissions.length,
-        permissions_existing: existingPermissions.length,
-        permissions_total: defaultPermissions.length,
-        roles_processed: defaultRoles.length,
-        roles_successful: roleCreationResults.filter((r) => r.success).length,
-        roles_failed: roleCreationResults.filter((r) => !r.success).length,
-        role_errors: roleCreationResults
+        permissions: {
+          created: permissionSyncResult.createdPermissions.length,
+          updated: permissionSyncResult.updatedPermissions.length,
+          existing: permissionSyncResult.existingPermissions.length,
+          total: defaultPermissions.length,
+        },
+        roles: {
+          created: roleSyncResult.stats.rolesCreated,
+          updated: roleSyncResult.stats.rolesUpdated,
+          up_to_date: roleSyncResult.stats.rolesUpToDate,
+          processed: defaultRoles.length,
+          successful: roleSyncResult.roleCreationResults.filter(
+            (r) => r.success
+          ).length,
+          failed: roleSyncResult.roleCreationResults.filter((r) => !r.success)
+            .length,
+        },
+        audit: {
+          organization_roles_audited: auditStats.rolesUpdated,
+          permissions_added_to_roles: auditStats.permissionsAdded,
+        },
+        airqo_super_admin_exists: roleSyncResult.airqoSuperAdminExists,
+        airqo_super_admin_role_id: roleSyncResult.airqoSuperAdminRoleId,
+        role_errors: roleSyncResult.roleCreationResults
           .filter((r) => !r.success)
           .map((r) => ({
             role_name: r.role_name || "unknown",
             error: r.message || "unknown error",
           })),
-        organization: airqoGroup.grp_title,
-        airqo_super_admin_exists: airqoSuperAdminExists,
-        airqo_super_admin_role_id: airqoSuperAdminRoleId,
       },
     };
   } catch (error) {
@@ -1476,60 +1103,17 @@ const createDefaultRolesForOrganization = async (
       {
         role_name: `${orgName}_SUPER_ADMIN`,
         role_description: `Super Administrator for ${organizationName}`,
-        permissions: [
-          "GROUP_MANAGEMENT",
-          "USER_MANAGEMENT",
-          "ROLE_ASSIGNMENT",
-          "SETTINGS_EDIT",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "SITE_CREATE",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "API_ACCESS",
-          "TOKEN_GENERATE",
-        ],
+        permissions: constants.DEFAULTS.SUPER_ADMIN,
       },
       {
         role_name: `${orgName}_ADMIN`,
         role_description: `Administrator for ${organizationName}`,
-        permissions: [
-          "GROUP_VIEW",
-          "GROUP_EDIT",
-          "USER_MANAGEMENT",
-          "MEMBER_VIEW",
-          "MEMBER_INVITE",
-          "MEMBER_REMOVE",
-          "ROLE_VIEW",
-          "SETTINGS_VIEW",
-          "ANALYTICS_VIEW",
-          "DEVICE_VIEW",
-          "DEVICE_DEPLOY",
-          "DEVICE_MAINTAIN",
-          "SITE_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DATA_EXPORT",
-        ],
+        permissions: constants.DEFAULTS.DEFAULT_ADMIN,
       },
       {
         role_name: `${orgName}_DEFAULT_MEMBER`,
         role_description: `Default Member role for ${organizationName}`,
-        permissions: [
-          "GROUP_VIEW",
-          "MEMBER_VIEW",
-          "DASHBOARD_VIEW",
-          "DATA_VIEW",
-          "DEVICE_VIEW",
-          "SITE_VIEW",
-        ],
+        permissions: constants.DEFAULTS.DEFAULT_MEMBER,
       },
     ];
 
@@ -2251,6 +1835,7 @@ const rolePermissionUtil = {
 
       let newBody = Object.assign({}, body);
       let organizationName;
+      let queryFilter = {};
 
       if (body.group_id) {
         const group = await GroupModel(tenant).findById(body.group_id);
@@ -2264,6 +1849,21 @@ const rolePermissionUtil = {
         organizationName = group.grp_title
           .toUpperCase()
           .replace(/[^A-Z0-9]/g, "_");
+        queryFilter = { group_id: body.group_id };
+      } else if (body.network_id) {
+        const NetworkModel = require("@models/Network");
+        const network = await NetworkModel(tenant).findById(body.network_id);
+        if (isEmpty(network)) {
+          return next(
+            new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+              message: `Provided network ${body.network_id} is invalid, please crosscheck`,
+            })
+          );
+        }
+        organizationName = network.net_name
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_");
+        queryFilter = { network_id: body.network_id };
       } else {
         return next(
           new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
@@ -2281,6 +1881,7 @@ const rolePermissionUtil = {
       const existingRoleByName = await RoleModel(tenant)
         .findOne({
           role_name: finalRoleName,
+          ...queryFilter,
         })
         .lean();
 
@@ -2312,7 +1913,7 @@ const rolePermissionUtil = {
       const roleCodeCheck = await findAvailableRoleCode(
         tenant,
         baseRoleCode,
-        body.group_id
+        queryFilter
       );
 
       if (!roleCodeCheck.available) {
@@ -3321,17 +2922,35 @@ const rolePermissionUtil = {
         return null;
       }
 
+      // Validate groupId format
+      if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        logger.error(`❌ [DEBUG] Invalid groupId format: ${groupId}`);
+        return null;
+      }
+
       // Safely convert groupId to ObjectId
       let groupObjectId;
       try {
         groupObjectId = mongoose.Types.ObjectId(groupId);
       } catch (objectIdError) {
-        logger.error(`❌ [DEBUG] Invalid groupId format: ${groupId}`);
+        logger.error(
+          `❌ [DEBUG] Error creating ObjectId from groupId: ${groupId}`
+        );
         return null;
       }
 
-      // Find the group with error handling
-      const group = await GroupModel(tenant).findById(groupObjectId).lean();
+      // Find the group with enhanced error handling
+      let group;
+      try {
+        group = await GroupModel(tenant).findById(groupObjectId).lean();
+      } catch (dbError) {
+        logger.error(
+          "❌ [DEBUG] Database error fetching group:",
+          dbError.message
+        );
+        return null;
+      }
+
       if (!group) {
         logger.error("❌ [DEBUG] Group not found for ID:", groupId);
         return null;
@@ -3345,14 +2964,23 @@ const rolePermissionUtil = {
       // Safely handle group title with fallback
       const groupTitle = group.grp_title || "DEFAULT_GROUP";
 
-      // Sanitize organization name for role code
-      const organizationName = groupTitle
-        .toString()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "")
-        .substring(0, 50); // Limit length to prevent overly long role codes
+      // Sanitize organization name for role code with better validation
+      let organizationName;
+      try {
+        organizationName = groupTitle
+          .toString()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "")
+          .substring(0, 50);
+      } catch (sanitizeError) {
+        logObject(
+          "⚠️ [DEBUG] Error sanitizing group title:",
+          sanitizeError.message
+        );
+        organizationName = "DEFAULT_GROUP";
+      }
 
       // Ensure we have a valid organization name
       const finalOrgName = organizationName || "DEFAULT";
@@ -3360,13 +2988,21 @@ const rolePermissionUtil = {
 
       logObject("🔍 [DEBUG] Looking for role with code:", defaultRoleCode);
 
-      // Try to find existing default role
-      let role = await RoleModel(tenant)
-        .findOne({
-          role_code: defaultRoleCode,
-          group_id: groupObjectId,
-        })
-        .lean();
+      // Try to find existing default role with enhanced error handling
+      let role;
+      try {
+        role = await RoleModel(tenant)
+          .findOne({
+            role_code: defaultRoleCode,
+            group_id: groupObjectId,
+          })
+          .lean();
+      } catch (findError) {
+        logger.error(
+          "❌ [DEBUG] Error finding existing role:",
+          findError.message
+        );
+      }
 
       if (role) {
         logObject("✅ [DEBUG] Found existing default role:", {
@@ -3379,7 +3015,7 @@ const rolePermissionUtil = {
 
       logObject("🆕 [DEBUG] Default role not found, creating new one...");
 
-      // Create new default role
+      // Create new default role with enhanced error handling
       const roleDocument = {
         role_code: defaultRoleCode,
         role_name: defaultRoleCode,
@@ -3409,12 +3045,19 @@ const rolePermissionUtil = {
           );
 
           // Try to find the role that was created by another process
-          role = await RoleModel(tenant)
-            .findOne({
-              role_code: defaultRoleCode,
-              group_id: groupObjectId,
-            })
-            .lean();
+          try {
+            role = await RoleModel(tenant)
+              .findOne({
+                role_code: defaultRoleCode,
+                group_id: groupObjectId,
+              })
+              .lean();
+          } catch (findRetryError) {
+            logger.error(
+              "❌ [DEBUG] Error in retry search:",
+              findRetryError.message
+            );
+          }
 
           if (role) {
             logObject("✅ [DEBUG] Found role created by another process:", {
@@ -3423,18 +3066,24 @@ const rolePermissionUtil = {
             });
           } else {
             // Last resort - try to find any role with similar code
-            role = await RoleModel(tenant)
-              .findOne({
-                role_code: { $regex: new RegExp(finalOrgName, "i") },
-                group_id: groupObjectId,
-                role_name: { $regex: /DEFAULT_MEMBER/i },
-              })
-              .lean();
+            try {
+              role = await RoleModel(tenant)
+                .findOne({
+                  role_code: { $regex: new RegExp(finalOrgName, "i") },
+                  group_id: groupObjectId,
+                  role_name: { $regex: /DEFAULT_MEMBER/i },
+                })
+                .lean();
+            } catch (lastResortError) {
+              logger.error(
+                "❌ [DEBUG] Last resort search failed:",
+                lastResortError.message
+              );
+            }
 
             if (!role) {
-              logger.error(
-                `❌ [DEBUG] Failed to create or find default role after duplicate error: ${roleCreateError.message}`
-              );
+              const errorMsg = `Failed to create or find default role after duplicate error: ${roleCreateError.message}`;
+              logger.error(`❌ [DEBUG] ${errorMsg}`);
               throw new Error(
                 `Failed to create default role for group ${groupId}: ${roleCreateError.message}`
               );
@@ -3453,13 +3102,12 @@ const rolePermissionUtil = {
 
       // At this point, we should have a role (either newly created or found)
       if (!role) {
-        logger.error(
-          "❌ [DEBUG] No role available after creation/search process"
-        );
+        const errorMsg = "No role available after creation/search process";
+        logger.error(`❌ [DEBUG] ${errorMsg}`);
         throw new Error("Failed to obtain default role for group");
       }
 
-      // Assign default permissions to the role
+      // Assign default permissions to the role with enhanced error handling
       try {
         logObject("🔧 [DEBUG] Assigning default permissions to role...");
 
@@ -3480,10 +3128,18 @@ const rolePermissionUtil = {
 
         if (defaultPermissionNames.length > 0) {
           // Check which permissions actually exist in the database
-          const existingPermissions = await PermissionModel(tenant)
-            .find({ permission: { $in: defaultPermissionNames } })
-            .select("_id permission")
-            .lean();
+          let existingPermissions = [];
+          try {
+            existingPermissions = await PermissionModel(tenant)
+              .find({ permission: { $in: defaultPermissionNames } })
+              .select("_id permission")
+              .lean();
+          } catch (permFindError) {
+            logger.error(
+              "❌ [DEBUG] Error finding existing permissions:",
+              permFindError.message
+            );
+          }
 
           logObject("📋 [DEBUG] Found existing permissions:", {
             count: existingPermissions.length,
@@ -3500,12 +3156,12 @@ const rolePermissionUtil = {
           if (missingPermissions.length > 0) {
             logObject("⚠️ [DEBUG] Missing permissions:", missingPermissions);
 
-            // Try to create missing permissions
+            // Try to create missing permissions with enhanced error handling
             const permissionsToCreate = missingPermissions.map(
               (permission) => ({
                 permission: permission,
                 description: `Auto-created permission: ${permission}`,
-                group_id: groupObjectId, // Associate with the group
+                group_id: groupObjectId,
               })
             );
 
@@ -3528,14 +3184,21 @@ const rolePermissionUtil = {
               );
 
               // Re-fetch to get any permissions that were created
-              const refetchedPermissions = await PermissionModel(tenant)
-                .find({ permission: { $in: defaultPermissionNames } })
-                .select("_id permission")
-                .lean();
+              try {
+                const refetchedPermissions = await PermissionModel(tenant)
+                  .find({ permission: { $in: defaultPermissionNames } })
+                  .select("_id permission")
+                  .lean();
 
-              // Use the refetched permissions
-              existingPermissions.length = 0;
-              existingPermissions.push(...refetchedPermissions);
+                // Use the refetched permissions
+                existingPermissions.length = 0;
+                existingPermissions.push(...refetchedPermissions);
+              } catch (refetchError) {
+                logger.error(
+                  "❌ [DEBUG] Error refetching permissions:",
+                  refetchError.message
+                );
+              }
             }
           }
 
@@ -3548,24 +3211,33 @@ const rolePermissionUtil = {
               permissionCount: permissionIds.length,
             });
 
-            const updateResult = await RoleModel(tenant).findByIdAndUpdate(
-              role._id,
-              {
-                $addToSet: {
-                  role_permissions: {
-                    $each: permissionIds,
+            try {
+              const updateResult = await RoleModel(tenant).findByIdAndUpdate(
+                role._id,
+                {
+                  $addToSet: {
+                    role_permissions: {
+                      $each: permissionIds,
+                    },
                   },
                 },
-              },
-              { new: true }
-            );
+                { new: true }
+              );
 
-            if (updateResult) {
-              logObject("✅ [DEBUG] Successfully assigned permissions to role");
-              // Update our role object with the new permissions
-              role = updateResult;
-            } else {
-              logObject("⚠️ [DEBUG] Role update returned null");
+              if (updateResult) {
+                logObject(
+                  "✅ [DEBUG] Successfully assigned permissions to role"
+                );
+                // Update our role object with the new permissions
+                role = updateResult;
+              } else {
+                logObject("⚠️ [DEBUG] Role update returned null");
+              }
+            } catch (updateError) {
+              logger.error(
+                "❌ [DEBUG] Error updating role with permissions:",
+                updateError.message
+              );
             }
           } else {
             logObject("⚠️ [DEBUG] No permissions available to assign to role");
@@ -4021,15 +3693,31 @@ const rolePermissionUtil = {
         tenant,
       });
 
-      // Fix 1: Remove ObjectId() wrapper - let Mongoose handle the conversion
-      const user = await UserModel(tenant)
-        .findById(userId) // No ObjectId() wrapper
-        .lean(); // Start with just .lean(), no populate
+      // Validate inputs
+      if (!userId) {
+        logObject("❌ [DEBUG] No userId provided");
+        return null;
+      }
 
-      logObject(
-        "📋 [DEBUG] Basic user query result:",
-        user ? "FOUND" : "NOT FOUND"
-      );
+      if (!tenant) {
+        logObject("❌ [DEBUG] No tenant provided");
+        return null;
+      }
+
+      // Validate userId format
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        logObject("❌ [DEBUG] Invalid userId format:", userId);
+        return null;
+      }
+
+      // Get user with enhanced error handling
+      let user;
+      try {
+        user = await UserModel(tenant).findById(userId).lean();
+      } catch (dbError) {
+        logObject("❌ [DEBUG] Database error fetching user:", dbError.message);
+        return null;
+      }
 
       if (!user) {
         logObject("❌ [DEBUG] User not found with ID:", userId);
@@ -4048,33 +3736,51 @@ const rolePermissionUtil = {
         groupRolesCount: user.group_roles?.length || 0,
       });
 
-      // Fix 2: Build roles without populate for now (we'll add populate back later)
-      const networkRoles = (user.network_roles || []).map((nr) => ({
-        role_id: nr.role, // Just the ID, no populated data for now
-        network_id: nr.network, // Just the ID, no populated data for now
-        userType: nr.userType,
-        createdAt: nr.createdAt,
-      }));
+      // Build roles with enhanced validation
+      const networkRoles = (user.network_roles || [])
+        .filter((nr) => nr && typeof nr === "object") // Filter out invalid entries
+        .map((nr) => ({
+          role_id:
+            nr.role && mongoose.Types.ObjectId.isValid(nr.role)
+              ? nr.role
+              : null,
+          network_id:
+            nr.network && mongoose.Types.ObjectId.isValid(nr.network)
+              ? nr.network
+              : null,
+          userType: nr.userType,
+          createdAt: nr.createdAt,
+        }))
+        .filter((nr) => nr.role_id && nr.network_id); // Only include valid entries
 
-      const groupRoles = (user.group_roles || []).map((gr) => ({
-        role_id: gr.role, // Just the ID, no populated data for now
-        group_id: gr.group, // Just the ID, no populated data for now
-        userType: gr.userType,
-        createdAt: gr.createdAt,
-      }));
+      const groupRoles = (user.group_roles || [])
+        .filter((gr) => gr && typeof gr === "object") // Filter out invalid entries
+        .map((gr) => ({
+          role_id:
+            gr.role && mongoose.Types.ObjectId.isValid(gr.role)
+              ? gr.role
+              : null,
+          group_id:
+            gr.group && mongoose.Types.ObjectId.isValid(gr.group)
+              ? gr.group
+              : null,
+          userType: gr.userType,
+          createdAt: gr.createdAt,
+        }))
+        .filter((gr) => gr.role_id && gr.group_id); // Only include valid entries
 
       const summary = {
         user_id: userId,
         network_roles: {
           count: networkRoles.length,
           limit: ORGANISATIONS_LIMIT,
-          remaining: ORGANISATIONS_LIMIT - networkRoles.length,
+          remaining: Math.max(0, ORGANISATIONS_LIMIT - networkRoles.length),
           roles: networkRoles,
         },
         group_roles: {
           count: groupRoles.length,
           limit: ORGANISATIONS_LIMIT,
-          remaining: ORGANISATIONS_LIMIT - groupRoles.length,
+          remaining: Math.max(0, ORGANISATIONS_LIMIT - groupRoles.length),
           roles: groupRoles,
         },
         total_roles: networkRoles.length + groupRoles.length,
@@ -4121,6 +3827,23 @@ const rolePermissionUtil = {
 
       const userId = userIdFromQuery || userIdFromBody;
 
+      // Validate input IDs
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid user ID format",
+          })
+        );
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(role_id)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid role ID format",
+          })
+        );
+      }
+
       const initialSummary = await rolePermissionUtil.getUserRoleSummary(
         userId,
         actualTenant
@@ -4133,10 +3856,19 @@ const rolePermissionUtil = {
         );
       }
 
-      const role = await RoleModel(actualTenant).findById(role_id).lean();
-      const roleExists = await RoleModel(actualTenant).exists({ _id: role_id });
+      // Enhanced role existence check
+      let role;
+      try {
+        role = await RoleModel(actualTenant).findById(role_id).lean();
+      } catch (roleError) {
+        return next(
+          new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: `Error fetching role: ${roleError.message}`,
+          })
+        );
+      }
 
-      if (!roleExists) {
+      if (!role) {
         return next(
           new HttpError("Role not found", httpStatus.BAD_REQUEST, {
             message: `Role ${role_id} not found`,
@@ -4194,8 +3926,26 @@ const rolePermissionUtil = {
         );
       }
 
-      // Find the associated network/group ID
-      const userObject = await UserModel(actualTenant).findById(userId).lean();
+      // Find the associated network/group ID with enhanced error handling
+      let userObject;
+      try {
+        userObject = await UserModel(actualTenant).findById(userId).lean();
+      } catch (userError) {
+        return next(
+          new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: `Error fetching user: ${userError.message}`,
+          })
+        );
+      }
+
+      if (!userObject) {
+        return next(
+          new HttpError("User not found", httpStatus.BAD_REQUEST, {
+            message: `User ${userId} not found`,
+          })
+        );
+      }
+
       const userRoles = isNetworkRole
         ? userObject.network_roles
         : userObject.group_roles;
@@ -4244,22 +3994,14 @@ const rolePermissionUtil = {
         );
       }
 
-      // FIX: Better userType handling
-      // Define valid userType values (update these based on your schema)
-      const validUserTypes = [
-        "guest",
-        "member",
-        "admin",
-        "super_admin",
-        "viewer",
-      ];
-      let assignedUserType = userType || "guest"; // Default to "guest"
+      const VALID_USER_TYPES = constants.VALID_USER_TYPES;
+      let assignedUserType = userType || "guest";
 
       // Validate userType if provided
-      if (userType && !validUserTypes.includes(userType)) {
+      if (userType && !VALID_USER_TYPES.includes(userType)) {
         return next(
           new HttpError("Invalid User Type", httpStatus.BAD_REQUEST, {
-            message: `Invalid userType: ${userType}. Valid values are: ${validUserTypes.join(
+            message: `Invalid userType: ${userType}. Valid values are: ${VALID_USER_TYPES.join(
               ", "
             )}`,
           })
@@ -4268,7 +4010,15 @@ const rolePermissionUtil = {
 
       logObject("🔍 [DEBUG] Assigning with userType:", assignedUserType);
 
-      // FIX: Use validated userType instead of hardcoded "guest"
+      // Validate associatedId before database operation
+      if (!mongoose.Types.ObjectId.isValid(associatedId)) {
+        return next(
+          new HttpError("Bad Request Error", httpStatus.BAD_REQUEST, {
+            message: "Invalid associated ID format",
+          })
+        );
+      }
+
       const updateQuery = {
         $addToSet: {
           [isNetworkRole ? "network_roles" : "group_roles"]: {
@@ -4276,22 +4026,31 @@ const rolePermissionUtil = {
               ? { network: associatedId }
               : { group: associatedId }),
             role: role_id,
-            userType: assignedUserType, // Use validated userType
+            userType: assignedUserType,
             createdAt: new Date(),
           },
         },
       };
 
-      // FIX: Use runValidators: false temporarily to bypass enum validation if needed
-      const updatedUser = await UserModel(actualTenant).findOneAndUpdate(
-        { _id: userId },
-        updateQuery,
-        {
-          new: true,
-          runValidators: false, // Temporarily disable validators to avoid enum issues
-          // Change to true once you've updated your schema enum values
-        }
-      );
+      // Enhanced database update with better error handling
+      let updatedUser;
+      try {
+        updatedUser = await UserModel(actualTenant).findOneAndUpdate(
+          { _id: userId },
+          updateQuery,
+          {
+            new: true,
+            runValidators: true,
+          }
+        );
+      } catch (updateError) {
+        logger.error("❌ [DEBUG] Database update error:", updateError.message);
+        return next(
+          new HttpError("Database Error", httpStatus.INTERNAL_SERVER_ERROR, {
+            message: `Failed to assign user to role: ${updateError.message}`,
+          })
+        );
+      }
 
       if (!updatedUser) {
         return next(
@@ -4299,7 +4058,7 @@ const rolePermissionUtil = {
             "Internal Server Error",
             httpStatus.INTERNAL_SERVER_ERROR,
             {
-              message: "Failed to assign user to role",
+              message: "Failed to assign user to role - update returned null",
             }
           )
         );
