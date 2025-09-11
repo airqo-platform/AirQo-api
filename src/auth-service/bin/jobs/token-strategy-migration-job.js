@@ -3,6 +3,7 @@ const UserModel = require("@models/User");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const { stringify } = require("@utils/common");
+const RoleModel = require("@models/Role");
 
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- token-strategy-migration-job`
@@ -46,6 +47,7 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
         },
         { privilege: { $exists: true } },
         { "group_roles.role": { $in: deprecatedRoleIds } },
+        { "network_roles.role": { $in: deprecatedRoleIds } },
       ],
     };
 
@@ -59,6 +61,7 @@ const migrateTokenStrategiesToDefault = async (tenant) => {
       },
       $pull: {
         group_roles: { role: { $in: deprecatedRoleIds } },
+        network_roles: { role: { $in: deprecatedRoleIds } },
       },
     };
 

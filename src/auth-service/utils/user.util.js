@@ -4759,14 +4759,25 @@ const createUserModule = {
         .find({ role_name: { $in: deprecatedRoleNames } })
         .select("_id")
         .lean();
-      const deprecatedRoleIds = deprecatedRoles.map((r) => r._id.toString());
+      const deprecatedRoleIds = deprecatedRoles.map((r) => r._id); // keep as ObjectIds
+
+      // prefetch default AirQo role once
+      const defaultRole = await RoleModel(tenant)
+        .findOne({
+          role_code: "AIRQO_DEFAULT_USER",
+          group_id: airqoGroup._id,
+        })
+        .select("_id")
+        .lean();
 
       let needsUpdate = false;
       const updateQuery = { $set: {}, $pull: {}, $unset: {} };
 
       // Cleanup: Remove deprecated roles
       const rolesToRemove = userGroupRoles.filter(
-        (gr) => gr.role && deprecatedRoleIds.includes(gr.role.toString())
+        (gr) =>
+          gr.role &&
+          deprecatedRoleIds.some((id) => id.toString() === gr.role.toString())
       );
 
       if (rolesToRemove.length > 0) {
@@ -4777,6 +4788,23 @@ const createUserModule = {
         logger.info(
           `[Role Cleanup] User ${user.email} has deprecated roles. Scheduling for removal.`
         );
+        // If the deprecated role is the AirQo assignment, also add default role
+        if (
+          airqoGroupAssignment?.role &&
+          deprecatedRoleIds.some(
+            (id) => id?.toString?.() === airqoGroupAssignment.role?.toString?.()
+          ) &&
+          defaultRole
+        ) {
+          updateQuery.$addToSet = {
+            ...(updateQuery.$addToSet || {}),
+            group_roles: {
+              group: airqoGroup._id,
+              role: defaultRole._id,
+              userType: "user",
+            },
+          };
+        }
       }
 
       // Cleanup: Unset legacy 'privilege' field
@@ -4789,31 +4817,22 @@ const createUserModule = {
       }
 
       // Logic to fix users with a null role in the AirQo group
-      if (airqoGroupAssignment && !airqoGroupAssignment.role) {
+      if (airqoGroupAssignment && !airqoGroupAssignment.role && defaultRole) {
         logger.warn(
           `[Role Fix] User ${user.email} is in AirQo group but has a null role. Attempting to fix.`
         );
-        const defaultRole = await RoleModel(tenant)
-          .findOne({
-            role_code: "AIRQO_DEFAULT_USER",
-            group_id: airqoGroup._id,
-          })
-          .lean();
-
-        if (defaultRole) {
-          // This is a more complex update, handle it separately
-          await UserModel(tenant).updateOne(
-            { _id: user._id, "group_roles.group": airqoGroup._id },
-            { $set: { "group_roles.$.role": defaultRole._id } }
-          );
-          logger.info(
-            `[Role Fix] Successfully assigned default role to user ${user.email} who had a null role.`
-          );
-        } else {
-          logger.error(
-            `[Role Fix] Cannot fix user ${user.email} - AIRQO_DEFAULT_USER role not found.`
-          );
-        }
+        // apply via arrayFilters within the combined update
+        updateQuery.$set = updateQuery.$set || {};
+        updateQuery.$set["group_roles.$[airqoNull].role"] = defaultRole._id;
+        needsUpdate = true;
+      } else if (
+        airqoGroupAssignment &&
+        !airqoGroupAssignment.role &&
+        !defaultRole
+      ) {
+        logger.error(
+          `[Role Fix] Cannot fix user ${user.email} - AIRQO_DEFAULT_USER role not found.`
+        );
       }
       // Logic to add default role if user belongs to "airqo" org but has no assignment
       else if (
@@ -4823,13 +4842,6 @@ const createUserModule = {
         logger.info(
           `[Default Role] User ${user.email} belongs to AirQo org but is not in the group. Assigning default role.`
         );
-        const defaultRole = await RoleModel(tenant)
-          .findOne({
-            role_code: "AIRQO_DEFAULT_USER",
-            group_id: airqoGroup._id,
-          })
-          .lean();
-
         if (defaultRole) {
           updateQuery.$addToSet = {
             group_roles: {
@@ -4854,9 +4866,18 @@ const createUserModule = {
           delete updateQuery.$pull;
         if (Object.keys(updateQuery.$unset).length === 0)
           delete updateQuery.$unset;
+        if (Object.keys(updateQuery.$addToSet || {}).length === 0)
+          delete updateQuery.$addToSet;
 
         if (Object.keys(updateQuery).length > 0) {
-          await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery);
+          await UserModel(tenant).findByIdAndUpdate(user._id, updateQuery, {
+            arrayFilters: [
+              {
+                "airqoNull.group": airqoGroup._id,
+                "airqoNull.role": { $exists: false },
+              },
+            ],
+          });
         }
       }
     } catch (error) {

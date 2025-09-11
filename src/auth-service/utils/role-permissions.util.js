@@ -2335,31 +2335,25 @@ const rolePermissionUtil = {
         );
       }
 
-      // Atomically remove any existing role for this context before adding the new one
-      await UserModel(tenant).findByIdAndUpdate(userObject._id, {
-        $pull: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            [isNetworkRole ? "network" : "group"]: associatedId,
-          },
-        },
-      });
-
-      const updateQuery = {
-        $addToSet: {
-          [isNetworkRole ? "network_roles" : "group_roles"]: {
-            ...(isNetworkRole
-              ? { network: associatedId }
-              : { group: associatedId }),
-            role: role_id,
-            userType: user_type || "guest",
-            createdAt: new Date(),
-          },
-        },
-      };
-
       const updatedUser = await UserModel(tenant).findOneAndUpdate(
         { _id: userObject._id },
-        updateQuery,
+        {
+          $pull: {
+            [isNetworkRole ? "network_roles" : "group_roles"]: {
+              [isNetworkRole ? "network" : "group"]: associatedId,
+            },
+          },
+          $addToSet: {
+            [isNetworkRole ? "network_roles" : "group_roles"]: {
+              ...(isNetworkRole
+                ? { network: associatedId }
+                : { group: associatedId }),
+              role: role_id,
+              userType: user_type || "guest",
+              createdAt: new Date(),
+            },
+          },
+        },
         { new: true, runValidators: true }
       );
 
@@ -2491,7 +2485,6 @@ const rolePermissionUtil = {
           continue;
         }
 
-        // Atomically remove any existing role for this context before adding the new one
         await UserModel(tenant).updateOne(
           { _id: user._id },
           {
@@ -2500,17 +2493,12 @@ const rolePermissionUtil = {
                 [isNetworkRole ? "network" : "group"]: associatedId,
               },
             },
-          }
-        );
-
-        // Then, add the new role to the set
-        await UserModel(tenant).updateOne(
-          { _id: user._id },
-          {
             $addToSet: {
               [isNetworkRole ? "network_roles" : "group_roles"]: {
                 [isNetworkRole ? "network" : "group"]: associatedId,
                 role: role_id,
+                userType: (body && body.user_type) || "guest",
+                createdAt: new Date(),
               },
             },
           }
