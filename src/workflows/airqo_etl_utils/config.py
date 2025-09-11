@@ -530,10 +530,11 @@ class Config:
             DeviceNetwork.AIRQO: {
                 MetaDataType.DEVICES: BIGQUERY_GX_DEVICE_COMPUTED_METADATA,
                 MetaDataType.SITES: BIGQUERY_GX_SITE_COMPUTED_METADATA,
-                MetaDataType.DATAQUALITYCHECKS: BIGQUERY_GX_RESULTS_TABLE,
+                MetaDataType.DATAQUALITYCHECKS: BIGQUERY_GX_MEASUREMENTS_BASELINE,
             },
         },
     }
+    extra_time_grouping = {"weekly", "monthly", "yearly"}
 
     COMMON_POLLUTANT_MAPPING = {
         "bam": {

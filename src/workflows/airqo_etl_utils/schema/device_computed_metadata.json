@@ -20,6 +20,11 @@
     "mode": "REQUIRED"
   },
   {
+    "name": "recent_maintenance_date",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
     "name": "pollutant",
     "type": "STRING",
     "mode": "REQUIRED"
