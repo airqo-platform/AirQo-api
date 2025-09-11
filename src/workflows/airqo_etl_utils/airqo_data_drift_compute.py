@@ -3,9 +3,9 @@ import numpy as np
 from scipy.stats import ks_2samp
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
-from .constants import Frequency
+from .constants import Frequency, DataType
 
 
 class AirQoDataDriftCompute:
@@ -64,6 +64,7 @@ class AirQoDataDriftCompute:
     @classmethod
     def compute_baseline(
         cls,
+        data_type: DataType,
         data: pd.DataFrame,
         device: Dict[str, Any],
         pollutants: List[str],
@@ -76,35 +77,48 @@ class AirQoDataDriftCompute:
     ) -> List[Dict[str, Any]]:
         """
         Compute baseline statistics and ECDF bins for a device and one or more pollutants.
-        Fields match measurements_baseline.json schema.
 
         Args:
-            data (pd.DataFrame): DataFrame with device air quality measurements.
-            device (Dict[str, Any]): Device dictionary with device metadata.
-            pollutants (List[str]): List of pollutant names.
-            window_start (datetime): Start of baseline window.
-            window_end (datetime): End of baseline window.
-            region_min (float): Region-wide minimum value.
-            region_max (float): Region-wide maximum value.
-            ecdf_bins_count (int): Number of ECDF bins.
+            data_type(DataType): Type of data being processed (e.g., RAW, HOURLY).
+            data(pd.DataFrame): DataFrame with device air quality measurements.
+            device(Dict[str, Any]): Device dictionary with device metadata.
+            pollutants(List[str]): List of pollutant names.
+            resolution(Frequency): Frequency of the data (e.g., RAW, HOURLY, WEEKLY, MONTHLY).
+            window_start(datetime): Start of baseline window.
+            window_end(datetime): End of baseline window.
+            region_min(float, optional): Region-wide minimum value. Defaults to 0.
+            region_max(float, optional): Region-wide maximum value. Defaults to 1000.
+            ecdf_bins_count(int, optional): Number of ECDF bins. Defaults to 100.
+
         Returns:
             List[Dict[str, Any]]: List of baseline statistics and metadata, one per pollutant.
-        Raises:
-            ValueError: If insufficient data for baseline.
-        """
 
-        sample_count: int = data.shape[1]
+        Raises:
+            ValueError: If insufficient data for baseline or if data overlaps with the maintenance cooldown period.
+        """
+        if data.empty:
+            return None
+
+        if (window_start + timedelta(hours=cls.COOLDOWN_HOURS)) > device[
+            "recent_maintenance_date"
+        ]:
+            raise ValueError(
+                "All data should be before or after maintenance cooldown period"
+            )
+
+        device_network = data.iloc[0]["network"]
+        device_number = data.iloc[0]["device_number"]
+        device_category = data.iloc[0]["device_category"]
+        sample_count: int = data.shape[0]
         expected_samples: int = cls.calculate_expected_sample_count(resolution)
         sample_coverage_pct: float = (
             (sample_count / expected_samples) * 100 if expected_samples > 0 else 0.0
         )
-
         valid_sample_count: int = expected_samples * cls.MIN_HOUR_COVERAGE
 
         if sample_count < valid_sample_count:
             raise ValueError("Insufficient data for baseline")
 
-        # quantiles
         quantile_names: List[str] = [
             "p1",
             "p5",
@@ -121,9 +135,11 @@ class AirQoDataDriftCompute:
             quantile_values = np.percentile(
                 data[pollutant].values, [1, 5, 10, 25, 50, 75, 90, 95, 99]
             ).tolist()
-            q_map[pollutant] = dict(zip(quantile_names, quantile_values))
+            q_map[pollutant] = [
+                (q_names, q_values)
+                for q_names, q_values in zip(quantile_names, quantile_values)
+            ]
 
-        # region-based ECDF bins for multiple pollutants
         ecdf_bins: Dict[str, List[Dict[str, float]]] = {}
         bin_edges = cls.get_region_bins(region_min, region_max, ecdf_bins_count)
 
@@ -150,17 +166,18 @@ class AirQoDataDriftCompute:
         baseline_rows: List[Dict[str, Any]] = []
         for pollutant in pollutants:
             baseline_row = {
-                "network": device["network"],
-                "timestamp": window_end.isoformat(),
+                "network": device_network,
+                "timestamp": window_end,
                 "device_id": device["device_id"],
                 "site_id": device["site_id"],
-                "baseline_frequency": resolution,
-                "device_number": device["device_number"],
-                "device_category": device["device_category"],
+                "data_type": data_type.str,
+                "baseline_resolution": resolution.str,
+                "device_number": device_number,
+                "device_category": device_category,
                 "baseline_id": baseline_id,
                 "pollutant": pollutant,
-                "window_start": window_start.isoformat(),
-                "window_end": window_end.isoformat(),
+                "window_start": window_start,
+                "window_end": window_end,
                 "sample_count": int(sample_count),
                 "sample_coverage_pct": float(sample_coverage_pct),
                 "valid_hours": int(valid_sample_count),
@@ -168,11 +185,11 @@ class AirQoDataDriftCompute:
                 "ecdf_bins": ecdf_bins[pollutant],
                 "mean": float(data[pollutant].mean()),
                 "stddev": float(data[pollutant].std()),
-                "min": float(data[pollutant].min()),
-                "max": float(data[pollutant].max()),
+                "minimum": float(data[pollutant].min()),
+                "maximum": float(data[pollutant].max()),
                 "baseline_version": "1.0.1",
-                "region_min": float(region_min),
-                "region_max": float(region_max),
+                "site_minimum": float(region_min),
+                "site_maximum": float(region_max),
             }
             baseline_rows.append(baseline_row)
         return baseline_rows
@@ -187,16 +204,21 @@ class AirQoDataDriftCompute:
         Compare current data against a baseline using raw values (exact KS test).
 
         Args:
-            current_df (pd.DataFrame): DataFrame with 'value' column for current period.
+            data (pd.DataFrame): DataFrame with pollutant column (e.g., 'pm2_5').
             baseline_raw_values (np.ndarray): 1D array of baseline raw values.
-            baseline_row (dict): Baseline metadata (quantiles, etc.).
+            baseline_row (dict): Baseline metadata including 'pollutant' and 'quantiles'.
         Returns:
             dict: KS statistic, p-value, delta_median, delta_p90.
         """
-        curr_vals = data["value"].values
+        pollutant = baseline_row.get("pollutant")
+        if pollutant not in data.columns:
+            raise ValueError(f"Pollutant column '{pollutant}' not found in data.")
+
+        curr_vals = data[pollutant].values
         ks_stat, p_value = ks_2samp(baseline_raw_values, curr_vals)
 
-        baseline_q = json.loads(baseline_row["quantiles"])
+        # Convert quantiles list to dict for easy access
+        baseline_q = dict(baseline_row["quantiles"])
         curr_qs = np.percentile(curr_vals, [50, 90])
         delta_median = float(curr_qs[0] - baseline_q["p50"])
         delta_p90 = float(curr_qs[1] - baseline_q["p90"])
@@ -216,16 +238,20 @@ class AirQoDataDriftCompute:
         Compare current data against a baseline using stored ECDF bins (approximate KS test).
 
         Args:
-            current_df (pd.DataFrame): DataFrame with 'value' column for current period.
-            baseline_row (dict): Baseline metadata including ecdf_bins and quantiles.
+            current_df (pd.DataFrame): DataFrame with pollutant column (e.g., 'pm2_5').
+            baseline_row (dict): Baseline metadata including 'pollutant', 'ecdf_bins', and 'quantiles'.
         Returns:
             dict: D_approx, delta_median, delta_p90.
         """
+        pollutant = baseline_row.get("pollutant")
+        if pollutant not in current_df.columns:
+            raise ValueError(f"Pollutant column '{pollutant}' not found in current_df.")
+
         baseline_ecdf = json.loads(baseline_row["ecdf_bins"])
         base_centers = np.array([b["bin_center"] for b in baseline_ecdf])
         base_cum = np.array([b["cum_pct"] for b in baseline_ecdf])
 
-        curr_vals = current_df["value"].values
+        curr_vals = current_df[pollutant].values
         # Histogram aligned to baseline bins
         curr_hist, _ = np.histogram(
             curr_vals, bins=np.append(base_centers - 0.5, base_centers[-1] + 0.5)
@@ -239,7 +265,8 @@ class AirQoDataDriftCompute:
         # Approximate KS = max vertical gap between ECDFs
         D_approx = float(np.max(np.abs(base_cum - curr_cum)))
 
-        baseline_q = json.loads(baseline_row["quantiles"])
+        # Convert quantiles list to dict for easy access
+        baseline_q = dict(baseline_row["quantiles"])
         curr_qs = np.percentile(curr_vals, [50, 90])
         delta_median = float(curr_qs[0] - baseline_q["p50"])
         delta_p90 = float(curr_qs[1] - baseline_q["p90"])

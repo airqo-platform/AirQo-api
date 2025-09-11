@@ -365,6 +365,7 @@ class DataUtils:
             if extra_id:
                 data["site_id"] = extra_id
             data["created"] = datetime.now(timezone.utc)
+            data["maintenance_date"] = device_maintenance
             data.dropna(
                 inplace=True,
                 how="any",
@@ -637,6 +638,9 @@ class DataUtils:
         if not device_category:
             device_category = DeviceCategory.GENERAL
 
+        if frequency.str in Config.extra_time_grouping:
+            frequency = Frequency.HOURLY
+
         table, _ = DataUtils._get_table(
             datatype, device_category, frequency, device_network
         )
@@ -663,6 +667,32 @@ class DataUtils:
             raw_data = DataValidationUtils.remove_outliers_fix_types(raw_data)
 
         return raw_data
+
+    @staticmethod
+    def extract_most_recent_record(
+        metadata_type: MetaDataType, unique_id: str, offset_column: str
+    ) -> pd.DataFrame:
+        """
+        Extracts the most recent record for a specific metadata type and unique ID.
+
+        Args:
+            metadata_type (MetaDataType): The type of metadata to extract.
+            unique_id (str): The unique ID of the record to extract.
+            offset_column (str): The column to use for offsetting the results.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the most recent record.
+        """
+        big_query_api = BigQueryApi()
+        # TODO : Refactor to avoid using hardcoded MetaDataType
+        metadata_table, cols = DataUtils._get_metadata_table(
+            MetaDataType.DATAQUALITYCHECKS, metadata_type
+        )
+        print(f"Fetching most recent record from {metadata_table} for {unique_id}")
+        data = big_query_api.fetch_most_recent_record(
+            metadata_table, unique_id, offset_column=offset_column, columns=cols
+        )
+        return data
 
     @staticmethod
     def extract_purpleair_data(
@@ -1565,8 +1595,12 @@ class DataUtils:
         timestamp_columns = big_query_api.get_columns(
             table=table, column_type=[ColumnDataType.TIMESTAMP]
         )
-        for col in timestamp_columns:
-            data[col] = pd.to_datetime(data[col], errors="coerce")
+        try:
+            for col in timestamp_columns:
+                data[col] = pd.to_datetime(data[col], errors="coerce")
+        except Exception as e:
+            logger.exception(f"Possible table and column mismatch: {e}")
+            raise
 
         if "timestamp" in data.columns:
             data.dropna(subset=["timestamp"], inplace=True)
@@ -1819,7 +1853,7 @@ class DataUtils:
     def _get_table(
         datatype: DataType,
         device_category: DeviceCategory,
-        frequency: Frequency,
+        frequency: Optional[Frequency] = None,
         device_network: Optional[DeviceNetwork] = None,
         extra_type: Optional[Any] = None,
     ) -> Tuple[str, List[str]]:
@@ -1853,7 +1887,7 @@ class DataUtils:
             return table, cols
         except KeyError:
             logger.exception(
-                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}"
+                f"Invalid combination: {datatype.str}, {device_category.str}, {frequency.str}, {extra_type}"
             )
         except Exception as e:
             logger.exception(
